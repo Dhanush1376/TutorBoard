@@ -10,30 +10,21 @@
 
 ---
 
-## ✨ Features
+## Features
 
 - **Semantic AI Understanding**: Pass natural language prompts like *"Explain Bubble Sort on [5,3,8]"* or *"Graph y = 2x + 1"*.
 - **Interactive Visualizations**: Converts logic directly into interactive Konva.js visual structures.
-  - 🟡 **Compare**: Highlights pointers and conditions during searches (e.g., Binary Search).
-  - 🔴 **Swap**: Animates nodes shifting physically during sorts.
-  - 🟢 **Highlight**: Tracks elements securely across operations.
-  - 🟣 **Graphs**: Translates math functions natively to X/Y Cartesian plots.
+  - **Compare**: Highlights pointers and conditions during searches (e.g., Binary Search).
+  - **Swap**: Animates nodes shifting physically during sorts.
+  - **Highlight**: Tracks elements securely across operations.
+  - **Graphs**: Translates math functions natively to X/Y Cartesian plots.
 - **Physics-Based UI**: High-end `@react-spring/konva` animations designed for tactile, professional flow.
 - **Minimal Workspace**: Pitch-perfect Dark/Light mode SaaS aesthetic using Tailwind v4.
 
 ---
 
-## 📸 Screenshots
 
-*(Replace these placeholders with actual screenshots of your application)*
-
-| Board View | Algorithm Explanation |
-|---|---|
-| <img width="400" src="https://via.placeholder.com/400x250?text=Interactive+Board" /> | <img width="400" src="https://via.placeholder.com/400x250?text=Bubble+Sort+Animation" /> |
-
----
-
-## 🚀 Quick Setup (Windows)
+## Quick Setup (Windows)
 
 We've automated the entire setup process.
 
@@ -63,7 +54,7 @@ We've automated the entire setup process.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Client (Frontend)
 - **Framework**: React 19 + Vite 8
