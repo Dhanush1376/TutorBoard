@@ -7,6 +7,7 @@ const Home = () => {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [steps, setSteps] = useState([]);
+  const [title, setTitle] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -37,6 +38,7 @@ const Home = () => {
       const data = await response.json();
       if (data.steps && data.steps.length > 0) {
         setSteps(data.steps);
+        setTitle(data.title || '');
       } else {
         throw new Error('AI returned an unexpected format.');
       }
@@ -50,6 +52,7 @@ const Home = () => {
 
   const handleReset = () => {
     setSteps([]);
+    setTitle('');
     setIsGenerating(false);
     setIsPlaying(false);
     setPrompt('');
@@ -99,13 +102,19 @@ const Home = () => {
       )}
 
       {/* Main Board Area */}
-      <div className="flex-1 w-full flex relative z-10 mb-6 mt-2">
-        <Board 
-          isGenerating={isGenerating} 
-          stepData={steps.length > 0 ? steps[currentStep] : null} 
-          currentStep={currentStep}
-          totalSteps={steps.length}
-        />
+      <div className="flex-1 w-full flex flex-col relative z-10 mb-6 mt-2">
+        {title && !isGenerating && (
+          <h2 className="text-2xl font-bold text-center text-[var(--text-primary)] mt-2 mb-4 animate-in fade-in slide-in-from-top-4">
+            {title}
+          </h2>
+        )}
+        <div className="flex-1 w-full flex relative">
+          <Board 
+            isGenerating={isGenerating} 
+            stepData={steps.length > 0 ? steps[currentStep] : null} 
+            currentStep={currentStep}
+            totalSteps={steps.length}
+          />
         
         {/* Navigation Controls */}
         <div className={`absolute left-[-16px] xl:left-[-24px] top-1/2 -translate-y-1/2 -translate-x-full transition-all duration-300 ${steps.length > 0 && !isGenerating ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
@@ -136,6 +145,7 @@ const Home = () => {
               </button>
             </div>
           </div>
+        </div>
         </div>
       </div>
 
