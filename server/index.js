@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import generateRoutes from './routes/generate.js';
+import doubtRoutes from './routes/doubt.js';
 
 dotenv.config();
 
@@ -26,6 +27,8 @@ app.get('/api/test', (req, res) => {
 
 // Modular Routes
 app.use('/api', generateRoutes);
+app.use('/api', doubtRoutes);
+
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
