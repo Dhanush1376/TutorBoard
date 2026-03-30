@@ -2,12 +2,85 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='250 85 180 210'%3E%3Cpolyline points='340,90 427,140 427,240 340,290 253,240 253,140 340,90' fill='%231C1711' fill-opacity='0.05' stroke='%231C1711' stroke-width='8' stroke-linejoin='round' /%3E%3Cpolygon points='340,90 427,140 340,190 253,140' fill='%231C1711' fill-opacity='0.4' /%3E%3Cpolygon points='253,140 340,190 340,290 253,240' fill='%231C1711' fill-opacity='0.3' /%3E%3Cpolygon points='340,190 427,140 427,240 340,290' fill='%231C1711' fill-opacity='0.35' /%3E%3Cpolygon points='340,158 376,179 340,200 304,179' fill='%231C1711' fill-opacity='1' /%3E%3Cpolygon points='304,179 340,200 340,242 304,221' fill='%231C1711' fill-opacity='0.9' /%3E%3Cpolygon points='340,200 376,179 376,221 340,242' fill='%231C1711' fill-opacity='0.9' /%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TutorBoard</title>
+    <style>
+      /* Critical Loader CSS — Prevents "black / white flash" before index.css loads */
+      :root {
+        --bg-primary: #f7f4ed;
+        --bg-secondary: #f0ece2;
+        --text-primary: #1c1711;
+        --text-secondary: #312b22;
+        --text-tertiary: #4f473a;
+        --border-color: rgba(28,23,17,0.1);
+      }
+      body {
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      .loader-svg { width: 100%; height: auto; overflow: visible; }
+      .loader-svg .wire { stroke: var(--text-primary); opacity: 0; }
+      .loader-svg .plate-top { fill: var(--bg-primary); opacity: 0; }
+      .loader-svg .plate-left { fill: var(--bg-secondary); opacity: 0; }
+      .loader-svg .plate-right { fill: var(--border-color); opacity: 0; }
+      .loader-svg .ic-top { fill: var(--text-primary); opacity: 0; }
+      .loader-svg .ic-left { fill: var(--text-secondary); opacity: 0; }
+      .loader-svg .ic-right { fill: var(--text-tertiary); opacity: 0; }
+      .loader-svg .loader-text { font-family: sans-serif; opacity: 0; }
+      .loader-svg .wordmark { font-size: 38px; font-weight: 500; letter-spacing: 10px; fill: var(--text-primary); }
+      .loader-svg .dot-sep { fill: var(--text-secondary); }
+      .loader-svg .tagline { font-size: 12px; font-weight: 400; letter-spacing: 3px; fill: var(--text-secondary); }
+      .loader-svg .sublabel { font-size: 11px; font-weight: 400; letter-spacing: 1px; fill: var(--text-tertiary); }
+
+      /* Keyframe animations for the loader */
+      @keyframes drawLine { from { stroke-dashoffset: var(--len); opacity: 1; } to { stroke-dashoffset: 0; opacity: 1; } }
+      @keyframes plateTop { from { opacity: 0; transform: translateY(-32px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes plateLeft { from { opacity: 0; transform: translate(-28px, 16px); } to { opacity: 1; transform: translate(0, 0); } }
+      @keyframes plateRight { from { opacity: 0; transform: translate(28px, 16px); } to { opacity: 1; transform: translate(0, 0); } }
+      @keyframes icDrop { from { opacity: 0; transform: translateY(-18px); } to { opacity: 0.95; transform: translateY(0); } }
+      @keyframes icLeft { from { opacity: 0; transform: translate(-14px, 8px); } to { opacity: 0.9; transform: translate(0, 0); } }
+      @keyframes icRight { from { opacity: 0; transform: translate(14px, 8px); } to { opacity: 0.9; transform: translate(0, 0); } }
+      @keyframes wordUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+      .loader-svg .wire { stroke-dashoffset: var(--len); animation: drawLine 0.9s ease-in-out var(--d, 0s) both; }
+      .loader-svg .plate-top { animation: plateTop 0.38s cubic-bezier(0.2,1.4,0.4,1) 1.0s both; }
+      .loader-svg .plate-left { animation: plateLeft 0.38s cubic-bezier(0.2,1.4,0.4,1) 1.38s both; }
+      .loader-svg .plate-right { animation: plateRight 0.38s cubic-bezier(0.2,1.4,0.4,1) 1.7s both; }
+      .loader-svg .ic-top { animation: icDrop 0.3s cubic-bezier(0.2,1.4,0.4,1) 2.1s both; }
+      .loader-svg .ic-left { animation: icLeft 0.25s cubic-bezier(0.2,1.4,0.4,1) 2.4s both; }
+      .loader-svg .ic-right { animation: icRight 0.25s cubic-bezier(0.2,1.4,0.4,1) 2.65s both; }
+      .loader-svg .wordmark { animation: wordUp 0.5s ease-out 3.0s both; }
+      .loader-svg .dot-sep { animation: wordUp 0.5s ease-out 3.15s both; }
+      .loader-svg .tagline { animation: wordUp 0.5s ease-out 3.25s both; }
+      .loader-svg .sublabel { animation: wordUp 0.5s ease-out 3.4s both; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Initial Loader while React app is loading -->
+      <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; width: 100%; font-family: sans-serif;">
+        <div style="width: min(120px, 90vw);">
+          <svg width="100%" viewBox="250 85 180 210" xmlns="http://www.w3.org/2000/svg" class="loader-svg">
+            {/* Outer Wire */}
+            <polyline class="wire" style="--len: 680; --d: 0s;" points="340,90 427,140 427,240 340,290 253,240 253,140 340,90" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-width="8" stroke-linejoin="round" />
+            
+            {/* Core structure */}
+            <polygon class="plate-top" points="340,90 427,140 340,190 253,140" fill="currentColor" fill-opacity="0" />
+            <polygon class="plate-left" points="253,140 340,190 340,290 253,240" fill="currentColor" fill-opacity="0" />
+            <polygon class="plate-right" points="340,190 427,140 427,240 340,290" fill="currentColor" fill-opacity="0" />
+            
+            {/* Inner IC */}
+            <polygon class="ic-top" points="340,158 376,179 340,200 304,179" fill="currentColor" fill-opacity="0" />
+            <polygon class="ic-left" points="304,179 340,200 340,242 304,221" fill="currentColor" fill-opacity="0" />
+            <polygon class="ic-right" points="340,200 376,179 376,221 340,242" fill="currentColor" fill-opacity="0" />
+          </svg>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const openai = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
   apiKey: process.env.OPENAI_API_KEY,
 });
 
@@ -17,7 +16,7 @@ export const generateExplanation = async (req, res) => {
     }
 
     const completion = await openai.chat.completions.create({
-      model: "deepseek-chat", // or appropriate DeepSeek/OpenAI model
+      model: "gpt-4o-mini", // Native OpenAI model
       messages: [
         {
           role: "system",
@@ -80,7 +79,7 @@ Respond ONLY with valid JSON.`
     const parsedResponse = JSON.parse(content);
     res.json(parsedResponse);
   } catch (error) {
-    console.error('DeepSeek generation error:', error);
+    console.error('OpenAI generation error:', error);
     res.status(500).json({ error: 'Failed to generate explanation from AI' });
   }
 };

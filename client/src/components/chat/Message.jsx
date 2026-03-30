@@ -1,11 +1,17 @@
 import React from 'react';
 import { Bot, User } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const Message = ({ role, content }) => {
   const isAssistant = role === 'assistant';
 
   return (
-    <div className={`w-full py-3 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}>
+    <motion.div 
+      initial={{ opacity: 0, y: 15, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className={`w-full py-3 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
+    >
       <div 
         className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm shadow-xl backdrop-blur-md border border-[var(--border-color)] transition-colors duration-250 ${
           isAssistant ? 'rounded-tl-none' : 'rounded-tr-none'
@@ -25,7 +31,7 @@ const Message = ({ role, content }) => {
           {content}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -26,8 +26,8 @@ app.get('/api/test', (req, res) => {
 });
 
 // Modular Routes
-app.use('/api', generateRoutes);
-app.use('/api', doubtRoutes);
+app.use('/', generateRoutes);
+app.use('/', doubtRoutes);
 
 
 app.listen(port, () => {
