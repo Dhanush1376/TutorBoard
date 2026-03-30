@@ -71,7 +71,7 @@ Respond ONLY with valid JSON.`
       response_format: { type: "json_object" }
     });
 
-    // DeepSeek sometimes returns Markdown JSON blocks, so we parse it safely:
+    // OpenAI sometimes returns Markdown JSON blocks, so we parse it safely:
     let content = completion.choices[0].message.content.trim();
     if (content.startsWith('```json')) {
       content = content.replace(/^```json\n/, '').replace(/\n```$/, '');
