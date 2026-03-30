@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const openai = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
   apiKey: process.env.OPENAI_API_KEY,
 });
 
@@ -21,7 +20,7 @@ export const answerDoubt = async (req, res) => {
       : 'The student is viewing a general teaching session.';
 
     const completion = await openai.chat.completions.create({
-      model: "deepseek-chat",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
