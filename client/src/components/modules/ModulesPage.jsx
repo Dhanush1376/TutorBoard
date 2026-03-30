@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Plus, LayoutDashboard } from 'lucide-react';
+import { motion } from 'framer-motion';
 import CreateModuleModal from './CreateModuleModal';
 
 const ModulesPage = ({ customModules, setCustomModules, onLoadModule }) => {
@@ -49,7 +50,12 @@ const ModulesPage = ({ customModules, setCustomModules, onLoadModule }) => {
 
         {/* Content Area */}
         {customModules.length === 0 ? (
-          <div className="flex flex-col items-center justify-center mt-12 text-center max-w-sm mx-auto">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="flex flex-col items-center justify-center mt-12 text-center max-w-sm mx-auto"
+          >
             <div className="mb-6 opacity-80">
               <LayoutDashboard size={56} className="text-[var(--text-primary)]" strokeWidth={1} />
             </div>
@@ -64,12 +70,15 @@ const ModulesPage = ({ customModules, setCustomModules, onLoadModule }) => {
               <Plus size={16} />
               New module
             </button>
-          </div>
+          </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredModules.map(mod => (
-              <div 
+            {filteredModules.map((mod, i) => (
+              <motion.div 
                 key={mod.id} 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.05 }}
                 onClick={() => onLoadModule(mod)}
                 className="p-5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-secondary)] transition-all cursor-pointer group shadow-sm flex flex-col"
               >
@@ -82,7 +91,7 @@ const ModulesPage = ({ customModules, setCustomModules, onLoadModule }) => {
                 <div className="mt-6 text-[11px] font-medium text-[var(--text-tertiary)] tracking-wider">
                   Created {new Date(mod.createdAt).toLocaleDateString()}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}

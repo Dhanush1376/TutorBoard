@@ -145,8 +145,25 @@
   }
 
   ::selection {
-    background-color: var(--text-primary);
-    color: var(--bg-primary);
+    background-color: var(--text-primary) !important;
+    color: var(--bg-primary) !important;
+    -webkit-text-fill-color: var(--bg-primary) !important;
+  }
+  
+  ::-moz-selection {
+    background-color: var(--text-primary) !important;
+    color: var(--bg-primary) !important;
+  }
+
+  .bg-grid-pattern {
+    background-size: 40px 40px;
+    background-image: 
+      linear-gradient(to right, var(--border-color) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border-color) 1px, transparent 1px);
+    background-position: center top;
+    /* Extra masking to make it fade elegantly toward the bottom */
+    mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
   }
 
   #root {
@@ -214,7 +231,8 @@
   }
 
   a:hover {
-    text-decoration: underline;
+    /* Premium apps typically avoid default browser underlines on all links */
+    text-decoration: none;
   }
 
   code, kbd, samp, pre {
@@ -495,4 +513,104 @@
 @utility mask-fade-top {
   mask-image: linear-gradient(to top, black 80%, transparent 100%);
   -webkit-mask-image: linear-gradient(to top, black 80%, transparent 100%);
+}
+
+/* ─── Loader SVG Animations & Themes ────────────────────────────────────── */
+
+.loader-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.loader-svg .wire {
+  stroke: var(--text-primary, #1c1711);
+  opacity: 0.0;
+}
+
+.loader-svg .plate-top { fill: var(--bg-primary, #f7f4ed); opacity: 0; }
+.loader-svg .plate-left { fill: var(--bg-secondary, #f0ece2); opacity: 0; }
+.loader-svg .plate-right { fill: var(--border-color, rgba(28, 23, 17, 0.1)); opacity: 0; }
+
+.loader-svg .ic-top { fill: var(--text-primary, #1c1711); opacity: 0; }
+.loader-svg .ic-left { fill: var(--text-secondary, #6b6455); opacity: 0; }
+.loader-svg .ic-right { fill: var(--text-tertiary, #a89e8e); opacity: 0; }
+
+.loader-svg .loader-text {
+  font-family: var(--font-sans, sans-serif);
+  opacity: 0;
+}
+.loader-svg .wordmark {
+  font-size: 38px;
+  font-weight: 500;
+  letter-spacing: 10px;
+  fill: var(--text-primary, #1c1711);
+}
+.loader-svg .dot-sep {
+  fill: var(--text-secondary, #6b6455);
+}
+.loader-svg .tagline {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 3px;
+  fill: var(--text-secondary, #6b6455);
+}
+.loader-svg .sublabel {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  fill: var(--text-tertiary, #a89e8e);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .loader-svg .wire { stroke-dashoffset: var(--len); animation: drawLine 0.9s ease-in-out var(--d, 0s) both; }
+  .loader-svg .plate-top { animation: plateTop 0.38s cubic-bezier(0.2,1.4,0.4,1) 1.0s both; }
+  .loader-svg .plate-left { animation: plateLeft 0.38s cubic-bezier(0.2,1.4,0.4,1) 1.38s both; }
+  .loader-svg .plate-right { animation: plateRight 0.38s cubic-bezier(0.2,1.4,0.4,1) 1.7s both; }
+  .loader-svg .ic-top { animation: icDrop 0.3s cubic-bezier(0.2,1.4,0.4,1) 2.1s both; }
+  .loader-svg .ic-left { animation: icLeft 0.25s cubic-bezier(0.2,1.4,0.4,1) 2.4s both; }
+  .loader-svg .ic-right { animation: icRight 0.25s cubic-bezier(0.2,1.4,0.4,1) 2.65s both; }
+  .loader-svg .wordmark { animation: wordUp 0.5s ease-out 3.0s both; }
+  .loader-svg .dot-sep { animation: wordUp 0.5s ease-out 3.15s both; }
+  .loader-svg .tagline { animation: wordUp 0.5s ease-out 3.25s both; }
+  .loader-svg .sublabel { animation: wordUp 0.5s ease-out 3.4s both; }
+}
+
+@keyframes drawLine {
+  from { stroke-dashoffset: var(--len); opacity: 1; }
+  to   { stroke-dashoffset: 0; opacity: 1; }
+}
+@keyframes plateTop {
+  from { opacity: 0; transform: translateY(-32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes plateLeft {
+  from { opacity: 0; transform: translate(-28px, 16px); }
+  to   { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes plateRight {
+  from { opacity: 0; transform: translate(28px, 16px); }
+  to   { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes icDrop {
+  from { opacity: 0; transform: translateY(-18px); }
+  to   { opacity: 0.95; transform: translateY(0); }
+}
+@keyframes icLeft {
+  from { opacity: 0; transform: translate(-14px, 8px); }
+  to   { opacity: 0.9; transform: translate(0, 0); }
+}
+@keyframes icRight {
+  from { opacity: 0; transform: translate(14px, 8px); }
+  to   { opacity: 0.9; transform: translate(0, 0); }
+}
+@keyframes wordUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
 }

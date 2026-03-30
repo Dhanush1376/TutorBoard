@@ -4,6 +4,8 @@ import AccountMenu from './AccountMenu';
 import ThemeSelector from '../ThemeSelector';
 import { Plus, Search, MessageSquare, Library, PanelLeftClose, Settings, X } from 'lucide-react';
 
+import { createPortal } from 'react-dom';
+
 const Sidebar = ({ 
   chatHistory, 
   activeChatId, 
@@ -112,13 +114,8 @@ const Sidebar = ({
         />
       </div>
 
-      {/* Bottom Section */}
-      <div className="mt-auto p-2 border-t border-[var(--border-color)] flex-shrink-0">
-        <AccountMenu />
-      </div>
-
       {/* Settings Modal (Appearance Section) */}
-      {showSettings && (
+      {showSettings && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
              <div className="flex items-center justify-between p-6 border-b border-[var(--border-color)]">
@@ -143,7 +140,8 @@ const Sidebar = ({
                 </button>
              </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

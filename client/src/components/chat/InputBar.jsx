@@ -20,6 +20,49 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding }) => {
   const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState('DeepSeek R1');
   const [isListening, setIsListening] = useState(false);
+  
+  // Typing placeholder logic
+  const placeholders = [
+    "How does Binary Search work?",
+    "Explain the Greenhouse effect.",
+    "Visualize Bubble Sort steps.",
+    "What is a Neural Network?",
+    "Show me the process of Photosynthesis.",
+    "Compare Mitosis and Meiosis."
+  ];
+  
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [currentPlaceholder, setCurrentPlaceholder] = useState(isLanding ? "" : "Message TutorBoard...");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    // If not on landing page, use a static placeholder and stop animation
+    if (!isLanding) {
+      setCurrentPlaceholder("Message TutorBoard...");
+      return;
+    }
+
+    let timeout;
+    const typingSpeed = isDeleting ? 40 : 80;
+    const fullText = placeholders[placeholderIndex];
+
+    if (!isDeleting && currentPlaceholder === fullText) {
+      // Pause at the end of typing
+      timeout = setTimeout(() => setIsDeleting(true), 2000);
+    } else if (isDeleting && currentPlaceholder === "") {
+      setIsDeleting(false);
+      setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
+    } else {
+      timeout = setTimeout(() => {
+        const nextText = isDeleting 
+          ? fullText.substring(0, currentPlaceholder.length - 1)
+          : fullText.substring(0, currentPlaceholder.length + 1);
+        setCurrentPlaceholder(nextText);
+      }, typingSpeed);
+    }
+
+    return () => clearTimeout(timeout);
+  }, [currentPlaceholder, isDeleting, placeholderIndex, isLanding]);
 
   // Voice Assistant logic
   const startListening = () => {
@@ -92,7 +135,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding }) => {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="What do you want to learn today?"
+          placeholder={currentPlaceholder}
           className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] resize-none px-5 py-4 outline-none text-base transition-colors duration-250 font-medium"
           rows={1}
         />

@@ -7,6 +7,9 @@ import InputBar from '../components/chat/InputBar';
 import TeachingModal from '../components/teaching/TeachingModal';
 import ModulesPage from '../components/modules/ModulesPage';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BookOpen, Trophy, GitCompare, PencilLine, Lightbulb } from 'lucide-react';
+
+const API_URL = "http://localhost:3001";
 
 const Home = ({ setIsDark, isDark }) => {
   // Global Sessions
@@ -120,7 +123,7 @@ const Home = ({ setIsDark, isDark }) => {
     setChatHistory([...workingHistory]);
 
     try {
-      const response = await fetch('http://localhost:3001/api/generate', {
+      const response = await fetch(`${API_URL}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: userPrompt }),
@@ -191,18 +194,26 @@ const Home = ({ setIsDark, isDark }) => {
       <div className="w-full h-full relative flex flex-col items-center overflow-hidden m-0 p-0">
         
         {/* Modules View Overlay */}
-        {activeView === 'modules' && (
-          <div className="absolute inset-0 z-40 bg-[var(--bg-primary)] h-full w-full overflow-hidden">
-            <ModulesPage 
-              customModules={customModules}
-              setCustomModules={setCustomModules}
-              onLoadModule={(mod) => {
-                handleLoadModule(mod);
-                setActiveView('chat');
-              }}
-            />
-          </div>
-        )}
+        <AnimatePresence>
+          {activeView === 'modules' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute inset-0 z-40 bg-[var(--bg-primary)] h-full w-full overflow-hidden"
+            >
+              <ModulesPage 
+                customModules={customModules}
+                setCustomModules={setCustomModules}
+                onLoadModule={(mod) => {
+                  handleLoadModule(mod);
+                  setActiveView('chat');
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Immersive Stage - Full Screen Background */}
         <div className={`absolute inset-0 z-0 transition-opacity duration-1000 ${hasStarted && activeView === 'chat' ? 'opacity-100' : 'opacity-0'}`}>
@@ -217,33 +228,25 @@ const Home = ({ setIsDark, isDark }) => {
              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
              className="w-full h-full flex flex-col items-center justify-center relative z-20 px-6"
            >
-              <div className="flex flex-col items-center justify-center mb-12 relative">
+              <div className="flex flex-col items-start justify-center mb-12 relative w-full max-w-3xl">
                 <motion.span 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
-                  className="text-sm md:text-base font-sans text-[var(--text-tertiary)] uppercase tracking-[0.2em] self-start md:-ml-8 mb-2"
+                  className="text-sm md:text-base font-sans text-[var(--text-tertiary)] uppercase tracking-[0.2em] mb-2"
                 >
                   Welcome to, 
                 </motion.span>
                 
-                {/* Typing Animation for TutorBoard Studio */}
-                <h1 className="text-4xl md:text-6xl font-serif text-[var(--text-primary)] tracking-tight opacity-95 flex overflow-hidden">
-                  {"TutorBoard Studio".split('').map((char, index) => (
-                    <motion.span
-                      key={index}
-                      initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
-                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                      transition={{ 
-                        duration: 0.4, 
-                        delay: 0.3 + (index * 0.04), 
-                        ease: [0.2, 0.6, 0.3, 1] 
-                      }}
-                    >
-                      {char === ' ' ? '\u00A0' : char}
-                    </motion.span>
-                  ))}
-                </h1>
+                {/* Typing Animation for TutorBoard */}
+                <motion.h1 
+                  initial={{ opacity: 0, y: 10, filter: 'blur(8px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  className="text-4xl md:text-6xl font-serif text-[var(--text-primary)] tracking-tight opacity-95"
+                >
+                  TutorBoard
+                </motion.h1>
               </div>
 
               <motion.div 
@@ -265,20 +268,33 @@ const Home = ({ setIsDark, isDark }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 1.1, duration: 0.6 }}
-                className="flex flex-wrap justify-center gap-3 mt-10 max-w-2xl px-4"
+                className="flex flex-wrap justify-center gap-2 md:gap-3 mt-8 md:mt-10 max-w-2xl px-4"
               >
-                 {['Binary Search steps', 'Bubble Sort visualization', 'Graph plotting'].map((hint, i) => (
-                   <motion.button 
-                     key={hint}
-                     initial={{ opacity: 0, scale: 0.9 }}
-                     animate={{ opacity: 1, scale: 1 }}
-                     transition={{ duration: 0.4, delay: 1.2 + (i * 0.1), ease: "easeOut" }}
-                     onClick={() => { setPrompt(hint); setTimeout(() => { const el = document.querySelector('textarea'); if(el) { el.focus(); } }, 50); }}
-                     className="px-4 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all font-medium"
-                   >
-                     {hint}
-                   </motion.button>
-                 ))}
+                 {[
+                   { label: 'Explain step-by-step', prefix: 'Explain step-by-step: ', icon: BookOpen }, 
+                   { label: 'Quiz me', prefix: 'Generate a quiz on: ', icon: Trophy }, 
+                   { label: 'Compare concepts', prefix: 'Compare and visualize: ', icon: GitCompare }, 
+                   { label: 'Practice problems', prefix: 'Give practice problems for: ', icon: PencilLine }, 
+                   { label: 'Think deeply', prefix: '[Think deeply] ', icon: Lightbulb }
+                 ].map((action, i) => {
+                   const Icon = action.icon;
+                   return (
+                     <motion.button 
+                       key={action.label}
+                       initial={{ opacity: 0, scale: 0.9 }}
+                       animate={{ opacity: 1, scale: 1 }}
+                       transition={{ duration: 0.4, delay: 1.2 + (i * 0.08), ease: "easeOut" }}
+                       onClick={() => { 
+                         setPrompt(action.prefix); 
+                         setTimeout(() => { const el = document.querySelector('textarea'); if(el) { el.focus(); } }, 50); 
+                       }}
+                       className="flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full text-[12px] md:text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] transition-all font-medium whitespace-nowrap active:scale-95 shadow-sm"
+                     >
+                       <Icon size={14} className="opacity-70" />
+                       <span>{action.label}</span>
+                     </motion.button>
+                   );
+                 })}
               </motion.div>
            </motion.div>
         )}
@@ -293,7 +309,7 @@ const Home = ({ setIsDark, isDark }) => {
             {/* Scrollable Chat Messages */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-4">
                <div className="w-full max-w-2xl mx-auto">
-                  <ChatWindow messages={messages} />
+                  <ChatWindow messages={messages} isGenerating={isGenerating} />
                </div>
             </div>
 
