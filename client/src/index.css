@@ -99,6 +99,12 @@
   --color-dark-border-strong: rgba(240, 239, 233, 0.14);
   --color-dark-border-subtle: rgba(240, 239, 233, 0.04);
 
+  /* Message Bubbles */
+  --color-ai-bubble-bg: rgba(240, 239, 233, 0.05);
+  --color-user-bubble-bg: #f0f0f0;
+  --color-dark-ai-bubble-bg: rgba(255, 255, 255, 0.03);
+  --color-dark-user-bubble-bg: #f0efe9;
+
   --color-dark-accent: #1e1e1b;
   --color-dark-accent-strong: #26261f;
 
@@ -161,7 +167,9 @@
       linear-gradient(to right, var(--border-color) 1px, transparent 1px),
       linear-gradient(to bottom, var(--border-color) 1px, transparent 1px);
     background-position: center top;
-    /* Extra masking to make it fade elegantly toward the bottom */
+    /* Ultra-subtle to ensure perfect chat history visibility */
+    opacity: 0.15;
+    /* Fade elegantly toward bottom for focus */
     mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
     -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
   }

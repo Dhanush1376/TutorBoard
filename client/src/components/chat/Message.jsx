@@ -1,9 +1,10 @@
 import React from 'react';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Presentation } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const Message = ({ role, content }) => {
+const Message = ({ role, content, steps, stepTitle, onOpenCanvas }) => {
   const isAssistant = role === 'assistant';
+  const hasCanvas = isAssistant && steps && steps.length > 0;
 
   return (
     <motion.div 
@@ -30,6 +31,23 @@ const Message = ({ role, content }) => {
         <div className="whitespace-pre-wrap leading-relaxed">
           {content}
         </div>
+
+        {/* Open Canvas Button — only on assistant messages with steps */}
+        {hasCanvas && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3, duration: 0.3 }}
+            onClick={() => onOpenCanvas && onOpenCanvas(steps, stepTitle)}
+            className="mt-3 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all
+              bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)]
+              hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] hover:shadow-lg
+              active:scale-95"
+          >
+            <Presentation size={14} className="opacity-70" />
+            Open Canvas
+          </motion.button>
+        )}
       </div>
     </motion.div>
   );

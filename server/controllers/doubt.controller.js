@@ -2,7 +2,7 @@ import aiClient, { getModel } from '../utils/ai.js';
 
 export const answerDoubt = async (req, res) => {
   try {
-    const { question, stepDescription, stepData, stepIndex } = req.body;
+    const { question, history, stepDescription, stepData, stepIndex } = req.body;
 
     if (!question) {
       return res.status(400).json({ error: 'Question is required' });
@@ -12,19 +12,22 @@ export const answerDoubt = async (req, res) => {
       ? `The student is currently on Step ${(stepIndex || 0) + 1}: "${stepDescription}". The step data is: ${JSON.stringify(stepData || {})}.`
       : 'The student is viewing a general teaching session.';
 
+    const systemPrompt = `You are an expert tutor helping a student who is learning through an interactive visualization board. ${contextInfo}
+
+Answer their doubt clearly and concisely. Keep your explanation short (2-4 sentences max) since this is an inline chat during a teaching session. Be encouraging and relate your answer to what they are currently seeing on the board.`;
+
+    // Map history to OpenAI format
+    const chatHistory = (history || []).map(msg => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content
+    }));
+
     const completion = await aiClient.chat.completions.create({
       model: getModel(),
       messages: [
-        {
-          role: "system",
-          content: `You are an expert tutor helping a student who is learning through an interactive visualization board. ${contextInfo}
-
-Answer their doubt clearly and concisely. Keep your explanation short (2-4 sentences max) since this is an inline chat during a teaching session. Be encouraging and relate your answer to what they are currently seeing on the board.`
-        },
-        {
-          role: "user",
-          content: question
-        }
+        { role: "system", content: systemPrompt },
+        ...chatHistory,
+        { role: "user", content: question }
       ]
     });
 

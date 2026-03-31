@@ -83,14 +83,20 @@ const TeachingModal = ({ isOpen, onClose, title, steps }) => {
     return () => window.speechSynthesis.cancel();
   }, [currentStep, voiceEnabled, activeStepData?.description, speed]);
 
-  // Keyboard controls
+  // Keyboard controls — skip when typing in inputs
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e) => {
+      const tag = e.target.tagName.toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight' || e.key === 'l') handleNext();
-      if (e.key === 'ArrowLeft' || e.key === 'h') handlePrev();
-      if (e.key === ' ') { e.preventDefault(); handlePlayPause(); }
+
+      if (!isTyping) {
+        if (e.key === 'ArrowRight' || e.key === 'l') handleNext();
+        if (e.key === 'ArrowLeft' || e.key === 'h') handlePrev();
+        if (e.key === ' ') { e.preventDefault(); handlePlayPause(); }
+      }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);

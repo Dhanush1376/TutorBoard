@@ -30,6 +30,7 @@ const InlineChat = ({ currentStep, stepDescription, stepData }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: userQuestion,
+          history: messages, // Send multi-turn history
           stepDescription: stepDescription || '',
           stepData: stepData || {},
           stepIndex: currentStep
@@ -51,6 +52,9 @@ const InlineChat = ({ currentStep, stepDescription, stepData }) => {
   };
 
   const handleKeyDown = (e) => {
+    // Prevent spacebar or other keys from bubbling up to the TeachingModal shortcuts
+    e.stopPropagation();
+    
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
