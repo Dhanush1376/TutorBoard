@@ -6,30 +6,76 @@ import doubtRoutes from './routes/doubt.js';
 
 dotenv.config();
 
+console.log("=====================================");
+console.log("API KEY CHECK:", process.env.OPENAI_API_KEY ? "Loaded ✅" : "Missing ❌");
+console.log("=====================================");
+
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Middleware
+// --------------- Middleware ---------------
+
+// CORS: allow Vercel production + localhost dev
+const allowedOrigins = [
+  'https://tutor-board-mocha.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
 app.use(cors({
-  origin: 'http://localhost:5173' // Securely allow only the frontend
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 }));
-app.use(express.json());
 
-// Fixed Root Route
-app.get('/', (req, res) => {
-  res.send('TutorBoard API is running 🚀');
+// Parse JSON bodies (with a size limit for safety)
+app.use(express.json({ limit: '1mb' }));
+
+// Request logger (useful for debugging on Render)
+app.use((req, _res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
 });
 
-// Test API Route
-app.get('/api/test', (req, res) => {
-  res.json({ message: "API working" });
+// --------------- Routes ---------------
+
+// Root / Health check
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', message: 'TutorBoard API is running 🚀' });
 });
 
-// Modular Routes
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Test route
+app.get('/api/test', (_req, res) => {
+  res.json({ message: 'API working' });
+});
+
+// Feature routes
 app.use('/', generateRoutes);
 app.use('/', doubtRoutes);
 
+// --------------- Global Error Handler ---------------
+// Must be registered AFTER all routes
+app.use((err, _req, res, _next) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+  });
+});
 
+// --------------- Start ---------------
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
