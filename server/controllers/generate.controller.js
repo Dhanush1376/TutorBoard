@@ -79,7 +79,10 @@ Respond ONLY with valid JSON.`
     const parsedResponse = JSON.parse(content);
     res.json(parsedResponse);
   } catch (error) {
-    console.error('OpenAI generation error:', error);
-    res.status(500).json({ error: 'Failed to generate explanation from AI' });
+    console.error("OpenAI Error:", error.message || error);
+    res.status(500).json({
+      success: false,
+      message: "AI Agent is currently unavailable"
+    });
   }
 };
