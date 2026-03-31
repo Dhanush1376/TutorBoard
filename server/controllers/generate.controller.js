@@ -1,11 +1,4 @@
-import OpenAI from 'openai';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import aiClient, { getModel } from '../utils/ai.js';
 
 export const generateExplanation = async (req, res) => {
   try {
@@ -15,8 +8,8 @@ export const generateExplanation = async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Native OpenAI model
+    const completion = await aiClient.chat.completions.create({
+      model: getModel(), // Dynamic model selection
       messages: [
         {
           role: "system",

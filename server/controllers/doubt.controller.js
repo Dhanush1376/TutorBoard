@@ -1,11 +1,4 @@
-import OpenAI from 'openai';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import aiClient, { getModel } from '../utils/ai.js';
 
 export const answerDoubt = async (req, res) => {
   try {
@@ -19,8 +12,8 @@ export const answerDoubt = async (req, res) => {
       ? `The student is currently on Step ${(stepIndex || 0) + 1}: "${stepDescription}". The step data is: ${JSON.stringify(stepData || {})}.`
       : 'The student is viewing a general teaching session.';
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await aiClient.chat.completions.create({
+      model: getModel(),
       messages: [
         {
           role: "system",

@@ -7,7 +7,8 @@ import doubtRoutes from './routes/doubt.js';
 dotenv.config();
 
 console.log("=====================================");
-console.log("API KEY CHECK:", process.env.OPENAI_API_KEY ? "Loaded ✅" : "Missing ❌");
+console.log("API KEY CHECK (OpenAI):", process.env.OPENAI_API_KEY ? "Loaded ✅" : "Missing ❌");
+console.log("API KEY CHECK (OpenRouter):", process.env.OPENROUTER_API_KEY ? "Loaded ✅" : "Missing ❌");
 console.log("=====================================");
 
 const app = express();
