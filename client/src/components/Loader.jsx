@@ -1,9 +1,13 @@
 import React from 'react';
 
-const Loader = ({ fullScreen = true, autoFade = false, className = "" }) => {
+const Loader = ({ fullScreen = true, autoFade = false, glass = false, className = "" }) => {
   return (
     <div 
-      className={`flex flex-col items-center justify-center ${fullScreen ? "h-screen w-full" : "w-full py-8"} ${autoFade ? "loader-fade" : ""} ${className}`}
+      className={`flex flex-col items-center justify-center 
+        ${fullScreen ? "h-screen w-full" : "w-full py-8"} 
+        ${glass ? "fixed inset-0 z-[999] backdrop-blur-2xl bg-[var(--bg-primary)]/45" : "bg-[var(--bg-primary)]"}
+        ${autoFade ? "loader-fade" : ""} 
+        ${className}`}
     >
       <div className="logo-wrap w-[min(480px,90vw)] max-w-sm">
         <svg width="100%" viewBox="0 0 680 530" xmlns="http://www.w3.org/2000/svg" className="loader-svg">

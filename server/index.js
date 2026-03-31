@@ -1,18 +1,40 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
+import authRoutes from './routes/auth.js';
 
 dotenv.config();
 
 console.log("=====================================");
 console.log("API KEY CHECK (OpenAI):", process.env.OPENAI_API_KEY ? "Loaded ✅" : "Missing ❌");
 console.log("API KEY CHECK (OpenRouter):", process.env.OPENROUTER_API_KEY ? "Loaded ✅" : "Missing ❌");
+console.log("MongoDB URI:", process.env.MONGODB_URI ? "Loaded ✅" : "Missing ❌");
+console.log("JWT Secret:", process.env.JWT_SECRET ? "Loaded ✅" : "Missing ❌");
 console.log("=====================================");
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+// --------------- MongoDB Connection ---------------
+
+const connectDB = async () => {
+  try {
+    if (!process.env.MONGODB_URI) {
+      console.warn('⚠️  MONGODB_URI not set — auth features will not work');
+      return;
+    }
+    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    console.log(`MongoDB connected: ${conn.connection.host} ✅`);
+  } catch (err) {
+    console.error('MongoDB connection error:', err.message);
+    // Don't exit — let the rest of the app work without auth
+  }
+};
+
+connectDB();
 
 // --------------- Middleware ---------------
 
@@ -66,6 +88,9 @@ app.get('/api/test', (_req, res) => {
 // Feature routes
 app.use('/', generateRoutes);
 app.use('/', doubtRoutes);
+
+// Auth routes
+app.use('/api/auth', authRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

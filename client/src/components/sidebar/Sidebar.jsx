@@ -114,6 +114,11 @@ const Sidebar = ({
         />
       </div>
 
+      {/* Footer / Account Menu */}
+      <div className="p-3 border-t border-[var(--border-color)]">
+        <AccountMenu onSettingsClick={() => setShowSettings(true)} />
+      </div>
+
       {/* Settings Modal (Appearance Section) */}
       {showSettings && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">

@@ -61,22 +61,17 @@
   </head>
   <body>
     <div id="root">
-      <!-- Initial Loader while React app is loading -->
-      <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; width: 100%; font-family: sans-serif;">
-        <div style="width: min(120px, 90vw);">
-          <svg width="100%" viewBox="250 85 180 210" xmlns="http://www.w3.org/2000/svg" class="loader-svg">
-            {/* Outer Wire */}
-            <polyline class="wire" style="--len: 680; --d: 0s;" points="340,90 427,140 427,240 340,290 253,240 253,140 340,90" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-width="8" stroke-linejoin="round" />
-            
-            {/* Core structure */}
-            <polygon class="plate-top" points="340,90 427,140 340,190 253,140" fill="currentColor" fill-opacity="0" />
-            <polygon class="plate-left" points="253,140 340,190 340,290 253,240" fill="currentColor" fill-opacity="0" />
-            <polygon class="plate-right" points="340,190 427,140 427,240 340,290" fill="currentColor" fill-opacity="0" />
-            
-            {/* Inner IC */}
-            <polygon class="ic-top" points="340,158 376,179 340,200 304,179" fill="currentColor" fill-opacity="0" />
-            <polygon class="ic-left" points="304,179 340,200 340,242 304,221" fill="currentColor" fill-opacity="0" />
-            <polygon class="ic-right" points="340,200 376,179 376,221 340,242" fill="currentColor" fill-opacity="0" />
+      <!-- Initial Critical Loader — Seamless Transition to React -->
+      <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; width: 100%; background-color: #f7f4ed;">
+        <div style="width: min(480px, 90vw);">
+          <svg width="100%" viewBox="0 0 680 530" xmlns="http://www.w3.org/2000/svg" class="loader-svg">
+            <polyline class="wire" style="--len: 680; --d: 0s;" points="340,90 427,140 427,240 340,290 253,240 253,140 340,90" fill="none" stroke="currentColor" stroke-width="0.8" />
+            <polygon class="plate-top" points="340,90 427,140 340,190 253,140" />
+            <polygon class="plate-left" points="253,140 340,190 340,290 253,240" />
+            <polygon class="plate-right" points="340,190 427,140 427,240 340,290" />
+            <polygon class="ic-top" points="340,158 376,179 340,200 304,179" />
+            <polygon class="ic-left" points="304,179 340,200 340,242 304,221" />
+            <polygon class="ic-right" points="340,200 376,179 376,221 340,242" />
           </svg>
         </div>
       </div>

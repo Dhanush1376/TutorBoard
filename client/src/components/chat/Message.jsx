@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bot, User, Presentation } from 'lucide-react';
 import { motion } from 'framer-motion';
+import VisaiLogo from '../common/VisaiLogo';
 
 const Message = ({ role, content, steps, stepTitle, onOpenCanvas }) => {
   const isAssistant = role === 'assistant';
@@ -23,7 +24,7 @@ const Message = ({ role, content, steps, stepTitle, onOpenCanvas }) => {
         }}
       >
         <div className="flex items-center gap-2 mb-1 opacity-40">
-          {isAssistant ? <Bot size={12} /> : <User size={12} />}
+          {isAssistant ? <VisaiLogo size="xs" className="w-3 h-3 text-[var(--text-primary)]" /> : <User size={12} />}
           <span className="text-[9px] font-bold uppercase tracking-widest">
             {isAssistant ? 'TutorBoard' : 'You'}
           </span>

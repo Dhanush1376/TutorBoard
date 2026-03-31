@@ -1,35 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
-import Auth from './pages/Auth';
 import Loader from './components/Loader';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import { useAuth } from './context/AuthContext';
 
 function App() {
-  const [loading, setLoading] = useState(true);
+  const { loading: authLoading } = useAuth();
+  const [welcomeLoading, setWelcomeLoading] = useState(() => {
+    // Check if the welcome animation has already played in this session
+    return !sessionStorage.getItem('tb-welcome-played');
+  });
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 4000); // 4 seconds initial loader delay to let logo animation play
+    if (welcomeLoading) {
+      const timer = setTimeout(() => {
+        setWelcomeLoading(false);
+        sessionStorage.setItem('tb-welcome-played', 'true');
+      }, 4000); // 4 seconds initial loader delay
+      return () => clearTimeout(timer);
+    }
+  }, [welcomeLoading]);
 
-    return () => clearTimeout(timer);
-  }, []);
+  // Total application loading state
+  const isAppLoading = welcomeLoading || authLoading;
 
-  if (loading) {
-    return (
-      <div className="h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden font-sans transition-colors duration-250">
-        <Loader autoFade={true} />
-      </div>
-    );
+  if (isAppLoading) {
+    return <Loader fullScreen={true} glass={!welcomeLoading} />;
   }
 
-  // Theme state is now managed globally by ThemeProvider/ThemeContext
   return (
-    <div className="h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden font-sans transition-colors duration-250">
-      <main className="w-full h-full flex flex-col overflow-hidden animate-fade-in">
+    <div className="app-root">
+      <main className="app-main">
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={<AuthLanding />} />
+          <Route path="/auth" element={<Navigate to="/" replace />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>
