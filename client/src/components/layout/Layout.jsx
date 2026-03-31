@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { PanelLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { PanelLeft, Sparkles, LogOut, ChevronRight, User } from 'lucide-react';
+import VisaiLogo from '../common/VisaiLogo';
+import { useAuth } from '../../context/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import Logo from '../Logo';
 
 const Layout = ({ sidebar, children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
+  const { user } = useAuth();
 
   // Inject onClose prop to the sidebar component
   const sidebarWithProps = React.isValidElement(sidebar) 
@@ -13,7 +15,7 @@ const Layout = ({ sidebar, children }) => {
     : sidebar;
 
   return (
-    <div className="h-full w-full bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden font-sans border-0 m-0 p-0 transition-colors duration-250">
+    <div className="h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] flex overflow-hidden font-sans border-0 m-0 p-0 transition-colors duration-250">
       
       {/* Mobile Backdrop Overlay */}
       {isSidebarOpen && (
@@ -43,56 +45,57 @@ const Layout = ({ sidebar, children }) => {
         {/* Subtle Theme-Aware Background Grid */}
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.85] pointer-events-none z-0" />
 
-        {/* Top Navbar Overlay (Like Gemini) */}
+        {/* Top Navbar Overlay */}
         <header className="absolute top-0 left-0 w-full h-[70px] flex items-center px-4 justify-between bg-transparent z-50 pointer-events-none">
-           <div className="flex items-center gap-2 pointer-events-auto">
-               {!isSidebarOpen && (
-                 <button 
-                   onClick={() => setIsSidebarOpen(true)} 
-                   className="p-2 -ml-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-all"
-                   title="Open sidebar"
-                 >
-                    <PanelLeft size={22} />
-                 </button>
-               )}
-               <div className="flex items-center gap-2 px-2 py-2.5">
-                 <span className="text-[var(--text-secondary)] text-[15px] font-bold tracking-tight">
-                   TutorBoard
-                 </span>
-               </div>
-           </div>
-            <div className="flex items-center pointer-events-auto mr-8">
-              <motion.div
-                whileHover={{ y: -1, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="relative"
-              >
-                <Link 
-                  to="/auth"
-                  className="flex items-center justify-center px-6 py-2 rounded-full font-bold text-[14px] tracking-tight shadow-md transition-shadow duration-300 group"
-                  style={{ 
-                    backgroundColor: 'var(--text-primary)', 
-                    color: 'var(--bg-primary)',
-                    textDecoration: 'none'
-                  }}
-                >
-                    <span className="relative z-10 mr-1.5 opacity-100">Sign In</span>
-                    
-                    <motion.svg 
-                      width="15" 
-                      height="15" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2.5" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
+             <div className="flex items-center gap-2 pointer-events-auto">
+                 {!isSidebarOpen && (
+                   <button 
+                     onClick={() => setIsSidebarOpen(true)} 
+                     className="p-2 -ml-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                     title="Open sidebar"
+                   >
+                      <PanelLeft size={22} />
+                   </button>
+                 )}
+                 {!isSidebarOpen && (
+                   <div className="flex items-center gap-2 px-1 py-2.5">
+                     <VisaiLogo className="w-5 h-5 text-[var(--text-secondary)] opacity-80" size="xs" />
+                     <span className="text-[var(--text-secondary)] text-[15px] font-bold tracking-tight">
+                       TutorBoard
+                     </span>
+                   </div>
+                 )}
+             </div>
+
+             {/* Top Right Action Area */}
+             <div className="flex items-center gap-3 pointer-events-auto">
+                <AnimatePresence mode="wait">
+                  {user?.isGuest ? (
+                    <motion.button
+                      key="signup"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      onClick={() => window.location.href = '/'}
+                      className="flex items-center gap-2 bg-[var(--text-primary)] text-[var(--bg-primary)] px-4 py-2 rounded-xl text-[13px] font-bold hover:opacity-90 transition-all shadow-lg shadow-black/5"
                     >
-                      <path d="M5 12h14M12 5l7 7-7 7" />
-                    </motion.svg>
-                </Link>
-              </motion.div>
-           </div>
+                      <Sparkles size={16} />
+                      Sign Up
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      key="profile"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      className="flex items-center gap-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] px-4 py-2 rounded-xl text-[13px] font-bold hover:bg-[var(--bg-tertiary)] transition-all shadow-sm"
+                    >
+                      <User size={16} />
+                      Profile
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+             </div>
         </header>
 
         {/* Content Area */}

@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/Express-MVC-purple.svg" alt="Express" />
   <img src="https://img.shields.io/badge/AI-DeepSeek_Core-black.svg" alt="DeepSeek" />
 
-  <h1>TutorBoard 🧠</h1>
+  <h1>TutorBoard</h1>
   <p>An AI-powered interactive whiteboard that translates complex university-level computer science algorithms and mathematics into step-by-step visual animations.</p>
 </div>
 

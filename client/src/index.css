@@ -622,3 +622,13 @@
   50%  { transform: translateX(100%); }
   100% { transform: translateX(100%); }
 }
+
+.loader-fade {
+  animation: fadeOut 0.5s var(--ease-smooth) 3.5s forwards;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; filter: blur(0px); }
+  to { opacity: 0; filter: blur(10px); visibility: hidden; }
+}
+
