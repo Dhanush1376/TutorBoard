@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Loader2, MessageCircleQuestion } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || "https://tutorboard.onrender.com";
+
 const InlineChat = ({ currentStep, stepDescription, stepData }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -23,7 +25,7 @@ const InlineChat = ({ currentStep, stepDescription, stepData }) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/doubt', {
+      const response = await fetch(`${API_URL}/doubt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

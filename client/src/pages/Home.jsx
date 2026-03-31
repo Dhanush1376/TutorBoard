@@ -9,7 +9,7 @@ import ModulesPage from '../components/modules/ModulesPage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Trophy, GitCompare, PencilLine, Lightbulb } from 'lucide-react';
 
-const API_URL = "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || "https://tutorboard.onrender.com";
 
 const Home = ({ setIsDark, isDark }) => {
   // Global Sessions
