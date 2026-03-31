@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Stage, Layer, Text, Rect, Group } from 'react-konva';
 import { animated, useSpring, useSprings } from '@react-spring/konva';
+import { motion, useMotionValue, useSpring as useFramerSpring } from 'framer-motion';
 
-// Reusable Array Node Component
+// ... AnimatedArray remains the same ...
 const AnimatedArray = ({ stepData }) => {
   const BOX_SIZE = 60;
   const SPACING = 20;
@@ -74,7 +75,7 @@ const AnimatedArray = ({ stepData }) => {
             text={String(rawArray[i])}
             fontSize={18}
             fontStyle="bold"
-            fill="inherit" /* Managed via CSS variables on root */
+            fill="inherit"
             align="center"
             verticalAlign="middle"
             x={-BOX_SIZE / 2}
@@ -89,38 +90,110 @@ const AnimatedArray = ({ stepData }) => {
 };
 
 const Board = ({ stepData }) => {
-  const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const containerRef = useRef(null);
+  const stageRef = useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
+
+  // Custom Cursor Position
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const smoothX = useFramerSpring(mouseX, { damping: 15, stiffness: 400 });
+  const smoothY = useFramerSpring(mouseY, { damping: 15, stiffness: 400 });
 
   useEffect(() => {
-    const handleResize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setDimensions({ width, height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
+
+  // Global mouse listener for the custom cursor (smoother than standard React events)
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => {
+      if (!isHovering || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      mouseX.set(e.clientX - rect.left);
+      mouseY.set(e.clientY - rect.top);
+    };
+
+    if (isHovering) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+    }
+    return () => window.removeEventListener('mousemove', handleGlobalMouseMove);
+  }, [isHovering, mouseX, mouseY]);
 
   const handleWheel = (e) => {
     e.evt.preventDefault();
-    const scaleBy = 1.05;
-    const stage = e.target.getStage();
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const scaleBy = 1.12; // Slightly more responsive zoom factor
     const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+
+    if (!pointer) return;
+
     const mousePointTo = {
-      x: stage.getPointerPosition().x / oldScale - stage.x() / oldScale,
-      y: stage.getPointerPosition().y / oldScale - stage.y() / oldScale,
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
     };
+
     const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    if (newScale > 3 || newScale < 0.2) return;
+    
+    // Zoom limits
+    if (newScale > 5 || newScale < 0.1) return;
+
+    const newPos = {
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    };
+
+    // PERFORMANCE: Manipulate the Konva Stage directly for zero-latency feedback
+    stage.scale({ x: newScale, y: newScale });
+    stage.position(newPos);
+    stage.batchDraw();
+
+    // Sync back to React state for persistence (throttled/batched by React)
     setStageScale(newScale);
-    setStagePos({
-      x: -(mousePointTo.x - stage.getPointerPosition().x / newScale) * newScale,
-      y: -(mousePointTo.y - stage.getPointerPosition().y / newScale) * newScale,
-    });
+    setStagePos(newPos);
   };
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden transition-colors duration-500">
+    <div 
+      ref={containerRef} 
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      className="absolute inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden transition-colors duration-500"
+      style={{ 
+        cursor: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%231c1711' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") 8 8, auto` 
+      }}
+    >
+      {/* Custom Cursor Ring (Reactive) */}
+      {isHovering && (
+        <motion.div
+          style={{ x: smoothX, y: smoothY, willChange: 'transform' }}
+          className="pointer-events-none absolute z-[9999] flex items-center justify-center -translate-x-1/2 -translate-y-1/2"
+        >
+          <motion.div 
+            animate={{ 
+              scale: isDragging ? 0.6 : 1,
+              opacity: isHovering ? 0.35 : 0,
+            }}
+            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+            className="w-11 h-11 rounded-full border-2 border-[var(--text-tertiary)]" 
+          />
+        </motion.div>
+      )}
       
-      {/* 1. Immersive Grid Layer (Dynamic CSS Variable Support) */}
+      {/* 1. Immersive Grid Layer */}
       <div 
         className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.4] transition-all duration-500"
         style={{
@@ -132,6 +205,7 @@ const Board = ({ stepData }) => {
       />
 
       <Stage 
+        ref={stageRef}
         width={dimensions.width} 
         height={dimensions.height}
         onWheel={handleWheel}
@@ -140,21 +214,24 @@ const Board = ({ stepData }) => {
         y={stagePos.y}
         scaleX={stageScale}
         scaleY={stageScale}
-        onDragEnd={(e) => setStagePos({ x: e.target.x(), y: e.target.y() })}
-        className="cursor-grab active:cursor-grabbing transition-colors duration-500"
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={(e) => {
+          setIsDragging(false);
+          setStagePos({ x: e.target.x(), y: e.target.y() });
+        }}
+        className="transition-colors duration-500"
       >
         <Layer>
-          {/* Ensure Konva objects also respond to theme by using inherit or manual colors if needed */}
           {stepData && (
-            <Group x={dimensions.width / 2} y={dimensions.height / 2 - 50}>
+            <Group x={dimensions.width / 2} y={dimensions.height / 2}>
                <AnimatedArray stepData={stepData} />
             </Group>
           )}
         </Layer>
       </Stage>
-      
     </div>
   );
 };
+
 
 export default Board;

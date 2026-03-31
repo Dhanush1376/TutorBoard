@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import Message from './Message';
 import { motion } from 'framer-motion';
 
-const ChatWindow = ({ messages, isGenerating }) => {
+const ChatWindow = ({ messages, isGenerating, onOpenCanvas }) => {
   const bottomRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -21,6 +21,9 @@ const ChatWindow = ({ messages, isGenerating }) => {
             key={msg.id || index}
             role={msg.role}
             content={msg.content}
+            steps={msg.steps}
+            stepTitle={msg.stepTitle}
+            onOpenCanvas={onOpenCanvas}
           />
         ))}
         

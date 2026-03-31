@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Layout from '../components/layout/Layout';
 import Sidebar from '../components/sidebar/Sidebar';
 import Board from '../components/Board';
@@ -33,6 +33,11 @@ const Home = ({ setIsDark, isDark }) => {
   const [isTeachingOpen, setIsTeachingOpen] = useState(false);
   const [teachingData, setTeachingData] = useState(null);
   const [error, setError] = useState(null);
+
+  // Duplicate submission guard
+  const isSubmittingRef = useRef(false);
+  const msgIdCounter = useRef(0);
+  const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
   const messages = activeSession?.messages || [];
@@ -90,37 +95,57 @@ const Home = ({ setIsDark, isDark }) => {
       id: sessionId,
       title: moduleData.title,
       messages: [
-        { id: `msg-${Date.now()}-1`, role: 'user', content: `Explain ${moduleData.title}` },
-        { id: `msg-${Date.now()}-2`, role: 'assistant', content: moduleData.description, steps: moduleData.data.steps }
+        { id: getMsgId('user'), role: 'user', content: `Explain ${moduleData.title}` },
+        { id: getMsgId('ai'), role: 'assistant', content: moduleData.description, steps: moduleData.data.steps }
       ]
     };
     setChatHistory(prev => [newSession, ...prev]);
     setActiveChatId(sessionId);
   };
 
-  const handleSubmit = async () => {
-    if (!prompt.trim()) return;
-    
-    let workingSessionId = activeChatId;
-    let workingHistory = [...chatHistory];
-
-    if (!workingSessionId) {
-      workingSessionId = `session-${Date.now()}`;
-      workingHistory = [{ id: workingSessionId, title: prompt, messages: [] }, ...workingHistory];
-      setActiveChatId(workingSessionId);
+  // Open Canvas for a specific message's steps
+  const handleOpenCanvas = useCallback((steps, title) => {
+    if (steps && steps.length > 0) {
+      setTeachingData({ title: title || 'Teaching Session', steps });
+      setIsTeachingOpen(true);
     }
+  }, []);
 
-    const sessionIndex = workingHistory.findIndex(s => s.id === workingSessionId);
-    if (sessionIndex === -1) return;
-
+  const handleSubmit = async () => {
+    if (!prompt.trim() || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
     const userPrompt = prompt;
     setPrompt('');
     setIsGenerating(true);
     setError(null);
-    setActiveView('chat'); // Ensure we are in chat view
+    setActiveView('chat');
 
-    workingHistory[sessionIndex].messages.push({ id: `msg-${Date.now()}`, role: 'user', content: userPrompt });
-    setChatHistory([...workingHistory]);
+    const workingSessionId = activeChatId || `session-${Date.now()}`;
+    if (!activeChatId) setActiveChatId(workingSessionId);
+
+    // Atomic update: Create session AND add message in one go
+    setChatHistory(prev => {
+      const idx = prev.findIndex(s => s.id === workingSessionId);
+      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
+
+      if (idx === -1) {
+        // Create new session starting with the user's message
+        return [{ 
+          id: workingSessionId, 
+          title: userPrompt.substring(0, 40) + (userPrompt.length > 40 ? '...' : ''), 
+          messages: [userMessage] 
+        }, ...prev];
+      } else {
+        // Update existing session
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          messages: [...next[idx].messages, userMessage]
+        };
+        return next;
+      }
+    });
 
     try {
       const response = await fetch(`${API_URL}/generate`, {
@@ -135,19 +160,28 @@ const Home = ({ setIsDark, isDark }) => {
         const next = [...prev];
         const idx = next.findIndex(s => s.id === workingSessionId);
         if (idx !== -1) {
-          next[idx].messages.push({
-            id: `msg-${Date.now()}-ai`,
-            role: 'assistant',
-            content: data.steps && data.steps.length > 0 
-              ? `Visualization for ${data.title} ready on stage.` 
-              : "I've processed your request, but I couldn't generate a visual step-by-step for this concept yet.",
-            steps: data.steps
-          });
+          // Prevent duplicate AI responses for the same generation
+          const hasSteps = data.steps && data.steps.length > 0;
+          next[idx] = {
+            ...next[idx],
+            messages: [
+              ...next[idx].messages,
+              {
+                id: getMsgId('ai'),
+                role: 'assistant',
+                content: hasSteps 
+                  ? `I've prepared a visualization for **${data.title}**. You can view it on the canvas behind this message or click the button below to expand it.` 
+                  : "I've processed your request, but I couldn't generate a visual step-by-step for this concept yet.",
+                steps: data.steps,
+                stepTitle: data.title
+              }
+            ]
+          };
         }
         return next;
       });
 
-      // Open the Teaching Modal with the received data
+      // Auto-open the Teaching Modal with the received data
       if (data.steps && data.steps.length > 0) {
         setTeachingData({ title: data.title, steps: data.steps });
         setIsTeachingOpen(true);
@@ -155,21 +189,28 @@ const Home = ({ setIsDark, isDark }) => {
     } catch (err) {
       console.error(err);
       setError(err.message);
-      // Add error message to chat
       setChatHistory(prev => {
         const next = [...prev];
         const idx = next.findIndex(s => s.id === workingSessionId);
         if (idx !== -1) {
-          next[idx].messages.push({
-            id: `msg-${Date.now()}-err`,
-            role: 'assistant',
-            content: `Error: ${err.message}`
-          });
+          next[idx] = {
+            ...next[idx],
+            messages: [
+              ...next[idx].messages,
+              {
+                id: getMsgId('err'),
+                role: 'assistant',
+                content: `Error: ${err.message}`
+              }
+            ]
+          };
         }
         return next;
       });
     } finally {
       setIsGenerating(false);
+      // Small timeout to prevent immediate double-clicks after "generating" ends
+      setTimeout(() => { isSubmittingRef.current = false; }, 500);
     }
   };
 
@@ -215,10 +256,7 @@ const Home = ({ setIsDark, isDark }) => {
           )}
         </AnimatePresence>
 
-        {/* Immersive Stage - Full Screen Background */}
-        <div className={`absolute inset-0 z-0 transition-opacity duration-1000 ${hasStarted && activeView === 'chat' ? 'opacity-100' : 'opacity-0'}`}>
-          <Board stepData={activeSteps.length > 0 ? activeSteps[currentStep] : null} />
-        </div>
+        {/* Grid is already provided by Layout.jsx at z-0 */}
 
         {/* State 1: Claude-style Landing View */}
         {!hasStarted && activeView === 'chat' && (
@@ -309,7 +347,11 @@ const Home = ({ setIsDark, isDark }) => {
             {/* Scrollable Chat Messages */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-4">
                <div className="w-full max-w-2xl mx-auto">
-                  <ChatWindow messages={messages} isGenerating={isGenerating} />
+                  <ChatWindow 
+                    messages={messages} 
+                    isGenerating={isGenerating} 
+                    onOpenCanvas={handleOpenCanvas}
+                  />
                </div>
             </div>
 
