@@ -3,12 +3,41 @@ import { ArrowUp, Loader2, MessageCircleQuestion } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "https://tutorboard.onrender.com";
 
-const InlineChat = ({ currentStep, stepDescription, stepData }) => {
+const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const scrollRef = useRef(null);
+
+  // Fetch history on mount
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const token = localStorage.getItem('tb-token');
+      if (!token || token === 'guest') return;
+
+      try {
+        const res = await fetch(`${API_URL}/api/doubts/history`, {
+          headers: { 
+            'Authorization': `Bearer ${token}` 
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const historyMessages = data.history.flatMap(d => ([
+            { role: 'user', content: d.question },
+            { role: 'assistant', content: d.answer }
+          ]));
+          setMessages(historyMessages);
+        }
+      } catch (err) {
+        console.error('Failed to fetch chat history:', err);
+      }
+    };
+
+    fetchHistory();
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -25,9 +54,15 @@ const InlineChat = ({ currentStep, stepDescription, stepData }) => {
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem('tb-token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token && token !== 'guest') {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_URL}/doubt`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           question: userQuestion,
           history: messages, // Send multi-turn history
@@ -41,6 +76,11 @@ const InlineChat = ({ currentStep, stepDescription, stepData }) => {
       const data = await response.json();
       
       setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
+
+      // Trigger visual update if the AI provided one
+      if (data.hasVisuals && data.visualUpdate && onVisualUpdate) {
+        onVisualUpdate(data.visualUpdate);
+      }
     } catch (err) {
       setMessages(prev => [...prev, { 
         role: 'assistant', 

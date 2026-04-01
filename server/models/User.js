@@ -19,9 +19,23 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    // Password is required for manual signup, but not social
+    required: false,
     minlength: [6, 'Password must be at least 6 characters'],
-    select: false, // Don't include password in queries by default
+    select: false,
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true, // Allows multiple null/undefined values
+  },
+  githubId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  avatar: {
+    type: String, // Store profile photo from social login
   },
   createdAt: {
     type: Date,
@@ -30,14 +44,15 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-userSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
   
   try {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
+    next();
   } catch (err) {
-    throw err;
+    next(err);
   }
 });
 

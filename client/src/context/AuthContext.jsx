@@ -12,6 +12,16 @@ export const AuthProvider = ({ children }) => {
   // Verify token on mount
   useEffect(() => {
     const verifyToken = async () => {
+      // Check for token in URL (Social Login redirect)
+      const urlParams = new URL(window.location.href).searchParams;
+      const urlToken = urlParams.get('token');
+      
+      if (urlToken) {
+        localStorage.setItem('tb-token', urlToken);
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
       const storedToken = localStorage.getItem('tb-token');
       if (!storedToken) {
         setLoading(false);

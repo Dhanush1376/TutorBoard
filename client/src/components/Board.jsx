@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Stage, Layer, Text, Rect, Group } from 'react-konva';
 import { animated, useSpring, useSprings } from '@react-spring/konva';
-import { motion, useMotionValue, useSpring as useFramerSpring } from 'framer-motion';
+import { motion, useMotionValue, useSpring as useFramerSpring, AnimatePresence } from 'framer-motion';
 
 // Domain color map for visual identity
 const DOMAIN_COLORS = {
@@ -14,7 +14,7 @@ const DOMAIN_COLORS = {
   general: { bg: '#6b7280', text: '#f9fafb', label: 'General' },
 };
 
-// Array-based visualization for DSA domain (existing renderer)
+// Array-based visualization for DSA domain
 const AnimatedArray = ({ stepData }) => {
   const BOX_SIZE = 60;
   const SPACING = 20;
@@ -38,7 +38,6 @@ const AnimatedArray = ({ stepData }) => {
       const isComparing = type === 'compare' && (i === ptrA || i === ptrB);
       const isSwapping = type === 'swap' && (i === swapI || i === swapJ);
 
-      // Default theme-aware colors
       let fill = 'rgba(128, 128, 128, 0.1)'; 
       let stroke = 'rgba(128, 128, 128, 0.2)';
       
@@ -100,25 +99,18 @@ const AnimatedArray = ({ stepData }) => {
   );
 };
 
-// Check if a step can be rendered by AnimatedArray
 const isArrayStep = (stepData) => {
   const arrayTypes = ['array', 'compare', 'swap', 'highlight'];
   return arrayTypes.includes(stepData?.type) && Array.isArray(stepData?.data?.array);
 };
 
-// Styled placeholder for non-array domains (renders as HTML overlay)
 const StepPlaceholder = ({ stepData }) => {
   const type = stepData?.type || 'unknown';
-  const description = stepData?.description || '';
   const animation = stepData?.animation || stepData?.animation_instructions || '';
   const data = stepData?.data || {};
 
-  // Extract meaningful display data based on step type
   const getDisplayContent = () => {
-    // New preferred explicit output
     if (stepData?.visualContent) return stepData.visualContent;
-
-    // Legacy standard mappings
     if (data.equation) return data.equation;
     if (data.expression) return data.expression;
     if (data.stages) return data.stages.map(s => s.name).join(' → ');
@@ -128,11 +120,8 @@ const StepPlaceholder = ({ stepData }) => {
     if (data.components) return data.components.map(c => c.name).join(', ');
     if (data.nodes) return `${data.nodes.length} nodes, ${(data.edges || []).length} connections`;
     if (data.content) return data.content;
-
-    // Random AI keys mapping fallback
     if (stepData?.value) return stepData.value;
     
-    // Fallback: render the entire object (excluding base keys) as pretty strings
     const displayObj = { ...stepData, ...data };
     delete displayObj.type;
     delete displayObj.description;
@@ -144,8 +133,6 @@ const StepPlaceholder = ({ stepData }) => {
     if (remainingKeys.length > 0) {
       return remainingKeys.map(([k, v]) => `${k.toUpperCase()}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' | ');
     }
-
-    // Ultimate fallback if absolutely empty
     return type !== 'unknown' ? type.replace(/_/g, ' ') : "Visual Diagram Element";
   };
 
@@ -159,21 +146,16 @@ const StepPlaceholder = ({ stepData }) => {
       className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
     >
       <div className="bg-[var(--bg-secondary)]/70 backdrop-blur-2xl border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full mx-6 shadow-2xl">
-        {/* Type Badge */}
         <div className="flex items-center gap-2 mb-4">
           <span className="px-3 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
             {type}
           </span>
         </div>
-
-        {/* Visual Diagram Data Area */}
         <div className="w-full min-h-[160px] flex items-center justify-center bg-[var(--bg-primary)]/40 border border-dashed border-[var(--border-color)] rounded-2xl p-8">
            <span className="text-3xl font-bold font-mono tracking-wider text-[var(--text-primary)] text-center break-words max-w-full">
              {displayContent}
            </span>
         </div>
-
-        {/* Animation Intent */}
         {animation && (
           <p className="text-[var(--text-tertiary)] text-[11px] italic mt-2">
             ✨ {animation}
@@ -183,7 +165,8 @@ const StepPlaceholder = ({ stepData }) => {
     </motion.div>
   );
 };
-const getIcon = (icon) => {
+
+const getIcon = (icon) => {
   switch (icon?.toLowerCase()) {
     case "sun": return "☀️";
     case "plant": return "🌿";
@@ -193,58 +176,133 @@ const StepPlaceholder = ({ stepData }) => {
     case "gas": return "💨";
     case "co2": return "💨";
     case "energy": return "⚡";
-    case "glucose": return "🔋";
-    case "oxygen": return "🌬️";
-    case "input": return "📥";
-    case "output": return "📤";
-    case "process": return "⚙️";
+    case "quiz": return "❓";
     default: return "🔹";
   }
 };
 
+const QuizRenderer = ({ stepData }) => {
+  const { question, options, correctAnswer, explanation } = stepData.quizData || {};
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+
+  useEffect(() => {
+    setSelectedOption(null);
+    setShowFeedback(false);
+  }, [question]);
+
+  if (!question) return <StepPlaceholder stepData={stepData} />;
+
+  const handleOptionClick = (option) => {
+    if (showFeedback) return;
+    setSelectedOption(option);
+    setShowFeedback(true);
+  };
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-6 pointer-events-none">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-[var(--bg-secondary)]/80 backdrop-blur-3xl border border-[var(--border-color)] rounded-[2.5rem] p-10 max-w-xl w-full shadow-2xl pointer-events-auto"
+      >
+        <div className="flex justify-center mb-6">
+           <span className="px-4 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
+             Knowledge Check
+           </span>
+        </div>
+        <h3 className="text-2xl font-serif text-[var(--text-primary)] mb-8 text-center leading-snug">
+          {question}
+        </h3>
+        <div className="grid grid-cols-1 gap-3">
+          {options?.map((option, i) => {
+            const isSelected = selectedOption === option;
+            const isCorrect = option === correctAnswer;
+            const isIncorrect = isSelected && !isCorrect;
+            return (
+              <motion.button
+                key={i}
+                whileTap={!showFeedback ? { scale: 0.98 } : {}}
+                onClick={() => handleOptionClick(option)}
+                disabled={showFeedback}
+                className={`
+                  group w-full p-5 rounded-2xl border text-left transition-all duration-300 flex items-center justify-between
+                  ${!showFeedback ? 'hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] border-[var(--border-color)] bg-[var(--bg-primary)]/40 cursor-pointer' : 'cursor-default'}
+                  ${showFeedback && isCorrect ? 'border-green-500/50 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.1)]' : ''}
+                  ${showFeedback && isIncorrect ? 'border-red-500/50 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : ''}
+                  ${showFeedback && !isSelected && !isCorrect ? 'opacity-40 grayscale-[0.5]' : ''}
+                `}
+              >
+                <div className="flex items-center gap-4">
+                   <div className={`
+                     w-9 h-9 flex items-center justify-center rounded-xl text-[12px] font-bold transition-colors
+                     ${showFeedback && isCorrect ? 'bg-green-500 text-white' : (showFeedback && isIncorrect ? 'bg-red-500 text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]')}
+                   `}>
+                     {String.fromCharCode(65 + i)}
+                   </div>
+                   <span className={`text-[15px] font-medium transition-colors ${showFeedback && (isCorrect || isIncorrect) ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'}`}>
+                     {option}
+                   </span>
+                </div>
+                {showFeedback && isCorrect && (
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-green-500">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </motion.div>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+        <AnimatePresence>
+          {showFeedback && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
+              className="overflow-hidden"
+            >
+              <div className="p-5 bg-[var(--bg-tertiary)]/50 rounded-2xl border border-[var(--border-color)]">
+                <div className="flex items-center gap-2 mb-2">
+                   <div className={`w-2 h-2 rounded-full ${selectedOption === correctAnswer ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+                   <span className="font-bold uppercase tracking-[0.15em] text-[10px] text-[var(--text-tertiary)]">
+                     {selectedOption === correctAnswer ? 'Excellent' : 'Analysis'}
+                   </span>
+                </div>
+                <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed italic opacity-90">
+                  {explanation}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </div>
+  );
+};
+
 const ProcessRenderer = ({ steps, currentStep }) => {
   if (!steps || steps.length === 0) return null;
-
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-12 overflow-y-auto no-scrollbar">
       <div className="flex flex-col items-center gap-4 w-full max-w-2xl py-20">
         {steps.map((step, i) => {
           const isActive = i === currentStep;
           const isPast = i < currentStep;
-          
           return (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 20 }}
-              animate={{ 
-                opacity: isPast || isActive ? 1 : 0.25,
-                y: 0,
-                scale: isActive ? 1.05 : 1
-              }}
+              animate={{ opacity: isPast || isActive ? 1 : 0.25, y: 0, scale: isActive ? 1.05 : 1 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col items-center w-full"
             >
-              {/* Node */}
-              <div 
-                className={`
-                  relative flex items-center gap-4 px-7 py-4 rounded-2xl border transition-all duration-500
-                  ${isActive 
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent shadow-[0_20px_50px_rgba(0,0,0,0.2)] scale-110 z-20' 
-                    : 'bg-[var(--bg-secondary)]/40 text-[var(--text-secondary)] border-[var(--border-color)] backdrop-blur-md z-10'}
-                `}
-              >
+              <div className={`relative flex items-center gap-4 px-7 py-4 rounded-2xl border transition-all duration-500 ${isActive ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent shadow-[0_20px_50px_rgba(0,0,0,0.2)] scale-110 z-20' : 'bg-[var(--bg-secondary)]/40 text-[var(--text-secondary)] border-[var(--border-color)] backdrop-blur-md z-10'}`}>
                 <span className="text-2xl">{getIcon(step.icon || step.type)}</span>
                 <span className="text-base font-bold tracking-tight uppercase">{step.label || step.type}</span>
-                
-                {isActive && (
-                   <motion.div 
-                     layoutId="active-glow"
-                     className="absolute inset-0 rounded-2xl bg-[var(--text-primary)]/20 blur-2xl -z-10"
-                   />
-                )}
+                {isActive && <motion.div layoutId="active-glow" className="absolute inset-0 rounded-2xl bg-[var(--text-primary)]/20 blur-2xl -z-10" />}
               </div>
-
-              {/* Arrow */}
               {i < steps.length - 1 && (
                 <div className="flex flex-col items-center h-10 my-1">
                   <div className={`w-0.5 h-full ${i < currentStep ? 'bg-[var(--text-tertiary)]' : 'bg-[var(--border-color)]'} transition-colors duration-500`} />
@@ -262,24 +320,19 @@ const ProcessRenderer = ({ steps, currentStep }) => {
 const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType }) => {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
-  // ... existing refs and effects ...
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
 
-  // Quick fix: AI sometimes defaults to "array" when it shouldn't
   let vizType = propVisualizationType;
   if (domain !== "dsa" && (vizType === "array" || vizType === "array_visualization" || stepData?.type === "array")) {
     vizType = "process";
   }
-
-  // Also catch cases where vizType wasn't explicitly set, but it shouldn't be an array
   if (!vizType && domain === "dsa") vizType = "array_visualization";
   if (!vizType && domain !== "dsa" && isArrayStep(stepData)) vizType = "process";
 
-  // Custom Cursor Position
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const smoothX = useFramerSpring(mouseX, { damping: 15, stiffness: 400 });
@@ -296,7 +349,6 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
     return () => ro.disconnect();
   }, []);
 
-  // Global mouse listener for the custom cursor (smoother than standard React events)
   useEffect(() => {
     const handleGlobalMouseMove = (e) => {
       if (!isHovering || !containerRef.current) return;
@@ -304,10 +356,7 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
       mouseX.set(e.clientX - rect.left);
       mouseY.set(e.clientY - rect.top);
     };
-
-    if (isHovering) {
-      window.addEventListener('mousemove', handleGlobalMouseMove);
-    }
+    if (isHovering) window.addEventListener('mousemove', handleGlobalMouseMove);
     return () => window.removeEventListener('mousemove', handleGlobalMouseMove);
   }, [isHovering, mouseX, mouseY]);
 
@@ -315,133 +364,47 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
     e.evt.preventDefault();
     const stage = stageRef.current;
     if (!stage) return;
-
     const scaleBy = 1.12;
     const oldScale = stage.scaleX();
     const pointer = stage.getPointerPosition();
-
     if (!pointer) return;
-
-    const mousePointTo = {
-      x: (pointer.x - stage.x()) / oldScale,
-      y: (pointer.y - stage.y()) / oldScale,
-    };
-
+    const mousePointTo = { x: (pointer.x - stage.x()) / oldScale, y: (pointer.y - stage.y()) / oldScale };
     const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    
-    // Zoom limits
     if (newScale > 5 || newScale < 0.1) return;
-
-    const newPos = {
-      x: pointer.x - mousePointTo.x * newScale,
-      y: pointer.y - mousePointTo.y * newScale,
-    };
-
+    const newPos = { x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale };
     stage.scale({ x: newScale, y: newScale });
-    // Sync back to React state for persistence (throttled/batched by React)
     setStageScale(newScale);
     setStagePos(newPos);
   };
 
   const renderContent = () => {
     if (!stepData) return null;
-
-    // Use the unified switch-case approach as requested for future extensibility
     switch (vizType) {
       case "array":
       case "array_visualization":
         return (
-          <Stage 
-            ref={stageRef}
-            width={dimensions.width} 
-            height={dimensions.height}
-            onWheel={handleWheel}
-            draggable
-            x={stagePos.x}
-            y={stagePos.y}
-            scaleX={stageScale}
-            scaleY={stageScale}
-            onDragStart={() => setIsDragging(true)}
-            onDragEnd={(e) => {
-              setIsDragging(false);
-              setStagePos({ x: e.target.x(), y: e.target.y() });
-            }}
-            className="transition-colors duration-500"
-          >
-            <Layer>
-              <Group x={dimensions.width / 2} y={dimensions.height / 2}>
-                 <AnimatedArray stepData={stepData} />
-              </Group>
-            </Layer>
+          <Stage ref={stageRef} width={dimensions.width} height={dimensions.height} onWheel={handleWheel} draggable x={stagePos.x} y={stagePos.y} scaleX={stageScale} scaleY={stageScale} onDragStart={() => setIsDragging(true)} onDragEnd={(e) => { setIsDragging(false); setStagePos({ x: e.target.x(), y: e.target.y() }); }} className="transition-colors duration-500">
+            <Layer><Group x={dimensions.width / 2} y={dimensions.height / 2}><AnimatedArray stepData={stepData} /></Group></Layer>
           </Stage>
         );
-
-      // Future dedicated renderers can be hooked up here:
       case "process":
       case "biological_diagram":
-        // return <FlowDiagram steps={steps} />
         return <ProcessRenderer steps={steps} currentStep={currentStep} />;
-
-      case "motion":
-      case "physics_simulation":
-        // return <PhysicsEngine steps={steps} />
-        return <StepPlaceholder stepData={stepData} />;
-
-      case "graph":
-      case "graph_visualization":
-        // return <GraphPlotter steps={steps} />
-        return <StepPlaceholder stepData={stepData} />;
-
-      case "molecule":
-      case "molecular_visualization":
-        // return <ChemistryViewer steps={steps} />
-        return <StepPlaceholder stepData={stepData} />;
-
+      case "quiz":
+        return <QuizRenderer stepData={stepData} />;
       default:
-        // Generic fallback for any unhandled type
         return <StepPlaceholder stepData={stepData} />;
     }
   };
 
   return (
-    <div 
-      ref={containerRef} 
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-      className="absolute inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden transition-colors duration-500"
-      style={{ 
-        cursor: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%231c1711' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") 8 8, auto` 
-      }}
-    >
-      {/* Custom Cursor Ring (Reactive) */}
+    <div ref={containerRef} onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)} className="absolute inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden transition-colors duration-500" style={{ cursor: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%231c1711' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") 8 8, auto` }}>
       {isHovering && (
-        <motion.div
-          style={{ x: smoothX, y: smoothY, willChange: 'transform' }}
-          className="pointer-events-none absolute z-[9999] flex items-center justify-center -translate-x-1/2 -translate-y-1/2"
-        >
-          <motion.div 
-            animate={{ 
-              scale: isDragging ? 0.6 : 1,
-              opacity: isHovering ? 0.35 : 0,
-            }}
-            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-            className="w-11 h-11 rounded-full border-2 border-[var(--text-tertiary)]" 
-          />
+        <motion.div style={{ x: smoothX, y: smoothY, willChange: 'transform' }} className="pointer-events-none absolute z-[9999] flex items-center justify-center -translate-x-1/2 -translate-y-1/2">
+          <motion.div animate={{ scale: isDragging ? 0.6 : 1, opacity: isHovering ? 0.35 : 0 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="w-11 h-11 rounded-full border-2 border-[var(--text-tertiary)]" />
         </motion.div>
       )}
-      
-      {/* 1. Immersive Grid Layer */}
-      <div 
-        className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.4] transition-all duration-500"
-        style={{
-          perspective: '1500px',
-          backgroundImage: 'radial-gradient(circle at center, var(--text-tertiary) 0.5px, transparent 0.5px)',
-          backgroundSize: '40px 40px',
-          transform: 'rotateX(5deg) scale(1.05)'
-        }}
-      />
-
-      {/* 2. Board Content Renderer (Switch Case based on Domain/VisualizationType) */}
+      <div className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.4] transition-all duration-500" style={{ perspective: '1500px', backgroundImage: 'radial-gradient(circle at center, var(--text-tertiary) 0.5px, transparent 0.5px)', backgroundSize: '40px 40px', transform: 'rotateX(5deg) scale(1.05)' }} />
       {renderContent()}
     </div>
   );

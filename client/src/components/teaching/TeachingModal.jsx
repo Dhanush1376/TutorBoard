@@ -22,10 +22,17 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [doubtVisualization, setDoubtVisualization] = useState(null);
 
-  const totalSteps = steps?.length || 0;
-  const activeStepData = totalSteps > 0 ? steps[currentStep] : null;
-  const normalizedDomain = domain ? domain.toLowerCase() : null;
+  // Derived state: should we show the original steps or a doubt visualization?
+  const displaySteps = doubtVisualization?.steps || steps || [];
+  const displayTitle = doubtVisualization?.title || title || 'Teaching Session';
+  const displayDomain = doubtVisualization?.domain || domain;
+  const displayVizType = doubtVisualization?.visualizationType || visualizationType;
+
+  const totalSteps = displaySteps?.length || 0;
+  const activeStepData = totalSteps > 0 ? displaySteps[currentStep] : null;
+  const normalizedDomain = displayDomain ? displayDomain.toLowerCase() : null;
 
   // Simple Oscillator-based "Tick" Sound
   const playStepSound = useCallback(() => {
@@ -55,7 +62,20 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
   useEffect(() => {
     setCurrentStep(0);
     setIsPlaying(false);
+    setDoubtVisualization(null);
   }, [steps]);
+
+  const handleVisualUpdate = useCallback((visualData) => {
+    setDoubtVisualization(visualData);
+    setCurrentStep(0);
+    setIsPlaying(false);
+  }, []);
+
+  const handleClearDoubtViz = useCallback(() => {
+    setDoubtVisualization(null);
+    setCurrentStep(0);
+    setIsPlaying(false);
+  }, []);
 
   // Audio cue on step change
   useEffect(() => {
@@ -140,10 +160,10 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
           <div className="absolute inset-0 z-0 overflow-hidden">
             <Board 
               stepData={activeStepData} 
-              steps={steps} 
+              steps={displaySteps} 
               currentStep={currentStep} 
-              domain={domain} 
-              visualizationType={visualizationType} 
+              domain={displayDomain} 
+              visualizationType={displayVizType} 
             />
             
             {/* Immersive Cinematic Spotlight */}
@@ -177,9 +197,24 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
                 </span>
               )}
               <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.15em]">
-                {title || 'Teaching Session'}
+                {displayTitle}
               </span>
             </motion.div>
+
+            {/* Back to Lesson Button (Floating) */}
+            <AnimatePresence>
+              {doubtVisualization && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                  onClick={handleClearDoubtViz}
+                  className="absolute left-1/2 -translate-x-1/2 top-5 px-4 py-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[10px] font-bold uppercase tracking-widest shadow-xl hover:opacity-90 active:scale-95 transition-all z-20"
+                >
+                  Return to Lesson
+                </motion.button>
+              )}
+            </AnimatePresence>
 
             {/* Right Controls */}
             <div className="flex items-center gap-2">
@@ -206,8 +241,8 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
             </div>
           </div>
 
-          {/* ─── 3. EXPLANATION PANEL ─── */}
-          {(activeStepData?.description || activeStepData?.label || activeStepData?.text || activeStepData?.type) && (
+          {/* ─── 3. EXPLANATION PANEL (Hide for quiz mode as it has dedicated renderer) ─── */}
+          {(activeStepData?.description || activeStepData?.label || activeStepData?.text || activeStepData?.type) && displayVizType !== 'quiz' && (
             <motion.div
               key={currentStep}
               initial={{ opacity: 0, x: -20 }}
@@ -247,6 +282,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
                 currentStep={currentStep}
                 stepDescription={activeStepData?.description}
                 stepData={activeStepData?.data}
+                onVisualUpdate={handleVisualUpdate}
               />
             </div>
 

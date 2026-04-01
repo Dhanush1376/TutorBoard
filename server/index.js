@@ -20,17 +20,48 @@ const port = process.env.PORT || 3001;
 
 // --------------- MongoDB Connection ---------------
 
-const connectDB = async () => {
+const connectDB = async (retryCount = 0) => {
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY = Math.min(1000 * Math.pow(2, retryCount), 30000); // Exponential backoff max 30s
+
   try {
     if (!process.env.MONGODB_URI) {
       console.warn('⚠️  MONGODB_URI not set — auth features will not work');
       return;
     }
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    
+    console.log(`🔄 [DB] Connecting to MongoDB (Attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+    
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    
     console.log(`MongoDB connected: ${conn.connection.host} ✅`);
+    
+    mongoose.connection.on('error', (err) => {
+      console.error('MongoDB runtime error:', err);
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      console.warn('MongoDB disconnected! ⚠️  Attempting to reconnect...');
+      connectDB(0); // Restart retry cycle on unexpected disconnect
+    });
+    
   } catch (err) {
-    console.error('MongoDB connection error:', err.message);
-    // Don't exit — let the rest of the app work without auth
+    console.error('❌ MongoDB connection error:', err.message);
+    
+    if (err.message.includes('querySrv ENOTFOUND')) {
+      console.error('👉 TIP: Check if your MONGODB_URI is correctly formatted and your network is accessible.');
+    } else if (err.message.includes('Authentication failed')) {
+      console.error('👉 TIP: Check your database username and password in the .env file.');
+    }
+
+    if (retryCount < MAX_RETRIES) {
+      console.log(`🕒 Retrying in ${RETRY_DELAY/1000}s...`);
+      setTimeout(() => connectDB(retryCount + 1), RETRY_DELAY);
+    } else {
+      console.error('🚫 Max retries reached. Database operations will fail.');
+    }
   }
 };
 

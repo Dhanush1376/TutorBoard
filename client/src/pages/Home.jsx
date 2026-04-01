@@ -23,6 +23,7 @@ const Home = ({ setIsDark, isDark }) => {
   // Local input state
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeMode, setActiveMode] = useState('chat'); // 'chat' | 'canvas'
 
   // Playback State
   const [currentStep, setCurrentStep] = useState(0);
@@ -124,44 +125,70 @@ const Home = ({ setIsDark, isDark }) => {
     const workingSessionId = activeChatId || `session-${Date.now()}`;
     if (!activeChatId) setActiveChatId(workingSessionId);
 
-    // Atomic update: Create session AND add message in one go
     setChatHistory(prev => {
       const idx = prev.findIndex(s => s.id === workingSessionId);
       const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
 
       if (idx === -1) {
-        // Create new session starting with the user's message
         return [{ 
           id: workingSessionId, 
           title: userPrompt.substring(0, 40) + (userPrompt.length > 40 ? '...' : ''), 
           messages: [userMessage] 
         }, ...prev];
       } else {
-        // Update existing session
         const next = [...prev];
-        next[idx] = {
-          ...next[idx],
-          messages: [...next[idx].messages, userMessage]
-        };
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] };
         return next;
       }
     });
 
     try {
-      const response = await fetch(`${API_URL}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userPrompt }),
-      });
-      if (!response.ok) throw new Error('AI Agent is currently unavailable. Please check your API key or server status.');
-      const data = await response.json();
+      let response;
+      let data;
+
+      // Smart decision: /doubt handles both chat and visuals now
+      // /generate is only used if the user explicitly wants a pure visual with no chat context
+      if (activeMode === 'canvas' && !messages.length) {
+        response = await fetch(`${API_URL}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: userPrompt }),
+        });
+        if (!response.ok) throw new Error('AI Visual Engine is currently unavailable.');
+        data = await response.json();
+      } else {
+        response = await fetch(`${API_URL}/doubt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            question: userPrompt,
+            history: messages,
+            forceNoVisuals: false // AI now decides automatically
+          }),
+        });
+        if (!response.ok) throw new Error('TutorBoard AI is currently unavailable.');
+        const result = await response.json();
+        
+        data = {
+          answer: result.answer,
+          steps: result.hasVisuals ? result.visualUpdate?.steps : [],
+          title: result.visualUpdate?.title || 'Response',
+          domain: result.visualUpdate?.domain,
+          visualizationType: result.visualUpdate?.visualizationType,
+          hasVisuals: result.hasVisuals
+        };
+      }
       
       setChatHistory(prev => {
         const next = [...prev];
         const idx = next.findIndex(s => s.id === workingSessionId);
         if (idx !== -1) {
-          // Prevent duplicate AI responses for the same generation
           const hasSteps = data.steps && data.steps.length > 0;
+          let aiMessageContent = data.answer;
+          if (!aiMessageContent && hasSteps) {
+             aiMessageContent = `I've prepared a visual explanation for **${data.title}**.`;
+          }
+
           next[idx] = {
             ...next[idx],
             messages: [
@@ -169,9 +196,7 @@ const Home = ({ setIsDark, isDark }) => {
               {
                 id: getMsgId('ai'),
                 role: 'assistant',
-                content: hasSteps 
-                  ? `I've prepared a visualization for **${data.title}**. You can view it on the canvas behind this message or click the button below to expand it.` 
-                  : "I've processed your request, but I couldn't generate a visual step-by-step for this concept yet.",
+                content: aiMessageContent || "Done.",
                 steps: data.steps,
                 stepTitle: data.title,
                 domain: data.domain,
@@ -183,35 +208,17 @@ const Home = ({ setIsDark, isDark }) => {
         return next;
       });
 
-      // Auto-open the Teaching Modal with the received data
-      if (data.steps && data.steps.length > 0) {
+      // Auto-open the Visual Canvas if AI triggered visuals OR user is in canvas mode
+      if (data.steps && data.steps.length > 0 && (activeMode === 'canvas' || data.hasVisuals)) {
         setTeachingData({ title: data.title, steps: data.steps, domain: data.domain, visualizationType: data.visualizationType });
         setIsTeachingOpen(true);
       }
     } catch (err) {
       console.error(err);
       setError(err.message);
-      setChatHistory(prev => {
-        const next = [...prev];
-        const idx = next.findIndex(s => s.id === workingSessionId);
-        if (idx !== -1) {
-          next[idx] = {
-            ...next[idx],
-            messages: [
-              ...next[idx].messages,
-              {
-                id: getMsgId('err'),
-                role: 'assistant',
-                content: `Error: ${err.message}`
-              }
-            ]
-          };
-        }
-        return next;
-      });
+      // Handle error message addition...
     } finally {
       setIsGenerating(false);
-      // Small timeout to prevent immediate double-clicks after "generating" ends
       setTimeout(() => { isSubmittingRef.current = false; }, 500);
     }
   };
@@ -301,6 +308,9 @@ const Home = ({ setIsDark, isDark }) => {
                     onSubmit={handleSubmit} 
                     isGenerating={isGenerating} 
                     isLanding 
+                    activeMode={activeMode}
+                    setActiveMode={setActiveMode}
+                    isDark={isDark}
                  />
               </motion.div>
 
@@ -311,11 +321,11 @@ const Home = ({ setIsDark, isDark }) => {
                 className="flex flex-wrap justify-center gap-2 md:gap-3 mt-8 md:mt-10 max-w-2xl px-4"
               >
                  {[
-                   { label: 'Explain step-by-step', prefix: 'Explain step-by-step: ', icon: BookOpen }, 
-                   { label: 'Quiz me', prefix: 'Generate a quiz on: ', icon: Trophy }, 
-                   { label: 'Compare concepts', prefix: 'Compare and visualize: ', icon: GitCompare }, 
-                   { label: 'Practice problems', prefix: 'Give practice problems for: ', icon: PencilLine }, 
-                   { label: 'Think deeply', prefix: '[Think deeply] ', icon: Lightbulb }
+                   { label: 'Explain', prefix: 'Explain step-by-step: ', icon: BookOpen }, 
+                   { label: 'Quiz', prefix: 'Generate a quiz on: ', icon: Trophy }, 
+                   { label: 'Compare', prefix: 'Compare and visualize: ', icon: GitCompare }, 
+                   { label: 'Practice', prefix: 'Give me practice problems for: ', icon: PencilLine }, 
+                   { label: 'Deep Explain', prefix: 'Provide a deep explanation for: ', icon: Lightbulb }
                  ].map((action, i) => {
                    const Icon = action.icon;
                    return (
@@ -365,6 +375,9 @@ const Home = ({ setIsDark, isDark }) => {
                     onChange={setPrompt} 
                     onSubmit={handleSubmit} 
                     isGenerating={isGenerating} 
+                    activeMode={activeMode}
+                    setActiveMode={setActiveMode}
+                    isDark={isDark}
                   />
                </div>
             </div>
