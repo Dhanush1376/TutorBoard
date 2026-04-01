@@ -9,7 +9,7 @@ import ModulesPage from '../components/modules/ModulesPage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Trophy, GitCompare, PencilLine, Lightbulb } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || "https://tutorboard.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const Home = ({ setIsDark, isDark }) => {
   // Global Sessions
@@ -104,9 +104,9 @@ const Home = ({ setIsDark, isDark }) => {
   };
 
   // Open Canvas for a specific message's steps
-  const handleOpenCanvas = useCallback((steps, title) => {
+  const handleOpenCanvas = useCallback((steps, title, domain, visualizationType) => {
     if (steps && steps.length > 0) {
-      setTeachingData({ title: title || 'Teaching Session', steps });
+      setTeachingData({ title: title || 'Teaching Session', steps, domain, visualizationType });
       setIsTeachingOpen(true);
     }
   }, []);
@@ -173,7 +173,9 @@ const Home = ({ setIsDark, isDark }) => {
                   ? `I've prepared a visualization for **${data.title}**. You can view it on the canvas behind this message or click the button below to expand it.` 
                   : "I've processed your request, but I couldn't generate a visual step-by-step for this concept yet.",
                 steps: data.steps,
-                stepTitle: data.title
+                stepTitle: data.title,
+                domain: data.domain,
+                visualizationType: data.visualizationType
               }
             ]
           };
@@ -183,7 +185,7 @@ const Home = ({ setIsDark, isDark }) => {
 
       // Auto-open the Teaching Modal with the received data
       if (data.steps && data.steps.length > 0) {
-        setTeachingData({ title: data.title, steps: data.steps });
+        setTeachingData({ title: data.title, steps: data.steps, domain: data.domain, visualizationType: data.visualizationType });
         setIsTeachingOpen(true);
       }
     } catch (err) {
@@ -378,6 +380,8 @@ const Home = ({ setIsDark, isDark }) => {
         onClose={() => { setIsTeachingOpen(false); setTeachingData(null); }}
         title={teachingData?.title}
         steps={teachingData?.steps || []}
+        domain={teachingData?.domain}
+        visualizationType={teachingData?.visualizationType}
       />
 
     </Layout>

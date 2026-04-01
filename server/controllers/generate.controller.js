@@ -8,66 +8,79 @@ export const generateExplanation = async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    const completion = await aiClient.chat.completions.create({
-      model: getModel(), // Dynamic model selection
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert Computer Science and Mathematics tutor. Your goal is to convert user questions into structured, step-by-step visual explanations for an interactive whiteboard.
+    const systemPrompt = `
+You are NOT a chatbot.
 
-You must reply strictly in valid JSON format representing the steps of an algorithm or mathematical concept.
+You are a VISUAL ENGINE for a system called TutorBoard.
 
-JSON Schema Requirements:
+Your ONLY job is to convert user questions into structured JSON for visual rendering.
+
+STRICT RULES:
+- NEVER explain anything
+- NEVER return text
+- NEVER say "I can't"
+- NEVER give instructions
+- ONLY return JSON
+
+If you return anything other than JSON, the system will break.
+
+You must always choose a visualization type and generate steps.
+
+Types:
+- geometry (circle, shapes)
+- process (flow diagrams)
+- motion (physics animations)
+- graph (math graphs)
+- array (DSA)
+
+Examples:
+- "area of circle" -> geometry
+- "photosynthesis" -> process (steps should include label: "Sunlight", icon: "sun", type: "input")
+- "rocket launch" -> motion
+
+Return ONLY this format:
+
 {
-  "title": "String - The overarching concept being taught, e.g., 'Binary Search' or 'y = 2x + 1'",
+  "domain": "dsa | mathematics | physics | chemistry | biology | mechanical | general",
+  "visualizationType": "process | array | motion | graph | geometry",
+  "title": "",
   "steps": [
     {
-      "type": "String - Must be one of: 'array', 'compare', 'swap', 'highlight', 'graph'",
-      "description": "String - A concise text explanation of what's precisely happening in this specific step.",
-      "data": "Object - See details below based on the 'type'",
-      "animation_instructions": "String - A human-readable intent for how the animation should feel (e.g., 'Highlight the middle element in blue and zoom slightly')."
+      "type": "input | process | output", 
+      "label": "Short name for diagram",
+      "icon": "sun | plant | drop | gas | energy | etc",
+      "description": "Long explanation for sidebar",
+      "visualContent": "Formula or simple string"
     }
   ]
 }
 
-Specific Handlers for 'data' Object based on 'type':
+For "process" type, each step MUST have: label, type, and icon.
+`;
 
-1. type "array":
-   - "data" must be: { "array": [Element1, Element2, ...] }
-   - Use for defining the base structural array on the board.
-
-2. type "compare":
-   - "data" must be: { "array": [Element1, Element2, ...], "index_a": Int, "index_b": Int, "condition": ">" | "<" | "==" }
-   - Use heavily for Binary Search or Bubble Sort to show comparison boundaries.
-
-3. type "swap":
-   - "data" must be: { "array": [Element1, Element2, ...], "swap_i": Int, "swap_j": Int }
-   - Use to denote an active swap in algorithms like Bubble Sort.
-
-4. type "highlight":
-   - "data" must be: { "array": [Element1, Element2, ...], "highlight_indices": [Int, Int, ...] }
-   - Use to emphasize a specific node without comparison, e.g., "target found".
-
-5. type "graph":
-   - "data" must be: { "equation": "String - e.g. y = mx + c", "points": [ [x1, y1], [x2, y2], ... ] }
-   - Use when the user asks to visualize a mathematical line or graph.
-
-Ensure you break algorithmic operations (like Bubble Sort or Binary Search) into deliberate, granular frame-by-frame steps.
-
-Respond ONLY with valid JSON.`
-        },
-        {
-          role: "user",
-          content: prompt
-        }
+    const completion = await aiClient.chat.completions.create({
+      model: getModel(),
+      temperature: 0,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt }
       ],
       response_format: { type: "json_object" }
     });
 
-    // OpenAI sometimes returns Markdown JSON blocks, so we parse it safely:
+    // Parse safely — strip markdown fences if present
     let content = completion.choices[0].message.content.trim();
+    
+    // Debug as per STEP 5
+    console.log("=== AI RAW OUTPUT ===");
+    console.log(content);
+    console.log("=====================");
+
     if (content.startsWith('```json')) {
       content = content.replace(/^```json\n/, '').replace(/\n```$/, '');
+    }
+    if (content.startsWith('```')) {
+      content = content.replace(/^```\n/, '').replace(/\n```$/, '');
     }
     const parsedResponse = JSON.parse(content);
     res.json(parsedResponse);

@@ -23,6 +23,8 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas }) => {
             content={msg.content}
             steps={msg.steps}
             stepTitle={msg.stepTitle}
+            domain={msg.domain}
+            visualizationType={msg.visualizationType}
             onOpenCanvas={onOpenCanvas}
           />
         ))}

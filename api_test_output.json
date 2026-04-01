@@ -1,0 +1,169 @@
+﻿{
+    "domain":  "biology",
+    "title":  "Photosynthesis Process",
+    "visualizationType":  "biological_diagram",
+    "steps":  [
+                  {
+                      "type":  "process",
+                      "description":  "Photosynthesis occurs mainly in the chloroplasts of plant cells.",
+                      "data":  {
+                                   "stages":  [
+                                                  {
+                                                      "name":  "Light Absorption",
+                                                      "description":  "Chlorophyll absorbs sunlight."
+                                                  },
+                                                  {
+                                                      "name":  "Water Splitting",
+                                                      "description":  "Water molecules are split into oxygen and hydrogen."
+                                                  },
+                                                  {
+                                                      "name":  "Carbon Dioxide Intake",
+                                                      "description":  "Plants take in carbon dioxide from the atmosphere."
+                                                  },
+                                                  {
+                                                      "name":  "Glucose Formation",
+                                                      "description":  "Hydrogen combines with carbon dioxide to form glucose."
+                                                  },
+                                                  {
+                                                      "name":  "Oxygen Release",
+                                                      "description":  "Oxygen is released as a byproduct."
+                                                  }
+                                              ],
+                                   "flow":  "linear"
+                               },
+                      "animation":  "Zoom in on chloroplast, highlighting each stage as it is described"
+                  },
+                  {
+                      "type":  "structure",
+                      "description":  "The chloroplast is the key organelle where photosynthesis takes place.",
+                      "data":  {
+                                   "organism":  "chloroplast",
+                                   "parts":  [
+                                                 {
+                                                     "name":  "Thylakoids",
+                                                     "role":  "Site of light-dependent reactions"
+                                                 },
+                                                 {
+                                                     "name":  "Stroma",
+                                                     "role":  "Site of the Calvin cycle"
+                                                 }
+                                             ]
+                               },
+                      "animation":  "Fade in chloroplast image with labels appearing for each part"
+                  },
+                  {
+                      "type":  "diagram",
+                      "description":  "Illustrate how sunlight, water, and carbon dioxide are inputs in photosynthesis.",
+                      "data":  {
+                                   "elements":  [
+                                                    {
+                                                        "shape":  "arrow",
+                                                        "label":  "Sunlight"
+                                                    },
+                                                    {
+                                                        "shape":  "arrow",
+                                                        "label":  "Water (H2O)"
+                                                    },
+                                                    {
+                                                        "shape":  "arrow",
+                                                        "label":  "Carbon Dioxide (CO2)"
+                                                    },
+                                                    {
+                                                        "shape":  "arrow",
+                                                        "label":  "Glucose (C6H12O6)"
+                                                    },
+                                                    {
+                                                        "shape":  "arrow",
+                                                        "label":  "Oxygen (O2)"
+                                                    }
+                                                ],
+                                   "labels":  [
+                                                  "Inputs",
+                                                  "Outputs"
+                                              ]
+                               },
+                      "animation":  "Slide in arrows to represent the flow of inputs and outputs"
+                  },
+                  {
+                      "type":  "process",
+                      "description":  "During light-dependent reactions, sunlight activates chlorophyll.",
+                      "data":  {
+                                   "stages":  [
+                                                  {
+                                                      "name":  "Photolysis",
+                                                      "description":  "Water is split into oxygen and hydrogen ions."
+                                                  },
+                                                  {
+                                                      "name":  "ATP Formation",
+                                                      "description":  "Energy from sunlight converts ADP to ATP."
+                                                  },
+                                                  {
+                                                      "name":  "NADPH Formation",
+                                                      "description":  "NADP+ is reduced to NADPH."
+                                                  }
+                                              ],
+                                   "flow":  "linear"
+                               },
+                      "animation":  "Highlight the chlorophyll absorbing light as the process unfolds"
+                  },
+                  {
+                      "type":  "process",
+                      "description":  "The Calvin cycle uses ATP and NADPH to convert CO2 to glucose.",
+                      "data":  {
+                                   "stages":  [
+                                                  {
+                                                      "name":  "Carbon Fixation",
+                                                      "description":  "Carbon dioxide is fixed into a 5-carbon sugar."
+                                                  },
+                                                  {
+                                                      "name":  "Reduction Phase",
+                                                      "description":  "ATP and NADPH are used to convert 3-PGA into G3P."
+                                                  },
+                                                  {
+                                                      "name":  "Regeneration",
+                                                      "description":  "G3P is used to regenerate RuBP."
+                                                  }
+                                              ],
+                                   "flow":  "linear"
+                               },
+                      "animation":  "Flow through each stage with arrows indicating the conversion of substances"
+                  },
+                  {
+                      "type":  "diagram",
+                      "description":  "Depict the relationship between photosynthesis and cellular respiration.",
+                      "data":  {
+                                   "elements":  [
+                                                    {
+                                                        "shape":  "circle",
+                                                        "label":  "Photosynthesis"
+                                                    },
+                                                    {
+                                                        "shape":  "circle",
+                                                        "label":  "Cellular Respiration"
+                                                    }
+                                                ],
+                                   "connections":  [
+                                                       {
+                                                           "from":  "Photosynthesis",
+                                                           "to":  "Cellular Respiration"
+                                                       }
+                                                   ]
+                               },
+                      "animation":  "Pulsate each circle and highlight the connection between the two processes"
+                  },
+                  {
+                      "type":  "process",
+                      "description":  "Summarize the equation of photosynthesis.",
+                      "data":  {
+                                   "stages":  [
+                                                  {
+                                                      "name":  "Overall Reaction",
+                                                      "description":  "6CO2 + 6H2O -\u003e C6H12O6 + 6O2"
+                                                  }
+                                              ],
+                                   "flow":  "linear"
+                               },
+                      "animation":  "Display the equation step-by-step with each component appearing sequentially"
+                  }
+              ]
+}

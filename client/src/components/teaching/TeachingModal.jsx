@@ -6,7 +6,18 @@ import StepController from './StepController';
 import ProgressIndicator from './ProgressIndicator';
 import InlineChat from './InlineChat';
 
-const TeachingModal = ({ isOpen, onClose, title, steps }) => {
+// Domain badge styling
+const DOMAIN_STYLES = {
+  dsa: { bg: 'rgba(5, 150, 105, 0.15)', border: 'rgba(5, 150, 105, 0.3)', text: '#059669', label: 'DSA' },
+  mathematics: { bg: 'rgba(124, 58, 237, 0.15)', border: 'rgba(124, 58, 237, 0.3)', text: '#7c3aed', label: 'Math' },
+  physics: { bg: 'rgba(37, 99, 235, 0.15)', border: 'rgba(37, 99, 235, 0.3)', text: '#2563eb', label: 'Physics' },
+  chemistry: { bg: 'rgba(220, 38, 38, 0.15)', border: 'rgba(220, 38, 38, 0.3)', text: '#dc2626', label: 'Chemistry' },
+  biology: { bg: 'rgba(22, 163, 74, 0.15)', border: 'rgba(22, 163, 74, 0.3)', text: '#16a34a', label: 'Biology' },
+  mechanical: { bg: 'rgba(217, 119, 6, 0.15)', border: 'rgba(217, 119, 6, 0.3)', text: '#d97706', label: 'Mechanical' },
+  general: { bg: 'rgba(107, 114, 128, 0.15)', border: 'rgba(107, 114, 128, 0.3)', text: '#6b7280', label: 'General' },
+};
+
+const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationType }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -14,6 +25,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps }) => {
 
   const totalSteps = steps?.length || 0;
   const activeStepData = totalSteps > 0 ? steps[currentStep] : null;
+  const normalizedDomain = domain ? domain.toLowerCase() : null;
 
   // Simple Oscillator-based "Tick" Sound
   const playStepSound = useCallback(() => {
@@ -122,11 +134,17 @@ const TeachingModal = ({ isOpen, onClose, title, steps }) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[200] flex flex-col bg-[var(--bg-primary)] overflow-hidden"
+          className="absolute inset-0 z-[200] flex flex-col bg-[var(--bg-primary)] overflow-hidden"
         >
           {/* ─── 1. IMMERSIVE BOARD BACKDROP ─── */}
           <div className="absolute inset-0 z-0 overflow-hidden">
-            <Board stepData={activeStepData} />
+            <Board 
+              stepData={activeStepData} 
+              steps={steps} 
+              currentStep={currentStep} 
+              domain={domain} 
+              visualizationType={visualizationType} 
+            />
             
             {/* Immersive Cinematic Spotlight */}
             <div 
@@ -145,6 +163,19 @@ const TeachingModal = ({ isOpen, onClose, title, steps }) => {
               className="flex items-center gap-3 bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] px-5 py-2.5 rounded-2xl shadow-xl"
             >
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              {normalizedDomain && DOMAIN_STYLES[normalizedDomain] && (
+                <span 
+                  className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em]"
+                  style={{ 
+                    backgroundColor: DOMAIN_STYLES[normalizedDomain].bg, 
+                    borderWidth: '1px',
+                    borderColor: DOMAIN_STYLES[normalizedDomain].border,
+                    color: DOMAIN_STYLES[normalizedDomain].text 
+                  }}
+                >
+                  {DOMAIN_STYLES[normalizedDomain].label}
+                </span>
+              )}
               <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.15em]">
                 {title || 'Teaching Session'}
               </span>
@@ -176,7 +207,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps }) => {
           </div>
 
           {/* ─── 3. EXPLANATION PANEL ─── */}
-          {activeStepData?.description && (
+          {(activeStepData?.description || activeStepData?.label || activeStepData?.text || activeStepData?.type) && (
             <motion.div
               key={currentStep}
               initial={{ opacity: 0, x: -20 }}
@@ -190,17 +221,17 @@ const TeachingModal = ({ isOpen, onClose, title, steps }) => {
                     Step {currentStep + 1}
                   </span>
                   {activeStepData.type && (
-                    <span className="px-2 py-0.5 bg-[var(--bg-tertiary)] rounded-full text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">
-                      {activeStepData.type}
+                    <span className="px-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">
+                      {activeStepData.type.replace(/_/g, ' ')}
                     </span>
                   )}
                 </div>
                 <p className="text-sm text-[var(--text-primary)] leading-relaxed font-medium">
-                  {activeStepData.description}
+                  {activeStepData.description || activeStepData.label || activeStepData.text || "Visual step processing..."}
                 </p>
-                {activeStepData.animation_instructions && (
+                {(activeStepData.animation_instructions || activeStepData.animation) && (
                   <p className="text-[11px] text-[var(--text-tertiary)] mt-2 italic">
-                    {activeStepData.animation_instructions}
+                    {activeStepData.animation_instructions || activeStepData.animation}
                   </p>
                 )}
               </div>
