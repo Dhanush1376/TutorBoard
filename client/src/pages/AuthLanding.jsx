@@ -230,13 +230,24 @@ const AuthLanding = () => {
             </button>
           </div>
 
-          <div className="text-center">
+          <div className="text-center flex flex-col gap-3">
             <button
               type="button"
               onClick={() => { setIsLogin(!isLogin); setError(''); }}
               className="text-[13px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+            </button>
+            <div className="h-[1px] w-8 bg-[var(--border-color)] opacity-20 mx-auto"></div>
+            <button
+              type="button"
+              onClick={() => {
+                loginGuest();
+                navigate('/dashboard');
+              }}
+              className="text-[12px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic"
+            >
+              Skip and try as guest <Sparkles className="w-3 h-3" />
             </button>
           </div>
         </div>
@@ -292,7 +303,10 @@ const AuthLanding = () => {
                   key="guest-nav"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  onClick={() => setIsLogin(false)}
+                  onClick={() => {
+                    loginGuest();
+                    navigate('/dashboard');
+                  }}
                   className="text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
                 >
                   Try TutorBoard <ArrowRight className="w-3 h-3 opacity-50" />
