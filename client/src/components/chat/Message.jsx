@@ -33,20 +33,20 @@ const Message = ({ role, content, steps, stepTitle, domain, visualizationType, o
           {content}
         </div>
 
-        {/* Open Canvas Button — only on assistant messages with steps */}
+        {/* Open Canvas Button — premium glassmorphism treatment */}
         {hasCanvas && (
           <motion.button
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3, duration: 0.3 }}
             onClick={() => onOpenCanvas && onOpenCanvas(steps, stepTitle, domain, visualizationType)}
-            className="mt-3 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all
-              bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)]
-              hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] hover:shadow-lg
-              active:scale-95"
+            className="mt-3 flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all
+              bg-[var(--text-primary)]/10 dark:bg-white/10 backdrop-blur-md border border-[var(--text-primary)]/20 dark:border-white/20 text-[var(--text-primary)]
+              hover:bg-[var(--text-primary)]/20 dark:hover:bg-white/20 hover:border-[var(--text-primary)]/30 dark:hover:border-white/40 hover:shadow-[0_0_20px_-5px_rgba(0,0,0,0.1)]
+              active:scale-95 group"
           >
-            <Presentation size={14} className="opacity-70" />
-            Open Canvas
+            <Presentation size={14} className="opacity-70 group-hover:opacity-100 transition-opacity" />
+            <span>Open Visual Canvas</span>
           </motion.button>
         )}
       </div>

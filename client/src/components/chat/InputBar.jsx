@@ -10,11 +10,13 @@ import {
   GitCompare,
   PencilLine,
   Lightbulb,
+  MessageSquare,
+  Zap,
   MicOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding }) => {
+const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, isDark }) => {
   const textareaRef = useRef(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
@@ -108,13 +110,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding }) => {
   const agents = ['DeepSeek R1', 'TutorBoard Pro', 'GPT-4o', 'Sonnet 3.5'];
 
   // TutorBoard-relevant quick actions
-  const quickActions = [
-    { icon: BookOpen, label: 'Explain step-by-step', prefix: 'Explain step-by-step: ' },
-    { icon: Trophy, label: 'Quiz me', prefix: 'Generate a quiz on: ' },
-    { icon: GitCompare, label: 'Compare concepts', prefix: 'Compare and visualize: ' },
-    { icon: PencilLine, label: 'Practice problems', prefix: 'Give me practice problems for: ' },
-    { icon: Lightbulb, label: 'Think deeply', prefix: '[think deeply] ' },
-  ];
+   // TutorBoard-relevant quick actions
+   const quickActions = [
+     { icon: BookOpen, label: 'Explain', prefix: 'Explain step-by-step: ' },
+     { icon: Trophy, label: 'Quiz', prefix: 'Generate a quiz on: ' },
+     { icon: GitCompare, label: 'Compare', prefix: 'Compare and visualize: ' },
+     { icon: PencilLine, label: 'Practice', prefix: 'Give me practice problems for: ' },
+     { icon: Lightbulb, label: 'Deep Explain', prefix: 'Provide a deep explanation for: ' },
+   ];
 
   const handleQuickAction = (prefix) => {
     onChange(prefix);
@@ -175,6 +178,49 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding }) => {
                     </motion.div>
                   )}
                 </AnimatePresence>
+             </div>
+
+             {/* Sliding Toggle: High-Contrast, Shadowless, Pro Design */}
+              <div className="flex items-center ml-1 p-0.5 rounded-full transition-all duration-300 border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-inner">
+                <div className="relative flex items-center p-0.5 bg-transparent rounded-full overflow-hidden">
+                   {/* Sliding Pill Overlay */}
+                   <motion.div
+                     layoutId="activePill"
+                     className="absolute inset-y-0.5 rounded-full z-0 pointer-events-none shadow-sm bg-[var(--text-primary)]"
+                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                     style={{
+                       left: activeMode === 'chat' ? '2px' : '50%',
+                       width: 'calc(50% - 2px)'
+                     }}
+                   />
+ 
+                   <button
+                     type="button"
+                     onClick={() => setActiveMode('chat')}
+                     className={`relative z-10 flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full transition-colors duration-300 text-[10px] font-extrabold uppercase tracking-widest min-w-[75px] ${
+                       activeMode === 'chat' 
+                         ? '' 
+                         : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                     }`}
+                     style={activeMode === 'chat' ? { color: 'var(--bg-primary)' } : {}}
+                   >
+                     <MessageSquare size={11} className={activeMode === 'chat' ? 'fill-current' : ''} />
+                     <span>Chat</span>
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => setActiveMode('canvas')}
+                     className={`relative z-10 flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full transition-colors duration-300 text-[10px] font-extrabold uppercase tracking-widest min-w-[75px] ${
+                       activeMode === 'canvas' 
+                         ? ''
+                         : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                     }`}
+                     style={activeMode === 'canvas' ? { color: 'var(--bg-primary)' } : {}}
+                   >
+                     <Zap size={11} className={activeMode === 'canvas' ? 'fill-current' : ''} />
+                     <span>Canvas</span>
+                   </button>
+                </div>
              </div>
 
              {/* Agent Selector */}
