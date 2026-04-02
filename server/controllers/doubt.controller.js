@@ -70,30 +70,53 @@ PRIORITY: COMPARE > QUIZ > PRACTICE > DEEP EXPLAIN > EXPLAIN
 
 ---
 
-## 🎨 CANVAS MODE (VISUAL INTELLIGENCE)
-Choose hasVisuals: true if the concept is a process, structure, comparison, or requires a QUIZ.
-${forceNoVisuals ? 'The user is currently in CHAT mode, but you SHOULD still set hasVisuals: true if a visual diagram or interactive quiz is progress-essential.' : 'The user prefers VISUALS. Focus on flow diagrams, step sequences, node connections, and quizzes.'}
+## 🎨 VISUALIZATION ENGINE (BRAIN 🧠)
+You MUST decide: "What type of animation should this question use?"
+Classify the question into one of: [flow, timeline, diagram, graph, node_graph, quiz, array].
+
+---
+
+## 🔄 VISUAL DSL GENERATOR (TRANSLATOR)
+Convert the concept into structured animation instructions (DSL).
+
+1. **FLOW**: Use for processes (e.g., Photosynthesis, Request-Response). Needs nodes and connections.
+2. **TIMELINE**: Use for history or sequential steps. Needs timeline array.
+3. **DIAGRAM**: Use for structures (e.g., Atom, Cell). Needs nodes with positions or sections.
+4. **GRAPH**: Use for math/equations. Needs dataPoints or equation.
+5. **NODE_GRAPH**: Use for networks/systems.
 
 STRICT JSON OUTPUT:
 {
-  "answer": "Conversational text response following the specific mode\'s flow",
+  "answer": "Conversational text response following the mode flow",
   "hasVisuals": true | false,
   "visualUpdate": {
     "domain": "dsa | mathematics | physics | chemistry | biology | mechanical | general",
-    "visualizationType": "process | array | motion | graph | geometry | quiz",
+    "visualizationType": "flow | timeline | diagram | graph | node_graph | quiz | array",
     "title": "...",
+    "style": "minimal | colorful | educational",
+    "dsl": {
+      "nodes": [
+        { "id": "n1", "label": "Concept Name", "description": "Optional details", "icon": "sun | plant | energy | etc" }
+      ],
+      "connections": [
+        { "from": "n1", "to": "n2", "label": "Action/Label", "effect": "flow | pulse" }
+      ],
+      "timeline": [
+        { "time": "Step 1", "event": "Event Name", "description": "..." }
+      ],
+      "sections": [
+        { "id": "s1", "label": "Part Name", "description": "..." }
+      ],
+      "animations": [
+        { "element": "n1", "effect": "pulse | reveal | highlight", "duration": 1 }
+      ]
+    },
     "steps": [
       { 
         "label": "...", 
         "icon": "...", 
         "description": "...", 
-        "visualContent": "...",
-        "quizData": {
-          "question": "The specific question text for this step",
-          "options": ["Option A", "Option B", "Option C", "Option D"],
-          "correctAnswer": "The exact string of the correct option",
-          "explanation": "Brief explanation of the correct answer"
-        }
+        "quizData": { ... }
       }
     ]
   }
@@ -104,8 +127,8 @@ If the mode is QUIZ, you MUST:
 1. Set hasVisuals: true.
 2. visualizationType MUST be "quiz".
 3. Generate exactly ONE MCQ per step in the visualUpdate.steps array.
-4. Each step MUST have a "quizData" object with "question", "options" (array of 4), "correctAnswer", and "explanation".
-5. The "answer" field should only contain a brief encouraging message; the actual quiz content MUST be in the "steps" array.`;
+4. Each step MUST have a "quizData" object.
+5. The "answer" field should be brief.`;
 
     // Map history to OpenAI format
     const chatHistory = (history || []).map(msg => ({

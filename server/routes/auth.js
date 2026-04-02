@@ -1,3 +1,4 @@
+import { Router } from 'express';
 import { signup, signin, getMe, socialLoginSuccess } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import passport from '../utils/passport.js';

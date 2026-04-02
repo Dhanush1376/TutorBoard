@@ -3,6 +3,11 @@ import { Stage, Layer, Text, Rect, Group } from 'react-konva';
 import { animated, useSpring, useSprings } from '@react-spring/konva';
 import { motion, useMotionValue, useSpring as useFramerSpring, AnimatePresence } from 'framer-motion';
 
+// Import New Visual Engine Renderers
+import FlowRenderer from './renderers/FlowRenderer';
+import TimelineRenderer from './renderers/TimelineRenderer';
+import DiagramRenderer from './renderers/DiagramRenderer';
+
 // Domain color map for visual identity
 const DOMAIN_COLORS = {
   dsa: { bg: '#059669', text: '#ecfdf5', label: 'DSA' },
@@ -317,7 +322,7 @@ const ProcessRenderer = ({ steps, currentStep }) => {
   );
 };
 
-const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType }) => {
+const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style }) => {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -378,6 +383,21 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
   };
 
   const renderContent = () => {
+    // New Advanced Visual Engine Logic
+    if (dsl) {
+        switch (vizType) {
+            case "flow":
+            case "node_graph":
+                return <FlowRenderer dsl={dsl} style={style} />;
+            case "timeline":
+                return <TimelineRenderer dsl={dsl} style={style} />;
+            case "diagram":
+                return <DiagramRenderer dsl={dsl} style={style} />;
+            default:
+                break;
+        }
+    }
+
     if (!stepData) return null;
     switch (vizType) {
       case "array":
