@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import Message from './Message';
 import { motion } from 'framer-motion';
 
-const ChatWindow = ({ messages, isGenerating, onOpenCanvas }) => {
+const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onEditMessage }) => {
   const bottomRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -26,6 +26,14 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas }) => {
             domain={msg.domain}
             visualizationType={msg.visualizationType}
             onOpenCanvas={onOpenCanvas}
+            onDeleteMessage={onDeleteMessage}
+            onEditMessage={onEditMessage}
+            messageId={msg.id}
+            elements={msg.elements}
+            motion={msg.motion}
+            connections={msg.connections}
+            sequence={msg.sequence}
+            objects={msg.objects}
           />
         ))}
         

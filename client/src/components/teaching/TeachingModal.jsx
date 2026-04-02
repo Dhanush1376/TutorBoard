@@ -17,7 +17,7 @@ const DOMAIN_STYLES = {
   general: { bg: 'rgba(107, 114, 128, 0.15)', border: 'rgba(107, 114, 128, 0.3)', text: '#6b7280', label: 'General' },
 };
 
-const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationType }) => {
+const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationType, elements, motion: motionData, connections, sequence, objects }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -25,12 +25,17 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
   const [doubtVisualization, setDoubtVisualization] = useState(null);
 
   // Derived state: should we show the original steps or a doubt visualization?
-  const displaySteps = doubtVisualization?.steps || steps || [];
+  const displaySteps = doubtVisualization?.steps || doubtVisualization?.sequence || steps || [];
   const displayTitle = doubtVisualization?.title || title || 'Teaching Session';
   const displayDomain = doubtVisualization?.domain || domain;
   const displayVizType = doubtVisualization?.visualizationType || visualizationType;
   const displayDSL = doubtVisualization?.dsl || null;
   const displayStyle = doubtVisualization?.style || 'educational';
+  const displayElements = doubtVisualization?.elements || elements;
+  const displayMotion = doubtVisualization?.motion || motionData;
+  const displayConnections = doubtVisualization?.connections || connections;
+  const displaySequence = doubtVisualization?.sequence || sequence;
+  const displayObjects = doubtVisualization?.objects || objects;
 
   const totalSteps = displaySteps?.length || 0;
   const activeStepData = totalSteps > 0 ? displaySteps[currentStep] : null;
@@ -168,6 +173,11 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
               visualizationType={displayVizType} 
               dsl={displayDSL}
               style={displayStyle}
+              elements={displayElements}
+              motion={displayMotion}
+              sequence={displaySequence}
+              connections={displayConnections}
+              objects={displayObjects}
             />
             
             {/* Immersive Cinematic Spotlight */}
