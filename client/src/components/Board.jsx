@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Component } from 'react';
 import { Stage, Layer, Text, Rect, Group } from 'react-konva';
 import { animated, useSpring, useSprings } from '@react-spring/konva';
 import { motion, useMotionValue, useSpring as useFramerSpring, AnimatePresence } from 'framer-motion';
@@ -7,6 +7,42 @@ import { motion, useMotionValue, useSpring as useFramerSpring, AnimatePresence }
 import FlowRenderer from './renderers/FlowRenderer';
 import TimelineRenderer from './renderers/TimelineRenderer';
 import DiagramRenderer from './renderers/DiagramRenderer';
+import AnimationRenderer from './renderers/AnimationRenderer';
+import SceneRenderer from './renderers/SceneRenderer';
+
+// ─── ERROR BOUNDARY ─── Catches rendering crashes and shows fallback UI
+class BoardErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('[TutorBoard] Board renderer crashed:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full mx-6 shadow-2xl text-center">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Renderer Error</h3>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">The visualization encountered an issue. Try a different query.</p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="px-4 py-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-xs font-bold uppercase tracking-wider"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Domain color map for visual identity
 const DOMAIN_COLORS = {
@@ -322,7 +358,84 @@ const ProcessRenderer = ({ steps, currentStep }) => {
   );
 };
 
-const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style }) => {
+// ─── SCENE DISPATCHER ─── Handles renderer routing and fallback
+const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, style, elements, motion, sequence, connections, objects, dimensions, stageRef, handleWheel, stagePos, isDragging, setIsDragging, setStagePos, stageScale }) => {
+  const hasObjects = Array.isArray(objects) && objects.length > 0;
+  const hasElements = Array.isArray(elements) && elements.length > 0;
+  const hasSequence = Array.isArray(sequence) && sequence.length > 0;
+  const hasSteps = Array.isArray(steps) && steps.length > 0;
+
+  // ═══ PRIORITY 1: SceneRenderer — real SVG visual diagrams ═══
+  if (hasObjects) {
+    return <SceneRenderer objects={objects} steps={steps} currentStep={currentStep} />;
+  }
+
+  // ═══ PRIORITY 2: DSL-based renderers ═══
+  const hasDSL = dsl && typeof dsl === 'object' && !Array.isArray(dsl) && Object.keys(dsl).length > 0;
+  if (hasDSL) {
+    switch (vizType) {
+      case "flow":
+      case "node_graph":
+        return <FlowRenderer dsl={dsl} style={style} />;
+      case "timeline":
+        return <TimelineRenderer dsl={dsl} style={style} />;
+      case "diagram":
+        return <DiagramRenderer dsl={dsl} style={style} />;
+      default:
+        break;
+    }
+  }
+
+  // ═══ PRIORITY 3: ProcessRenderer for step-based flow ═══
+  if (hasSteps) {
+    return <ProcessRenderer steps={steps} currentStep={currentStep} />;
+  }
+
+  // ═══ PRIORITY 4: AnimationRenderer for elements ═══
+  if (hasElements || hasSequence) {
+    return <AnimationRenderer data={{ elements, motion, sequence, connections, type: vizType }} />;
+  }
+
+  // ═══ PRIORITY 5: Legacy renderers ═══
+  if (stepData) {
+    switch (vizType) {
+      case "array":
+      case "array_visualization":
+        return (
+          <Stage ref={stageRef} width={dimensions.width} height={dimensions.height} onWheel={handleWheel} draggable x={stagePos.x} y={stagePos.y} scaleX={stageScale} scaleY={stageScale} onDragStart={() => setIsDragging(true)} onDragEnd={(e) => { setIsDragging(false); setStagePos({ x: e.target.x(), y: e.target.y() }); }} className="transition-colors duration-500">
+            <Layer><Group x={dimensions.width / 2} y={dimensions.height / 2}><AnimatedArray stepData={stepData} /></Group></Layer>
+          </Stage>
+        );
+      case "quiz":
+        return <QuizRenderer stepData={stepData} />;
+      default:
+        return <StepPlaceholder stepData={stepData} />;
+    }
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
+    >
+      <div className="flex flex-col items-center gap-4">
+        <motion.div 
+          animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="w-16 h-16 rounded-full border-2 border-dashed border-[var(--text-tertiary)] flex items-center justify-center"
+        >
+          <span className="text-2xl">✦</span>
+        </motion.div>
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+          Awaiting Visual Data
+        </span>
+      </div>
+    </motion.div>
+  );
+};
+
+const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style, elements, motion, sequence, connections, objects }) => {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -337,6 +450,7 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
   }
   if (!vizType && domain === "dsa") vizType = "array_visualization";
   if (!vizType && domain !== "dsa" && isArrayStep(stepData)) vizType = "process";
+  if (!vizType && Array.isArray(steps) && steps.length > 0) vizType = "process";
 
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
@@ -382,41 +496,6 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
     setStagePos(newPos);
   };
 
-  const renderContent = () => {
-    // New Advanced Visual Engine Logic
-    if (dsl) {
-        switch (vizType) {
-            case "flow":
-            case "node_graph":
-                return <FlowRenderer dsl={dsl} style={style} />;
-            case "timeline":
-                return <TimelineRenderer dsl={dsl} style={style} />;
-            case "diagram":
-                return <DiagramRenderer dsl={dsl} style={style} />;
-            default:
-                break;
-        }
-    }
-
-    if (!stepData) return null;
-    switch (vizType) {
-      case "array":
-      case "array_visualization":
-        return (
-          <Stage ref={stageRef} width={dimensions.width} height={dimensions.height} onWheel={handleWheel} draggable x={stagePos.x} y={stagePos.y} scaleX={stageScale} scaleY={stageScale} onDragStart={() => setIsDragging(true)} onDragEnd={(e) => { setIsDragging(false); setStagePos({ x: e.target.x(), y: e.target.y() }); }} className="transition-colors duration-500">
-            <Layer><Group x={dimensions.width / 2} y={dimensions.height / 2}><AnimatedArray stepData={stepData} /></Group></Layer>
-          </Stage>
-        );
-      case "process":
-      case "biological_diagram":
-        return <ProcessRenderer steps={steps} currentStep={currentStep} />;
-      case "quiz":
-        return <QuizRenderer stepData={stepData} />;
-      default:
-        return <StepPlaceholder stepData={stepData} />;
-    }
-  };
-
   return (
     <div ref={containerRef} onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)} className="absolute inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden transition-colors duration-500" style={{ cursor: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%231c1711' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") 8 8, auto` }}>
       {isHovering && (
@@ -425,7 +504,30 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
         </motion.div>
       )}
       <div className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.4] transition-all duration-500" style={{ perspective: '1500px', backgroundImage: 'radial-gradient(circle at center, var(--text-tertiary) 0.5px, transparent 0.5px)', backgroundSize: '40px 40px', transform: 'rotateX(5deg) scale(1.05)' }} />
-      {renderContent()}
+      <BoardErrorBoundary>
+        <SceneDispatcher 
+          stepData={stepData}
+          steps={steps}
+          currentStep={currentStep}
+          domain={domain}
+          vizType={vizType}
+          dsl={dsl}
+          style={style}
+          elements={elements}
+          motion={motion}
+          sequence={sequence}
+          connections={connections}
+          objects={objects}
+          dimensions={dimensions}
+          stageRef={stageRef}
+          handleWheel={handleWheel}
+          stagePos={stagePos}
+          isDragging={isDragging}
+          setIsDragging={setIsDragging}
+          setStagePos={setStagePos}
+          stageScale={stageScale}
+        />
+      </BoardErrorBoundary>
     </div>
   );
 };

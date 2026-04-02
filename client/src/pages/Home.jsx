@@ -23,7 +23,7 @@ const Home = ({ setIsDark, isDark }) => {
   // Local input state
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeMode, setActiveMode] = useState('chat'); // 'chat' | 'canvas'
+  const [activeMode, setActiveMode] = useState('canvas'); // 'chat' | 'canvas'
 
   // Playback State
   const [currentStep, setCurrentStep] = useState(0);
@@ -104,13 +104,47 @@ const Home = ({ setIsDark, isDark }) => {
     setActiveChatId(sessionId);
   };
 
-  // Open Canvas for a specific message's steps
-  const handleOpenCanvas = useCallback((steps, title, domain, visualizationType) => {
-    if (steps && steps.length > 0) {
-      setTeachingData({ title: title || 'Teaching Session', steps, domain, visualizationType });
+  // Open Canvas for a specific message's steps/objects
+  const handleOpenCanvas = useCallback((steps, title, domain, visualizationType, extraData) => {
+    const hasVisualData = (steps && steps.length > 0) || (extraData?.objects && extraData.objects.length > 0);
+    if (hasVisualData) {
+      setTeachingData({ 
+        title: title || 'Teaching Session', 
+        steps, 
+        domain, 
+        visualizationType,
+        objects: extraData?.objects,
+        elements: extraData?.elements,
+        motion: extraData?.motion,
+        connections: extraData?.connections,
+        sequence: extraData?.sequence
+      });
       setIsTeachingOpen(true);
     }
   }, []);
+
+  const handleDeleteMessage = useCallback((messageId) => {
+    setChatHistory(prev => {
+      const idx = prev.findIndex(s => s.id === activeChatId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next[idx] = {
+        ...next[idx],
+        messages: next[idx].messages.filter(m => m.id !== messageId)
+      };
+      return next;
+    });
+  }, [activeChatId]);
+
+  const handleEditMessage = useCallback((messageId, content) => {
+    setPrompt(content);
+    handleDeleteMessage(messageId);
+    // Focus the textarea
+    setTimeout(() => {
+      const el = document.querySelector('textarea');
+      if (el) el.focus();
+    }, 50);
+  }, [handleDeleteMessage]);
 
   const handleSubmit = async () => {
     if (!prompt.trim() || isSubmittingRef.current) return;
@@ -156,6 +190,11 @@ const Home = ({ setIsDark, isDark }) => {
         });
         if (!response.ok) throw new Error('AI Visual Engine is currently unavailable.');
         data = await response.json();
+        // Generate endpoint returns objects directly (not nested in visualUpdate)
+        if (!data.objects && !data.steps) {
+          data.objects = [];
+          data.steps = [];
+        }
       } else {
         response = await fetch(`${API_URL}/doubt`, {
           method: 'POST',
@@ -163,19 +202,32 @@ const Home = ({ setIsDark, isDark }) => {
           body: JSON.stringify({ 
             question: userPrompt,
             history: messages,
-            forceNoVisuals: false // AI now decides automatically
+            forceNoVisuals: false
           }),
         });
         if (!response.ok) throw new Error('TutorBoard AI is currently unavailable.');
         const result = await response.json();
         
+        console.log('[TutorBoard] API response:', JSON.stringify(result).substring(0, 300));
+
+        const visualSteps = result.hasVisuals 
+          ? (result.visualUpdate?.steps || result.visualUpdate?.sequence || []) 
+          : [];
+        
         data = {
           answer: result.answer,
-          steps: result.hasVisuals ? result.visualUpdate?.steps : [],
+          steps: visualSteps,
           title: result.visualUpdate?.title || 'Response',
           domain: result.visualUpdate?.domain,
-          visualizationType: result.visualUpdate?.visualizationType,
-          hasVisuals: result.hasVisuals
+          visualizationType: result.visualUpdate?.visualizationType || result.visualUpdate?.type,
+          hasVisuals: result.hasVisuals,
+          // Scene objects (actual SVG shapes)
+          objects: result.visualUpdate?.objects,
+          // Legacy animation engine data
+          elements: result.visualUpdate?.elements,
+          motion: result.visualUpdate?.motion,
+          connections: result.visualUpdate?.connections,
+          sequence: result.visualUpdate?.sequence
         };
       }
       
@@ -183,10 +235,10 @@ const Home = ({ setIsDark, isDark }) => {
         const next = [...prev];
         const idx = next.findIndex(s => s.id === workingSessionId);
         if (idx !== -1) {
-          const hasSteps = data.steps && data.steps.length > 0;
+          const hasVisualData = (data.steps && data.steps.length > 0) || (data.objects && data.objects.length > 0);
           let aiMessageContent = data.answer;
-          if (!aiMessageContent && hasSteps) {
-             aiMessageContent = `I've prepared a visual explanation for **${data.title}**.`;
+          if (!aiMessageContent && hasVisualData) {
+             aiMessageContent = `I've prepared a visual diagram for **${data.title}**.`;
           }
 
           next[idx] = {
@@ -200,7 +252,12 @@ const Home = ({ setIsDark, isDark }) => {
                 steps: data.steps,
                 stepTitle: data.title,
                 domain: data.domain,
-                visualizationType: data.visualizationType
+                visualizationType: data.visualizationType,
+                objects: data.objects,
+                elements: data.elements,
+                motion: data.motion,
+                connections: data.connections,
+                sequence: data.sequence
               }
             ]
           };
@@ -208,15 +265,48 @@ const Home = ({ setIsDark, isDark }) => {
         return next;
       });
 
-      // Auto-open the Visual Canvas if AI triggered visuals OR user is in canvas mode
-      if (data.steps && data.steps.length > 0 && (activeMode === 'canvas' || data.hasVisuals)) {
-        setTeachingData({ title: data.title, steps: data.steps, domain: data.domain, visualizationType: data.visualizationType });
+      // Auto-open the Visual Canvas when we have visual data
+      const hasVisualData = (Array.isArray(data.steps) && data.steps.length > 0) || (Array.isArray(data.objects) && data.objects.length > 0);
+      if (hasVisualData && (activeMode === 'canvas' || data.hasVisuals)) {
+        setTeachingData({ 
+          title: data.title, 
+          steps: data.steps, 
+          domain: data.domain, 
+          visualizationType: data.visualizationType,
+          objects: data.objects,
+          elements: data.elements,
+          motion: data.motion,
+          connections: data.connections,
+          sequence: data.sequence
+        });
         setIsTeachingOpen(true);
       }
     } catch (err) {
-      console.error(err);
+      console.error('[TutorBoard] Submit error:', err);
       setError(err.message);
-      // Handle error message addition...
+      // Add error message to chat so user sees feedback
+      setChatHistory(prev => {
+        const next = [...prev];
+        const idx = next.findIndex(s => s.id === workingSessionId);
+        if (idx !== -1) {
+          next[idx] = {
+            ...next[idx],
+            messages: [
+              ...next[idx].messages,
+              {
+                id: getMsgId('error'),
+                role: 'assistant',
+                content: `⚠️ ${err.message || 'Something went wrong. Please try again.'}`,
+                steps: [],
+                stepTitle: '',
+                domain: 'general',
+                visualizationType: 'process'
+              }
+            ]
+          };
+        }
+        return next;
+      });
     } finally {
       setIsGenerating(false);
       setTimeout(() => { isSubmittingRef.current = false; }, 500);
@@ -349,26 +439,51 @@ const Home = ({ setIsDark, isDark }) => {
            </motion.div>
         )}
 
-        {/* State 2: Active Chat View */}
+        {/* State 2: Active Chat / Canvas View */}
         {hasStarted && activeView === 'chat' && (
-          <div className="absolute inset-0 z-30 flex flex-col">
+          <div className="absolute inset-0 z-30 flex flex-col overflow-hidden">
             
             {/* Spacer for top navbar */}
             <div className="h-[80px] flex-shrink-0" />
 
-            {/* Scrollable Chat Messages */}
-            <div className="flex-1 overflow-y-auto no-scrollbar px-4">
-               <div className="w-full max-w-2xl mx-auto">
-                  <ChatWindow 
-                    messages={messages} 
-                    isGenerating={isGenerating} 
-                    onOpenCanvas={handleOpenCanvas}
-                  />
-               </div>
+            {/* ─── MODE-BASED CONTENT ─── */}
+            <div className="flex-1 relative overflow-hidden">
+              
+              {/* 1. CHAT MODE: Scrollable Messages and Content */}
+              <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${activeMode === 'chat' ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+                <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4">
+                   <div className="w-full max-w-2xl mx-auto">
+                      <ChatWindow 
+                        messages={messages} 
+                        isGenerating={isGenerating} 
+                        onOpenCanvas={handleOpenCanvas}
+                        onDeleteMessage={handleDeleteMessage}
+                        onEditMessage={handleEditMessage}
+                      />
+                   </div>
+                </div>
+              </div>
+
+              {/* 2. CANVAS MODE: Whiteboard Visuals */}
+              <div className={`absolute inset-0 transition-all duration-500 ${activeMode === 'canvas' ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                 <Board 
+                   stepData={teachingData?.steps?.[0]} 
+                   steps={teachingData?.steps || []} 
+                   currentStep={0} 
+                   domain={teachingData?.domain} 
+                   visualizationType={teachingData?.visualizationType} 
+                   objects={teachingData?.objects}
+                   elements={teachingData?.elements}
+                   motion={teachingData?.motion}
+                   sequence={teachingData?.sequence}
+                   connections={teachingData?.connections}
+                 />
+              </div>
+
             </div>
 
             {/* Fixed Input Bar at Bottom */}
-            <div className="flex-shrink-0 w-full pb-6 pt-3 px-4 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent">
+            <div className="flex-shrink-0 w-full pb-6 pt-3 px-4 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent z-40">
                <div className="w-full max-w-3xl mx-auto">
                   <InputBar 
                     value={prompt} 
@@ -395,6 +510,11 @@ const Home = ({ setIsDark, isDark }) => {
         steps={teachingData?.steps || []}
         domain={teachingData?.domain}
         visualizationType={teachingData?.visualizationType}
+        objects={teachingData?.objects}
+        elements={teachingData?.elements}
+        motion={teachingData?.motion}
+        connections={teachingData?.connections}
+        sequence={teachingData?.sequence}
       />
 
     </Layout>

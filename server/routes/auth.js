@@ -1,9 +1,9 @@
-import { Router } from 'express';
+import express from 'express';
 import { signup, signin, getMe, socialLoginSuccess } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import passport from '../utils/passport.js';
 
-const router = Router();
+const router = express.Router();
 
 router.post('/signup', signup);
 router.post('/signin', signin);

@@ -189,36 +189,36 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                      className="absolute inset-y-0.5 rounded-full z-0 pointer-events-none shadow-sm bg-[var(--text-primary)]"
                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                      style={{
-                       left: activeMode === 'chat' ? '2px' : '50%',
+                       left: activeMode === 'canvas' ? '2px' : '50%',
                        width: 'calc(50% - 2px)'
                      }}
                    />
  
                    <button
                      type="button"
-                     onClick={() => setActiveMode('chat')}
-                     className={`relative z-10 flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full transition-colors duration-300 text-[10px] font-extrabold uppercase tracking-widest min-w-[75px] ${
-                       activeMode === 'chat' 
-                         ? '' 
-                         : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-                     }`}
-                     style={activeMode === 'chat' ? { color: 'var(--bg-primary)' } : {}}
-                   >
-                     <MessageSquare size={11} className={activeMode === 'chat' ? 'fill-current' : ''} />
-                     <span>Chat</span>
-                   </button>
-                   <button
-                     type="button"
                      onClick={() => setActiveMode('canvas')}
                      className={`relative z-10 flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full transition-colors duration-300 text-[10px] font-extrabold uppercase tracking-widest min-w-[75px] ${
                        activeMode === 'canvas' 
-                         ? ''
+                         ? '' 
                          : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                      }`}
                      style={activeMode === 'canvas' ? { color: 'var(--bg-primary)' } : {}}
                    >
                      <Zap size={11} className={activeMode === 'canvas' ? 'fill-current' : ''} />
                      <span>Canvas</span>
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => setActiveMode('chat')}
+                     className={`relative z-10 flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full transition-colors duration-300 text-[10px] font-extrabold uppercase tracking-widest min-w-[75px] ${
+                       activeMode === 'chat' 
+                         ? ''
+                         : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                     }`}
+                     style={activeMode === 'chat' ? { color: 'var(--bg-primary)' } : {}}
+                   >
+                     <MessageSquare size={11} className={activeMode === 'chat' ? 'fill-current' : ''} />
+                     <span>Chat</span>
                    </button>
                 </div>
              </div>
