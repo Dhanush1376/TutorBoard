@@ -29,6 +29,8 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
   const displayTitle = doubtVisualization?.title || title || 'Teaching Session';
   const displayDomain = doubtVisualization?.domain || domain;
   const displayVizType = doubtVisualization?.visualizationType || visualizationType;
+  const displayDSL = doubtVisualization?.dsl || null;
+  const displayStyle = doubtVisualization?.style || 'educational';
 
   const totalSteps = displaySteps?.length || 0;
   const activeStepData = totalSteps > 0 ? displaySteps[currentStep] : null;
@@ -164,6 +166,8 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
               currentStep={currentStep} 
               domain={displayDomain} 
               visualizationType={displayVizType} 
+              dsl={displayDSL}
+              style={displayStyle}
             />
             
             {/* Immersive Cinematic Spotlight */}
