@@ -17,11 +17,11 @@ const AccountMenu = ({ onSettingsClick }) => {
   return (
     <div className="group relative w-full">
       <button className="w-full flex items-center gap-3 p-2 hover:bg-[var(--bg-tertiary)] rounded-xl transition-all border border-transparent hover:border-[var(--border-color)]">
-        <div className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-primary)] font-medium text-xs border border-[var(--border-color)]">
+        <div className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-primary)] font-normal text-xs border border-[var(--border-color)]">
           {initials}
         </div>
         <div className="flex-1 text-left whitespace-nowrap overflow-hidden">
-          <p className="text-xs font-medium text-[var(--text-primary)] truncate">{user?.name || 'Loading...'}</p>
+          <p className="text-xs font-normal text-[var(--text-primary)] truncate">{user?.name || 'Loading...'}</p>
           <p className="text-[10px] text-[var(--text-tertiary)]">Free Plan</p>
         </div>
       </button>

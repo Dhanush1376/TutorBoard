@@ -47,6 +47,7 @@ const Home = ({ setIsDark, isDark }) => {
   // Determine global board data
   const lastMessageWithSteps = [...messages].reverse().find(m => m.steps && m.steps.length > 0);
   const activeSteps = lastMessageWithSteps?.steps || [];
+  const hasVisualData = activeSteps.length > 0 || (teachingData?.steps && teachingData.steps.length > 0) || (teachingData?.objects && teachingData.objects.length > 0);
 
   // Reset playback when switching
   useEffect(() => {
@@ -450,7 +451,7 @@ const Home = ({ setIsDark, isDark }) => {
             <div className="flex-1 relative overflow-hidden">
               
               {/* 1. CHAT MODE: Scrollable Messages and Content */}
-              <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${activeMode === 'chat' ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+              <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${(activeMode === 'chat' || isGenerating) ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                 <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4">
                    <div className="w-full max-w-2xl mx-auto">
                       <ChatWindow 
@@ -465,7 +466,7 @@ const Home = ({ setIsDark, isDark }) => {
               </div>
 
               {/* 2. CANVAS MODE: Whiteboard Visuals */}
-              <div className={`absolute inset-0 transition-all duration-500 ${activeMode === 'canvas' ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
+              <div className={`absolute inset-0 transition-all duration-500 ${(activeMode === 'canvas' && !isGenerating) ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
                  <Board 
                    stepData={teachingData?.steps?.[0]} 
                    steps={teachingData?.steps || []} 
@@ -474,7 +475,7 @@ const Home = ({ setIsDark, isDark }) => {
                    visualizationType={teachingData?.visualizationType} 
                    objects={teachingData?.objects}
                    elements={teachingData?.elements}
-                   motion={teachingData?.motion}
+                   motionData={teachingData?.motion}
                    sequence={teachingData?.sequence}
                    connections={teachingData?.connections}
                  />
@@ -505,7 +506,11 @@ const Home = ({ setIsDark, isDark }) => {
       {/* Teaching Modal Overlay — renders above everything */}
       <TeachingModal
         isOpen={isTeachingOpen}
-        onClose={() => { setIsTeachingOpen(false); setTeachingData(null); }}
+        onClose={() => { 
+          setIsTeachingOpen(false); 
+          setTeachingData(null); 
+          setActiveMode('chat'); // Auto-revert to chat when closing the visual
+        }}
         title={teachingData?.title}
         steps={teachingData?.steps || []}
         domain={teachingData?.domain}

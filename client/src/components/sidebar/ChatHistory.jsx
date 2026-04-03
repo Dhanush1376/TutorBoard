@@ -29,7 +29,7 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
 
   return (
     <div className="space-y-4 pb-6 mt-2">
-      <h3 className="px-3 text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em] opacity-80">
+      <h3 className="px-3 text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.15em] opacity-80">
         Recents
       </h3>
       
@@ -40,7 +40,7 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
           className="flex flex-col items-center justify-center py-8 text-[var(--text-tertiary)] opacity-60"
         >
           <MessageSquareDashed size={24} className="mb-3 opacity-50" />
-          <span className="text-[12px] font-medium tracking-tight">No recent sessions</span>
+          <span className="text-[12px] font-normal tracking-tight">No recent sessions</span>
         </motion.div>
       ) : (
         <div className="space-y-1 px-1.5">
@@ -83,7 +83,7 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                       {activeChatId === chat.id && (
                         <motion.div layoutId="activeChatIndicator" className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1/2 bg-[var(--text-primary)] rounded-r-full" />
                       )}
-                      <span className={`truncate text-[13px] ${activeChatId === chat.id ? 'font-semibold ml-1.5' : 'font-medium'} pr-8 transition-all`}>
+                      <span className={`truncate text-[13px] ${activeChatId === chat.id ? 'font-medium ml-1.5' : 'font-normal'} pr-8 transition-all`}>
                         {chat.title || "Untitled Session"}
                       </span>
                     </button>

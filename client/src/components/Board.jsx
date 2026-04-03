@@ -359,7 +359,7 @@ const ProcessRenderer = ({ steps, currentStep }) => {
 };
 
 // ─── SCENE DISPATCHER ─── Handles renderer routing and fallback
-const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, style, elements, motion, sequence, connections, objects, dimensions, stageRef, handleWheel, stagePos, isDragging, setIsDragging, setStagePos, stageScale }) => {
+const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, style, elements, motionData, sequence, connections, objects, dimensions, stageRef, handleWheel, stagePos, isDragging, setIsDragging, setStagePos, stageScale }) => {
   const hasObjects = Array.isArray(objects) && objects.length > 0;
   const hasElements = Array.isArray(elements) && elements.length > 0;
   const hasSequence = Array.isArray(sequence) && sequence.length > 0;
@@ -393,7 +393,7 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
 
   // ═══ PRIORITY 4: AnimationRenderer for elements ═══
   if (hasElements || hasSequence) {
-    return <AnimationRenderer data={{ elements, motion, sequence, connections, type: vizType }} />;
+    return <AnimationRenderer data={{ elements, motion: motionData, sequence, connections, type: vizType }} />;
   }
 
   // ═══ PRIORITY 5: Legacy renderers ═══
@@ -413,29 +413,10 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
     }
   }
 
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
-    >
-      <div className="flex flex-col items-center gap-4">
-        <motion.div 
-          animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="w-16 h-16 rounded-full border-2 border-dashed border-[var(--text-tertiary)] flex items-center justify-center"
-        >
-          <span className="text-2xl">✦</span>
-        </motion.div>
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
-          Awaiting Visual Data
-        </span>
-      </div>
-    </motion.div>
-  );
+  return null;
 };
 
-const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style, elements, motion, sequence, connections, objects }) => {
+const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style, elements, motionData, sequence, connections, objects }) => {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -514,7 +495,7 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
           dsl={dsl}
           style={style}
           elements={elements}
-          motion={motion}
+          motionData={motionData}
           sequence={sequence}
           connections={connections}
           objects={objects}
