@@ -5,9 +5,10 @@ import Board from '../components/Board';
 import ChatWindow from '../components/chat/ChatWindow';
 import InputBar from '../components/chat/InputBar';
 import TeachingModal from '../components/teaching/TeachingModal';
+import TeachingSession from '../components/teaching/TeachingSession';
 import ModulesPage from '../components/modules/ModulesPage';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Trophy, GitCompare, PencilLine, Lightbulb } from 'lucide-react';
+import { BookOpen, Trophy, GitCompare, PencilLine, Lightbulb, GraduationCap } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -23,17 +24,21 @@ const Home = ({ setIsDark, isDark }) => {
   // Local input state
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeMode, setActiveMode] = useState('canvas'); // 'chat' | 'canvas'
+  const [activeMode, setActiveMode] = useState('canvas'); // 'chat' | 'canvas' | 'teach'
 
   // Playback State
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
 
-  // Teaching Modal State
+  // Teaching Modal State (legacy visual viewer)
   const [isTeachingOpen, setIsTeachingOpen] = useState(false);
   const [teachingData, setTeachingData] = useState(null);
   const [error, setError] = useState(null);
+
+  // NEW: Live Teaching Session State
+  const [isTeachingSessionOpen, setIsTeachingSessionOpen] = useState(false);
+  const [teachingTopic, setTeachingTopic] = useState('');
 
   // Duplicate submission guard
   const isSubmittingRef = useRef(false);
@@ -140,7 +145,6 @@ const Home = ({ setIsDark, isDark }) => {
   const handleEditMessage = useCallback((messageId, content) => {
     setPrompt(content);
     handleDeleteMessage(messageId);
-    // Focus the textarea
     setTimeout(() => {
       const el = document.querySelector('textarea');
       if (el) el.focus();
@@ -149,6 +153,15 @@ const Home = ({ setIsDark, isDark }) => {
 
   const handleSubmit = async () => {
     if (!prompt.trim() || isSubmittingRef.current) return;
+
+    // ─── TEACH MODE: Open live teaching session ───
+    if (activeMode === 'teach') {
+      setTeachingTopic(prompt.trim());
+      setIsTeachingSessionOpen(true);
+      setPrompt('');
+      return;
+    }
+
     isSubmittingRef.current = true;
     
     const userPrompt = prompt;
@@ -181,8 +194,6 @@ const Home = ({ setIsDark, isDark }) => {
       let response;
       let data;
 
-      // Smart decision: /doubt handles both chat and visuals now
-      // /generate is only used if the user explicitly wants a pure visual with no chat context
       if (activeMode === 'canvas' && !messages.length) {
         response = await fetch(`${API_URL}/generate`, {
           method: 'POST',
@@ -191,7 +202,6 @@ const Home = ({ setIsDark, isDark }) => {
         });
         if (!response.ok) throw new Error('AI Visual Engine is currently unavailable.');
         data = await response.json();
-        // Generate endpoint returns objects directly (not nested in visualUpdate)
         if (!data.objects && !data.steps) {
           data.objects = [];
           data.steps = [];
@@ -222,9 +232,7 @@ const Home = ({ setIsDark, isDark }) => {
           domain: result.visualUpdate?.domain,
           visualizationType: result.visualUpdate?.visualizationType || result.visualUpdate?.type,
           hasVisuals: result.hasVisuals,
-          // Scene objects (actual SVG shapes)
           objects: result.visualUpdate?.objects,
-          // Legacy animation engine data
           elements: result.visualUpdate?.elements,
           motion: result.visualUpdate?.motion,
           connections: result.visualUpdate?.connections,
@@ -285,7 +293,6 @@ const Home = ({ setIsDark, isDark }) => {
     } catch (err) {
       console.error('[TutorBoard] Submit error:', err);
       setError(err.message);
-      // Add error message to chat so user sees feedback
       setChatHistory(prev => {
         const next = [...prev];
         const idx = next.findIndex(s => s.id === workingSessionId);
@@ -356,9 +363,7 @@ const Home = ({ setIsDark, isDark }) => {
           )}
         </AnimatePresence>
 
-        {/* Grid is already provided by Layout.jsx at z-0 */}
-
-        {/* State 1: Claude-style Landing View */}
+        {/* State 1: Landing View */}
         {!hasStarted && activeView === 'chat' && (
            <motion.div 
              initial={{ opacity: 0, scale: 0.98, filter: 'blur(8px)' }}
@@ -376,7 +381,6 @@ const Home = ({ setIsDark, isDark }) => {
                   Welcome to, 
                 </motion.span>
                 
-                {/* Typing Animation for TutorBoard */}
                 <motion.h1 
                   initial={{ opacity: 0, y: 10, filter: 'blur(8px)' }}
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
@@ -416,7 +420,7 @@ const Home = ({ setIsDark, isDark }) => {
                    { label: 'Quiz', prefix: 'Generate a quiz on: ', icon: Trophy }, 
                    { label: 'Compare', prefix: 'Compare and visualize: ', icon: GitCompare }, 
                    { label: 'Practice', prefix: 'Give me practice problems for: ', icon: PencilLine }, 
-                   { label: 'Deep Explain', prefix: 'Provide a deep explanation for: ', icon: Lightbulb }
+                   { label: 'Live Teach', prefix: '', icon: GraduationCap, isTeach: true },
                  ].map((action, i) => {
                    const Icon = action.icon;
                    return (
@@ -426,10 +430,19 @@ const Home = ({ setIsDark, isDark }) => {
                        animate={{ opacity: 1, scale: 1 }}
                        transition={{ duration: 0.4, delay: 1.2 + (i * 0.08), ease: "easeOut" }}
                        onClick={() => { 
-                         setPrompt(action.prefix); 
-                         setTimeout(() => { const el = document.querySelector('textarea'); if(el) { el.focus(); } }, 50); 
+                         if (action.isTeach) {
+                           setActiveMode('teach');
+                           setTimeout(() => { const el = document.querySelector('textarea'); if(el) { el.focus(); } }, 50);
+                         } else {
+                           setPrompt(action.prefix); 
+                           setTimeout(() => { const el = document.querySelector('textarea'); if(el) { el.focus(); } }, 50); 
+                         }
                        }}
-                       className="flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full text-[12px] md:text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] transition-all font-medium whitespace-nowrap active:scale-95 shadow-sm"
+                       className={`flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2 border rounded-full text-[12px] md:text-[11px] hover:text-[var(--text-primary)] transition-all font-medium whitespace-nowrap active:scale-95 shadow-sm ${
+                         action.isTeach
+                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20 hover:border-emerald-500/50'
+                           : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)]'
+                       }`}
                      >
                        <Icon size={14} className="opacity-70" />
                        <span>{action.label}</span>
@@ -450,7 +463,7 @@ const Home = ({ setIsDark, isDark }) => {
             {/* ─── MODE-BASED CONTENT ─── */}
             <div className="flex-1 relative overflow-hidden">
               
-              {/* 1. CHAT MODE: Scrollable Messages and Content */}
+              {/* 1. CHAT MODE */}
               <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${(activeMode === 'chat' || isGenerating) ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                 <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4">
                    <div className="w-full max-w-2xl mx-auto">
@@ -465,7 +478,7 @@ const Home = ({ setIsDark, isDark }) => {
                 </div>
               </div>
 
-              {/* 2. CANVAS MODE: Whiteboard Visuals */}
+              {/* 2. CANVAS MODE */}
               <div className={`absolute inset-0 transition-all duration-500 ${(activeMode === 'canvas' && !isGenerating) ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
                  <Board 
                    stepData={teachingData?.steps?.[0]} 
@@ -503,13 +516,13 @@ const Home = ({ setIsDark, isDark }) => {
 
       </div>
 
-      {/* Teaching Modal Overlay — renders above everything */}
+      {/* Teaching Modal Overlay (legacy visual viewer) */}
       <TeachingModal
         isOpen={isTeachingOpen}
         onClose={() => { 
           setIsTeachingOpen(false); 
           setTeachingData(null); 
-          setActiveMode('chat'); // Auto-revert to chat when closing the visual
+          setActiveMode('chat');
         }}
         title={teachingData?.title}
         steps={teachingData?.steps || []}
@@ -520,6 +533,17 @@ const Home = ({ setIsDark, isDark }) => {
         motion={teachingData?.motion}
         connections={teachingData?.connections}
         sequence={teachingData?.sequence}
+      />
+
+      {/* NEW: Real-Time Teaching Session */}
+      <TeachingSession
+        isOpen={isTeachingSessionOpen}
+        onClose={() => {
+          setIsTeachingSessionOpen(false);
+          setTeachingTopic('');
+          setActiveMode('chat');
+        }}
+        initialTopic={teachingTopic}
       />
 
     </Layout>

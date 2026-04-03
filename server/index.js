@@ -1,10 +1,13 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
+import { setupTeachingSocket } from './sockets/teaching.socket.js';
 
 dotenv.config();
 
@@ -16,7 +19,29 @@ console.log("JWT Secret:", process.env.JWT_SECRET ? "Loaded ✅" : "Missing ❌"
 console.log("=====================================");
 
 const app = express();
+const httpServer = createServer(app);
 const port = process.env.PORT || 3001;
+
+// --------------- Socket.IO ---------------
+const allowedOrigins = [
+  'https://tutor-board-mocha.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+const io = new SocketIO(httpServer, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
+
+// Mount teaching WebSocket handlers
+setupTeachingSocket(io);
 
 // --------------- MongoDB Connection ---------------
 
@@ -70,7 +95,7 @@ connectDB();
 // --------------- Middleware ---------------
 
 // CORS: allow Vercel production + localhost dev
-const allowedOrigins = [
+const corsOrigins = [
   'https://tutor-board-mocha.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
@@ -79,7 +104,7 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || corsOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked origin: ${origin}`);
@@ -133,6 +158,7 @@ app.use((err, _req, res, _next) => {
 });
 
 // --------------- Start ---------------
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  console.log(`Socket.IO ready on /teaching namespace`);
 });
