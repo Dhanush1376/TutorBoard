@@ -12,7 +12,8 @@ import {
   Lightbulb,
   MessageSquare,
   Zap,
-  MicOff
+  MicOff,
+  GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -38,7 +39,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    // If not on landing page, use a static placeholder and stop animation
     if (!isLanding) {
       setCurrentPlaceholder("Message TutorBoard...");
       return;
@@ -49,7 +49,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     const fullText = placeholders[placeholderIndex];
 
     if (!isDeleting && currentPlaceholder === fullText) {
-      // Pause at the end of typing
       timeout = setTimeout(() => setIsDeleting(true), 2000);
     } else if (isDeleting && currentPlaceholder === "") {
       setIsDeleting(false);
@@ -109,36 +108,55 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   const agents = ['DeepSeek R1', 'TutorBoard Pro', 'GPT-4o', 'Sonnet 3.5'];
 
-  // TutorBoard-relevant quick actions
-   // TutorBoard-relevant quick actions
-   const quickActions = [
-     { icon: BookOpen, label: 'Explain', prefix: 'Explain step-by-step: ' },
-     { icon: Trophy, label: 'Quiz', prefix: 'Generate a quiz on: ' },
-     { icon: GitCompare, label: 'Compare', prefix: 'Compare and visualize: ' },
-     { icon: PencilLine, label: 'Practice', prefix: 'Give me practice problems for: ' },
-     { icon: Lightbulb, label: 'Deep Explain', prefix: 'Provide a deep explanation for: ' },
-   ];
+  const quickActions = [
+    { icon: BookOpen, label: 'Explain', prefix: 'Explain step-by-step: ' },
+    { icon: Trophy, label: 'Quiz', prefix: 'Generate a quiz on: ' },
+    { icon: GitCompare, label: 'Compare', prefix: 'Compare and visualize: ' },
+    { icon: PencilLine, label: 'Practice', prefix: 'Give me practice problems for: ' },
+    { icon: Lightbulb, label: 'Deep Explain', prefix: 'Provide a deep explanation for: ' },
+  ];
 
   const handleQuickAction = (prefix) => {
     onChange(prefix);
     setIsPlusMenuOpen(false);
-    // Focus the textarea after prefilling
     setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
+  // Compute placeholder based on mode
+  const getPlaceholder = () => {
+    if (activeMode === 'teach') return 'Enter a topic for live teaching...';
+    if (isLanding) return currentPlaceholder;
+    return 'Message TutorBoard...';
+  };
+
+  // Compute pill position for 3-way toggle
+  const getPillStyle = () => {
+    if (activeMode === 'canvas') return { left: '2px', width: 'calc(33.33% - 2px)' };
+    if (activeMode === 'teach') return { left: 'calc(33.33% + 1px)', width: 'calc(33.33% - 2px)' };
+    return { left: 'calc(66.66% + 1px)', width: 'calc(33.33% - 2px)' };
   };
 
   return (
     <div className={`w-full transition-all duration-700 ${isLanding ? 'p-0' : 'max-w-3xl mx-auto px-4'}`}>
       <div className={`flex flex-col bg-[var(--bg-secondary)] backdrop-blur-3xl border border-[var(--border-color)] rounded-2xl relative transition-all duration-300 shadow-2xl group focus-within:border-[var(--text-tertiary)] focus-within:shadow-[0_0_0_1px_var(--border-color),0_20px_40px_-12px_rgba(0,0,0,0.15)] ${
         isLanding ? 'min-h-[120px]' : 'min-h-[50px] mb-2'
-      }`}>
+      } ${activeMode === 'teach' ? 'border-emerald-500/30 focus-within:border-emerald-500/50' : ''}`}>
         
+        {/* Teach mode accent bar */}
+        {activeMode === 'teach' && (
+          <motion.div
+            layoutId="teachAccent"
+            className="absolute top-0 left-4 right-4 h-[2px] bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent rounded-full"
+          />
+        )}
+
         {/* Main Textarea */}
         <textarea
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={currentPlaceholder}
+          placeholder={getPlaceholder()}
           className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] resize-none px-5 py-4 outline-none text-base transition-colors duration-250 font-medium"
           rows={1}
         />
@@ -147,7 +165,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
         <div className="flex items-center justify-between px-4 pb-3 mt-auto relative">
           <div className="flex items-center gap-2">
              
-             {/* Plus Menu Button — Teaching Tools */}
+             {/* Plus Menu Button */}
              <div className="relative">
                 <button 
                   onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
@@ -180,44 +198,55 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 </AnimatePresence>
              </div>
 
-             {/* Sliding Toggle: High-Contrast, Shadowless, Pro Design */}
+             {/* ─── THREE-WAY TOGGLE: Canvas / Teach / Chat ─── */}
               <div className="flex items-center ml-1 p-0.5 rounded-full transition-all duration-300 border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-inner">
                 <div className="relative flex items-center p-0.5 bg-transparent rounded-full overflow-hidden">
-                   {/* Sliding Pill Overlay */}
+                   {/* Sliding Pill */}
                    <motion.div
                      layoutId="activePill"
-                     className="absolute inset-y-0.5 rounded-full z-0 pointer-events-none shadow-sm bg-[var(--text-primary)]"
+                     className={`absolute inset-y-0.5 rounded-full z-0 pointer-events-none shadow-sm ${
+                       activeMode === 'teach' ? 'bg-emerald-600' : 'bg-[var(--text-primary)]'
+                     }`}
                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                     style={{
-                       left: activeMode === 'canvas' ? '2px' : '50%',
-                       width: 'calc(50% - 2px)'
-                     }}
+                     style={getPillStyle()}
                    />
  
+                   {/* Canvas */}
                    <button
                      type="button"
                      onClick={() => setActiveMode('canvas')}
-                     className={`relative z-10 flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full transition-colors duration-300 text-[10px] font-extrabold uppercase tracking-widest min-w-[75px] ${
-                       activeMode === 'canvas' 
-                         ? '' 
-                         : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                     className={`relative z-10 flex items-center justify-center gap-1 px-3 py-1.5 rounded-full transition-colors duration-300 text-[9px] font-extrabold uppercase tracking-widest min-w-[60px] ${
+                       activeMode === 'canvas' ? '' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                      }`}
                      style={activeMode === 'canvas' ? { color: 'var(--bg-primary)' } : {}}
                    >
-                     <Zap size={11} className={activeMode === 'canvas' ? 'fill-current' : ''} />
+                     <Zap size={10} className={activeMode === 'canvas' ? 'fill-current' : ''} />
                      <span>Canvas</span>
                    </button>
+
+                   {/* Teach */}
+                   <button
+                     type="button"
+                     onClick={() => setActiveMode('teach')}
+                     className={`relative z-10 flex items-center justify-center gap-1 px-3 py-1.5 rounded-full transition-colors duration-300 text-[9px] font-extrabold uppercase tracking-widest min-w-[60px] ${
+                       activeMode === 'teach' ? '' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                     }`}
+                     style={activeMode === 'teach' ? { color: '#ffffff' } : {}}
+                   >
+                     <GraduationCap size={10} />
+                     <span>Teach</span>
+                   </button>
+
+                   {/* Chat */}
                    <button
                      type="button"
                      onClick={() => setActiveMode('chat')}
-                     className={`relative z-10 flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-full transition-colors duration-300 text-[10px] font-extrabold uppercase tracking-widest min-w-[75px] ${
-                       activeMode === 'chat' 
-                         ? ''
-                         : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                     className={`relative z-10 flex items-center justify-center gap-1 px-3 py-1.5 rounded-full transition-colors duration-300 text-[9px] font-extrabold uppercase tracking-widest min-w-[60px] ${
+                       activeMode === 'chat' ? '' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                      }`}
                      style={activeMode === 'chat' ? { color: 'var(--bg-primary)' } : {}}
                    >
-                     <MessageSquare size={11} className={activeMode === 'chat' ? 'fill-current' : ''} />
+                     <MessageSquare size={10} className={activeMode === 'chat' ? 'fill-current' : ''} />
                      <span>Chat</span>
                    </button>
                 </div>
@@ -264,7 +293,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
           </div>
 
           <div className="flex items-center gap-2">
-             {/* Voice Assistant Button with Premium Animation */}
+             {/* Voice Assistant Button */}
              <div className="relative flex items-center justify-center">
                <AnimatePresence>
                  {isListening && (
@@ -297,7 +326,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                  }`}
                  title="Voice Input"
                >
-                  {isListening ? <Mic size={20} /> : <Mic size={20} />}
+                  <Mic size={20} />
                </motion.button>
              </div>
 
@@ -310,9 +339,13 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   <button 
                     onClick={onSubmit}
                     disabled={!value.trim()}
-                    className={`p-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl disabled:opacity-30 hover:opacity-90 transition-all shadow-lg ${!value.trim() ? 'grayscale cursor-not-allowed' : ''}`}
+                    className={`p-2 rounded-xl disabled:opacity-30 hover:opacity-90 transition-all shadow-lg ${
+                      activeMode === 'teach' && value.trim()
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                    } ${!value.trim() ? 'grayscale cursor-not-allowed' : ''}`}
                   >
-                    <ArrowUp size={20} />
+                    {activeMode === 'teach' ? <GraduationCap size={20} /> : <ArrowUp size={20} />}
                   </button>
                 )}
              </div>
