@@ -10,6 +10,7 @@ import TeachingSession from '../components/teaching/TeachingSession';
 import ModulesPage from '../components/modules/ModulesPage';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { motion, AnimatePresence } from 'framer-motion';
+import useTutorStore, { STATES } from '../store/tutorStore';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -418,8 +419,8 @@ const Home = ({ setIsDark, isDark }) => {
             {/* ─── MODE-BASED CONTENT ─── */}
             <div className="flex-1 relative overflow-hidden">
               
-              {/* 1. CHAT MODE */}
-              <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${(activeMode === 'chat' || isGenerating) ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+              {/* 1. CHAT / PEDAGOGICAL HUB (Persistent) */}
+              <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${(activeView === 'chat' && activeMode !== 'canvas') ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                 <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4">
                    <div className="w-full max-w-3xl mx-auto py-10">
                       <ChatWindow 
