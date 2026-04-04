@@ -296,11 +296,6 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
           {/* ─── CANVAS LAYER (ALWAYS ON BOTTOM) ─── */}
           <motion.div 
             className="absolute inset-0 z-0"
-            animate={{ 
-              paddingLeft: showFloatingSidebar ? 320 : 0,
-              paddingRight: showDoubtThread ? 380 : 0 
-            }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           >
             <InfiniteCanvas
               ref={canvasRef}
@@ -320,7 +315,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               {timeline && (
                 <div className="w-full h-full relative p-6">
                   {/* Zoom/Fit Controls */}
-                  <div className="absolute bottom-24 right-6 pointer-events-auto">
+                  <div className="absolute bottom-6 right-6 pointer-events-auto">
                     <CanvasControls
                       transform={canvasTransform}
                       onZoomIn={() => setCanvasTransform(prev => ({ ...prev, scale: Math.min(5, prev.scale * 1.3) }))}
@@ -333,7 +328,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                   </div>
 
                   {/* Minimap */}
-                  <div className="absolute bottom-48 right-6 pointer-events-auto">
+                  <div className="absolute bottom-24 right-6 pointer-events-auto">
                     <CanvasMinimap
                       visible={showMinimap}
                       objects={canvasObjects}
@@ -347,8 +342,6 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
 
           {/* ─── TOP BAR ─── */}
           <motion.div 
-            animate={{ paddingLeft: showFloatingSidebar ? 320 : 0, paddingRight: showDoubtThread ? 380 : 0 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="relative z-10 flex items-center justify-between px-5 pt-5"
           >
             {/* Left: Sidebar toggle + Title + Domain */}
@@ -486,7 +479,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               <motion.div
                 key={`step-${currentStepIndex}`}
                 initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: showFloatingSidebar ? 320 : 0 }}
+                animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                 className="relative z-10 ml-5 mt-5 max-w-sm"
@@ -580,8 +573,6 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
 
           {/* ─── BOTTOM CONTROL DOCK ─── */}
           <motion.div 
-            animate={{ paddingLeft: showFloatingSidebar ? 320 : 0, paddingRight: showDoubtThread ? 380 : 0 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="relative z-10 mt-auto w-full flex flex-col items-center gap-3 pb-5 pt-6 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/70 to-transparent"
           >
             
