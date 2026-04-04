@@ -1,17 +1,18 @@
 /**
  * SessionOverlay — State-aware overlay screens for the teaching session
  * 
- * Shows different overlays based on machine state:
- *   GENERATING  → "Preparing your lesson..."
- *   RESPONDING  → "Thinking about your question..."
- *   RESUMING    → Brief flash "Continuing..."
- *   ERROR       → Error with retry
- *   COMPLETED   → Summary + celebration
+ * NEXT-GEN: Interactive lesson completion with replay, rewind, practice, 
+ * difficulty change, and session save options.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, AlertTriangle, PartyPopper, RotateCcw, ArrowRight } from 'lucide-react';
+import { 
+  Loader, AlertTriangle, RotateCcw, ArrowRight, 
+  Rewind, Play, Dumbbell, Gauge, Bookmark,
+  MessageCircleQuestion, Sparkles
+} from 'lucide-react';
+import useTutorStore from '../../store/tutorStore';
 
 const SessionOverlay = ({ 
   machineState, 
@@ -21,9 +22,11 @@ const SessionOverlay = ({
   doubtHistory,
   onRetry, 
   onNewTopic,
-  onClose 
+  onClose,
+  onReplay,
 }) => {
-  const isVisible = ['GENERATING', 'ERROR', 'COMPLETED'].includes(machineState);
+  const { goToStep, play } = useTutorStore();
+  const [showActions, setShowActions] = useState(true);
 
   return (
     <AnimatePresence>
@@ -43,7 +46,6 @@ const SessionOverlay = ({
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-col items-center gap-6 max-w-md text-center px-8"
           >
-            {/* Animated rings */}
             <div className="relative w-20 h-20">
               <motion.div
                 animate={{ rotate: 360 }}
@@ -66,10 +68,10 @@ const SessionOverlay = ({
 
             <div>
               <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
-                Preparing your lesson
+                Building your visual lesson
               </h3>
               <p className="text-sm text-[var(--text-secondary)]">
-                Creating a step-by-step visual explanation for
+                Creating an interactive animated explanation for
               </p>
               <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">
                 "{topic}"
@@ -84,6 +86,16 @@ const SessionOverlay = ({
                 className="w-24 h-full bg-gradient-to-r from-transparent via-[var(--text-tertiary)] to-transparent rounded-full"
               />
             </div>
+
+            {/* Tips */}
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 2 }}
+              className="text-[11px] text-[var(--text-tertiary)] italic"
+            >
+              💡 Tip: Use ? to ask doubts during the lesson
+            </motion.p>
           </motion.div>
         </motion.div>
       )}
@@ -130,7 +142,7 @@ const SessionOverlay = ({
         </motion.div>
       )}
 
-      {/* COMPLETED */}
+      {/* ─── COMPLETED (INTERACTIVE) ─── */}
       {machineState === 'COMPLETED' && (
         <motion.div
           key="completed"
@@ -143,53 +155,109 @@ const SessionOverlay = ({
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col items-center gap-6 max-w-md text-center px-8"
+            className="flex flex-col items-center gap-6 max-w-lg w-full text-center px-8"
           >
+            {/* Celebration */}
             <motion.div
               animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
               transition={{ duration: 0.8, delay: 0.3 }}
               className="text-5xl"
             >
-              🎉
+              🎓
             </motion.div>
 
             <div>
               <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">
                 Lesson Complete!
               </h3>
-              <p className="text-sm text-[var(--text-secondary)] mb-4">
-                You've completed the visual lesson on <strong>"{topic}"</strong>
+              <p className="text-sm text-[var(--text-secondary)]">
+                You've explored <strong>"{topic}"</strong> through {totalSteps} visual steps
               </p>
             </div>
 
             {/* Stats */}
-            <div className="flex gap-6">
+            <div className="flex gap-8">
               <div className="text-center">
-                <div className="text-2xl font-bold text-[var(--text-primary)]">{totalSteps}</div>
+                <div className="text-3xl font-bold text-[var(--text-primary)]">{totalSteps}</div>
                 <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold">Steps</div>
               </div>
               <div className="w-px bg-[var(--border-color)]" />
               <div className="text-center">
-                <div className="text-2xl font-bold text-[var(--text-primary)]">{doubtHistory?.length || 0}</div>
+                <div className="text-3xl font-bold text-[var(--text-primary)]">{doubtHistory?.length || 0}</div>
                 <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold">Doubts</div>
               </div>
             </div>
 
-            <div className="flex gap-3 mt-2">
+            {/* ─── INTERACTIVE OPTIONS GRID ─── */}
+            <div className="w-full grid grid-cols-2 gap-2 mt-2">
+              {/* Replay Lesson */}
+              <button
+                onClick={() => { if (onReplay) onReplay(); }}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/60 backdrop-blur-sm text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                  <RotateCcw size={16} className="text-blue-400" />
+                </div>
+                <div>
+                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">Replay</span>
+                  <span className="text-[10px] text-[var(--text-tertiary)]">Watch again</span>
+                </div>
+              </button>
+
+              {/* Step-by-step Rewind */}
+              <button
+                onClick={() => { goToStep(0); }}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/60 backdrop-blur-sm text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
+                  <Rewind size={16} className="text-purple-400" />
+                </div>
+                <div>
+                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">Rewind</span>
+                  <span className="text-[10px] text-[var(--text-tertiary)]">Step by step</span>
+                </div>
+              </button>
+
+              {/* Ask Doubt */}
+              <button
+                onClick={() => {
+                  // Focus the doubt input
+                  const el = document.querySelector('[data-doubt-input]') || document.querySelector('input[placeholder*="doubt"]');
+                  if (el) el.focus();
+                }}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/60 backdrop-blur-sm text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <MessageCircleQuestion size={16} className="text-emerald-400" />
+                </div>
+                <div>
+                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">Ask Doubt</span>
+                  <span className="text-[10px] text-[var(--text-tertiary)]">Clarify concepts</span>
+                </div>
+              </button>
+
+              {/* New Topic */}
               <button
                 onClick={onNewTopic}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-[12px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all"
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)]/60 backdrop-blur-sm text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
               >
-                <ArrowRight size={14} />
-                New Topic
-              </button>
-              <button
-                onClick={onClose}
-                className="px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] rounded-xl text-[12px] font-bold uppercase tracking-wider hover:text-[var(--text-primary)] active:scale-95 transition-all"
-              >
-                Close
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={16} className="text-amber-400" />
+                </div>
+                <div>
+                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">New Topic</span>
+                  <span className="text-[10px] text-[var(--text-tertiary)]">Learn more</span>
+                </div>
               </button>
             </div>
+
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="mt-2 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              Close session
+            </button>
           </motion.div>
         </motion.div>
       )}

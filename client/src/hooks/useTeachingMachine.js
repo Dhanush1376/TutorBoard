@@ -1,54 +1,46 @@
 /**
- * useTeachingMachine — Client-side state machine for teaching sessions
+ * useTeachingMachine — WebSocket-driven hook that syncs server state with Zustand store
  * 
- * Mirrors the server-side state machine, driven by WebSocket events.
- * All UI rendering decisions are derived from this hook's state.
+ * This hook is now a thin bridge: it listens to socket events and pipes 
+ * data into the centralized useTutorStore. Components read from the store directly.
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import useSocket from './useSocket';
+import useTutorStore, { STATES } from '../store/tutorStore';
 
-// State constants (must match server)
-export const STATES = {
-  IDLE: 'IDLE',
-  GENERATING: 'GENERATING',
-  TEACHING: 'TEACHING',
-  DOUBT_TRIGGERED: 'DOUBT_TRIGGERED',
-  RESPONDING: 'RESPONDING',
-  RESUMING: 'RESUMING',
-  COMPLETED: 'COMPLETED',
-  ERROR: 'ERROR',
-};
+export { STATES };
 
 export function useTeachingMachine() {
   const { emit, on, isConnected, connectionError } = useSocket();
-
-  // Core state
-  const [machineState, setMachineState] = useState(STATES.IDLE);
-  const [sessionId, setSessionId] = useState(null);
-
-  // Teaching data
-  const [timeline, setTimeline] = useState(null);
-  const [currentStep, setCurrentStep] = useState(null);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [totalSteps, setTotalSteps] = useState(0);
-
-  // Doubt data
-  const [doubtResponse, setDoubtResponse] = useState(null);
-  const [isDoubtProcessing, setIsDoubtProcessing] = useState(false);
-  const [doubtHistory, setDoubtHistory] = useState([]);
-
-  // Error state
-  const [error, setError] = useState(null);
-
-  // Greeting
-  const [greetingMessage, setGreetingMessage] = useState(null);
-
-  // Playback
-  const [isPaused, setIsPaused] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const playIntervalRef = useRef(null);
-  const playSpeedRef = useRef(1);
+
+  // ─── Pull store state & actions ───
+  const store = useTutorStore();
+  const {
+    machineState, sessionId, topic,
+    timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula, currentStepIndex, totalSteps,
+    canvasObjects, canvasSteps,
+    doubtResponse, isDoubtProcessing, doubtHistory, activeDoubtId,
+    error, greetingMessage,
+    isPlaying, isPaused, playbackSpeed,
+    setMachineState, setSessionId, setConnected, setConnectionError,
+    setTimeline, setCurrentStep, setError, setGreeting,
+    setDoubtProcessing, addDoubt, setDoubtResponse,
+    mutateCanvasObjects, addCanvasObjects,
+    startSession: storeStartSession,
+    endSession,
+    play: storePlay, pause: storePause,
+    nextStep: storeNextStep, prevStep: storePrevStep,
+    goToStep: storeGoToStep,
+    setPlaybackSpeed,
+  } = store;
+
+  // ─── Sync connection state ───
+  useEffect(() => {
+    setConnected(isConnected);
+    if (connectionError) setConnectionError(connectionError);
+  }, [isConnected, connectionError, setConnected, setConnectionError]);
 
   // ─── Socket Event Listeners ───
   useEffect(() => {
@@ -61,40 +53,47 @@ export function useTeachingMachine() {
       if (data.payload?.sessionId) {
         setSessionId(data.payload.sessionId);
       }
-      setError(null);
     }));
 
     // Full timeline received
     cleanups.push(on('teaching:timeline', (data) => {
       console.log(`[Machine] Timeline received: ${data.title} (${data.totalSteps} steps)`);
-      setTimeline(data);
-      setTotalSteps(data.totalSteps);
-      setCurrentStepIndex(0);
-      setDoubtResponse(null);
-      setGreetingMessage(null);
+      setTimeline({
+        ...data,
+        totalSteps: data.totalSteps || data.steps?.length || 0,
+      });
     }));
 
     // Step update
     cleanups.push(on('teaching:step', (data) => {
-      setCurrentStep(data.step);
-      setCurrentStepIndex(data.index);
-      setTotalSteps(data.total);
+      setCurrentStep(data.index);
     }));
 
     // Doubt acknowledged
     cleanups.push(on('teaching:doubt-ack', () => {
-      setIsDoubtProcessing(true);
+      setDoubtProcessing(true);
     }));
 
     // Doubt response
     cleanups.push(on('teaching:doubt-response', (data) => {
-      setDoubtResponse(data);
-      setIsDoubtProcessing(false);
-      setDoubtHistory(prev => [...prev, {
-        question: data._question,
-        answer: data.answer,
-        timestamp: Date.now(),
-      }]);
+      // Add doubt to thread history
+      addDoubt(
+        data._question || '',
+        data.answer,
+        data.hasVisuals,
+        data.visualUpdate
+      );
+
+      // Apply visual mutations if present
+      if (data.hasVisuals && data.visualUpdate) {
+        if (data.visualUpdate.mutations) {
+          // New mutation-based system
+          mutateCanvasObjects(data.visualUpdate.mutations);
+        } else if (data.visualUpdate.objects) {
+          // Legacy: add objects from doubt response
+          addCanvasObjects(data.visualUpdate.objects);
+        }
+      }
     }));
 
     // Error
@@ -105,27 +104,28 @@ export function useTeachingMachine() {
 
     // Greeting
     cleanups.push(on('teaching:greeting', (data) => {
-      setGreetingMessage(data.message);
-      setMachineState(STATES.IDLE);
+      setGreeting(data.message);
     }));
 
     return () => cleanups.forEach(cleanup => cleanup());
-  }, [on]);
+  }, [on, isConnected, setMachineState, setSessionId, setTimeline, setCurrentStep, setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects, setError, setGreeting]);
 
   // ─── Auto-play logic ───
   useEffect(() => {
     if (isPlaying && !isPaused && machineState === STATES.TEACHING && timeline) {
-      const speed = playSpeedRef.current;
+      const currentStep = canvasSteps[currentStepIndex];
       const currentDuration = currentStep?.duration || 3000;
-      const adjustedDuration = currentDuration / speed;
+      const adjustedDuration = currentDuration / playbackSpeed;
 
       playIntervalRef.current = setTimeout(() => {
         if (currentStepIndex < totalSteps - 1) {
           const nextIndex = currentStepIndex + 1;
           emit('session:step', { stepIndex: nextIndex });
-          setCurrentStepIndex(nextIndex);
+          setCurrentStep(nextIndex);
         } else {
-          setIsPlaying(false);
+          // Final step complete → Finish automatically
+          emit('session:finish');
+          storePause();
         }
       }, adjustedDuration);
     }
@@ -135,75 +135,61 @@ export function useTeachingMachine() {
         clearTimeout(playIntervalRef.current);
       }
     };
-  }, [isPlaying, isPaused, currentStepIndex, machineState, timeline, currentStep, totalSteps, emit]);
+  }, [isPlaying, isPaused, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
 
-  // ─── Actions ───
-  const startSession = useCallback((topic) => {
-    setError(null);
-    setTimeline(null);
-    setDoubtResponse(null);
-    setDoubtHistory([]);
-    setGreetingMessage(null);
-    setCurrentStepIndex(0);
-    setIsPlaying(false);
-    setIsPaused(false);
-    emit('session:start', { topic });
-  }, [emit]);
+  // ─── Actions (emit to server + update store) ───
+  const startSession = useCallback((topicStr) => {
+    storeStartSession(topicStr);
+    emit('session:start', { topic: topicStr });
+  }, [emit, storeStartSession]);
 
   const askDoubt = useCallback((question) => {
-    setIsPlaying(false);
-    setIsPaused(true);
+    storePause();
+    setDoubtProcessing(true);
     emit('session:doubt', { question });
-  }, [emit]);
+  }, [emit, storePause, setDoubtProcessing]);
 
   const goToStep = useCallback((stepIndex) => {
     emit('session:step', { stepIndex });
-    setIsPlaying(false);
-  }, [emit]);
+    storeGoToStep(stepIndex);
+  }, [emit, storeGoToStep]);
 
   const play = useCallback(() => {
-    setIsPlaying(true);
-    setIsPaused(false);
+    storePlay();
     emit('session:resume');
-  }, [emit]);
+  }, [emit, storePlay]);
 
   const pause = useCallback(() => {
-    setIsPlaying(false);
-    setIsPaused(true);
+    storePause();
     emit('session:pause');
-  }, [emit]);
+  }, [emit, storePause]);
 
   const resume = useCallback(() => {
     setDoubtResponse(null);
-    setIsPlaying(true);
-    setIsPaused(false);
+    storePlay();
     emit('session:resume');
-  }, [emit]);
+  }, [emit, storePlay, setDoubtResponse]);
 
   const setSpeed = useCallback((speed) => {
-    playSpeedRef.current = speed;
-  }, []);
+    setPlaybackSpeed(speed);
+  }, [setPlaybackSpeed]);
 
-  const endSession = useCallback(() => {
-    setIsPlaying(false);
-    setIsPaused(false);
-    emit('session:end');
-    setTimeline(null);
-    setCurrentStep(null);
-    setCurrentStepIndex(0);
-    setTotalSteps(0);
-    setDoubtResponse(null);
-    setDoubtHistory([]);
-    setError(null);
-    setGreetingMessage(null);
-    setMachineState(STATES.IDLE);
-  }, [emit]);
+  const finish = useCallback(() => {
+    emit('session:finish');
+    storePause();
+  }, [emit, storePause]);
 
   const nextStep = useCallback(() => {
+    if (activeDoubtId) {
+      resume();
+      return;
+    }
     if (currentStepIndex < totalSteps - 1) {
       goToStep(currentStepIndex + 1);
+    } else {
+      finish();
     }
-  }, [currentStepIndex, totalSteps, goToStep]);
+  }, [currentStepIndex, totalSteps, goToStep, finish, activeDoubtId, resume]);
 
   const prevStep = useCallback(() => {
     if (currentStepIndex > 0) {
@@ -216,7 +202,7 @@ export function useTeachingMachine() {
     isConnected,
     connectionError,
 
-    // State
+    // State (from store)
     machineState,
     sessionId,
     isIdle: machineState === STATES.IDLE,
@@ -228,11 +214,19 @@ export function useTeachingMachine() {
     isCompleted: machineState === STATES.COMPLETED,
     isError: machineState === STATES.ERROR,
 
-    // Data
+    // Data (from store)
     timeline,
-    currentStep,
+    currentStep: canvasSteps[currentStepIndex] || null,
     currentStepIndex,
     totalSteps,
+    learningNodes,
+    mode,
+    difficulty,
+    professorNote,
+    memoryAnchor,
+    keyFormula,
+    canvasObjects,
+    canvasSteps,
     doubtResponse,
     isDoubtProcessing,
     doubtHistory,
@@ -252,6 +246,7 @@ export function useTeachingMachine() {
     play,
     pause,
     resume,
+    finish,
     setSpeed,
     endSession,
   };

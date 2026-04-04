@@ -62,12 +62,15 @@ export function useSocket() {
     };
   }, []);
 
-  // Emit an event
+  // Emit an event (relies on socket.io's native offline buffering)
   const emit = useCallback((event, data) => {
-    if (socketRef.current?.connected) {
+    if (socketRef.current) {
+      if (!socketRef.current.connected) {
+        console.log(`[Socket] Buffering emit '${event}' until connected`);
+      }
       socketRef.current.emit(event, data);
     } else {
-      console.warn(`[Socket] Cannot emit '${event}' — not connected`);
+      console.warn(`[Socket] Cannot emit '${event}' — socket instance not initialized`);
     }
   }, []);
 

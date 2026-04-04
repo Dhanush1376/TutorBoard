@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Layout from '../components/layout/Layout';
 import Sidebar from '../components/sidebar/Sidebar';
 import Board from '../components/Board';
@@ -7,15 +8,22 @@ import InputBar from '../components/chat/InputBar';
 import TeachingModal from '../components/teaching/TeachingModal';
 import TeachingSession from '../components/teaching/TeachingSession';
 import ModulesPage from '../components/modules/ModulesPage';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Trophy, GitCompare, PencilLine, Lightbulb, GraduationCap } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const Home = ({ setIsDark, isDark }) => {
-  // Global Sessions
-  const [chatHistory, setChatHistory] = useState([]);
+  // Global Sessions with persistence
+  const [chatHistory, setChatHistory] = useState(() => {
+    const saved = localStorage.getItem('tutorboard-history');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [activeChatId, setActiveChatId] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem('tutorboard-history', JSON.stringify(chatHistory));
+  }, [chatHistory]);
   
   // App Routing
   const [activeView, setActiveView] = useState('chat'); // 'chat' | 'modules'
@@ -24,7 +32,7 @@ const Home = ({ setIsDark, isDark }) => {
   // Local input state
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeMode, setActiveMode] = useState('canvas'); // 'chat' | 'canvas' | 'teach'
+  const [activeMode, setActiveMode] = useState('chat'); // 'chat' | 'teach' | 'solve' | etc.
 
   // Playback State
   const [currentStep, setCurrentStep] = useState(0);
@@ -52,7 +60,6 @@ const Home = ({ setIsDark, isDark }) => {
   // Determine global board data
   const lastMessageWithSteps = [...messages].reverse().find(m => m.steps && m.steps.length > 0);
   const activeSteps = lastMessageWithSteps?.steps || [];
-  const hasVisualData = activeSteps.length > 0 || (teachingData?.steps && teachingData.steps.length > 0) || (teachingData?.objects && teachingData.objects.length > 0);
 
   // Reset playback when switching
   useEffect(() => {
@@ -85,6 +92,7 @@ const Home = ({ setIsDark, isDark }) => {
 
   const handleSelectChat = (id) => {
     setActiveChatId(id);
+    setActiveView('chat');
   };
 
   const handleDeleteChat = (id) => {
@@ -114,18 +122,29 @@ const Home = ({ setIsDark, isDark }) => {
   const handleOpenCanvas = useCallback((steps, title, domain, visualizationType, extraData) => {
     const hasVisualData = (steps && steps.length > 0) || (extraData?.objects && extraData.objects.length > 0);
     if (hasVisualData) {
-      setTeachingData({ 
-        title: title || 'Teaching Session', 
-        steps, 
-        domain, 
-        visualizationType,
-        objects: extraData?.objects,
-        elements: extraData?.elements,
-        motion: extraData?.motion,
-        connections: extraData?.connections,
-        sequence: extraData?.sequence
-      });
-      setIsTeachingOpen(true);
+      // 1. Prepare the timeline data
+      const timelineData = {
+        title: title || 'Teaching Session',
+        steps: steps || [],
+        domain: domain,
+        visualizationType: visualizationType,
+        objects: extraData?.objects || [],
+        elements: extraData?.elements || [],
+        motion: extraData?.motion || [],
+        connections: extraData?.connections || [],
+        sequence: extraData?.sequence || [],
+        totalSteps: steps?.length || 0
+      };
+
+      // 2. Clear current session and inject pre-generated timeline
+      const store = useTutorStore.getState();
+      store.resetTeaching();
+      store.setTimeline(timelineData);
+      store.setMachineState(STATES.TEACHING); // Bypass LOADING state
+      
+      // 3. Open the immersive UI
+      setIsTeachingSessionOpen(true);
+      setTeachingTopic(title || 'Manual Session');
     }
   }, []);
 
@@ -152,19 +171,14 @@ const Home = ({ setIsDark, isDark }) => {
   }, [handleDeleteMessage]);
 
   const handleSubmit = async () => {
+    // ─── Universal Submission Guard ───
     if (!prompt.trim() || isSubmittingRef.current) return;
-
-    // ─── TEACH MODE: Open live teaching session ───
-    if (activeMode === 'teach') {
-      setTeachingTopic(prompt.trim());
-      setIsTeachingSessionOpen(true);
-      setPrompt('');
-      return;
-    }
-
     isSubmittingRef.current = true;
     
-    const userPrompt = prompt;
+    const userPrompt = prompt.trim();
+    const currentMode = activeMode;
+    const modeLabel = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
+    
     setPrompt('');
     setIsGenerating(true);
     setError(null);
@@ -173,9 +187,14 @@ const Home = ({ setIsDark, isDark }) => {
     const workingSessionId = activeChatId || `session-${Date.now()}`;
     if (!activeChatId) setActiveChatId(workingSessionId);
 
+    // ─── 1. RECORD IN HISTORY (Agnostic of Mode) ───
     setChatHistory(prev => {
       const idx = prev.findIndex(s => s.id === workingSessionId);
-      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
+      const userMessage = { 
+        id: getMsgId('user'), 
+        role: 'user', 
+        content: currentMode === 'chat' ? userPrompt : `[${modeLabel}] ${userPrompt}` 
+      };
 
       if (idx === -1) {
         return [{ 
@@ -190,55 +209,47 @@ const Home = ({ setIsDark, isDark }) => {
       }
     });
 
+    // ─── 2. EXECUTE MODE LOGIC (Unified Conversational Flow) ───
+
+
     try {
       let response;
       let data;
 
-      if (activeMode === 'canvas' && !messages.length) {
-        response = await fetch(`${API_URL}/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: userPrompt }),
-        });
-        if (!response.ok) throw new Error('AI Visual Engine is currently unavailable.');
-        data = await response.json();
-        if (!data.objects && !data.steps) {
-          data.objects = [];
-          data.steps = [];
-        }
-      } else {
-        response = await fetch(`${API_URL}/doubt`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            question: userPrompt,
-            history: messages,
-            forceNoVisuals: false
-          }),
-        });
-        if (!response.ok) throw new Error('TutorBoard AI is currently unavailable.');
-        const result = await response.json();
-        
-        console.log('[TutorBoard] API response:', JSON.stringify(result).substring(0, 300));
+      // All modes now call /doubt to ensure conversational-first experience on dashboard
+      response = await fetch(`${API_URL}/doubt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          question: userPrompt,
+          history: messages,
+          activeMode: currentMode,
+          forceNoVisuals: currentMode === 'chat'
+        }),
+      });
+      
+      if (!response.ok) throw new Error('TutorBoard AI is currently unavailable.');
+      const result = await response.json();
+      
+      console.log('[TutorBoard] API response:', JSON.stringify(result).substring(0, 300));
 
-        const visualSteps = result.hasVisuals 
-          ? (result.visualUpdate?.steps || result.visualUpdate?.sequence || []) 
-          : [];
-        
-        data = {
-          answer: result.answer,
-          steps: visualSteps,
-          title: result.visualUpdate?.title || 'Response',
-          domain: result.visualUpdate?.domain,
-          visualizationType: result.visualUpdate?.visualizationType || result.visualUpdate?.type,
-          hasVisuals: result.hasVisuals,
-          objects: result.visualUpdate?.objects,
-          elements: result.visualUpdate?.elements,
-          motion: result.visualUpdate?.motion,
-          connections: result.visualUpdate?.connections,
-          sequence: result.visualUpdate?.sequence
-        };
-      }
+      const visualSteps = (result.hasVisuals && result.visualUpdate)
+        ? (result.visualUpdate.steps || result.visualUpdate.sequence || []) 
+        : [];
+      
+      data = {
+        answer: result.answer,
+        steps: visualSteps,
+        title: result.visualUpdate?.title || 'Response',
+        domain: result.visualUpdate?.domain,
+        visualizationType: result.visualUpdate?.visualizationType || result.visualUpdate?.type,
+        hasVisuals: result.hasVisuals,
+        objects: result.visualUpdate?.objects,
+        elements: result.visualUpdate?.elements,
+        motion: result.visualUpdate?.motion,
+        connections: result.visualUpdate?.connections,
+        sequence: result.visualUpdate?.sequence
+      };
       
       setChatHistory(prev => {
         const next = [...prev];
@@ -246,7 +257,9 @@ const Home = ({ setIsDark, isDark }) => {
         if (idx !== -1) {
           const hasVisualData = (data.steps && data.steps.length > 0) || (data.objects && data.objects.length > 0);
           let aiMessageContent = data.answer;
-          if (!aiMessageContent && hasVisualData) {
+          
+          // Personality: In teaching modes, if AI only gives visual, provide a nice breadcrumb
+          if (currentMode !== 'chat' && !aiMessageContent && hasVisualData) {
              aiMessageContent = `I've prepared a visual diagram for **${data.title}**.`;
           }
 
@@ -273,26 +286,10 @@ const Home = ({ setIsDark, isDark }) => {
         }
         return next;
       });
-
-      // Auto-open the Visual Canvas when we have visual data
-      const hasVisualData = (Array.isArray(data.steps) && data.steps.length > 0) || (Array.isArray(data.objects) && data.objects.length > 0);
-      if (hasVisualData && (activeMode === 'canvas' || data.hasVisuals)) {
-        setTeachingData({ 
-          title: data.title, 
-          steps: data.steps, 
-          domain: data.domain, 
-          visualizationType: data.visualizationType,
-          objects: data.objects,
-          elements: data.elements,
-          motion: data.motion,
-          connections: data.connections,
-          sequence: data.sequence
-        });
-        setIsTeachingOpen(true);
-      }
     } catch (err) {
       console.error('[TutorBoard] Submit error:', err);
       setError(err.message);
+
       setChatHistory(prev => {
         const next = [...prev];
         const idx = next.findIndex(s => s.id === workingSessionId);
@@ -408,50 +405,8 @@ const Home = ({ setIsDark, isDark }) => {
                     isDark={isDark}
                  />
               </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.1, duration: 0.6 }}
-                className="flex flex-wrap justify-center gap-2 md:gap-3 mt-8 md:mt-10 max-w-2xl px-4"
-              >
-                 {[
-                   { label: 'Explain', prefix: 'Explain step-by-step: ', icon: BookOpen }, 
-                   { label: 'Quiz', prefix: 'Generate a quiz on: ', icon: Trophy }, 
-                   { label: 'Compare', prefix: 'Compare and visualize: ', icon: GitCompare }, 
-                   { label: 'Practice', prefix: 'Give me practice problems for: ', icon: PencilLine }, 
-                   { label: 'Live Teach', prefix: '', icon: GraduationCap, isTeach: true },
-                 ].map((action, i) => {
-                   const Icon = action.icon;
-                   return (
-                     <motion.button 
-                       key={action.label}
-                       initial={{ opacity: 0, scale: 0.9 }}
-                       animate={{ opacity: 1, scale: 1 }}
-                       transition={{ duration: 0.4, delay: 1.2 + (i * 0.08), ease: "easeOut" }}
-                       onClick={() => { 
-                         if (action.isTeach) {
-                           setActiveMode('teach');
-                           setTimeout(() => { const el = document.querySelector('textarea'); if(el) { el.focus(); } }, 50);
-                         } else {
-                           setPrompt(action.prefix); 
-                           setTimeout(() => { const el = document.querySelector('textarea'); if(el) { el.focus(); } }, 50); 
-                         }
-                       }}
-                       className={`flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2 border rounded-full text-[12px] md:text-[11px] hover:text-[var(--text-primary)] transition-all font-medium whitespace-nowrap active:scale-95 shadow-sm ${
-                         action.isTeach
-                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20 hover:border-emerald-500/50'
-                           : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)]'
-                       }`}
-                     >
-                       <Icon size={14} className="opacity-70" />
-                       <span>{action.label}</span>
-                     </motion.button>
-                   );
-                 })}
-              </motion.div>
-           </motion.div>
-        )}
+            </motion.div>
+         )}
 
         {/* State 2: Active Chat / Canvas View */}
         {hasStarted && activeView === 'chat' && (
@@ -466,7 +421,7 @@ const Home = ({ setIsDark, isDark }) => {
               {/* 1. CHAT MODE */}
               <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${(activeMode === 'chat' || isGenerating) ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
                 <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4">
-                   <div className="w-full max-w-2xl mx-auto">
+                   <div className="w-full max-w-3xl mx-auto py-10">
                       <ChatWindow 
                         messages={messages} 
                         isGenerating={isGenerating} 
@@ -478,7 +433,7 @@ const Home = ({ setIsDark, isDark }) => {
                 </div>
               </div>
 
-              {/* 2. CANVAS MODE */}
+              {/* 2. CANVAS MODE (Legacy) */}
               <div className={`absolute inset-0 transition-all duration-500 ${(activeMode === 'canvas' && !isGenerating) ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
                  <Board 
                    stepData={teachingData?.steps?.[0]} 
@@ -487,10 +442,6 @@ const Home = ({ setIsDark, isDark }) => {
                    domain={teachingData?.domain} 
                    visualizationType={teachingData?.visualizationType} 
                    objects={teachingData?.objects}
-                   elements={teachingData?.elements}
-                   motionData={teachingData?.motion}
-                   sequence={teachingData?.sequence}
-                   connections={teachingData?.connections}
                  />
               </div>
 
@@ -535,16 +486,21 @@ const Home = ({ setIsDark, isDark }) => {
         sequence={teachingData?.sequence}
       />
 
-      {/* NEW: Real-Time Teaching Session */}
-      <TeachingSession
-        isOpen={isTeachingSessionOpen}
-        onClose={() => {
-          setIsTeachingSessionOpen(false);
-          setTeachingTopic('');
-          setActiveMode('chat');
-        }}
-        initialTopic={teachingTopic}
-      />
+      {/* NEW: Real-Time Teaching Session in Portal */}
+      {isTeachingSessionOpen && typeof document !== 'undefined' && createPortal(
+        <ErrorBoundary onClose={() => setIsTeachingSessionOpen(false)}>
+          <TeachingSession
+            isOpen={isTeachingSessionOpen}
+            onClose={() => {
+              setIsTeachingSessionOpen(false);
+              setTeachingTopic('');
+              setActiveMode('chat');
+            }}
+            initialTopic={teachingTopic}
+          />
+        </ErrorBoundary>,
+        document.body
+      )}
 
     </Layout>
   );

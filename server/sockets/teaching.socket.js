@@ -130,9 +130,10 @@ export function setupTeachingSocket(io) {
         // Transition to RESPONDING
         machine.send(EVENTS.DOUBT_RESPONSE_READY, { response });
 
-        // Send response to client
-        console.log(`[WS] Sending doubt response to ${sessionId}:`, JSON.stringify(response, null, 2));
+        // Send response to client (include _question for thread pairing)
+        console.log(`[WS] Sending doubt response to ${sessionId}`);
         socket.emit('teaching:doubt-response', {
+          _question: question.trim(),
           answer: response.answer,
           isRelevant: response.isRelevant,
           hasVisuals: response.hasVisuals,
@@ -164,10 +165,16 @@ export function setupTeachingSocket(io) {
         total: s.steps.length,
       });
 
-      // Check if this is the last step
-      if (stepIndex >= s.steps.length - 1) {
-        machine.send(EVENTS.FINISH);
+      // Transition to TEACHING if we were in COMPLETED/DOUBT
+      if (machine.state === STATES.COMPLETED || machine.state === STATES.RESPONDING) {
+        machine.send(EVENTS.RESUME);
       }
+    });
+
+    // ─── FINISH SESSION ───
+    socket.on('session:finish', () => {
+      console.log(`[WS] session:finish (${sessionId})`);
+      machine.send(EVENTS.FINISH);
     });
 
     // ─── PAUSE ───

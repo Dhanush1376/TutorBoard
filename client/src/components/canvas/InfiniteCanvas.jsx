@@ -29,13 +29,13 @@ export const CanvasContext = React.createContext({
   centerOn: () => {},
 });
 
-const InfiniteCanvas = memo(({ 
+const InfiniteCanvas = memo(React.forwardRef(({ 
   children, 
   onZoomChange, 
   onViewportChange,
   className = '',
   initialTransform = null,
-}) => {
+}, ref) => {
   // Transform state
   const [transform, setTransform] = useState(initialTransform || { x: 0, y: 0, scale: 1 });
   
@@ -298,13 +298,7 @@ const InfiniteCanvas = memo(({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [zoomAtPoint, commitTransform]);
 
-  // ─── Attach wheel listener (non-passive for preventDefault) ───
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
-  }, [handleWheel]);
+
 
   // ─── Global mouse events for drag ───
   useEffect(() => {
@@ -368,6 +362,38 @@ const InfiniteCanvas = memo(({
     });
   }, [commitTransform]);
 
+  // ─── Attach wheel listener (non-passive for preventDefault) ───
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    
+    // Auto-fit when container resizes (e.g. sidebar toggle)
+    let lastWidth = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (Math.abs(el.clientWidth - lastWidth) > 10) {
+        lastWidth = el.clientWidth;
+        fitToContent();
+      }
+    });
+    observer.observe(el);
+
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      observer.disconnect();
+    };
+  }, [handleWheel, fitToContent]);
+
+  // ─── Public methods via ref ───
+  React.useImperativeHandle(ref, () => ({
+    zoomIn,
+    zoomOut,
+    resetView,
+    fitToContent,
+    centerOn,
+    getTransform: () => transformRef.current
+  }), [zoomIn, zoomOut, resetView, fitToContent, centerOn]);
+
   return (
     <div
       ref={containerRef}
@@ -411,7 +437,7 @@ const InfiniteCanvas = memo(({
       </CanvasContext.Provider>
     </div>
   );
-});
+}));
 
 InfiniteCanvas.displayName = 'InfiniteCanvas';
 

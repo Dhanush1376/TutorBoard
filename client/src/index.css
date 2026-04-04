@@ -167,11 +167,8 @@
       linear-gradient(to right, var(--border-color) 1px, transparent 1px),
       linear-gradient(to bottom, var(--border-color) 1px, transparent 1px);
     background-position: center top;
-    /* Ultra-subtle to ensure perfect chat history visibility */
-    opacity: 0.15;
-    /* Fade elegantly toward bottom for focus */
-    mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+    /* Clean, persistent grid aesthetic as requested */
+    opacity: 0.25;
   }
 
   #root {

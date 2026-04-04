@@ -13,7 +13,10 @@ import {
   MessageSquare,
   Zap,
   MicOff,
-  GraduationCap
+  GraduationCap,
+  X,
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -24,7 +27,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [selectedAgent, setSelectedAgent] = useState('DeepSeek R1');
   const [isListening, setIsListening] = useState(false);
   
-  // Typing placeholder logic
   const placeholders = [
     "How does Binary Search work?",
     "Explain the Greenhouse effect.",
@@ -65,7 +67,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     return () => clearTimeout(timeout);
   }, [currentPlaceholder, isDeleting, placeholderIndex, isLanding]);
 
-  // Voice Assistant logic
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -106,47 +107,59 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     }
   };
 
-  const agents = ['DeepSeek R1', 'TutorBoard Pro', 'GPT-4o', 'Sonnet 3.5'];
-
-  const quickActions = [
-    { icon: BookOpen, label: 'Explain', prefix: 'Explain step-by-step: ' },
-    { icon: Trophy, label: 'Quiz', prefix: 'Generate a quiz on: ' },
-    { icon: GitCompare, label: 'Compare', prefix: 'Compare and visualize: ' },
-    { icon: PencilLine, label: 'Practice', prefix: 'Give me practice problems for: ' },
-    { icon: Lightbulb, label: 'Deep Explain', prefix: 'Provide a deep explanation for: ' },
+  const actionChips = [
+    { id: 'teach', icon: GraduationCap, label: 'Teach me', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' },
+    { id: 'solve', icon: PencilLine, label: 'Solve Problem', color: 'bg-blue-500/10 border-blue-500/20 text-blue-600' },
+    { id: 'quiz', icon: Trophy, label: 'Quiz me', color: 'bg-amber-500/10 border-amber-500/20 text-amber-600' },
+    { id: 'visualize', icon: GitCompare, label: 'Visualize', color: 'bg-purple-500/10 border-purple-500/20 text-purple-600' },
+    { id: 'deep', icon: Zap, label: 'Deep Dive', color: 'bg-rose-500/10 border-rose-500/20 text-rose-600' },
   ];
 
-  const handleQuickAction = (prefix) => {
-    onChange(prefix);
+  const quickActions = [
+    { id: 'teach', icon: GraduationCap, label: 'Teach me' },
+    { id: 'solve', icon: PencilLine, label: 'Solve Problem' },
+    { id: 'quiz', icon: Trophy, label: 'Quiz me' },
+    { id: 'visualize', icon: GitCompare, label: 'Visualize' },
+    { id: 'deep', icon: Zap, label: 'Deep Dive' },
+  ];
+
+  const handleChipClick = (chipId) => {
+    if (activeMode === chipId) {
+      setActiveMode('chat');
+    } else {
+      setActiveMode(chipId);
+    }
+    textareaRef.current?.focus();
+  };
+
+  const handleQuickAction = (chipId) => {
+    setActiveMode(chipId);
     setIsPlusMenuOpen(false);
     setTimeout(() => textareaRef.current?.focus(), 50);
   };
 
-  // Compute placeholder based on mode
   const getPlaceholder = () => {
-    if (activeMode === 'teach') return 'Enter a topic for live teaching...';
+    if (activeMode !== 'chat') {
+      const chip = actionChips.find(c => c.id === activeMode);
+      return `Tell me what to ${chip?.label.toLowerCase()}...`;
+    }
     if (isLanding) return currentPlaceholder;
     return 'Message TutorBoard...';
   };
 
-  // Compute pill position for 3-way toggle
-  const getPillStyle = () => {
-    if (activeMode === 'canvas') return { left: '2px', width: 'calc(33.33% - 2px)' };
-    if (activeMode === 'teach') return { left: 'calc(33.33% + 1px)', width: 'calc(33.33% - 2px)' };
-    return { left: 'calc(66.66% + 1px)', width: 'calc(33.33% - 2px)' };
-  };
+  const agents = ['DeepSeek R1', 'TutorBoard Pro', 'GPT-4o', 'Sonnet 3.5'];
 
   return (
     <div className={`w-full transition-all duration-700 ${isLanding ? 'p-0' : 'max-w-3xl mx-auto px-4'}`}>
       <div className={`flex flex-col bg-[var(--bg-secondary)] backdrop-blur-3xl border border-[var(--border-color)] rounded-2xl relative transition-all duration-300 shadow-2xl group focus-within:border-[var(--text-tertiary)] focus-within:shadow-[0_0_0_1px_var(--border-color),0_20px_40px_-12px_rgba(0,0,0,0.15)] ${
         isLanding ? 'min-h-[120px]' : 'min-h-[50px] mb-2'
-      } ${activeMode === 'teach' ? 'border-emerald-500/30 focus-within:border-emerald-500/50' : ''}`}>
+      } ${activeMode !== 'chat' ? 'border-[var(--text-tertiary)]/30' : ''}`}>
         
-        {/* Teach mode accent bar */}
-        {activeMode === 'teach' && (
+        {/* Active mode accent bar */}
+        {activeMode !== 'chat' && (
           <motion.div
-            layoutId="teachAccent"
-            className="absolute top-0 left-4 right-4 h-[2px] bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent rounded-full"
+            layoutId="modeAccent"
+            className={`absolute top-0 left-4 right-4 h-[2px] opacity-60 rounded-full bg-gradient-to-r from-transparent via-[var(--text-primary)] to-transparent`}
           />
         )}
 
@@ -186,7 +199,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           {quickActions.map((action) => (
                             <button 
                               key={action.label}
-                              onClick={() => handleQuickAction(action.prefix)}
+                              onClick={() => handleQuickAction(action.id)}
                               className="flex items-center gap-3 w-full px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-lg transition-all"
                             >
                               <action.icon size={16} /> <span>{action.label}</span>
@@ -198,60 +211,34 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 </AnimatePresence>
              </div>
 
-             {/* ─── THREE-WAY TOGGLE: Canvas / Teach / Chat ─── */}
-              <div className="flex items-center ml-1 p-0.5 rounded-full transition-all duration-300 border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-inner">
-                <div className="relative flex items-center p-0.5 bg-transparent rounded-full overflow-hidden">
-                   {/* Sliding Pill */}
-                   <motion.div
-                     layoutId="activePill"
-                     className={`absolute inset-y-0.5 rounded-full z-0 pointer-events-none shadow-sm ${
-                       activeMode === 'teach' ? 'bg-emerald-600' : 'bg-[var(--text-primary)]'
-                     }`}
-                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                     style={getPillStyle()}
-                   />
- 
-                   {/* Canvas */}
-                   <button
-                     type="button"
-                     onClick={() => setActiveMode('canvas')}
-                     className={`relative z-10 flex items-center justify-center gap-1 px-3 py-1.5 rounded-full transition-colors duration-300 text-[9px] font-extrabold uppercase tracking-widest min-w-[60px] ${
-                       activeMode === 'canvas' ? '' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-                     }`}
-                     style={activeMode === 'canvas' ? { color: 'var(--bg-primary)' } : {}}
+             {/* Selected Mode Badge */}
+             <AnimatePresence>
+               {activeMode !== 'chat' && (
+                 <motion.div
+                   initial={{ opacity: 0, x: -10, scale: 0.9 }}
+                   animate={{ opacity: 1, x: 0, scale: 1 }}
+                   exit={{ opacity: 0, x: -10, scale: 0.9 }}
+                   className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider shadow-sm ml-2 ${
+                     actionChips.find(c => c.id === activeMode)?.color || 'bg-[var(--bg-tertiary)] border-[var(--border-color)]'
+                   }`}
+                 >
+                   <Sparkles size={12} className="opacity-70" />
+                   <span>{actionChips.find(c => c.id === activeMode)?.label}</span>
+                   <button 
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       setActiveMode('chat');
+                     }}
+                     className="ml-1 hover:opacity-70 transition-opacity"
                    >
-                     <Zap size={10} className={activeMode === 'canvas' ? 'fill-current' : ''} />
-                     <span>Canvas</span>
+                     <X size={12} />
                    </button>
+                 </motion.div>
+               )}
+             </AnimatePresence>
+          </div>
 
-                   {/* Teach */}
-                   <button
-                     type="button"
-                     onClick={() => setActiveMode('teach')}
-                     className={`relative z-10 flex items-center justify-center gap-1 px-3 py-1.5 rounded-full transition-colors duration-300 text-[9px] font-extrabold uppercase tracking-widest min-w-[60px] ${
-                       activeMode === 'teach' ? '' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-                     }`}
-                     style={activeMode === 'teach' ? { color: '#ffffff' } : {}}
-                   >
-                     <GraduationCap size={10} />
-                     <span>Teach</span>
-                   </button>
-
-                   {/* Chat */}
-                   <button
-                     type="button"
-                     onClick={() => setActiveMode('chat')}
-                     className={`relative z-10 flex items-center justify-center gap-1 px-3 py-1.5 rounded-full transition-colors duration-300 text-[9px] font-extrabold uppercase tracking-widest min-w-[60px] ${
-                       activeMode === 'chat' ? '' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-                     }`}
-                     style={activeMode === 'chat' ? { color: 'var(--bg-primary)' } : {}}
-                   >
-                     <MessageSquare size={10} className={activeMode === 'chat' ? 'fill-current' : ''} />
-                     <span>Chat</span>
-                   </button>
-                </div>
-             </div>
-
+          <div className="flex items-center gap-2">
              {/* Agent Selector */}
              <div className="relative">
                 <button 
@@ -290,9 +277,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   )}
                 </AnimatePresence>
              </div>
-          </div>
 
-          <div className="flex items-center gap-2">
              {/* Voice Assistant Button */}
              <div className="relative flex items-center justify-center">
                <AnimatePresence>
@@ -340,7 +325,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     onClick={onSubmit}
                     disabled={!value.trim()}
                     className={`p-2 rounded-xl disabled:opacity-30 hover:opacity-90 transition-all shadow-lg ${
-                      activeMode === 'teach' && value.trim()
+                      activeMode !== 'chat' && value.trim()
                         ? 'bg-emerald-600 text-white'
                         : 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
                     } ${!value.trim() ? 'grayscale cursor-not-allowed' : ''}`}
@@ -352,6 +337,33 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
           </div>
         </div>
       </div>
+
+      {/* Action Chips (Horizontal Scrollable) */}
+      {isLanding && (
+        <div className="mt-8 flex flex-wrap justify-center gap-3 max-w-2xl mx-auto">
+          {actionChips.map((chip) => {
+            const Icon = chip.icon;
+            return (
+              <motion.button
+                key={chip.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -2, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleChipClick(chip.id)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all text-[12px] font-bold shadow-sm ${
+                  activeMode === chip.id 
+                    ? chip.color.replace('/10', '/30').replace('/20', '/50') + ' ring-2 ring-emerald-500/20'
+                    : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)]'
+                }`}
+              >
+                <Icon size={14} className="opacity-70" />
+                <span>{chip.label}</span>
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

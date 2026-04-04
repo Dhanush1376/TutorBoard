@@ -1,20 +1,31 @@
-import aiClient, { getModel } from '../utils/ai.js';
+import { getAIClient, getModel } from '../utils/ai.js';
 
-// ─── FALLBACK ───
+// ─── PROFESSOR-GRADE FALLBACK ───
 const FALLBACK_RESPONSE = {
-  domain: "general",
-  visualizationType: "scene",
+  mode: "explain",
   title: "Visual Overview",
+  domain: "general",
+  difficulty: "beginner",
+  professorNote: "A high-level view of your core concept.",
+  learningNodes: [
+    { type: "hook", title: "Start Here", content: "Let's begin by understanding the big picture." },
+    { type: "concept", title: "Core Idea", content: "The simple definition of this topic." },
+    { type: "intuition", title: "Why it works", content: "Thinking like a professor — why this matters." },
+    { type: "result", title: "Final Goal", content: "Congratulations on starting the journey!" }
+  ],
+  totalSteps: 4,
   objects: [
-    { id: "c1", shape: "circle", x: 300, y: 250, r: 60, color: "blue", fillOpacity: 0.2, label: "Concept" },
-    { id: "c2", shape: "circle", x: 500, y: 250, r: 60, color: "green", fillOpacity: 0.2, label: "Result" },
-    { id: "a1", shape: "arrow", x1: 370, y1: 250, x2: 430, y2: 250, color: "gray", label: "leads to" },
-    { id: "t1", shape: "text", x: 400, y: 450, text: "Visual Engine Ready", fontSize: 20, color: "gray" }
+    { id: "c1", shape: "circle", x: 250, y: 300, r: 60, color: "blue", label: "Start" },
+    { id: "c2", shape: "circle", x: 400, y: 300, r: 60, color: "orange", label: "Idea" },
+    { id: "c3", shape: "circle", x: 550, y: 300, r: 60, color: "green", label: "Result" },
+    { id: "a1", shape: "arrow", x1: 310, y1: 300, x2: 340, y2: 300, color: "white", label: "leads" },
+    { id: "a2", shape: "arrow", x1: 460, y1: 300, x2: 490, y2: 300, color: "white", label: "results" }
   ],
   steps: [
-    { label: "Identify", icon: "🔍", description: "Identify the core concept." },
-    { label: "Analyze", icon: "⚙️", description: "Break it into visual parts." },
-    { label: "Render", icon: "✨", description: "Generate the visual diagram." }
+    { label: "The Hook", icon: "✨", description: "Capturing your attention." },
+    { label: "Deep Dive", icon: "🧠", description: "Building the concept layers." },
+    { label: "Visual Insight", icon: "👁️", description: "Seeing the relationship clearly." },
+    { label: "Complete", icon: "🎓", description: "Mastering the fundamental idea." }
   ]
 };
 
@@ -39,45 +50,8 @@ function safeParse(content) {
   }
 }
 
-// ─── SYSTEM PROMPT ───
-const SYSTEM_PROMPT = `You are TutorBoard Visual Engine — you draw ACTUAL VISUAL DIAGRAMS.
-
-Your canvas is 800 wide × 600 tall. Use these coordinates for all shapes.
-
-RULES:
-1. Return ONLY valid JSON. No markdown. No text.
-2. NEVER generate paragraphs, bullet points, or trees.
-3. Draw REAL shapes — circles, rectangles, arrows, text, orbits.
-
-JSON FORMAT:
-{
-  "domain": "mathematics | physics | chemistry | biology | dsa | general",
-  "visualizationType": "scene",
-  "title": "Concept Title",
-  "objects": [
-    { "id": "c1", "shape": "circle", "x": 400, "y": 250, "r": 80, "color": "blue", "fillOpacity": 0.2, "label": "Label", "glow": false, "pulse": false },
-    { "id": "r1", "shape": "rect", "x": 400, "y": 300, "w": 120, "h": 60, "color": "green", "label": "Box" },
-    { "id": "l1", "shape": "line", "x1": 200, "y1": 300, "x2": 600, "y2": 300, "color": "red" },
-    { "id": "a1", "shape": "arrow", "x1": 300, "y1": 250, "x2": 500, "y2": 250, "color": "white", "label": "flow" },
-    { "id": "t1", "shape": "text", "x": 400, "y": 500, "text": "A = πr²", "fontSize": 28, "color": "white" },
-    { "id": "o1", "shape": "orbit", "cx": 400, "cy": 300, "orbitRadius": 150, "r": 12, "color": "cyan", "label": "Earth", "speed": 8 },
-    { "id": "arc1", "shape": "arc", "cx": 400, "cy": 300, "r": 40, "startAngle": 0, "endAngle": 90, "color": "yellow" }
-  ],
-  "steps": [
-    { "label": "Step Title", "icon": "emoji", "description": "What this visual step shows." }
-  ]
-}
-
-POSITIONING (800×600 canvas):
-- Center: x=400, y=300
-- Top-left: x=100, y=100  |  Top-right: x=700, y=100
-- Bottom: x=400, y=500
-- Spread horizontally: x=200, x=400, x=600
-
-Colors: blue, red, green, yellow, orange, purple, pink, cyan, gold, teal, white, gray
-
-"steps" is MANDATORY with at least 2 items. Each needs "label" and "description".
-`;
+import { TEACHING_TIMELINE_PROMPT } from '../engine/prompts.js';
+const SYSTEM_PROMPT = TEACHING_TIMELINE_PROMPT;
 
 export const generateExplanation = async (req, res) => {
   try {
@@ -100,10 +74,12 @@ export const generateExplanation = async (req, res) => {
           messages.push({ role: "user", content: "PREVIOUS OUTPUT INVALID. Return ONLY valid JSON with 'objects' array (actual shapes with positions) and 'steps' array." });
         }
 
-        const completion = await aiClient.chat.completions.create({
+        const ai = getAIClient();
+        const completion = await ai.chat.completions.create({
           model: getModel(),
           temperature: attempt === 0 ? 0.3 : 0,
           messages,
+          max_tokens: 6000,
           response_format: { type: "json_object" }
         });
 
@@ -115,6 +91,7 @@ export const generateExplanation = async (req, res) => {
         const parsed = safeParse(raw);
         if (!parsed) {
           console.error(`[TutorBoard:Generate] Parse failed on attempt ${attempt + 1}`);
+          console.error(`[TutorBoard:Generate] ❌ TAIL END:`, raw.slice(-500));
           continue;
         }
 
