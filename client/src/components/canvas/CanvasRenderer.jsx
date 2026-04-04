@@ -12,6 +12,7 @@
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useTutorStore from '../../store/tutorStore';
 
 // ─── Palette ───
 const PALETTE = {
@@ -665,6 +666,56 @@ const RenderPath = ({ obj, visible, highlighted, delay }) => {
   );
 };
 
+/**
+ * doubt_note — a pinned doubt explanation on the canvas
+ * { id, shape:"doubt_note", x, y, text, question, color, appearsAtStep }
+ */
+const RenderDoubtNote = ({ obj, visible, delay }) => {
+  const x = safeNum(obj.x, 400);
+  const y = safeNum(obj.y, 300);
+  const color = resolveColor(obj.color, '#fbbf24');
+  const { unpinDoubtFromCanvas } = useTutorStore();
+
+  return (
+    <motion.g
+      data-id={obj.id}
+      initial={{ opacity: 0, scale: 0.8, rotate: -2 }}
+      animate={visible ? { opacity: 1, scale: 1, rotate: 0 } : { opacity: 0, scale: 0.8 }}
+      transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformOrigin: `${x}px ${y}px` }}
+    >
+      <rect
+        x={x - 100} y={y - 60} width={200} height={120} rx={8}
+        fill="#1e293b" fillOpacity={0.9}
+        stroke={color} strokeWidth={1.5}
+        className="pointer-events-auto shadow-2xl"
+      />
+      <rect x={x - 100} y={y - 60} width={200} height={28} rx={8} fill={color} fillOpacity={0.2} />
+      <text x={x - 85} y={y - 42} fill={color} fontSize={9} fontWeight="bold" style={{ letterSpacing: '0.1em' }} className="uppercase">Pinned Doubt</text>
+      
+      <motion.g 
+        whileHover={{ scale: 1.2 }}
+        className="cursor-pointer pointer-events-auto" 
+        onClick={(e) => { e.stopPropagation(); unpinDoubtFromCanvas(obj.id); }}
+      >
+        <circle cx={x + 85} cy={y - 46} r={8} fill="rgba(255,255,255,0.05)" />
+        <text x={x + 85} y={y - 43} textAnchor="middle" fill="#ef4444" fontSize={11} fontWeight="bold">×</text>
+      </motion.g>
+
+      <text x={x - 85} y={y - 15} fill={color} fontSize={8} fontWeight="bold" opacity={0.5}>Q: {obj.question?.substring(0, 35)}{obj.question?.length > 35 ? '...' : ''}</text>
+      
+      <MultilineText 
+        x={x - 85} y={y + 15} 
+        text={obj.text} 
+        fontSize={10} 
+        fill="#f1f5f9" 
+        anchor="start" 
+        maxChars={32} 
+      />
+    </motion.g>
+  );
+};
+
 // ─── Shape Router ───
 const RenderObject = ({ obj, visible, highlighted, delay, index, objects }) => {
   if (!obj) return null;
@@ -689,6 +740,7 @@ const RenderObject = ({ obj, visible, highlighted, delay, index, objects }) => {
     case 'orbit': case 'planet': return <RenderOrbit {...props} />;
     case 'arc': return <RenderArc    {...props} />;
     case 'path': case 'polyline': return <RenderPath {...props} />;
+    case 'doubt_note': return <RenderDoubtNote {...props} />;
     default: return <RenderCircle  {...props} />;
   }
 };

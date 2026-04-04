@@ -270,6 +270,33 @@ const useTutorStore = create(
         return doubtNode;
       },
 
+      pinDoubtToCanvas: (doubtId) => {
+        const { doubtHistory, canvasTransform, addCanvasObjects } = get();
+        const doubt = doubtHistory.find(d => d.id === doubtId);
+        if (!doubt || !doubt.answer) return;
+
+        // Create a 'doubt_note' object at the current center of the viewport
+        const note = {
+          id: `pinned-${doubt.id}`,
+          shape: 'doubt_note',
+          x: -canvasTransform.x / canvasTransform.scale + (400 / canvasTransform.scale),
+          y: -canvasTransform.y / canvasTransform.scale + (300 / canvasTransform.scale),
+          text: doubt.answer,
+          question: doubt.question,
+          color: '#fbbf24',
+          appearsAtStep: 0, // Global
+          pinned: true,
+        };
+
+        addCanvasObjects([note]);
+      },
+
+      unpinDoubtFromCanvas: (objectId) => {
+        set(state => ({
+          canvasObjects: state.canvasObjects.filter(o => o.id !== objectId)
+        }));
+      },
+
       setDoubtResponse: (response) => set({ doubtResponse: response }),
       setActiveDoubt: (id) => set({ activeDoubtId: id }),
       toggleDoubtThread: () => set(s => ({ showDoubtThread: !s.showDoubtThread })),
@@ -326,30 +353,41 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       // SESSION LIFECYCLE
       // ═══════════════════════════════════════════════════
-      startSession: (topic) => set({
-        topic,
-        error: null,
-        timeline: null,
-        learningNodes: [],
-        mode: 'explain',
-        difficulty: 'beginner',
-        professorNote: '',
-        memoryAnchor: '',
-        keyFormula: '',
-        canvasObjects: [],
-        canvasSteps: [],
-        doubtResponse: null,
-        doubtHistory: [],
-        snapshots: {},
-        greetingMessage: null,
-        currentStepIndex: 0,
-        totalSteps: 0,
-        isPlaying: false,
-        isPaused: false,
-        activeDoubtId: null,
-        showDoubtThread: false,
-        canvasMode: CANVAS_MODE.FULLSCREEN,
-      }),
+      startSession: (topic, initialQuestion) => {
+        const initialDoubt = initialQuestion ? [{
+          id: `initial-doubt-${Date.now()}`,
+          question: initialQuestion,
+          answer: null,
+          hasVisuals: false,
+          snapshotId: null,
+          timestamp: Date.now(),
+        }] : [];
+
+        set({
+          topic,
+          error: null,
+          timeline: null,
+          learningNodes: [],
+          mode: 'explain',
+          difficulty: 'beginner',
+          professorNote: '',
+          memoryAnchor: '',
+          keyFormula: '',
+          canvasObjects: [],
+          canvasSteps: [],
+          doubtResponse: null,
+          doubtHistory: initialDoubt,
+          snapshots: {},
+          greetingMessage: null,
+          currentStepIndex: 0,
+          totalSteps: 0,
+          isPlaying: false,
+          isPaused: false,
+          activeDoubtId: null,
+          showDoubtThread: false,
+          canvasMode: CANVAS_MODE.FULLSCREEN,
+        });
+      },
 
       endSession: () => set({
         isPlaying: false,

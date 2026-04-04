@@ -7,16 +7,39 @@
 
 import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageCircleQuestion, ArrowUpRight, Eye } from 'lucide-react';
+import { X, MessageCircleQuestion, ArrowUpRight, Eye, FlaskConical, Binary, Sigma, Zap, Leaf, Stethoscope, Briefcase, Scale, History, Settings, Brain, TrendingUp, Palette, Plane, BookOpen } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
+import TeachingGuide from './TeachingGuide';
+
+const DOMAIN_STYLES = {
+  'DSA': { color: '#10b981' },
+  'Mathematics': { color: '#6366f1' },
+  'Physics': { color: '#3b82f6' },
+  'Chemistry': { color: '#ef4444' },
+  'Biology': { color: '#22c55e' },
+  'Medicine': { color: '#ec4899' },
+  'Business': { color: '#14b8a6' },
+  'Law': { color: '#f59e0b' },
+  'History': { color: '#d97706' },
+  'Engineering': { color: '#f97316' },
+  'Psychology': { color: '#a855f7' },
+  'Economics': { color: '#4ade80' },
+  'Arts': { color: '#f43f5e' },
+  'Aviation': { color: '#38bdf8' },
+};
 
 const DoubtThread = () => {
   const {
     showDoubtThread, closeDoubtThread,
     doubtHistory, activeDoubtId,
     jumpToDoubt, setActiveDoubt,
+    pinDoubtToCanvas,
+    timeline,
   } = useTutorStore();
 
+  const domainStyle = DOMAIN_STYLES[timeline?.domain] || { color: '#94a3b8' };
+
+  const [showGuide, setShowGuide] = React.useState(false);
   const scrollRef = useRef(null);
 
   // Auto-scroll to latest doubt
@@ -58,6 +81,15 @@ const DoubtThread = () => {
                 {doubtHistory.length}
               </span>
             </div>
+
+            <button 
+              onClick={() => setShowGuide(true)}
+              className="px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-[8px] font-bold text-blue-400 uppercase tracking-widest hover:bg-blue-500/20 transition-all ml-4 mr-auto flex items-center gap-1.5"
+            >
+              <BookOpen size={10} />
+              Guide
+            </button>
+
             <button
               onClick={closeDoubtThread}
               className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-all"
@@ -71,7 +103,7 @@ const DoubtThread = () => {
             {doubtHistory.length > 0 ? (
               <div className="relative">
                 {/* Vertical connector line */}
-                <div className="absolute left-[11px] top-4 bottom-4 w-px bg-gradient-to-b from-white/10 via-white/5 to-transparent" />
+                <div className="absolute left-[11px] top-4 bottom-4 w-px" style={{ background: `linear-gradient(to bottom, ${domainStyle.color}40, ${domainStyle.color}10, transparent)` }} />
 
                 <div className="space-y-4">
                   {doubtHistory.map((doubt, i) => {
@@ -87,9 +119,10 @@ const DoubtThread = () => {
                         {/* Timeline dot */}
                         <div className={`absolute left-0 top-2 w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center transition-all ${
                           isActive
-                            ? 'border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                            ? 'text-[var(--bg-primary)]'
                             : 'border-white/15 bg-[var(--bg-primary)]/50 text-[var(--text-tertiary)]'
-                        }`}>
+                        }`}
+                        style={isActive ? { borderColor: domainStyle.color, backgroundColor: domainStyle.color } : {}}>
                           <span className="text-[8px] font-bold">{i + 1}</span>
                         </div>
 
@@ -132,9 +165,18 @@ const DoubtThread = () => {
                               <Eye size={10} />
                               View State
                             </button>
+                            {doubt.answer && (
+                              <button
+                                onClick={() => pinDoubtToCanvas(doubt.id)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
+                              >
+                                <Zap size={10} />
+                                Pin to Canvas
+                              </button>
+                            )}
                             {doubt.hasVisuals && (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400">
-                                Visual
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                Visuals
                               </span>
                             )}
                           </div>
@@ -158,6 +200,8 @@ const DoubtThread = () => {
           </div>
         </motion.div>
       )}
+      {/* Advanced Teaching Guide Overlay */}
+      <TeachingGuide isOpen={showGuide} onClose={() => setShowGuide(false)} />
     </AnimatePresence>
   );
 };
