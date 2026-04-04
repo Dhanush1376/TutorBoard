@@ -75,6 +75,9 @@ const TRANSITIONS = {
   [STATES.COMPLETED]: {
     [EVENTS.RESET]: STATES.IDLE,
     [EVENTS.START]: STATES.GENERATING,            // start a new topic
+    [EVENTS.PLAY]: STATES.TEACHING,               // replay/resume
+    [EVENTS.RESUME]: STATES.TEACHING,
+    [EVENTS.STEP_COMPLETE]: STATES.TEACHING,      // allow navigation
   },
   [STATES.ERROR]: {
     [EVENTS.RESET]: STATES.IDLE,

@@ -1,4 +1,4 @@
-import aiClient, { getModel } from '../utils/ai.js';
+import { getAIClient, getModel } from '../utils/ai.js';
 import Doubt from '../models/Doubt.js';
 import mongoose from 'mongoose';
 
@@ -126,13 +126,21 @@ For greetings ("hi", "hello"):
   "visualUpdate": null
 }`;
 
+const SYSTEM_PROMPT_CHAT = `You are TutorBoard Conversational Engine — a friendly, expert tutor.
+Your goal is to provide deep, conversational explanations through text.
+You are NOT the visual engine. Do NOT return JSON for visuals. 
+Provide your response as a pure text explanation. 
+Use markdown for clarity (bold, bullet points, numbered lists).
+Focus on building intuition and guiding the student step-by-step through dialogue.`;
+
 // ─── LLM CALL WITH RETRY ─── Max 2 retries with stricter prompt on failure
 async function callLLMWithRetry(messages, maxRetries = 2) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[TutorBoard] LLM call attempt ${attempt + 1}/${maxRetries + 1}`);
       
-      const completion = await aiClient.chat.completions.create({
+      const ai = getAIClient();
+      const completion = await ai.chat.completions.create({
         model: getModel(),
         temperature: attempt === 0 ? 0.3 : 0, // Lower temp on retries
         messages,
@@ -191,7 +199,8 @@ export const answerDoubt = async (req, res) => {
       ? `Context: Student is on Step ${(stepIndex || 0) + 1}: "${stepDescription}".`
       : '';
 
-    const systemPrompt = SYSTEM_PROMPT_BASE + (contextInfo ? `\n\n${contextInfo}` : '');
+    const isChatMode = req.body.activeMode === 'chat' || !req.body.activeMode;
+    const systemPrompt = isChatMode ? SYSTEM_PROMPT_CHAT : (SYSTEM_PROMPT_BASE + (contextInfo ? `\n\n${contextInfo}` : ''));
 
     const chatHistory = (history || []).map(msg => ({
       role: msg.role === 'assistant' ? 'assistant' : 'user',
@@ -204,7 +213,23 @@ export const answerDoubt = async (req, res) => {
       { role: "user", content: question }
     ];
 
-    const data = await callLLMWithRetry(messages);
+    let data;
+    if (isChatMode) {
+      console.log('[TutorBoard] Running in CHAT mode (text-only)');
+      const ai = getAIClient();
+      const completion = await ai.chat.completions.create({
+        model: getModel(),
+        temperature: 0.7,
+        messages,
+      });
+      data = {
+        answer: completion.choices[0].message.content,
+        hasVisuals: false,
+        visualUpdate: null
+      };
+    } else {
+      data = await callLLMWithRetry(messages);
+    }
 
     // If LLM completely failed, use fallback
     if (!data) {

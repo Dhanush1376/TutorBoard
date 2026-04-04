@@ -1,15 +1,15 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
-
-dotenv.config();
 
 console.log("=====================================");
 console.log("API KEY CHECK (OpenAI):", process.env.OPENAI_API_KEY ? "Loaded ✅" : "Missing ❌");
