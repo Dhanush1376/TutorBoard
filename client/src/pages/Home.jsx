@@ -120,7 +120,7 @@ const Home = ({ setIsDark, isDark }) => {
   };
 
   // Open Canvas for a specific message's steps/objects
-  const handleOpenCanvas = useCallback((steps, title, domain, visualizationType, extraData) => {
+  const handleOpenCanvas = useCallback((steps, title, domain, visualizationType, extraData, messageId) => {
     const hasVisualData = (steps && steps.length > 0) || (extraData?.objects && extraData.objects.length > 0);
     if (hasVisualData) {
       // 1. Prepare the timeline data
@@ -137,17 +137,43 @@ const Home = ({ setIsDark, isDark }) => {
         totalSteps: steps?.length || 0
       };
 
-      // 2. Clear current session and inject pre-generated timeline
+      // 2. Clear current session
       const store = useTutorStore.getState();
       store.resetTeaching();
+      
+      // 3. Find historical context to seed the doubt thread
+      let userPrompt = title || 'Initial Question';
+      let aiAnswer = null;
+
+      const chat = chatHistory.find(c => c.id === activeChatId);
+      if (chat && messageId) {
+        const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+        if (msgIndex !== -1) {
+          userPrompt = chat.messages[msgIndex - 1]?.content || userPrompt;
+          aiAnswer = chat.messages[msgIndex]?.content;
+        }
+      }
+
+      // 4. Initialize session with context
+      store.startSession(title, userPrompt);
+      if (aiAnswer) {
+        // Update the first doubt with the AI's actual answer from the chat
+        const history = store.doubtHistory;
+        if (history.length > 0) {
+          history[0].answer = aiAnswer;
+          history[0].hasVisuals = true;
+          store.setDoubtResponse({ answer: aiAnswer, hasVisuals: true, _question: userPrompt });
+        }
+      }
+
       store.setTimeline(timelineData);
       store.setMachineState(STATES.TEACHING); // Bypass LOADING state
       
-      // 3. Open the immersive UI
+      // 5. Open the immersive UI
       setIsTeachingSessionOpen(true);
       setTeachingTopic(title || 'Manual Session');
     }
-  }, []);
+  }, [activeChatId, chatHistory]);
 
   const handleDeleteMessage = useCallback((messageId) => {
     setChatHistory(prev => {

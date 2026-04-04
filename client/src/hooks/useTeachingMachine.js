@@ -138,9 +138,9 @@ export function useTeachingMachine() {
   }, [isPlaying, isPaused, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
 
   // ─── Actions (emit to server + update store) ───
-  const startSession = useCallback((topicStr) => {
-    storeStartSession(topicStr);
-    emit('session:start', { topic: topicStr });
+  const startSession = useCallback((topicStr, initialQuestion) => {
+    storeStartSession(topicStr, initialQuestion);
+    emit('session:start', { topic: topicStr, initialQuestion });
   }, [emit, storeStartSession]);
 
   const askDoubt = useCallback((question) => {

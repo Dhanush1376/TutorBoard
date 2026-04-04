@@ -1,21 +1,28 @@
 /**
- * AI Orchestrator
+ * AI Orchestrator v2.0
  *
- * FIXES:
- * 1. max_tokens: 8000 for teaching (prevents truncation → fallback 3-circle screen)
- * 2. Empty objectIds [] rebuilt from appearsAtStep
- * 3. appearsAtStep proportional distribution (not broken Math.min)
- * 4. Objects without IDs get auto-IDs
- * 5. finish_reason: "length" warning logged
- * 6. Doubt response max_tokens: 3000
+ * Enhancements:
+ * 1. Uses buildTeachingPrompt() for domain-aware prompts
+ * 2. temperature: 0.2 on first attempt (more reliable JSON)
+ * 3. max_tokens: 10000 for complex topics (medicine, law, DSA)
+ * 4. Empty objectIds rebuilt from appearsAtStep
+ * 5. Objects without IDs get auto-IDs
+ * 6. finish_reason: "length" triggers immediate retry with condensed instruction
+ * 7. Domain injected into processed timeline
  */
 
 import { getAIClient, getModel } from '../utils/ai.js';
-import { TEACHING_TIMELINE_PROMPT, DOUBT_RESPONSE_PROMPT, isGreeting } from './prompts.js';
+import {
+  TEACHING_TIMELINE_PROMPT,
+  DOUBT_RESPONSE_PROMPT,
+  isGreeting,
+  buildTeachingPrompt,
+  detectDomain,
+} from './prompts.js';
 import { safeParse, validateTimeline, validateDoubtResponse, buildRetryPrompt } from './validator.js';
 import sessionStore from './sessionStore.js';
 
-// ─── Fallback — only shown when ALL retries fail ───
+// ─── Fallback — only shown when ALL retries fail ───────────────────────────────
 const FALLBACK_TIMELINE = {
   mode: 'explain',
   title: 'Visual Overview',
@@ -39,10 +46,10 @@ const FALLBACK_TIMELINE = {
     { id: 'ft',  shape: 'text',   x: 400, y: 500, text: 'Starting session...', fontSize: 15, color: 'gray', appearsAtStep: 0 },
   ],
   steps: [
-    { index: 0, title: 'Introduction', description: 'Setting the stage',    narration: "Let's begin.",              objectIds: ['f1','ft'],                          highlightIds: ['f1'],  newIds: ['f1','ft'],     transition: 'fadeIn',  duration: 3000 },
-    { index: 1, title: 'Development',  description: 'Building the concept', narration: 'Now the core idea.',        objectIds: ['f1','f2','fa1','ft'],               highlightIds: ['f2'],  newIds: ['f2','fa1'],    transition: 'slideUp', duration: 3000 },
-    { index: 2, title: 'Advanced',     description: 'Deeper meaning',       narration: 'The full picture emerges.', objectIds: ['f1','f2','f3','fa1','fa2','ft'],    highlightIds: ['f3'],  newIds: ['f3','fa2'],    transition: 'scaleIn', duration: 3000 },
-    { index: 3, title: 'Final Thought','description': 'Complete understanding', narration: "And that is the journey.", objectIds: ['f1','f2','f3','fa1','fa2','ft'], highlightIds: ['ft'],  newIds: [],              transition: 'fadeIn',  duration: 3500 },
+    { index: 0, title: 'Introduction', description: 'Setting the stage',       narration: "Let's begin.",              objectIds: ['f1','ft'],                       highlightIds: ['f1'],  newIds: ['f1','ft'],  transition: 'fadeIn',  duration: 3000 },
+    { index: 1, title: 'Development',  description: 'Building the concept',    narration: 'Now the core idea.',        objectIds: ['f1','f2','fa1','ft'],            highlightIds: ['f2'],  newIds: ['f2','fa1'], transition: 'slideUp', duration: 3000 },
+    { index: 2, title: 'Advanced',     description: 'Deeper meaning',          narration: 'The full picture emerges.', objectIds: ['f1','f2','f3','fa1','fa2','ft'], highlightIds: ['f3'],  newIds: ['f3','fa2'], transition: 'scaleIn', duration: 3000 },
+    { index: 3, title: 'Final Thought','description':'Complete understanding',  narration: "And that is the journey.", objectIds: ['f1','f2','f3','fa1','fa2','ft'], highlightIds: ['ft'],  newIds: [],          transition: 'fadeIn',  duration: 3500 },
   ],
 };
 
@@ -53,16 +60,27 @@ const FALLBACK_DOUBT = {
   visualUpdate: null,
 };
 
-// ─── LLM call with retry ───
+// ─── Token budget by domain ───────────────────────────────────────────────────
+function getTokenBudget(domain) {
+  const heavy = ['dsa', 'medicine', 'chemistry', 'biology', 'engineering', 'law'];
+  return heavy.includes(domain) ? 10000 : 8000;
+}
+
+// ─── LLM call with retry ──────────────────────────────────────────────────────
 async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens = 8000) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[Orchestrator] Attempt ${attempt + 1}/${maxRetries + 1} (maxTokens: ${maxTokens})`);
 
       const ai = getAIClient();
+
+      // Lower temperature on first attempt for JSON reliability
+      // Slight increase on retries to escape bad local minima
+      const temperature = attempt === 0 ? 0.2 : 0.15;
+
       const completion = await ai.chat.completions.create({
         model: getModel(),
-        temperature: attempt === 0 ? 0.45 : 0.1,
+        temperature,
         messages,
         max_tokens: maxTokens,
         response_format: { type: 'json_object' },
@@ -74,8 +92,15 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens 
       console.log(`[Orchestrator] Raw: ${raw.length} chars, finish_reason: ${finishReason}`);
 
       if (finishReason === 'length') {
-        console.warn(`[Orchestrator] ⚠️ HIT TOKEN LIMIT. Response truncated. Increase max_tokens or reduce prompt length.`);
-        // Try to parse partial — might be salvageable
+        console.warn(`[Orchestrator] ⚠️ HIT TOKEN LIMIT at ${maxTokens} tokens.`);
+        if (attempt < maxRetries) {
+          messages.push({ role: 'assistant', content: raw });
+          messages.push({
+            role: 'user',
+            content: 'Your JSON was truncated by token limit. Rebuild it MORE CONCISELY. Keep narrations to 2 sentences max. Reduce step count if needed. Return ONLY valid complete JSON.',
+          });
+          continue;
+        }
       }
 
       const parsed = safeParse(raw);
@@ -83,7 +108,7 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens 
         console.error(`[Orchestrator] JSON parse FAILED. Tail:`, raw.slice(-400));
         if (attempt < maxRetries) {
           messages.push({ role: 'assistant', content: raw });
-          messages.push({ role: 'user', content: 'Your JSON was truncated. Return ONLY complete valid JSON. Keep text fields concise to fit token limits.' });
+          messages.push({ role: 'user', content: 'Your JSON was invalid. Return ONLY complete valid JSON. Nothing else.' });
           continue;
         }
         return null;
@@ -111,8 +136,8 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens 
   return null;
 }
 
-// ─── Post-process timeline ───
-function processTimeline(data) {
+// ─── Post-process timeline ────────────────────────────────────────────────────
+function processTimeline(data, detectedDomain) {
   const objects = Array.isArray(data.objects) ? data.objects : [];
   const steps   = Array.isArray(data.steps)   ? data.steps   : [];
   const total   = steps.length;
@@ -122,7 +147,7 @@ function processTimeline(data) {
     if (!obj.id) obj.id = `obj-auto-${i}`;
   });
 
-  // 2. Fix appearsAtStep — proportional distribution across steps
+  // 2. Fix appearsAtStep — proportional distribution
   objects.forEach((obj, i) => {
     if (typeof obj.appearsAtStep !== 'number' || obj.appearsAtStep < 0) {
       obj.appearsAtStep = total > 1 ? Math.floor((i / objects.length) * total) : 0;
@@ -134,7 +159,7 @@ function processTimeline(data) {
   steps.forEach((step, i) => {
     step.index = i;
 
-    // CRITICAL: empty objectIds [] == missing → rebuild
+    // CRITICAL: empty objectIds → rebuild from appearsAtStep
     if (!Array.isArray(step.objectIds) || step.objectIds.length === 0) {
       step.objectIds = objects
         .filter(o => o.appearsAtStep <= i)
@@ -157,10 +182,16 @@ function processTimeline(data) {
   data.objects    = objects;
   data.steps      = steps;
   data.totalSteps = total;
+
+  // Ensure domain is set correctly
+  if (!data.domain || data.domain === 'general') {
+    data.domain = detectedDomain || 'general';
+  }
+
   return data;
 }
 
-// ─── Generate Timeline ───
+// ─── Generate Timeline ────────────────────────────────────────────────────────
 export async function generateTimeline(sessionId, topic) {
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
@@ -168,9 +199,15 @@ export async function generateTimeline(sessionId, topic) {
   if (isGreeting(topic)) {
     return {
       type: 'greeting',
-      answer: "Hey there! 👋 I'm your visual tutor. Tell me any topic and I'll teach it with full step-by-step animations!",
+      answer: "Hey there! 👋 I'm your visual tutor. Tell me any topic — from Bubble Sort to Brain Surgery — and I'll teach it with full step-by-step animations!",
     };
   }
+
+  // Detect domain upfront for token budget and prompt
+  const domain = detectDomain(topic);
+  const tokenBudget = getTokenBudget(domain);
+
+  console.log(`[Orchestrator] Topic: "${topic}" → Domain: ${domain}, Tokens: ${tokenBudget}`);
 
   const contextSummary = sessionStore.buildContextSummary(sessionId);
   const messages = [{ role: 'system', content: TEACHING_TIMELINE_PROMPT }];
@@ -179,21 +216,23 @@ export async function generateTimeline(sessionId, topic) {
     messages.push({ role: 'system', content: `SESSION CONTEXT:\n${contextSummary}` });
   }
 
-  messages.push({
-    role: 'user',
-    content: `Create a complete animated teaching timeline for: "${topic}"\n\nCRITICAL REQUIREMENTS:\n- Generate as many steps as the topic needs (no artificial limit)\n- For algorithm topics: show the FULL worked example with every comparison and swap as separate steps\n- Every step MUST have a non-empty objectIds array\n- Center all primary visuals at x=400 on the canvas`,
-  });
+  // Use domain-aware prompt
+  const userPrompt = buildTeachingPrompt(topic);
+  messages.push({ role: 'user', content: userPrompt });
 
-  // ── 8000 tokens — prevents truncation that causes fallback ──
-  const data = await callLLMWithRetry(messages, validateTimeline, 2, 8000);
+  const data = await callLLMWithRetry(messages, validateTimeline, 2, tokenBudget);
 
   if (!data) {
     console.warn(`[Orchestrator] All attempts failed for: "${topic}". Using fallback.`);
-    return { ...FALLBACK_TIMELINE, title: topic.substring(0, 60) };
+    return {
+      ...FALLBACK_TIMELINE,
+      title: topic.substring(0, 60),
+      domain,
+    };
   }
 
-  const processed = processTimeline(data);
-  processed.domain        = processed.domain        || 'general';
+  const processed = processTimeline(data, domain);
+  processed.domain        = processed.domain        || domain;
   processed.mode          = processed.mode          || 'explain';
   processed.difficulty    = processed.difficulty    || 'beginner';
   processed.learningNodes = processed.learningNodes || [];
@@ -204,18 +243,19 @@ export async function generateTimeline(sessionId, topic) {
   sessionStore.setTimeline(sessionId, processed);
   sessionStore.addContext(sessionId, 'user', `Teach me: ${topic}`);
   sessionStore.addContext(sessionId, 'assistant',
-    `Teaching: ${processed.title} (${processed.steps.length} steps, mode: ${processed.mode})`);
+    `Teaching: ${processed.title} (${processed.steps.length} steps, domain: ${processed.domain}, mode: ${processed.mode})`);
 
   return processed;
 }
 
-// ─── Handle Doubt ───
+// ─── Handle Doubt ─────────────────────────────────────────────────────────────
 export async function handleDoubt(sessionId, question) {
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
   const contextSummary = sessionStore.buildContextSummary(sessionId);
   const currentStep    = session.steps[session.currentStepIndex];
+  const domain         = session.timeline?.domain || 'general';
 
   const objectsSummary = session.objects.map(obj => {
     const props = [`id="${obj.id}"`, `shape="${obj.shape}"`];
@@ -231,14 +271,13 @@ export async function handleDoubt(sessionId, question) {
     { role: 'system', content: DOUBT_RESPONSE_PROMPT },
     {
       role: 'system',
-      content: `CURRENT SESSION:\n${contextSummary}\n\nSTEP ${session.currentStepIndex + 1}/${session.steps.length}: ${currentStep?.title || 'N/A'}\n\nCANVAS OBJECTS:\n${objectsSummary || '  (none)'}`,
+      content: `CURRENT SESSION:\n${contextSummary}\nDOMAIN: ${domain}\n\nSTEP ${session.currentStepIndex + 1}/${session.steps.length}: ${currentStep?.title || 'N/A'}\nSTEP NARRATION: ${currentStep?.narration || ''}\n\nCANVAS OBJECTS:\n${objectsSummary || '  (none)'}`,
     },
   ];
 
   session.conversationContext.forEach(msg => messages.push({ role: msg.role, content: msg.content }));
   messages.push({ role: 'user', content: question });
 
-  const ai = getAIClient();
   const data = await callLLMWithRetry(messages, validateDoubtResponse, 2, 3000);
 
   if (!data) {
