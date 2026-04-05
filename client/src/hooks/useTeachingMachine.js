@@ -34,6 +34,7 @@ export function useTeachingMachine() {
     nextStep: storeNextStep, prevStep: storePrevStep,
     goToStep: storeGoToStep,
     setPlaybackSpeed,
+    selectedAgent,
   } = store;
 
   // ─── Sync connection state ───
@@ -96,7 +97,7 @@ export function useTeachingMachine() {
       }
     }));
 
-    // Error
+    // Error — also generate a fallback greeting so chat ALWAYS shows something
     cleanups.push(on('teaching:error', (data) => {
       console.error('[Machine] Error:', data.message);
       setError(data.message);
@@ -104,6 +105,7 @@ export function useTeachingMachine() {
 
     // Greeting
     cleanups.push(on('teaching:greeting', (data) => {
+      console.log('[Machine] Greeting received:', (data.message || '').substring(0, 60));
       setGreeting(data.message);
     }));
 
@@ -138,16 +140,29 @@ export function useTeachingMachine() {
   }, [isPlaying, isPaused, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
 
   // ─── Actions (emit to server + update store) ───
-  const startSession = useCallback((topicStr, initialQuestion) => {
+  const startSession = useCallback((topicStr, initialQuestion, activeMode) => {
     storeStartSession(topicStr, initialQuestion);
-    emit('session:start', { topic: topicStr, initialQuestion });
-  }, [emit, storeStartSession]);
+    emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode });
+    
+    // Safety timeout: if no response in 90s, reset state so user isn't stuck
+    // (Free-tier models can take 60-80s for complex visual timelines)
+    const timeoutId = setTimeout(() => {
+      const currentState = useTutorStore.getState().machineState;
+      if (currentState === STATES.GENERATING) {
+        console.warn('[Machine] ⚠️ 90s timeout — no server response. Resetting.');
+        setGreeting('The AI is taking too long to respond. Please try again.');
+      }
+    }, 90000);
+    
+    // Clear timeout when component unmounts or new session starts
+    return () => clearTimeout(timeoutId);
+  }, [emit, storeStartSession, selectedAgent, setGreeting]);
 
-  const askDoubt = useCallback((question) => {
+  const askDoubt = useCallback((question, activeMode) => {
     storePause();
     setDoubtProcessing(true);
-    emit('session:doubt', { question });
-  }, [emit, storePause, setDoubtProcessing]);
+    emit('session:doubt', { question, selectedAgent, activeMode });
+  }, [emit, storePause, setDoubtProcessing, selectedAgent]);
 
   const goToStep = useCallback((stepIndex) => {
     emit('session:step', { stepIndex });

@@ -21,6 +21,11 @@ import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 const CW = 800;
 const CH = 600;
 
+const safeNum = (v, d = 0) => {
+  const n = parseFloat(v);
+  return isNaN(n) ? d : n;
+};
+
 // ─── Color registry ───────────────────────────────────────────────────────────
 const HEX = {
   blue:    { stroke: '#3b82f6', fill: '#1e3a8a', light: '#dbeafe20', text: '#93c5fd' },
@@ -75,28 +80,34 @@ const getCellPalette = (i, { highlightCells, compareCells, swapCells, sortedCell
 
 // ─── Array ──────────────────────────────────────────────────────────────────
 const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
+  const px = safeNum(obj.x, CW / 2);
+  const py = safeNum(obj.y, CH / 2);
+  const pcw = safeNum(obj.cellW, 60);
+  const pch = safeNum(obj.cellH, 56);
+  const pfs = safeNum(obj.fontSize, 20);
+
   const {
-    x = CW / 2, y = CH / 2,
-    values = [], cellW = 60, cellH = 56, fontSize = 20,
+    values = [],
     showIndex = true,
     highlightCells = [], compareCells = [], swapCells = [], sortedCells = [],
     label,
   } = obj;
 
   const n = values.length;
-  const arrayW = n * cellW;
+  const arrayW = n * pcw;
   const variant = getVariant(transition);
 
   return (
     <motion.g
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
     >
       {label && (
         <text
-          x={x} y={y - cellH / 2 - 18}
+          x={px} y={py - pch / 2 - 18}
           textAnchor="middle" dominantBaseline="central"
           fontSize={13} fontWeight="600" fill="#64748b"
           fontFamily="system-ui, sans-serif"
@@ -107,8 +118,8 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
       {values.map((val, i) => {
         const pal = getCellPalette(i, { highlightCells, compareCells, swapCells, sortedCells });
-        const cx = cellLeft(x, arrayW, cellW, i);
-        const cy = y - cellH / 2;
+        const cx = cellLeft(px, arrayW, pcw, i);
+        const cy = py - pch / 2;
         const isSwap = pal.kind === 'swap';
         const isSorted = pal.kind === 'sorted';
         const isCompare = pal.kind === 'compare';
@@ -119,7 +130,7 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
             {isSorted && (
               <motion.rect
                 x={cx - 3} y={cy - 3}
-                width={cellW + 6} height={cellH + 6} rx={10}
+                width={pcw + 6} height={pch + 6} rx={10}
                 fill="none" stroke="#22c55e" strokeWidth={2}
                 initial={{ opacity: 0, scale: 0.82 }}
                 animate={{ opacity: [0, 0.65, 0], scale: [0.82, 1.06, 1] }}
@@ -129,7 +140,7 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
             {/* Cell body */}
             <motion.rect
-              x={cx} y={cy} width={cellW} height={cellH} rx={7}
+              x={cx} y={cy} width={pcw} height={pch} rx={7}
               fill={pal.bg} stroke={pal.border} strokeWidth={1.5}
               animate={
                 isSwap    ? { y: [cy, cy - 12, cy], scaleX: [1, 1.06, 1] } :
@@ -141,9 +152,9 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
             {/* Value */}
             <text
-              x={cx + cellW / 2} y={cy + cellH / 2}
+              x={cx + pcw / 2} y={cy + pch / 2}
               textAnchor="middle" dominantBaseline="central"
-              fontSize={fontSize} fontWeight="800"
+              fontSize={pfs} fontWeight="800"
               fill={pal.val}
               fontFamily="'JetBrains Mono','Fira Code',monospace"
             >
@@ -153,7 +164,7 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
             {/* Index */}
             {showIndex && (
               <text
-                x={cx + cellW / 2} y={cy + cellH + 17}
+                x={cx + pcw / 2} y={cy + pch + 17}
                 textAnchor="middle" dominantBaseline="central"
                 fontSize={11} fontWeight="500" fill="#475569"
                 fontFamily="system-ui, sans-serif"
@@ -170,20 +181,22 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
 // ─── Pointer ─────────────────────────────────────────────────────────────────
 const ShapePointer = ({ obj, isNew, transition, stepKey }) => {
-  const {
-    arrayX = CW / 2, arrayY = CH / 2,
-    arrayW = 300, cellW = 60, cellH = 56,
-    cellIndex = 0, label = 'i',
-    color = 'yellow', side = 'bottom',
-  } = obj;
+  const px = safeNum(obj.arrayX, CW / 2);
+  const py = safeNum(obj.arrayY, CH / 2);
+  const paw = safeNum(obj.arrayW, 300);
+  const pcw = safeNum(obj.cellW, 60);
+  const pch = safeNum(obj.cellH, 56);
+  const pidx = safeNum(obj.cellIndex, 0);
+
+  const { label = 'i', color = 'yellow', side = 'bottom' } = obj;
 
   const c = resolveColor(color);
-  const px = cellCenterX(arrayX, arrayW, cellW, cellIndex);
+  const ppx = cellCenterX(px, paw, pcw, pidx);
   const SHAFT = 30;
 
   const tipY  = side === 'top'
-    ? arrayY - cellH / 2 - 4
-    : arrayY + cellH / 2 + 4;
+    ? py - pch / 2 - 4
+    : py + pch / 2 + 4;
   const baseY = side === 'top'
     ? tipY - SHAFT
     : tipY + SHAFT;
@@ -194,30 +207,31 @@ const ShapePointer = ({ obj, isNew, transition, stepKey }) => {
   return (
     <motion.g
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       initial={isNew ? { opacity: 0, y: side === 'bottom' ? 16 : -16 } : false}
       animate={isNew ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Shaft */}
       <motion.line
-        x1={px} y1={baseY} x2={px} y2={tipY}
+        x1={ppx} y1={baseY} x2={ppx} y2={tipY}
         stroke={c.stroke} strokeWidth={2.5} strokeLinecap="round"
         initial={isNew ? { scaleY: 0 } : false}
         animate={isNew ? { scaleY: 1 } : {}}
-        style={{ transformOrigin: `${px}px ${baseY}px` }}
+        style={{ transformOrigin: `${ppx}px ${baseY}px` }}
         transition={{ duration: 0.3, delay: 0.08 }}
       />
 
       {/* Arrowhead */}
       {side === 'bottom'
-        ? <polygon points={`${px},${tipY + 7} ${px - 6},${tipY - 2} ${px + 6},${tipY - 2}`} fill={c.stroke} />
-        : <polygon points={`${px},${tipY - 7} ${px - 6},${tipY + 2} ${px + 6},${tipY + 2}`} fill={c.stroke} />
+        ? <polygon points={`${ppx},${tipY + 7} ${ppx - 6},${tipY - 2} ${ppx + 6},${tipY - 2}`} fill={c.stroke} />
+        : <polygon points={`${ppx},${tipY - 7} ${ppx - 6},${tipY + 2} ${ppx + 6},${tipY + 2}`} fill={c.stroke} />
       }
 
       {/* Label pill */}
-      <rect x={px - 13} y={labelY - 10} width={26} height={20} rx={10} fill={c.stroke} opacity={0.92} />
+      <rect x={ppx - 13} y={labelY - 10} width={26} height={20} rx={10} fill={c.stroke} opacity={0.92} />
       <text
-        x={px} y={labelY} textAnchor="middle" dominantBaseline="central"
+        x={ppx} y={labelY} textAnchor="middle" dominantBaseline="central"
         fontSize={11} fontWeight="800" fill="#fff"
         fontFamily="'JetBrains Mono', monospace"
       >
@@ -229,23 +243,27 @@ const ShapePointer = ({ obj, isNew, transition, stepKey }) => {
 
 // ─── Swap Bridge ──────────────────────────────────────────────────────────────
 const ShapeSwapBridge = ({ obj, isNew, stepKey }) => {
-  const {
-    arrayX = CW / 2, arrayY = CH / 2,
-    arrayW = 300, cellW = 60, cellH = 56,
-    fromIndex = 0, toIndex = 1, color = 'red',
-  } = obj;
+  const px = safeNum(obj.arrayX, CW / 2);
+  const py = safeNum(obj.arrayY, CH / 2);
+  const paw = safeNum(obj.arrayW, 300);
+  const pcw = safeNum(obj.cellW, 60);
+  const pch = safeNum(obj.cellH, 56);
+  const pfrom = safeNum(obj.fromIndex, 0);
+  const pto = safeNum(obj.toIndex, 1);
+
+  const { color = 'red' } = obj;
 
   const c = resolveColor(color);
-  const x1 = cellCenterX(arrayX, arrayW, cellW, fromIndex);
-  const x2 = cellCenterX(arrayX, arrayW, cellW, toIndex);
-  const baseY = arrayY - cellH / 2;
+  const x1 = cellCenterX(px, paw, pcw, pfrom);
+  const x2 = cellCenterX(px, paw, pcw, pto);
+  const baseY = py - pch / 2;
   const arcH  = Math.max(42, Math.abs(x2 - x1) * 0.55);
   const midX  = (x1 + x2) / 2;
   const midY  = baseY - arcH;
   const d     = `M ${x1} ${baseY} Q ${midX} ${midY} ${x2} ${baseY}`;
 
   return (
-    <g key={`${obj.id}-${stepKey}`}>
+    <g key={`${obj.id}-${stepKey}`} data-id={obj.id}>
       {/* Dashed arc */}
       <motion.path
         d={d} fill="none"
@@ -288,8 +306,10 @@ const ShapeSwapBridge = ({ obj, isNew, stepKey }) => {
 
 // ─── Comparator ───────────────────────────────────────────────────────────────
 const ShapeComparator = ({ obj, isNew, transition, stepKey }) => {
+  const px = safeNum(obj.x, CW / 2);
+  const py = safeNum(obj.y, 185);
+
   const {
-    x = CW / 2, y = 185,
     leftVal = '?', rightVal = '?',
     operator = '>', result = 'true',
   } = obj;
@@ -301,29 +321,30 @@ const ShapeComparator = ({ obj, isNew, transition, stepKey }) => {
   return (
     <motion.g
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Pill bg */}
       <rect
-        x={x - 95} y={y - 23} width={190} height={46} rx={23}
+        x={px - 95} y={py - 23} width={190} height={46} rx={23}
         fill={isTrue ? '#052e16' : '#450a0a'}
         stroke={c.stroke} strokeWidth={1.5}
       />
 
       {/* Left value */}
-      <text x={x - 54} y={y} textAnchor="middle" dominantBaseline="central"
+      <text x={px - 54} y={py} textAnchor="middle" dominantBaseline="central"
         fontSize={21} fontWeight="800" fill={c.text}
         fontFamily="'JetBrains Mono',monospace">{leftVal}</text>
 
       {/* Operator */}
-      <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+      <text x={px} y={py} textAnchor="middle" dominantBaseline="central"
         fontSize={16} fontWeight="700" fill={c.stroke}
         fontFamily="system-ui, sans-serif">{operator}</text>
 
       {/* Right value */}
-      <text x={x + 54} y={y} textAnchor="middle" dominantBaseline="central"
+      <text x={px + 54} y={py} textAnchor="middle" dominantBaseline="central"
         fontSize={21} fontWeight="800" fill={c.text}
         fontFamily="'JetBrains Mono',monospace">{rightVal}</text>
 
@@ -333,8 +354,8 @@ const ShapeComparator = ({ obj, isNew, transition, stepKey }) => {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.22, duration: 0.38, ease: [0.34, 1.56, 0.64, 1] }}
       >
-        <rect x={x + 99} y={y - 13} width={52} height={26} rx={13} fill={c.stroke} />
-        <text x={x + 125} y={y} textAnchor="middle" dominantBaseline="central"
+        <rect x={px + 99} y={py - 13} width={52} height={26} rx={13} fill={c.stroke} />
+        <text x={px + 125} y={py} textAnchor="middle" dominantBaseline="central"
           fontSize={10} fontWeight="800" fill="#fff"
           fontFamily="system-ui, sans-serif" letterSpacing="0.05em">
           {isTrue ? 'TRUE' : 'FALSE'}
@@ -346,21 +367,24 @@ const ShapeComparator = ({ obj, isNew, transition, stepKey }) => {
 
 // ─── Code Line ────────────────────────────────────────────────────────────────
 const ShapeCodeLine = ({ obj, isHighlighted, isNew, stepKey }) => {
+  const px = safeNum(obj.x, 80);
+  const py = safeNum(obj.y, 300);
+  const pw = safeNum(obj.w, 300);
+  const pfs = safeNum(obj.fontSize, 13);
+
   const {
-    x = 80, y = 300,
     code = '', lineNumber,
     highlight = false, color = 'blue',
-    w = 300, fontSize = 13,
   } = obj;
 
   const c = resolveColor(color);
   const isLit = highlight || isHighlighted;
 
   return (
-    <g key={`${obj.id}-${stepKey}`}>
+    <g key={`${obj.id}-${stepKey}`} data-id={obj.id}>
       {/* Row bg */}
       <motion.rect
-        x={x - 10} y={y - 14} width={w + 20} height={28} rx={5}
+        x={px - 10} y={py - 14} width={pw + 20} height={28} rx={5}
         fill={isLit ? c.light.replace('20', '40') : 'transparent'}
         stroke={isLit ? c.stroke + '55' : 'transparent'}
         strokeWidth={1}
@@ -371,22 +395,22 @@ const ShapeCodeLine = ({ obj, isHighlighted, isNew, stepKey }) => {
       {/* Scan-line sweep */}
       {isLit && (
         <motion.rect
-          x={x - 10} y={y - 14} width={10} height={28} rx={3}
+          x={px - 10} y={py - 14} width={10} height={28} rx={3}
           fill={c.stroke} opacity={0.45}
-          initial={{ x: x - 10 }}
-          animate={{ x: x + w + 10 }}
+          initial={{ x: px - 10 }}
+          animate={{ x: px + pw + 10 }}
           transition={{ duration: 0.38, ease: 'easeOut' }}
         />
       )}
 
       {/* Active line indicator bar */}
       {isLit && (
-        <rect x={x - 10} y={y - 14} width={3} height={28} rx={2} fill={c.stroke} />
+        <rect x={px - 10} y={py - 14} width={3} height={28} rx={2} fill={c.stroke} />
       )}
 
       {/* Line number */}
       {lineNumber !== undefined && (
-        <text x={x + 2} y={y} textAnchor="start" dominantBaseline="central"
+        <text x={px + 2} y={py} textAnchor="start" dominantBaseline="central"
           fontSize={11} fontWeight="400" fill={isLit ? c.stroke : '#334155'}
           fontFamily="'JetBrains Mono',monospace">
           {lineNumber}
@@ -395,9 +419,9 @@ const ShapeCodeLine = ({ obj, isHighlighted, isNew, stepKey }) => {
 
       {/* Code text */}
       <text
-        x={x + (lineNumber !== undefined ? 26 : 4)} y={y}
+        x={px + (lineNumber !== undefined ? 26 : 4)} y={py}
         dominantBaseline="central"
-        fontSize={fontSize} fontWeight={isLit ? '600' : '400'}
+        fontSize={pfs} fontWeight={isLit ? '600' : '400'}
         fill={isLit ? c.text : '#475569'}
         fontFamily="'JetBrains Mono','Fira Code',monospace"
       >
@@ -409,25 +433,30 @@ const ShapeCodeLine = ({ obj, isHighlighted, isNew, stepKey }) => {
 
 // ─── Highlight Box ────────────────────────────────────────────────────────────
 const ShapeHighlightBox = ({ obj, isNew, transition, stepKey }) => {
-  const { x = 300, y = 260, w = 240, h = 80, color = 'green', label } = obj;
+  const px = safeNum(obj.x, 300);
+  const py = safeNum(obj.y, 260);
+  const pw = safeNum(obj.w, 240);
+  const ph = safeNum(obj.h, 80);
+  const { color = 'green', label } = obj;
   const c = resolveColor(color);
   const variant = getVariant(transition);
 
   return (
     <motion.g
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.38 }}
     >
       {label && (
-        <text x={x + w / 2} y={y - 11} textAnchor="middle" dominantBaseline="central"
+        <text x={px + pw / 2} y={py - 11} textAnchor="middle" dominantBaseline="central"
           fontSize={12} fontWeight="600" fill={c.stroke} fontFamily="system-ui, sans-serif">
           {label}
         </text>
       )}
       <motion.rect
-        x={x} y={y} width={w} height={h} rx={9}
+        x={px} y={py} width={pw} height={ph} rx={9}
         fill={c.light} stroke={c.stroke} strokeWidth={1.5}
         strokeDasharray="7 3" opacity={0.75}
         animate={{ opacity: [0.55, 0.85, 0.55] }}
@@ -443,18 +472,17 @@ const ShapeHighlightBox = ({ obj, isNew, transition, stepKey }) => {
 
 // ─── Circle ──────────────────────────────────────────────────────────────────
 const ShapeCircle = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
+  if (!obj) return null;
+  const px = safeNum(obj.cx ?? obj.x, CW / 2);
+  const py = safeNum(obj.cy ?? obj.y, CH / 2);
+  const pr = safeNum(obj.size ?? obj.r, 40);
+
   const {
-    x = CW / 2, y = CH / 2, r = 40,
     color = 'blue', label, innerLabel,
     pulse = false, glow = false,
     // legacy SceneRenderer fields
-    cx, cy, fill, stroke, fillOpacity,
-    size,
+    fill, stroke, fillOpacity,
   } = obj;
-
-  const px = cx ?? x;
-  const py = cy ?? y;
-  const pr = size ?? r;
   const c = resolveColor(fill || color);
   const variant = getVariant(transition);
   const shouldPulse = pulse || isHighlighted;
@@ -462,6 +490,7 @@ const ShapeCircle = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
   return (
     <motion.g
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
@@ -477,6 +506,7 @@ const ShapeCircle = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
       {/* Body */}
       <motion.circle
+        data-id={obj.id}
         cx={px} cy={py} r={pr}
         fill={c.fill} fillOpacity={fillOpacity ?? 0.25}
         stroke={c.stroke} strokeWidth={2.5}
@@ -507,37 +537,41 @@ const ShapeCircle = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
 // ─── Rect ─────────────────────────────────────────────────────────────────────
 const ShapeRect = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
+  if (!obj) return null;
+  const px = safeNum(obj.x, 300);
+  const py = safeNum(obj.y, 240);
+  const pw = safeNum(obj.w ?? obj.width, 200);
+  const ph = safeNum(obj.h ?? obj.height, 80);
+  const prx = safeNum(obj.rx, 10);
+
   const {
-    x = 300, y = 240, w = 200, h = 80,
     color = 'blue', label,
-    rx: rxProp = 10,
     // legacy fields
-    width, height, fill,
+    fill,
   } = obj;
 
-  const rw = w ?? width ?? 200;
-  const rh = h ?? height ?? 80;
   const c = resolveColor(fill || color);
   const variant = getVariant(transition);
 
   // prompt uses center-based x/y
-  const rx_ = x - rw / 2;
-  const ry_ = y - rh / 2;
+  const rx_ = px - pw / 2;
+  const ry_ = py - ph / 2;
 
   return (
     <motion.g
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
     >
       <rect
-        x={rx_} y={ry_} width={rw} height={rh} rx={rxProp}
+        x={rx_} y={ry_} width={pw} height={ph} rx={prx}
         fill={c.fill} fillOpacity={0.22}
         stroke={c.stroke} strokeWidth={isHighlighted ? 2.5 : 1.5}
       />
       {label && (
-        <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+        <text x={px} y={py} textAnchor="middle" dominantBaseline="central"
           fontSize={14} fontWeight="700" fill={c.text}
           fontFamily="system-ui, sans-serif">
           {label}
@@ -549,19 +583,21 @@ const ShapeRect = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
 // ─── Arrow ────────────────────────────────────────────────────────────────────
 const ShapeArrow = ({ obj, isNew, stepKey }) => {
-  const {
-    x1 = 200, y1 = 300, x2 = 600, y2 = 300,
-    color = 'gray', label, dashed = false, thickness = 2,
-    // legacy
-    stroke,
-  } = obj;
+  if (!obj) return null;
+  const px1 = safeNum(obj.x1, 200);
+  const py1 = safeNum(obj.y1, 300);
+  const px2 = safeNum(obj.x2, 600);
+  const py2 = safeNum(obj.y2, 300);
+  const pth = safeNum(obj.thickness, 2);
+
+  const { color = 'gray', label, dashed = false, stroke } = obj;
 
   const c = resolveColor(stroke || color);
   const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
   const markerId = `arr-${obj.id || Math.random().toString(36).slice(2)}`;
 
   return (
-    <motion.g key={`${obj.id}-${stepKey}`}
+    <motion.g key={`${obj.id}-${stepKey}`} data-id={obj.id}
       initial={isNew ? { opacity: 0 } : false}
       animate={isNew ? { opacity: 1 } : {}}
       transition={{ duration: 0.4 }}
@@ -573,8 +609,8 @@ const ShapeArrow = ({ obj, isNew, stepKey }) => {
         </marker>
       </defs>
       <motion.line
-        x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={c.stroke} strokeWidth={thickness}
+        x1={px1} y1={py1} x2={px2} y2={py2}
+        stroke={c.stroke} strokeWidth={pth}
         strokeDasharray={dashed ? '9 4' : undefined}
         strokeLinecap="round"
         markerEnd={`url(#${markerId})`}
@@ -583,7 +619,7 @@ const ShapeArrow = ({ obj, isNew, stepKey }) => {
         transition={{ duration: 0.55 }}
       />
       {label && (
-        <text x={mid.x} y={mid.y - 12} textAnchor="middle" dominantBaseline="central"
+        <text x={(px1 + px2) / 2} y={(py1 + py2) / 2 - 12} textAnchor="middle" dominantBaseline="central"
           fontSize={11} fontWeight="500" fill="#64748b"
           fontFamily="system-ui, sans-serif">
           {label}
@@ -595,19 +631,23 @@ const ShapeArrow = ({ obj, isNew, stepKey }) => {
 
 // ─── Line ─────────────────────────────────────────────────────────────────────
 const ShapeLine = ({ obj, isNew, stepKey }) => {
-  const {
-    x1 = 100, y1 = 300, x2 = 700, y2 = 300,
-    color = 'gray', strokeWidth = 1.5, dashed = false,
-    stroke, opacity,
-  } = obj;
+  if (!obj) return null;
+  const px1 = safeNum(obj.x1, 100);
+  const py1 = safeNum(obj.y1, 300);
+  const px2 = safeNum(obj.x2, 700);
+  const py2 = safeNum(obj.y2, 300);
+  const psw = safeNum(obj.strokeWidth, 1.5);
+
+  const { color = 'gray', dashed = false, stroke, opacity } = obj;
 
   const c = resolveColor(stroke || color);
 
   return (
     <motion.line
       key={`${obj.id}-${stepKey}`}
-      x1={x1} y1={y1} x2={x2} y2={y2}
-      stroke={c.stroke} strokeWidth={strokeWidth}
+      data-id={obj.id}
+      x1={px1} y1={py1} x2={px2} y2={py2}
+      stroke={c.stroke} strokeWidth={psw}
       strokeDasharray={dashed ? '7 3' : undefined}
       strokeLinecap="round" opacity={opacity ?? 0.65}
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
@@ -619,10 +659,14 @@ const ShapeLine = ({ obj, isNew, stepKey }) => {
 
 // ─── Text ─────────────────────────────────────────────────────────────────────
 const ShapeText = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
+  if (!obj) return null;
+  const px = safeNum(obj.x, CW / 2);
+  const py = safeNum(obj.y, 100);
+  const pfs = safeNum(obj.fontSize, 18);
+
   const {
-    x = CW / 2, y = 100,
     text = '', label,
-    fontSize = 18, color = 'white',
+    color = 'white',
     fontWeight = '600',
     // legacy
     fill, anchor, italic, fontFamily,
@@ -635,9 +679,10 @@ const ShapeText = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
   return (
     <motion.text
       key={`${obj.id}-${stepKey}`}
-      x={x} y={y}
+      data-id={obj.id}
+      x={px} y={py}
       textAnchor={anchor || 'middle'} dominantBaseline="central"
-      fontSize={fontSize}
+      fontSize={pfs}
       fontWeight={isHighlighted ? '800' : fontWeight}
       fontStyle={italic ? 'italic' : 'normal'}
       fill={isHighlighted ? c.stroke : c.text}
@@ -653,7 +698,10 @@ const ShapeText = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 const ShapeBadge = ({ obj, isNew, transition, stepKey }) => {
-  const { x = CW / 2, y = 100, text = '', bgColor = 'blue', textColor } = obj;
+  if (!obj) return null;
+  const px = safeNum(obj.x, CW / 2);
+  const py = safeNum(obj.y, 100);
+  const { text = '', bgColor = 'blue', textColor } = obj;
   const c = resolveColor(bgColor);
   const bw = Math.max(60, (text?.length || 0) * 8.5 + 28);
   const bh = 28;
@@ -662,12 +710,13 @@ const ShapeBadge = ({ obj, isNew, transition, stepKey }) => {
   return (
     <motion.g
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
     >
-      <rect x={x - bw / 2} y={y - bh / 2} width={bw} height={bh} rx={bh / 2} fill={c.stroke} />
-      <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+      <rect x={px - bw / 2} y={py - bh / 2} width={bw} height={bh} rx={bh / 2} fill={c.stroke} />
+      <text x={px} y={py} textAnchor="middle" dominantBaseline="central"
         fontSize={11} fontWeight="800" fill={textColor || '#fff'}
         fontFamily="system-ui, sans-serif" letterSpacing="0.06em">
         {text}
@@ -678,27 +727,34 @@ const ShapeBadge = ({ obj, isNew, transition, stepKey }) => {
 
 // ─── Arc ──────────────────────────────────────────────────────────────────────
 const ShapeArc = ({ obj, isNew, stepKey }) => {
+  if (!obj) return null;
   const {
     cx: ocx, cy: ocy, x, y,
     r = 40, startAngle = 0, endAngle = 90,
     color = 'yellow', strokeWidth = 2.5,
   } = obj;
 
-  const pcx = ocx ?? x ?? CW / 2;
-  const pcy = ocy ?? y ?? CH / 2;
+  const pcx = safeNum(ocx ?? x, CW / 2);
+  const pcy = safeNum(ocy ?? y, CH / 2);
+  const pr = safeNum(obj.r ?? r, 40);
+  const psa = safeNum(startAngle, 0);
+  const pea = safeNum(endAngle, 90);
+  const psw = safeNum(strokeWidth, 2.5);
+
   const c = resolveColor(color);
   const toRad = (d) => (d * Math.PI) / 180;
-  const sx = pcx + r * Math.cos(toRad(startAngle));
-  const sy = pcy - r * Math.sin(toRad(startAngle));
-  const ex = pcx + r * Math.cos(toRad(endAngle));
-  const ey = pcy - r * Math.sin(toRad(endAngle));
-  const large = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
+  const sx = pcx + pr * Math.cos(toRad(psa));
+  const sy = pcy - pr * Math.sin(toRad(psa));
+  const ex = pcx + pr * Math.cos(toRad(pea));
+  const ey = pcy - pr * Math.sin(toRad(pea));
+  const large = Math.abs(pea - psa) > 180 ? 1 : 0;
 
   return (
     <motion.path
       key={`${obj.id}-${stepKey}`}
-      d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 0 ${ex} ${ey}`}
-      fill="none" stroke={c.stroke} strokeWidth={strokeWidth} strokeLinecap="round"
+      data-id={obj.id}
+      d={`M ${sx} ${sy} A ${pr} ${pr} 0 ${large} 0 ${ex} ${ey}`}
+      fill="none" stroke={c.stroke} strokeWidth={psw} strokeLinecap="round"
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
       transition={{ duration: 0.65 }}
@@ -708,14 +764,17 @@ const ShapeArc = ({ obj, isNew, stepKey }) => {
 
 // ─── Path ─────────────────────────────────────────────────────────────────────
 const ShapePath = ({ obj, isNew, stepKey }) => {
-  const { d = '', color = 'blue', strokeWidth = 2, fill = 'none' } = obj;
+  if (!obj) return null;
+  const psw = safeNum(obj.strokeWidth, 2);
+  const { d = '', color = 'blue', fill = 'none' } = obj;
   const c = resolveColor(color);
 
   return (
     <motion.path
       key={`${obj.id}-${stepKey}`}
+      data-id={obj.id}
       d={d} fill={fill === 'none' ? 'none' : c.light}
-      stroke={c.stroke} strokeWidth={strokeWidth} strokeLinecap="round"
+      stroke={c.stroke} strokeWidth={psw} strokeLinecap="round"
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
       transition={{ duration: 0.72 }}
@@ -725,36 +784,33 @@ const ShapePath = ({ obj, isNew, stepKey }) => {
 
 // ─── Orbit (legacy SceneRenderer support) ────────────────────────────────────
 const ShapeOrbit = ({ obj, index }) => {
-  const {
-    cx: ocx, cy: ocy, x, y,
-    orbitRadius = 100, r: objR = 10, size,
-    color = 'blue', speed = 8,
-    fill,
-  } = obj;
+  if (!obj) return null;
+  const px = safeNum(obj.cx ?? obj.x, CW / 2);
+  const py = safeNum(obj.cy ?? obj.y, CH / 2);
+  const por = safeNum(obj.orbitRadius, 100);
+  const pr = safeNum(obj.size ?? obj.r ?? 10, 10);
+  const psp = safeNum(obj.speed, 8);
 
-  const px = ocx ?? x ?? CW / 2;
-  const py = ocy ?? y ?? CH / 2;
-  const pr = size ?? objR;
+  const { color = 'blue', fill } = obj;
   const c = resolveColor(fill || color);
-  const pathId = `orbit-path-${index}`;
-  const or = orbitRadius;
+  const pathId = `orbit-path-${obj.id || index}-${Math.random().toString(36).slice(2, 6)}`;
 
   return (
-    <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: index * 0.15, duration: 0.5 }}>
-      <circle cx={px} cy={py} r={or}
+    <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: index * 0.15, duration: 0.5 }} data-id={obj.id}>
+      <circle cx={px} cy={py} r={por}
         fill="none" stroke="#334155" strokeWidth={1} strokeDasharray="4 6" opacity={0.25} />
       <defs>
         <path id={pathId}
-          d={`M ${px - or},${py} a ${or},${or} 0 1,1 ${or * 2},0 a ${or},${or} 0 1,1 -${or * 2},0`} />
+          d={`M ${px - por},${py} a ${por},${por} 0 1,1 ${por * 2},0 a ${por},${por} 0 1,1 -${por * 2},0`} />
       </defs>
       <circle r={pr} fill={c.stroke} opacity={0.9}>
-        <animateMotion dur={`${speed}s`} repeatCount="indefinite">
+        <animateMotion dur={`${psp}s`} repeatCount="indefinite">
           <mpath xlinkHref={`#${pathId}`} />
         </animateMotion>
       </circle>
       {obj.label && (
         <text fill="#64748b" fontSize={11} fontWeight="600" fontFamily="system-ui, sans-serif">
-          <animateMotion dur={`${speed}s`} repeatCount="indefinite">
+          <animateMotion dur={`${psp}s`} repeatCount="indefinite">
             <mpath xlinkHref={`#${pathId}`} />
           </animateMotion>
           <tspan dy={pr + 15} textAnchor="middle">{obj.label}</tspan>
@@ -792,7 +848,7 @@ function dispatchShape(obj, props, legacyIndex) {
     case 'badge':                   return <ShapeBadge  key={obj.id} {...props} />;
     case 'arc': case 'angle':       return <ShapeArc    key={obj.id} {...props} />;
     case 'path':                    return <ShapePath   key={obj.id} {...props} />;
-    case 'orbit': case 'planet':    return <ShapeOrbit  key={obj.id} index={legacyIndex} />;
+    case 'orbit': case 'planet':    return <ShapeOrbit  key={obj.id} obj={obj} index={legacyIndex} />;
 
     default: return <ShapeCircle key={obj.id} {...props} />;
   }
@@ -892,13 +948,14 @@ const SceneRenderer = ({ objects, steps, currentStep, currentStepIndex }) => {
         {[...highlightIds].map(id => {
           const obj = safeObjects.find(o => o.id === id);
           if (!obj) return null;
-          const hx = obj.x ?? obj.cx ?? CW / 2;
-          const hy = obj.y ?? obj.cy ?? CH / 2;
+          const hx = safeNum(obj.x ?? obj.cx, CW / 2);
+          const hy = safeNum(obj.y ?? obj.cy, CH / 2);
+          const hr = safeNum(obj.r ?? obj.size, 50);
           return (
             <motion.circle key={`hl-${id}`}
-              cx={hx} cy={hy} r={obj.r ?? 55}
+              cx={hx} cy={hy} r={hr}
               fill="none" stroke="#f59e0b" strokeWidth={2.5} opacity={0}
-              animate={{ opacity: [0, 0.55, 0.35], r: [(obj.r ?? 50) + 6, (obj.r ?? 50) + 18] }}
+              animate={{ opacity: [0, 0.55, 0.35], r: [hr + 6, hr + 18] }}
               transition={{ duration: 0.7, ease: 'easeOut' }}
             />
           );

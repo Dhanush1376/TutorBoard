@@ -528,8 +528,9 @@ const StepPanel = ({
         animate={{ opacity: 1, x: 0,   scale: 1 }}
         exit={{   opacity: 0, x: -16,  scale: 0.97 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="glass-strong"
         style={{
-          background: 'rgba(9,18,36,0.9)',
+          background: 'var(--glass-bg)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           border: `1px solid ${cfg.border}`,
@@ -537,7 +538,7 @@ const StepPanel = ({
           padding: '16px 18px',
           maxWidth: 310,
           width: '100%',
-          boxShadow: `0 0 0 1px rgba(0,0,0,0.35), 0 10px 44px rgba(0,0,0,0.5), 0 0 80px ${cfg.accent}09`,
+          boxShadow: `var(--glass-shadow), 0 0 80px ${cfg.accent}09`,
           position: 'relative',
           overflow: 'hidden',
         }}

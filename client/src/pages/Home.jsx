@@ -1,536 +1,540 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import Layout from '../components/layout/Layout';
-import Sidebar from '../components/sidebar/Sidebar';
-import Board from '../components/Board';
 import ChatWindow from '../components/chat/ChatWindow';
 import InputBar from '../components/chat/InputBar';
 import TeachingModal from '../components/teaching/TeachingModal';
-import TeachingSession from '../components/teaching/TeachingSession';
-import ModulesPage from '../components/modules/ModulesPage';
 import ErrorBoundary from '../components/common/ErrorBoundary';
-import { motion, AnimatePresence } from 'framer-motion';
-import useTutorStore, { STATES } from '../store/tutorStore';
+import { AnimatePresence, motion } from 'framer-motion';
+import LeftPanel from '../components/layout/LeftPanel';
+import useTutorStore, { STATES as STORE_STATES, CANVAS_MODE } from '../store/tutorStore';
+import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-const Home = ({ setIsDark, isDark }) => {
-  // Global Sessions with persistence
+// Canvas & Teaching Overlays
+import InfiniteCanvas from '../components/canvas/InfiniteCanvas';
+import CanvasRenderer from '../components/canvas/CanvasRenderer';
+import CanvasControls from '../components/canvas/CanvasControls';
+import CanvasMinimap from '../components/canvas/CanvasMinimap';
+import StepPanel from '../components/teaching/StepPanel';
+
+import FloatingSidebar from '../components/teaching/FloatingSidebar';
+import SessionOverlay from '../components/teaching/SessionOverlay';
+
+import { 
+  Volume2, VolumeX, Minimize2, Maximize2, Menu, 
+  MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
+  Check, WifiOff, Loader
+} from 'lucide-react';
+
+// ─── Drawing Overlay ─────────────────────────────────────────────────────────
+const DRAWING_PHASES = [
+  'Analyzing your question',
+  'Generating visual layout',
+  'Drawing diagrams',
+  'Adding labels and annotations',
+  'Rendering final visuals',
+];
+
+const RETHINK_PHASES = [
+  'Agent is rethinking',
+  'Tailoring canvas to your doubt',
+  'Editing lesson context',
+  'Finalizing clarification',
+];
+
+const DrawingOverlay = ({ isVisible, isRethinking }) => {
+  const [phaseIndex, setPhaseIndex] = useState(0);
+  const phases = isRethinking ? RETHINK_PHASES : DRAWING_PHASES;
+
+  useEffect(() => {
+    if (!isVisible) { setPhaseIndex(0); return; }
+    const timer = setInterval(() => {
+      setPhaseIndex(prev => (prev + 1) % phases.length);
+    }, 2200);
+    return () => clearInterval(timer);
+  }, [isVisible, phases.length]);
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
+          className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-col items-center gap-5"
+          >
+            {/* Animated drawing indicator */}
+            <div className="relative w-20 h-20">
+              <svg viewBox="0 0 80 80" className="w-full h-full">
+                <motion.circle
+                  cx="40" cy="40" r="32"
+                  fill="none"
+                  stroke="var(--text-tertiary)"
+                  strokeWidth="1.5"
+                  strokeDasharray="200"
+                  animate={{ strokeDashoffset: [200, 0] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                  opacity={0.3}
+                />
+                <motion.path
+                  d="M 20 50 Q 30 20 40 40 Q 50 60 60 30"
+                  fill="none"
+                  stroke="var(--text-primary)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: [0, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: [0.16, 1, 0.3, 1] }}
+                  opacity={0.6}
+                />
+              </svg>
+            </div>
+
+            {/* Phase text */}
+            <div className="h-8 flex items-center">
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={phaseIndex}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-sm font-medium text-[var(--text-secondary)] tracking-wide"
+                >
+                  {phases[phaseIndex]}
+                </motion.p>
+              </AnimatePresence>
+            </div>
+
+            {/* Animated dots */}
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map(i => (
+                <motion.div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)]"
+                  animate={{ opacity: [0.2, 1, 0.2] }}
+                  transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// ─── Constants ───
+const DOMAIN_STYLES = {
+  dsa:              { bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.3)',   text: '#10b981', label: 'DSA' },
+  mathematics:      { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#8b5cf6', label: 'Math' },
+  physics:          { bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.3)',   text: '#3b82f6', label: 'Physics' },
+  chemistry:        { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#ef4444', label: 'Chemistry' },
+  biology:          { bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#22c55e', label: 'Biology' },
+  general:          { bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)', text: '#9ca3af', label: 'General' },
+};
+
+const PANEL_VISIBLE_STATES = new Set([STATES.TEACHING, STATES.RESPONDING, STATES.RESUMING]);
+
+const Home = ({ isDark }) => {
+  // ─── Machine & Store ───
+  const machine = useTeachingMachine();
+  const {
+    machineState, isConnected,
+    timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
+    currentStep, currentStepIndex, totalSteps,
+    canvasObjects, canvasSteps,
+    doubtResponse, isDoubtProcessing, doubtHistory,
+    error,
+    isPlaying,
+    startSession, askDoubt, goToStep, nextStep, prevStep,
+    play, pause, resume, finish, setSpeed, endSession,
+  } = machine;
+
+  const {
+    canvasMode, canvasTransform, showMinimap, voiceEnabled, playbackSpeed,
+    setCanvasMode, setCanvasTransform, toggleMinimap, toggleVoice,
+    setPlaybackSpeed: storeSetSpeed,
+    openFloatingSidebar, toggleDoubtThread, showDoubtThread,
+    selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
+    setCanvasSnapshot, greetingMessage
+  } = useTutorStore();
+
   const [chatHistory, setChatHistory] = useState(() => {
     const saved = localStorage.getItem('tutorboard-history');
     return saved ? JSON.parse(saved) : [];
   });
   const [activeChatId, setActiveChatId] = useState(null);
-
+  
   useEffect(() => {
     localStorage.setItem('tutorboard-history', JSON.stringify(chatHistory));
   }, [chatHistory]);
-  
-  // App Routing
-  const [activeView, setActiveView] = useState('chat'); // 'chat' | 'modules'
-  const [customModules, setCustomModules] = useState([]);
-  
-  // Local input state
+
+  // ── Sync Doubt Responses to Chat ──
+  const lastDoubtId = useRef(null);
+  useEffect(() => {
+    if (doubtHistory.length === 0) return;
+    const latest = doubtHistory[doubtHistory.length - 1];
+    
+    // Only append if it's a new doubt response we haven't logged yet
+    if (latest.answer && latest.id !== lastDoubtId.current) {
+      lastDoubtId.current = latest.id;
+      
+      const assistantMessage = { 
+        id: getMsgId('doubt-ans'), 
+        role: 'assistant', 
+        content: latest.answer,
+        hasCanvas: latest.hasVisuals,
+        canvasSnapshot: latest.hasVisuals ? { canvasObjects, canvasSteps, totalSteps } : null
+      };
+      
+      setChatHistory(prev => {
+        const idx = prev.findIndex(s => s.id === activeChatId);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        // Avoid duplicates if somehow triggered twice
+        if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        return next;
+      });
+    }
+  }, [doubtHistory, activeChatId]);
+
+  // ── Sync New Session Start to Chat ──
+  const lastTimelineId = useRef(null);
+  useEffect(() => {
+    // When a timeline is fully received for a new session, drop an introductory message into the chat
+    if (timeline && timeline.title && timeline.title !== lastTimelineId.current) {
+      lastTimelineId.current = timeline.title;
+      
+      const assistantMessage = { 
+         id: getMsgId('session-ans'), 
+         role: 'assistant', 
+         content: `I've prepared a visual learning canvas for you on **${timeline.title}**. Dive in whenever you're ready!`,
+         hasCanvas: true,
+         canvasSnapshot: { canvasObjects, canvasSteps, totalSteps } 
+      };
+      
+      setChatHistory(prev => {
+        const idx = prev.findIndex(s => s.id === activeChatId);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        // Only append if it doesn't already exist
+        if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        return next;
+      });
+    }
+  }, [timeline, activeChatId]);
+
+  // ── Sync Greeting (Text-Only Default) to Chat ──
+  const lastGreetingId = useRef(null);
+  useEffect(() => {
+    if (greetingMessage && greetingMessage !== lastGreetingId.current) {
+      lastGreetingId.current = greetingMessage;
+      
+      const assistantMessage = { 
+         id: getMsgId('greeting-ans'), 
+         role: 'assistant', 
+         content: greetingMessage,
+         hasCanvas: false 
+      };
+      
+      setChatHistory(prev => {
+        const idx = prev.findIndex(s => s.id === activeChatId);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        return next;
+      });
+    }
+  }, [greetingMessage, activeChatId]);
+
+  // ── Sync Errors to Chat ──
+  const lastErrorRef = useRef(null);
+  useEffect(() => {
+    if (error && error !== lastErrorRef.current) {
+      lastErrorRef.current = error;
+      
+      const errorMessage = { 
+         id: getMsgId('error-msg'), 
+         role: 'assistant', 
+         content: `⚠️ ${error}`,
+         hasCanvas: false 
+      };
+      
+      setChatHistory(prev => {
+        const idx = prev.findIndex(s => s.id === activeChatId);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        if (next[idx].messages.some(m => m.id === errorMessage.id)) return prev;
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, errorMessage] };
+        return next;
+      });
+    }
+  }, [error, activeChatId]);
+
+  const [activeView, setActiveView] = useState('chat');
   const [prompt, setPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [activeMode, setActiveMode] = useState('chat'); // 'chat' | 'teach' | 'solve' | etc.
+  const [activeMode, setActiveMode] = useState(null);
 
-  // Playback State
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
-
-  // Teaching Modal State (legacy visual viewer)
-  const [isTeachingOpen, setIsTeachingOpen] = useState(false);
-  const [teachingData, setTeachingData] = useState(null);
-  const [error, setError] = useState(null);
-
-  // NEW: Live Teaching Session State
-  const [isTeachingSessionOpen, setIsTeachingSessionOpen] = useState(false);
-  const [teachingTopic, setTeachingTopic] = useState('');
-
-  // Duplicate submission guard
+  const canvasRef = useRef(null);
   const isSubmittingRef = useRef(false);
   const msgIdCounter = useRef(0);
   const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
   const messages = activeSession?.messages || [];
-  const hasStarted = messages.length > 0;
 
-  // Determine global board data
-  const lastMessageWithSteps = [...messages].reverse().find(m => m.steps && m.steps.length > 0);
-  const activeSteps = lastMessageWithSteps?.steps || [];
+  // ─── Logic ───
+  const { toggleSidebar } = useTutorStore();
 
-  // Reset playback when switching
   useEffect(() => {
-    setCurrentStep(0);
-    setIsPlaying(false);
-  }, [activeChatId, activeSteps.length]);
-
-  // Playback loop
-  useEffect(() => {
-    let interval;
-    if (isPlaying && activeSteps.length > 0) {
-      const displayDuration = 2500 / speed;
-      interval = setInterval(() => {
-        setCurrentStep((prev) => {
-          if (prev >= activeSteps.length - 1) {
-            setIsPlaying(false);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, displayDuration);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, speed, activeSteps.length]);
-
-  const handleNewChat = () => {
-    setActiveChatId(null);
-    setPrompt('');
-  };
-
-  const handleSelectChat = (id) => {
-    setActiveChatId(id);
-    setActiveView('chat');
-  };
-
-  const handleDeleteChat = (id) => {
-    setChatHistory(prev => prev.filter(c => c.id !== id));
-    if (activeChatId === id) setActiveChatId(null);
-  };
-
-  const handleRenameChat = (id, newTitle) => {
-    setChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
-  };
-
-  const handleLoadModule = (moduleData) => {
-    const sessionId = `session-${Date.now()}`;
-    const newSession = {
-      id: sessionId,
-      title: moduleData.title,
-      messages: [
-        { id: getMsgId('user'), role: 'user', content: `Explain ${moduleData.title}` },
-        { id: getMsgId('ai'), role: 'assistant', content: moduleData.description, steps: moduleData.data.steps }
-      ]
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
     };
-    setChatHistory(prev => [newSession, ...prev]);
-    setActiveChatId(sessionId);
-  };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
 
-  // Open Canvas for a specific message's steps/objects
-  const handleOpenCanvas = useCallback((steps, title, domain, visualizationType, extraData, messageId) => {
-    const hasVisualData = (steps && steps.length > 0) || (extraData?.objects && extraData.objects.length > 0);
-    if (hasVisualData) {
-      // 1. Prepare the timeline data
-      const timelineData = {
-        title: title || 'Teaching Session',
-        steps: steps || [],
-        domain: domain,
-        visualizationType: visualizationType,
-        objects: extraData?.objects || [],
-        elements: extraData?.elements || [],
-        motion: extraData?.motion || [],
-        connections: extraData?.connections || [],
-        sequence: extraData?.sequence || [],
-        totalSteps: steps?.length || 0
-      };
+  const handleNewChat = () => { setActiveChatId(null); setPrompt(''); endSession(); };
+  const handleSelectChat = (id) => { setActiveChatId(id); setActiveView('chat'); };
+  const handleDeleteChat = (id) => { setChatHistory(prev => prev.filter(c => c.id !== id)); if (activeChatId === id) setActiveChatId(null); };
+  const handleRenameChat = (id, newTitle) => setChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
 
-      // 2. Clear current session
-      const store = useTutorStore.getState();
-      store.resetTeaching();
-      
-      // 3. Find historical context to seed the doubt thread
-      let userPrompt = title || 'Initial Question';
-      let aiAnswer = null;
-
-      const chat = chatHistory.find(c => c.id === activeChatId);
-      if (chat && messageId) {
-        const msgIndex = chat.messages.findIndex(m => m.id === messageId);
-        if (msgIndex !== -1) {
-          userPrompt = chat.messages[msgIndex - 1]?.content || userPrompt;
-          aiAnswer = chat.messages[msgIndex]?.content;
-        }
+  const handleOpenCanvas = (messageId) => {
+    const session = chatHistory.find(s => s.id === activeChatId);
+    if (session) {
+      const msg = session.messages.find(m => m.id === messageId);
+      if (msg && msg.canvasSnapshot) {
+        setCanvasSnapshot(msg.canvasSnapshot);
       }
-
-      // 4. Initialize session with context
-      store.startSession(title, userPrompt);
-      if (aiAnswer) {
-        // Update the first doubt with the AI's actual answer from the chat
-        const history = store.doubtHistory;
-        if (history.length > 0) {
-          history[0].answer = aiAnswer;
-          history[0].hasVisuals = true;
-          store.setDoubtResponse({ answer: aiAnswer, hasVisuals: true, _question: userPrompt });
-        }
-      }
-
-      store.setTimeline(timelineData);
-      store.setMachineState(STATES.TEACHING); // Bypass LOADING state
-      
-      // 5. Open the immersive UI
-      setIsTeachingSessionOpen(true);
-      setTeachingTopic(title || 'Manual Session');
     }
-  }, [activeChatId, chatHistory]);
-
-  const handleDeleteMessage = useCallback((messageId) => {
-    setChatHistory(prev => {
-      const idx = prev.findIndex(s => s.id === activeChatId);
-      if (idx === -1) return prev;
-      const next = [...prev];
-      next[idx] = {
-        ...next[idx],
-        messages: next[idx].messages.filter(m => m.id !== messageId)
-      };
-      return next;
-    });
-  }, [activeChatId]);
-
-  const handleEditMessage = useCallback((messageId, content) => {
-    setPrompt(content);
-    handleDeleteMessage(messageId);
-    setTimeout(() => {
-      const el = document.querySelector('textarea');
-      if (el) el.focus();
-    }, 50);
-  }, [handleDeleteMessage]);
+    // Reveal the canvas by collapsing the sidebar
+    setSidebarOpen(false);
+  };
 
   const handleSubmit = async () => {
-    // ─── Universal Submission Guard ───
     if (!prompt.trim() || isSubmittingRef.current) return;
-    isSubmittingRef.current = true;
     
     const userPrompt = prompt.trim();
-    const currentMode = activeMode;
-    const modeLabel = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
-    
     setPrompt('');
-    setIsGenerating(true);
-    setError(null);
     setActiveView('chat');
 
     const workingSessionId = activeChatId || `session-${Date.now()}`;
     if (!activeChatId) setActiveChatId(workingSessionId);
 
-    // ─── 1. RECORD IN HISTORY (Agnostic of Mode) ───
     setChatHistory(prev => {
       const idx = prev.findIndex(s => s.id === workingSessionId);
-      const userMessage = { 
-        id: getMsgId('user'), 
-        role: 'user', 
-        content: currentMode === 'chat' ? userPrompt : `[${modeLabel}] ${userPrompt}` 
-      };
-
-      if (idx === -1) {
-        return [{ 
-          id: workingSessionId, 
-          title: userPrompt.substring(0, 40) + (userPrompt.length > 40 ? '...' : ''), 
-          messages: [userMessage] 
-        }, ...prev];
-      } else {
-        const next = [...prev];
-        next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] };
-        return next;
-      }
+      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
+      if (idx === -1) return [{ id: workingSessionId, title: userPrompt.substring(0, 40), messages: [userMessage] }, ...prev];
+      const next = [...prev]; next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; return next;
     });
 
-    // ─── 2. EXECUTE MODE LOGIC (Unified Conversational Flow) ───
-
-
-    try {
-      let response;
-      let data;
-
-      // All modes now call /doubt to ensure conversational-first experience on dashboard
-      response = await fetch(`${API_URL}/doubt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          question: userPrompt,
-          history: messages,
-          activeMode: currentMode,
-          forceNoVisuals: currentMode === 'chat'
-        }),
-      });
-      
-      if (!response.ok) throw new Error('TutorBoard AI is currently unavailable.');
-      const result = await response.json();
-      
-      console.log('[TutorBoard] API response:', JSON.stringify(result).substring(0, 300));
-
-      const visualSteps = (result.hasVisuals && result.visualUpdate)
-        ? (result.visualUpdate.steps || result.visualUpdate.sequence || []) 
-        : [];
-      
-      data = {
-        answer: result.answer,
-        steps: visualSteps,
-        title: result.visualUpdate?.title || 'Response',
-        domain: result.visualUpdate?.domain,
-        visualizationType: result.visualUpdate?.visualizationType || result.visualUpdate?.type,
-        hasVisuals: result.hasVisuals,
-        objects: result.visualUpdate?.objects,
-        elements: result.visualUpdate?.elements,
-        motion: result.visualUpdate?.motion,
-        connections: result.visualUpdate?.connections,
-        sequence: result.visualUpdate?.sequence
-      };
-      
-      setChatHistory(prev => {
-        const next = [...prev];
-        const idx = next.findIndex(s => s.id === workingSessionId);
-        if (idx !== -1) {
-          const hasVisualData = (data.steps && data.steps.length > 0) || (data.objects && data.objects.length > 0);
-          let aiMessageContent = data.answer;
-          
-          // Personality: In teaching modes, if AI only gives visual, provide a nice breadcrumb
-          if (currentMode !== 'chat' && !aiMessageContent && hasVisualData) {
-             aiMessageContent = `I've prepared a visual diagram for **${data.title}**.`;
-          }
-
-          next[idx] = {
-            ...next[idx],
-            messages: [
-              ...next[idx].messages,
-              {
-                id: getMsgId('ai'),
-                role: 'assistant',
-                content: aiMessageContent || "Done.",
-                steps: data.steps,
-                stepTitle: data.title,
-                domain: data.domain,
-                visualizationType: data.visualizationType,
-                objects: data.objects,
-                elements: data.elements,
-                motion: data.motion,
-                connections: data.connections,
-                sequence: data.sequence
-              }
-            ]
-          };
-        }
-        return next;
-      });
-    } catch (err) {
-      console.error('[TutorBoard] Submit error:', err);
-      setError(err.message);
-
-      setChatHistory(prev => {
-        const next = [...prev];
-        const idx = next.findIndex(s => s.id === workingSessionId);
-        if (idx !== -1) {
-          next[idx] = {
-            ...next[idx],
-            messages: [
-              ...next[idx].messages,
-              {
-                id: getMsgId('error'),
-                role: 'assistant',
-                content: `⚠️ ${err.message || 'Something went wrong. Please try again.'}`,
-                steps: [],
-                stepTitle: '',
-                domain: 'general',
-                visualizationType: 'process'
-              }
-            ]
-          };
-        }
-        return next;
-      });
-    } finally {
-      setIsGenerating(false);
-      setTimeout(() => { isSubmittingRef.current = false; }, 500);
+    if (machineState !== STATES.IDLE && machineState !== STATES.COMPLETED) {
+      // ── Session Active: Register as Doubt ──
+      askDoubt(userPrompt, activeMode);
+    } else {
+      // ── New Session ──
+      startSession(userPrompt, userPrompt, activeMode);
     }
   };
 
+  const domain = timeline?.domain?.toLowerCase() || 'general';
+  const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
+  const showStepPanel = currentStep && PANEL_VISIBLE_STATES.has(machineState);
+
+  const leftPanel = (
+    <LeftPanel
+      activeView={activeView} setActiveView={setActiveView}
+      chatHistory={chatHistory} activeChatId={activeChatId}
+      onNewChat={handleNewChat} onSelectChat={handleSelectChat}
+      onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
+      messages={messages} isGenerating={machineState === STATES.GENERATING}
+      onOpenCanvas={handleOpenCanvas} onDeleteMessage={() => {}} onEditMessage={() => {}}
+      getMsgId={getMsgId}
+      prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit}
+      activeMode={activeMode} setActiveMode={setActiveMode}
+      selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent}
+      isDark={isDark}
+    />
+  );
+
   return (
-    <Layout 
-      sidebar={
-        <Sidebar 
-          chatHistory={chatHistory}
-          activeChatId={activeChatId}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleNewChat}
-          onLoadModule={handleLoadModule}
-          onDeleteChat={handleDeleteChat}
-          onRenameChat={handleRenameChat}
-          isDark={isDark}
-          setIsDark={setIsDark}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-      }
-    >
-      <div className="w-full h-full relative flex flex-col items-center overflow-hidden m-0 p-0">
+    <div className="h-screen w-screen bg-[var(--bg-primary)] overflow-hidden relative">
+      {/* 1. Main Background Canvas */}
+      <div className="absolute inset-0 z-0">
+        <InfiniteCanvas
+          ref={canvasRef}
+          onZoomChange={(scale) => setCanvasTransform(prev => ({ ...prev, scale }))}
+          onViewportChange={setCanvasTransform}
+        >
+          <CanvasRenderer
+            objects={canvasObjects}
+            steps={canvasSteps}
+            currentStepIndex={currentStepIndex}
+          />
+        </InfiniteCanvas>
+      </div>
+
+      {/* 2. Global Layout Overlay */}
+      <Layout
+        title={activeSession?.title || "TutorBoard"}
+        onBack={handleNewChat}
+        sidebar={leftPanel}
+      >
+        {/* All teaching controls are now floating overlays here */}
         
-        {/* Modules View Overlay */}
-        <AnimatePresence>
-          {activeView === 'modules' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 30, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.98 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute inset-0 z-40 bg-[var(--bg-primary)] h-full w-full overflow-hidden"
+        {/* A. Top Bar Overlay (Domain + Title) */}
+        {timeline && (
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] px-5 py-2 rounded-2xl shadow-xl pointer-events-auto"
             >
-              <ModulesPage 
-                customModules={customModules}
-                setCustomModules={setCustomModules}
-                onLoadModule={(mod) => {
-                  handleLoadModule(mod);
-                  setActiveView('chat');
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
+              <span
+                className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] border"
+                style={{
+                  backgroundColor: domainStyle.bg,
+                  borderColor: domainStyle.border,
+                  color: domainStyle.text,
                 }}
+              >
+                {domainStyle.label}
+              </span>
+              <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[200px] truncate">
+                {timeline.title}
+              </span>
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-400 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                Live
+              </span>
+            </motion.div>
+          </div>
+        )}
+
+        {/* B. Step Panel Overlay (Top Left) */}
+        <AnimatePresence>
+          {showStepPanel && (
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ 
+                opacity: 1, 
+                x: isSidebarOpen ? 340 : 0,
+              }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="absolute top-24 left-6 z-40 max-w-sm pointer-events-auto"
+            >
+              <StepPanel
+                currentStep={currentStep}
+                currentStepIndex={currentStepIndex}
+                totalSteps={totalSteps}
+                learningNodes={learningNodes}
+                memoryAnchor={memoryAnchor}
+                keyFormula={keyFormula}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* State 1: Landing View */}
-        {!hasStarted && activeView === 'chat' && (
-           <motion.div 
-             initial={{ opacity: 0, scale: 0.98, filter: 'blur(8px)' }}
-             animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-             className="w-full h-full flex flex-col items-center justify-center relative z-20 px-6"
-           >
-              <div className="flex flex-col items-start justify-center mb-12 relative w-full max-w-3xl">
-                <motion.span 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                  className="text-sm md:text-base font-sans text-[var(--text-tertiary)] uppercase tracking-[0.2em] mb-2"
-                >
-                  Welcome to, 
-                </motion.span>
-                
-                <motion.h1 
-                  initial={{ opacity: 0, y: 10, filter: 'blur(8px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                  className="text-4xl md:text-6xl font-serif text-[var(--text-primary)] tracking-tight opacity-95"
-                >
-                  TutorBoard
-                </motion.h1>
-              </div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.8, ease: "easeOut" }}
-                className="w-full max-w-3xl"
-              >
-                 <InputBar 
-                    value={prompt} 
-                    onChange={setPrompt} 
-                    onSubmit={handleSubmit} 
-                    isGenerating={isGenerating} 
-                    isLanding 
-                    activeMode={activeMode}
-                    setActiveMode={setActiveMode}
-                    isDark={isDark}
-                 />
-              </motion.div>
-            </motion.div>
-         )}
-
-        {/* State 2: Active Chat / Canvas View */}
-        {hasStarted && activeView === 'chat' && (
-          <div className="absolute inset-0 z-30 flex flex-col overflow-hidden">
-            
-            {/* Spacer for top navbar */}
-            <div className="h-[80px] flex-shrink-0" />
-
-            {/* ─── MODE-BASED CONTENT ─── */}
-            <div className="flex-1 relative overflow-hidden">
-              
-              {/* 1. CHAT / PEDAGOGICAL HUB (Persistent) */}
-              <div className={`absolute inset-0 flex flex-col transition-all duration-500 ${(activeView === 'chat' && activeMode !== 'canvas') ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-                <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4">
-                   <div className="w-full max-w-3xl mx-auto py-10">
-                      <ChatWindow 
-                        messages={messages} 
-                        isGenerating={isGenerating} 
-                        onOpenCanvas={handleOpenCanvas}
-                        onDeleteMessage={handleDeleteMessage}
-                        onEditMessage={handleEditMessage}
-                      />
-                   </div>
-                </div>
-              </div>
-
-              {/* 2. CANVAS MODE (Legacy) */}
-              <div className={`absolute inset-0 transition-all duration-500 ${(activeMode === 'canvas' && !isGenerating) ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
-                 <Board 
-                   stepData={teachingData?.steps?.[0]} 
-                   steps={teachingData?.steps || []} 
-                   currentStep={0} 
-                   domain={teachingData?.domain} 
-                   visualizationType={teachingData?.visualizationType} 
-                   objects={teachingData?.objects}
-                 />
-              </div>
-
-            </div>
-
-            {/* Fixed Input Bar at Bottom */}
-            <div className="flex-shrink-0 w-full pb-6 pt-3 px-4 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent z-40">
-               <div className="w-full max-w-3xl mx-auto">
-                  <InputBar 
-                    value={prompt} 
-                    onChange={setPrompt} 
-                    onSubmit={handleSubmit} 
-                    isGenerating={isGenerating} 
-                    activeMode={activeMode}
-                    setActiveMode={setActiveMode}
-                    isDark={isDark}
+        {/* C. Playback Dock (Bottom Center) */}
+        {timeline && (
+          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 w-full max-w-xl pointer-events-none">
+            {/* Progress Bar */}
+            <div className="w-full px-10 pointer-events-auto">
+              <div className="flex gap-0.5">
+                {Array.from({ length: Math.min(totalSteps, 50) }).map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => goToStep(i)}
+                    className={`flex-1 h-1 rounded-full transition-all ${
+                      i <= currentStepIndex ? 'bg-[var(--text-primary)]' : 'bg-[var(--border-color)]'
+                    }`}
                   />
-               </div>
+                ))}
+              </div>
             </div>
 
+            <div className="flex items-center gap-2 pointer-events-auto">
+              {/* Playback Controls */}
+              <div className="flex items-center gap-1 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl px-3 py-1.5 shadow-2xl">
+                <button onClick={prevStep} disabled={currentStepIndex <= 0} className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20"><SkipBack size={16} /></button>
+                <button onClick={isPlaying ? pause : play} className="p-3 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm active:scale-95 transition-transform">
+                  {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
+                </button>
+                <button onClick={nextStep} className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><SkipForward size={16} /></button>
+              </div>
+
+              {/* Step Counter */}
+              <div className="px-3 py-2 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-xl shadow-2xl">
+                <span className="text-[11px] font-bold text-[var(--text-tertiary)] tabular-nums">
+                  {currentStepIndex + 1} / {totalSteps}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
-      </div>
+        {/* D. Bottom Right Zoom / Minimap Tools */}
+        <CanvasControls
+          transform={canvasTransform}
+          onZoomIn={() => setCanvasTransform(prev => ({ ...prev, scale: Math.min(5, prev.scale * 1.3) }))}
+          onZoomOut={() => setCanvasTransform(prev => ({ ...prev, scale: Math.max(0.15, prev.scale / 1.3) }))}
+          onFitToContent={() => canvasRef.current?.fitToContent?.()}
+          onResetView={() => setCanvasTransform({ x: 0, y: 0, scale: 1 })}
+          onToggleMinimap={toggleMinimap}
+          showMinimap={showMinimap}
+        />
 
-      {/* Teaching Modal Overlay (legacy visual viewer) */}
-      <TeachingModal
-        isOpen={isTeachingOpen}
-        onClose={() => { 
-          setIsTeachingOpen(false); 
-          setTeachingData(null); 
-          setActiveMode('chat');
-        }}
-        title={teachingData?.title}
-        steps={teachingData?.steps || []}
-        domain={teachingData?.domain}
-        visualizationType={teachingData?.visualizationType}
-        objects={teachingData?.objects}
-        elements={teachingData?.elements}
-        motion={teachingData?.motion}
-        connections={teachingData?.connections}
-        sequence={teachingData?.sequence}
-      />
+        {/* E. Chat & Overlays (DoubtThread etc) */}
 
-      {/* NEW: Real-Time Teaching Session in Portal */}
-      {isTeachingSessionOpen && typeof document !== 'undefined' && createPortal(
-        <ErrorBoundary onClose={() => setIsTeachingSessionOpen(false)}>
-          <TeachingSession
-            isOpen={isTeachingSessionOpen}
-            onClose={() => {
-              setIsTeachingSessionOpen(false);
-              setTeachingTopic('');
-              setActiveMode('chat');
-            }}
-            initialTopic={teachingTopic}
-          />
-        </ErrorBoundary>,
-        document.body
-      )}
+        
+        {/* Unified Drawing Overlay */}
+        <DrawingOverlay 
+          isVisible={machineState === STATES.GENERATING || isDoubtProcessing} 
+          isRethinking={isDoubtProcessing}
+        />
 
-    </Layout>
+        {/* ── G. Doubt Resume Pill (Contextual) ── */}
+        <AnimatePresence>
+          {(machine.activeDoubtId || isDoubtProcessing) && !isDoubtProcessing && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+            >
+              <button
+                onClick={resume}
+                className="flex items-center gap-2 px-6 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-xs font-bold shadow-2xl hover:scale-105 transition-all active:scale-95"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--bg-primary)] animate-pulse" />
+                Resume Lesson Flow
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Layout>
+    </div>
   );
 };
+
+
 
 export default Home;

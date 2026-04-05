@@ -1,17 +1,20 @@
 /**
- * AI Orchestrator v2.0
+ * AI Orchestrator v3.0 — Hardened Response Pipeline
  *
- * Enhancements:
- * 1. Uses buildTeachingPrompt() for domain-aware prompts
- * 2. temperature: 0.2 on first attempt (more reliable JSON)
- * 3. max_tokens: 10000 for complex topics (medicine, law, DSA)
- * 4. Empty objectIds rebuilt from appearsAtStep
- * 5. Objects without IDs get auto-IDs
- * 6. finish_reason: "length" triggers immediate retry with condensed instruction
- * 7. Domain injected into processed timeline
+ * Fixes:
+ * 1. <think> tag stripping for reasoning model safety
+ * 2. Retry logic on text responses (was zero retries)
+ * 3. Proper error messages (no more "I ran into an issue")
+ * 4. Guaranteed chat response on every code path
+ * 5. Intent mode injected into API prompt
+ * 6. Uses buildTeachingPrompt() for domain-aware prompts
+ * 7. temperature: 0.2 on first attempt (more reliable JSON)
+ * 8. max_tokens: 10000 for complex topics
+ * 9. Empty objectIds rebuilt from appearsAtStep
+ * 10. finish_reason: "length" triggers immediate retry with condensed instruction
  */
 
-import { getAIClient, getModel } from '../utils/ai.js';
+import { getAIClient, getModel, getTextModel } from '../utils/ai.js';
 import {
   TEACHING_TIMELINE_PROMPT,
   DOUBT_RESPONSE_PROMPT,
@@ -60,6 +63,12 @@ const FALLBACK_DOUBT = {
   visualUpdate: null,
 };
 
+// ─── Strip reasoning model <think> blocks ─────────────────────────────────────
+function stripThinkTags(text) {
+  if (!text) return text;
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
 // ─── Token budget by domain ───────────────────────────────────────────────────
 function getTokenBudget(domain) {
   const heavy = ['dsa', 'medicine', 'chemistry', 'biology', 'engineering', 'law'];
@@ -72,32 +81,37 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens 
     try {
       console.log(`[Orchestrator] Attempt ${attempt + 1}/${maxRetries + 1} (maxTokens: ${maxTokens})`);
 
-      const ai = getAIClient();
-
-      // Lower temperature on first attempt for JSON reliability
-      // Slight increase on retries to escape bad local minima
+      const model = getModel();
       const temperature = attempt === 0 ? 0.2 : 0.15;
-
-      const completion = await ai.chat.completions.create({
-        model: getModel(),
+      const ai = getAIClient();
+      
+      const completionParams = {
+        model,
         temperature,
         messages,
         max_tokens: maxTokens,
-        response_format: { type: 'json_object' },
-      });
+        response_format: { type: 'json_object' }
+      };
 
-      const raw = completion.choices[0].message.content;
-      const finishReason = completion.choices[0].finish_reason;
+      console.log(`[Orchestrator] Calling model: ${model}`);
+      const completion = await ai.chat.completions.create(completionParams);
+      
+      let raw = completion.choices?.[0]?.message?.content || '';
+      const finishReason = completion.choices?.[0]?.finish_reason || 'stop';
+
+      // Strip <think> blocks from reasoning models (safety net)
+      raw = stripThinkTags(raw);
 
       console.log(`[Orchestrator] Raw: ${raw.length} chars, finish_reason: ${finishReason}`);
 
-      if (finishReason === 'length') {
-        console.warn(`[Orchestrator] ⚠️ HIT TOKEN LIMIT at ${maxTokens} tokens.`);
+      // 🚨 TRUNCATION RECOVERY
+      if (finishReason === 'length' || (raw.length > 0 && !raw.trim().endsWith('}'))) {
+        console.warn(`[Orchestrator] ⚠️ HIT TOKEN LIMIT or Truncated JSON detected.`);
         if (attempt < maxRetries) {
           messages.push({ role: 'assistant', content: raw });
           messages.push({
             role: 'user',
-            content: 'Your JSON was truncated by token limit. Rebuild it MORE CONCISELY. Keep narrations to 2 sentences max. Reduce step count if needed. Return ONLY valid complete JSON.',
+            content: 'Your session was truncated because the response was too long. Please REGENERATE the full lesson, but be SIGNIFICANTLY more concise. Keep narrations to 1-2 short sentences. Reduce the number of steps if needed to fit the token limit. Return ONLY complete valid JSON.',
           });
           continue;
         }
@@ -105,10 +119,10 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens 
 
       const parsed = safeParse(raw);
       if (!parsed) {
-        console.error(`[Orchestrator] JSON parse FAILED. Tail:`, raw.slice(-400));
+        console.error(`[Orchestrator] JSON parse FAILED. Tail:`, raw.slice(-200));
         if (attempt < maxRetries) {
           messages.push({ role: 'assistant', content: raw });
-          messages.push({ role: 'user', content: 'Your JSON was invalid. Return ONLY complete valid JSON. Nothing else.' });
+          messages.push({ role: 'user', content: 'Your JSON output was invalid or incomplete. Please ensure you return ONLY a single, complete, valid JSON object. No commentary outside the braces.' });
           continue;
         }
         return null;
@@ -122,14 +136,20 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens 
           messages.push({ role: 'user', content: buildRetryPrompt(validation.errors) });
           continue;
         }
-        return parsed; // Return partial rather than null
+        // If validation fails on last attempt, we still try to return it and let processTimeline fix it
+        return parsed; 
       }
 
       console.log(`[Orchestrator] ✅ Success on attempt ${attempt + 1}`);
       return parsed;
 
     } catch (err) {
-      console.error(`[Orchestrator] Error attempt ${attempt + 1}:`, err.message);
+      console.error(`[Orchestrator] ❌ API ERROR on attempt ${attempt + 1}:`, {
+        message: err.message,
+        status: err.status,
+        type: err.type,
+        code: err.code,
+      });
       if (attempt === maxRetries) return null;
     }
   }
@@ -220,15 +240,27 @@ export async function generateTimeline(sessionId, topic) {
   const userPrompt = buildTeachingPrompt(topic);
   messages.push({ role: 'user', content: userPrompt });
 
-  const data = await callLLMWithRetry(messages, validateTimeline, 2, tokenBudget);
+  let lastError = null;
+  let data;
+  try {
+    data = await callLLMWithRetry(messages, validateTimeline, 2, tokenBudget);
+  } catch (err) {
+    console.error(`[Orchestrator] Error generating timeline:`, err);
+    lastError = err.message;
+  }
 
   if (!data) {
     console.warn(`[Orchestrator] All attempts failed for: "${topic}". Using fallback.`);
-    return {
-      ...FALLBACK_TIMELINE,
-      title: topic.substring(0, 60),
-      domain,
-    };
+    const fallback = { ...FALLBACK_TIMELINE, title: topic.substring(0, 60), domain };
+    fallback.objects = Array.isArray(fallback.objects) ? [...fallback.objects] : [];
+    fallback.objects.push({ 
+      id: "debug-err", shape: "text", x: 400, y: 560, 
+      text: `Engine Error: ${lastError || 'Validation failed'}`, 
+      fontSize: 12, color: "gray" 
+    });
+    // Also include a chatMessage so the client can show text in chat
+    fallback.chatMessage = `I encountered an issue generating visuals for "${topic}", but here's a basic overview to get started. Try asking again for a richer experience!`;
+    return fallback;
   }
 
   const processed = processTimeline(data, domain);
@@ -246,6 +278,77 @@ export async function generateTimeline(sessionId, topic) {
     `Teaching: ${processed.title} (${processed.steps.length} steps, domain: ${processed.domain}, mode: ${processed.mode})`);
 
   return processed;
+}
+
+// ─── Generate Text-Only Response (with retry) ────────────────────────────────
+export async function generateTextResponse(sessionId, promptStr) {
+  const session = sessionStore.get(sessionId);
+  if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+  const messages = [
+    { 
+      role: 'system', 
+      content: 'You are TutorBoard, a specialized AI tutor. Explain the following to the user in a clear, concise, and educational way. Format the response beautifully with markdown. Do NOT output JSON. Just output text.'
+    },
+    { role: 'user', content: promptStr }
+  ];
+
+  const maxRetries = 1; // One automatic retry
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Orchestrator] Text response attempt ${attempt + 1}/${maxRetries + 1} for: "${promptStr.substring(0, 50)}"`);
+      
+      const ai = getAIClient();
+      const model = getTextModel();
+      const completion = await ai.chat.completions.create({
+        model,
+        temperature: 0.3,
+        messages,
+        max_tokens: 3000,
+      });
+      
+      let answer = completion.choices?.[0]?.message?.content || '';
+      
+      // Strip <think> tags if present (safety net)
+      answer = stripThinkTags(answer);
+      
+      if (!answer || answer.trim().length === 0) {
+        console.warn(`[Orchestrator] Empty text response on attempt ${attempt + 1}`);
+        if (attempt < maxRetries) continue;
+        answer = "I'm here to help! Could you rephrase your question?";
+      }
+      
+      // Update context
+      sessionStore.addContext(sessionId, 'user', `Chat: ${promptStr}`);
+      sessionStore.addContext(sessionId, 'assistant', answer);
+      
+      console.log(`[Orchestrator] ✅ Text response success (${answer.length} chars)`);
+      return { type: 'greeting', answer };
+
+    } catch (err) {
+      console.error(`[Orchestrator] ❌ Text response ERROR on attempt ${attempt + 1}:`, {
+        message: err.message,
+        status: err.status,
+        code: err.code,
+      });
+      
+      if (attempt === maxRetries) {
+        // All retries exhausted — return a clear fallback, NOT a vague message
+        console.error(`[Orchestrator] All text response attempts failed for: "${promptStr}"`);
+        return { 
+          type: 'greeting', 
+          answer: "Something went wrong while generating a response. Please try again." 
+        };
+      }
+    }
+  }
+
+  // Safety net — should never reach here, but guarantee a response
+  return { 
+    type: 'greeting', 
+    answer: "Something went wrong. Please try again." 
+  };
 }
 
 // ─── Handle Doubt ─────────────────────────────────────────────────────────────
@@ -281,6 +384,7 @@ export async function handleDoubt(sessionId, question) {
   const data = await callLLMWithRetry(messages, validateDoubtResponse, 2, 3000);
 
   if (!data) {
+    console.warn(`[Orchestrator] Doubt response failed for: "${question}". Using fallback.`);
     sessionStore.addDoubt(sessionId, question, FALLBACK_DOUBT.answer);
     return FALLBACK_DOUBT;
   }

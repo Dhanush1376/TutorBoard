@@ -9,11 +9,13 @@ export const themes = [
         surface: '#F0ECE2',
         surface2: '#E8E2D5',
         text: '#1C1711',
-        textSub: '#312B22', // Significantly Darkened
-        textMuted: '#4F473A', // Significantly Darkened
+        textSub: '#312B22',
+        textMuted: '#4F473A',
         border: 'rgba(28,23,17,0.15)',
         userBubble: '#1C1711',
-        aiBubble: '#EDE8DC'
+        userBubbleText: '#F7F4ED',
+        aiBubble: '#EDE8DC',
+        aiBubbleText: '#1C1711'
       },
       dark: {
         bg: '#130F09',
@@ -24,7 +26,9 @@ export const themes = [
         textMuted: '#948873',
         border: 'rgba(240,237,228,0.12)',
         userBubble: '#F0EDE4',
-        aiBubble: '#201A12'
+        userBubbleText: '#130F09',
+        aiBubble: '#201A12',
+        aiBubbleText: '#F0EDE4'
       }
     }
   },
@@ -38,22 +42,26 @@ export const themes = [
         surface: '#EDEEF2',
         surface2: '#E2E4EA',
         text: '#111318',
-        textSub: '#2E3240', // Significantly Darkened
-        textMuted: '#4C5266', // Significantly Darkened
+        textSub: '#2E3240',
+        textMuted: '#4C5266',
         border: 'rgba(17,19,24,0.12)',
         userBubble: '#111318',
-        aiBubble: '#E8E9EF'
+        userBubbleText: '#F5F6F8',
+        aiBubble: '#E8E9EF',
+        aiBubbleText: '#111318'
       },
       dark: {
         bg: '#0D0F14',
         surface: '#13161E',
         surface2: '#1A1E28',
         text: '#E8EAF0',
-        textSub: '#B2B6C6', 
-        textMuted: '#848999', 
+        textSub: '#B2B6C6',
+        textMuted: '#848999',
         border: 'rgba(232,234,240,0.12)',
         userBubble: '#E8EAF0',
-        aiBubble: '#181C26'
+        userBubbleText: '#0D0F14',
+        aiBubble: '#181C26',
+        aiBubbleText: '#E8EAF0'
       }
     }
   },
@@ -67,11 +75,13 @@ export const themes = [
         surface: '#F6F4EF',
         surface2: '#EAE7E0',
         text: '#0A0908',
-        textSub: '#33312D', // Significantly Darkened
-        textMuted: '#524F4A', // Significantly Darkened
+        textSub: '#33312D',
+        textMuted: '#524F4A',
         border: 'rgba(10,9,8,0.12)',
         userBubble: '#0A0908',
-        aiBubble: '#F0EEE8'
+        userBubbleText: '#FDFCF9',
+        aiBubble: '#F0EEE8',
+        aiBubbleText: '#0A0908'
       },
       dark: {
         bg: '#080706',
@@ -82,7 +92,9 @@ export const themes = [
         textMuted: '#96948E',
         border: 'rgba(245,243,238,0.12)',
         userBubble: '#F5F3EE',
-        aiBubble: '#161514'
+        userBubbleText: '#080706',
+        aiBubble: '#161514',
+        aiBubbleText: '#F5F3EE'
       }
     }
   },
@@ -96,11 +108,13 @@ export const themes = [
         surface: '#ECF0E8',
         surface2: '#E0E6DA',
         text: '#131612',
-        textSub: '#2F382E', // Significantly Darkened
-        textMuted: '#4C584A', // Significantly Darkened
+        textSub: '#2F382E',
+        textMuted: '#4C584A',
         border: 'rgba(19,22,18,0.12)',
         userBubble: '#131612',
-        aiBubble: '#E5EBE1'
+        userBubbleText: '#F4F6F2',
+        aiBubble: '#E5EBE1',
+        aiBubbleText: '#131612'
       },
       dark: {
         bg: '#0C0E0B',
@@ -111,7 +125,9 @@ export const themes = [
         textMuted: '#838F7D',
         border: 'rgba(228,233,225,0.12)',
         userBubble: '#E4E9E1',
-        aiBubble: '#171C15'
+        userBubbleText: '#0C0E0B',
+        aiBubble: '#171C15',
+        aiBubbleText: '#E4E9E1'
       }
     }
   }

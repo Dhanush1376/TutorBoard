@@ -123,21 +123,48 @@
 
 @layer base {
   :root {
-    /* These values are now dynamically overridden by ThemeContext.jsx */
-    --bg-primary: #f7f4ed; 
-    --bg-secondary: #f0ece2;
-    --bg-tertiary: #e8e2d5;
+    /* Freeform warm canvas palette */
+    --bg-primary: #f5f4f0;
+    --bg-secondary: rgba(255, 255, 255, 0.85);
+    --bg-tertiary: rgba(0, 0, 0, 0.04);
     --text-primary: #1c1711;
     --text-secondary: #6b6455;
     --text-tertiary: #a89e8e;
-    --border-color: rgba(28, 23, 17, 0.1);
+    --border-color: rgba(28, 23, 17, 0.09);
     --user-bubble-bg: #1c1711;
-    --ai-bubble-bg: #ede8dc;
+    --ai-bubble-bg: rgba(255, 255, 255, 0.80);
+    --ai-bubble-border: rgba(28, 23, 17, 0.09);
 
     --brand: var(--text-primary);
     --radius-xl: 18px;
     --radius-2xl: 24px;
+
+    /* Glass panel tokens — light mode */
+    --glass-bg: rgba(255, 255, 255, 0.82);
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --glass-shadow: 0 8px 40px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.9) inset;
+    --input-glass-bg: rgba(255, 255, 255, 0.90);
   }
+
+  /* Dark mode overrides */
+  .dark {
+    --bg-primary: #0e0e0c;
+    --bg-secondary: #161614;
+    --bg-tertiary: #1e1e1b;
+    --text-primary: #f0efe9;
+    --text-secondary: #a3a29c;
+    --text-tertiary: #6b6a65;
+    --border-color: rgba(240, 239, 233, 0.08);
+
+    --glass-bg: rgba(28, 25, 20, 0.88);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.04) inset;
+    --input-glass-bg: rgba(28, 25, 20, 0.92);
+    --user-bubble-bg: #f0efe9;
+    --ai-bubble-bg: rgba(255, 255, 255, 0.05);
+    --ai-bubble-border: rgba(255,255,255,0.08);
+  }
+
 
   /* Smooth transition on theme switch as requested */
   body {
@@ -167,8 +194,11 @@
       linear-gradient(to right, var(--border-color) 1px, transparent 1px),
       linear-gradient(to bottom, var(--border-color) 1px, transparent 1px);
     background-position: center top;
-    /* Clean, persistent grid aesthetic as requested */
-    opacity: 0.25;
+    /* Ultra-subtle to ensure perfect chat history visibility */
+    opacity: 0.15;
+    /* Fade elegantly toward bottom for focus */
+    mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
   }
 
   #root {
@@ -515,9 +545,25 @@
   }
 }
 
-@utility mask-fade-top {
-  mask-image: linear-gradient(to top, black 80%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to top, black 80%, transparent 100%);
+@utility mask-fade-y {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 7%,
+    black 93%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 7%,
+    black 93%,
+    transparent 100%
+  );
+}
+
+@utility scroll-smooth {
+  scroll-behavior: smooth;
 }
 
 /* ─── Loader SVG Animations & Themes ────────────────────────────────────── */
@@ -628,4 +674,3 @@
   from { opacity: 1; filter: blur(0px); }
   to { opacity: 0; filter: blur(10px); visibility: hidden; }
 }
-

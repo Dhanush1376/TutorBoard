@@ -31,14 +31,14 @@ const TeachingGuide = ({ isOpen, onClose }) => {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[10010] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
-        <motion.div
-           initial={{ opacity: 0, scale: 0.9, y: 20 }}
-           animate={{ opacity: 1, scale: 1, y: 0 }}
-           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-           className="w-full max-w-lg bg-[var(--bg-secondary)]/95 backdrop-blur-2xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-white/5">
+         <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="w-full max-w-lg bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] rounded-3xl overflow-hidden shadow-2xl"
+         >
+           {/* Header */}
+           <div className="flex items-center justify-between p-6 border-b border-[var(--border-color)]">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
                 <BookOpen size={20} />
@@ -56,8 +56,8 @@ const TeachingGuide = ({ isOpen, onClose }) => {
           {/* Content */}
           <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar">
             <div className="grid grid-cols-1 gap-4">
-              {sections.map((sec, i) => (
-                <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/5 border border-white/5">
+               {sections.map((sec, i) => (
+                 <div key={i} className="flex gap-4 p-4 rounded-2xl bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]">
                   <div className="mt-1">{sec.icon}</div>
                   <div>
                     <h3 className="text-sm font-bold text-[var(--text-primary)] mb-1">{sec.title}</h3>

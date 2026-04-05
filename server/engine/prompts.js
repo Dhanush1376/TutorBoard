@@ -297,6 +297,18 @@ Canvas: 800 × 600 px. Center: (400, 300).
 Think like a FILM DIRECTOR. Every step = one SHOT. Objects are ACTORS.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MANDATORY DATA RULES FOR AI GENERATION:
+1. UNIQUE IDs: Every object MUST have a UNIQUE STRING ID (e.g., "cell-1", "arrow-a"). Never use duplicate IDs.
+2. NUMERIC GEOMETRY: ALL geometric props (x, y, r, w, h, x1, y1, x2, y2, cx, cy, orbitRadius, etc.) MUST be FINITE NUMBERS. 
+   - No strings like "50%", "auto", or "center". 
+   - Radius (r) and sizes (w, h, size) MUST be positive numbers > 5.
+3. COMPLETE objectIds: Every step's "objectIds" array MUST contain the IDs of ALL objects that should be visible on the canvas during that step.
+4. CUMULATIVE VISUALS: If you want an object to stay on screen, keep its ID in the "objectIds" array for all subsequent steps.
+5. CONCISE NARRATION: Keep each "narration" to 1-2 powerful sentences.
+6. NO PLACEHOLDERS: Generate real coordinates, real values, and real content.
+7. VALID JSON: Return ONLY a single valid JSON object. No markdown.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚨 LAYOUT RULES — MUST FOLLOW EXACTLY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -449,6 +461,7 @@ Business framework + case             → at least 10 steps
 
 For BUBBLE SORT: Show array [5,3,8,1,9,2] through at least 2 complete passes.
 Each comparison = its own step. Each swap = its own step. At least 18-22 steps.
+DUE TO TOKEN LIMITS: If you generate many steps (>15), keep narrations EXTREMELY short (1 sentence).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ FINAL SELF-CHECK
@@ -530,12 +543,14 @@ Return ONLY valid JSON. Nothing outside JSON.
 const GREETINGS = [
   'hi','hello','hey','yo','sup','hola','greetings',
   'howdy','namaste','good morning','good evening','good afternoon',
+  'what is this','whats this','who are you',
 ];
 
 export function isGreeting(text) {
   if (!text) return false;
   const cleaned = text.trim().toLowerCase().replace(/[!?.,']/g, '');
-  return GREETINGS.some(g => cleaned === g || cleaned.startsWith(g + ' ')) || cleaned.length < 4;
+  // Only match explicit greeting words — do NOT use length check (catches "DSA", "SQL", etc.)
+  return GREETINGS.some(g => cleaned === g || cleaned.startsWith(g + ' '));
 }
 
 // ─── Build domain-aware user prompt ──────────────────────────────────────────

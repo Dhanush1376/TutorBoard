@@ -93,13 +93,23 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       showFloatingSidebar: false,
       showMinimap: false,
+      selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
 
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
       // ═══════════════════════════════════════════════════
+      machineState: STATES.IDLE,
+      isSidebarOpen: window.innerWidth >= 768,
+
       setMachineState: (state) => set({ machineState: state, error: null }),
+      setSidebarOpen: (open) => set({ isSidebarOpen: open }),
+      toggleSidebar: () => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
       setSessionId: (id) => set({ sessionId: id }),
       setTopic: (topic) => set({ topic }),
+      setSelectedAgent: (agent) => {
+        localStorage.setItem('tutorboard-agent', agent);
+        set({ selectedAgent: agent });
+      },
       setConnected: (connected) => set({ isConnected: connected, connectionError: null }),
       setConnectionError: (err) => set({ connectionError: err, isConnected: false }),
       setError: (err) => set({ error: err }),
@@ -123,9 +133,18 @@ const useTutorStore = create(
         doubtResponse: null,
         greetingMessage: null,
         canvasMode: CANVAS_MODE.FULLSCREEN,
+        canvasTransform: { x: 0, y: 0, scale: 1 },
       }),
 
       setCurrentStep: (index) => set({ currentStepIndex: index }),
+
+      setCanvasSnapshot: ({ canvasObjects, canvasSteps, totalSteps }) => set({
+        canvasObjects,
+        canvasSteps,
+        totalSteps: totalSteps || canvasSteps.length,
+        currentStepIndex: Math.max(0, canvasSteps.length - 1),
+        canvasMode: CANVAS_MODE.FULLSCREEN,
+      }),
 
       getCurrentStep: () => {
         const { canvasSteps, currentStepIndex } = get();
@@ -386,6 +405,8 @@ const useTutorStore = create(
           activeDoubtId: null,
           showDoubtThread: false,
           canvasMode: CANVAS_MODE.FULLSCREEN,
+          canvasTransform: { x: 0, y: 0, scale: 1 },
+          machineState: STATES.GENERATING,
         });
       },
 
@@ -408,7 +429,7 @@ const useTutorStore = create(
         topic: '',
         activeDoubtId: null,
         showDoubtThread: false,
-        showFloatingSidebar: false,
+        isSidebarOpen: false,
       }),
 
       // Reset just the teaching state (keep connection)

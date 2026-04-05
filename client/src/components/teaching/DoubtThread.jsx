@@ -62,22 +62,23 @@ const DoubtThread = () => {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 360, opacity: 0 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed top-0 right-0 z-[10002] h-full w-[340px] flex flex-col"
+          className="fixed top-0 right-0 z-[10002] h-full w-[340px] flex flex-col glass"
           style={{
-            background: 'rgba(var(--bg-secondary-rgb, 22, 22, 20), 0.8)',
+            background: 'var(--glass-bg)',
             backdropFilter: 'blur(24px) saturate(1.6)',
             WebkitBackdropFilter: 'blur(24px) saturate(1.6)',
-            borderLeft: '1px solid rgba(255,255,255,0.06)',
+            borderLeft: '1px solid var(--glass-border)',
+            boxShadow: 'var(--glass-shadow)',
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-white/5">
+          <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
             <div className="flex items-center gap-2">
               <MessageCircleQuestion size={16} className="text-[var(--text-tertiary)]" />
               <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
                 Doubt Thread
               </span>
-              <span className="px-1.5 py-0.5 rounded-full bg-white/5 text-[9px] font-bold text-[var(--text-tertiary)]">
+              <span className="px-1.5 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[9px] font-bold text-[var(--text-tertiary)]">
                 {doubtHistory.length}
               </span>
             </div>
@@ -129,8 +130,8 @@ const DoubtThread = () => {
                         {/* Doubt card */}
                         <div className={`rounded-2xl border transition-all ${
                           isActive
-                            ? 'bg-white/[0.06] border-white/10 shadow-lg'
-                            : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
+                            ? 'bg-[var(--bg-secondary)] border-[var(--border-strong)] shadow-lg'
+                            : 'bg-[var(--bg-tertiary)]/30 border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]/50'
                         }`}>
                           {/* Question */}
                           <div className="p-3 pb-2">
