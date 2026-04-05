@@ -55,20 +55,21 @@ const FloatingSidebar = () => {
 
           {/* Sidebar panel */}
           <motion.div
-            initial={{ x: -320, opacity: 0 }}
+            initial={{ x: -280, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -320, opacity: 0 }}
+            exit={{ x: -280, opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed top-0 left-0 z-[10002] h-full w-[280px] flex flex-col"
+            className="fixed top-0 left-0 z-[10002] h-full w-[280px] flex flex-col glass"
             style={{
-              background: 'rgba(var(--bg-secondary-rgb, 22, 22, 20), 0.75)',
+              background: 'var(--glass-bg)',
               backdropFilter: 'blur(24px) saturate(1.6)',
               WebkitBackdropFilter: 'blur(24px) saturate(1.6)',
-              borderRight: '1px solid rgba(255,255,255,0.06)',
+              borderRight: '1px solid var(--glass-border)',
+              boxShadow: 'var(--glass-shadow)',
             }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-white/5">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2">
                 <List size={16} className="text-[var(--text-tertiary)]" />
                 <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
@@ -85,7 +86,7 @@ const FloatingSidebar = () => {
 
             {/* Topic */}
             {topic && (
-              <div className="px-4 py-3 border-b border-white/5">
+              <div className="px-4 py-3 border-b border-[var(--border-color)]">
                 <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">Topic</span>
                 <p className="text-sm font-semibold text-[var(--text-primary)] mt-1 leading-snug">
                   {timeline?.title || topic}
@@ -134,7 +135,7 @@ const FloatingSidebar = () => {
                               ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
                               : isPast
                               ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-white/5 text-[var(--text-tertiary)]'
+                              : 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]'
                           }`}
                           style={isCurrent ? { backgroundColor: domainStyle.color } : {}}>
                             {isPast ? <CheckCircle2 size={12} /> : i + 1}
@@ -160,7 +161,7 @@ const FloatingSidebar = () => {
                     {doubtHistory.map((doubt, i) => (
                       <div
                         key={doubt.id}
-                        className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-[11px] text-[var(--text-secondary)] leading-relaxed"
+                        className="px-3 py-2 rounded-xl bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)] text-[11px] text-[var(--text-secondary)] leading-relaxed"
                       >
                         <span className="text-[var(--text-primary)] font-medium">{doubt.question}</span>
                       </div>
@@ -171,7 +172,7 @@ const FloatingSidebar = () => {
             </div>
 
             {/* Footer actions */}
-            <div className="p-4 border-t border-white/5 flex gap-2">
+            <div className="p-4 border-t border-[var(--border-color)] flex gap-2">
               <button
                 onClick={() => { goToStep(0); closeFloatingSidebar(); }}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-[var(--text-secondary)] text-[11px] font-medium hover:bg-white/10 transition-all"

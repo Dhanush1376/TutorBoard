@@ -5,16 +5,13 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
-import mongoose from 'mongoose';
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 
 console.log("=====================================");
-console.log("API KEY CHECK (OpenAI):", process.env.OPENAI_API_KEY ? "Loaded ✅" : "Missing ❌");
-console.log("API KEY CHECK (OpenRouter):", process.env.OPENROUTER_API_KEY ? "Loaded ✅" : "Missing ❌");
-console.log("MongoDB URI:", process.env.MONGODB_URI ? "Loaded ✅" : "Missing ❌");
+console.log("API KEY CHECK (OpenRouter):", process.env.OPENROUTER_API_KEY ? "Loaded ✅" : "Missing ❌ — AI will not work!");
 console.log("JWT Secret:", process.env.JWT_SECRET ? "Loaded ✅" : "Missing ❌");
 console.log("=====================================");
 
@@ -42,55 +39,6 @@ const io = new SocketIO(httpServer, {
 
 // Mount teaching WebSocket handlers
 setupTeachingSocket(io);
-
-// --------------- MongoDB Connection ---------------
-
-const connectDB = async (retryCount = 0) => {
-  const MAX_RETRIES = 5;
-  const RETRY_DELAY = Math.min(1000 * Math.pow(2, retryCount), 30000); // Exponential backoff max 30s
-
-  try {
-    if (!process.env.MONGODB_URI) {
-      console.warn('⚠️  MONGODB_URI not set — auth features will not work');
-      return;
-    }
-    
-    console.log(`🔄 [DB] Connecting to MongoDB (Attempt ${retryCount + 1}/${MAX_RETRIES})...`);
-    
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    
-    console.log(`MongoDB connected: ${conn.connection.host} ✅`);
-    
-    mongoose.connection.on('error', (err) => {
-      console.error('MongoDB runtime error:', err);
-    });
-    
-    mongoose.connection.on('disconnected', () => {
-      console.warn('MongoDB disconnected! ⚠️  Attempting to reconnect...');
-      connectDB(0); // Restart retry cycle on unexpected disconnect
-    });
-    
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err.message);
-    
-    if (err.message.includes('querySrv ENOTFOUND')) {
-      console.error('👉 TIP: Check if your MONGODB_URI is correctly formatted and your network is accessible.');
-    } else if (err.message.includes('Authentication failed')) {
-      console.error('👉 TIP: Check your database username and password in the .env file.');
-    }
-
-    if (retryCount < MAX_RETRIES) {
-      console.log(`🕒 Retrying in ${RETRY_DELAY/1000}s...`);
-      setTimeout(() => connectDB(retryCount + 1), RETRY_DELAY);
-    } else {
-      console.error('🚫 Max retries reached. Database operations will fail.');
-    }
-  }
-};
-
-connectDB();
 
 // --------------- Middleware ---------------
 

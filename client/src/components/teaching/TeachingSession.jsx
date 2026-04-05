@@ -22,9 +22,9 @@ import InfiniteCanvas from '../canvas/InfiniteCanvas';
 import CanvasRenderer from '../canvas/CanvasRenderer';
 import CanvasControls from '../canvas/CanvasControls';
 import CanvasMinimap from '../canvas/CanvasMinimap';
-import FloatingSidebar from './FloatingSidebar';
-import DoubtThread from './DoubtThread';
-import DoubtTimeline from './DoubtTimeline';
+import FloatingSidebar from '../layout/FloatingSidebar';
+import DoubtThread from '../doubts/DoubtThread';
+import DoubtTimeline from '../doubts/DoubtTimeline';
 import SessionOverlay from './SessionOverlay';
 import StepPanel from './StepPanel';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
@@ -132,6 +132,16 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     return () => window.speechSynthesis.cancel();
   }, [currentStepIndex, voiceEnabled, currentStep, machineState, playbackSpeed]);
 
+  // Auto-fit on doubt response visuals
+  useEffect(() => {
+    if (doubtResponse?.hasVisuals && canvasRef.current) {
+      const timer = setTimeout(() => {
+        canvasRef.current.fitToContent?.();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [doubtResponse]);
+
   // Keyboard shortcuts
   useEffect(() => {
     if (!isOpen) return;
@@ -153,7 +163,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, isPlaying, nextStep, prevStep, play, pause, openFloatingSidebar, toggleDoubtThread]);
+  }, [isOpen, handleClose, nextStep, prevStep, isPlaying, pause, play, openFloatingSidebar, toggleDoubtThread]);
 
   const handleSpeedChange = useCallback((spd) => {
     storeSetSpeed(spd);
@@ -177,6 +187,27 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
   const handleRetry = useCallback(() => {
     if (initialTopic) startSession(initialTopic);
   }, [initialTopic, startSession]);
+
+  // Memoized canvas callbacks to stabilize render cycle
+  const handleZoomChange = useCallback((scale) => {
+    setCanvasTransform(prev => (prev.scale === scale ? prev : { ...prev, scale }));
+  }, [setCanvasTransform]);
+
+  const handleViewportChange = useCallback((transform) => {
+    setCanvasTransform(transform);
+  }, [setCanvasTransform]);
+
+  const handleZoomIn = useCallback(() => {
+    setCanvasTransform(prev => ({ ...prev, scale: Math.min(5, prev.scale * 1.3) }));
+  }, [setCanvasTransform]);
+
+  const handleZoomOut = useCallback(() => {
+    setCanvasTransform(prev => ({ ...prev, scale: Math.max(0.15, prev.scale / 1.3) }));
+  }, [setCanvasTransform]);
+
+  const handleResetView = useCallback(() => {
+    setCanvasTransform({ x: 0, y: 0, scale: 1 });
+  }, [setCanvasTransform]);
 
   if (!isOpen) return null;
 
@@ -213,9 +244,13 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
           {/* Mini canvas preview */}
           <div className="absolute inset-0 opacity-60 pointer-events-none">
             <svg viewBox="0 0 800 600" className="w-full h-full">
-              {canvasObjects.slice(0, 10).map((obj, i) => (
-                <circle key={obj.id || i} cx={obj.x || 400} cy={obj.y || 300} r={4} fill="var(--text-tertiary)" opacity={0.5} />
-              ))}
+              {canvasObjects.slice(0, 10).map((obj, i) => {
+                const cx = parseFloat(obj.x ?? obj.cx) || 400;
+                const cy = parseFloat(obj.y ?? obj.cy) || 300;
+                return (
+                  <circle key={obj.id || i} cx={cx} cy={cy} r={4} fill="var(--text-tertiary)" opacity={0.5} />
+                );
+              })}
             </svg>
           </div>
           <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
@@ -264,8 +299,8 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
           <div className="absolute inset-0 z-0">
             <InfiniteCanvas
               ref={canvasRef}
-              onZoomChange={(scale) => setCanvasTransform(prev => ({ ...prev, scale }))}
-              onViewportChange={setCanvasTransform}
+              onZoomChange={handleZoomChange}
+              onViewportChange={handleViewportChange}
               className="bg-[var(--bg-primary)]"
             >
               <CanvasRenderer
@@ -282,10 +317,10 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                   <div className="absolute bottom-6 right-6 pointer-events-auto">
                     <CanvasControls
                       transform={canvasTransform}
-                      onZoomIn={() => setCanvasTransform(prev => ({ ...prev, scale: Math.min(5, prev.scale * 1.3) }))}
-                      onZoomOut={() => setCanvasTransform(prev => ({ ...prev, scale: Math.max(0.15, prev.scale / 1.3) }))}
+                      onZoomIn={handleZoomIn}
+                      onZoomOut={handleZoomOut}
                       onFitToContent={() => canvasRef.current?.fitToContent?.()}
-                      onResetView={() => setCanvasTransform({ x: 0, y: 0, scale: 1 })}
+                      onResetView={handleResetView}
                       onToggleMinimap={toggleMinimap}
                       showMinimap={showMinimap}
                     />

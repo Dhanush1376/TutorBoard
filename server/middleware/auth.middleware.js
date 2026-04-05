@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+
 
 /**
  * Middleware to protect routes that require authentication.
@@ -23,15 +23,8 @@ export const protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from token
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return res.status(401).json({
-        error: 'Not authorized — user no longer exists',
-      });
-    }
-
-    req.user = user;
+    // Mock user from token (stateless)
+    req.user = { id: decoded.id, name: 'Guest User', email: 'guest@example.com' };
     next();
   } catch (err) {
     console.error('Auth middleware error:', err.message);

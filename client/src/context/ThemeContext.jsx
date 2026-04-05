@@ -27,7 +27,9 @@ export const ThemeProvider = ({ children }) => {
       '--text-tertiary': tokens.textMuted,
       '--border-color': tokens.border,
       '--user-bubble-bg': tokens.userBubble,
+      '--user-bubble-text': tokens.userBubbleText,
       '--ai-bubble-bg': tokens.aiBubble,
+      '--ai-bubble-text': tokens.aiBubbleText,
     };
 
     Object.entries(mapping).forEach(([key, value]) => {

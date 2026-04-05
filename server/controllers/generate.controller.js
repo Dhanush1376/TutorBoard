@@ -42,8 +42,16 @@ function validateGenerateResponse(data) {
 function safeParse(content) {
   try {
     let cleaned = content.trim();
+    // Strip <think>...</think> blocks from reasoning models
+    cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    // Extract JSON object
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
     return JSON.parse(cleaned);
   } catch {
     return null;

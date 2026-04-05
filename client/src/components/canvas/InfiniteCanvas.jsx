@@ -38,11 +38,15 @@ const InfiniteCanvas = memo(React.forwardRef(({
 }, ref) => {
   // Transform state
   const [transform, setTransform] = useState(initialTransform || { x: 0, y: 0, scale: 1 });
-  
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isHoveringContent, setIsHoveringContent] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
   // Refs for performance (no re-renders during interaction)
   const containerRef = useRef(null);
   const contentRef = useRef(null);
-  const isDragging = useRef(false);
+  const gridRef = useRef(null);
+  const isDraggingRef = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const lastMouse = useRef({ x: 0, y: 0 });
   const velocity = useRef({ x: 0, y: 0 });
@@ -61,6 +65,15 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const applyTransform = useCallback((t) => {
     if (contentRef.current) {
       contentRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
+    }
+    // High-performance Grid synchronization (Syncing the dots via DOM)
+    if (gridRef.current) {
+      const s = t.scale;
+      gridRef.current.style.backgroundSize = `${20 * s}px ${20 * s}px, ${100 * s}px ${100 * s}px`;
+      gridRef.current.style.backgroundPosition = `
+        ${t.x % (20 * s)}px ${t.y % (20 * s)}px, 
+        ${t.x % (100 * s)}px ${t.y % (100 * s)}px
+      `;
     }
   }, []);
 
@@ -85,7 +98,6 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const factor = Math.exp(-delta * ZOOM_SENSITIVITY);
     const newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, t.scale * factor));
 
-    // Zoom towards pointer position
     const newX = cx - (cx - t.x) * (newScale / t.scale);
     const newY = cy - (cy - t.y) * (newScale / t.scale);
 
@@ -97,14 +109,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   // ─── MOUSE WHEEL ───
   const handleWheel = useCallback((e) => {
     e.preventDefault();
-    
-    // Ctrl+wheel or pinch → zoom
-    if (e.ctrlKey || e.metaKey) {
-      zoomAtPoint(e.deltaY, e.clientX, e.clientY);
-    } else {
-      // Regular scroll → zoom (more intuitive for infinite canvas)
-      zoomAtPoint(e.deltaY, e.clientX, e.clientY);
-    }
+    zoomAtPoint(e.deltaY, e.clientX, e.clientY);
   }, [zoomAtPoint]);
 
   // ─── INERTIA ───
@@ -130,39 +135,39 @@ const InfiniteCanvas = memo(React.forwardRef(({
       };
       transformRef.current = newTransform;
       applyTransform(newTransform);
-
       inertiaFrame.current = requestAnimationFrame(tick);
     };
-
     inertiaFrame.current = requestAnimationFrame(tick);
   }, [applyTransform, commitTransform]);
 
   // ─── MOUSE PAN ───
   const handleMouseDown = useCallback((e) => {
-    if (e.button !== 0) return; // Left click only
+    const isMiddleButton = e.button === 1;
+    const isSpacePan = (isSpacePressed && e.button === 0);
+    const isDirectPan = e.button === 0 && !isHoveringContent;
     
-    // Cancel inertia
-    if (inertiaFrame.current) {
-      cancelAnimationFrame(inertiaFrame.current);
-    }
+    if (!isMiddleButton && !isSpacePan && !isDirectPan) return;
 
-    isDragging.current = true;
+    if (contentRef.current) contentRef.current.style.transition = 'none';
+    if (gridRef.current) gridRef.current.style.transition = 'none';
+
+    if (inertiaFrame.current) cancelAnimationFrame(inertiaFrame.current);
+
+    setIsDragging(true);
+    isDraggingRef.current = true;
     dragStart.current = { x: e.clientX - transformRef.current.x, y: e.clientY - transformRef.current.y };
     lastMouse.current = { x: e.clientX, y: e.clientY };
     velocity.current = { x: 0, y: 0 };
 
-    if (containerRef.current) {
-      containerRef.current.style.cursor = 'grabbing';
-    }
-  }, []);
+    if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
+  }, [isSpacePressed, isHoveringContent]);
 
   const handleMouseMove = useCallback((e) => {
-    if (!isDragging.current) return;
+    if (!isDraggingRef.current) return;
 
     const newX = e.clientX - dragStart.current.x;
     const newY = e.clientY - dragStart.current.y;
 
-    // Track velocity for inertia
     velocity.current = {
       x: e.clientX - lastMouse.current.x,
       y: e.clientY - lastMouse.current.y,
@@ -175,26 +180,29 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }, [applyTransform]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
+    if (!isDraggingRef.current) return;
+    
+    setIsDragging(false);
+    isDraggingRef.current = false;
+
+    if (contentRef.current) contentRef.current.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+    if (gridRef.current) gridRef.current.style.transition = 'none';
 
     if (containerRef.current) {
-      containerRef.current.style.cursor = 'grab';
+      containerRef.current.style.cursor = isSpacePressed ? 'grab' : (isHoveringContent ? 'default' : 'crosshair');
     }
 
-    // Start inertia if significant velocity
     if (Math.abs(velocity.current.x) > 1 || Math.abs(velocity.current.y) > 1) {
       startInertia();
     } else {
       commitTransform(transformRef.current);
     }
-  }, [startInertia, commitTransform]);
+  }, [startInertia, commitTransform, isSpacePressed, isHoveringContent]);
 
   // ─── DOUBLE-CLICK: Center on point ───
   const handleDoubleClick = useCallback((e) => {
     const container = containerRef.current;
     if (!container) return;
-
     const rect = container.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
@@ -207,11 +215,10 @@ const InfiniteCanvas = memo(React.forwardRef(({
       y: t.y + (cy - clickY),
       scale: Math.min(MAX_ZOOM, t.scale * 1.5),
     };
-
     commitTransform(newTransform);
   }, [commitTransform]);
 
-  // ─── TOUCH: Pinch-to-zoom ───
+  // ─── TOUCH ───
   const handleTouchStart = useCallback((e) => {
     if (e.touches.length === 2) {
       isPinching.current = true;
@@ -223,7 +230,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
         y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
       };
     } else if (e.touches.length === 1) {
-      isDragging.current = true;
+      isDraggingRef.current = true;
+      setIsDragging(true);
       dragStart.current = {
         x: e.touches[0].clientX - transformRef.current.x,
         y: e.touches[0].clientY - transformRef.current.y,
@@ -233,22 +241,19 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   const handleTouchMove = useCallback((e) => {
     e.preventDefault();
-
     if (isPinching.current && e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const delta = (lastPinchDist.current - dist) * 3;
-      
       const center = {
         x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
         y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
       };
-
       zoomAtPoint(delta, center.x, center.y);
       lastPinchDist.current = dist;
       lastPinchCenter.current = center;
-    } else if (isDragging.current && e.touches.length === 1) {
+    } else if (isDraggingRef.current && e.touches.length === 1) {
       const newX = e.touches[0].clientX - dragStart.current.x;
       const newY = e.touches[0].clientY - dragStart.current.y;
       const newTransform = { ...transformRef.current, x: newX, y: newY };
@@ -259,46 +264,44 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   const handleTouchEnd = useCallback(() => {
     isPinching.current = false;
-    isDragging.current = false;
+    isDraggingRef.current = false;
+    setIsDragging(false);
     commitTransform(transformRef.current);
   }, [commitTransform]);
 
   // ─── KEYBOARD ───
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't capture when typing
-      const tag = e.target.tagName.toLowerCase();
+      const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
-
+      if (e.code === 'Space' && !isSpacePressed) {
+        setIsSpacePressed(true);
+        if (containerRef.current) containerRef.current.style.cursor = 'grab';
+      }
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
-      const centerX = rect.width / 2 + rect.left;
-      const centerY = rect.height / 2 + rect.top;
-
+      const cx = rect.width / 2 + rect.left;
+      const cy = rect.height / 2 + rect.top;
       switch (e.key) {
-        case '+':
-        case '=':
-          e.preventDefault();
-          zoomAtPoint(-100, centerX, centerY);
-          break;
-        case '-':
-        case '_':
-          e.preventDefault();
-          zoomAtPoint(100, centerX, centerY);
-          break;
-        case '0':
-          e.preventDefault();
-          commitTransform({ x: 0, y: 0, scale: 1 });
-          break;
+        case '+': case '=': e.preventDefault(); zoomAtPoint(-150, cx, cy); break;
+        case '-': case '_': e.preventDefault(); zoomAtPoint(150, cx, cy); break;
+        case '0': e.preventDefault(); commitTransform({ x: 0, y: 0, scale: 1 }); break;
       }
     };
-
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+        if (containerRef.current) containerRef.current.style.cursor = isHoveringContent ? 'default' : 'crosshair';
+      }
+    };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoomAtPoint, commitTransform]);
-
-
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [zoomAtPoint, commitTransform, isSpacePressed, isHoveringContent]);
 
   // ─── Global mouse events for drag ───
   useEffect(() => {
@@ -315,14 +318,14 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    zoomAtPoint(-150, rect.width / 2 + rect.left, rect.height / 2 + rect.top);
+    zoomAtPoint(-200, rect.width / 2 + rect.left, rect.height / 2 + rect.top);
   }, [zoomAtPoint]);
 
   const zoomOut = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    zoomAtPoint(150, rect.width / 2 + rect.left, rect.height / 2 + rect.top);
+    zoomAtPoint(200, rect.width / 2 + rect.left, rect.height / 2 + rect.top);
   }, [zoomAtPoint]);
 
   const resetView = useCallback(() => {
@@ -331,33 +334,25 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   const fitToContent = useCallback(() => {
     const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content) return;
-
-    const containerRect = container.getBoundingClientRect();
-    // Use the SVG's natural size (800x600) for calculation
-    const contentWidth = 800;
-    const contentHeight = 600;
-
-    const scaleX = (containerRect.width * 0.85) / contentWidth;
-    const scaleY = (containerRect.height * 0.85) / contentHeight;
-    const scale = Math.min(scaleX, scaleY, MAX_ZOOM);
-
-    const x = (containerRect.width - contentWidth * scale) / 2;
-    const y = (containerRect.height - contentHeight * scale) / 2;
-
-    commitTransform({ x, y, scale });
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cw = 800; const ch = 600;
+    const sx = (rect.width * 0.8) / cw;
+    const sy = (rect.height * 0.8) / ch;
+    const s = Math.min(sx, sy, 1.2);
+    const x = (rect.width - cw * s) / 2;
+    const y = (rect.height - ch * s) / 2;
+    commitTransform({ x, y, scale: s });
   }, [commitTransform]);
 
-  const centerOn = useCallback((worldX, worldY) => {
+  const centerOn = useCallback((wx, wy) => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
     const t = transformRef.current;
-
     commitTransform({
-      x: rect.width / 2 - worldX * t.scale,
-      y: rect.height / 2 - worldY * t.scale,
+      x: rect.width / 2 - (wx * t.scale),
+      y: rect.height / 2 - (wy * t.scale),
       scale: t.scale,
     });
   }, [commitTransform]);
@@ -367,73 +362,71 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const el = containerRef.current;
     if (!el) return;
     el.addEventListener('wheel', handleWheel, { passive: false });
-    
-    // Auto-fit when container resizes (e.g. sidebar toggle)
-    let lastWidth = el.clientWidth;
-    const observer = new ResizeObserver(() => {
-      if (Math.abs(el.clientWidth - lastWidth) > 10) {
-        lastWidth = el.clientWidth;
-        fitToContent();
-      }
-    });
-    observer.observe(el);
-
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-      observer.disconnect();
-    };
+    setTimeout(fitToContent, 500);
+    return () => { el.removeEventListener('wheel', handleWheel); };
   }, [handleWheel, fitToContent]);
 
   // ─── Public methods via ref ───
   React.useImperativeHandle(ref, () => ({
-    zoomIn,
-    zoomOut,
-    resetView,
-    fitToContent,
-    centerOn,
+    zoomIn, zoomOut, resetView, fitToContent, centerOn,
     getTransform: () => transformRef.current
   }), [zoomIn, zoomOut, resetView, fitToContent, centerOn]);
+
+  const getCursor = () => {
+    if (isDragging) return 'grabbing';
+    if (isSpacePressed) return 'grab';
+    if (isHoveringContent) return 'default';
+    return 'crosshair';
+  };
 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden ${className}`}
-      style={{ cursor: isDragging.current ? 'grabbing' : 'grab', touchAction: 'none' }}
+      className={`relative w-full h-full overflow-hidden bg-[var(--bg-primary)] ${className}`}
+      style={{ cursor: getCursor(), touchAction: 'none' }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Infinite grid background */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.08]"
-        style={{
-          backgroundImage: 'radial-gradient(circle, var(--text-tertiary) 1px, transparent 1px)',
-          backgroundSize: `${20 * transform.scale}px ${20 * transform.scale}px`,
-          backgroundPosition: `${transform.x % (20 * transform.scale)}px ${transform.y % (20 * transform.scale)}px`,
-          transition: 'background-size 0.3s ease',
-        }}
-      />
-
-      {/* Content layer — only CSS transforms, no re-renders */}
-      <div
-        ref={contentRef}
-        className="absolute top-0 left-0 origin-top-left will-change-transform"
-        style={{
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-          transition: isDragging.current ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0, 0, 1)',
-        }}
-      >
-        {typeof children === 'function' 
-          ? children({ transform, zoomIn, zoomOut, resetView, fitToContent, centerOn }) 
-          : children
-        }
-      </div>
-
-      {/* Expose controls to parent via render prop or context */}
       <CanvasContext.Provider value={{ transform, zoomIn, zoomOut, resetView, fitToContent, centerOn }}>
-        {/* Controls would be placed here via portal or as siblings */}
+        {/* ── Infinite Structural Grid Background ── (DOM Ref Added) */}
+        <div
+          ref={gridRef}
+          className="absolute inset-0 pointer-events-none opacity-15"
+          style={{
+            backgroundImage: `
+              radial-gradient(circle, var(--text-tertiary) 0.8px, transparent 0.8px),
+              radial-gradient(circle, var(--text-tertiary) 1.5px, transparent 1.5px)
+            `,
+            backgroundSize: `
+              ${20 * transform.scale}px ${20 * transform.scale}px,
+              ${100 * transform.scale}px ${100 * transform.scale}px
+            `,
+            backgroundPosition: `
+              ${transform.x % (20 * transform.scale)}px ${transform.y % (20 * transform.scale)}px,
+              ${transform.x % (100 * transform.scale)}px ${transform.y % (100 * transform.scale)}px
+            `,
+          }}
+        />
+
+        {/* Content layers */}
+        <div
+          ref={contentRef}
+          className="absolute top-0 left-0 origin-top-left will-change-transform"
+          style={{
+            transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+            transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+          onMouseEnter={() => setIsHoveringContent(true)}
+          onMouseLeave={() => setIsHoveringContent(false)}
+        >
+          {typeof children === 'function' 
+            ? children({ transform, zoomIn, zoomOut, resetView, fitToContent, centerOn }) 
+            : children
+          }
+        </div>
       </CanvasContext.Provider>
     </div>
   );

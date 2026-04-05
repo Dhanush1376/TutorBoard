@@ -145,67 +145,7 @@ const isArrayStep = (stepData) => {
   return arrayTypes.includes(stepData?.type) && Array.isArray(stepData?.data?.array);
 };
 
-const StepPlaceholder = ({ stepData }) => {
-  const type = stepData?.type || 'unknown';
-  const animation = stepData?.animation || stepData?.animation_instructions || '';
-  const data = stepData?.data || {};
 
-  const getDisplayContent = () => {
-    if (stepData?.visualContent) return stepData.visualContent;
-    if (data.equation) return data.equation;
-    if (data.expression) return data.expression;
-    if (data.stages) return data.stages.map(s => s.name).join(' → ');
-    if (data.reactants && data.products) return `${data.reactants.join(' + ')} → ${data.products.join(' + ')}`;
-    if (data.vectors) return data.vectors.map(v => `${v.label} = ${v.magnitude}${v.unit || ''}`).join(', ');
-    if (data.organism) return data.organism;
-    if (data.components) return data.components.map(c => c.name).join(', ');
-    if (data.nodes) return `${data.nodes.length} nodes, ${(data.edges || []).length} connections`;
-    if (data.content) return data.content;
-    if (stepData?.value) return stepData.value;
-    
-    const displayObj = { ...stepData, ...data };
-    delete displayObj.type;
-    delete displayObj.description;
-    delete displayObj.label;
-    delete displayObj.animation;
-    delete displayObj.data;
-
-    const remainingKeys = Object.entries(displayObj);
-    if (remainingKeys.length > 0) {
-      return remainingKeys.map(([k, v]) => `${k.toUpperCase()}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' | ');
-    }
-    return type !== 'unknown' ? type.replace(/_/g, ' ') : "Visual Diagram Element";
-  };
-
-  const displayContent = getDisplayContent();
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.92, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
-    >
-      <div className="bg-[var(--bg-secondary)]/70 backdrop-blur-2xl border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full mx-6 shadow-2xl">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="px-3 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
-            {type}
-          </span>
-        </div>
-        <div className="w-full min-h-[160px] flex items-center justify-center bg-[var(--bg-primary)]/40 border border-dashed border-[var(--border-color)] rounded-2xl p-8">
-           <span className="text-3xl font-bold font-mono tracking-wider text-[var(--text-primary)] text-center break-words max-w-full">
-             {displayContent}
-           </span>
-        </div>
-        {animation && (
-          <p className="text-[var(--text-tertiary)] text-[11px] italic mt-2">
-            ✨ {animation}
-          </p>
-        )}
-      </div>
-    </motion.div>
-  );
-};
 
 const getIcon = (icon) => {
   switch (icon?.toLowerCase()) {
@@ -232,7 +172,7 @@ const QuizRenderer = ({ stepData }) => {
     setShowFeedback(false);
   }, [question]);
 
-  if (!question) return <StepPlaceholder stepData={stepData} />;
+  if (!question) return null;
 
   const handleOptionClick = (option) => {
     if (showFeedback) return;
@@ -339,15 +279,29 @@ const ProcessRenderer = ({ steps, currentStep }) => {
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col items-center w-full"
             >
-              <div className={`relative flex items-center gap-4 px-7 py-4 rounded-2xl border transition-all duration-500 ${isActive ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent shadow-[0_20px_50px_rgba(0,0,0,0.2)] scale-110 z-20' : 'bg-[var(--bg-secondary)]/40 text-[var(--text-secondary)] border-[var(--border-color)] backdrop-blur-md z-10'}`}>
-                <span className="text-2xl">{getIcon(step.icon || step.type)}</span>
-                <span className="text-base font-bold tracking-tight uppercase">{step.label || step.type}</span>
-                {isActive && <motion.div layoutId="active-glow" className="absolute inset-0 rounded-2xl bg-[var(--text-primary)]/20 blur-2xl -z-10" />}
+              <div className={`relative flex flex-col items-center gap-2 px-8 py-5 rounded-[24px] border border-[var(--border-color)] transition-all duration-500 max-w-[400px] text-center ${isActive ? 'bg-[var(--bg-secondary)]/90 shadow-[0_30px_60px_rgba(0,0,0,0.15)] scale-105 z-20 border-[var(--text-tertiary)]' : 'bg-[var(--bg-secondary)]/40 text-[var(--text-secondary)] backdrop-blur-xl z-10 opacity-70 scale-95'}`}>
+                
+                <div className="flex items-center justify-center gap-3 w-full">
+                  <span className={`text-2xl transition-transform duration-500 ${isActive ? 'scale-110 text-[var(--text-primary)]' : 'opacity-60'}`}>{getIcon(step.icon || step.type)}</span>
+                  <span className={`text-[12px] font-black tracking-[0.15em] uppercase px-3 py-1 rounded-full ${isActive ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-tertiary)]/50 text-[var(--text-tertiary)]'}`}>
+                    {step.label || step.type}
+                  </span>
+                </div>
+
+                {step.description && (
+                   <p className={`text-[14px] mt-2 font-medium leading-[1.6] transition-colors duration-500 ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>
+                     {step.description}
+                   </p>
+                )}
+
+                {isActive && <motion.div layoutId="active-glow-process" className="absolute inset-0 rounded-[24px] shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] pointer-events-none" />}
+                {isActive && <motion.div className="absolute -inset-[2px] rounded-[26px] border border-[var(--text-tertiary)]/30 pointer-events-none" />}
               </div>
+              
               {i < steps.length - 1 && (
-                <div className="flex flex-col items-center h-10 my-1">
-                  <div className={`w-0.5 h-full ${i < currentStep ? 'bg-[var(--text-tertiary)]' : 'bg-[var(--border-color)]'} transition-colors duration-500`} />
-                  <span className={`text-lg mt-[-8px] font-bold ${i < currentStep ? 'text-[var(--text-tertiary)]' : 'text-[var(--border-color)]'}`}>↓</span>
+                <div className="flex flex-col items-center h-12 my-2">
+                  <div className={`w-[2px] h-full ${i < currentStep ? 'bg-[var(--text-tertiary)] opacity-80' : 'bg-[var(--border-color)]'} transition-all duration-500`} />
+                  <div className={`w-2 h-2 rounded-full mt-[-4px] ${i < currentStep ? 'bg-[var(--text-tertiary)]' : 'bg-[var(--border-color)]'} transition-colors duration-500`} />
                 </div>
               )}
             </motion.div>
@@ -367,7 +321,7 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
 
   // ═══ PRIORITY 1: SceneRenderer — real SVG visual diagrams ═══
   if (hasObjects) {
-    return <SceneRenderer objects={objects} steps={steps} currentStep={currentStep} />;
+    return <SceneRenderer objects={objects} steps={steps} currentStepIndex={currentStep} />;
   }
 
   // ═══ PRIORITY 2: DSL-based renderers ═══
@@ -393,7 +347,14 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
 
   // ═══ PRIORITY 4: AnimationRenderer for elements ═══
   if (hasElements || hasSequence) {
-    return <AnimationRenderer data={{ elements, motion: motionData, sequence, connections, type: vizType }} />;
+    return (
+      <AnimationRenderer
+        objects={objects}
+        steps={steps}
+        currentStepIndex={currentStep}
+        data={{ elements, motion: motionData, sequence, connections, type: vizType }}
+      />
+    );
   }
 
   // ═══ PRIORITY 5: Legacy renderers ═══
@@ -409,7 +370,7 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
       case "quiz":
         return <QuizRenderer stepData={stepData} />;
       default:
-        return <StepPlaceholder stepData={stepData} />;
+        return null;
     }
   }
 
@@ -433,11 +394,6 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
   if (!vizType && domain !== "dsa" && isArrayStep(stepData)) vizType = "process";
   if (!vizType && Array.isArray(steps) && steps.length > 0) vizType = "process";
 
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const smoothX = useFramerSpring(mouseX, { damping: 15, stiffness: 400 });
-  const smoothY = useFramerSpring(mouseY, { damping: 15, stiffness: 400 });
-
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -449,42 +405,8 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => {
-    const handleGlobalMouseMove = (e) => {
-      if (!isHovering || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      mouseX.set(e.clientX - rect.left);
-      mouseY.set(e.clientY - rect.top);
-    };
-    if (isHovering) window.addEventListener('mousemove', handleGlobalMouseMove);
-    return () => window.removeEventListener('mousemove', handleGlobalMouseMove);
-  }, [isHovering, mouseX, mouseY]);
-
-  const handleWheel = (e) => {
-    e.evt.preventDefault();
-    const stage = stageRef.current;
-    if (!stage) return;
-    const scaleBy = 1.12;
-    const oldScale = stage.scaleX();
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-    const mousePointTo = { x: (pointer.x - stage.x()) / oldScale, y: (pointer.y - stage.y()) / oldScale };
-    const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    if (newScale > 5 || newScale < 0.1) return;
-    const newPos = { x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale };
-    stage.scale({ x: newScale, y: newScale });
-    setStageScale(newScale);
-    setStagePos(newPos);
-  };
-
   return (
-    <div ref={containerRef} onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)} className="absolute inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden transition-colors duration-500" style={{ cursor: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%231c1711' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") 8 8, auto` }}>
-      {isHovering && (
-        <motion.div style={{ x: smoothX, y: smoothY, willChange: 'transform' }} className="pointer-events-none absolute z-[9999] flex items-center justify-center -translate-x-1/2 -translate-y-1/2">
-          <motion.div animate={{ scale: isDragging ? 0.6 : 1, opacity: isHovering ? 0.35 : 0 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="w-11 h-11 rounded-full border-2 border-[var(--text-tertiary)]" />
-        </motion.div>
-      )}
-      <div className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.4] transition-all duration-500" style={{ perspective: '1500px', backgroundImage: 'radial-gradient(circle at center, var(--text-tertiary) 0.5px, transparent 0.5px)', backgroundSize: '40px 40px', transform: 'rotateX(5deg) scale(1.05)' }} />
+    <div ref={containerRef} className="absolute inset-0 w-full h-full bg-transparent overflow-hidden">
       <BoardErrorBoundary>
         <SceneDispatcher 
           stepData={stepData}
@@ -501,7 +423,7 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
           objects={objects}
           dimensions={dimensions}
           stageRef={stageRef}
-          handleWheel={handleWheel}
+          handleWheel={() => {}} // Home handles this now
           stagePos={stagePos}
           isDragging={isDragging}
           setIsDragging={setIsDragging}

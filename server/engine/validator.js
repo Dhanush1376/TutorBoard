@@ -11,6 +11,9 @@ export function safeParse(content) {
   try {
     let cleaned = content.trim();
     
+    // Strip <think>...</think> blocks (DeepSeek R1 and other reasoning models)
+    cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    
     // Remove markdown code blocks
     cleaned = cleaned.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     cleaned = cleaned.replace(/^```\n?/, '').replace(/\n?```$/, '');
@@ -19,7 +22,7 @@ export function safeParse(content) {
     const firstBrace = cleaned.indexOf('{');
     const lastBrace = cleaned.lastIndexOf('}');
     
-    if (firstBrace !== -1 && lastBrace !== -1) {
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
       cleaned = cleaned.substring(firstBrace, lastBrace + 1);
     }
 
@@ -27,6 +30,67 @@ export function safeParse(content) {
   } catch (err) {
     console.error("[Validator] safeParse Error:", err.message);
     return null;
+  }
+}
+
+// ─── Data Hardening (Auto-fixer) ───
+function hardenObject(obj) {
+  if (!obj || typeof obj !== 'object') return;
+
+  const toNum = (v, d) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? d : n;
+  };
+
+  // Positional coordinates
+  if ('x' in obj)  obj.x =  toNum(obj.x, 400);
+  if ('y' in obj)  obj.y =  toNum(obj.y, 300);
+  if ('cx' in obj) obj.cx = toNum(obj.cx, 400);
+  if ('cy' in obj) obj.cy = toNum(obj.cy, 300);
+
+  // Dimensions
+  if ('r' in obj)    obj.r =    Math.max(2, toNum(obj.r, 40));
+  if ('size' in obj) obj.size = Math.max(2, toNum(obj.size, 40));
+  if ('w' in obj)    obj.w =    Math.max(5, toNum(obj.w, 100));
+  if ('h' in obj)    obj.h =    Math.max(5, toNum(obj.h, 60));
+  if ('width' in obj)  obj.width =  Math.max(5, toNum(obj.width, 100));
+  if ('height' in obj) obj.height = Math.max(5, toNum(obj.height, 60));
+
+  // Line/Arrow coordinates
+  if ('x1' in obj) obj.x1 = toNum(obj.x1, 100);
+  if ('y1' in obj) obj.y1 = toNum(obj.y1, 100);
+  if ('x2' in obj) obj.x2 = toNum(obj.x2, 200);
+  if ('y2' in obj) obj.y2 = toNum(obj.y2, 100);
+
+  // Specialized props
+  if ('orbitRadius' in obj) obj.orbitRadius = Math.max(10, toNum(obj.orbitRadius, 100));
+  if ('startAngle' in obj)  obj.startAngle = toNum(obj.startAngle, 0);
+  if ('endAngle' in obj)    obj.endAngle = toNum(obj.endAngle, 180);
+  if ('thickness' in obj)   obj.thickness = Math.max(1, toNum(obj.thickness, 2));
+  if ('strokeWidth' in obj) obj.strokeWidth = Math.max(1, toNum(obj.strokeWidth, 2));
+  if ('fontSize' in obj)    obj.fontSize = Math.max(8, toNum(obj.fontSize, 16));
+
+  // ID Hardening - ensure string
+  if (obj.id !== undefined) obj.id = String(obj.id);
+}
+
+function hardenStep(step, allObjectIdsSet) {
+  if (!step || typeof step !== 'object') return;
+
+  // objectIds MUST be array
+  if (!Array.isArray(step.objectIds)) step.objectIds = [];
+  if (!Array.isArray(step.highlightIds)) step.highlightIds = [];
+  if (!Array.isArray(step.newIds)) step.newIds = [];
+
+  // Ensure all objectIds are strings
+  step.objectIds = step.objectIds.map(String);
+  step.highlightIds = step.highlightIds.map(String);
+  step.newIds = step.newIds.map(String);
+
+  // 🚨 CRITICAL FIX: If objectIds is empty, use all known IDs or fallback
+  if (step.objectIds.length === 0 && allObjectIdsSet.size > 0) {
+    step.objectIds = Array.from(allObjectIdsSet);
+    console.warn(`[Validator] Auto-filled empty objectIds in step ${step.index}`);
   }
 }
 
@@ -152,12 +216,39 @@ export function validateTimeline(data) {
     });
   }
 
+  const allObjectIdsSet = new Set();
   if (!Array.isArray(data.objects) || data.objects.length === 0) {
     errors.push("Missing or empty 'objects' array (visual shapes required)");
   } else {
+    const seenIds = new Set();
     data.objects.forEach((obj, i) => {
+      // 🚨 AUTO-FIX: Ensure ID exists to prevent renderer crashes
+      if (obj.id === undefined || obj.id === null) {
+        obj.id = `auto-gen-${i}-${Math.random().toString(36).slice(2, 6)}`;
+      }
+      
+      // Force ID to string
+      obj.id = String(obj.id);
+
+      // Fix duplicate IDs
+      if (seenIds.has(obj.id)) {
+        obj.id = `${obj.id}-dup-${i}`;
+      }
+      seenIds.add(obj.id);
+      allObjectIdsSet.add(obj.id);
+
+      // Hardening geometric data
+      hardenObject(obj);
+
       const objErrors = validateObject(obj, i);
       errors.push(...objErrors);
+    });
+  }
+
+  // Harden steps after objects are processed
+  if (Array.isArray(data.steps)) {
+    data.steps.forEach((step) => {
+      hardenStep(step, allObjectIdsSet);
     });
   }
 
@@ -200,6 +291,10 @@ export function validateDoubtResponse(data) {
         errors.push("'visualUpdate.mutations' must be an array");
       } else {
         data.visualUpdate.mutations.forEach((mut, i) => {
+          // 🚨 AUTO-FIX: Ensure ID for 'add' mutations
+          if (mut.action === 'add' && mut.object && !mut.object.id) {
+            mut.object.id = `auto-gen-mut-${i}-${Date.now()}`;
+          }
           const mutErrors = validateMutation(mut, i);
           errors.push(...mutErrors);
         });
@@ -212,6 +307,7 @@ export function validateDoubtResponse(data) {
         errors.push("'visualUpdate.objects' must be an array");
       } else {
         data.visualUpdate.objects.forEach((obj, i) => {
+          if (!obj.id) obj.id = `auto-gen-legacy-${i}-${Date.now()}`;
           const objErrors = validateObject(obj, i);
           errors.push(...objErrors);
         });
