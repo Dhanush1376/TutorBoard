@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Layout from '../components/layout/Layout';
 import ChatWindow from '../components/chat/ChatWindow';
 import InputBar from '../components/chat/InputBar';
+import TeachingModal from '../components/teaching/TeachingModal';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import LeftPanel from '../components/layout/LeftPanel';
@@ -102,7 +103,7 @@ const DrawingOverlay = ({ isVisible, isRethinking }) => {
             <div className="h-8 flex items-center">
               <AnimatePresence mode="wait">
                 <motion.p
-                  key={phaseIndex}
+                   key={phaseIndex}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
@@ -165,7 +166,7 @@ const Home = ({ isDark }) => {
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
-    setCanvasSnapshot, greetingMessage
+    setCanvasSnapshot, greetingMessage, layoutView
   } = useTutorStore();
 
   const [chatHistory, setChatHistory] = useState(() => {
@@ -204,7 +205,7 @@ const Home = ({ isDark }) => {
         if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
         next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
         return next;
-      });
+       });
     }
   }, [doubtHistory, activeChatId]);
 
@@ -493,12 +494,21 @@ const Home = ({ isDark }) => {
         {/* D. Bottom Right Zoom / Minimap Tools */}
         <CanvasControls
           transform={canvasTransform}
-          onZoomIn={() => setCanvasTransform(prev => ({ ...prev, scale: Math.min(5, prev.scale * 1.3) }))}
-          onZoomOut={() => setCanvasTransform(prev => ({ ...prev, scale: Math.max(0.15, prev.scale / 1.3) }))}
-          onFitToContent={() => canvasRef.current?.fitToContent?.()}
-          onResetView={() => setCanvasTransform({ x: 0, y: 0, scale: 1 })}
+          onZoomIn={() => canvasRef.current?.zoomIn?.()}
+          onZoomOut={() => canvasRef.current?.zoomOut?.()}
+          onFitToContent={() => { 
+            if (isSidebarOpen) {
+              canvasRef.current?.fitToContent?.(); 
+              setSidebarOpen(false); 
+            } else {
+              setSidebarOpen(true);
+            }
+          }}
+          onResetView={() => canvasRef.current?.resetView?.()}
           onToggleMinimap={toggleMinimap}
           showMinimap={showMinimap}
+          layoutView={layoutView}
+          isSidebarOpen={isSidebarOpen}
         />
 
         {/* E. Chat & Overlays (DoubtThread etc) */}
@@ -533,7 +543,5 @@ const Home = ({ isDark }) => {
     </div>
   );
 };
-
-
 
 export default Home;

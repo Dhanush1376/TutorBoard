@@ -117,11 +117,12 @@ const useTutorStore = create(
       showFloatingSidebar: false,
       showMinimap: false,
       selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+      layoutView: 'right', // 'right' means sidebar on left, canvas on right. 'left' is vice-versa.
 
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
       // ═══════════════════════════════════════════════════
-
+      setLayoutView: (view) => set({ layoutView: view }),
       setMachineState: (state) => set({ machineState: state, error: null }),
       setSidebarOpen: (open) => set({ isSidebarOpen: open }),
       toggleSidebar: () => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
@@ -341,7 +342,7 @@ const useTutorStore = create(
       setActiveDoubt: (id) => set({ activeDoubtId: id }),
       toggleDoubtThread: () => set(s => ({ showDoubtThread: !s.showDoubtThread })),
       openDoubtThread: () => set({ showDoubtThread: true }),
-      closeDoubtThread: () => set({ showDoubtThread: false }),
+      closeDoubtThread: () => set({ showDoubtThread: true }),
 
       // Jump to a doubt's canvas state
       jumpToDoubt: (doubtId) => {
@@ -475,6 +476,7 @@ const useTutorStore = create(
       partialize: (state) => ({
         playbackSpeed: state.playbackSpeed,
         voiceEnabled: state.voiceEnabled,
+        layoutView: state.layoutView,
       }),
     }
   )
