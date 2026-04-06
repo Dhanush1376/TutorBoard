@@ -5,8 +5,6 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
-import compression from 'compression';
-import rateLimit from 'express-rate-limit';
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
@@ -20,19 +18,6 @@ console.log("=====================================");
 const app = express();
 const httpServer = createServer(app);
 const port = process.env.PORT || 3001;
-
-// ─── Security: Rate Limiting ───
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: { error: 'Too many requests, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
-
-// ─── Compression ───
-app.use(compression());
 
 // --------------- Socket.IO ---------------
 const allowedOrigins = [
@@ -81,16 +66,6 @@ app.use(cors({
 
 // Parse JSON bodies (with a size limit for safety)
 app.use(express.json({ limit: '1mb' }));
-
-// Cache control headers for static assets
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api') || req.path === '/' || req.path === '/health') {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  } else {
-    res.set('Cache-Control', 'public, max-age=3600');
-  }
-  next();
-});
 
 // Request logger (useful for debugging on Render)
 app.use((req, _res, next) => {
