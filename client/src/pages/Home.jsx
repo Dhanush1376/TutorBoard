@@ -299,6 +299,52 @@ const Home = ({ isDark }) => {
   // ─── Logic ───
   const { toggleSidebar } = useTutorStore();
 
+  // ── Auto-Centering Logic ──
+  const isAutoFollow = useRef(true); 
+  const lastCenteredStep = useRef(-1);
+  useEffect(() => {
+    if (!canvasObjects || canvasObjects.length === 0) return;
+    if (currentStepIndex === lastCenteredStep.current) return;
+    if (!isAutoFollow.current) return; // User manually panned - pause auto-center
+    
+    const step = canvasSteps[currentStepIndex];
+    if (!step) return;
+
+    const ids = new Set(step.objectIds || []);
+    const objs = canvasObjects.filter(o => ids.has(o.id));
+    
+    if (objs.length > 0) {
+      // Calculate Bounding Box
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      objs.forEach(o => {
+        const x = safeNum(o.x || o.cx || o.x1, 400);
+        const y = safeNum(o.y || o.cy || o.y1, 300);
+        const w = safeNum(o.w || o.r || (o.x2 ? Math.abs(o.x2 - o.x1) : 0), 100);
+        const h = safeNum(o.h || o.r || (o.y2 ? Math.abs(o.y2 - o.y1) : 0), 100);
+        
+        minX = Math.min(minX, x - w/2);
+        maxX = Math.max(maxX, x + w/2);
+        minY = Math.min(minY, y - h/2);
+        maxY = Math.max(maxY, y + h/2);
+      });
+
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      // Smoothly center
+      setTimeout(() => {
+        canvasRef.current?.centerOn(centerX, centerY, 0.85);
+      }, 100);
+    } else {
+      // Fallback: center on default point
+      canvasRef.current?.centerOn(400, 300, 1);
+    }
+    
+    lastCenteredStep.current = currentStepIndex;
+  }, [currentStepIndex, canvasObjects, canvasSteps]);
+
+  const safeNum = (v, f) => { const n = parseFloat(v); return isNaN(n) ? f : n; };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
@@ -381,6 +427,7 @@ const Home = ({ isDark }) => {
           ref={canvasRef}
           onZoomChange={(scale) => setCanvasTransform(prev => ({ ...prev, scale }))}
           onViewportChange={setCanvasTransform}
+          onInteractionStart={() => { isAutoFollow.current = false; }}
         >
           <CanvasRenderer
             objects={canvasObjects}
@@ -504,7 +551,10 @@ const Home = ({ isDark }) => {
               setSidebarOpen(true);
             }
           }}
-          onResetView={() => canvasRef.current?.resetView?.()}
+          onResetView={() => {
+            isAutoFollow.current = true;
+            canvasRef.current?.resetView?.();
+          }}
           onToggleMinimap={toggleMinimap}
           showMinimap={showMinimap}
           layoutView={layoutView}

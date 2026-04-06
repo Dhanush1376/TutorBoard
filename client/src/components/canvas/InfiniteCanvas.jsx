@@ -33,6 +33,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   children, 
   onZoomChange, 
   onViewportChange,
+  onInteractionStart,
   className = '',
   initialTransform = null,
 }, ref) => {
@@ -110,7 +111,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const handleWheel = useCallback((e) => {
     e.preventDefault();
     zoomAtPoint(e.deltaY, e.clientX, e.clientY);
-  }, [zoomAtPoint]);
+    onInteractionStart?.();
+  }, [zoomAtPoint, onInteractionStart]);
 
   // ─── INERTIA ───
   const startInertia = useCallback(() => {
@@ -160,7 +162,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
     velocity.current = { x: 0, y: 0 };
 
     if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
-  }, [isSpacePressed, isHoveringContent]);
+    onInteractionStart?.();
+  }, [isSpacePressed, isHoveringContent, onInteractionStart]);
 
   const handleMouseMove = useCallback((e) => {
     if (!isDraggingRef.current) return;
@@ -355,33 +358,49 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }, [applyTransform, commitTransform]);
 
   const resetView = useCallback(() => {
-    commitTransform({ x: 0, y: 0, scale: 1 });
-  }, [commitTransform]);
-
-  const fitToContent = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const cw = 800; const ch = 600;
-    const sx = (rect.width * 0.8) / cw;
-    const sy = (rect.height * 0.8) / ch;
-    const s = Math.min(sx, sy, 1.2);
-    const x = (rect.width - cw * s) / 2;
-    const y = (rect.height - ch * s) / 2;
-    commitTransform({ x, y, scale: s });
-  }, [commitTransform]);
+    const newTransform = {
+      x: rect.width / 2 - (400 * 1), // Center (400, 300) world
+      y: rect.height / 2 - (300 * 1),
+      scale: 1,
+    };
+    applyTransform(newTransform);
+    commitTransform(newTransform);
+  }, [applyTransform, commitTransform]);
 
-  const centerOn = useCallback((wx, wy) => {
+  const fitToContent = useCallback((cw = 800, ch = 600) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const padding = 60;
+    const sx = (rect.width - padding * 2) / cw;
+    const sy = (rect.height - padding * 2) / ch;
+    const s = Math.min(sx, sy, 1.1); // Max scale 1.1 for fitting
+    const newTransform = {
+      x: rect.width / 2 - (400 * s),
+      y: rect.height / 2 - (300 * s),
+      scale: s,
+    };
+    applyTransform(newTransform);
+    commitTransform(newTransform);
+  }, [applyTransform, commitTransform]);
+
+  const centerOn = useCallback((wx, wy, zoom = null) => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
     const t = transformRef.current;
-    commitTransform({
-      x: rect.width / 2 - (wx * t.scale),
-      y: rect.height / 2 - (wy * t.scale),
-      scale: t.scale,
-    });
-  }, [commitTransform]);
+    const newScale = zoom || t.scale;
+    const newTransform = {
+      x: rect.width / 2 - (wx * newScale),
+      y: rect.height / 2 - (wy * newScale),
+      scale: newScale,
+    };
+    applyTransform(newTransform);
+    commitTransform(newTransform);
+  }, [applyTransform, commitTransform]);
 
   // ─── Attach wheel listener (non-passive for preventDefault) ───
   useEffect(() => {
@@ -394,8 +413,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
   // ─── Public methods via ref ───
   React.useImperativeHandle(ref, () => ({
     zoomIn, zoomOut, resetView, fitToContent, centerOn,
-    getTransform: () => transformRef.current
-  }), [zoomIn, zoomOut, resetView, fitToContent, centerOn]);
+    getTransform: () => transformRef.current,
+    applyTransform, // For direct manipulation if needed
+  }), [zoomIn, zoomOut, resetView, fitToContent, centerOn, applyTransform]);
 
   const getCursor = () => {
     if (isDragging) return 'grabbing';

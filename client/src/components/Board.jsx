@@ -183,13 +183,17 @@ const QuizRenderer = ({ stepData }) => {
   return (
     <div className="absolute inset-0 flex items-center justify-center p-6 pointer-events-none">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        drag
+        dragMomentum={false}
+        initial={{ opacity: 0, scale: 0.9, y: 30 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-[var(--bg-secondary)]/80 backdrop-blur-3xl border border-[var(--border-color)] rounded-[2.5rem] p-10 max-w-xl w-full shadow-2xl pointer-events-auto"
+        className="bg-[var(--bg-secondary)]/90 backdrop-blur-3xl border border-[var(--border-color)] rounded-[2.5rem] p-10 max-w-xl w-[500px] shadow-2xl pointer-events-auto cursor-grab active:cursor-grabbing"
       >
-        <div className="flex justify-center mb-6">
-           <span className="px-4 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
+        <div className="flex justify-center mb-6 drag-handle">
+           <span className="px-4 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-2">
+             <span className="w-2 h-2 rounded-full bg-[var(--text-tertiary)] animate-pulse" />
              Knowledge Check
            </span>
         </div>
@@ -209,55 +213,26 @@ const QuizRenderer = ({ stepData }) => {
                 disabled={showFeedback}
                 className={`
                   group w-full p-5 rounded-2xl border text-left transition-all duration-300 flex items-center justify-between
-                  ${!showFeedback ? 'hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] border-[var(--border-color)] bg-[var(--bg-primary)]/40 cursor-pointer' : 'cursor-default'}
-                  ${showFeedback && isCorrect ? 'border-green-500/50 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.1)]' : ''}
-                  ${showFeedback && isIncorrect ? 'border-red-500/50 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : ''}
-                  ${showFeedback && !isSelected && !isCorrect ? 'opacity-40 grayscale-[0.5]' : ''}
+                  ${!showFeedback ? 'hover:bg-[var(--bg-tertiary)] border-[var(--border-color)] bg-[var(--bg-primary)]/40 cursor-pointer' : 'cursor-default'}
+                  ${showFeedback && isCorrect ? 'border-green-500/50 bg-green-500/10' : ''}
+                  ${showFeedback && isIncorrect ? 'border-red-500/50 bg-red-500/10' : ''}
                 `}
               >
                 <div className="flex items-center gap-4">
-                   <div className={`
-                     w-9 h-9 flex items-center justify-center rounded-xl text-[12px] font-bold transition-colors
-                     ${showFeedback && isCorrect ? 'bg-green-500 text-white' : (showFeedback && isIncorrect ? 'bg-red-500 text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]')}
-                   `}>
+                   <div className={`w-9 h-9 flex items-center justify-center rounded-xl text-[12px] font-bold ${showFeedback && isCorrect ? 'bg-green-500 text-white' : (showFeedback && isIncorrect ? 'bg-red-500 text-white' : 'bg-[var(--bg-tertiary)]')}`}>
                      {String.fromCharCode(65 + i)}
                    </div>
-                   <span className={`text-[15px] font-medium transition-colors ${showFeedback && (isCorrect || isIncorrect) ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'}`}>
-                     {option}
-                   </span>
+                   <span className="text-[15px] font-medium">{option}</span>
                 </div>
-                {showFeedback && isCorrect && (
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-green-500">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </motion.div>
-                )}
               </motion.button>
             );
           })}
         </div>
-        <AnimatePresence>
-          {showFeedback && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, marginTop: 0 }}
-              animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
-              className="overflow-hidden"
-            >
-              <div className="p-5 bg-[var(--bg-tertiary)]/50 rounded-2xl border border-[var(--border-color)]">
-                <div className="flex items-center gap-2 mb-2">
-                   <div className={`w-2 h-2 rounded-full ${selectedOption === correctAnswer ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-                   <span className="font-bold uppercase tracking-[0.15em] text-[10px] text-[var(--text-tertiary)]">
-                     {selectedOption === correctAnswer ? 'Excellent' : 'Analysis'}
-                   </span>
-                </div>
-                <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed italic opacity-90">
-                  {explanation}
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {showFeedback && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6 p-5 bg-[var(--bg-tertiary)]/50 rounded-2xl border border-[var(--border-color)]">
+            <p className="text-[14px] text-[var(--text-secondary)] italic opacity-90">{explanation}</p>
+          </motion.div>
+        )}
       </motion.div>
     </div>
   );
