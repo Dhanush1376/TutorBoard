@@ -31,28 +31,6 @@ export const STATES = {
   ERROR: 'ERROR',
 };
 
-// Memoized selectors for derived state
-export const selectTimeline = (state) => state.timeline;
-export const selectMachineState = (state) => state.machineState;
-export const selectCanvasObjects = (state) => state.canvasObjects;
-export const selectCanvasSteps = (state) => state.canvasSteps;
-export const selectCurrentStepIndex = (state) => state.currentStepIndex;
-export const selectTotalSteps = (state) => state.totalSteps;
-export const selectDoubtHistory = (state) => state.doubtHistory;
-export const selectIsPlaying = (state) => state.isPlaying;
-export const selectIsPaused = (state) => state.isPaused;
-export const selectPlaybackSpeed = (state) => state.playbackSpeed;
-export const selectCanvasMode = (state) => state.canvasMode;
-export const selectCanvasTransform = (state) => state.canvasTransform;
-export const selectIsConnected = (state) => state.isConnected;
-export const selectError = (state) => state.error;
-export const selectSessionId = (state) => state.sessionId;
-export const selectTopic = (state) => state.topic;
-export const selectLearningNodes = (state) => state.learningNodes;
-export const selectIsDoubtProcessing = (state) => state.isDoubtProcessing;
-export const selectDoubtResponse = (state) => state.doubtResponse;
-export const selectShowDoubtThread = (state) => state.showDoubtThread;
-
 const useTutorStore = create(
   persist(
     (set, get) => ({
@@ -113,7 +91,6 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       // UI STATE
       // ═══════════════════════════════════════════════════
-      isSidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
       showFloatingSidebar: false,
       showMinimap: false,
       selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
@@ -122,6 +99,9 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
       // ═══════════════════════════════════════════════════
+      machineState: STATES.IDLE,
+      isSidebarOpen: window.innerWidth >= 768,
+
       setLayoutView: (view) => set({ layoutView: view }),
       setMachineState: (state) => set({ machineState: state, error: null }),
       setSidebarOpen: (open) => set({ isSidebarOpen: open }),
@@ -342,7 +322,7 @@ const useTutorStore = create(
       setActiveDoubt: (id) => set({ activeDoubtId: id }),
       toggleDoubtThread: () => set(s => ({ showDoubtThread: !s.showDoubtThread })),
       openDoubtThread: () => set({ showDoubtThread: true }),
-      closeDoubtThread: () => set({ showDoubtThread: true }),
+      closeDoubtThread: () => set({ showDoubtThread: false }),
 
       // Jump to a doubt's canvas state
       jumpToDoubt: (doubtId) => {
@@ -451,7 +431,6 @@ const useTutorStore = create(
         topic: '',
         activeDoubtId: null,
         showDoubtThread: false,
-        isSidebarOpen: false,
       }),
 
       // Reset just the teaching state (keep connection)

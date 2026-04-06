@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import VisaiLogo from '../components/common/VisaiLogo';
@@ -108,12 +108,12 @@ const AuthLanding = () => {
         
 
 
-        <div className="max-w-[400px] w-full mx-auto lg:mx-0">
-          <div className="mb-6">
-            <h1 className="text-[40px] leading-[1.1] font-serif mb-2 text-[var(--text-primary)] tracking-tight">
+        <div className="max-w-[340px] w-full mx-auto lg:mx-0">
+          <div className="mb-4">
+            <h1 className="text-[20px] leading-[1.1] font-serif mb-2 text-[var(--text-primary)] tracking-tight">
               {isLogin ? 'Sign in to account' : 'Create an account'}
             </h1>
-            <p className="text-[var(--text-secondary)] text-[14px] font-medium opacity-80">
+            <p className="text-[var(--text-secondary)] text-[13px] font-medium opacity-80">
               {isLogin ? 'Welcome back, please enter your details.' : 'Enter your details to get started.'}
             </p>
           </div>
@@ -134,7 +134,7 @@ const AuthLanding = () => {
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <AnimatePresence mode="popLayout">
               {!isLogin && (
                 <motion.div
@@ -143,7 +143,7 @@ const AuthLanding = () => {
                   exit={{ opacity: 0, height: 0 }}
                   className="flex flex-col gap-1.5 overflow-hidden"
                 >
-                  <label className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Full Name</label>
+                  <label className="text-[8px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Full Name</label>
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                     <input
@@ -151,7 +151,7 @@ const AuthLanding = () => {
                       placeholder="Your full name"
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-medium"
+                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-medium"
                       disabled={loading}
                     />
                   </div>
@@ -160,7 +160,7 @@ const AuthLanding = () => {
             </AnimatePresence>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Email Address</label>
+              <label className="text-[8px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Email Address</label>
               <div className="relative group">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                 <input
@@ -175,10 +175,10 @@ const AuthLanding = () => {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center px-1">
-                <label className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)]">Password</label>
+              <div className="flex justify-between items-center px-1 text-[8px]">
+                <label className="font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)]">Password</label>
                 {isLogin && (
-                  <button type="button" className="text-[10px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+                  <button type="button" className="font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                     Forgot password?
                   </button>
                 )}
@@ -199,7 +199,7 @@ const AuthLanding = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] text-[var(--bg-primary)] rounded-xl py-3.5 px-4 font-bold text-[13px] hover:opacity-95 shadow-xl shadow-[var(--border-color)] active:scale-[0.98] transition-all mt-2 flex justify-center items-center gap-2 group border border-white/5"
+              className="w-full bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] text-[var(--bg-primary)] rounded-xl py-2.5 px-4 font-bold text-[12px] hover:opacity-95 shadow-xl shadow-[var(--border-color)] active:scale-[0.98] transition-all mt-1 flex justify-center items-center gap-2 group border border-white/5"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-current/20 border-t-current rounded-full animate-spin"></div>
@@ -212,7 +212,7 @@ const AuthLanding = () => {
             </button>
           </form>
 
-          <div className="flex items-center gap-4 my-7">
+          <div className="flex items-center gap-4 my-5">
             <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
             <span className="text-[var(--text-tertiary)] text-[8px] font-bold tracking-[0.2em] uppercase">Or continue with</span>
             <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
@@ -222,7 +222,7 @@ const AuthLanding = () => {
             <button 
               type="button" 
               onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth/google`}
-              className="flex items-center justify-center gap-2.5 py-2.5 rounded-xl text-[12px] font-bold text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all active:scale-95 shadow-sm"
+              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-bold text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all active:scale-95 shadow-sm"
             >
               <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-4 h-4" alt="Google" />
               Google
@@ -230,7 +230,7 @@ const AuthLanding = () => {
             <button 
               type="button" 
               onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth/github`}
-              className="flex items-center justify-center gap-2.5 py-2.5 rounded-xl text-[12px] font-bold text-white bg-[#0d1117] border border-white/10 hover:bg-[#161b22] hover:border-white/20 transition-all active:scale-95 shadow-lg"
+              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-bold text-white bg-[#0d1117] border border-white/10 hover:bg-[#161b22] hover:border-white/20 transition-all active:scale-95 shadow-lg"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
               GitHub
@@ -270,20 +270,21 @@ const AuthLanding = () => {
 
         {/* Navbar */}
         <nav className="flex items-center justify-between w-full px-12 py-8 relative z-20 shrink-0">
-          <div className="flex items-center">
-            <VisaiLogo size="sm" className="text-[var(--text-primary)]" />
-            <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--text-primary)] ml-[-8px]">
+          <div className="flex items-center gap-2">
+            <VisaiLogo size="md" className="text-[var(--text-primary)]" />
+            <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--text-primary)]">
               TutorBoard
             </span>
           </div>
 
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-7 text-[12px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-               <button className="hover:text-[var(--text-primary)] transition-colors">How it works</button>
-               <button className="hover:text-[var(--text-primary)] transition-colors">Features</button>
-               <button className="hover:text-[var(--text-primary)] transition-colors">Solutions</button>
-               <button className="hover:text-[var(--text-primary)] transition-colors">About</button>
+               <Link to="/how-it-works" className="hover:text-[var(--text-primary)] transition-colors">How it works</Link>
+               <Link to="/features" className="hover:text-[var(--text-primary)] transition-colors">Features</Link>
+               <Link to="/solutions" className="hover:text-[var(--text-primary)] transition-colors">Solutions</Link>
+               <Link to="/about" className="hover:text-[var(--text-primary)] transition-colors">About</Link>
             </div>
+
             
             <AnimatePresence mode="wait">
               {isAuthenticated ? (

@@ -2,11 +2,11 @@ import React from 'react';
 
 const VisaiLogo = ({ className = "", size = "md", showLabel = false }) => {
   const dimensions = {
-    xs: 32,
-    sm: 48,
-    md: 72,   // increased from 48
-    lg: 96,   // increased from 64
-    xl: 160   // increased from 120
+    xs: 24,
+    sm: 28,
+    md: 36,
+    lg: 48,
+    xl: 80
   };
 
   const currentSize = dimensions[size] || dimensions.md;
@@ -15,8 +15,8 @@ const VisaiLogo = ({ className = "", size = "md", showLabel = false }) => {
     <div className={`inline-flex flex-col items-center justify-center shrink-0 ${className}`}>
       <svg 
         width={currentSize} 
-        height={currentSize * (530/680)} 
-        viewBox="0 0 680 530" 
+        height={showLabel ? currentSize * (530/680) : currentSize * (260/200)} 
+        viewBox={showLabel ? "0 0 680 530" : "240 60 200 260"} 
         xmlns="http://www.w3.org/2000/svg"
         className="drop-shadow-sm transition-transform duration-300 hover:scale-105"
       >

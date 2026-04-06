@@ -103,7 +103,7 @@ const DrawingOverlay = ({ isVisible, isRethinking }) => {
             <div className="h-8 flex items-center">
               <AnimatePresence mode="wait">
                 <motion.p
-                   key={phaseIndex}
+                  key={phaseIndex}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
@@ -205,7 +205,7 @@ const Home = ({ isDark }) => {
         if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
         next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
         return next;
-       });
+      });
     }
   }, [doubtHistory, activeChatId]);
 
@@ -543,5 +543,7 @@ const Home = ({ isDark }) => {
     </div>
   );
 };
+
+
 
 export default Home;
