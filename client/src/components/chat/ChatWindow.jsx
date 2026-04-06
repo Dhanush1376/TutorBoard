@@ -1,47 +1,72 @@
 import React, { useRef, useEffect } from 'react';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, MessageSquare } from 'lucide-react';
+import { Sparkles, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
-// ── Empty state shown when no messages yet ──
-const EmptyState = () => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-    className="flex-1 flex flex-col items-center justify-center gap-4 px-4 py-12 text-center"
-  >
-    <div className="w-12 h-12 rounded-2xl bg-[var(--text-primary)] flex items-center justify-center shadow-lg">
-      <Sparkles size={20} className="text-[var(--bg-primary)]" />
-    </div>
-    <div>
-      <p className="text-[13px] font-bold text-[var(--text-primary)] mb-1">
-        Ask me anything
-      </p>
-      <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed max-w-[180px]">
-        I'll explain it visually with interactive diagrams
-      </p>
-    </div>
+// ── New premium starting interface ──
+const ChatLanding = ({ setActiveMode, activeMode }) => {
+  const { user } = useAuth();
+  const firstName = user?.name?.split(' ')[0] || 'there';
 
-    {/* Suggestion chips */}
-    <div className="flex flex-col gap-1.5 w-full mt-2">
-      {[
-        'How does quicksort work?',
-        'Explain Newton\'s laws',
-        'What is photosynthesis?',
-      ].map((suggestion) => (
-        <motion.div
-          key={suggestion}
-          whileHover={{ x: 2 }}
-          className="px-3 py-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-left text-[11px] text-[var(--text-secondary)] font-medium cursor-default flex items-center gap-2"
-        >
-          <MessageSquare size={10} className="text-[var(--text-tertiary)] flex-shrink-0" />
-          {suggestion}
-        </motion.div>
-      ))}
-    </div>
-  </motion.div>
-);
+  const modes = [
+    { id: 'explain', label: 'Explain', icon: BookOpen, color: '#60a5fa' },
+    { id: 'solve', label: 'Solve', icon: Wrench, color: '#34d399' },
+    { id: 'test', label: 'Test Me', icon: ClipboardCheck, color: '#fbbf24' },
+    { id: 'visualize', label: 'Show Diagram', icon: Image, color: '#a78bfa' },
+    { id: 'deepdive', label: 'Explain in Detail', icon: Sparkles, color: '#f87171' },
+  ];
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex-1 flex flex-col justify-start px-6 py-16 select-none overflow-y-auto no-scrollbar"
+    >
+      {/* Personalized Greeting */}
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="mb-8"
+      >
+        <p className="text-[20px] font-normal text-[var(--text-secondary)] mb-1 tracking-tight">
+          Hi {firstName}
+        </p>
+        <h1 className="text-[36px] font-medium text-[var(--text-primary)] leading-[1.1] tracking-tight">
+          Where should <br /> we start?
+        </h1>
+      </motion.div>
+
+      {/* Starting Blocks (Modes) */}
+      <div className="flex flex-col gap-3 items-start">
+        {modes.map((mode, i) => (
+          <motion.button
+            key={mode.id}
+            initial={{ opacity: 0, x: -15 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            onClick={() => setActiveMode(mode.id)}
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
+              activeMode === mode.id 
+                ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
+                : 'bg-[var(--bg-tertiary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/90'
+            }`}
+          >
+            <div className={`flex items-center justify-center transition-transform group-hover:scale-110 ${
+              activeMode === mode.id ? 'opacity-100' : 'opacity-80'
+            }`}>
+              <mode.icon size={18} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
+            </div>
+            <span className="text-[14px] font-medium tracking-tight pr-1">
+              {mode.label}
+            </span>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
 
 // ── Typing indicator ──
 const ThinkingIndicator = () => (
@@ -74,7 +99,7 @@ const ThinkingIndicator = () => (
   </motion.div>
 );
 
-const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onEditMessage }) => {
+const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onEditMessage, activeMode, setActiveMode }) => {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -88,7 +113,7 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
     <div ref={containerRef} className="flex-1 flex flex-col min-h-0">
       <AnimatePresence mode="wait">
         {isEmpty ? (
-          <EmptyState key="empty" />
+          <ChatLanding key="empty" activeMode={activeMode} setActiveMode={setActiveMode} />
         ) : (
           <motion.div
             key="messages"

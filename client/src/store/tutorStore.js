@@ -94,6 +94,7 @@ const useTutorStore = create(
       showFloatingSidebar: false,
       showMinimap: false,
       selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+      layoutView: 'right', // 'right' means sidebar on left, canvas on right. 'left' is vice-versa.
 
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
@@ -101,6 +102,7 @@ const useTutorStore = create(
       machineState: STATES.IDLE,
       isSidebarOpen: window.innerWidth >= 768,
 
+      setLayoutView: (view) => set({ layoutView: view }),
       setMachineState: (state) => set({ machineState: state, error: null }),
       setSidebarOpen: (open) => set({ isSidebarOpen: open }),
       toggleSidebar: () => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
@@ -429,7 +431,6 @@ const useTutorStore = create(
         topic: '',
         activeDoubtId: null,
         showDoubtThread: false,
-        isSidebarOpen: false,
       }),
 
       // Reset just the teaching state (keep connection)
@@ -454,6 +455,7 @@ const useTutorStore = create(
       partialize: (state) => ({
         playbackSpeed: state.playbackSpeed,
         voiceEnabled: state.voiceEnabled,
+        layoutView: state.layoutView,
       }),
     }
   )
