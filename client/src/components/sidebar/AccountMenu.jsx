@@ -2,7 +2,12 @@ import React from 'react';
 import { LogOut, Settings, CreditCard, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+<<<<<<< HEAD
 const AccountMenu = ({ onSettingsClick, variant = 'full' }) => {
+=======
+const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }) => {
+  const isLeftHand = layoutView === 'left';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   const { user, logout } = useAuth();
   
   // Get initials
@@ -28,8 +33,13 @@ const AccountMenu = ({ onSettingsClick, variant = 'full' }) => {
           </div>
         </button>
 
+<<<<<<< HEAD
         {/* Dropdown Menu - Top Right orientation */}
         <div className="absolute top-full right-0 mt-2 w-56 opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 ease-spring z-[100]">
+=======
+        {/* Dropdown Menu - Top orientation (aligned based on hand view) */}
+        <div className={`absolute top-full ${isLeftHand ? 'left-0' : 'right-0'} mt-2 w-56 opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 ease-spring z-[100]`}>
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
           <div className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-2xl backdrop-blur-3xl overflow-hidden" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)' }}>
             <div className="px-4 py-3 mb-1 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
                <div className="flex items-center gap-3">

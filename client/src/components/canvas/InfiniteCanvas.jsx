@@ -315,6 +315,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── Public methods via ref ───
   const zoomIn = useCallback(() => {
+<<<<<<< HEAD
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -327,6 +328,46 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const rect = container.getBoundingClientRect();
     zoomAtPoint(200, rect.width / 2 + rect.left, rect.height / 2 + rect.top);
   }, [zoomAtPoint]);
+=======
+    const t = transformRef.current;
+    const newScale = Math.min(MAX_ZOOM, t.scale * 1.3);
+    const container = containerRef.current;
+    if (!container) {
+      const newTransform = { ...t, scale: newScale };
+      applyTransform(newTransform);
+      commitTransform(newTransform);
+      return;
+    }
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const newX = cx - (cx - t.x) * (newScale / t.scale);
+    const newY = cy - (cy - t.y) * (newScale / t.scale);
+    const newTransform = { x: newX, y: newY, scale: newScale };
+    applyTransform(newTransform);
+    commitTransform(newTransform);
+  }, [applyTransform, commitTransform]);
+
+  const zoomOut = useCallback(() => {
+    const t = transformRef.current;
+    const newScale = Math.max(MIN_ZOOM, t.scale / 1.3);
+    const container = containerRef.current;
+    if (!container) {
+      const newTransform = { ...t, scale: newScale };
+      applyTransform(newTransform);
+      commitTransform(newTransform);
+      return;
+    }
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const newX = cx - (cx - t.x) * (newScale / t.scale);
+    const newY = cy - (cy - t.y) * (newScale / t.scale);
+    const newTransform = { x: newX, y: newY, scale: newScale };
+    applyTransform(newTransform);
+    commitTransform(newTransform);
+  }, [applyTransform, commitTransform]);
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
   const resetView = useCallback(() => {
     commitTransform({ x: 0, y: 0, scale: 1 });
@@ -362,9 +403,14 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const el = containerRef.current;
     if (!el) return;
     el.addEventListener('wheel', handleWheel, { passive: false });
+<<<<<<< HEAD
     setTimeout(fitToContent, 500);
     return () => { el.removeEventListener('wheel', handleWheel); };
   }, [handleWheel, fitToContent]);
+=======
+    return () => { el.removeEventListener('wheel', handleWheel); };
+  }, [handleWheel]);
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
   // ─── Public methods via ref ───
   React.useImperativeHandle(ref, () => ({
@@ -394,7 +440,11 @@ const InfiniteCanvas = memo(React.forwardRef(({
         {/* ── Infinite Structural Grid Background ── (DOM Ref Added) */}
         <div
           ref={gridRef}
+<<<<<<< HEAD
           className="absolute inset-0 pointer-events-none opacity-15"
+=======
+          className="absolute inset-0 pointer-events-none opacity-20"
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
           style={{
             backgroundImage: `
               radial-gradient(circle, var(--text-tertiary) 0.8px, transparent 0.8px),

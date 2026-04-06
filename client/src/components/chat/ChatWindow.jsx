@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
+<<<<<<< HEAD
 import { Sparkles, MessageSquare } from 'lucide-react';
 
 // ── Empty state shown when no messages yet ──
@@ -42,6 +43,74 @@ const EmptyState = () => (
     </div>
   </motion.div>
 );
+=======
+import { Sparkles, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+
+// ── New premium starting interface ──
+const ChatLanding = ({ setActiveMode, activeMode }) => {
+  const { user } = useAuth();
+  const firstName = user?.name?.split(' ')[0] || 'there';
+
+  const modes = [
+    { id: 'explain', label: 'Explain', icon: BookOpen, color: '#60a5fa' },
+    { id: 'solve', label: 'Solve', icon: Wrench, color: '#34d399' },
+    { id: 'test', label: 'Test Me', icon: ClipboardCheck, color: '#fbbf24' },
+    { id: 'visualize', label: 'Show Diagram', icon: Image, color: '#a78bfa' },
+    { id: 'deepdive', label: 'Explain in Detail', icon: Sparkles, color: '#f87171' },
+  ];
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex-1 flex flex-col justify-start px-6 py-16 select-none overflow-y-auto no-scrollbar"
+    >
+      {/* Personalized Greeting */}
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="mb-8"
+      >
+        <p className="text-[20px] font-normal text-[var(--text-secondary)] mb-1 tracking-tight">
+          Hi {firstName}
+        </p>
+        <h1 className="text-[36px] font-medium text-[var(--text-primary)] leading-[1.1] tracking-tight">
+          Where should <br /> we start?
+        </h1>
+      </motion.div>
+
+      {/* Starting Blocks (Modes) */}
+      <div className="flex flex-col gap-3 items-start">
+        {modes.map((mode, i) => (
+          <motion.button
+            key={mode.id}
+            initial={{ opacity: 0, x: -15 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            onClick={() => setActiveMode(mode.id)}
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
+              activeMode === mode.id 
+                ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
+                : 'bg-[var(--bg-tertiary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/90'
+            }`}
+          >
+            <div className={`flex items-center justify-center transition-transform group-hover:scale-110 ${
+              activeMode === mode.id ? 'opacity-100' : 'opacity-80'
+            }`}>
+              <mode.icon size={18} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
+            </div>
+            <span className="text-[14px] font-medium tracking-tight pr-1">
+              {mode.label}
+            </span>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
 // ── Typing indicator ──
 const ThinkingIndicator = () => (
@@ -74,7 +143,11 @@ const ThinkingIndicator = () => (
   </motion.div>
 );
 
+<<<<<<< HEAD
 const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onEditMessage }) => {
+=======
+const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onEditMessage, activeMode, setActiveMode }) => {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -88,7 +161,11 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
     <div ref={containerRef} className="flex-1 flex flex-col min-h-0">
       <AnimatePresence mode="wait">
         {isEmpty ? (
+<<<<<<< HEAD
           <EmptyState key="empty" />
+=======
+          <ChatLanding key="empty" activeMode={activeMode} setActiveMode={setActiveMode} />
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
         ) : (
           <motion.div
             key="messages"

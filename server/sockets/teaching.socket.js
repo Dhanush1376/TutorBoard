@@ -105,7 +105,11 @@ export function setupTeachingSocket(io) {
         const timeline = await withTimeout(
           generateTimeline(sessionId, topic.trim()),
           120000,
+<<<<<<< HEAD
           'Timeline generation timed out - please try again'
+=======
+          'Timeline generation timed out'
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
         );
 
         // Check if it was just a greeting

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { getAIClient, getModel } from '../engine/ai/llmClient.js';
+=======
+import { getAIClient, getModel } from '../utils/ai.js';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
 
 

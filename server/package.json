@@ -13,11 +13,17 @@
   "type": "module",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+<<<<<<< HEAD
     "compression": "^1.7.4",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^4.19.2",
     "express-rate-limit": "^7.1.5",
+=======
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^4.19.2",
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
     "express-session": "^1.19.0",
     "jsonwebtoken": "^9.0.3",
     "openai": "^4.0.0",

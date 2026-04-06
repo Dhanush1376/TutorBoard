@@ -5,8 +5,11 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
+<<<<<<< HEAD
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+=======
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
@@ -21,6 +24,7 @@ const app = express();
 const httpServer = createServer(app);
 const port = process.env.PORT || 3001;
 
+<<<<<<< HEAD
 // ─── Security: Rate Limiting ───
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -34,6 +38,8 @@ app.use('/api', limiter);
 // ─── Compression ───
 app.use(compression());
 
+=======
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 // --------------- Socket.IO ---------------
 const allowedOrigins = [
   'https://tutor-board-mocha.vercel.app',
@@ -82,6 +88,7 @@ app.use(cors({
 // Parse JSON bodies (with a size limit for safety)
 app.use(express.json({ limit: '1mb' }));
 
+<<<<<<< HEAD
 // Cache control headers for static assets
 app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path === '/' || req.path === '/health') {
@@ -92,6 +99,8 @@ app.use((req, res, next) => {
   next();
 });
 
+=======
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 // Request logger (useful for debugging on Render)
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);

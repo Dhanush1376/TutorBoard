@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Layout from '../components/layout/Layout';
 import ChatWindow from '../components/chat/ChatWindow';
 import InputBar from '../components/chat/InputBar';
+<<<<<<< HEAD
+=======
+import TeachingModal from '../components/teaching/TeachingModal';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import LeftPanel from '../components/layout/LeftPanel';
@@ -165,7 +169,11 @@ const Home = ({ isDark }) => {
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
+<<<<<<< HEAD
     setCanvasSnapshot, greetingMessage
+=======
+    setCanvasSnapshot, greetingMessage, layoutView
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   } = useTutorStore();
 
   const [chatHistory, setChatHistory] = useState(() => {
@@ -493,12 +501,30 @@ const Home = ({ isDark }) => {
         {/* D. Bottom Right Zoom / Minimap Tools */}
         <CanvasControls
           transform={canvasTransform}
+<<<<<<< HEAD
           onZoomIn={() => setCanvasTransform(prev => ({ ...prev, scale: Math.min(5, prev.scale * 1.3) }))}
           onZoomOut={() => setCanvasTransform(prev => ({ ...prev, scale: Math.max(0.15, prev.scale / 1.3) }))}
           onFitToContent={() => canvasRef.current?.fitToContent?.()}
           onResetView={() => setCanvasTransform({ x: 0, y: 0, scale: 1 })}
           onToggleMinimap={toggleMinimap}
           showMinimap={showMinimap}
+=======
+          onZoomIn={() => canvasRef.current?.zoomIn?.()}
+          onZoomOut={() => canvasRef.current?.zoomOut?.()}
+          onFitToContent={() => { 
+            if (isSidebarOpen) {
+              canvasRef.current?.fitToContent?.(); 
+              setSidebarOpen(false); 
+            } else {
+              setSidebarOpen(true);
+            }
+          }}
+          onResetView={() => canvasRef.current?.resetView?.()}
+          onToggleMinimap={toggleMinimap}
+          showMinimap={showMinimap}
+          layoutView={layoutView}
+          isSidebarOpen={isSidebarOpen}
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
         />
 
         {/* E. Chat & Overlays (DoubtThread etc) */}

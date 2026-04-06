@@ -4,7 +4,11 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+<<<<<<< HEAD
 import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Map } from 'lucide-react';
+=======
+import { ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, Map } from 'lucide-react';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
 const CanvasControls = ({ 
   transform, 
@@ -14,6 +18,7 @@ const CanvasControls = ({
   onResetView,
   onToggleMinimap,
   showMinimap = false,
+<<<<<<< HEAD
 }) => {
   const zoomPercent = Math.round(transform.scale * 100);
 
@@ -23,6 +28,20 @@ const CanvasControls = ({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.4, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="absolute bottom-6 right-6 z-50 flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-lg pointer-events-auto"
+=======
+  layoutView = 'right',
+  isSidebarOpen = true,
+}) => {
+  const zoomPercent = Math.round(transform.scale * 100);
+  const isLeftHand = layoutView === 'left';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.9, x: isLeftHand ? -20 : 20 }}
+      animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
+      transition={{ duration: 0.4, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      className={`absolute bottom-6 ${isLeftHand ? 'left-6' : 'right-6'} z-50 flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-lg pointer-events-auto`}
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
     >
       {/* Zoom Out */}
       <button
@@ -52,6 +71,7 @@ const CanvasControls = ({
       {/* Divider */}
       <div className="w-px h-4 bg-[var(--border-color)] mx-1" />
 
+<<<<<<< HEAD
       {/* Fit to Content */}
       <button
         onClick={onFitToContent}
@@ -59,6 +79,15 @@ const CanvasControls = ({
         title="Fit to content"
       >
         <Maximize2 size={15} />
+=======
+      {/* Maximize / Fit to Content */}
+      <button
+        onClick={onFitToContent}
+        className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-90"
+        title={isSidebarOpen ? "Maximize / Fit to content" : "Minimize / Restore view"}
+      >
+        {isSidebarOpen ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
       </button>
 
       {/* Reset View */}

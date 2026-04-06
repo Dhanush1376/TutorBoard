@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+<<<<<<< HEAD
   build: {
     rollupOptions: {
       output: {
@@ -40,4 +41,6 @@ export default defineConfig({
   server: {
     fs: { allow: ['..'] },
   },
+=======
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 })

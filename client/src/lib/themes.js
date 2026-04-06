@@ -1,5 +1,41 @@
 export const themes = [
   {
+<<<<<<< HEAD
+=======
+    id: 'bone-obsidian',
+    name: 'Bone & Obsidian',
+    description: 'Stark, near-zero saturation. Gallery-space luxury.',
+    colors: {
+      light: {
+        bg: '#FDFCF9',
+        surface: '#F6F4EF',
+        surface2: '#EAE7E0',
+        text: '#0A0908',
+        textSub: '#33312D',
+        textMuted: '#524F4A',
+        border: 'rgba(10,9,8,0.12)',
+        userBubble: '#0A0908',
+        userBubbleText: '#FDFCF9',
+        aiBubble: '#F0EEE8',
+        aiBubbleText: '#0A0908'
+      },
+      dark: {
+        bg: '#080706',
+        surface: '#111010',
+        surface2: '#1A1918',
+        text: '#F5F3EE',
+        textSub: '#C9C7C1',
+        textMuted: '#96948E',
+        border: 'rgba(245,243,238,0.12)',
+        userBubble: '#F5F3EE',
+        userBubbleText: '#080706',
+        aiBubble: '#161514',
+        aiBubbleText: '#F5F3EE'
+      }
+    }
+  },
+  {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
     id: 'ivory-ink',
     name: 'Ivory & Ink',
     description: 'Warm aged-parchment feel. Like a beautifully typeset book.',
@@ -66,6 +102,7 @@ export const themes = [
     }
   },
   {
+<<<<<<< HEAD
     id: 'bone-obsidian',
     name: 'Bone & Obsidian',
     description: 'Stark, near-zero saturation. Gallery-space luxury.',
@@ -99,6 +136,8 @@ export const themes = [
     }
   },
   {
+=======
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
     id: 'sage-stone',
     name: 'Sage & Stone',
     description: 'Faint green tint throughout — organic, grounded, architectural.',

@@ -31,6 +31,7 @@ export const STATES = {
   ERROR: 'ERROR',
 };
 
+<<<<<<< HEAD
 // Memoized selectors for derived state
 export const selectTimeline = (state) => state.timeline;
 export const selectMachineState = (state) => state.machineState;
@@ -53,6 +54,8 @@ export const selectIsDoubtProcessing = (state) => state.isDoubtProcessing;
 export const selectDoubtResponse = (state) => state.doubtResponse;
 export const selectShowDoubtThread = (state) => state.showDoubtThread;
 
+=======
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 const useTutorStore = create(
   persist(
     (set, get) => ({
@@ -113,15 +116,29 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       // UI STATE
       // ═══════════════════════════════════════════════════
+<<<<<<< HEAD
       isSidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
       showFloatingSidebar: false,
       showMinimap: false,
       selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+=======
+      showFloatingSidebar: false,
+      showMinimap: false,
+      selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+      layoutView: 'right', // 'right' means sidebar on left, canvas on right. 'left' is vice-versa.
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
       // ═══════════════════════════════════════════════════
+<<<<<<< HEAD
 
+=======
+      machineState: STATES.IDLE,
+      isSidebarOpen: window.innerWidth >= 768,
+
+      setLayoutView: (view) => set({ layoutView: view }),
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
       setMachineState: (state) => set({ machineState: state, error: null }),
       setSidebarOpen: (open) => set({ isSidebarOpen: open }),
       toggleSidebar: () => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
@@ -450,7 +467,10 @@ const useTutorStore = create(
         topic: '',
         activeDoubtId: null,
         showDoubtThread: false,
+<<<<<<< HEAD
         isSidebarOpen: false,
+=======
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
       }),
 
       // Reset just the teaching state (keep connection)
@@ -475,6 +495,10 @@ const useTutorStore = create(
       partialize: (state) => ({
         playbackSpeed: state.playbackSpeed,
         voiceEnabled: state.voiceEnabled,
+<<<<<<< HEAD
+=======
+        layoutView: state.layoutView,
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
       }),
     }
   )

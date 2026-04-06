@@ -4,6 +4,14 @@ import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
 import Loader from './components/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+<<<<<<< HEAD
+=======
+import MarketingLayout from './components/layout/MarketingLayout';
+import HowItWorks from './pages/Marketing/HowItWorks';
+import Features from './pages/Marketing/Features';
+import Solutions from './pages/Marketing/Solutions';
+import About from './pages/Marketing/About';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 import { useAuth } from './context/AuthContext';
 
 function App() {
@@ -36,6 +44,17 @@ function App() {
         <Routes>
           <Route path="/" element={<AuthLanding />} />
           <Route path="/auth" element={<Navigate to="/" replace />} />
+<<<<<<< HEAD
+=======
+          
+          <Route element={<MarketingLayout />}>
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/solutions" element={<Solutions />} />
+            <Route path="/about" element={<About />} />
+          </Route>
+
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
           <Route
             path="/dashboard"
             element={

@@ -1,8 +1,13 @@
+<<<<<<< HEAD
 import React, { useState, useEffect, useRef, Component, memo, useMemo, useCallback, lazy, Suspense } from 'react';
+=======
+import React, { useState, useEffect, useRef, Component } from 'react';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 import { Stage, Layer, Text, Rect, Group } from 'react-konva';
 import { animated, useSpring, useSprings } from '@react-spring/konva';
 import { motion, useMotionValue, useSpring as useFramerSpring, AnimatePresence } from 'framer-motion';
 
+<<<<<<< HEAD
 // Lazy load renderers for better code splitting
 const FlowRenderer = lazy(() => import('./renderers/FlowRenderer'));
 const TimelineRenderer = lazy(() => import('./renderers/TimelineRenderer'));
@@ -20,6 +25,14 @@ const RendererFallback = () => (
     />
   </div>
 );
+=======
+// Import New Visual Engine Renderers
+import FlowRenderer from './renderers/FlowRenderer';
+import TimelineRenderer from './renderers/TimelineRenderer';
+import DiagramRenderer from './renderers/DiagramRenderer';
+import AnimationRenderer from './renderers/AnimationRenderer';
+import SceneRenderer from './renderers/SceneRenderer';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
 // ─── ERROR BOUNDARY ─── Catches rendering crashes and shows fallback UI
 class BoardErrorBoundary extends Component {
@@ -55,7 +68,11 @@ class BoardErrorBoundary extends Component {
   }
 }
 
+<<<<<<< HEAD
 // Domain color map for visual identity - MOVED UP
+=======
+// Domain color map for visual identity
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 const DOMAIN_COLORS = {
   dsa: { bg: '#059669', text: '#ecfdf5', label: 'DSA' },
   mathematics: { bg: '#7c3aed', text: '#f5f3ff', label: 'Mathematics' },
@@ -66,8 +83,13 @@ const DOMAIN_COLORS = {
   general: { bg: '#6b7280', text: '#f9fafb', label: 'General' },
 };
 
+<<<<<<< HEAD
 // Memoized AnimatedArray for performance
 const AnimatedArray = memo(({ stepData }) => {
+=======
+// Array-based visualization for DSA domain
+const AnimatedArray = ({ stepData }) => {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   const BOX_SIZE = 60;
   const SPACING = 20;
 
@@ -149,17 +171,27 @@ const AnimatedArray = memo(({ stepData }) => {
       ))}
     </>
   );
+<<<<<<< HEAD
 });
 
 AnimatedArray.displayName = 'AnimatedArray';
+=======
+};
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
 const isArrayStep = (stepData) => {
   const arrayTypes = ['array', 'compare', 'swap', 'highlight'];
   return arrayTypes.includes(stepData?.type) && Array.isArray(stepData?.data?.array);
 };
 
+<<<<<<< HEAD
 // Memoized getIcon function
 const getIcon = memo((icon) => {
+=======
+
+
+const getIcon = (icon) => {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   switch (icon?.toLowerCase()) {
     case "sun": return "☀️";
     case "plant": return "🌿";
@@ -172,10 +204,16 @@ const getIcon = memo((icon) => {
     case "quiz": return "❓";
     default: return "🔹";
   }
+<<<<<<< HEAD
 });
 getIcon.displayName = 'getIcon';
 
 const QuizRenderer = memo(({ stepData }) => {
+=======
+};
+
+const QuizRenderer = ({ stepData }) => {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   const { question, options, correctAnswer, explanation } = stepData.quizData || {};
   const [selectedOption, setSelectedOption] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -274,11 +312,17 @@ const QuizRenderer = memo(({ stepData }) => {
       </motion.div>
     </div>
   );
+<<<<<<< HEAD
 });
 
 QuizRenderer.displayName = 'QuizRenderer';
 
 const ProcessRenderer = memo(({ steps, currentStep }) => {
+=======
+};
+
+const ProcessRenderer = ({ steps, currentStep }) => {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   if (!steps || steps.length === 0) return null;
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-12 overflow-y-auto no-scrollbar">
@@ -325,12 +369,19 @@ const ProcessRenderer = memo(({ steps, currentStep }) => {
       </div>
     </div>
   );
+<<<<<<< HEAD
 });
 
 ProcessRenderer.displayName = 'ProcessRenderer';
 
 // ─── SCENE DISPATCHER ─── Handles renderer routing and fallback
 const SceneDispatcher = memo(({ stepData, steps, currentStep, domain, vizType, dsl, style, elements, motionData, sequence, connections, objects, dimensions, stageRef, handleWheel, stagePos, isDragging, setIsDragging, setStagePos, stageScale }) => {
+=======
+};
+
+// ─── SCENE DISPATCHER ─── Handles renderer routing and fallback
+const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, style, elements, motionData, sequence, connections, objects, dimensions, stageRef, handleWheel, stagePos, isDragging, setIsDragging, setStagePos, stageScale }) => {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   const hasObjects = Array.isArray(objects) && objects.length > 0;
   const hasElements = Array.isArray(elements) && elements.length > 0;
   const hasSequence = Array.isArray(sequence) && sequence.length > 0;
@@ -338,7 +389,11 @@ const SceneDispatcher = memo(({ stepData, steps, currentStep, domain, vizType, d
 
   // ═══ PRIORITY 1: SceneRenderer — real SVG visual diagrams ═══
   if (hasObjects) {
+<<<<<<< HEAD
     return <Suspense fallback={<RendererFallback />}><SceneRenderer objects={objects} steps={steps} currentStepIndex={currentStep} /></Suspense>;
+=======
+    return <SceneRenderer objects={objects} steps={steps} currentStepIndex={currentStep} />;
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   }
 
   // ═══ PRIORITY 2: DSL-based renderers ═══
@@ -347,11 +402,19 @@ const SceneDispatcher = memo(({ stepData, steps, currentStep, domain, vizType, d
     switch (vizType) {
       case "flow":
       case "node_graph":
+<<<<<<< HEAD
         return <Suspense fallback={<RendererFallback />}><FlowRenderer dsl={dsl} style={style} /></Suspense>;
       case "timeline":
         return <Suspense fallback={<RendererFallback />}><TimelineRenderer dsl={dsl} style={style} /></Suspense>;
       case "diagram":
         return <Suspense fallback={<RendererFallback />}><DiagramRenderer dsl={dsl} style={style} /></Suspense>;
+=======
+        return <FlowRenderer dsl={dsl} style={style} />;
+      case "timeline":
+        return <TimelineRenderer dsl={dsl} style={style} />;
+      case "diagram":
+        return <DiagramRenderer dsl={dsl} style={style} />;
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
       default:
         break;
     }
@@ -365,6 +428,7 @@ const SceneDispatcher = memo(({ stepData, steps, currentStep, domain, vizType, d
   // ═══ PRIORITY 4: AnimationRenderer for elements ═══
   if (hasElements || hasSequence) {
     return (
+<<<<<<< HEAD
       <Suspense fallback={<RendererFallback />}>
         <AnimationRenderer
           objects={objects}
@@ -373,6 +437,14 @@ const SceneDispatcher = memo(({ stepData, steps, currentStep, domain, vizType, d
           data={{ elements, motion: motionData, sequence, connections, type: vizType }}
         />
       </Suspense>
+=======
+      <AnimationRenderer
+        objects={objects}
+        steps={steps}
+        currentStepIndex={currentStep}
+        data={{ elements, motion: motionData, sequence, connections, type: vizType }}
+      />
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
     );
   }
 
@@ -394,11 +466,17 @@ const SceneDispatcher = memo(({ stepData, steps, currentStep, domain, vizType, d
   }
 
   return null;
+<<<<<<< HEAD
 });
 
 SceneDispatcher.displayName = 'SceneDispatcher';
 
 const Board = memo(({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style, elements, motionData, sequence, connections, objects }) => {
+=======
+};
+
+const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style, elements, motionData, sequence, connections, objects }) => {
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -454,8 +532,12 @@ const Board = memo(({ stepData, steps, currentStep, domain, visualizationType: p
       </BoardErrorBoundary>
     </div>
   );
+<<<<<<< HEAD
 });
 
 Board.displayName = 'Board';
+=======
+};
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
 
 export default Board;

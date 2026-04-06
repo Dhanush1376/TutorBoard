@@ -5,10 +5,19 @@ const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   const [currentThemeId, setCurrentThemeId] = useState(() => {
+<<<<<<< HEAD
     return localStorage.getItem('tb-theme') || 'ivory-ink';
   });
   const [mode, setMode] = useState(() => {
     return localStorage.getItem('tb-mode') || 'dark';
+=======
+    return localStorage.getItem('tb-theme') || 'bone-obsidian';
+  });
+  const [mode, setMode] = useState(() => {
+    const saved = localStorage.getItem('tb-mode');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
   });
 
   const currentTheme = themes.find(t => t.id === currentThemeId) || themes[0];

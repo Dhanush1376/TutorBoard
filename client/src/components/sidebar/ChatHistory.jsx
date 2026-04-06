@@ -68,7 +68,11 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                     className={`mr-3 transition-colors ${activeChatId === chat.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover/btn:text-[var(--text-secondary)]'}`} 
                   />
                   
+<<<<<<< HEAD
                   <span className={`truncate text-[13px] flex-1 ${activeChatId === chat.id ? 'font-bold' : 'font-medium'}`}>
+=======
+                  <span className="truncate text-[13px] flex-1 font-medium transition-colors">
+>>>>>>> 82eb7560587ff0921601e5fc4872899d64305177
                     {chat.title || "Untitled Session"}
                   </span>
                   
