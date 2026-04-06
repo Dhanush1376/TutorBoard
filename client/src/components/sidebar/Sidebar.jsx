@@ -137,9 +137,71 @@ const Sidebar = ({
       {/* ─── 2. SCROLLABLE MIDDLE SECTION ─── */}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pt-2 pb-6 scroll-smooth mask-fade-y">
         {chatHistory.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 opacity-30 select-none grayscale">
-            <MessageSquare size={32} strokeWidth={1} />
-            <span className="text-[10px] font-bold uppercase tracking-widest mt-4 text-center">No recent sessions</span>
+          <div className="flex flex-col items-center justify-center py-14 px-4 select-none">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="relative mb-6"
+            >
+              <div className="absolute inset-0 bg-[var(--text-primary)] opacity-5 blur-2xl rounded-full" />
+              <div className="relative w-16 h-16 rounded-2xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-tertiary)] border border-[var(--border-color)] shadow-inner">
+                <MessageSquare size={28} strokeWidth={1.5} />
+              </div>
+            </motion.div>
+            
+            <div className="text-center space-y-1.5 mb-10">
+              <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]">
+                No recents
+              </h3>
+              <p className="text-[10px] text-[var(--text-tertiary)] font-medium leading-relaxed">
+                Your learning history is empty<br/>Start a conversation to see it here
+              </p>
+            </div>
+
+            <div className="w-full mt-4">
+              <div className="flex items-center gap-3 mb-5 px-2">
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] whitespace-nowrap">
+                  Try asking one
+                </span>
+                <div className="h-[1px] flex-1 bg-gradient-to-r from-[var(--border-color)] to-transparent" />
+              </div>
+              
+              <div className="relative overflow-hidden h-[46px] w-full mask-fade-x">
+                <motion.div 
+                  className="flex gap-3 absolute whitespace-nowrap"
+                  animate={{ x: [0, -1000] }}
+                  transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                >
+                  {[
+                    "Explain me prefix sum",
+                    "Explain linear search",
+                    "Explain me bubble sort",
+                    "Explain me about sliding window",
+                    "Explain me the process of photosynthesis",
+                    "On DSA",
+                    "Solar system",
+                    "Explain binary search",
+                    "Explain me prefix sum",
+                    "Explain linear search",
+                    "Explain me bubble sort",
+                    "Explain me about sliding window",
+                    "Explain me the process of photosynthesis",
+                    "On DSA",
+                    "Solar system",
+                    "Explain binary search",
+                  ].map((text, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => setPrompt(text)}
+                      className="px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.05] active:scale-[0.95] shadow-sm hover:shadow-md"
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </motion.div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -160,7 +222,7 @@ const Sidebar = ({
         )}
 
         {/* Prompt Suggestions */}
-        {!activeChatId && (
+        {!activeChatId && chatHistory.length > 0 && (
           <div className="mt-8 mb-4 border-t border-[var(--border-color)]/30 pt-6">
             <span className="px-2 text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-3 block">Recommended Topics</span>
             <div className="space-y-1.5 px-0.5">

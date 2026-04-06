@@ -5,10 +5,12 @@ const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   const [currentThemeId, setCurrentThemeId] = useState(() => {
-    return localStorage.getItem('tb-theme') || 'ivory-ink';
+    return localStorage.getItem('tb-theme') || 'bone-obsidian';
   });
   const [mode, setMode] = useState(() => {
-    return localStorage.getItem('tb-mode') || 'dark';
+    const saved = localStorage.getItem('tb-mode');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
   const currentTheme = themes.find(t => t.id === currentThemeId) || themes[0];

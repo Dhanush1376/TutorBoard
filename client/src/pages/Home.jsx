@@ -166,7 +166,7 @@ const Home = ({ isDark }) => {
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
-    setCanvasSnapshot, greetingMessage
+    setCanvasSnapshot, greetingMessage, layoutView
   } = useTutorStore();
 
   const [chatHistory, setChatHistory] = useState(() => {
@@ -494,12 +494,21 @@ const Home = ({ isDark }) => {
         {/* D. Bottom Right Zoom / Minimap Tools */}
         <CanvasControls
           transform={canvasTransform}
-          onZoomIn={() => setCanvasTransform(prev => ({ ...prev, scale: Math.min(5, prev.scale * 1.3) }))}
-          onZoomOut={() => setCanvasTransform(prev => ({ ...prev, scale: Math.max(0.15, prev.scale / 1.3) }))}
-          onFitToContent={() => canvasRef.current?.fitToContent?.()}
-          onResetView={() => setCanvasTransform({ x: 0, y: 0, scale: 1 })}
+          onZoomIn={() => canvasRef.current?.zoomIn?.()}
+          onZoomOut={() => canvasRef.current?.zoomOut?.()}
+          onFitToContent={() => { 
+            if (isSidebarOpen) {
+              canvasRef.current?.fitToContent?.(); 
+              setSidebarOpen(false); 
+            } else {
+              setSidebarOpen(true);
+            }
+          }}
+          onResetView={() => canvasRef.current?.resetView?.()}
           onToggleMinimap={toggleMinimap}
           showMinimap={showMinimap}
+          layoutView={layoutView}
+          isSidebarOpen={isSidebarOpen}
         />
 
         {/* E. Chat & Overlays (DoubtThread etc) */}
