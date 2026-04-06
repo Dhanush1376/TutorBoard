@@ -1,4 +1,4 @@
-import { getAIClient, getModel } from '../utils/ai.js';
+import { getAIClient, getModel } from '../engine/ai/llmClient.js';
 
 
 

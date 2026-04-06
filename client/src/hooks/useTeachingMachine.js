@@ -149,10 +149,10 @@ export function useTeachingMachine() {
     const timeoutId = setTimeout(() => {
       const currentState = useTutorStore.getState().machineState;
       if (currentState === STATES.GENERATING) {
-        console.warn('[Machine] ⚠️ 90s timeout — no server response. Resetting.');
+        console.warn('[Machine] ⚠️ 130s timeout — no server response. Resetting.');
         setGreeting('The AI is taking too long to respond. Please try again.');
       }
-    }, 90000);
+    }, 130000);
     
     // Clear timeout when component unmounts or new session starts
     return () => clearTimeout(timeoutId);

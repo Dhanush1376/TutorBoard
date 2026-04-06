@@ -1,14 +1,25 @@
-import React, { useState, useEffect, useRef, Component } from 'react';
+import React, { useState, useEffect, useRef, Component, memo, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Stage, Layer, Text, Rect, Group } from 'react-konva';
 import { animated, useSpring, useSprings } from '@react-spring/konva';
 import { motion, useMotionValue, useSpring as useFramerSpring, AnimatePresence } from 'framer-motion';
 
-// Import New Visual Engine Renderers
-import FlowRenderer from './renderers/FlowRenderer';
-import TimelineRenderer from './renderers/TimelineRenderer';
-import DiagramRenderer from './renderers/DiagramRenderer';
-import AnimationRenderer from './renderers/AnimationRenderer';
-import SceneRenderer from './renderers/SceneRenderer';
+// Lazy load renderers for better code splitting
+const FlowRenderer = lazy(() => import('./renderers/FlowRenderer'));
+const TimelineRenderer = lazy(() => import('./renderers/TimelineRenderer'));
+const DiagramRenderer = lazy(() => import('./renderers/DiagramRenderer'));
+const AnimationRenderer = lazy(() => import('./renderers/AnimationRenderer'));
+const SceneRenderer = lazy(() => import('./renderers/SceneRenderer'));
+
+// Fallback loader component
+const RendererFallback = () => (
+  <div className="absolute inset-0 flex items-center justify-center">
+    <motion.div 
+      animate={{ rotate: 360 }} 
+      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+      className="w-8 h-8 border-2 border-[var(--border-color)] border-t-[var(--text-primary)] rounded-full"
+    />
+  </div>
+);
 
 // ─── ERROR BOUNDARY ─── Catches rendering crashes and shows fallback UI
 class BoardErrorBoundary extends Component {
@@ -44,7 +55,7 @@ class BoardErrorBoundary extends Component {
   }
 }
 
-// Domain color map for visual identity
+// Domain color map for visual identity - MOVED UP
 const DOMAIN_COLORS = {
   dsa: { bg: '#059669', text: '#ecfdf5', label: 'DSA' },
   mathematics: { bg: '#7c3aed', text: '#f5f3ff', label: 'Mathematics' },
@@ -55,8 +66,8 @@ const DOMAIN_COLORS = {
   general: { bg: '#6b7280', text: '#f9fafb', label: 'General' },
 };
 
-// Array-based visualization for DSA domain
-const AnimatedArray = ({ stepData }) => {
+// Memoized AnimatedArray for performance
+const AnimatedArray = memo(({ stepData }) => {
   const BOX_SIZE = 60;
   const SPACING = 20;
 
@@ -138,16 +149,17 @@ const AnimatedArray = ({ stepData }) => {
       ))}
     </>
   );
-};
+});
+
+AnimatedArray.displayName = 'AnimatedArray';
 
 const isArrayStep = (stepData) => {
   const arrayTypes = ['array', 'compare', 'swap', 'highlight'];
   return arrayTypes.includes(stepData?.type) && Array.isArray(stepData?.data?.array);
 };
 
-
-
-const getIcon = (icon) => {
+// Memoized getIcon function
+const getIcon = memo((icon) => {
   switch (icon?.toLowerCase()) {
     case "sun": return "☀️";
     case "plant": return "🌿";
@@ -160,9 +172,10 @@ const getIcon = (icon) => {
     case "quiz": return "❓";
     default: return "🔹";
   }
-};
+});
+getIcon.displayName = 'getIcon';
 
-const QuizRenderer = ({ stepData }) => {
+const QuizRenderer = memo(({ stepData }) => {
   const { question, options, correctAnswer, explanation } = stepData.quizData || {};
   const [selectedOption, setSelectedOption] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -261,9 +274,11 @@ const QuizRenderer = ({ stepData }) => {
       </motion.div>
     </div>
   );
-};
+});
 
-const ProcessRenderer = ({ steps, currentStep }) => {
+QuizRenderer.displayName = 'QuizRenderer';
+
+const ProcessRenderer = memo(({ steps, currentStep }) => {
   if (!steps || steps.length === 0) return null;
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-12 overflow-y-auto no-scrollbar">
@@ -310,10 +325,12 @@ const ProcessRenderer = ({ steps, currentStep }) => {
       </div>
     </div>
   );
-};
+});
+
+ProcessRenderer.displayName = 'ProcessRenderer';
 
 // ─── SCENE DISPATCHER ─── Handles renderer routing and fallback
-const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, style, elements, motionData, sequence, connections, objects, dimensions, stageRef, handleWheel, stagePos, isDragging, setIsDragging, setStagePos, stageScale }) => {
+const SceneDispatcher = memo(({ stepData, steps, currentStep, domain, vizType, dsl, style, elements, motionData, sequence, connections, objects, dimensions, stageRef, handleWheel, stagePos, isDragging, setIsDragging, setStagePos, stageScale }) => {
   const hasObjects = Array.isArray(objects) && objects.length > 0;
   const hasElements = Array.isArray(elements) && elements.length > 0;
   const hasSequence = Array.isArray(sequence) && sequence.length > 0;
@@ -321,7 +338,7 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
 
   // ═══ PRIORITY 1: SceneRenderer — real SVG visual diagrams ═══
   if (hasObjects) {
-    return <SceneRenderer objects={objects} steps={steps} currentStepIndex={currentStep} />;
+    return <Suspense fallback={<RendererFallback />}><SceneRenderer objects={objects} steps={steps} currentStepIndex={currentStep} /></Suspense>;
   }
 
   // ═══ PRIORITY 2: DSL-based renderers ═══
@@ -330,11 +347,11 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
     switch (vizType) {
       case "flow":
       case "node_graph":
-        return <FlowRenderer dsl={dsl} style={style} />;
+        return <Suspense fallback={<RendererFallback />}><FlowRenderer dsl={dsl} style={style} /></Suspense>;
       case "timeline":
-        return <TimelineRenderer dsl={dsl} style={style} />;
+        return <Suspense fallback={<RendererFallback />}><TimelineRenderer dsl={dsl} style={style} /></Suspense>;
       case "diagram":
-        return <DiagramRenderer dsl={dsl} style={style} />;
+        return <Suspense fallback={<RendererFallback />}><DiagramRenderer dsl={dsl} style={style} /></Suspense>;
       default:
         break;
     }
@@ -348,12 +365,14 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
   // ═══ PRIORITY 4: AnimationRenderer for elements ═══
   if (hasElements || hasSequence) {
     return (
-      <AnimationRenderer
-        objects={objects}
-        steps={steps}
-        currentStepIndex={currentStep}
-        data={{ elements, motion: motionData, sequence, connections, type: vizType }}
-      />
+      <Suspense fallback={<RendererFallback />}>
+        <AnimationRenderer
+          objects={objects}
+          steps={steps}
+          currentStepIndex={currentStep}
+          data={{ elements, motion: motionData, sequence, connections, type: vizType }}
+        />
+      </Suspense>
     );
   }
 
@@ -375,9 +394,11 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
   }
 
   return null;
-};
+});
 
-const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style, elements, motionData, sequence, connections, objects }) => {
+SceneDispatcher.displayName = 'SceneDispatcher';
+
+const Board = memo(({ stepData, steps, currentStep, domain, visualizationType: propVisualizationType, dsl, style, elements, motionData, sequence, connections, objects }) => {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -433,6 +454,8 @@ const Board = ({ stepData, steps, currentStep, domain, visualizationType: propVi
       </BoardErrorBoundary>
     </div>
   );
-};
+});
+
+Board.displayName = 'Board';
 
 export default Board;
