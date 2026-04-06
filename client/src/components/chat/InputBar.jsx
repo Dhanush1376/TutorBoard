@@ -105,11 +105,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   ];
 
   const quickActions = [
-    { icon: BookOpen, label: 'Explain', mode: 'explain' },
-    { icon: Lightbulb, label: 'Solve', mode: 'solve' },
+    { icon: Zap, label: 'Quick Answer', mode: 'quick' },
+    { icon: Activity, label: 'Deep Visual Dive', mode: 'deep' },
     { icon: HelpCircle, label: 'Test Me', mode: 'test_me' },
-    { icon: Activity, label: 'Show Diagram', mode: 'show_diagram' },
-    { icon: Layers, label: 'Explain in Detail', mode: 'explain_in_detail' },
   ];
 
   const handleQuickAction = (mode) => {

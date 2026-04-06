@@ -257,8 +257,11 @@ const Home = ({ isDark }) => {
         next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
         return next;
       });
+
+      // Quick Mode UX: Focus Chat & Pan away from Canvas
+      setSidebarOpen(true);
     }
-  }, [greetingMessage, activeChatId]);
+  }, [greetingMessage, activeChatId, setSidebarOpen]);
 
   // ── Sync Errors to Chat ──
   const lastErrorRef = useRef(null);
@@ -390,7 +393,7 @@ const Home = ({ isDark }) => {
       const next = [...prev]; next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; return next;
     });
 
-    if (machineState !== STATES.IDLE && machineState !== STATES.COMPLETED) {
+    if (machineState !== STATES.IDLE && machineState !== STATES.COMPLETED && machineState !== STATES.ERROR) {
       // ── Session Active: Register as Doubt ──
       askDoubt(userPrompt, activeMode);
     } else {

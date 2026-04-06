@@ -63,15 +63,11 @@ const DOMAIN_NODE_TEMPLATES = {
 const DOMAIN_ANIMATION_GUIDE = {
   dsa: `
 ANIMATION STRATEGY — DSA / ALGORITHMS:
-  Use: array, pointer, swapbridge, comparator, codeline, highlightbox
-  - Show data structures as visual objects (arrays centered at x=400)
-  - Each comparison = one step. Each swap = one step. Each state change = one step.
-  - Use sortedCells (green) as elements settle, compareCells (orange) for active comparison
-  - Use codeline on left side (x=80) to show pseudocode executing
-  - For trees/graphs: circle=node, arrow=edge. Root at top-center (400,120), children below
-  - For linked lists: rect cells with arrow connectors left-to-right
-  - For stacks/queues: rect cells stacked vertically at center
-  MINIMUM STEPS: sorting=18, searching=10, trees=12, graph traversal=14
+  Use: arrayCell, pointer, comparator, codeline, highlightbox, orb, connector
+  - Make arrays cinematic: use arrayCell centered at x=400.
+  - compareCells / swapCells triggers arc swap animations automatically!
+  - Neural Networks/Graphs: MUST use orb objects and connector with "flow: {speed: 1}" to trace data flow.
+  MINIMUM STEPS: sorting=14, searching=10, trees=12, graph traversal=14
 `,
   mathematics: `
 ANIMATION STRATEGY — MATHEMATICS:
@@ -86,15 +82,12 @@ ANIMATION STRATEGY — MATHEMATICS:
   MINIMUM STEPS: calculus=12, geometry=10, matrices=10, statistics=8
 `,
   physics: `
-ANIMATION STRATEGY — PHYSICS:
-  Use: circle (particles, objects), arrow (forces, velocity, fields), path (trajectories, waves), arc (angles)
-  - For mechanics: show object as circle, force arrows pointing direction with labels
-  - For waves: use path with sinusoidal d attribute, animate wavelength/amplitude change
-  - For circuits: use rect (components), line (wires), text (values)
-  - For optics: use line (rays), arrow (direction), arc (reflection angle)
-  - Always show BEFORE state first, then animate to AFTER state
-  - Force diagrams: center object, radiate arrows outward/inward
-  MINIMUM STEPS: mechanics=12, waves=10, circuits=12, thermodynamics=10
+ANIMATION STRATEGY — PHYSICS & ASTRONOMY:
+  Use: orb (planets, particles, atoms), connector (forces, fields), path, arc.
+  - ASTRONOMY MUST use "orbit: {cx, cy, radius, speed: 20}" prop on orbs for planets revolving around a sun.
+  - For mechanics: show object as orb, connector arrows indicating force/velocity.
+  - ALWAYS use "float: true" for suspended/idle objects.
+  MINIMUM STEPS: mechanics=12, waves=10, astronomy=10
 `,
   chemistry: `
 ANIMATION STRATEGY — CHEMISTRY:
@@ -130,15 +123,12 @@ ANIMATION STRATEGY — MEDICINE / CLINICAL:
   MINIMUM STEPS: anatomy=12, pathophysiology=14, pharmacology=10, procedures=12
 `,
   computer_science: `
-ANIMATION STRATEGY — COMPUTER SCIENCE:
-  Use: rect (components, layers), arrow (data flow, API calls), circle (services, nodes), codeline (code), badge (labels)
-  - For OS concepts: layered rects (hardware → kernel → userspace → app)
-  - For networking: rect nodes with arrow edges showing packet flow
-  - For databases: show table as rect grid with rows/columns
-  - For OOP: class diagram with rect boxes, arrow for inheritance/composition
-  - For web: three-tier architecture (client → server → database) as rects
-  - For algorithms/code: use codeline shape on left, show execution state on right
-  MINIMUM STEPS: OS=12, networking=12, databases=10, OOP=10, web=10
+ANIMATION STRATEGY — COMPUTER SCIENCE & MACHINE LEARNING:
+  Use: orb (neural network nodes), connector (data flow, API calls), arrayCell, codeline.
+  - NEURAL NETWORKS MUST use orb objects for input/hidden/output layers (x/y spatial layout).
+  - CONNECTIONS MUST use "flow: { speed: 1.5 }" on connectors to simulate pulsing data.
+  - For OS/Networking: Use floating rects and flowing connectors.
+  MINIMUM STEPS: ML/NN=12, OS=10, web=10
 `,
   engineering: `
 ANIMATION STRATEGY — ENGINEERING:
@@ -337,9 +327,10 @@ SPATIAL SEMANTICS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 STANDARD SHAPES:
-  circle:       { id, shape:"circle",  x, y, r, color, label, pulse, glow, innerLabel, appearsAtStep }
-  rect:         { id, shape:"rect",    x, y, w, h, color, label, rx, appearsAtStep }
-  arrow:        { id, shape:"arrow",   x1, y1, x2, y2, color, label, dashed, thickness, appearsAtStep }
+  orb:          { id, shape:"orb",     x, y, r, color, label, innerLabel, orbit: { cx, cy, radius, speed: 20 }, float: true|false, appearsAtStep } // Glowing 3D sphere. ALWAYS use for planets/nodes.
+  svg:          { id, shape:"svg",     x, y, w, h, rawSvg: "<path d=... />", float: true|false, appearsAtStep }
+  connector:    { id, shape:"connector",x1, y1, x2, y2, color, label, flow: { speed: 1.5 }, thickness, appearsAtStep } // Use "flow" for marching-ants data/blood/signal flow
+  rect:         { id, shape:"rect",    x, y, w, h, color, label, float: true|false, appearsAtStep }
   line:         { id, shape:"line",    x1, y1, x2, y2, color, strokeWidth, dashed, appearsAtStep }
   text:         { id, shape:"text",    x, y, text, fontSize, color, fontWeight, appearsAtStep }
   badge:        { id, shape:"badge",   x, y, text, bgColor, textColor, appearsAtStep }
@@ -347,9 +338,8 @@ STANDARD SHAPES:
   path:         { id, shape:"path",    d, color, strokeWidth, fill, appearsAtStep }
 
 ALGORITHM SHAPES (DSA topics):
-  array:        { id, shape:"array",   x:400, y, values:["5","3",...], cellW, cellH, fontSize, showIndex, highlightCells:[], compareCells:[], swapCells:[], sortedCells:[], label, appearsAtStep }
+  arrayCell:    { id, shape:"arrayCell", x:400, y, values:["5","3"], cellW, cellH, highlightCells:[], compareCells:[], swapCells:[], sortedCells:[], label, appearsAtStep } // Cinema-arc animated arrays
   pointer:      { id, shape:"pointer", arrayX:400, arrayY, arrayW, cellIndex, cellW, cellH, label, color, side:"bottom", appearsAtStep }
-  swapbridge:   { id, shape:"swapbridge", arrayX:400, arrayY, arrayW, cellW, cellH, fromIndex, toIndex, color, appearsAtStep }
   comparator:   { id, shape:"comparator", x, y, leftVal, rightVal, operator, result, color, appearsAtStep }
   codeline:     { id, shape:"codeline",   x:80, y, code, lineNumber, highlight, color, w, fontSize, appearsAtStep }
   highlightbox: { id, shape:"highlightbox", x, y, w, h, color, label, appearsAtStep }
@@ -367,7 +357,7 @@ DSA/ALGORITHMS:
   - For graphs: circles as nodes, arrows as edges, spatial layout
 
 PHYSICS / ENGINEERING:
-  - Start with the scenario (object, system) at center
+  - Start with the scenario (object, system) at center. Use 'svg' shape to draw true-to-life complex equipment!
   - Add force/field arrows radiating from/to the object
   - Show numerical values with badge shapes
   - Animate state changes: before (step 1-4) → during (step 5-8) → after (step 9+)
@@ -380,6 +370,7 @@ CHEMISTRY:
   - Use badge for charge, oxidation state labels
 
 BIOLOGY / MEDICINE:
+  - Generate HIGH-FIDELITY organs, anatomy, and cellular models using the new 'svg' shape! Write raw <path> data for real-world visual shapes instead of abstract circles.
   - Build anatomy step-by-step: outer boundary first, then internal structures
   - Color-code consistently: nucleus=blue, mitochondria=orange, membrane=green
   - For processes (cell division, circulation): show each phase as separate step

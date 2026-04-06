@@ -86,7 +86,7 @@ export function setupTeachingSocket(io) {
         const intent = detectIntent(topic, activeMode);
         console.log(`[WS] Detected Intent: ${intent}`);
 
-        if (intent === 'text_only') {
+        if (intent === 'quick' || intent === 'text_only') {
           // Process as a fast conversational text chat instead of generating a visual timeline
           console.log(`[WS] Generating text-only response...`);
           const response = await withTimeout(
@@ -184,7 +184,7 @@ export function setupTeachingSocket(io) {
         console.log(`[WS] Doubt Detected Intent: ${intent}`);
 
         let response;
-        if (intent === 'text_only') {
+        if (intent === 'quick' || intent === 'text_only') {
           // Fast-track a text response for default modes
           console.log(`[WS] Generating text-only doubt response...`);
           const textRes = await withTimeout(
