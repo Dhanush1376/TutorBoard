@@ -1,13 +1,15 @@
 /**
- * TeachingSession v2.0 — FULL-SCREEN IMMERSIVE VISUAL LEARNING ENGINE
+ * TeachingSession v3.0 — FULL-SCREEN IMMERSIVE VISUAL LEARNING ENGINE
  *
- * Enhancements:
- * 1. All 17 subject domains have styled badges
- * 2. Close button onClick fixed
- * 3. StepPanel visible in TEACHING + RESPONDING + RESUMING states
- * 4. Domain badge shown even for unknown domains (graceful fallback)
- * 5. Doubt input shows domain-appropriate placeholder
- * 6. Progress bar segment limit (max 50 segments) prevents UI overflow
+ * v3.0 — Cinematic Animation Engine Integration:
+ *   - UniversalAnimationEngine configured per-domain for 3-layer animations
+ *   - StepOrchestrator manages step transitions and stagger timing
+ *   - All 24 subject domains supported with styled badges
+ *   - Close button onClick fixed
+ *   - StepPanel visible in TEACHING + RESPONDING + RESUMING states
+ *   - Domain badge shown even for unknown domains (graceful fallback)
+ *   - Doubt input shows domain-appropriate placeholder
+ *   - Progress bar segment limit (max 50 segments) prevents UI overflow
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -29,26 +31,35 @@ import SessionOverlay from './SessionOverlay';
 import StepPanel from './StepPanel';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
+import animEngine from '../../engine/UniversalAnimationEngine';
+import stepOrchestrator from '../../engine/StepOrchestrator';
 
-// ─── All 17 domain styles ─────────────────────────────────────────────────────
+// ─── All 24 domain styles ─────────────────────────────────────────────────────
 const DOMAIN_STYLES = {
-  dsa:              { bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.3)',   text: '#10b981', label: 'DSA' },
-  mathematics:      { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#8b5cf6', label: 'Math' },
-  physics:          { bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.3)',   text: '#3b82f6', label: 'Physics' },
-  chemistry:        { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#ef4444', label: 'Chemistry' },
-  biology:          { bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#22c55e', label: 'Biology' },
-  medicine:         { bg: 'rgba(236,72,153,0.15)',  border: 'rgba(236,72,153,0.3)',  text: '#ec4899', label: 'Medicine' },
-  computer_science: { bg: 'rgba(6,182,212,0.15)',   border: 'rgba(6,182,212,0.3)',   text: '#06b6d4', label: 'CS' },
-  engineering:      { bg: 'rgba(217,119,6,0.15)',   border: 'rgba(217,119,6,0.3)',   text: '#f59e0b', label: 'Engineering' },
-  business:         { bg: 'rgba(20,184,166,0.15)',  border: 'rgba(20,184,166,0.3)',  text: '#14b8a6', label: 'Business' },
-  law:              { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)',  text: '#fbbf24', label: 'Law' },
-  history:          { bg: 'rgba(161,98,7,0.15)',    border: 'rgba(161,98,7,0.3)',    text: '#ca8a04', label: 'History' },
-  geography:        { bg: 'rgba(21,128,61,0.15)',   border: 'rgba(21,128,61,0.3)',   text: '#16a34a', label: 'Geography' },
-  psychology:       { bg: 'rgba(168,85,247,0.15)',  border: 'rgba(168,85,247,0.3)',  text: '#a855f7', label: 'Psychology' },
-  arts:             { bg: 'rgba(244,63,94,0.15)',   border: 'rgba(244,63,94,0.3)',   text: '#f43f5e', label: 'Arts' },
-  economics:        { bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.3)',   text: '#4ade80', label: 'Economics' },
-  aviation_maritime:{ bg: 'rgba(56,189,248,0.15)',  border: 'rgba(56,189,248,0.3)',  text: '#38bdf8', label: 'Aviation' },
-  general:          { bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)', text: '#9ca3af', label: 'General' },
+  dsa:                  { bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.3)',   text: '#10b981', label: 'DSA' },
+  mathematics:          { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#8b5cf6', label: 'Math' },
+  physics:              { bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.3)',   text: '#3b82f6', label: 'Physics' },
+  chemistry:            { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#ef4444', label: 'Chemistry' },
+  biology:              { bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#22c55e', label: 'Biology' },
+  medicine:             { bg: 'rgba(236,72,153,0.15)',  border: 'rgba(236,72,153,0.3)',  text: '#ec4899', label: 'Medicine' },
+  computer_science:     { bg: 'rgba(6,182,212,0.15)',   border: 'rgba(6,182,212,0.3)',   text: '#06b6d4', label: 'CS' },
+  engineering:          { bg: 'rgba(217,119,6,0.15)',   border: 'rgba(217,119,6,0.3)',   text: '#f59e0b', label: 'Engineering' },
+  business:             { bg: 'rgba(20,184,166,0.15)',  border: 'rgba(20,184,166,0.3)',  text: '#14b8a6', label: 'Business' },
+  law:                  { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)',  text: '#fbbf24', label: 'Law' },
+  history:              { bg: 'rgba(161,98,7,0.15)',    border: 'rgba(161,98,7,0.3)',    text: '#ca8a04', label: 'History' },
+  geography:            { bg: 'rgba(21,128,61,0.15)',   border: 'rgba(21,128,61,0.3)',   text: '#16a34a', label: 'Geography' },
+  psychology:           { bg: 'rgba(168,85,247,0.15)',  border: 'rgba(168,85,247,0.3)',  text: '#a855f7', label: 'Psychology' },
+  arts:                 { bg: 'rgba(244,63,94,0.15)',   border: 'rgba(244,63,94,0.3)',   text: '#f43f5e', label: 'Arts' },
+  economics:            { bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.3)',   text: '#4ade80', label: 'Economics' },
+  aviation_maritime:    { bg: 'rgba(56,189,248,0.15)',  border: 'rgba(56,189,248,0.3)',  text: '#38bdf8', label: 'Aviation' },
+  data_science:         { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#7c3aed', label: 'Data Science' },
+  cybersecurity:        { bg: 'rgba(30,41,59,0.25)',    border: 'rgba(71,85,105,0.3)',   text: '#94a3b8', label: 'Cybersecurity' },
+  linguistics:          { bg: 'rgba(147,51,234,0.15)',  border: 'rgba(147,51,234,0.3)',  text: '#9333ea', label: 'Linguistics' },
+  philosophy:           { bg: 'rgba(87,83,78,0.15)',    border: 'rgba(87,83,78,0.3)',    text: '#a8a29e', label: 'Philosophy' },
+  environmental_science:{ bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#16a34a', label: 'Environment' },
+  music:                { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#dc2626', label: 'Music' },
+  space_astronomy:      { bg: 'rgba(30,27,75,0.25)',    border: 'rgba(129,140,248,0.3)', text: '#818cf8', label: 'Astronomy' },
+  general:              { bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)', text: '#9ca3af', label: 'General' },
 };
 
 // Domain-aware doubt placeholders
@@ -106,6 +117,22 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
       startSession(initialTopic, initialTopic);
     }
   }, [isOpen, initialTopic, machineState, startSession, timeline]);
+
+  // Configure animation engine when timeline loads (domain-aware rendering)
+  useEffect(() => {
+    if (timeline) {
+      const domain = timeline.domain?.toLowerCase() || 'general';
+      animEngine.setDomain(domain);
+      stepOrchestrator.setDomain(domain);
+      stepOrchestrator.reset();
+    }
+  }, [timeline]);
+
+  // Sync playback speed to engine
+  useEffect(() => {
+    animEngine.setSpeed(playbackSpeed);
+    stepOrchestrator.setSpeed(playbackSpeed);
+  }, [playbackSpeed]);
 
   // Auto-fit canvas when timeline loads
   useEffect(() => {
@@ -307,6 +334,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 objects={canvasObjects}
                 steps={canvasSteps}
                 currentStepIndex={currentStepIndex}
+                canvasRef={canvasRef}
               />
             </InfiniteCanvas>
 

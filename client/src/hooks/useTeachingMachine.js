@@ -144,15 +144,15 @@ export function useTeachingMachine() {
     storeStartSession(topicStr, initialQuestion);
     emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode });
     
-    // Safety timeout: if no response in 90s, reset state so user isn't stuck
-    // (Free-tier models can take 60-80s for complex visual timelines)
+    // Safety timeout: if no response in 180s, reset state so user isn't stuck
+    // (Free-tier models can take 60-120s for complex visual timelines)
     const timeoutId = setTimeout(() => {
       const currentState = useTutorStore.getState().machineState;
       if (currentState === STATES.GENERATING) {
-        console.warn('[Machine] ⚠️ 90s timeout — no server response. Resetting.');
+        console.warn('[Machine] ⚠️ 180s timeout — no server response. Resetting.');
         setGreeting('The AI is taking too long to respond. Please try again.');
       }
-    }, 90000);
+    }, 180000);
     
     // Clear timeout when component unmounts or new session starts
     return () => clearTimeout(timeoutId);

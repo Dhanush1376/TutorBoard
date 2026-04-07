@@ -5,10 +5,12 @@
 import { getAIClient, getModel, getTextModel } from './ai/llmClient.js';
 import {
   TEACHING_ENGINE_PROMPT,
+  buildTeachingEnginePrompt,
   DOUBT_RESPONSE_PROMPT,
   isGreeting,
   buildTeachingPrompt,
   detectDomain,
+  getAnimationGuide
 } from './prompts/index.js';
 import { safeParse, validateTimeline, validateDoubtResponse, buildRetryPrompt } from './validation/index.js';
 import sessionStore from './sessionStore.js';
@@ -70,14 +72,14 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const attemptTag = `[Orchestrator:${attempt + 1}/${maxRetries + 1}]`;
-      console.log(`${attemptTag} Starting LLM call...`);
+      console.log(`${attemptTag} Starting LLM call... (Max Tokens: ${maxTokens})`);
 
       const ai = getAIClient();
       const model = getModel();
-      const temperature = attempt === 0 ? 0.3 : 0.2;
+      const temperature = attempt === 0 ? 0.35 : 0.2;
       
-      // Attempt 1: 45s, Attempt 2+: 60s
-      const timeoutMs = attempt === 0 ? 45000 : 60000;
+      // Attempt 1: 150s, Attempt 2+: 180s (DeepSeek can sometimes be slow but reliable)
+      const timeoutMs = attempt === 0 ? 150000 : 180000;
 
       const completion = await withTimeout(
         ai.chat.completions.create({
@@ -96,24 +98,35 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
       raw = stripThinkTags(raw);
       console.log(`${attemptTag} Received response (${raw.length} chars), finish: ${finishReason}`);
 
+      if (!raw.trim()) {
+        console.warn(`${attemptTag} Empty response from LLM`);
+        if (attempt < maxRetries) continue;
+        return null;
+      }
+
       if (finishReason === 'length' || (raw.length > 0 && !raw.trim().endsWith('}'))) {
+        console.warn(`${attemptTag} Incomplete JSON response`);
         if (attempt < maxRetries) {
           messages.push({ role: 'assistant', content: raw });
-          messages.push({ role: 'user', content: 'Be more concise. Return only valid JSON.' });
+          messages.push({ role: 'user', content: 'The JSON was incomplete. Please continue the JSON exactly where you left off. Do not repeat anything.' });
           continue;
         }
       }
 
       const parsed = safeParse(raw);
       if (!parsed) {
-        console.error('[Orchestrator] JSON parse FAILED');
-        if (attempt < maxRetries) continue;
+        console.error(`${attemptTag} JSON parse FAILED`);
+        if (attempt < maxRetries) {
+          messages.push({ role: 'assistant', content: raw });
+          messages.push({ role: 'user', content: 'Invalid JSON. Return only the valid JSON object requested.' });
+          continue;
+        }
         return null;
       }
 
       const validation = validateFn(parsed);
       if (!validation.valid) {
-        console.warn('[Orchestrator] Validation issues:', validation.errors);
+        console.warn(`${attemptTag} Validation issues:`, validation.errors);
         if (attempt < maxRetries) {
           messages.push({ role: 'assistant', content: raw });
           messages.push({ role: 'user', content: buildRetryPrompt(validation.errors) });
@@ -121,12 +134,14 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
         }
       }
 
-      console.log(`[Orchestrator] ✅ Success`);
+      console.log(`[Orchestrator] ✅ Successful generation on attempt ${attempt + 1}`);
       return parsed;
 
     } catch (err) {
-      console.error(`[Orchestrator] ❌ Error:`, err.message);
+      console.error(`[Orchestrator] ❌ Attempt ${attempt + 1} Error:`, err.message);
       if (attempt === maxRetries) return null;
+      // Small pause before retry
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
   return null;
@@ -181,8 +196,15 @@ export async function generateTimeline(sessionId, topic) {
   const domain = detectDomain(topic);
   console.log(`[Orchestrator] Topic: "${topic}" → Domain: ${domain}`);
 
+  const animationGuide = getAnimationGuide(domain);
+  const systemPrompt = buildTeachingEnginePrompt({
+    topic,
+    domain,
+    animationGuide
+  });
+
   const messages = [
-    { role: 'system', content: TEACHING_ENGINE_PROMPT },
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: buildTeachingPrompt(topic) }
   ];
 
