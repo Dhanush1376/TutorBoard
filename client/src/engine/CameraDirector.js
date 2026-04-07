@@ -72,7 +72,7 @@ export class CameraDirector {
     this.speed = 1;
     /** @type {{ x: number, y: number, zoom: number }} */
     this._lastPosition = { x: CANVAS_CENTER.x, y: CANVAS_CENTER.y, zoom: 1.0 };
-    /** @type {React.RefObject|null} Canvas ref with centerOn / fitToContent */
+    /** @type {Object|null} Canvas ref wrapper with centerOn / fitToContent methods */
     this._canvasRef = null;
     /** @type {boolean} Is user currently dragging (suppress camera) */
     this._userInteracting = false;
@@ -83,11 +83,11 @@ export class CameraDirector {
   // ─── Configuration ─────────────────────────────────────────────────────
 
   /**
-   * Attach the InfiniteCanvas ref so we can call its methods.
-   * @param {React.RefObject} ref
+   * Attach the InfiniteCanvas ref directly.
+   * @param {Object} canvasRef
    */
-  attach(ref) {
-    this._canvasRef = ref;
+  attach(canvasRef) {
+    this._canvasRef = canvasRef;
   }
 
   setDomain(domain) {
@@ -113,7 +113,7 @@ export class CameraDirector {
    * @param {CameraCommand} cmd
    */
   execute(cmd) {
-    if (!this._canvasRef?.current || this._userInteracting) return;
+    if (!this._canvasRef || !this._canvasRef.current || this._userInteracting) return;
 
     const canvas = this._canvasRef.current;
     const duration = (cmd.duration || 600) / this.speed;
@@ -174,7 +174,7 @@ export class CameraDirector {
    * @param {number} focusIntensity - 1-5 from narrative analysis
    */
   directStep(step, objects, highlightIds, newIds, focusPoint, focusIntensity = 2) {
-    if (!this._canvasRef?.current || this._userInteracting) return;
+    if (!this._canvasRef || !this._canvasRef.current || this._userInteracting) return;
 
     // Clear any pending camera command
     if (this._cameraTimer) clearTimeout(this._cameraTimer);
@@ -214,7 +214,7 @@ export class CameraDirector {
 
   destroy() {
     if (this._cameraTimer) clearTimeout(this._cameraTimer);
-    this._canvasRef = null;
+    this._canvas = null;
   }
 
   // ─── Internal ──────────────────────────────────────────────────────────

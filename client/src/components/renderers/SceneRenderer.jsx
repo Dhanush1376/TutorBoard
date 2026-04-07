@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import animEngine from '../../engine/UniversalAnimationEngine.js';
+import { analyzeNarration } from '../../engine/BehaviorIntelligence.js';
 
 /**
  * SceneRenderer — Full-vocabulary SVG teaching canvas.
@@ -74,6 +76,32 @@ const getCellPalette = (i, { highlightCells, compareCells, swapCells, sortedCell
   return { bg: '#1e293b', border: '#334155', val: '#e2e8f0', kind: 'normal' };
 };
 
+// ─── Dominance Ring ──────────────────────────────────────────────────────────
+const DominanceRing = ({ obj, role }) => {
+  if (role !== 'dominant') return null;
+  const px1 = parseFloat(obj.x1), px2 = parseFloat(obj.x2);
+  const py1 = parseFloat(obj.y1), py2 = parseFloat(obj.y2);
+  
+  let cx, cy, r;
+  if (!isNaN(px1) && !isNaN(px2)) {
+    cx = (px1 + px2) / 2; cy = (py1 + py2) / 2;
+    r  = (safeNum(obj.thickness || 2, 2) * 8) + 14;
+  } else {
+    cx = safeNum(obj.x ?? obj.cx, CW / 2);
+    cy = safeNum(obj.y ?? obj.cy, CH / 2);
+    r  = safeNum(obj.r ?? obj.size, 50) + 14;
+  }
+
+  return (
+    <motion.circle
+      cx={cx} cy={cy} r={r}
+      fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0}
+      animate={{ opacity: [0, 0.4, 0.2], r: [r, r + 10, r] }}
+      transition={{ duration: 1.2, ease: 'easeOut', repeat: Infinity }}
+    />
+  );
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // ALGORITHM SHAPES
 // ════════════════════════════════════════════════════════════════════════════
@@ -104,6 +132,7 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {label && (
         <text
@@ -148,6 +177,7 @@ const ShapeArray = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
                 isCompare ? { scale: [1, 1.04, 1.04] } : {}
               }
               transition={{ duration: 0.55, ease: 'easeInOut' }}
+              style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
             />
 
             {/* Value */}
@@ -211,6 +241,7 @@ const ShapePointer = ({ obj, isNew, transition, stepKey }) => {
       initial={isNew ? { opacity: 0, y: side === 'bottom' ? 16 : -16 } : false}
       animate={isNew ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Shaft */}
       <motion.line
@@ -275,19 +306,21 @@ const ShapeSwapBridge = ({ obj, isNew, stepKey }) => {
       />
 
       {/* Travelling dot */}
-      <motion.circle
-        r={7} fill={c.stroke}
+      <motion.g
         style={{ offsetPath: `path("${d}")`, offsetRotate: '0deg' }}
         initial={{ offsetDistance: '0%', opacity: 0 }}
         animate={{ offsetDistance: ['0%', '100%'], opacity: [0, 1, 1, 0] }}
         transition={{ duration: 0.65, delay: 0.28, ease: 'easeInOut' }}
-      />
+      >
+        <circle r={7} fill={c.stroke} />
+      </motion.g>
 
       {/* SWAP label at apex */}
       <motion.g
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.38, duration: 0.3 }}
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       >
         <rect x={midX - 26} y={midY - 15} width={52} height={19} rx={9} fill={c.stroke} opacity={0.92} />
         <text
@@ -325,6 +358,7 @@ const ShapeComparator = ({ obj, isNew, transition, stepKey }) => {
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Pill bg */}
       <rect
@@ -353,6 +387,7 @@ const ShapeComparator = ({ obj, isNew, transition, stepKey }) => {
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.22, duration: 0.38, ease: [0.34, 1.56, 0.64, 1] }}
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       >
         <rect x={px + 99} y={py - 13} width={52} height={26} rx={13} fill={c.stroke} />
         <text x={px + 125} y={py} textAnchor="middle" dominantBaseline="central"
@@ -448,6 +483,7 @@ const ShapeHighlightBox = ({ obj, isNew, transition, stepKey }) => {
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.38 }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {label && (
         <text x={px + pw / 2} y={py - 11} textAnchor="middle" dominantBaseline="central"
@@ -494,6 +530,7 @@ const ShapeCircle = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Glow halo */}
       {(glow || isHighlighted) && (
@@ -564,6 +601,7 @@ const ShapeRect = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <rect
         x={rx_} y={ry_} width={pw} height={ph} rx={prx}
@@ -593,7 +631,7 @@ const ShapeArrow = ({ obj, isNew, stepKey }) => {
   const { color = 'gray', label, dashed = false, stroke } = obj;
 
   const c = resolveColor(stroke || color);
-  const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+  const mid = { x: (px1 + px2) / 2, y: (py1 + py2) / 2 };
   const markerId = `arr-${obj.id || Math.random().toString(36).slice(2)}`;
 
   return (
@@ -601,6 +639,7 @@ const ShapeArrow = ({ obj, isNew, stepKey }) => {
       initial={isNew ? { opacity: 0 } : false}
       animate={isNew ? { opacity: 1 } : {}}
       transition={{ duration: 0.4 }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <defs>
         <marker id={markerId} viewBox="0 0 10 10" refX="8" refY="5"
@@ -608,8 +647,8 @@ const ShapeArrow = ({ obj, isNew, stepKey }) => {
           <path d="M2 1L8 5L2 9" fill="none" stroke={c.stroke} strokeWidth="1.8" strokeLinecap="round" />
         </marker>
       </defs>
-      <motion.line
-        x1={px1} y1={py1} x2={px2} y2={py2}
+      <motion.path
+        d={`M ${px1} ${py1} L ${px2} ${py2}`}
         stroke={c.stroke} strokeWidth={pth}
         strokeDasharray={dashed ? '9 4' : undefined}
         strokeLinecap="round"
@@ -617,6 +656,7 @@ const ShapeArrow = ({ obj, isNew, stepKey }) => {
         initial={isNew ? { pathLength: 0 } : false}
         animate={isNew ? { pathLength: 1 } : {}}
         transition={{ duration: 0.55 }}
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
       {label && (
         <text x={(px1 + px2) / 2} y={(py1 + py2) / 2 - 12} textAnchor="middle" dominantBaseline="central"
@@ -643,16 +683,17 @@ const ShapeLine = ({ obj, isNew, stepKey }) => {
   const c = resolveColor(stroke || color);
 
   return (
-    <motion.line
+    <motion.path
       key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
-      x1={px1} y1={py1} x2={px2} y2={py2}
+      d={`M ${px1} ${py1} L ${px2} ${py2}`}
       stroke={c.stroke} strokeWidth={psw}
       strokeDasharray={dashed ? '7 3' : undefined}
       strokeLinecap="round" opacity={opacity ?? 0.65}
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={isNew ? { pathLength: 1, opacity: opacity ?? 0.65 } : {}}
       transition={{ duration: 0.55 }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     />
   );
 };
@@ -690,6 +731,7 @@ const ShapeText = ({ obj, isNew, isHighlighted, transition, stepKey }) => {
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.4 }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {content}
     </motion.text>
@@ -714,6 +756,7 @@ const ShapeBadge = ({ obj, isNew, transition, stepKey }) => {
       initial={isNew ? variant.hidden : false}
       animate={isNew ? variant.visible : {}}
       transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <rect x={px - bw / 2} y={py - bh / 2} width={bw} height={bh} rx={bh / 2} fill={c.stroke} />
       <text x={px} y={py} textAnchor="middle" dominantBaseline="central"
@@ -758,6 +801,7 @@ const ShapeArc = ({ obj, isNew, stepKey }) => {
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
       transition={{ duration: 0.65 }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     />
   );
 };
@@ -778,6 +822,7 @@ const ShapePath = ({ obj, isNew, stepKey }) => {
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
       transition={{ duration: 0.72 }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     />
   );
 };
@@ -796,7 +841,13 @@ const ShapeOrbit = ({ obj, index }) => {
   const pathId = `orbit-path-${obj.id || index}-${Math.random().toString(36).slice(2, 6)}`;
 
   return (
-    <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: index * 0.15, duration: 0.5 }} data-id={obj.id}>
+    <motion.g
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: index * 0.15, duration: 0.5 }}
+      data-id={obj.id}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
+    >
       <circle cx={px} cy={py} r={por}
         fill="none" stroke="#334155" strokeWidth={1} strokeDasharray="4 6" opacity={0.25} />
       <defs>
@@ -900,7 +951,7 @@ function useStepDiff(objects, steps, currentStepIndex) {
       visibleObjects,
       highlightIds,
       newIds: effectiveNewIds,
-      transition: step.transition || 'fadeIn',
+      transition: step.transition || 'springIn',
       stepKey: `step-${currentStepIndex}`,
       isLegacy: false,
     };
@@ -926,6 +977,19 @@ const SceneRenderer = ({ objects, steps, currentStep, currentStepIndex }) => {
   const step = safeSteps[Math.min(stepIdx, safeSteps.length - 1)];
   const narration = step?.narration || step?.description || '';
   const stepLabel = step?.label || step?.title || '';
+  const domain    = step?.domain || 'general';
+
+  // ── Cinematic Intelligence (Bug 5 Parity) ──
+  const { hints: narrativeHints, attention: attentionOverride } = useMemo(() => {
+    const hints = analyzeNarration(narration, domain);
+    const attention = animEngine.classifyAttention(
+      visibleObjects,
+      highlightIds,
+      newIds,
+      hints.actionType
+    );
+    return { hints, attention };
+  }, [stepIdx, visibleObjects, highlightIds, newIds]);
 
   return (
     <div className="absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden">
@@ -962,22 +1026,39 @@ const SceneRenderer = ({ objects, steps, currentStep, currentStepIndex }) => {
         })}
 
         {/* Shape layer */}
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence>
           {visibleObjects.map((obj, i) => {
+            const isNew = newIds.has(obj.id);
+            const isHighlighted = highlightIds.has(obj.id);
+            const role = animEngine.getAttentionRole(obj.id, attentionOverride);
+
             const shapeProps = {
               obj,
-              isNew: newIds.has(obj.id),
-              isHighlighted: highlightIds.has(obj.id),
-              transition,
+              isNew,
+              isHighlighted,
+              transition: narrativeHints.transitionHint || transition,
               stepKey,
+              narrativeHints,
+              attentionOverride,
             };
-            return dispatchShape(obj, shapeProps, i);
+
+            return (
+              <motion.g 
+                key={obj.id || i}
+                animate={role === 'background' ? { opacity: 0.35 } : { opacity: 1 }}
+              >
+                {role === 'dominant' && obj.shape !== 'text' && (
+                  <DominanceRing obj={obj} role={role} />
+                )}
+                {dispatchShape(obj, shapeProps, i)}
+              </motion.g>
+            );
           })}
         </AnimatePresence>
       </svg>
 
       {/* Step narration bar */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {(narration || stepLabel) && (
           <motion.div
             key={`narr-${stepIdx}`}

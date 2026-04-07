@@ -25,22 +25,28 @@
 
 const CS_BEHAVIORS = {
   array: {
-    idle:     () => null,                                                 // Arrays don't idle-animate
+    idle:     () => null,
     active:   () => ({ scale: [1, 1.03, 1], transition: { duration: 0.4, ease: 'easeInOut' } }),
     swapping: () => ({ y: [0, -22, 0], scaleX: [1, 1.1, 1], transition: { duration: 0.55, type: 'spring', stiffness: 120, damping: 10 } }),
+    swap:     () => ({ y: [0, -22, 0], scaleX: [1, 1.1, 1], transition: { duration: 0.55, type: 'spring', stiffness: 120, damping: 10 } }),
     sorted:   () => ({ scale: [1, 1.1, 1], transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } }),
     comparing:() => ({ scale: [1, 1.05, 1.05], transition: { duration: 0.35, ease: 'easeIn' } }),
+    compare:  () => ({ scale: [1, 1.05, 1.05], transition: { duration: 0.35, ease: 'easeIn' } }),
+    sort:     () => ({ scale: [1, 1.08, 1], transition: { duration: 0.5, ease: 'easeInOut' } }),
+    search:   () => ({ scale: [1, 1.04, 1], opacity: [1, 0.7, 1], transition: { duration: 0.4, repeat: 1 } }),
   },
 
   pointer: {
-    idle:   () => ({ y: [0, -4, 0], transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' } }),
-    moving: () => ({ x: [null, null], transition: { type: 'spring', stiffness: 160, damping: 14 } }),
-    active: () => ({ scale: [1, 1.2, 1], transition: { duration: 0.3, ease: [0.34, 1.56, 0.64, 1] } }),
+    idle:     () => ({ y: [0, -4, 0], transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' } }),
+    moving:   () => ({ x: [null, null], transition: { type: 'spring', stiffness: 160, damping: 14 } }),
+    active:   () => ({ scale: [1, 1.2, 1], transition: { duration: 0.3, ease: [0.34, 1.56, 0.64, 1] } }),
+    traverse: () => ({ x: [null, null], y: [0, -8, 0], transition: { duration: 0.4, ease: 'backOut' } }),
   },
 
   comparator: {
     idle:     () => null,
     deciding: () => ({ scale: [1, 1.06], opacity: [1, 0.8, 1], transition: { duration: 0.25, repeat: 2 } }),
+    compare:  () => ({ scale: [1, 1.06], opacity: [1, 0.8, 1], transition: { duration: 0.25, repeat: 2 } }),
     true:     () => ({ scale: [1, 1.12, 1], transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } }),
     false:    () => ({ scale: [1, 0.95, 1], transition: { duration: 0.3, ease: 'easeInOut' } }),
   },
@@ -49,11 +55,15 @@ const CS_BEHAVIORS = {
     idle:     () => ({ scale: [1, 1.02, 1], transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' } }),
     active:   () => ({ scale: [1, 1.12, 1], transition: { duration: 0.5, type: 'spring', damping: 10 } }),
     visited:  () => ({ opacity: [1, 0.6, 0.85], transition: { duration: 0.6, ease: 'easeOut' } }),
+    traverse: () => ({ scale: [1, 1.15, 1], filter: 'brightness(1.4)', transition: { duration: 0.4 } }),
+    pulse:    () => ({ scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: 1 } }),
   },
 
   callstack: {
-    push: () => ({ y: [30, 0], opacity: [0, 1], transition: { duration: 0.35, ease: [0.34, 1.56, 0.64, 1] } }),
-    pop:  () => ({ y: [0, -30], opacity: [1, 0], transition: { duration: 0.3, ease: 'easeIn' } }),
+    push:   () => ({ y: [30, 0], opacity: [0, 1], transition: { duration: 0.35, ease: [0.34, 1.56, 0.64, 1] } }),
+    insert: () => ({ y: [30, 0], opacity: [0, 1], transition: { duration: 0.35, ease: [0.34, 1.56, 0.64, 1] } }),
+    pop:    () => ({ y: [0, -30], opacity: [1, 0], transition: { duration: 0.3, ease: 'easeIn' } }),
+    delete: () => ({ y: [0, -30], opacity: [1, 0], transition: { duration: 0.3, ease: 'easeIn' } }),
   },
 };
 
@@ -267,16 +277,34 @@ export function resolveBehavior(obj, domain) {
   const state = obj.behaviorState || 'idle';
 
   const roleCatalog = catalog[role];
-  if (!roleCatalog) return null;
+  if (!roleCatalog) return _defaultActionBehavior(state);
 
   const factory = roleCatalog[state];
-  if (!factory) return null;
+  if (!factory) return _defaultActionBehavior(state);
 
   const result = factory(obj.behaviorParam);
-  if (!result) return null;
+  if (!result) return _defaultActionBehavior(state);
 
   // Unpack { animate, transition } from factory result
   const { transition, ...animate } = result;
+  return { animate, transition };
+}
+
+/**
+ * Fallback for actions when no specific role behavior exists.
+ */
+function _defaultActionBehavior(state) {
+  const S = {
+    swap:      () => ({ y: [0, -15, 0], transition: { duration: 0.5 } }),
+    compare:   () => ({ scale: [1, 1.1, 1], transition: { duration: 0.4 } }),
+    pulse:     () => ({ scale: [1, 1.15, 1], transition: { duration: 0.6, repeat: 1 } }),
+    highlight: () => ({ scale: [1, 1.1, 1], filter: 'brightness(1.2)', transition: { duration: 0.4 } }),
+    intro:     () => ({ opacity: [0, 1], scale: [0.8, 1], transition: { duration: 0.8 } }),
+    complete:  () => ({ scale: [1, 1.1, 1], filter: 'brightness(1.3)', transition: { duration: 0.8 } }),
+  };
+  const factory = S[state];
+  if (!factory) return null;
+  const { transition, ...animate } = factory();
   return { animate, transition };
 }
 

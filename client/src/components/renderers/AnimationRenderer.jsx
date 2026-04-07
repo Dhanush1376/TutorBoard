@@ -1089,7 +1089,7 @@ const LegacyAnimationRenderer = ({ data }) => {
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] animate-pulse" />
               Step {currentStep + 1} / {sequence.length}
             </div>
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               <motion.div key={currentStep}
                 initial={{ opacity: 0, y: 15, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}

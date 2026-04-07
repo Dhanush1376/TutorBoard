@@ -27,7 +27,7 @@ import {
 import animEngine from '../../engine/UniversalAnimationEngine.js';
 import stepOrchestrator from '../../engine/StepOrchestrator.js';
 import cameraDirector from '../../engine/CameraDirector.js';
-import { analyzeNarration } from '../../engine/BehaviorIntelligence.js';
+import { analyzeNarration, classifyAttention } from '../../engine/BehaviorIntelligence.js';
 import { EASE_CINEMATIC } from '../../engine/animationPresets.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -106,9 +106,18 @@ const CinematicFilters = () => (
 
 const DominanceRing = ({ obj, attentionRole }) => {
   if (attentionRole !== 'dominant') return null;
-  const cx = safeNum(obj.x ?? obj.cx, 400);
-  const cy = safeNum(obj.y ?? obj.cy, 300);
-  const r  = safeNum(obj.r ?? obj.size, 50) + 14;
+  
+  // Bug 8: Add shape-type guards for x1,y1,x2,y2 shapes
+  let cx, cy, r;
+  if (obj.x1 !== undefined && obj.x2 !== undefined) {
+    cx = safeNum((obj.x1 + obj.x2) / 2, 400);
+    cy = safeNum((obj.y1 + obj.y2) / 2, 300);
+    r  = safeNum(obj.thickness || 2, 2) * 8 + 14;
+  } else {
+    cx = safeNum(obj.x ?? obj.cx, 400);
+    cy = safeNum(obj.y ?? obj.cy, 300);
+    r  = safeNum(obj.r ?? obj.size, 50) + 14;
+  }
 
   return (
     <motion.circle
@@ -155,7 +164,7 @@ const NarrationBar = ({ stepIndex, narration, title, emphasis = 'normal' }) => {
   const style = emphasisStyles[emphasis] || emphasisStyles.normal;
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence>
       <motion.div
         key={`narr-${stepIndex}`}
         initial={{ opacity: 0, y: 14 }}
@@ -247,11 +256,15 @@ const QuizOverlay = ({ obj, visible }) => {
 function CinematicShapeRouter({
   obj, isNew, isHighlighted, isFaded, transition,
   staggerIndex, stepKey, legacyIndex, attentionRole,
+  narrativeHints, attentionOverride,
 }) {
   if (!obj) return null;
   const s = (obj.shape || obj.type || 'circle').toLowerCase();
 
-  const commonProps = { obj, isNew, isHighlighted, isFaded, transition, staggerIndex, stepKey };
+  const commonProps = { 
+    obj, isNew, isHighlighted, isFaded, transition, 
+    staggerIndex, stepKey, narrativeHints, attentionOverride 
+  };
 
   // Choose filter based on attention role
   const filterByRole = (base) => {
@@ -263,10 +276,10 @@ function CinematicShapeRouter({
 
   const wrapDraggable = (el) => (
     <motion.g
-      key={obj.id || legacyIndex}
+      key={`${obj.id}-${stepKey}` || legacyIndex}
       drag dragMomentum={false}
       onDragStart={e => e.stopPropagation()}
-      style={{ cursor: 'grab' }}
+      style={{ cursor: 'grab', transformOrigin: 'center', transformBox: 'fill-box' }}
       whileTap={{ cursor: 'grabbing' }}
       // Attention role: background objects slightly reduced opacity
       animate={attentionRole === 'background' ? { opacity: 0.32 } : { opacity: 1 }}
@@ -327,8 +340,11 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
   const currentStep = safeSteps[currentStepIndex] || null;
 
   // ── Attach CameraDirector to canvas ref ──
+  // ── Bug 6: Attach CameraDirector to canvas element wrap ref ──
   useEffect(() => {
-    if (canvasRef) cameraDirector.attach(canvasRef);
+    if (canvasRef) {
+      cameraDirector.attach(canvasRef);
+    }
   }, [canvasRef]);
 
   // ── Configure engines when domain changes ──
@@ -364,18 +380,29 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
 
   const { visibleObjects = [], newIds, highlightIds, fadeIds, transition: stepTransition, focusPoint } = stepData;
 
-  // ── NARRATIVE SYNC: analyze step narration ──
-  const narrativeHints = useMemo(() => {
+  // ── NARRATIVE SYNC: calculate hints and attention during render (Bug 5) ──
+  const narrativeData = useMemo(() => {
     const narration = currentStep?.narration || currentStep?.description || '';
     const domain    = currentStep?.domain || 'general';
-    return analyzeNarration(narration, domain);
-  }, [currentStep?.narration, currentStep?.description, currentStep?.domain]);
+    const hints = analyzeNarration(narration, domain);
+    
+    // Fix Bug 5: using explicit classifyAttention import
+    const attention = classifyAttention(
+      visibleObjects,
+      highlightIds,
+      newIds,
+      hints.actionType
+    );
 
-  // ── Tell animation engine about this step's narrative context ──
+    return { hints, attention };
+  }, [currentStepIndex, visibleObjects, highlightIds, newIds]);
+
+  const { hints: narrativeHints, attention: attentionOverride } = narrativeData;
+
+  // ── Sync orchestrator and singleton for legacy support (side effects) ──
   useEffect(() => {
-    const narration = currentStep?.narration || currentStep?.description || '';
-    animEngine.syncNarration(narration, visibleObjects, highlightIds, newIds);
-  }, [currentStepIndex, currentStep]);
+    stepOrchestrator.syncSeen(visibleObjects);
+  }, [visibleObjects]);
 
   // ── CAMERA DIRECTION: fire per step ──
   useEffect(() => {
@@ -462,7 +489,9 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
                 staggerIndex={staggerIndexMap.get(obj.id) || 0}
                 stepKey={`step-${currentStepIndex}`}
                 legacyIndex={i}
-                attentionRole={attentionRole}
+                attentionRole={animEngine.getAttentionRole(obj.id, attentionOverride)}
+                narrativeHints={narrativeHints}
+                attentionOverride={attentionOverride}
               />
             );
           })}

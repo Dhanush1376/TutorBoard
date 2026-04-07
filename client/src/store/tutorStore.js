@@ -99,7 +99,6 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
       // ═══════════════════════════════════════════════════
-      machineState: STATES.IDLE,
       isSidebarOpen: window.innerWidth >= 768,
 
       setLayoutView: (view) => set({ layoutView: view }),

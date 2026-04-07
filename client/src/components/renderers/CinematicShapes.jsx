@@ -86,14 +86,14 @@ const MultiText = ({ x, y, text, fontSize = 12, fill = '#cbd5e1', fontWeight = '
 // Multi-layered radial gradient sphere with ambient glow ring
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const x = safeNum(obj.x ?? obj.cx, CW / 2);
   const y = safeNum(obj.y ?? obj.cy, CH / 2);
   const r = safeNum(obj.r ?? obj.size, 40);
   const c = resolve(obj.color || obj.fill);
 
-  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex });
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
   const micro = config.microAnimation;
   const shouldPulse = obj.pulse || isHighlighted;
   const showGlow = obj.glow || isHighlighted;
@@ -103,12 +103,12 @@ export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
       transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Defs for this orb */}
       <defs>
@@ -131,20 +131,19 @@ export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
 
       {/* Layer 1: Main sphere */}
       <motion.circle
-        cx={x} cy={y} r={r}
+        initial={isNew ? config.initial : false}
+        animate={{ 
+          ...config.animate, 
+          ...(shouldPulse ? { r: [r, r * 1.06, r] } : (micro?.animate || {})) 
+        }}
+        transition={{ 
+          ...config.transition, 
+          ...(shouldPulse ? { duration: 0.8, repeat: 2, ease: 'easeInOut' } : (micro?.transition || {})) 
+        }}
         fill={`url(#${gradId})`}
         stroke={c.stroke} strokeWidth={2} strokeOpacity={0.7}
         filter="url(#tb-neon-glow)"
-        animate={
-          shouldPulse
-            ? { r: [r, r * 1.06, r] }
-            : micro?.animate || {}
-        }
-        transition={
-          shouldPulse
-            ? { duration: 0.8, repeat: 2, ease: 'easeInOut' }
-            : micro?.transition || {}
-        }
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
       {/* Layer 3: Inner specular highlight */}
@@ -178,7 +177,7 @@ export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
 // Glassmorphic panel with depth shadow and border glow
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const cx = safeNum(obj.x, 300);
   const cy = safeNum(obj.y, 240);
@@ -186,7 +185,7 @@ export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, stag
   const h = safeNum(obj.h ?? obj.height, 80);
   const rx = safeNum(obj.rx ?? obj.cornerRadius, 12);
   const c = resolve(obj.color || obj.fill);
-  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex });
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
 
   // Center-based coords → top-left
   const px = cx - w / 2;
@@ -194,20 +193,24 @@ export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
       transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Glass background */}
-      <rect
-        x={px} y={py} width={w} height={h} rx={rx}
+      <motion.rect
+        initial={isNew ? config.initial : false}
+        animate={config.animate}
+        transition={config.transition}
+        width={w} height={h} rx={rx}
         fill={c.glass}
         stroke={isHighlighted ? c.stroke : c.stroke + '55'}
         strokeWidth={isHighlighted ? 2.5 : 1.5}
         filter="url(#tb-drop-shadow)"
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
       {/* Top highlight edge — glassmorphism shine */}
@@ -234,24 +237,24 @@ export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 // Animated flow with gradient stroke and marching ants
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const FlowArrow = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const FlowArrow = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const x1 = safeNum(obj.x1, 200), y1 = safeNum(obj.y1, 300);
   const x2 = safeNum(obj.x2, 600), y2 = safeNum(obj.y2, 300);
   const sw = safeNum(obj.strokeWidth ?? obj.thickness, 2.5);
   const c = resolve(obj.color || obj.stroke);
-  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition: 'drawLine', staggerIndex });
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition: 'drawLine', staggerIndex, narrativeHints, attentionOverride });
   const markerId = `flow-arr-${obj.id}`;
   const hasFlow = obj.flow || isHighlighted;
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
       transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <defs>
         <marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5"
@@ -261,24 +264,33 @@ export const FlowArrow = ({ obj, isNew, isHighlighted, isFaded, transition, stag
       </defs>
 
       {/* Background track */}
-      <motion.line
-        x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={c.stroke} strokeOpacity={0.15} strokeWidth={sw}
+      <motion.path
+        initial={isNew ? { pathLength: 0, opacity: 0 } : false}
+        animate={{ 
+          pathLength: 1, 
+          opacity: isFaded ? 0.05 : 0.15,
+        }}
+        d={`M ${x1} ${y1} L ${x2} ${y2}`}
+        stroke={c.stroke} strokeWidth={sw}
         markerEnd={`url(#${markerId})`}
-        initial={isNew ? { pathLength: 0 } : false}
-        animate={isNew ? { pathLength: 1 } : {}}
         transition={{ duration: 0.6, ease: EASE_CINEMATIC }}
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
       {/* Active flow effect — marching ants */}
       {hasFlow && (
-        <motion.line
-          x1={x1} y1={y1} x2={x2} y2={y2}
+        <motion.path
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, strokeDashoffset: [24, 0] }}
+          d={`M ${x1} ${y1} L ${x2} ${y2}`}
           stroke={c.glow} strokeWidth={sw}
           strokeDasharray="6 12"
           filter="url(#tb-neon-glow)"
-          animate={{ strokeDashoffset: [24, 0] }}
-          transition={{ duration: 0.6, repeat: Infinity, ease: 'linear' }}
+          transition={{ 
+            strokeDashoffset: { duration: 0.6, repeat: Infinity, ease: 'linear' },
+            default: { duration: 0.4 } 
+          }}
+          style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
         />
       )}
 
@@ -300,7 +312,7 @@ export const FlowArrow = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 // Glassmorphic array cells with spring-based swap/sort/compare animations
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const values = Array.isArray(obj.values) ? obj.values : [];
   const px = safeNum(obj.x, CW / 2);
@@ -329,12 +341,12 @@ export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
       transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Label above array */}
       {obj.label && (
@@ -367,15 +379,19 @@ export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 
             {/* Cell body — glassmorphic */}
             <motion.rect
-              x={cx} y={sy} width={cw} height={ch} rx={10}
+              initial={isNew ? config.initial : false}
+              animate={{
+                ...config.animate,
+                x: cx, y: sy,
+                ...(isSwap    ? { y: [sy, sy - 20, sy], scaleX: [1, 1.08, 1] } :
+                   isSorted  ? { scale: [1, 1.09, 1] } :
+                   isCompare ? { scale: [1, 1.04, 1.04] } : {})
+              }}
+              width={cw} height={ch} rx={10}
               fill={pal.bg} stroke={pal.border} strokeWidth={2}
               filter={(isSwap || hIdx.has(i)) ? 'url(#tb-neon-glow)' : 'url(#tb-drop-shadow)'}
-              animate={
-                isSwap    ? { y: [sy, sy - 20, sy], scaleX: [1, 1.08, 1] } :
-                isSorted  ? { scale: [1, 1.09, 1] } :
-                isCompare ? { scale: [1, 1.04, 1.04] } : {}
-              }
-              transition={{ duration: 0.55, ...SPRING_BOUNCY }}
+              transition={{ ...config.transition, duration: 0.55, ...SPRING_BOUNCY }}
+              style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
             />
 
             {/* Value text */}
@@ -406,8 +422,10 @@ export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 // Bouncing arrow with neon glow shaft
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
+  
   const arrayX = safeNum(obj.arrayX, CW / 2);
   const arrayY = safeNum(obj.arrayY, CH / 2);
   const totalW = safeNum(obj.arrayW, 300);
@@ -426,11 +444,12 @@ export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, st
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={isNew ? { opacity: 0, y: side === 'bottom' ? 16 : -16, scale: 0.6 } : false}
-      animate={isNew ? { opacity: 1, y: 0, scale: 1 } : {}}
-      transition={{ ...SPRING_BOUNCY }}
+      animate={isNew ? { opacity: 1, y: 0, scale: 1 } : { ...config.animate }}
+      transition={{ ...SPRING_BOUNCY, ...config.transition }}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Shaft with neon glow */}
       <motion.line
@@ -439,7 +458,7 @@ export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, st
         filter="url(#tb-neon-glow)"
         initial={isNew ? { scaleY: 0 } : false}
         animate={isNew ? { scaleY: 1 } : {}}
-        style={{ transformOrigin: `${cx}px ${baseY}px` }}
+        style={{ transformOrigin: `${cx}px ${baseY}px`, transformBox: 'fill-box' }}
         transition={{ duration: 0.3, delay: 0.08 }}
       />
 
@@ -464,7 +483,7 @@ export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, st
 // SwapBridge — Enhanced with travelling orb
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const SwapBridge = ({ obj, isNew, stepKey }) => {
+export const SwapBridge = ({ obj, isNew, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const ax = safeNum(obj.arrayX, CW / 2);
   const ay = safeNum(obj.arrayY, CH / 2);
@@ -484,7 +503,7 @@ export const SwapBridge = ({ obj, isNew, stepKey }) => {
   const d = `M ${x1} ${baseY} Q ${midX} ${midY} ${x2} ${baseY}`;
 
   return (
-    <g key={obj.id} data-id={obj.id}>
+    <motion.g key={`${obj.id}-${stepKey}`} data-id={obj.id} style={{ transformOrigin: 'center', transformBox: 'fill-box' }}>
       {/* Dashed arc */}
       <motion.path
         d={d} fill="none" stroke={c.stroke} strokeWidth={2.5}
@@ -496,14 +515,10 @@ export const SwapBridge = ({ obj, isNew, stepKey }) => {
       />
 
       {/* Travelling orb along path */}
-      <motion.circle
-        r={7} fill={c.glow}
-        filter="url(#tb-neon-glow)"
-        style={{ offsetPath: `path("${d}")`, offsetRotate: '0deg' }}
-        initial={{ offsetDistance: '0%', opacity: 0 }}
-        animate={{ offsetDistance: ['0%', '100%'], opacity: [0, 1, 1, 0] }}
-        transition={{ duration: 0.65, delay: 0.28, ease: 'easeInOut' }}
-      />
+      <circle r={7} fill={c.glow} filter="url(#tb-neon-glow)" opacity={0}>
+        <animate attributeName="opacity" values="0;1;1;0" dur="0.65s" begin="0.28s" fill="freeze" />
+        <animateMotion dur="0.65s" begin="0.28s" fill="freeze" path={d} />
+      </circle>
 
       {/* SWAP label at apex */}
       <motion.g
@@ -518,7 +533,7 @@ export const SwapBridge = ({ obj, isNew, stepKey }) => {
           fontFamily="system-ui, sans-serif" letterSpacing="0.08em" pointerEvents="none"
         >SWAP</text>
       </motion.g>
-    </g>
+    </motion.g>
   );
 };
 
@@ -526,7 +541,7 @@ export const SwapBridge = ({ obj, isNew, stepKey }) => {
 // Comparator — Enhanced with spring badge
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const Comparator = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const Comparator = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const x = safeNum(obj.x, CW / 2);
   const y = safeNum(obj.y, 185);
@@ -536,19 +551,23 @@ export const Comparator = ({ obj, isNew, isHighlighted, isFaded, transition, sta
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
       transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Pill background */}
-      <rect
+      <motion.rect
+        initial={isNew ? config.initial : false}
+        animate={config.animate}
+        transition={config.transition}
         x={x - 95} y={y - 23} width={190} height={46} rx={23}
         fill={isTrue ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)'}
         stroke={c.stroke} strokeWidth={2}
         filter="url(#tb-neon-glow)"
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
       {/* Left value */}
@@ -590,8 +609,10 @@ export const Comparator = ({ obj, isNew, isHighlighted, isFaded, transition, sta
 // IDE-style code block with scanline highlight
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const CodePanel = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const CodePanel = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
+  
   const x = safeNum(obj.x, 80);
   const y = safeNum(obj.y, 300);
   const w = safeNum(obj.w, 300);
@@ -603,12 +624,18 @@ export const CodePanel = ({ obj, isNew, isHighlighted, isFaded, transition, stag
     <g key={`${obj.id}-${stepKey}`} data-id={obj.id}>
       {/* Row background */}
       <motion.rect
-        x={x - 10} y={y - 14} width={w + 20} height={28} rx={5}
+        initial={isNew ? config.initial : false}
+        animate={{ 
+          ...config.animate,
+          opacity: isLit ? 1 : 0.45,
+          x: x - 10, y: y - 14
+        }}
+        width={w + 20} height={28} rx={5}
         fill={isLit ? c.glass.replace('12)', '35)') : 'transparent'}
         stroke={isLit ? c.stroke + '55' : 'transparent'}
         strokeWidth={1}
-        animate={{ opacity: isLit ? 1 : 0.45 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.2, ...config.transition }}
+        style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
       {/* Active line indicator bar */}
@@ -625,6 +652,7 @@ export const CodePanel = ({ obj, isNew, isHighlighted, isFaded, transition, stag
           initial={{ x: x - 10 }}
           animate={{ x: x + w + 10 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
+          style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
         />
       )}
 
@@ -654,18 +682,18 @@ export const CodePanel = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 // Glassmorphic floating label with spring entry
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const FloatingBadge = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const FloatingBadge = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const x = safeNum(obj.x, CW / 2);
   const y = safeNum(obj.y, 100);
   const text = obj.text || '';
   const c = resolve(obj.bgColor || 'blue');
   const bw = Math.max(60, text.length * 8.5 + 28);
-  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition: 'popIn', staggerIndex });
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition: 'popIn', staggerIndex, narrativeHints, attentionOverride });
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={config.initial}
       animate={{
@@ -673,9 +701,12 @@ export const FloatingBadge = ({ obj, isNew, isHighlighted, isFaded, transition, 
         y: isNew ? [y - 4, y] : undefined,
       }}
       transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      <rect x={x - bw / 2} y={y - 14} width={bw} height={28} rx={14}
+      <motion.rect 
+        initial={isNew ? { scaleX: 0 } : false}
+        animate={{ x: x - bw / 2, y: y - 14 }}
+        width={bw} height={28} rx={14}
         fill={c.stroke} filter="url(#tb-drop-shadow)" />
       <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
         fill={obj.textColor || '#fff'} fontSize={11} fontWeight="900"
@@ -690,20 +721,22 @@ export const FloatingBadge = ({ obj, isNew, isHighlighted, isFaded, transition, 
 // Text with drop shadow and optional emphasis
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const DepthText = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const DepthText = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const x = safeNum(obj.x, CW / 2);
   const y = safeNum(obj.y, 100);
   const fs = safeNum(obj.fontSize, 18);
   const c = resolve(obj.color || obj.fill || 'white');
   const content = obj.text || obj.label || '';
-  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex });
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
 
   return (
     <motion.text
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
-      x={x} y={y}
+      initial={config.initial}
+      animate={{ ...config.animate, x, y }}
+      transition={config.transition}
       textAnchor={obj.anchor || obj.align || 'middle'}
       dominantBaseline="central"
       fontSize={fs}
@@ -713,10 +746,7 @@ export const DepthText = ({ obj, isNew, isHighlighted, isFaded, transition, stag
       fontFamily={obj.fontFamily || 'system-ui, sans-serif'}
       filter="url(#tb-drop-shadow)"
       pointerEvents="none"
-      initial={config.initial}
-      animate={config.animate}
-      transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >{content}</motion.text>
   );
 };
@@ -726,14 +756,14 @@ export const DepthText = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 // Animated path drawing with trailing glow
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const WavePath = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const WavePath = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const sw = safeNum(obj.strokeWidth, 2);
   const c = resolve(obj.color);
 
   return (
     <motion.path
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       d={obj.d || ''}
       fill={obj.fill === 'none' || !obj.filled ? 'none' : c.glass}
@@ -741,8 +771,8 @@ export const WavePath = ({ obj, isNew, isHighlighted, isFaded, transition, stagg
       filter={isHighlighted ? 'url(#tb-neon-glow)' : 'none'}
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
+      style={{ ...(isFaded ? { opacity: 0.3 } : {}), transformOrigin: 'center', transformBox: 'fill-box' }}
       transition={{ duration: 0.8, ease: EASE_CINEMATIC }}
-      style={isFaded ? { opacity: 0.3 } : {}}
     />
   );
 };
@@ -752,7 +782,7 @@ export const WavePath = ({ obj, isNew, isHighlighted, isFaded, transition, stagg
 // Smooth animated arc with angle markers
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const ArcPath = ({ obj, isNew, stepKey }) => {
+export const ArcPath = ({ obj, isNew, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const cx = safeNum(obj.cx ?? obj.x, CW / 2);
   const cy = safeNum(obj.cy ?? obj.y, CH / 2);
@@ -771,13 +801,14 @@ export const ArcPath = ({ obj, isNew, stepKey }) => {
 
   return (
     <motion.path
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 0 ${ex} ${ey}`}
       fill="none" stroke={c.stroke} strokeWidth={sw} strokeLinecap="round"
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
       transition={{ duration: 0.65, ease: EASE_CINEMATIC }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     />
   );
 };
@@ -787,39 +818,44 @@ export const ArcPath = ({ obj, isNew, stepKey }) => {
 // Animated border shimmer with pulsing opacity
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const HighlightZone = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey }) => {
+export const HighlightZone = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const x = safeNum(obj.x, 300);
   const y = safeNum(obj.y, 260);
   const w = safeNum(obj.w, 240);
   const h = safeNum(obj.h, 80);
   const c = resolve(obj.color || 'green');
-  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex });
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
 
   return (
     <motion.g
-      key={obj.id}
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
       transition={config.transition}
-      style={config.style}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {/* Label */}
       {obj.label && (
-        <text x={x + w / 2} y={y - 11} textAnchor="middle" dominantBaseline="central"
+        <motion.text 
+          animate={{ x: x + w / 2, y: y - 11 }}
+          textAnchor="middle" dominantBaseline="central"
           fontSize={12} fontWeight="700" fill={c.stroke}
           fontFamily="system-ui, sans-serif" pointerEvents="none"
-        >{obj.label}</text>
+        >{obj.label}</motion.text>
       )}
 
       {/* Pulsing zone */}
       <motion.rect
-        x={x} y={y} width={w} height={h} rx={10}
+        animate={{ x, y, width: w, height: h, opacity: [0.5, 0.85, 0.5] }}
+        rx={10}
         fill={c.glass} stroke={c.stroke} strokeWidth={1.5}
-        strokeDasharray="7 3" opacity={0.7}
-        animate={{ opacity: [0.5, 0.85, 0.5] }}
-        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        strokeDasharray="7 3"
+        transition={{ 
+          opacity: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+          default: { duration: 0.4 }
+        }}
       />
     </motion.g>
   );
@@ -829,24 +865,27 @@ export const HighlightZone = ({ obj, isNew, isHighlighted, isFaded, transition, 
 // SimpleLine — Replaces Line
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const SimpleLine = ({ obj, isNew, isFaded, stepKey }) => {
+export const SimpleLine = ({ obj, isNew, isFaded, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
+  const config = animEngine.getFullConfig(obj, { isNew, isFaded, transition: 'drawLine', narrativeHints, attentionOverride });
+  
   const x1 = safeNum(obj.x1, 0), y1 = safeNum(obj.y1, 0);
   const x2 = safeNum(obj.x2, 100), y2 = safeNum(obj.y2, 100);
   const sw = safeNum(obj.strokeWidth, 1.5);
   const c = resolve(obj.color || obj.stroke || 'gray');
 
   return (
-    <motion.line
-      key={obj.id}
+    <motion.path
+      key={`${obj.id}-${stepKey}`}
       data-id={obj.id}
-      x1={x1} y1={y1} x2={x2} y2={y2}
+      d={`M ${x1} ${y1} L ${x2} ${y2}`}
       stroke={c.stroke} strokeWidth={sw}
       strokeDasharray={obj.dashed ? '7 3' : undefined}
       strokeLinecap="round" opacity={isFaded ? 0.25 : (obj.opacity ?? 0.65)}
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
-      animate={isNew ? { pathLength: 1, opacity: obj.opacity ?? 0.65 } : {}}
-      transition={{ duration: 0.55, ease: EASE_CINEMATIC }}
+      animate={isNew ? { pathLength: 1, opacity: obj.opacity ?? 0.65 } : { ...config.animate }}
+      transition={{ duration: 0.55, ease: EASE_CINEMATIC, ...config.transition }}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     />
   );
 };
@@ -855,8 +894,10 @@ export const SimpleLine = ({ obj, isNew, isFaded, stepKey }) => {
 // Orbit — Orbital body with circular motion
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const OrbitBody = ({ obj, index = 0 }) => {
+export const OrbitBody = ({ obj, index = 0, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
+  const config = animEngine.getFullConfig(obj, { isNew: true, narrativeHints, attentionOverride });
+  
   const cx = safeNum(obj.cx ?? obj.x, CW / 2);
   const cy = safeNum(obj.cy ?? obj.y, CH / 2);
   const or = safeNum(obj.orbitRadius, 100);
@@ -867,9 +908,9 @@ export const OrbitBody = ({ obj, index = 0 }) => {
 
   return (
     <motion.g
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      transition={{ delay: index * 0.15, duration: 0.5 }}
-      data-id={obj.id}
+      initial={{ opacity: 0 }} animate={{ opacity: 1, ...config.animate }}
+      transition={{ delay: index * 0.15, duration: 0.5, ...config.transition }}
+      style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <circle cx={cx} cy={cy} r={or}
         fill="none" stroke="#334155" strokeWidth={1}

@@ -26,6 +26,8 @@ export class StepOrchestrator {
     this.seenIds = new Set();
     /** @type {number} Current step index */
     this.currentStepIndex = 0;
+    /** @type {Set<string>} Internal cache of all objects seen across a timeline */
+    this._history = new Set();
   }
 
   /**
@@ -49,7 +51,20 @@ export class StepOrchestrator {
    */
   reset() {
     this.seenIds.clear();
+    this._history.clear();
     this.currentStepIndex = 0;
+  }
+
+  /**
+   * Sync the 'seen' state for a specific step.
+   * Call this from an effect to avoid render-cycle mutations.
+   * @param {Object[]} visibleObjects 
+   */
+  syncSeen(visibleObjects) {
+    if (!visibleObjects) return;
+    visibleObjects.forEach(obj => {
+      if (obj?.id) this.seenIds.add(obj.id);
+    });
   }
 
   // ─── Step Analysis ─────────────────────────────────────────────────────
@@ -88,12 +103,11 @@ export class StepOrchestrator {
     const highlightIds = new Set(step.highlightIds || []);
     const fadeIds = new Set(step.fadeIds || []);
 
-    // Determine truly-new objects (first appearance ever)
+    // Determine truly-new objects (using a snapshot of seenIds)
     const freshIds = new Set();
     for (const id of currentIds) {
       if (!this.seenIds.has(id)) {
         freshIds.add(id);
-        this.seenIds.add(id);
       }
     }
 

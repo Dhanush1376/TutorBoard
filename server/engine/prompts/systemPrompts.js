@@ -42,10 +42,9 @@ Rules:
 - Every object MUST have appearsAtStep matching the step.index it first appears in.
 
 ━━━ STEP SCHEMA ━━━
-{
   "index": number,
   "title": "Short Label",
-  "narration": "2-4 sentences explaining the visual change. Voice: {{DOMAIN}}.",
+  "narration": "2-4 sentences. Use ACTION KEYWORDS (swap, compare, move, focus, search, sort, traverse, pulse, signal) to trigger automatic cinematic animations.",
   "durationMs": 2000-5000,
   "objectIds": ["cumulative", "list"],
   "newIds": ["ids", "appearing", "first", "time"],
@@ -57,7 +56,8 @@ Rules:
 1. Minimum steps: per Animation Guide. Max: 14.
 2. Progressive complexity: each step adds 1-3 new objects.
 3. First step: High-level overview. Final step: Core insight summary.
-4. Return ONLY valid JSON.
+4. NARRATIVE SYNC: If you say "Now we swap these", use the keyword "swap". If comparing, use "compare". The engine automatically translates these into motion.
+5. Return ONLY valid JSON.
 `;
 
 // ─── Runtime Builder ──────────────────────────────────────────────────────────

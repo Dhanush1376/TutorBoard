@@ -521,7 +521,7 @@ const StepPanel = ({
   const microSteps  = isMicroStep ? parseMicroSteps(narrationText) : null;
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence>
       <motion.div
         key={`sp-${currentStepIndex}`}
         initial={{ opacity: 0, x: -22, scale: 0.97 }}

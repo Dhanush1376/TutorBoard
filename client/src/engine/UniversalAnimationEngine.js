@@ -106,13 +106,8 @@ export class UniversalAnimationEngine {
     /** @type {number|null} */
     this._autoTimer = null;
 
-    // ── v2: Narrative sync state ──────────────────────────────────────────
-    /** @type {{ actionType: string|null, emphasis: string, transitionHint: string, focusIntensity: number }} */
-    this._narrativeHints = { actionType: null, emphasis: 'normal', transitionHint: 'springIn', focusIntensity: 2 };
-
-    // ── v2: Attention state ───────────────────────────────────────────────
-    /** @type {{ dominant: string[], supporting: string[], background: string[] }} */
-    this._attention = { dominant: [], supporting: [], background: [] };
+    /** @type {number|null} */
+    this._autoTimer = null;
   }
 
   // ─── Configuration ─────────────────────────────────────────────────────
@@ -139,15 +134,17 @@ export class UniversalAnimationEngine {
    */
   syncNarration(narration, objects = [], highlightIds = new Set(), newIds = new Set()) {
     // Parse narration for behavioral hints
-    this._narrativeHints = analyzeNarration(narration, this.domain);
+    const hints = analyzeNarration(narration, this.domain);
 
     // Classify attention (dominant / supporting / background)
-    this._attention = classifyAttention(
+    const attention = classifyAttention(
       objects,
       highlightIds,
       newIds,
-      this._narrativeHints.actionType,
+      hints.actionType,
     );
+
+    return { narrativeHints: hints, attention };
   }
 
   /**
@@ -156,10 +153,10 @@ export class UniversalAnimationEngine {
    * @param {string} stepTransition - The step's declared transition
    * @returns {string}
    */
-  resolveStepTransition(stepTransition) {
-    // Narrative hint overrides only when it's a meaningful action (not intro/null)
-    if (this._narrativeHints.actionType && this._narrativeHints.actionType !== 'intro') {
-      return this._narrativeHints.transitionHint;
+  resolveStepTransition(stepTransition, narrativeHints = null) {
+    const hints = narrativeHints || { actionType: null, transitionHint: 'springIn' };
+    if (hints.actionType && hints.actionType !== 'intro') {
+      return hints.transitionHint;
     }
     return stepTransition || getDefaultEntrance(this.domain);
   }
@@ -171,19 +168,26 @@ export class UniversalAnimationEngine {
    * @param {string} id
    * @returns {'dominant'|'supporting'|'background'|'neutral'}
    */
-  getAttentionRole(id) {
-    if (this._attention.dominant.includes(id))   return 'dominant';
-    if (this._attention.supporting.includes(id))  return 'supporting';
-    if (this._attention.background.includes(id))  return 'background';
+  /**
+   * Determine the attention role of an object.
+   * @param {string} id
+   * @param {Object} [attentionOverride]
+   * @returns {'dominant'|'supporting'|'background'|'neutral'}
+   */
+  getAttentionRole(id, attentionOverride = null) {
+    if (!attentionOverride) return 'neutral';
+    if (attentionOverride.dominant?.includes(id))   return 'dominant';
+    if (attentionOverride.supporting?.includes(id))  return 'supporting';
+    if (attentionOverride.background?.includes(id))  return 'background';
     return 'neutral';
   }
 
   /**
    * Are we in a step where attention management is active?
-   * (Only when dominant objects exist — don't force fade on simple steps)
+   * @param {Object} [attentionOverride]
    */
-  get isAttentionActive() {
-    return this._attention.dominant.length > 0;
+  getIsAttentionActive(attentionOverride = null) {
+    return attentionOverride?.dominant?.length > 0;
   }
 
   // ─── Layer 1: Base Motion ──────────────────────────────────────────────
@@ -192,13 +196,17 @@ export class UniversalAnimationEngine {
    * Get entrance animation config for an object.
    * Now narrative-aware: uses resolved transition from narration.
    */
-  getEntrance(obj, { isNew = false, transition = 'springIn', staggerIndex = 0, isHighlighted = false } = {}) {
+  getEntrance(obj, { isNew = false, transition = 'springIn', staggerIndex = 0, isHighlighted = false, narrativeHints = null } = {}) {
     if (!isNew) {
       return { initial: false, animate: {}, transition: {} };
     }
 
     // Narrative sync: override transition if action hint is strong
-    const resolvedTransition = this.resolveStepTransition(transition);
+    const hints = narrativeHints || { actionType: null, transitionHint: 'springIn' };
+    const resolvedTransition = (hints.actionType && hints.actionType !== 'intro')
+      ? hints.transitionHint
+      : (transition || getDefaultEntrance(this.domain));
+
     const preset = resolveTransition(resolvedTransition);
     const delay = calculateStaggerDelay(staggerIndex, {
       isHighlighted,
@@ -230,23 +238,32 @@ export class UniversalAnimationEngine {
    * @param {Object} obj
    * @returns {{ animate: Object, transition: Object } | null}
    */
-  getMicroAnimation(obj) {
+  getMicroAnimation(obj, narrativeHints = null, attentionOverride = null) {
     // 1. Check explicit microAnimation field
     if (obj.microAnimation) {
       return resolveMicroAnimation(obj.microAnimation);
     }
 
-    // 2. Check explicit behaviorRole + behaviorState (full BehaviorIntelligence path)
+    // 2. Narrative Sync: If an action is detected in narration, auto-apply behavior
+    const attentionRole = this.getAttentionRole(obj.id, attentionOverride);
+    const hints = narrativeHints || { actionType: null };
+
+    if (hints.actionType && (attentionRole === 'dominant' || obj.isHighlighted)) {
+      const behavior = resolveBehavior({ ...obj, behaviorState: hints.actionType }, this.domain);
+      if (behavior) return behavior;
+    }
+
+    // 3. Check explicit behaviorRole + behaviorState (full BehaviorIntelligence path)
     if (obj.behaviorRole || obj.behaviorState) {
       const behavior = resolveBehavior(obj, this.domain);
       if (behavior) return behavior;
     }
 
-    // 3. Auto-infer idle behavior from BehaviorIntelligence
+    // 4. Auto-infer idle behavior from BehaviorIntelligence
     const idleBehavior = getIdleBehavior(obj, this.domain);
     if (idleBehavior) return idleBehavior;
 
-    // 4. Legacy micro presets fallback
+    // 5. Legacy micro presets fallback
     const shape = (obj.shape || obj.type || '').toLowerCase();
     const autoAnim = getDefaultMicroAnimation(shape, this.domain);
     if (autoAnim) return resolveMicroAnimation(autoAnim);
@@ -257,10 +274,11 @@ export class UniversalAnimationEngine {
   /**
    * Get highlight effect — v2: intensity scales with narrative emphasis.
    */
-  getHighlightEffect(obj, isHighlighted) {
+  getHighlightEffect(obj, isHighlighted, narrativeHints = null) {
     if (!isHighlighted) return null;
 
-    const emphasis = this._narrativeHints.emphasis;
+    const hints = narrativeHints || { emphasis: 'normal' };
+    const emphasis = hints.emphasis || 'normal';
 
     // Scale highlight intensity with narrative emphasis
     const scales = {
@@ -283,9 +301,10 @@ export class UniversalAnimationEngine {
    * Get depth/glow/fade style for an object.
    * v2: Attention-aware — dominant objects glow more, background objects fade.
    */
-  getCinematicStyle(obj, isHighlighted = false, isFaded = false) {
-    const attentionRole = this.getAttentionRole(obj.id);
-    const emphasis = this._narrativeHints.emphasis;
+  getCinematicStyle(obj, { isHighlighted = false, isFaded = false, narrativeHints = null, attentionOverride = null } = {}) {
+    const attentionRole = this.getAttentionRole(obj.id, attentionOverride);
+    const hints = narrativeHints || { emphasis: 'normal' };
+    const emphasis = hints.emphasis || 'normal';
 
     // Explicit fade request
     if (isFaded) {
@@ -293,7 +312,7 @@ export class UniversalAnimationEngine {
     }
 
     // Attention-system fade: background objects recede
-    if (this.isAttentionActive && attentionRole === 'background') {
+    if (this.getIsAttentionActive(attentionOverride) && attentionRole === 'background') {
       return { filter: 'saturate(0.5) brightness(0.7)', opacity: 0.35 };
     }
 
@@ -321,7 +340,7 @@ export class UniversalAnimationEngine {
 
     return {
       filter: shadows[Math.min(depth, 5)] || shadows[2],
-      opacity: this.isAttentionActive && attentionRole === 'supporting' ? 0.75 : 1,
+      opacity: this.getIsAttentionActive(attentionOverride) && attentionRole === 'supporting' ? 0.75 : 1,
     };
   }
 
@@ -354,20 +373,30 @@ export class UniversalAnimationEngine {
       isFaded     = false,
       transition  = 'springIn',
       staggerIndex = 0,
+      narrativeHints = null,
+      attentionOverride = null,
     } = options;
 
-    // Layer 1
-    const entrance = this.getEntrance(obj, { isNew, transition, staggerIndex, isHighlighted });
+    // Layer 1: Base Entrance
+    const entrance = this.getEntrance(obj, { isNew, transition, staggerIndex, isHighlighted, narrativeHints });
 
-    // Layer 2
-    const micro    = this.getMicroAnimation(obj);
-    const highlight = this.getHighlightEffect(obj, isHighlighted);
+    // Layer 2: Behavioral / Action Overlay
+    const micro    = this.getMicroAnimation(obj, narrativeHints, attentionOverride);
+    const highlight = this.getHighlightEffect(obj, isHighlighted, narrativeHints);
 
-    // Layer 3
-    const cinematic = this.getCinematicStyle(obj, isHighlighted, isFaded);
+    // Layer 3: Cinematic Look
+    const cinematic = this.getCinematicStyle(obj, { isHighlighted, isFaded, narrativeHints, attentionOverride });
+
+    // Coordinate Sync
+    const layoutProps = {};
+    if (obj.x !== undefined)  layoutProps.x = obj.x;
+    if (obj.y !== undefined)  layoutProps.y = obj.y;
+    if (obj.cx !== undefined) layoutProps.cx = obj.cx;
+    if (obj.cy !== undefined) layoutProps.cy = obj.cy;
+    if (obj.r !== undefined)  layoutProps.r = obj.r;
 
     // Merge
-    let mergedAnimate = { ...entrance.animate };
+    let mergedAnimate = { ...layoutProps, ...entrance.animate };
     if (highlight && isHighlighted && !isNew) {
       mergedAnimate = { ...mergedAnimate, ...highlight.animate };
     }
@@ -383,7 +412,7 @@ export class UniversalAnimationEngine {
         opacity: cinematic.opacity,
       },
       microAnimation: micro,
-      attentionRole: this.getAttentionRole(obj.id),
+      attentionRole: this.getAttentionRole(obj.id, attentionOverride),
     };
   }
 
