@@ -23,6 +23,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   const { isSidebarOpen, setSidebarOpen, toggleSidebar, layoutView, setLayoutView } = useTutorStore();
   const isLeftHand = layoutView === 'left';
   const [showSettings, setShowSettings] = useState(false);
+  const [showMobileTools, setShowMobileTools] = useState(false);
   const { user } = useAuth();
 
   const sidebarVisible = isSidebarOpen && !forceCollapse;
@@ -40,7 +41,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.9, x: isLeftHand ? 20 : -20 }}
             transition={{ duration: 0.2 }}
-            className={`absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-50 flex items-center pointer-events-auto`}
+            className={`tb-top-left-pill absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-50 flex items-center pointer-events-auto`}
             style={{ ...miniGlass, borderRadius: 16, padding: '6px' }}
           >
             <button
@@ -58,60 +59,72 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       {/* ── FLOATING TOP-RIGHT: Integrated Control Center ── */}
       {!forceCollapse && (
         <div
-          className={`absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-50 flex items-center gap-1.5 p-1.5 pointer-events-auto`}
+          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-50 flex items-center gap-1.5 p-1.5 pointer-events-auto shadow-sm`}
           style={{ borderRadius: 16, ...miniGlass }}
         >
-          {/* A. Drawing Tools */}
-          {[
-            { icon: <Hand size={15} />, label: 'Pan Tool' },
-            { icon: <Type size={15} />, label: 'Add Text' },
-            { icon: <Square size={15} />, label: 'Draw Shape' },
-            { icon: <StickyNote size={15} />, label: 'Sticky Note' },
-            { icon: <LayoutGrid size={15} />, label: 'Layout Grid' },
-          ].map(({ icon, label }) => (
-            <div key={label} className="relative group">
-              <button
-                className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90"
-              >
-                {icon}
+          {/* A. Drawing & Session Tools (Collapsible on Mobile) */}
+          <div className={`flex items-center gap-1.5 overflow-hidden transition-all duration-300 ${showMobileTools ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0 md:max-w-[400px] md:opacity-100'}`}>
+            {[
+              { icon: <Hand size={15} />, label: 'Pan Tool' },
+              { icon: <Type size={15} />, label: 'Add Text' },
+              { icon: <Square size={15} />, label: 'Draw Shape' },
+              { icon: <StickyNote size={15} />, label: 'Sticky Note' },
+              { icon: <LayoutGrid size={15} />, label: 'Layout Grid' },
+            ].map(({ icon, label }) => (
+              <div key={label} className="relative group flex-shrink-0">
+                <button
+                  className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90"
+                >
+                  {icon}
+                </button>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
+                  {label}
+                </div>
+              </div>
+            ))}
+            
+            <div className="relative group flex-shrink-0">
+              <button className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
+                <Edit size={15} strokeWidth={2} />
               </button>
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-                {label}
+                Rename
               </div>
             </div>
-          ))}
+
+            <div className="relative group flex-shrink-0">
+              <button className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
+                <Share size={15} strokeWidth={2} />
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
+                Share
+              </div>
+            </div>
+
+            <div className="relative group flex-shrink-0">
+              <button
+                className="p-2 rounded-xl hover:bg-red-500/10 transition-all text-[var(--text-tertiary)] hover:text-red-500 active:scale-90"
+              >
+                <Trash size={15} />
+              </button>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-red-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
+                Delete
+              </div>
+            </div>
+
+            <div className="w-[1px] h-4 bg-[var(--border-color)] mx-1 flex-shrink-0" />
+          </div>
+
+          {/* B. Mobile Tools Toggle (Visible only on mobile) */}
+          <button 
+             onClick={() => setShowMobileTools(!showMobileTools)}
+             className="md:hidden p-2 rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 transition-all flex items-center justify-center flex-shrink-0"
+             title="Toggle Drawing Tools"
+          >
+             <Edit size={16} strokeWidth={2.5}/>
+          </button>
           
-          {/* B. Session Actions */}
-          <div className="relative group">
-            <button className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
-              <Edit size={15} strokeWidth={2} />
-            </button>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-              Rename
-            </div>
-          </div>
-
-          <div className="relative group">
-            <button className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
-              <Share size={15} strokeWidth={2} />
-            </button>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-              Share
-            </div>
-          </div>
-
-          <div className="relative group">
-            <button
-              className="p-2 rounded-xl hover:bg-red-500/10 transition-all text-[var(--text-tertiary)] hover:text-red-500 active:scale-90"
-            >
-              <Trash size={15} />
-            </button>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-red-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-              Delete
-            </div>
-          </div>
-
-          <div className="w-[1px] h-4 bg-[var(--border-color)] mx-1" />
+          <div className="w-[1px] h-4 bg-[var(--border-color)] mx-1 md:hidden flex-shrink-0" />
 
           <AnimatePresence mode="wait">
             <AccountMenu
@@ -203,12 +216,21 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       {/* ── FLOATING SIDEBAR PANEL ── */}
       <AnimatePresence>
         {sidebarVisible && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="tb-mobile-backdrop absolute inset-0 z-40 bg-black/20 backdrop-blur-md pointer-events-auto hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        {sidebarVisible && (
           <motion.aside
             initial={{ x: isLeftHand ? 350 : -350, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: isLeftHand ? 350 : -350, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`absolute top-4 ${isLeftHand ? 'right-4' : 'left-4'} z-50 flex flex-col overflow-hidden pointer-events-auto`}
+            className={`tb-sidebar absolute top-4 ${isLeftHand ? 'right-4' : 'left-4'} z-50 flex flex-col overflow-hidden pointer-events-auto`}
           style={{
             width: 320,
             height: 'calc(100vh - 32px)',

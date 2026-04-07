@@ -16,7 +16,8 @@ import {
   Settings2,
   X,
   Sparkles,
-  Zap
+  Zap,
+  ClipboardCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -105,9 +106,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   ];
 
   const quickActions = [
-    { icon: Zap, label: 'Quick Answer', mode: 'quick' },
-    { icon: Activity, label: 'Deep Visual Dive', mode: 'deep' },
-    { icon: HelpCircle, label: 'Test Me', mode: 'test_me' },
+    { icon: BookOpen, label: 'Quick Answer', mode: 'quick' },
+    { icon: Sparkles, label: 'Deep Visual Dive', mode: 'deep' },
+    { icon: ClipboardCheck, label: 'Test Me', mode: 'test_me' },
   ];
 
   const handleQuickAction = (mode) => {

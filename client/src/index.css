@@ -712,3 +712,65 @@
   from { opacity: 1; filter: blur(0px); }
   to { opacity: 0; filter: blur(10px); visibility: hidden; }
 }
+
+/* ─── Mobile Portrait Responsiveness ─────────────────────────── */
+@media screen and (max-width: 768px) and (orientation: portrait) {
+  /* Make sidebar span the full width minus margins to act as a chat drawer */
+  .tb-sidebar {
+    width: calc(100vw - 32px) !important;
+    left: 16px !important;
+    right: 16px !important;
+    z-index: 60 !important;
+  }
+  
+  .tb-mobile-backdrop {
+    display: block !important;
+    z-index: 55 !important;
+  }
+  
+  /* Shift top bar down so it doesn't overlap with control center / workspace pill */
+  .tb-top-bar {
+    top: 80px !important;
+    padding: 8px 12px !important;
+    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 32px) !important;
+  }
+  
+  /* Restrict step panel width */
+  .tb-step-panel {
+    top: 130px !important;
+    left: 16px !important;
+    right: 16px !important;
+    max-width: calc(100vw - 32px) !important;
+  }
+  
+  /* Move playback dock up slightly above safe area */
+  .tb-playback-dock {
+    bottom: 80px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Compact canvas controls at bottom right */
+  .tb-canvas-controls {
+    bottom: 16px !important;
+    right: 16px !important;
+  }
+  
+  /* Top right control center positioning */
+  .tb-control-center {
+    top: 16px !important;
+    right: 16px !important;
+  }
+  
+  /* Top left workspace pill (hide text, show only icon) */
+  .tb-top-left-pill {
+    top: 16px !important;
+    left: 16px !important;
+    padding: 6px !important;
+  }
+  
+  .tb-top-left-pill span {
+    display: none !important;
+  }
+}

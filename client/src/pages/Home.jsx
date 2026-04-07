@@ -287,7 +287,7 @@ const Home = ({ isDark }) => {
     }
   }, [error, activeChatId]);
 
-  const [activeView, setActiveView] = useState('chat');
+  const [activeView, setActiveView] = useState('history');
   const [prompt, setPrompt] = useState('');
   const [activeMode, setActiveMode] = useState(null);
 
@@ -450,7 +450,7 @@ const Home = ({ isDark }) => {
         
         {/* A. Top Bar Overlay (Domain + Title) */}
         {timeline && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+          <div className="tb-top-bar absolute top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -489,7 +489,7 @@ const Home = ({ isDark }) => {
               }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute top-24 left-6 z-40 max-w-sm pointer-events-auto"
+              className="tb-step-panel absolute top-24 left-6 z-40 max-w-sm pointer-events-auto"
             >
               <StepPanel
                 currentStep={currentStep}
@@ -505,7 +505,7 @@ const Home = ({ isDark }) => {
 
         {/* C. Playback Dock (Bottom Center) */}
         {timeline && (
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 w-full max-w-xl pointer-events-none">
+          <div className="tb-playback-dock absolute bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 w-full max-w-xl pointer-events-none">
             {/* Progress Bar */}
             <div className="w-full px-10 pointer-events-auto">
               <div className="flex gap-0.5">

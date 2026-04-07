@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import VisaiLogo from '../components/common/VisaiLogo';
+import LoginNavbar from '../components/layout/LoginNavbar';
 
 const AuthLanding = () => {
   const navigate = useNavigate();
@@ -101,7 +102,10 @@ const AuthLanding = () => {
   const currentTopic = topics[activeTopicIndex];
 
   return (
-    <div className="lg:h-screen w-full flex flex-col lg:flex-row bg-[var(--bg-primary)] font-sans overflow-hidden selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)]">
+    <div className="lg:h-screen w-full flex flex-col lg:flex-row bg-[var(--bg-primary)] font-sans overflow-hidden selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)] pt-16 lg:pt-0">
+      <div className="lg:hidden relative z-[9999]">
+        <LoginNavbar />
+      </div>
       
       {/* ── LEFT COLUMN: AUTH FORM ────────────────────────────────────────── */}
       <div className="lg:w-[45%] xl:w-[40%] flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12 relative z-10 bg-[var(--bg-primary)]">
@@ -268,8 +272,8 @@ const AuthLanding = () => {
         <div className="absolute top-[10%] right-[5%] w-[500px] h-[500px] bg-purple-200/10 rounded-full blur-[140px] pointer-events-none"></div>
         <div className="absolute bottom-[10%] left-[5%] w-[450px] h-[450px] bg-orange-100/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-        {/* Navbar */}
-        <nav className="flex items-center justify-between w-full px-12 py-8 relative z-20 shrink-0">
+        {/* Navbar - Desktop/Laptop Only */}
+        <nav className="hidden lg:flex items-center justify-between w-full px-12 py-8 relative z-20 shrink-0">
           <div className="flex items-center gap-2">
             <VisaiLogo size="md" className="text-[var(--text-primary)]" />
             <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--text-primary)]">
@@ -285,7 +289,6 @@ const AuthLanding = () => {
                <Link to="/about" className="hover:text-[var(--text-primary)] transition-colors">About</Link>
             </div>
 
-            
             <AnimatePresence mode="wait">
               {isAuthenticated ? (
                 <motion.div 
@@ -323,6 +326,7 @@ const AuthLanding = () => {
             </AnimatePresence>
           </div>
         </nav>
+
 
         {/* Showcase Container */}
         <div className="flex-1 flex items-center justify-center p-8 lg:p-12 relative z-10 min-h-0 overflow-hidden">

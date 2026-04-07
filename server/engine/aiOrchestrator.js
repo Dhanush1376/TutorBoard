@@ -66,14 +66,18 @@ function withTimeout(promise, ms, errorMsg) {
   ]);
 }
 
-async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens = 3072) {
+async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens = 3072) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`[Orchestrator] Attempt ${attempt + 1}/${maxRetries + 1}`);
+      const attemptTag = `[Orchestrator:${attempt + 1}/${maxRetries + 1}]`;
+      console.log(`${attemptTag} Starting LLM call...`);
 
       const ai = getAIClient();
       const model = getModel();
       const temperature = attempt === 0 ? 0.3 : 0.2;
+      
+      // Attempt 1: 45s, Attempt 2+: 60s
+      const timeoutMs = attempt === 0 ? 45000 : 60000;
 
       const completion = await withTimeout(
         ai.chat.completions.create({
@@ -82,15 +86,15 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 2, maxTokens 
           temperature,
           max_tokens: maxTokens,
         }),
-        90000,
-        'AI timeout'
+        timeoutMs,
+        `LLM timeout after ${timeoutMs}ms`
       );
 
       let raw = completion.choices?.[0]?.message?.content || '';
       const finishReason = completion.choices?.[0]?.finish_reason || 'stop';
 
       raw = stripThinkTags(raw);
-      console.log(`[Orchestrator] Raw: ${raw.length} chars, finish: ${finishReason}`);
+      console.log(`${attemptTag} Received response (${raw.length} chars), finish: ${finishReason}`);
 
       if (finishReason === 'length' || (raw.length > 0 && !raw.trim().endsWith('}'))) {
         if (attempt < maxRetries) {
@@ -186,10 +190,11 @@ export async function generateTimeline(sessionId, topic) {
   try {
     data = await callLLMWithRetry(messages, validateTimeline, 1, getTokenBudget());
   } catch (err) {
-    console.error('[Orchestrator] Error:', err);
+    console.error('[Orchestrator] Fatal Error during generation:', err.message);
   }
 
   if (!data) {
+    console.warn(`[Orchestrator] Returning FALLBACK_TIMELINE for topic: "${topic}"`);
     return { ...FALLBACK_TIMELINE, title: topic.substring(0, 60), domain };
   }
 

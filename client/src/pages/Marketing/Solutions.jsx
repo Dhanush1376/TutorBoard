@@ -25,8 +25,8 @@ const solutions = [
 
 const Solutions = () => {
   return (
-    <div style={{ padding: '60px 0 100px', display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 1.5fr', gap: 64, alignItems: 'start' }}>
-      <div style={{ position: 'sticky', top: 120 }}>
+    <div className="py-12 lg:py-24 flex flex-col gap-12 lg:gap-16 items-start w-full lg:max-w-4xl lg:mx-auto">
+      <div className="relative mb-4 lg:mb-0">
         <motion.div
            initial={{ opacity: 0, x: -30 }}
            whileInView={{ opacity: 1, x: 0 }}
@@ -48,10 +48,10 @@ const Solutions = () => {
         {solutions.map((sol, idx) => (
           <motion.div
             key={idx}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, x: 50 }}
+            whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ delay: idx * 0.1 }}
+            transition={{ duration: 0.9, delay: idx * 0.15, ease: [0.16, 1, 0.3, 1] }}
             style={{
               padding: 32,
               borderRadius: 24,

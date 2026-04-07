@@ -256,6 +256,7 @@ DEFAULT                               → "explain"
   "keyFormula": "core equation/formula/law if applicable, else null",
   "memoryAnchor": "One vivid metaphor or story the student will never forget",
   "objects": [],
+  
   "steps": []
 }
 

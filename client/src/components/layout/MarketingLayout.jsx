@@ -1,9 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
-import { ArrowRight, User } from 'lucide-react';
+import { ArrowRight, User, Menu, X, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../common/VisaiLogo';
+import LoginNavbar from './LoginNavbar';
 
 const MarketingLayout = () => {
   const navigate = useNavigate();
@@ -26,8 +27,13 @@ const MarketingLayout = () => {
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.01]"></div>
       </div>
 
-      {/* Navigation: Floating Glass Pill */}
-      <div className="fixed top-8 left-0 right-0 z-50 flex justify-center px-6">
+      {/* Mobile Navigation Only */}
+      <div className="md:hidden relative z-[9999]">
+        <LoginNavbar />
+      </div>
+
+      {/* Desktop Navigation: Floating Glass Pill */}
+      <div className="fixed top-8 left-0 right-0 z-50 hidden md:flex justify-center px-6">
         <nav 
           className="flex items-center justify-between w-full max-w-5xl px-3 py-2.5 rounded-[28px] border border-[var(--border-color)] bg-[var(--bg-primary)]/70 backdrop-blur-2xl shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] relative"
         >
@@ -99,6 +105,7 @@ const MarketingLayout = () => {
           </div>
         </nav>
       </div>
+
 
       {/* Main Content Area */}
       <main className="relative z-10 pt-28 pb-16 px-6 sm:px-12 lg:px-24 max-w-7xl mx-auto flex flex-col min-h-screen">

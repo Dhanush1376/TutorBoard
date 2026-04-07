@@ -223,10 +223,10 @@ function StepCard({ step, index, isActive, onClick }) {
   return (
     <motion.div
       onClick={onClick}
-      initial={{ opacity: 0, x: -30 }}
+      initial={{ opacity: 0, x: 50 }}
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: index * 0.1, duration: 0.6 }}
+      transition={{ duration: 0.9, delay: index * 0.15, ease: [0.16, 1, 0.3, 1] }}
       whileHover={{ x: isActive ? 0 : 4 }}
       style={{
         display: 'flex',
@@ -281,9 +281,9 @@ const HowItWorks = () => {
   }, []);
 
   return (
-    <div style={{ padding: '60px 0 100px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 80, alignItems: 'start' }}>
+    <div className="py-12 lg:py-24 flex flex-col gap-12 lg:gap-20 items-start w-full lg:max-w-4xl lg:mx-auto">
       {/* Left Side: Text & Steps */}
-      <div>
+      <div className="flex flex-col">
         <motion.div
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
@@ -316,7 +316,7 @@ const HowItWorks = () => {
       </div>
 
       {/* Right Side: Interactive Cards / Previews */}
-      <div style={{ position: 'sticky', top: 120 }}>
+      <div className="relative w-full mt-8 lg:mt-0">
         <motion.div
           style={{
             borderRadius: 32,

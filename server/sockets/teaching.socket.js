@@ -74,9 +74,15 @@ export function setupTeachingSocket(io) {
       }
 
       // Transition to GENERATING
-      const newState = machine.send(EVENTS.START, { topic });
+      let newState = machine.send(EVENTS.START, { topic });
       if (!newState) {
-        socket.emit('teaching:error', { message: 'Cannot start session from current state' });
+        console.warn(`[WS] State machine was not IDLE. Forcing reset to handle NEW session:start.`);
+        machine.forceReset();
+        newState = machine.send(EVENTS.START, { topic });
+      }
+
+      if (!newState) {
+        socket.emit('teaching:error', { message: 'Failed to initialize teaching state. Please try again.' });
         return;
       }
 

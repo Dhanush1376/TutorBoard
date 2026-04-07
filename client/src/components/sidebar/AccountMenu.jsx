@@ -1,8 +1,24 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { LogOut, Settings, CreditCard, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
   const isLeftHand = layoutView === 'left';
   const { user, logout } = useAuth();
   
@@ -17,9 +33,12 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
 
   if (variant === 'compact') {
     return (
-      <div className="group relative">
-        <button className="flex items-center gap-2.5 p-1 px-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-all border border-transparent hover:border-[var(--border-color)] group/btn">
-          <div className="w-7 h-7 rounded-full bg-[var(--text-primary)] flex items-center justify-center text-[var(--bg-primary)] font-bold text-[10px] uppercase tracking-wider shadow-sm transition-transform group-hover/btn:scale-105">
+      <div className="relative" ref={menuRef}>
+        <button 
+          onClick={() => setIsOpen(!isOpen)}
+          className={`flex items-center gap-2.5 p-1 px-2 rounded-full transition-all border ${isOpen ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)]' : 'border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]'}`}
+        >
+          <div className="w-7 h-7 rounded-full bg-[var(--text-primary)] flex items-center justify-center text-[var(--bg-primary)] font-bold text-[10px] uppercase tracking-wider shadow-sm transition-transform hover:scale-105">
             {initials}
           </div>
           <div className="flex flex-col flex-1 items-start pr-1 overflow-hidden min-w-0">
@@ -30,7 +49,9 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
         </button>
 
         {/* Dropdown Menu - Top orientation (aligned based on hand view) */}
-        <div className={`absolute top-full ${isLeftHand ? 'left-0' : 'right-0'} mt-2 w-56 opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 ease-spring z-[100]`}>
+        <div 
+          className={`absolute top-full ${isLeftHand ? 'left-0' : 'right-0'} pt-2 w-56 transition-all duration-300 ease-spring z-[100] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
+        >
           <div className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-2xl backdrop-blur-3xl overflow-hidden" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)' }}>
             <div className="px-4 py-3 mb-1 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
                <div className="flex items-center gap-3">
@@ -45,7 +66,10 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
             </div>
             
             <div className="p-1 space-y-0.5">
-              <button onClick={onSettingsClick} className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left">
+              <button 
+                onClick={() => { setIsOpen(false); onSettingsClick(); }} 
+                className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
+              >
                 <Settings size={15} />
                 Settings
               </button>
@@ -56,7 +80,10 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
               
               <div className="h-[1px] bg-[var(--border-color)] my-1.5 mx-2" />
               
-              <button onClick={handleLogout} className="w-full flex items-center gap-3 p-2.5 hover:bg-red-500/10 rounded-xl text-[13px] font-medium text-red-500 transition-colors text-left">
+              <button 
+                onClick={() => { setIsOpen(false); handleLogout(); }} 
+                className="w-full flex items-center gap-3 p-2.5 hover:bg-red-500/10 rounded-xl text-[13px] font-medium text-red-500 transition-colors text-left"
+              >
                 <LogOut size={15} />
                 Logout
               </button>
@@ -68,8 +95,11 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
   }
 
   return (
-    <div className="group relative w-full mb-1">
-      <button className="w-full flex items-center gap-3 p-2 hover:bg-[var(--bg-tertiary)] rounded-2xl transition-all border border-transparent hover:border-[var(--border-color)]">
+    <div className="relative w-full mb-1" ref={menuRef}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center gap-3 p-2 rounded-2xl transition-all border ${isOpen ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)]' : 'border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]'}`}
+      >
         <div className="w-8 h-8 rounded-full bg-[var(--text-primary)] flex items-center justify-center text-[var(--bg-primary)] font-bold text-[11px] uppercase tracking-wider shadow-sm">
           {initials}
         </div>
@@ -78,10 +108,15 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
         </div>
       </button>
 
-      {/* Context menu on hover - Sidebar orientation (bottom-up) */}
-      <div className="absolute bottom-full left-0 w-full mb-2 opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300 ease-spring z-[100]">
+      {/* Context menu on click - Sidebar orientation (bottom-up) */}
+      <div 
+        className={`absolute bottom-full left-0 w-full pb-2 transition-all duration-300 ease-spring z-[100] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
+      >
         <div className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[18px] p-1.5 shadow-2xl backdrop-blur-3xl" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)' }}>
-          <button onClick={onSettingsClick} className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left">
+          <button 
+            onClick={() => { setIsOpen(false); onSettingsClick(); }} 
+            className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
+          >
             <Settings size={15} />
             Settings
           </button>
@@ -90,7 +125,10 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
             Subscription
           </button>
           <div className="h-[1px] bg-[var(--border-color)] my-1.5 mx-2" />
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 p-2.5 hover:bg-red-500/10 rounded-xl text-[13px] font-medium text-red-500 transition-colors text-left">
+          <button 
+            onClick={() => { setIsOpen(false); handleLogout(); }} 
+            className="w-full flex items-center gap-3 p-2.5 hover:bg-red-500/10 rounded-xl text-[13px] font-medium text-red-500 transition-colors text-left"
+          >
             <LogOut size={15} />
             Logout
           </button>

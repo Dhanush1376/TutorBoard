@@ -7,14 +7,19 @@ import { useAuth } from '../../context/AuthContext';
 // ── New premium starting interface ──
 const ChatLanding = ({ setActiveMode, activeMode }) => {
   const { user } = useAuth();
-  const firstName = user?.name?.split(' ')[0] || 'there';
+  
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return "Welcome, Early Bird,";
+    if (hour >= 12 && hour < 17) return "Welcome, Day Dreamer,";
+    if (hour >= 17 && hour < 21) return "Welcome, Calm Creator,";
+    return "Welcome, Night Owl,";
+  };
 
   const modes = [
-    { id: 'explain', label: 'Explain', icon: BookOpen, color: '#60a5fa' },
-    { id: 'solve', label: 'Solve', icon: Wrench, color: '#34d399' },
-    { id: 'test', label: 'Test Me', icon: ClipboardCheck, color: '#fbbf24' },
-    { id: 'visualize', label: 'Show Diagram', icon: Image, color: '#a78bfa' },
-    { id: 'deepdive', label: 'Explain in Detail', icon: Sparkles, color: '#f87171' },
+    { id: 'quick', label: 'Quick Answer', icon: BookOpen, color: '#60a5fa' },
+    { id: 'deep', label: 'Deep Visual Dive', icon: Sparkles, color: '#f87171' },
+    { id: 'test_me', label: 'Test Me', icon: ClipboardCheck, color: '#fbbf24' },
   ];
 
   return (
@@ -30,10 +35,10 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         className="mb-8"
       >
-        <p className="text-[20px] font-normal text-[var(--text-secondary)] mb-1 tracking-tight">
-          Hi {firstName}
+        <p className="!text-[8px] lg:!text-[12px] font-medium text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
+          {getTimeGreeting()}
         </p>
-        <h1 className="text-[36px] font-medium text-[var(--text-primary)] leading-[1.1] tracking-tight">
+        <h1 className="!text-[13px] lg:!text-[30px] font-medium text-[var(--text-primary)] leading-[1.2] tracking-tight">
           Where should <br /> we start?
         </h1>
       </motion.div>

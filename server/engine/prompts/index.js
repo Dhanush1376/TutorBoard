@@ -13,6 +13,7 @@ export {
   isGreeting, 
   inferDifficulty,
   buildLessonPrompt, 
+  buildTeachingPrompt,
   buildRetryPrompt,
   buildCondensedPrompt,
   buildDoubtUserMessage,

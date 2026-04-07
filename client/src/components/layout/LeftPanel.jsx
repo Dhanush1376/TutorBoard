@@ -38,7 +38,7 @@ const LeftPanel = ({
 
   // ── RENDER HELPERS ──
   const renderScrollContent = () => {
-    if (activeView === 'chat' && (hasStarted || isGenerating)) {
+    if (activeView === 'chat') {
       return (
         <div className="flex flex-col gap-2 relative min-h-full">
           {/* Compact Back Button for Sidebar Chat */}
@@ -180,7 +180,7 @@ const LeftPanel = ({
         </div>
 
         {/* Top block visible only on landing/history */}
-        {!(activeView === 'chat' && hasStarted) && (
+        {activeView !== 'chat' && (
           <div className="px-4 mb-6">
             {/* Professional Action Console (Redesigned like InputBar) */}
             <div className="bg-[var(--bg-secondary)] rounded-[24px] border border-[var(--border-color)] overflow-hidden shadow-sm flex flex-col p-1.5 gap-1.5 transition-all duration-300">
