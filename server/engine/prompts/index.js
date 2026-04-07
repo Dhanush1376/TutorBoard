@@ -1,29 +1,45 @@
 /**
  * Prompts Index
- * Re-exports all prompt modules for backward compatibility
+ * Re-exports all prompt modules for modular usage.
  */
 
 export { 
-  TEACHING_PHILOSOPHY, 
   TEACHING_ENGINE_PROMPT,
-  DOMAIN_PERSONAS,
-  DOMAIN_NARRATION_STYLES
+  buildTeachingEnginePrompt,
+  validateTeachingEngineResponse
 } from './systemPrompts.js';
 
 export { 
   isGreeting, 
-  buildTeachingPrompt, 
+  inferDifficulty,
+  buildLessonPrompt, 
   buildRetryPrompt,
   buildCondensedPrompt,
+  buildDoubtUserMessage,
   buildDoubtContext 
 } from './userPrompts.js';
 
-export { TEACHING_TIMELINE_PROMPT } from './timelinePrompt.js';
-export { DOUBT_RESPONSE_PROMPT } from './doubtPrompt.js';
+export { 
+  TEACHING_TIMELINE_PROMPT,
+  buildTimelinePrompt,
+  validateTimelineResponse
+} from './timelinePrompt.js';
+
+export { 
+  DOUBT_RESPONSE_PROMPT,
+  buildDoubtPrompt 
+} from './doubtPrompt.js';
 
 export { 
   DOMAIN_KEYWORDS, 
   DOMAIN_NODE_TEMPLATES, 
   DOMAIN_ANIMATION_GUIDE,
+  DOMAIN_META,
+  detectDomains,
+  getPrimaryDomain,
+  getDomainMeta,
+  getNodeTemplates,
+  getAnimationGuide,
+  getDomainConfig,
   detectDomain 
 } from './domainConfig.js';
