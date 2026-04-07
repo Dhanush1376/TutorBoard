@@ -46,13 +46,15 @@ export const getAIClient = () => {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
-    console.error('[AI] ❌ FATAL: OPENROUTER_API_KEY is not set in .env file!');
+    const errorMsg = '[AI] ❌ FATAL: OPENROUTER_API_KEY is not set in .env file!';
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   if (clients.openrouter && keys.openrouter === apiKey) return clients.openrouter;
 
   clients.openrouter = new OpenAI({
-    apiKey: apiKey || 'missing-key',
+    apiKey: apiKey,
     baseURL: 'https://openrouter.ai/api/v1',
     defaultHeaders: {
       'HTTP-Referer': 'https://tutorboard.app',
@@ -60,30 +62,30 @@ export const getAIClient = () => {
     }
   });
   keys.openrouter = apiKey;
-  console.log(`[AI] OpenRouter Client Initialized ✅`);
+  console.log(`[AI] OpenRouter Client Initialized ✅ (Model: ${getModel()})`);
   return clients.openrouter;
 };
 
 /**
- * Get primary model - DeepSeek is fast and free-tier friendly
+ * Get primary model - Gemini 2.0 Flash is extremely fast and reliable for JSON generation.
  */
 export const getModel = () => {
-  return process.env.AI_MODEL || 'deepseek/deepseek-chat';
+  return process.env.AI_MODEL || 'google/gemini-2.0-flash-001';
 };
 
 /**
  * Get text model
  */
 export const getTextModel = () => {
-  return process.env.AI_TEXT_MODEL || 'deepseek/deepseek-chat';
+  return process.env.AI_TEXT_MODEL || 'google/gemini-2.0-flash-001';
 };
 
 /**
  * Get max tokens
  */
 export const getMaxTokens = (model) => {
-  if (model.includes('deepseek')) return 4096;
-  return 3072;
+  if (model.includes('gemini')) return 8192;
+  return 4096;
 };
 
 export function clearCache() {

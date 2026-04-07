@@ -1,4 +1,5 @@
 import { getAIClient, getModel } from '../engine/ai/llmClient.js';
+import { sanitizeInput } from '../utils/sanitize.js';
 import { TEACHING_TIMELINE_PROMPT } from '../engine/prompts/index.js';
 
 const SYSTEM_PROMPT = TEACHING_TIMELINE_PROMPT;
@@ -22,7 +23,9 @@ function safeParse(content) {
 
 export const generateExplanation = async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const rawPrompt = req.body?.prompt;
+    if (!rawPrompt) return res.status(400).json({ error: 'Prompt is required' });
+    const prompt = sanitizeInput(rawPrompt, 5000);
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
     for (let attempt = 0; attempt < 3; attempt++) {

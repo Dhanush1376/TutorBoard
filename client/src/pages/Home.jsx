@@ -173,11 +173,22 @@ const Home = ({ isDark }) => {
     const saved = localStorage.getItem('tutorboard-history');
     return saved ? JSON.parse(saved) : [];
   });
-  const [activeChatId, setActiveChatId] = useState(null);
+  const [activeChatId, setActiveChatId] = useState(() => {
+    return localStorage.getItem('tutorboard-active-chat') || null;
+  });
   
   useEffect(() => {
     localStorage.setItem('tutorboard-history', JSON.stringify(chatHistory));
   }, [chatHistory]);
+
+  // Persist active chat ID
+  useEffect(() => {
+    if (activeChatId) {
+      localStorage.setItem('tutorboard-active-chat', activeChatId);
+    } else {
+      localStorage.removeItem('tutorboard-active-chat');
+    }
+  }, [activeChatId]);
 
   // ── Sync Doubt Responses to Chat ──
   const lastDoubtId = useRef(null);
@@ -380,16 +391,19 @@ const Home = ({ isDark }) => {
     if (!prompt.trim() || isSubmittingRef.current) return;
     
     const userPrompt = prompt.trim();
-    setPrompt('');
+    setPrompt('');  // Clear input immediately
     setActiveView('chat');
 
     const workingSessionId = activeChatId || `session-${Date.now()}`;
     if (!activeChatId) setActiveChatId(workingSessionId);
 
+    // Trim and capitalize session title
+    const sessionTitle = userPrompt.substring(0, 40).trim().replace(/^(.)/, (m) => m.toUpperCase());
+
     setChatHistory(prev => {
       const idx = prev.findIndex(s => s.id === workingSessionId);
       const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
-      if (idx === -1) return [{ id: workingSessionId, title: userPrompt.substring(0, 40), messages: [userMessage] }, ...prev];
+      if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
       const next = [...prev]; next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; return next;
     });
 
@@ -428,7 +442,6 @@ const Home = ({ isDark }) => {
       <div className="absolute inset-0 z-0">
         <InfiniteCanvas
           ref={canvasRef}
-          onZoomChange={(scale) => setCanvasTransform(prev => ({ ...prev, scale }))}
           onViewportChange={setCanvasTransform}
           onInteractionStart={() => { isAutoFollow.current = false; }}
         >
@@ -470,10 +483,20 @@ const Home = ({ isDark }) => {
               <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[200px] truncate">
                 {timeline.title}
               </span>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-400 uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                Live
-              </span>
+              {(() => {
+                const isLive = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
+                return isLive ? (
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-400 uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                    Live
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] font-bold text-emerald-400 uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Ready
+                  </span>
+                );
+              })()}
             </motion.div>
           </div>
         )}

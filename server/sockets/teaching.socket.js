@@ -29,6 +29,9 @@ import { createTeachingMachine, STATES, EVENTS } from '../engine/teachingMachine
 import sessionStore from '../engine/sessionStore.js';
 import { generateTimeline, handleDoubt, generateTextResponse } from '../engine/aiOrchestrator.js';
 import { detectIntent } from '../engine/intentEngine.js';
+import { checkSocketRate, cleanupSocket } from '../middleware/rateLimiter.js';
+import { sanitizeInput } from '../utils/sanitize.js';
+import jwt from 'jsonwebtoken';
 
 // ─── Timeout wrapper ─────────────────────────────────────────────────────────
 function withTimeout(promise, ms, fallbackMessage) {
@@ -43,6 +46,29 @@ function withTimeout(promise, ms, fallbackMessage) {
 export function setupTeachingSocket(io) {
   // Namespace for teaching sessions
   const teachingIO = io.of('/teaching');
+
+  // Strict Auth Guard
+  teachingIO.use((socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token;
+      if (!token) {
+        return next(new Error("Authentication error: No token provided"));
+      }
+      
+      // Allow frontend built-in Guest sessions
+      if (token === 'guest') {
+        socket.user = { id: 'guest', name: 'Guest User', email: 'guest@tutorboard.ai' };
+        return next();
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      socket.user = decoded;
+      next();
+    } catch (err) {
+      console.error('[WS] Auth Error:', err.message);
+      next(new Error("Authentication error: Invalid token"));
+    }
+  });
 
   teachingIO.on('connection', (socket) => {
     const sessionId = `session-${socket.id}-${Date.now()}`;
@@ -66,9 +92,17 @@ export function setupTeachingSocket(io) {
 
     // ─── START SESSION ───
     socket.on('session:start', async ({ topic, selectedAgent, activeMode }) => {
-      console.log(`[WS] session:start → "${topic}" (Agent: ${selectedAgent}, Mode: ${activeMode}) (${sessionId})`);
+      // Rate limit check
+      if (!checkSocketRate(socket.id)) {
+        socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
+        return;
+      }
 
-      if (!topic || !topic.trim()) {
+      // Sanitize input
+      const cleanTopic = sanitizeInput(topic, 2000);
+      console.log(`[WS] session:start → "${cleanTopic}" (Agent: ${selectedAgent}, Mode: ${activeMode}) (${sessionId})`);
+
+      if (!cleanTopic) {
         socket.emit('teaching:error', { message: 'Topic is required' });
         return;
       }
@@ -86,7 +120,7 @@ export function setupTeachingSocket(io) {
         return;
       }
 
-      sessionStore.update(sessionId, { topic: topic.trim() });
+      sessionStore.update(sessionId, { topic: cleanTopic });
 
       try {
         const intent = detectIntent(topic, activeMode);
@@ -96,7 +130,7 @@ export function setupTeachingSocket(io) {
           // Process as a fast conversational text chat instead of generating a visual timeline
           console.log(`[WS] Generating text-only response...`);
           const response = await withTimeout(
-            generateTextResponse(sessionId, topic.trim()),
+            generateTextResponse(sessionId, cleanTopic),
             45000,
             'Text response timed out'
           );
@@ -109,8 +143,8 @@ export function setupTeachingSocket(io) {
         // Generate the visual timeline
         console.log(`[WS] Generating visual timeline...`);
         const timeline = await withTimeout(
-          generateTimeline(sessionId, topic.trim()),
-          120000,
+          generateTimeline(sessionId, cleanTopic),
+          75000,
           'Timeline generation timed out'
         );
 
@@ -168,25 +202,33 @@ export function setupTeachingSocket(io) {
 
     // ─── ASK DOUBT ───
     socket.on('session:doubt', async ({ question, selectedAgent, activeMode }) => {
-      console.log(`[WS] session:doubt → "${question}" (Agent: ${selectedAgent}, Mode: ${activeMode}) (${sessionId})`);
+      // Rate limit check
+      if (!checkSocketRate(socket.id)) {
+        socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
+        return;
+      }
 
-      if (!question || !question.trim()) {
+      // Sanitize input
+      const cleanQuestion = sanitizeInput(question, 5000);
+      console.log(`[WS] session:doubt → "${cleanQuestion}" (Agent: ${selectedAgent}, Mode: ${activeMode}) (${sessionId})`);
+
+      if (!cleanQuestion) {
         socket.emit('teaching:error', { message: 'Question is required' });
         return;
       }
 
       // Transition to DOUBT_TRIGGERED
-      const triggered = machine.send(EVENTS.DOUBT_ASKED, { question });
+      const triggered = machine.send(EVENTS.DOUBT_ASKED, { question: cleanQuestion });
       if (!triggered) {
         // Try to handle even from invalid states gracefully
         console.warn(`[WS] Doubt asked from invalid state: ${machine.state}`);
       }
 
       // Acknowledge receipt immediately
-      socket.emit('teaching:doubt-ack', { question });
+      socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
       try {
-        const intent = detectIntent(question, activeMode);
+        const intent = detectIntent(cleanQuestion, activeMode);
         console.log(`[WS] Doubt Detected Intent: ${intent}`);
 
         let response;
@@ -194,7 +236,7 @@ export function setupTeachingSocket(io) {
           // Fast-track a text response for default modes
           console.log(`[WS] Generating text-only doubt response...`);
           const textRes = await withTimeout(
-            generateTextResponse(sessionId, question.trim()),
+            generateTextResponse(sessionId, cleanQuestion),
             45000,
             'Doubt text response timed out'
           );
@@ -208,8 +250,8 @@ export function setupTeachingSocket(io) {
           // Explicitly requested visualization or deep modes
           console.log(`[WS] Generating visual doubt response...`);
           response = await withTimeout(
-            handleDoubt(sessionId, question.trim()),
-            45000,
+            handleDoubt(sessionId, cleanQuestion),
+            30000,
             'Doubt visual response timed out'
           );
         }
@@ -218,9 +260,9 @@ export function setupTeachingSocket(io) {
         machine.send(EVENTS.DOUBT_RESPONSE_READY, { response });
 
         // Send response to client (include _question for thread pairing)
-        console.log(`[WS] Emitting teaching:doubt-response — ${(response.answer || '').length} chars`);
+        console.log(`[WS] Emitting teaching:doubt-response — ${(response.answer || '').length} chars (question: "${cleanQuestion.substring(0, 40)}")`);
         socket.emit('teaching:doubt-response', {
-          _question: question.trim(),
+          _question: cleanQuestion,
           answer: response.answer,
           isRelevant: response.isRelevant,
           hasVisuals: response.hasVisuals,
@@ -233,7 +275,8 @@ export function setupTeachingSocket(io) {
         
         // CRITICAL: Always emit a doubt response, even on crash
         socket.emit('teaching:doubt-response', {
-          _question: question.trim(),
+          // Fallback response on error
+          _question: cleanQuestion,
           answer: "Something went wrong while processing your question. Please try again.",
           isRelevant: true,
           hasVisuals: false,
@@ -297,6 +340,7 @@ export function setupTeachingSocket(io) {
     socket.on('disconnect', (reason) => {
       console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
       sessionStore.destroy(sessionId);
+      cleanupSocket(socket.id);
     });
 
     // Send initial state

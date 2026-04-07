@@ -2,7 +2,6 @@ export function safeParse(content) {
   if (!content || typeof content !== 'string') return null;
   try {
     let cleaned = content.trim();
-    cleaned = cleaned.replace(/<[^>]*>/g, '').trim();
     cleaned = cleaned.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     cleaned = cleaned.replace(/^```\n?/, '').replace(/\n?```$/, '');
     const firstBrace = cleaned.indexOf('{');

@@ -9,11 +9,27 @@ import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
+import { httpRateLimiter } from './middleware/rateLimiter.js';
+
+// ─── Environment Variable Validation ─────────────────────────────────────────
+const REQUIRED_ENV = [
+  { key: 'OPENROUTER_API_KEY', critical: true,  label: 'OpenRouter API Key' },
+  { key: 'JWT_SECRET',         critical: false, label: 'JWT Secret' },
+];
 
 console.log("=====================================");
-console.log("API KEY CHECK (OpenRouter):", process.env.OPENROUTER_API_KEY ? "Loaded ✅" : "Missing ❌ — AI will not work!");
-console.log("JWT Secret:", process.env.JWT_SECRET ? "Loaded ✅" : "Missing ❌");
+let hasAllCritical = true;
+for (const { key, critical, label } of REQUIRED_ENV) {
+  const ok = !!process.env[key];
+  console.log(`${label}: ${ok ? 'Loaded ✅' : (critical ? 'Missing ❌ — CRITICAL' : 'Missing ⚠️')}`);
+  if (critical && !ok) hasAllCritical = false;
+}
 console.log("=====================================");
+
+if (!hasAllCritical) {
+  console.error('❌ Missing critical environment variables. Server cannot function. Exiting.');
+  process.exit(1);
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -89,12 +105,12 @@ app.get('/api/test', (_req, res) => {
   res.json({ message: 'API working' });
 });
 
-// Feature routes
-app.use('/', generateRoutes);
-app.use('/', doubtRoutes);
+// Feature routes (rate-limited)
+app.use('/', httpRateLimiter, generateRoutes);
+app.use('/', httpRateLimiter, doubtRoutes);
 
-// Auth routes
-app.use('/api/auth', authRoutes);
+// Auth routes (rate-limited)
+app.use('/api/auth', httpRateLimiter, authRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

@@ -17,6 +17,7 @@ export function useSocket() {
 
   // Initialize connection
   useEffect(() => {
+    const token = localStorage.getItem('tb-token');
     const socket = io(`${SOCKET_URL}/teaching`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -25,6 +26,7 @@ export function useSocket() {
       reconnectionDelayMax: 5000,
       timeout: 20000,
       autoConnect: true,
+      auth: { token },
     });
 
     socketRef.current = socket;

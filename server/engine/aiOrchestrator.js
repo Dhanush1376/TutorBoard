@@ -54,11 +54,13 @@ const FALLBACK_DOUBT = {
 
 function stripThinkTags(text) {
   if (!text) return text;
-  return text.replace(/<[\/]?think>/gi, '').trim();
+  // DeepSeek-R1 wraps its thought process in <think> tags.
+  // We must remove the entire block (including newlines and contents), not just the tags.
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
 function getTokenBudget() {
-  return 4096;
+  return 1200; // Drastically reduced to fit within OpenRouter credit limits (2789 total)
 }
 
 function withTimeout(promise, ms, errorMsg) {
@@ -72,14 +74,15 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const attemptTag = `[Orchestrator:${attempt + 1}/${maxRetries + 1}]`;
-      console.log(`${attemptTag} Starting LLM call... (Max Tokens: ${maxTokens})`);
+      const totalPromptLength = messages.reduce((acc, m) => acc + m.content.length, 0);
+      console.log(`${attemptTag} Starting LLM call... (Prompt: ${totalPromptLength} chars, Max Tokens: ${maxTokens})`);
 
       const ai = getAIClient();
       const model = getModel();
-      const temperature = attempt === 0 ? 0.35 : 0.2;
+      const temperature = attempt === 0 ? 0.1 : 0.05;
       
-      // Attempt 1: 150s, Attempt 2+: 180s (DeepSeek can sometimes be slow but reliable)
-      const timeoutMs = attempt === 0 ? 150000 : 180000;
+      // Attempt 1: 90s, Attempt 2+: 120s (OpenRouter proxying can add overhead)
+      const timeoutMs = attempt === 0 ? 90000 : 120000;
 
       const completion = await withTimeout(
         ai.chat.completions.create({
@@ -147,10 +150,19 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
   return null;
 }
 
-function processTimeline(data, detectedDomain) {
+function processTimeline(data, detectedDomain, rawTopic) {
   const objects = Array.isArray(data.objects) ? data.objects : [];
   const steps = Array.isArray(data.steps) ? data.steps : [];
   const total = steps.length;
+
+  // Derive animationKey from raw topic or domain
+  const slug = (rawTopic || data.title || "").toLowerCase()
+    .replace(/explain /g, "")
+    .replace(/me /g, "")
+    .replace(/concept /g, "")
+    .replace(/visualize /g, "")
+    .trim()
+    .replace(/\s+/g, "-");
 
   objects.forEach((obj, i) => {
     if (!obj.id) obj.id = `obj-${i}`;
@@ -165,6 +177,9 @@ function processTimeline(data, detectedDomain) {
 
   steps.forEach((step, i) => {
     step.index = i;
+    step.domain = data.domain || detectedDomain;
+    step.animationKey = slug; // Pass slugified topic to trigger specific animations
+    
     if (!Array.isArray(step.objectIds) || step.objectIds.length === 0) {
       step.objectIds = objects.filter(o => o.appearsAtStep <= i).map(o => o.id);
     }
@@ -216,11 +231,11 @@ export async function generateTimeline(sessionId, topic) {
   }
 
   if (!data) {
-    console.warn(`[Orchestrator] Returning FALLBACK_TIMELINE for topic: "${topic}"`);
-    return { ...FALLBACK_TIMELINE, title: topic.substring(0, 60), domain };
+    console.error(`[Orchestrator] Fatal Error: LLM failed to return a valid response for topic: "${topic}"`);
+    throw new Error('I had trouble generating the visualization. The AI provider might be experiencing high traffic or your API key exhausted its quota. Please try again or switch the AI agent.');
   }
 
-  const processed = processTimeline(data, domain);
+  const processed = processTimeline(data, domain, topic);
   processed.domain = processed.domain || domain;
   processed.mode = processed.mode || 'explain';
 

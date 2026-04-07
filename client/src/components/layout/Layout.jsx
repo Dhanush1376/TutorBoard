@@ -73,6 +73,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             ].map(({ icon, label }) => (
               <div key={label} className="relative group flex-shrink-0">
                 <button
+                  onClick={() => alert(`${label} is coming soon!`)}
                   className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90"
                 >
                   {icon}
@@ -84,7 +85,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             ))}
             
             <div className="relative group flex-shrink-0">
-              <button className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
+              <button onClick={() => alert('Rename is coming soon!')} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
                 <Edit size={15} strokeWidth={2} />
               </button>
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
@@ -93,7 +94,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             </div>
 
             <div className="relative group flex-shrink-0">
-              <button className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
+              <button onClick={() => alert('Share is coming soon!')} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
                 <Share size={15} strokeWidth={2} />
               </button>
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
@@ -103,6 +104,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
             <div className="relative group flex-shrink-0">
               <button
+                onClick={() => alert('Delete is coming soon!')}
                 className="p-2 rounded-xl hover:bg-red-500/10 transition-all text-[var(--text-tertiary)] hover:text-red-500 active:scale-90"
               >
                 <Trash size={15} />

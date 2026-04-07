@@ -29,6 +29,7 @@ import stepOrchestrator from '../../engine/StepOrchestrator.js';
 import cameraDirector from '../../engine/CameraDirector.js';
 import { analyzeNarration, classifyAttention } from '../../engine/BehaviorIntelligence.js';
 import { EASE_CINEMATIC } from '../../engine/animationPresets.js';
+import { TopicAnimationEngine } from '../renderers/TopicAnimationEngine.jsx';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CW = 800;
@@ -452,6 +453,15 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
       className="relative w-full h-full pointer-events-none"
       style={{ minWidth: 800, minHeight: 600 }}
     >
+      {/* ── Topic-Specific Background Animation Layer ── */}
+      <div className="absolute inset-0 z-[-1] opacity-40">
+        <TopicAnimationEngine 
+          topic={currentStep?.domain || "generic"} 
+          animationKey={currentStep?.animationKey} 
+          slideIndex={currentStepIndex} 
+        />
+      </div>
+
       {/* ── SVG Canvas ── */}
       <svg
         width="800" height="600"
