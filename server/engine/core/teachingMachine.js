@@ -22,6 +22,7 @@ export const STATES = {
   RESUMING: 'RESUMING',
   COMPLETED: 'COMPLETED',
   ERROR: 'ERROR',
+  RECOVERING: 'RECOVERING', // Graceful fallback state
 };
 
 // ─── Event Constants ───
@@ -47,7 +48,7 @@ const TRANSITIONS = {
   [STATES.GENERATING]: {
     [EVENTS.TIMELINE_READY]: STATES.TEACHING,
     [EVENTS.FAIL]: STATES.ERROR,
-    [EVENTS.START]: STATES.GENERATING, // Allow hard restart
+    // explicitly removed [EVENTS.START] to prevent redundant triggers while calculating
   },
   [STATES.TEACHING]: {
     [EVENTS.STEP_COMPLETE]: STATES.TEACHING,
@@ -87,7 +88,13 @@ const TRANSITIONS = {
   [STATES.ERROR]: {
     [EVENTS.RESET]: STATES.IDLE,
     [EVENTS.START]: STATES.GENERATING,            // retry
+    [EVENTS.RESUME]: STATES.RECOVERING,           // fall back to previous safe state
   },
+  [STATES.RECOVERING]: {
+    [EVENTS.TIMELINE_READY]: STATES.TEACHING,
+    [EVENTS.STEP_COMPLETE]: STATES.TEACHING,
+    [EVENTS.FAIL]: STATES.ERROR,
+  }
 };
 
 /**
@@ -116,6 +123,10 @@ export function createTeachingMachine(sessionId, onTransition) {
 
       const nextState = transitions[event];
       if (!nextState) {
+        if (event === EVENTS.START && currentState === STATES.GENERATING) {
+          console.warn(`[SM:${sessionId}] Ignored START: System already generating.`);
+          return null;
+        }
         console.warn(`[SM:${sessionId}] Invalid transition: ${currentState} + ${event}`);
         return null;
       }

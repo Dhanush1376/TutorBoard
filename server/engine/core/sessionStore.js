@@ -34,6 +34,8 @@ class SessionStore {
       currentStepIndex: 0,
       isPaused: false,
       doubts: [],               // { question, response, stepIndex, timestamp }
+      confusionIndex: 0,        // Dynamically tracks user confusion (0-10)
+      complexityPreference: 'intermediate', // Adjusts based on doubts
       conversationContext: [],   // Messages for LLM context
       state: 'IDLE',
       createdAt: Date.now(),
@@ -96,6 +98,13 @@ class SessionStore {
     if (session.currentStepIndex < session.steps.length - 1) {
       session.currentStepIndex += 1;
       session.lastActivityAt = Date.now();
+      
+      // Decrease confusion index as they progress without doubts
+      session.confusionIndex = Math.max(0, session.confusionIndex - 1);
+      if (session.confusionIndex < 3 && session.complexityPreference === 'beginner') {
+        session.complexityPreference = 'intermediate'; // Recover difficulty
+      }
+      
       return session.currentStepIndex;
     }
     return null; // Already at last step
@@ -133,6 +142,12 @@ class SessionStore {
 
     session.doubts.push(doubt);
     session.lastActivityAt = Date.now();
+
+    // Spike confusion when doubt is asked
+    session.confusionIndex = Math.min(10, session.confusionIndex + 3);
+    if (session.confusionIndex >= 5) {
+      session.complexityPreference = 'beginner'; // Simplify subsequent steps
+    }
 
     return doubt;
   }
@@ -177,6 +192,8 @@ class SessionStore {
       const recentDoubts = session.doubts.slice(-3);
       parts.push(`RECENT DOUBTS: ${recentDoubts.map(d => d.question).join('; ')}`);
     }
+
+    parts.push(`MEMORY: Target Complexity = ${session.complexityPreference}, Confusion Level = ${session.confusionIndex}/10`);
 
     return parts.join('\n');
   }

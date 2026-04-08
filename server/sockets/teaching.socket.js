@@ -25,10 +25,10 @@
  *   teaching:greeting   { message }        → It was just a greeting
  */
 
-import { createTeachingMachine, STATES, EVENTS } from '../engine/teachingMachine.js';
-import sessionStore from '../engine/sessionStore.js';
-import { generateTimeline, handleDoubt, generateTextResponse } from '../engine/aiOrchestrator.js';
-import { detectIntent } from '../engine/intentEngine.js';
+import { createTeachingMachine, STATES, EVENTS } from '../engine/core/teachingMachine.js';
+import sessionStore from '../engine/core/sessionStore.js';
+import { generateTimeline, handleDoubt, generateTextResponse } from '../engine/core/pedagogyEngine.js';
+import { detectIntent } from '../engine/core/intentEngine.js';
 import { checkSocketRate, cleanupSocket } from '../middleware/rateLimiter.js';
 import { sanitizeInput } from '../utils/sanitize.js';
 import jwt from 'jsonwebtoken';
@@ -143,7 +143,10 @@ export function setupTeachingSocket(io) {
         // Generate the visual timeline
         console.log(`[WS] Generating visual timeline...`);
         const timeline = await withTimeout(
-          generateTimeline(sessionId, cleanTopic),
+          generateTimeline(sessionId, cleanTopic, (stage) => {
+            console.log(`[WS] Progress: ${stage}`);
+            socket.emit('teaching:progress', { message: stage });
+          }),
           75000,
           'Timeline generation timed out'
         );

@@ -28,6 +28,6 @@ export function detectIntent(prompt, explicitMode) {
   if (INTENT_PATTERNS.quick.test(normalizedPrompt)) return 'quick';
   if (INTENT_PATTERNS.deep.test(normalizedPrompt)) return 'deep';
 
-  // 4. Default for random questions is quick text chat
-  return 'quick';
+  // 4. Default for TutorBoard is deep visual teaching
+  return 'deep';
 }

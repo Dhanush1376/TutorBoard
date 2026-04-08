@@ -586,7 +586,7 @@ function BinarySearchAnimation({ phase }) {
         ref={canvasRef}
         width={680}
         height={220}
-        style={{ width: "100%", borderRadius: 12, background: "rgba(10,10,30,0.85)" }}
+        style={{ width: "100%", borderRadius: 12, background: "transparent" }}
       />
       <div style={{ display: "flex", gap: 12 }}>
         <button onClick={step} style={btnStyle("#3b82f6")}>Next Step →</button>
@@ -646,7 +646,7 @@ function BubbleSortAnimation({ phase }) {
         style={{
           width: "100%",
           height: 200,
-          background: "rgba(10,10,30,0.85)",
+          background: "transparent",
           borderRadius: 12,
           display: "flex",
           alignItems: "flex-end",
@@ -712,7 +712,7 @@ function StackAnimation({ phase }) {
       <div
         style={{
           minWidth: 140,
-          background: "rgba(10,10,30,0.85)",
+          background: "transparent",
           borderRadius: 12,
           padding: "16px 20px",
           display: "flex",
@@ -803,7 +803,7 @@ function LinkedListAnimation({ phase }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div
         style={{
-          background: "rgba(10,10,30,0.85)",
+          background: "transparent",
           borderRadius: 12,
           padding: "24px 16px",
           display: "flex",
@@ -1581,11 +1581,11 @@ function TopicPlaceholderAnimation({ phase, topicKey }) {
 function GenericAnimation({ phase }) {
   return (
     <div style={{
-      background: "rgba(10,10,30,0.85)", borderRadius: 12, height: 180,
+      background: "transparent", borderRadius: 12, height: 180,
       display: "flex", alignItems: "center", justifyContent: "center",
       color: "#444466", fontSize: 14,
     }}>
-      Ask about any topic — DSA, Math, Physics, Chemistry, Biology, or CS!
+      {/* Search for a topic to see it visualized here */}
     </div>
   );
 }

@@ -155,6 +155,19 @@ const HighlightRings = ({ highlightIds, objects }) => (
 // ─── Narration Bar — with narrative-emphasis color coding ────────────────────
 
 const NarrationBar = ({ stepIndex, narration, title, emphasis = 'normal' }) => {
+  const isFiller = (text) => {
+    if (!text) return true;
+    const lower = text.toLowerCase().trim().replace(/[.,!]$/, '');
+    const fillerWords = [
+      "let's begin", "lets begin", "starting session", "get started", 
+      "intro", "introduction", "overview", "preface", "start", "ready"
+    ];
+    return fillerWords.includes(lower);
+  };
+  
+  // Hide if the overall content (both title and narration) is filler
+  if (isFiller(narration) && isFiller(title)) return null;
+  // Fallback for missing content
   if (!narration && !title) return null;
 
   const emphasisStyles = {
@@ -444,9 +457,31 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
   const stepTitle  = currentStep?.label || currentStep?.title || '';
 
   // ── Resolved effective objects to render ──
-  const renderObjects = visibleObjects.length > 0
-    ? visibleObjects
-    : safeObjects.filter(o => visibleIdSet.has(o.id));
+  // Filter out redundant "balls" (generic shapes) if a specialized animation is active
+  const renderObjects = useMemo(() => {
+    const base = visibleObjects.length > 0
+      ? visibleObjects
+      : safeObjects.filter(o => visibleIdSet.has(o.id));
+    
+    const domain = currentStep?.domain || "generic";
+    const specializedTopics = ["bubble-sort", "binary-search", "merge-sort", "stack", "linked-list", "recursion", "dfs", "bfs"];
+    
+    if (specializedTopics.includes(domain)) {
+      return base.filter(obj => {
+        const shape = (obj.shape || obj.type || "").toLowerCase();
+        const label = (obj.label || obj.innerLabel || "").toLowerCase();
+        const genericLabels = ["start", "finish", "core", "intro", "lets begin", "phase", "end", "target"];
+        
+        // Keep everything that isn't a basic sphere, unless it has a CRUCIAL (non-generic) label
+        if (["circle", "orb", "node"].includes(shape)) {
+           if (label && !genericLabels.includes(label)) return true;
+           return false;
+        }
+        return true;
+      });
+    }
+    return base;
+  }, [visibleObjects, safeObjects, visibleIdSet, currentStep?.domain]);
 
   return (
     <div
@@ -454,7 +489,7 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
       style={{ minWidth: 800, minHeight: 600 }}
     >
       {/* ── Topic-Specific Background Animation Layer ── */}
-      <div className="absolute inset-0 z-[-1] opacity-40">
+      <div className="absolute inset-0 z-[-1] opacity-100">
         <TopicAnimationEngine 
           topic={currentStep?.domain || "generic"} 
           animationKey={currentStep?.animationKey} 

@@ -9,6 +9,21 @@ Specific to topic/domain — NO generic placeholders.
 ━━━ PARAMS ━━━
 Topic: {{TOPIC}} | Domain: {{DOMAIN}} | Difficulty: {{DIFFICULTY}}
 
+━━━ PLANNING CONTEXT ━━━
+Concept Type: {{CONCEPT_TYPE}}
+Learning Goal: {{LEARNING_GOAL}}
+Explanation Strategy: {{STRATEGY}}
+Visualization Type: {{VIS_TYPE}}
+
+━━━ BEHAVIOR — REQUIRED STEPS ━━━
+{{BEHAVIOR_STEPS}}
+
+━━━ EXECUTION STRATEGY ━━━
+{{EXECUTION_STRATEGY}}
+
+━━━ REFLECTION & FEEDBACK ━━━
+{{REFLECTION_NOTES}}
+
 ━━━ PEDAGOGY — learningNodes ━━━
 Types (Use ONLY these, in order): {{NODE_TEMPLATES}}
 - type: node type string.
@@ -72,6 +87,10 @@ advanced: dense (2000-3500ms), terminology, precision.
  * @property {string[]} nodeTemplates - from getNodeTemplates(domain)
  * @property {string} animationGuide - from getAnimationGuide(domain)
  * @property {Difficulty} [difficulty] - defaults to 'intermediate'
+ * @property {Object} [plan] - optional plan from PlannerAgent
+ * @property {Object} [behavior] - optional steps from BehaviorIntelligence
+ * @property {Object} [execution] - optional strategy from ExecutionStrategyAgent
+ * @property {Object} [reflection] - optional feedback from ReflectionAgent
  */
 
 /**
@@ -79,7 +98,36 @@ advanced: dense (2000-3500ms), terminology, precision.
  * @returns {string}
  */
 export function buildTimelinePrompt(ctx) {
-  const difficulty = ctx.difficulty ?? 'intermediate';
+  const difficulty = ctx.difficulty ?? ctx.plan?.difficulty_level ?? 'intermediate';
+  const plan = ctx.plan || {};
+  
+  // Reflection-aware data selection
+  const reflection = ctx.reflection || { status: 'good', issues: [] };
+  const isRefined = reflection.status === 'needs_improvement';
+  
+  const behaviorSteps = isRefined && reflection.refined_steps?.length > 0 
+    ? reflection.refined_steps 
+    : (ctx.behavior?.steps || []);
+
+  const executionSteps = isRefined && reflection.execution_adjustments?.length > 0
+    ? reflection.execution_adjustments
+    : (ctx.execution?.execution_plan || []);
+
+  // Format behavior steps for the model
+  const behaviorStepsFormatted = behaviorSteps.map(s => {
+    const exec = s.execution || {};
+    return `Step ${s.step_number}: (${s.concept_unit})\n  Explanation: ${s.explanation}\n  Clarification: ${s.micro_clarification}\n  Visual Hint: ${s.visual_hint}\n  Execution: intensity=${exec.intensity || 'medium'}, pacing=${exec.pacing || 'slow'}, interaction=${exec.interaction || 'guided'}`;
+  }).join('\n\n');
+
+  // Format execution strategy
+  const executionStrategyFormatted = executionSteps.map(p => (
+    `Step ${p.step_number}: intensity=${p.visualization_intensity}, mode=${p.interaction_type}, pace=${p.pacing}`
+  )).join('\n');
+
+  // Format reflection notes
+  const reflectionNotes = isRefined
+    ? `CRITICAL IMPROVEMENTS APPLIED: ${reflection.issues.join(', ')}`
+    : 'Planning and Behavior approved by ReflectionAgent.';
 
   // Format node templates as a readable numbered list for the model
   const nodeTemplatesList = ctx.nodeTemplates
@@ -91,7 +139,14 @@ export function buildTimelinePrompt(ctx) {
     .replaceAll('{{DOMAIN}}',          ctx.domain)
     .replaceAll('{{NODE_TEMPLATES}}',  nodeTemplatesList)
     .replaceAll('{{ANIMATION_GUIDE}}', ctx.animationGuide)
-    .replaceAll('{{DIFFICULTY}}',      difficulty);
+    .replaceAll('{{DIFFICULTY}}',      difficulty)
+    .replaceAll('{{CONCEPT_TYPE}}',    plan.concept_type || 'general')
+    .replaceAll('{{LEARNING_GOAL}}',   plan.learning_goal || 'Understand the core concept')
+    .replaceAll('{{STRATEGY}}',        plan.explanation_strategy || 'step_by_step')
+    .replaceAll('{{VIS_TYPE}}',        plan.visualization_type || 'abstract_visual')
+    .replaceAll('{{BEHAVIOR_STEPS}}',  behaviorStepsFormatted || 'Follow a logical progression.')
+    .replaceAll('{{EXECUTION_STRATEGY}}', executionStrategyFormatted || 'Maintain steady pacing.')
+    .replaceAll('{{REFLECTION_NOTES}}', reflectionNotes);
 }
 
 // ─── Response Types ───────────────────────────────────────────────────────────
