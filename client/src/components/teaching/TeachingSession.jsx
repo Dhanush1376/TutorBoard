@@ -110,6 +110,29 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
   const canvasRef = useRef(null);
   const doubtInputRef = useRef(null);
 
+  const handleClose = useCallback(() => {
+    endSession();
+    onClose();
+  }, [endSession, onClose]);
+
+  const handleSpeedChange = useCallback((spd) => {
+    storeSetSpeed(spd);
+    setSpeed(spd);
+  }, [setSpeed, storeSetSpeed]);
+
+  const handleMinimize = useCallback(() => setCanvasMode(CANVAS_MODE.MINIMIZED), [setCanvasMode]);
+  const handleExpand   = useCallback(() => setCanvasMode(CANVAS_MODE.FULLSCREEN), [setCanvasMode]);
+
+  const handleDoubtSubmit = useCallback(() => {
+    if (!doubtInput.trim() || isDoubtProcessing) return;
+    askDoubt(doubtInput.trim());
+    setDoubtInput('');
+  }, [doubtInput, isDoubtProcessing, askDoubt]);
+
+  const handleRetry = useCallback(() => {
+    if (initialTopic) startSession(initialTopic);
+  }, [initialTopic, startSession]);
+
   // Start session on open
   useEffect(() => {
     if (isOpen && initialTopic && machineState === STATES.IDLE && !timeline) {
@@ -192,28 +215,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     return () => window.removeEventListener('keydown', handleKey);
   }, [isOpen, handleClose, nextStep, prevStep, isPlaying, pause, play, openFloatingSidebar, toggleDoubtThread]);
 
-  const handleSpeedChange = useCallback((spd) => {
-    storeSetSpeed(spd);
-    setSpeed(spd);
-  }, [setSpeed, storeSetSpeed]);
-
-  const handleClose = useCallback(() => {
-    endSession();
-    onClose();
-  }, [endSession, onClose]);
-
-  const handleMinimize = useCallback(() => setCanvasMode(CANVAS_MODE.MINIMIZED), [setCanvasMode]);
-  const handleExpand   = useCallback(() => setCanvasMode(CANVAS_MODE.FULLSCREEN), [setCanvasMode]);
-
-  const handleDoubtSubmit = useCallback(() => {
-    if (!doubtInput.trim() || isDoubtProcessing) return;
-    askDoubt(doubtInput.trim());
-    setDoubtInput('');
-  }, [doubtInput, isDoubtProcessing, askDoubt]);
-
-  const handleRetry = useCallback(() => {
-    if (initialTopic) startSession(initialTopic);
-  }, [initialTopic, startSession]);
+// Redundant callback placement removed. Still using memoized versions.
 
   // Memoized canvas callbacks to stabilize render cycle
   const handleZoomChange = useCallback((scale) => {
@@ -246,7 +248,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
   // Progress bar: cap at 50 segments to avoid overflow
   const progressSegments = Math.min(totalSteps, 50);
   const progressStep = totalSteps > 50
-    ? Math.floor((currentStepIndex / totalSteps) * 50)
+    ? Math.floor((currentStepIndex / (totalSteps - 1)) * (progressSegments - 1))
     : currentStepIndex;
 
   const doubtPlaceholder = machineState === STATES.GENERATING
@@ -605,7 +607,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                       key={i}
                       onClick={() => {
                         const targetStep = totalSteps > 50
-                          ? Math.floor((i / 50) * totalSteps)
+                          ? Math.round((i / (progressSegments - 1)) * (totalSteps - 1))
                           : i;
                         goToStep(targetStep);
                       }}

@@ -83,6 +83,10 @@ app.use(cors({
 // Parse JSON bodies (with a size limit for safety)
 app.use(express.json({ limit: '1mb' }));
 
+// Initialize Passport for Social Auth
+import passport from 'passport';
+app.use(passport.initialize());
+
 // Request logger (useful for debugging on Render)
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);

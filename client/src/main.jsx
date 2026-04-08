@@ -6,6 +6,10 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
 import './styles/animations.css';
+import useTutorStore from './store/tutorStore';
+
+// Safely hydrate browser-only state (isSidebarOpen, selectedAgent)
+useTutorStore.getState().hydrate();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

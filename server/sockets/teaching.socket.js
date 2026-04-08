@@ -159,6 +159,9 @@ export function setupTeachingSocket(io) {
           return;
         }
 
+        // Persist timeline to session store so navigation works
+        sessionStore.setTimeline(sessionId, timeline);
+
         // Transition to TEACHING
         machine.send(EVENTS.TIMELINE_READY, { timeline });
 
@@ -291,7 +294,17 @@ export function setupTeachingSocket(io) {
     // ─── NAVIGATE STEPS ───
     socket.on('session:step', ({ stepIndex }) => {
       const s = sessionStore.get(sessionId);
-      if (!s || !s.steps[stepIndex]) return;
+      
+      // Safety: Race condition protection
+      if (!s || !s.steps || s.steps.length === 0) {
+        console.warn(`[WS] session:step ignored - steps not yet loaded for session: ${sessionId}`);
+        return;
+      }
+
+      if (!s.steps[stepIndex]) {
+        console.warn(`[WS] session:step ignored - invalid index ${stepIndex} for session: ${sessionId}`);
+        return;
+      }
 
       sessionStore.goToStep(sessionId, stepIndex);
 

@@ -72,7 +72,22 @@ export function validateDoubtResponse(data) {
 
   // Validate visual update if present
   if (data.isRelevant && data.hasVisuals && data.visualUpdate) {
-    // Validate mutations (new format)
+    // Validate framePatches (modern format)
+    if (data.visualUpdate.framePatches && Array.isArray(data.visualUpdate.framePatches)) {
+      data.visualUpdate.framePatches.forEach((patch, i) => {
+        if (!patch.op || !['add', 'modify'].includes(patch.op)) {
+          errors.push(`framePatches[${i}]: invalid op '${patch.op}'`);
+        }
+        if (patch.op === 'add' && (!patch.frame || !patch.frame.shapes)) {
+          errors.push(`framePatches[${i}]: 'add' requires frame.shapes`);
+        }
+        if (patch.op === 'modify' && (!patch.frameId || !patch.shapeId)) {
+          errors.push(`framePatches[${i}]: 'modify' requires frameId and shapeId`);
+        }
+      });
+    }
+
+    // Legacy mutations (backward compatibility)
     if (data.visualUpdate.mutations) {
       if (!Array.isArray(data.visualUpdate.mutations)) {
         errors.push("'visualUpdate.mutations' must be an array");

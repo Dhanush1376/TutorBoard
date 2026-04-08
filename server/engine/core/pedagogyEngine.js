@@ -12,7 +12,8 @@ import {
   getAnimationGuide,
   buildTimelinePrompt,
   getNodeTemplates,
-  REFLECTION_AGENT_PROMPT
+  REFLECTION_AGENT_PROMPT,
+  buildDoubtPrompt
 } from '../agents/index.js';
 import { safeParse, validateTimeline, validateDoubtResponse, buildRetryPrompt, validatePedagogyResponse, validateReflectionResponse } from '../validators/index.js';
 import sessionStore from './sessionStore.js';
@@ -63,7 +64,9 @@ function stripThinkTags(text) {
 }
 
 function getTokenBudget() {
-  return 1200; // Drastically reduced to fit within OpenRouter credit limits (2789 total)
+  // Increased to 4096 to match modern model capacity (Gemini/DeepSeek-V3)
+  // This prevents truncated visual plans for complex topics.
+  return 4096;
 }
 
 function withTimeout(promise, ms, errorMsg) {
@@ -361,9 +364,6 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
       nodeTemplates,
       animationGuide,
       plan: pedagogy,
-      behavior: { steps: pedagogy.final_steps || pedagogy.steps },
-      execution: { execution_plan: pedagogy.final_steps || pedagogy.steps },
-      reflection: { status: 'good' }, // Handled by Validator now
       difficulty: pedagogy.difficulty_level || 'intermediate'
     });
 
@@ -413,6 +413,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
 
 export async function generateTextResponse(sessionId, promptStr) {
   try {
+    const model = getModel();
     const completion = await requestCompletion({
       model,
       messages: [
@@ -435,8 +436,18 @@ export async function handleDoubt(sessionId, question) {
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
+  const systemPrompt = buildDoubtPrompt({
+    topic: session.topic || '',
+    domain: session.timeline?.domain || 'general',
+    currentFrames: (session.steps && session.steps[session.currentStepIndex]?.objectIds) || [],
+    priorDoubts: (session.doubts || []).slice(-3).map(d => ({ 
+      question: d.question, 
+      answer: d.response 
+    })),
+  });
+
   const messages = [
-    { role: 'system', content: DOUBT_RESPONSE_PROMPT },
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: question }
   ];
 

@@ -14,6 +14,7 @@ export { STATES };
 export function useTeachingMachine() {
   const { emit, on, isConnected, connectionError } = useSocket();
   const playIntervalRef = useRef(null);
+  const safetyTimeoutRef = useRef(null);
 
   // ─── Pull store state & actions ───
   const store = useTutorStore();
@@ -139,24 +140,35 @@ export function useTeachingMachine() {
     };
   }, [isPlaying, isPaused, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
 
+  // ─── Safety Timeout Logic (no server response in 180s) ───
+  useEffect(() => {
+    if (machineState === STATES.GENERATING) {
+      safetyTimeoutRef.current = setTimeout(() => {
+        const currentState = useTutorStore.getState().machineState;
+        if (currentState === STATES.GENERATING) {
+          console.warn('[Machine] ⚠️ 180s timeout — no server response. Resetting.');
+          setGreeting('The AI is taking too long to respond. Please try again.');
+        }
+      }, 180000);
+    } else {
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current);
+        safetyTimeoutRef.current = null;
+      }
+    }
+
+    return () => {
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current);
+      }
+    };
+  }, [machineState, setGreeting]);
+
   // ─── Actions (emit to server + update store) ───
   const startSession = useCallback((topicStr, initialQuestion, activeMode) => {
     storeStartSession(topicStr, initialQuestion);
     emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode });
-    
-    // Safety timeout: if no response in 180s, reset state so user isn't stuck
-    // (Free-tier models can take 60-120s for complex visual timelines)
-    const timeoutId = setTimeout(() => {
-      const currentState = useTutorStore.getState().machineState;
-      if (currentState === STATES.GENERATING) {
-        console.warn('[Machine] ⚠️ 180s timeout — no server response. Resetting.');
-        setGreeting('The AI is taking too long to respond. Please try again.');
-      }
-    }, 180000);
-    
-    // Clear timeout when component unmounts or new session starts
-    return () => clearTimeout(timeoutId);
-  }, [emit, storeStartSession, selectedAgent, setGreeting]);
+  }, [emit, storeStartSession, selectedAgent]);
 
   const askDoubt = useCallback((question, activeMode) => {
     storePause();

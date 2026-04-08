@@ -22,6 +22,11 @@ export const generateExplanation = async (req, res) => {
       return res.json(timeline);
     }
 
+    // Safety fallback: prevents the request from hanging if orchestration fails/offline
+    return res.status(500).json({ 
+      error: 'Timeline generation failed. Please check server logs and try again.' 
+    });
+
   } catch (error) {
     console.error('[Generate] Critical:', error);
     res.json({ error: 'Server error' });

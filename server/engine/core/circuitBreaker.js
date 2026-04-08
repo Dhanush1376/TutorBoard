@@ -55,7 +55,7 @@ class CircuitBreaker {
     p.failures += 1;
 
     // 402/429 are hard quota limits. Instantly open circuit.
-    if (statusCode === 429 || statusCode === 402 || p.failures >= 2) {
+    if (statusCode === 429 || statusCode === 402 || p.failures >= 4) {
       p.state = 'OPEN';
       p.nextRetry = Date.now() + COOLDOWN_MS;
       console.warn(`[CircuitBreaker] ⚠️ ${provider} circuit is OPEN! Cooldown: ${COOLDOWN_MS/1000}s`);

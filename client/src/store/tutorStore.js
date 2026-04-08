@@ -93,13 +93,13 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       showFloatingSidebar: false,
       showMinimap: false,
-      selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+      selectedAgent: 'OpenRouter', // Default, hydrator will update from localStorage
       layoutView: 'right', // 'right' means sidebar on left, canvas on right. 'left' is vice-versa.
 
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
       // ═══════════════════════════════════════════════════
-      isSidebarOpen: window.innerWidth >= 768,
+      isSidebarOpen: true, // Default for SSR
 
       setLayoutView: (view) => set({ layoutView: view }),
       setMachineState: (state) => set({ machineState: state, error: null }),
@@ -164,55 +164,43 @@ const useTutorStore = create(
 
       setCanvasTransform: (transform) => set({ canvasTransform: transform }),
 
-      // Mutate canvas objects (for doubt-driven modifications)
-      mutateCanvasObjects: (mutations) => {
+      // Mutate canvas objects (supports legacy mutations and modern framePatches)
+      mutateCanvasObjects: (mutationsOrPatches) => {
         const { canvasObjects } = get();
         let newObjects = [...canvasObjects];
 
-        for (const mutation of mutations) {
-          switch (mutation.action) {
-            case 'add':
-              if (mutation.object) {
-                // Don't add duplicates
-                const exists = newObjects.find(o => o.id === mutation.object.id);
-                if (!exists) {
-                  newObjects.push(mutation.object);
-                }
+        // Normalise inputs (AI returns framePatches now)
+        const items = Array.isArray(mutationsOrPatches) ? mutationsOrPatches : [];
+
+        for (const item of items) {
+          // ─── Modern Schema (framePatches with op: add/modify) ───
+          if (item.op === 'add' && item.frame?.shapes) {
+            item.frame.shapes.forEach(shape => {
+              if (!newObjects.find(o => o.id === shape.id)) {
+                newObjects.push({ ...shape, doubtDriven: true });
               }
-              break;
-
-            case 'modify':
-              newObjects = newObjects.map(obj =>
-                obj.id === mutation.targetId
-                  ? { ...obj, ...mutation.changes }
-                  : obj
-              );
-              break;
-
-            case 'remove':
-              newObjects = newObjects.filter(obj => obj.id !== mutation.targetId);
-              break;
-
-            case 'highlight':
-              // handled at step level, but can modify glow/pulse
-              if (mutation.targetIds) {
-                newObjects = newObjects.map(obj =>
-                  mutation.targetIds.includes(obj.id)
-                    ? { ...obj, glow: true, pulse: true }
-                    : obj
-                );
-              }
-              break;
-
-            case 'replace':
-              // Full replacement (fallback for non-mutation AI responses)
-              if (mutation.objects) {
-                newObjects = mutation.objects;
-              }
-              break;
-
-            default:
-              break;
+            });
+          } else if (item.op === 'modify' && item.shapeId) {
+            newObjects = newObjects.map(obj =>
+              obj.id === item.shapeId ? { ...obj, ...item.props } : obj
+            );
+          }
+          
+          // ─── Legacy Schema (mutations with action: add/modify/etc) ───
+          else if (item.action === 'add' && item.object) {
+            if (!newObjects.find(o => o.id === item.object.id)) {
+              newObjects.push(item.object);
+            }
+          } else if (item.action === 'modify' && item.targetId) {
+            newObjects = newObjects.map(obj =>
+              obj.id === item.targetId ? { ...obj, ...item.changes } : obj
+            );
+          } else if (item.action === 'remove' && item.targetId) {
+            newObjects = newObjects.filter(obj => obj.id !== item.targetId);
+          } else if (item.action === 'highlight' && item.targetIds) {
+            newObjects = newObjects.map(obj =>
+              item.targetIds.includes(obj.id) ? { ...obj, glow: true, pulse: true } : obj
+            );
           }
         }
 
@@ -408,6 +396,18 @@ const useTutorStore = create(
           canvasMode: CANVAS_MODE.FULLSCREEN,
           canvasTransform: { x: 0, y: 0, scale: 1 },
           machineState: STATES.GENERATING,
+        });
+      },
+
+      /**
+       * HYDRATE: Safely load browser-only defaults after mount
+       * Prevents SSR/Hydration ReferenceErrors
+       */
+      hydrate: () => {
+        if (typeof window === 'undefined') return;
+        set({
+          isSidebarOpen: window.innerWidth >= 768,
+          selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
         });
       },
 

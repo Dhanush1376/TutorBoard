@@ -9,68 +9,81 @@ import { io } from 'socket.io-client';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Socket Singleton instance
+let globalSocket = null;
+
 export function useSocket() {
-  const socketRef = useRef(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(globalSocket?.connected || false);
   const [connectionError, setConnectionError] = useState(null);
   const listenersRef = useRef(new Map());
 
-  // Initialize connection
+  // Handle global connection state
   useEffect(() => {
-    const token = localStorage.getItem('tb-token');
-    const socket = io(`${SOCKET_URL}/teaching`, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
-      autoConnect: true,
-      auth: { token },
-    });
+    if (!globalSocket) {
+      console.log('[Socket] Initializing singleton connection...');
+      const token = localStorage.getItem('tb-token');
+      globalSocket = io(`${SOCKET_URL}/teaching`, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        autoConnect: true,
+        auth: { token },
+      });
+    }
 
-    socketRef.current = socket;
+    const socket = globalSocket;
 
-    socket.on('connect', () => {
+    const onConnect = () => {
       console.log('[Socket] Connected:', socket.id);
       setIsConnected(true);
       setConnectionError(null);
-    });
+    };
 
-    socket.on('disconnect', (reason) => {
+    const onDisconnect = (reason) => {
       console.log('[Socket] Disconnected:', reason);
       setIsConnected(false);
-    });
+    };
 
-    socket.on('connect_error', (error) => {
+    const onError = (error) => {
       console.error('[Socket] Connection error:', error.message);
       setConnectionError(error.message);
       setIsConnected(false);
-    });
+    };
 
-    socket.on('reconnect', (attemptNumber) => {
-      console.log('[Socket] Reconnected after', attemptNumber, 'attempts');
-      setConnectionError(null);
-    });
+    const onRetry = () => {
+      console.log('[Socket] Refreshing auth token for reconnect attempt...');
+      const freshToken = localStorage.getItem('tb-token');
+      socket.auth = { token: freshToken };
+    };
 
-    socket.on('reconnect_failed', () => {
-      setConnectionError('Failed to reconnect to server');
-    });
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onError);
+    socket.on('reconnect_attempt', onRetry);
+
+    // Initial state sync
+    if (socket.connected) {
+      setIsConnected(true);
+    }
 
     return () => {
-      socket.removeAllListeners();
-      socket.disconnect();
-      socketRef.current = null;
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onError);
+      socket.off('reconnect_attempt', onRetry);
     };
   }, []);
 
   // Emit an event (relies on socket.io's native offline buffering)
   const emit = useCallback((event, data) => {
-    if (socketRef.current) {
-      if (!socketRef.current.connected) {
+    if (globalSocket) {
+      if (!globalSocket.connected) {
         console.log(`[Socket] Buffering emit '${event}' until connected`);
       }
-      socketRef.current.emit(event, data);
+      globalSocket.emit(event, data);
     } else {
       console.warn(`[Socket] Cannot emit '${event}' — socket instance not initialized`);
     }
@@ -78,9 +91,9 @@ export function useSocket() {
 
   // Listen to an event (auto-cleanup on unmount)
   const on = useCallback((event, callback) => {
-    if (!socketRef.current) return () => {};
+    if (!globalSocket) return () => {};
 
-    socketRef.current.on(event, callback);
+    globalSocket.on(event, callback);
 
     // Track listener for cleanup
     if (!listenersRef.current.has(event)) {
@@ -90,7 +103,7 @@ export function useSocket() {
 
     // Return cleanup function
     return () => {
-      socketRef.current?.off(event, callback);
+      globalSocket?.off(event, callback);
       const listeners = listenersRef.current.get(event) || [];
       const idx = listeners.indexOf(callback);
       if (idx > -1) listeners.splice(idx, 1);
@@ -99,11 +112,11 @@ export function useSocket() {
 
   // Remove a specific listener
   const off = useCallback((event, callback) => {
-    socketRef.current?.off(event, callback);
+    globalSocket?.off(event, callback);
   }, []);
 
   return {
-    socket: socketRef.current,
+    socket: globalSocket,
     isConnected,
     connectionError,
     emit,
