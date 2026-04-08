@@ -504,7 +504,10 @@ const StepPanel = ({
   memoryAnchor,
   keyFormula,
 }) => {
-  const node = learningNodes[currentStepIndex];
+  const node = learningNodes.find(n => {
+    const [start, end] = n.stepSpan || [0, 0];
+    return currentStepIndex >= start && currentStepIndex <= end;
+  });
   const nodeType = node?.type;
   const cfg = getCfg(nodeType);
   const isLast = currentStepIndex === totalSteps - 1;

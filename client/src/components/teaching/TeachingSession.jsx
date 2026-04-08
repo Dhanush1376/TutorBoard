@@ -106,14 +106,15 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     showDoubtThread,
   } = useTutorStore();
 
-  const [doubtInput, setDoubtInput] = useState('');
-  const canvasRef = useRef(null);
-  const doubtInputRef = useRef(null);
-
   const handleClose = useCallback(() => {
     endSession();
     onClose();
   }, [endSession, onClose]);
+
+  const [doubtInput, setDoubtInput] = useState('');
+  const canvasRef = useRef(null);
+  const doubtInputRef = useRef(null);
+
 
   const handleSpeedChange = useCallback((spd) => {
     storeSetSpeed(spd);

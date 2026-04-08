@@ -3,11 +3,22 @@
  */
 export { safeParse } from '../utils/parser.js';
 export { validatePedagogyResponse } from './maestroValidator.js';
+import { validateTimelineResponse } from '../agents/timelinePrompt.js';
 
 export function validateTimeline(data) {
-  // Simple pass-through or basic structural check
-  if (!data || !Array.isArray(data.steps)) return { valid: false, errors: ['Invalid timeline structure'] };
-  return { valid: true, errors: [] };
+  // Structural safety check before calling rich validator
+  if (!data || !Array.isArray(data.steps) || !Array.isArray(data.objects)) {
+    return { 
+      valid: false, 
+      errors: ['Invalid timeline structure: missing steps or objects array'] 
+    };
+  }
+
+  const errors = validateTimelineResponse(data);
+  return { 
+    valid: errors.length === 0, 
+    errors: errors.map(e => e.message) 
+  };
 }
 
 export function validateDoubtResponse(data) {

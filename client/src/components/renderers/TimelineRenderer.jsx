@@ -771,7 +771,10 @@ const TimelineRenderer = ({
           >
             <StepCard
               step={step}
-              node={safeNodes[i]}
+              node={safeNodes.find(n => {
+                const [start, end] = n.stepSpan || [0, 0];
+                return i >= start && i <= end;
+              })}
               stepIndex={i}
               currentStepIndex={currentStepIndex}
               totalSteps={n}

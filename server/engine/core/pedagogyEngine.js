@@ -224,12 +224,14 @@ function processTimeline(data, detectedDomain, rawTopic) {
 async function refinePedagogy(pedagogy, topic, userProfile) {
   console.log('[Orchestrator] 🚩 Refining pedagogy to remove complexity/confusion...');
   
+  const userContent = REFLECTION_AGENT_PROMPT
+    .replace('{{PLANNER_OUTPUT_JSON}}', JSON.stringify(pedagogy, null, 2))
+    .replace('{{BEHAVIOR_OUTPUT_JSON}}', JSON.stringify(pedagogy.final_steps, null, 2))
+    .replace('{{EXECUTION_PLAN_JSON}}', JSON.stringify(pedagogy.final_steps?.map(s => s.execution), null, 2));
+
   const messages = [
-    { role: 'system', content: REFLECTION_AGENT_PROMPT },
-    { 
-      role: 'user', 
-      content: `Analyze this pedagogical plan and provide execution adjustments.\nPLAN: ${JSON.stringify(pedagogy, null, 2)}` 
-    }
+    { role: 'system', content: 'You are a Feedback Agent. Your role is to improve clarity and remove confusion from the provided pedagogical plan.' },
+    { role: 'user', content: userContent }
   ];
 
   const refinement = await callLLMWithRetry(messages, validateReflectionResponse, 1, 1000);
@@ -255,6 +257,7 @@ async function refinePedagogy(pedagogy, topic, userProfile) {
     // Ensure step count matches
     pedagogy.step_count = pedagogy.final_steps.length;
     pedagogy.steps = pedagogy.final_steps; // Sync for Stage 2
+    pedagogy.reflection_result = refinement; 
   }
   
   return pedagogy;
@@ -364,6 +367,9 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
       nodeTemplates,
       animationGuide,
       plan: pedagogy,
+      behavior: { steps: pedagogy.final_steps },
+      execution: { execution_plan: pedagogy.final_steps?.map(s => ({ ...s.execution, step_number: s.step_number })) },
+      reflection: pedagogy.reflection_result || { status: 'good', issues: [] },
       difficulty: pedagogy.difficulty_level || 'intermediate'
     });
 
