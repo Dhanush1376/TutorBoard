@@ -208,7 +208,7 @@ function processTimeline(data, detectedDomain, rawTopic) {
     }
     if (!Array.isArray(step.highlightIds)) step.highlightIds = [];
     if (!step.transition) step.transition = 'fadeIn';
-    if (!step.duration) step.duration = 2000;
+    if (!step.duration) step.duration = step.durationMs || 3000;
     if (!step.narration) step.narration = step.description || step.title || '';
   });
 
@@ -228,7 +228,7 @@ async function refinePedagogy(pedagogy, topic, userProfile) {
     { role: 'system', content: REFLECTION_AGENT_PROMPT },
     { 
       role: 'user', 
-      content: `PLAN: ${JSON.stringify(pedagogy, null, 2)}\nSTEPS: ${JSON.stringify(pedagogy.steps, null, 2)}\nEXECUTION: ${JSON.stringify(pedagogy.steps, null, 2)}` 
+      content: `Analyze this pedagogical plan and provide execution adjustments.\nPLAN: ${JSON.stringify(pedagogy, null, 2)}` 
     }
   ];
 
