@@ -80,6 +80,8 @@ export class CameraDirector {
     this._cameraTimer = null;
     /** @type {ReturnType<typeof setTimeout>|null} */
     this._interactionTimer = null;
+    /** @type {number} Timestamp until which the camera is locked (sticky) */
+    this._stickyUntil = 0;
   }
 
   // ─── Configuration ─────────────────────────────────────────────────────
@@ -105,6 +107,11 @@ export class CameraDirector {
    * @param {boolean} interacting
    */
   setUserInteracting(interacting) {
+    // If we're in a "sticky" window, ignore interaction for a brief moment
+    if (interacting && Date.now() < this._stickyUntil) {
+      return;
+    }
+
     this._userInteracting = interacting;
     
     // If interaction stopped, start a cooldown to re-enable camera
@@ -195,6 +202,9 @@ export class CameraDirector {
 
     // Delay camera move slightly — let shape entrance animations start first
     const delay = 120 / this.speed;
+    
+    // Phase 2: Set sticky duration (1.5 seconds of lock)
+    this._stickyUntil = Date.now() + 1500;
 
     this._cameraTimer = setTimeout(() => {
       const command = this._buildCommand(step, objects, highlightIds, newIds, focusPoint, focusIntensity);

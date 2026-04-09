@@ -49,9 +49,9 @@ export function validatePedagogyResponse(data) {
   let shouldRefine = false;
   const issues = [];
 
-  if (data.steps && data.steps.length > 6) {
+  if (data.steps && data.steps.length > 25) {
     shouldRefine = true;
-    issues.push("Too many steps. Maximum of 6 steps allowed to prevent cognitive overload.");
+    issues.push("Too many steps. Maximum of 25 steps allowed to ensure focus.");
   }
   
   if (data.steps && data.steps.length > 0) {

@@ -6,3 +6,5 @@ build/
 *.log
 coverage/
 .vscode/
+traces.json
+.DS_Store

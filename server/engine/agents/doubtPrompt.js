@@ -24,6 +24,14 @@ Current animation frames (active step):
 Prior doubts this session (do NOT repeat an answer already given):
 {{PRIOR_DOUBTS}}
 
+━━━ STRATEGIC ROUTING ━━━
+Classification: {{CLASSIFICATION}}
+Follow the pathway's intent:
+- off_topic: BRIDGE back to the topic.
+- misconception: CORRECT the error gently.
+- wants_deeper: Provide THEORETICAL depth.
+- wants_example: Provide a small WORKED code/math snippet.
+
 ━━━ YOUR TASK ━━━
 
 1. ANSWER  — Resolve the doubt in 2–4 sentences. Lead with the core insight, not
@@ -130,6 +138,7 @@ export function buildDoubtPrompt(ctx) {
   return DOUBT_RESPONSE_PROMPT
     .replaceAll('{{TOPIC}}',          ctx.topic)
     .replaceAll('{{DOMAIN}}',         ctx.domain)
+    .replaceAll('{{CLASSIFICATION}}', JSON.stringify(ctx.classification || { pathway: 'conceptual' }, null, 2))
     .replaceAll('{{CURRENT_FRAMES}}', JSON.stringify(ctx.currentFrames, null, 2))
     .replaceAll('{{PRIOR_DOUBTS}}',   JSON.stringify(ctx.priorDoubts,   null, 2));
 }

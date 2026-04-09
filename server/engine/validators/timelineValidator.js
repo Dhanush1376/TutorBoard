@@ -94,6 +94,13 @@ function validateObject(obj, index) {
     errors.push(`object[${index}]: unknown shape '${shape}'`);
   }
 
+  // Safety: check for coordinate consistency in lines/arrows
+  if (['line', 'arrow', 'connector'].includes(shape)) {
+    if (obj.x1 === undefined || obj.x2 === undefined || obj.y1 === undefined || obj.y2 === undefined) {
+      errors.push(`object[${index}] (${shape}): missing one or more coordinates (x1, y1, x2, y2).`);
+    }
+  }
+
   return errors;
 }
 
@@ -199,7 +206,7 @@ export function validateTimeline(data) {
       
       step[key].forEach(id => {
         if (id && !allObjectIdsSet.has(String(id))) {
-          errors.push(`Step ${i} ("${step.title}"): ID "${id}" in ${key} does not exist in any global objects. Check for typos or missing object definitions.`);
+          errors.push(`CRITICAL REFERENCE ERROR: Step ${i} ("${step.title}") uses ID "${id}" in ${key}, but this ID is not defined in your "objects" array. You MUST define every object you use in the steps.`);
         }
       });
 

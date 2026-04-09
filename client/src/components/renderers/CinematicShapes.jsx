@@ -10,8 +10,8 @@
  * Designed as drop-in replacements for CanvasRenderer shapes.
  */
 
-import React, { useMemo, useId } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useId } from 'react';
+import { motion } from 'framer-motion';
 import animEngine from '../../engine/UniversalAnimationEngine.js';
 import {
   SPRING_STANDARD, SPRING_BOUNCY, SPRING_SNAPPY,
@@ -417,6 +417,7 @@ export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, stag
             )}
 
             <motion.rect
+              key={`cell-bg-${i}-${val}`}
               initial={isNew ? config.initial : false}
               animate={{
                 ...config.animate,
@@ -434,6 +435,7 @@ export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, stag
             />
 
             <motion.text
+              key={`cell-txt-${i}-${val}`}
               animate={{ x: cx + cw / 2, y: sy + ch / 2 }}
               textAnchor="middle" dominantBaseline="central"
               fill={pal.val} fontSize={fs} fontWeight="800"
@@ -494,11 +496,13 @@ export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, st
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <motion.line
-        animate={{ x1: cx, y1: baseY, x2: cx, y2: tipY }}
         stroke={c.stroke} strokeWidth={3} strokeLinecap="round"
         filter="url(#tb-neon-glow)"
         initial={isNew ? { scaleY: 0 } : false}
-        animate={isNew ? { scaleY: 1, x1: cx, y1: baseY, x2: cx, y2: tipY } : { x1: cx, y1: baseY, x2: cx, y2: tipY }}
+        animate={{ 
+          scaleY: 1, 
+          x1: cx, y1: baseY, x2: cx, y2: tipY 
+        }}
         style={{ transformOrigin: `${cx}px ${baseY}px`, transformBox: 'fill-box' }}
         transition={{ duration: 0.3, delay: 0.08 }}
       />
@@ -576,9 +580,8 @@ export const SwapBridge = ({ obj, isNew, stepKey, narrativeHints, attentionOverr
       </motion.circle>
 
       <motion.g
-        animate={{ x: midX, y: midY }}
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0, x: 0 }}
+        initial={{ opacity: 0, y: midY - 8 }}
+        animate={{ opacity: 1, y: midY, x: midX }}
         transition={{ delay: 0.38, duration: 0.3 }}
       >
         <rect x={midX - 26} y={midY - 15} width={52} height={19} rx={9}
@@ -868,7 +871,6 @@ export const ArcPath = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
     <motion.path
       key={obj.id}
       data-id={obj.id}
-      animate={{ d }}
       fill="none" stroke={c.stroke} strokeWidth={sw} strokeLinecap="round"
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
       animate={{ pathLength: 1, opacity: 1, d }}
@@ -946,12 +948,15 @@ export const SimpleLine = ({ obj, isNew, isHighlighted, isFaded, transition, sta
     <motion.path
       key={obj.id}
       data-id={obj.id}
-      animate={{ d: `M ${x1} ${y1} L ${x2} ${y2}` }}
       stroke={c.stroke} strokeWidth={sw}
       strokeDasharray={obj.dashed ? '7 3' : undefined}
-      strokeLinecap="round" opacity={isFaded ? 0.25 : (obj.opacity ?? 0.65)}
+      strokeLinecap="round"
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
-      animate={{ pathLength: 1, opacity: obj.opacity ?? 0.65, d: `M ${x1} ${y1} L ${x2} ${y2}` }}
+      animate={{ 
+        pathLength: 1, 
+        opacity: isFaded ? 0.25 : (obj.opacity ?? 0.65), 
+        d: `M ${x1} ${y1} L ${x2} ${y2}` 
+      }}
       exit={config.exit}
       transition={{ duration: 0.55, ease: EASE_CINEMATIC, ...config.transition }}
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
@@ -966,7 +971,7 @@ export const SimpleLine = ({ obj, isNew, isHighlighted, isFaded, transition, sta
 
 export const OrbitBody = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
-  const config = animEngine.getFullConfig(obj, { isNew: true, narrativeHints, attentionOverride });
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
   
   const cx = safeNum(obj.cx ?? obj.x, CW / 2);
   const cy = safeNum(obj.cy ?? obj.y, CH / 2);
@@ -975,7 +980,7 @@ export const OrbitBody = ({ obj, isNew, isHighlighted, isFaded, transition, stag
   const speed = safeNum(obj.speed, 8);
   const c = resolve(obj.color || obj.fill || 'blue');
   const uid = useId();
-  const pathId = `orbit-path-${obj.id || index}-${uid.replace(/:/g, '')}`;
+  const pathId = `orbit-path-${obj.id}-${uid.replace(/:/g, '')}`;
 
   return (
     <motion.g
@@ -1029,7 +1034,7 @@ export const CinematicShapeRouter = (props) => {
 
     return (
       <motion.g
-        key={`${obj.id}-${stepKey}`}
+        key={obj.id}
         drag dragMomentum={false}
         onDragStart={e => e.stopPropagation()}
         style={{ cursor: 'grab', transformOrigin: 'center', transformBox: 'fill-box' }}

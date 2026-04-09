@@ -31,6 +31,7 @@ import { generateTimeline, handleDoubt, generateTextResponse } from '../engine/c
 import { detectIntent } from '../engine/core/intentEngine.js';
 import { checkSocketRate, cleanupSocket } from '../middleware/rateLimiter.js';
 import { sanitizeInput } from '../utils/sanitize.js';
+import { replanRemainingSteps } from '../engine/core/adaptivePlanner.js';
 import jwt from 'jsonwebtoken';
 
 // ─── Timeout wrapper ─────────────────────────────────────────────────────────
@@ -121,6 +122,12 @@ export function setupTeachingSocket(io) {
       }
 
       sessionStore.update(sessionId, { topic: cleanTopic });
+
+      // Initialize persistent profile if user is authenticated
+      if (socket.user && socket.user.id !== 'guest') {
+        console.log(`[WS] Initializing persistent profile for user: ${socket.user.id}`);
+        await sessionStore.initProfile(sessionId, socket.user.id);
+      }
 
       try {
         const intent = detectIntent(topic, activeMode);
@@ -273,7 +280,30 @@ export function setupTeachingSocket(io) {
           isRelevant: response.isRelevant,
           hasVisuals: response.hasVisuals,
           visualUpdate: response.visualUpdate,
+          followUp: response.followUp,
         });
+
+        // ─── Adaptive Replanning Check ───
+        const s = sessionStore.get(sessionId);
+        if (s && s.confusionIndex >= 5 && s.steps.length > 0) {
+          const replan = await replanRemainingSteps(s, s.topic);
+          if (replan) {
+            console.log(`[WS] Mid-lesson replan triggered! Pushing ${replan.mergedSteps.length} steps.`);
+            sessionStore.update(sessionId, { steps: replan.mergedSteps });
+            
+            // Notify client of the replan
+            socket.emit('teaching:replan', { 
+              message: replan.notification,
+              newTotalSteps: replan.mergedSteps.length
+            });
+
+            // Update client's timeline data
+            socket.emit('teaching:timeline-update', {
+              steps: replan.mergedSteps,
+              totalSteps: replan.mergedSteps.length
+            });
+          }
+        }
 
       } catch (err) {
         console.error(`[WS] session:doubt error:`, err.message || err);

@@ -37,6 +37,10 @@ Types (Use ONLY these, in order): {{NODE_TEMPLATES}}
 ━━━ ANIMATION GUIDE — {{DOMAIN}} ━━━
 {{ANIMATION_GUIDE}}
 
+━━━ SCENE SCAFFOLD — {{DOMAIN}} ━━━
+Adopt these initial shapes and expand upon them. Use these IDs.
+{{SCENE_SCAFFOLD}}
+
 ━━━ SHAPE CATALOGUE ━━━
 circle: { id, shape:"circle", x, y, r, color, label?, appearsAtStep }
 rect: { id, shape:"rect", x, y, w, h, color, label?, cornerRadius?, appearsAtStep }
@@ -62,17 +66,20 @@ advanced: dense (2000-3500ms), terminology, precision.
 }
 
 ━━━ NARRATION ({{DOMAIN}}) ━━━
-- lead with visual changes.
-- 2-4 sentences.
+- Use high instructional fidelity.
+- 2-4 sentences explaining the specific pedagogical logic.
 - Reference labels/colors (e.g., "Node B", "red arrow").
+- ABSOLUTELY NO generic filler (e.g. "Now we move to the next step").
 - NO: "In this step", "Now let's", "Here we see".
 - Final step: Core insight summary.
 
 ━━━ RULES ━━━
-1. steps: Min (guide) to 12 Max.
-2. each step: 1-3 new objects. No empty newIds (except final).
-3. appearsAtStep MUST match first appearance in newIds.
-4. NO MARKDOWN. NO FENCES. RETURN ONLY JSON.
+1. steps: Generate at least {{MIN_STEPS}} steps. Max 25 steps.
+2. objects: Adopt the SCENE SCAFFOLD objects as your starting set. Update their labels/properties to fit the specific topic.
+3. each step: 1-3 new objects. No empty newIds (except final/setup).
+4. coordination: Round all x/y/w/h/r coordinates to integers.
+5. appearsAtStep MUST match first appearance in newIds.
+6. NO MARKDOWN. NO FENCES. RETURN ONLY JSON.
 `;
 // ─── Runtime Builder ──────────────────────────────────────────────────────────
 
@@ -87,6 +94,7 @@ advanced: dense (2000-3500ms), terminology, precision.
  * @property {string[]} nodeTemplates - from getNodeTemplates(domain)
  * @property {string} animationGuide - from getAnimationGuide(domain)
  * @property {Difficulty} [difficulty] - defaults to 'intermediate'
+ * @property {Object[]} [visualScaffold] - optional starter set of objects
  * @property {Object} [plan] - optional plan from PlannerAgent
  * @property {Object} [behavior] - optional steps from BehaviorIntelligence
  * @property {Object} [execution] - optional strategy from ExecutionStrategyAgent
@@ -134,7 +142,7 @@ export function buildTimelinePrompt(ctx) {
     .map((t, i) => `  ${i + 1}. ${t}`)
     .join('\n');
 
-  return TEACHING_TIMELINE_PROMPT
+  let prompt = TEACHING_TIMELINE_PROMPT
     .replaceAll('{{TOPIC}}',           ctx.topic)
     .replaceAll('{{DOMAIN}}',          ctx.domain)
     .replaceAll('{{NODE_TEMPLATES}}',  nodeTemplatesList)
@@ -146,7 +154,15 @@ export function buildTimelinePrompt(ctx) {
     .replaceAll('{{VIS_TYPE}}',        plan.visualization_type || 'abstract_visual')
     .replaceAll('{{BEHAVIOR_STEPS}}',  behaviorStepsFormatted || 'Follow a logical progression.')
     .replaceAll('{{EXECUTION_STRATEGY}}', executionStrategyFormatted || 'Maintain steady pacing.')
-    .replaceAll('{{REFLECTION_NOTES}}', reflectionNotes);
+    .replaceAll('{{REFLECTION_NOTES}}', reflectionNotes)
+    .replaceAll('{{SCENE_SCAFFOLD}}', JSON.stringify(ctx.visualScaffold || [], null, 2))
+    .replaceAll('{{MIN_STEPS}}', String(ctx.minSteps || 10));
+
+  if (ctx.grounding) {
+    prompt = `${ctx.grounding}\n\n${prompt}`;
+  }
+
+  return prompt;
 }
 
 // ─── Response Types ───────────────────────────────────────────────────────────

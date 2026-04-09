@@ -40,7 +40,15 @@ const DoubtThread = () => {
   const domainStyle = DOMAIN_STYLES[timeline?.domain] || { color: '#94a3b8' };
 
   const [showGuide, setShowGuide] = React.useState(false);
+  const [revealedFollowups, setRevealedFollowups] = React.useState(new Set());
   const scrollRef = useRef(null);
+
+  const toggleFollowup = (id) => {
+    const next = new Set(revealedFollowups);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setRevealedFollowups(next);
+  };
 
   // Auto-scroll to latest doubt
   useEffect(() => {
@@ -150,10 +158,32 @@ const DoubtThread = () => {
 
                           {/* Answer */}
                           {doubt.answer && (
-                            <div className="px-3 pb-2">
+                            <div className="px-3 pb-2 space-y-2">
                               <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                                 {doubt.answer}
                               </p>
+                              {doubt.followUp && (
+                                <div 
+                                  onClick={() => toggleFollowup(doubt.id)}
+                                  className={`p-2 rounded-xl border transition-all cursor-pointer group ${
+                                    revealedFollowups.has(doubt.id)
+                                      ? 'bg-blue-500/5 border-blue-500/20 text-[10px] text-blue-400 italic'
+                                      : 'bg-white/5 border-white/5 text-[9px] text-[var(--text-tertiary)] hover:bg-white/10'
+                                  }`}
+                                >
+                                  {!revealedFollowups.has(doubt.id) ? (
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-bold uppercase tracking-wider text-[8px] opacity-70">Think About It...</span>
+                                      <span className="text-[7px] border border-white/20 px-1 rounded uppercase group-hover:bg-white/10 transition-colors">Tap to Reveal</span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span className="not-italic font-extrabold text-[8px] uppercase tracking-tighter opacity-50 mr-1.5">Guiding Question:</span>
+                                      {doubt.followUp}
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
 

@@ -557,10 +557,44 @@ const StepPanel = ({
           transition={{ duration: 0.32 }}
         />
 
+        {/* Lesson Arc / Phase Context */}
+        <AnimatePresence mode="wait">
+          {node && (
+            <motion.div
+              key={`node-${node.title}`}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              style={{
+                marginBottom: 14,
+                padding: '10px 12px',
+                borderRadius: 12,
+                background: 'rgba(15, 23, 42, 0.3)',
+                border: `1px solid ${cfg.border}`,
+                borderLeftWidth: 3,
+                borderLeftColor: cfg.accent,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 8, fontWeight: 900, color: cfg.accent, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                  Lesson Arc • Phase {learningNodes.findIndex(n => n === node) + 1} of {learningNodes.length}
+                </span>
+                <span style={{ fontSize: 9, opacity: 0.5 }}>{cfg.icon}</span>
+              </div>
+              <h5 style={{ fontSize: 11, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px', letterSpacing: '0.01em' }}>
+                {node.title}
+              </h5>
+              <p style={{ fontSize: 10, color: 'rgba(148, 163, 184, 0.8)', lineHeight: 1.5, margin: 0 }}>
+                {node.content}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, marginTop: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: 'rgba(100,116,139,0.75)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
-            {currentStepIndex + 1} / {totalSteps}
+          <span style={{ fontSize: 9, fontWeight: 800, color: 'rgba(100,116,139,0.73)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
+            Step {currentStepIndex + 1} / {totalSteps}
           </span>
 
           {nodeType && (

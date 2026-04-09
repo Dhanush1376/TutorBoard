@@ -47,7 +47,7 @@ const initProviders = () => {
 /**
  * Robust LLM Call — Handles Provider Selection and Switching
  */
-export async function requestCompletion({ model, messages, temperature, maxTokens }) {
+export async function requestCompletion({ model, messages, temperature, maxTokens, tools }) {
   initProviders();
 
   // 1. Try Google Direct first (if key is present and model is Gemini and circuit is closed)
@@ -59,6 +59,7 @@ export async function requestCompletion({ model, messages, temperature, maxToken
       
       const modelInstance = googleAI.getGenerativeModel({ 
         model: geminiModel || 'gemini-2.0-flash',
+        tools: tools ? [{ functionDeclarations: tools }] : [],
         generationConfig: {
           temperature: temperature ?? 0.1,
           maxOutputTokens: maxTokens ?? 2048,
@@ -67,13 +68,33 @@ export async function requestCompletion({ model, messages, temperature, maxToken
 
       const lastMessage = messages[messages.length - 1].content;
       const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
-      const fullPrompt = systemInstruction ? `SYSTEM INSTRUCTION:\n${systemInstruction}\n\nUSER REQUEST:\n${lastMessage}` : lastMessage;
+      
+      // Filter out system message from the content passed to the chat session
+      const chatMessages = messages.filter(m => m.role !== 'system').map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content || '' }]
+      }));
 
-      const result = await modelInstance.generateContent(fullPrompt);
-      const content = result.response.text();
+      const chat = modelInstance.startChat({
+        history: chatMessages.slice(0, -1),
+        systemInstruction: systemInstruction,
+      });
+
+      const result = await chat.sendMessage(lastMessage || 'Continue');
+      const response = await result.response;
+      const content = response.text();
+      const functionCalls = response.functionCalls();
 
       circuitBreaker.reportSuccess('google');
-      return { content, finishReason: 'stop', provider: 'google' };
+      return { 
+        content, 
+        finishReason: 'stop', 
+        provider: 'google',
+        tool_calls: functionCalls?.length ? functionCalls.map(f => ({
+          id: `call_${Date.now()}_${Math.random()}`,
+          function: { name: f.name, arguments: JSON.stringify(f.args) }
+        })) : null
+      };
     } catch (err) {
       // Look for 429 quota errors in message
       const isQuota = err.message.includes('429') || err.message.includes('Quota exceeded');

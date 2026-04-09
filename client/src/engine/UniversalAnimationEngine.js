@@ -387,16 +387,9 @@ export class UniversalAnimationEngine {
     // Layer 3: Cinematic Look
     const cinematic = this.getCinematicStyle(obj, { isHighlighted, isFaded, narrativeHints, attentionOverride });
 
-    // Coordinate Sync
-    const layoutProps = {};
-    if (obj.x !== undefined)  layoutProps.x = obj.x;
-    if (obj.y !== undefined)  layoutProps.y = obj.y;
-    if (obj.cx !== undefined) layoutProps.cx = obj.cx;
-    if (obj.cy !== undefined) layoutProps.cy = obj.cy;
-    if (obj.r !== undefined)  layoutProps.r = obj.r;
-
-    // Merge
-    let mergedAnimate = { ...layoutProps, ...entrance.animate };
+    // Merge only non-layout props into the root animation block
+    // CinematicShapes handle their own x,y,cx,cy via SVG attributes to avoid double translation
+    let mergedAnimate = { ...entrance.animate };
     if (highlight && isHighlighted && !isNew) {
       mergedAnimate = { ...mergedAnimate, ...highlight.animate };
     }

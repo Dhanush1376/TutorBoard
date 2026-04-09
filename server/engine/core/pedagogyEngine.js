@@ -9,45 +9,56 @@ import {
   isGreeting,
   buildTeachingPrompt,
   detectDomain,
-  getAnimationGuide,
   buildTimelinePrompt,
   getNodeTemplates,
+  getMinSteps,
+  getVisualScaffold,
   REFLECTION_AGENT_PROMPT,
-  buildDoubtPrompt
+  buildDoubtPrompt,
+  classifyDoubt,
 } from '../agents/index.js';
 import { safeParse, validateTimeline, validateDoubtResponse, buildRetryPrompt, validatePedagogyResponse, validateReflectionResponse } from '../validators/index.js';
 import sessionStore from './sessionStore.js';
 import { cache } from './cache.js';
+import { runAgentLoop } from './agentLoop.js';
+import { critqueStep } from '../agents/stepCritic.js';
+import { searchDomainKnowledge, formatSearchContext } from '../tools/webSearch.js';
+import tracer from '../utils/tracer.js';
 
-const FALLBACK_TIMELINE = {
-  mode: 'explain',
-  title: 'Visual Overview',
-  domain: 'general',
-  difficulty: 'beginner',
-  estimatedTime: '2 minutes',
-  professorNote: 'A smooth introduction to your topic.',
-  learningNodes: [
-    { type: 'hook', title: 'Start Here', content: "Let's look at the big picture." },
-    { type: 'concept', title: 'Core Idea', content: 'The fundamental principle here.' },
-    { type: 'intuition', title: 'Why it works', content: 'Think of it as a bridge between two ideas.' },
-    { type: 'result', title: 'Conclusion', content: 'You now have the foundation.' },
-  ],
-  totalSteps: 4,
-  objects: [
-    { id: 'f1', shape: 'circle', x: 250, y: 300, r: 55, color: 'blue', label: 'Start', appearsAtStep: 0 },
-    { id: 'f2', shape: 'circle', x: 400, y: 300, r: 55, color: 'orange', label: 'Core', appearsAtStep: 1 },
-    { id: 'f3', shape: 'circle', x: 550, y: 300, r: 55, color: 'green', label: 'Finish', appearsAtStep: 2 },
-    { id: 'fa1', shape: 'arrow', x1: 310, y1: 300, x2: 342, y2: 300, color: 'white', appearsAtStep: 1 },
-    { id: 'fa2', shape: 'arrow', x1: 458, y1: 300, x2: 492, y2: 300, color: 'white', appearsAtStep: 2 },
-    { id: 'ft', shape: 'text', x: 400, y: 500, text: 'Starting session...', fontSize: 15, color: 'gray', appearsAtStep: 0 },
-  ],
-  steps: [
-    { index: 0, title: 'Intro', description: 'Start', narration: "Let's begin.", objectIds: ['f1','ft'], highlightIds: ['f1'], newIds: ['f1','ft'], transition: 'fadeIn', duration: 2000 },
-    { index: 1, title: 'Step 1', description: 'Add second', narration: "Now we add B.", objectIds: ['f1','f2','fa1'], highlightIds: ['f2'], newIds: ['f2','fa1'], transition: 'scaleIn', duration: 2000 },
-    { index: 2, title: 'Step 2', description: 'Complete', narration: "And C completes it.", objectIds: ['f1','f2','f3','fa1','fa2'], highlightIds: ['f3'], newIds: ['f3','fa2'], transition: 'slideUp', duration: 2000 },
-    { index: 3, title: 'Done', description: 'Summary', narration: "That's the overview.", objectIds: ['f1','f2','f3','fa1','fa2'], highlightIds: ['f1'], newIds: [], transition: 'fadeIn', duration: 2000 },
-  ],
-};
+/**
+ * Generates a high-quality fallback timeline when the AI fails.
+ * Uses the domain-specific visual scaffold to ensure pedagogical consistency.
+ */
+function getDomainFallback(domain, topic) {
+  const scaffold = getVisualScaffold(domain);
+  const totalSteps = 4;
+  
+  // Map scaffold objects to first appearing step
+  const objects = scaffold.map(obj => ({ ...obj, appearsAtStep: 0 }));
+  const objectIds = objects.map(o => o.id);
+
+  return {
+    mode: 'explain',
+    title: `Understanding ${topic}`,
+    domain: domain,
+    difficulty: 'beginner',
+    estimatedTime: '3 minutes',
+    professorNote: `Note: AI generation was partially interrupted. I have optimized this structural overview of "${topic}" for you.`,
+    learningNodes: [
+      { type: 'hook', title: 'Introduction', content: `Let's look at the foundational structure of ${topic}.`, stepSpan: [0, 0] },
+      { type: 'concept', title: 'Core Mechanics', content: 'Identifying the primary components in play.', stepSpan: [1, 2] },
+      { type: 'result', title: 'Summary', content: 'You now have the structural basics down.', stepSpan: [3, 3] },
+    ],
+    totalSteps,
+    objects,
+    steps: [
+      { index: 0, title: 'Orientation', narration: `Let's start by looking at the basic layout for ${topic}.`, objectIds, highlightIds: [objectIds[0]], newIds: objectIds, transition: 'fadeIn', durationMs: 4000 },
+      { index: 1, title: 'Core Logic', narration: "Observe how these elements are positioned to represent the underlying system.", objectIds, highlightIds: [objectIds[1] || objectIds[0]], newIds: [], transition: 'springIn', durationMs: 4000 },
+      { index: 2, title: 'Analysis', narration: "The relationships between these components form the basis of the entire concept.", objectIds, highlightIds: objectIds, newIds: [], transition: 'springIn', durationMs: 4000 },
+      { index: 3, title: 'Key Insight', narration: "With this structure in mind, we can now appreciate the elegance of the logic.", objectIds, highlightIds: [objectIds[objectIds.length-1]], newIds: [], transition: 'fadeIn', durationMs: 4000 },
+    ],
+  };
+}
 
 const FALLBACK_DOUBT = {
   answer: "Great question! This connects directly to what we have been exploring.",
@@ -64,9 +75,9 @@ function stripThinkTags(text) {
 }
 
 function getTokenBudget() {
-  // Increased to 4096 to match modern model capacity (Gemini/DeepSeek-V3)
-  // This prevents truncated visual plans for complex topics.
-  return 4096;
+  // Increased to 8192 to support high-fidelity 25-step lessons.
+  // Ensures narration isn't compressed for complex algorithmic topics.
+  return 8192;
 }
 
 function withTimeout(promise, ms, errorMsg) {
@@ -76,7 +87,7 @@ function withTimeout(promise, ms, errorMsg) {
   ]);
 }
 
-async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens = 3072) {
+async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens = 4096) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const attemptTag = `[Orchestrator:${attempt + 1}/${maxRetries + 1}]`;
@@ -159,7 +170,7 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
       maxTokens = Math.floor(maxTokens * 0.75); // Shrink by 25% on failure
       messages.forEach(m => {
         if (m.content && m.content.length > 500) {
-           m.content += "\n[SYSTEM RULE: Return shorter, concise output. Reduce step count if needed.]";
+           m.content += "\n[SYSTEM RULE: Return shorter, concise output. If reducing step count, ensures you maintain at least the required instructional fidelity for this domain.]";
         }
       });
 
@@ -208,13 +219,17 @@ function processTimeline(data, detectedDomain, rawTopic) {
     }
     if (!Array.isArray(step.highlightIds)) step.highlightIds = [];
     if (!step.transition) step.transition = 'fadeIn';
-    if (!step.duration) step.duration = step.durationMs || 3000;
-    // Map durationMs back to duration for all steps to ensure client consistency
-    if (step.durationMs && !step.duration) {
+    // Bug 1 Fix: AI generates durationMs but client historically used duration.
+    // We must prioritize durationMs (AI's specific timing) over any generic duration.
+    if (!step.durationMs && step.duration) step.durationMs = step.duration;
+    if (step.durationMs) {
       step.duration = step.durationMs;
+    } else {
+      step.duration = 3000; // Sensible default
     }
-    // If neither exists, use a sensible default (3000ms)
-    if (!step.duration) step.duration = 3000;
+    
+    // Ensure both are present for maximum compatibility
+    if (!step.durationMs) step.durationMs = step.duration;
     
     // Ensure both are present for maximum compatibility across older client versions
     if (step.duration && !step.durationMs) step.durationMs = step.duration;
@@ -239,8 +254,10 @@ async function refinePedagogy(pedagogy, topic, userProfile) {
     .replace('{{BEHAVIOR_OUTPUT_JSON}}', JSON.stringify(pedagogy.final_steps, null, 2))
     .replace('{{EXECUTION_PLAN_JSON}}', JSON.stringify(pedagogy.final_steps?.map(s => s.execution), null, 2));
 
+  const refinementPrompt = REFLECTION_AGENT_PROMPT.replace(/{{MIN_STEPS}}/g, pedagogy.minSteps || '10');
+
   const messages = [
-    { role: 'system', content: 'You are a Feedback Agent. Your role is to improve clarity and remove confusion from the provided pedagogical plan.' },
+    { role: 'system', content: refinementPrompt },
     { role: 'user', content: userContent }
   ];
 
@@ -277,10 +294,12 @@ export async function generatePedagogy(topic, userProfile) {
   const cached = cache.get(topic, userProfile);
   if (cached) return cached;
 
-  console.log(`[Orchestrator] 🧠 The Maestro is planning curriculum for: "${topic}" (Profile: ${userProfile})`);
-  
+  const domain = detectDomain(topic);
+  const minSteps = getMinSteps(domain, topic);
+  const maestroPrompt = MAESTRO_PEDAGOGY_PROMPT.replace(/{{MIN_STEPS}}/g, String(minSteps));
+
   const messages = [
-    { role: 'system', content: MAESTRO_PEDAGOGY_PROMPT },
+    { role: 'system', content: maestroPrompt },
     { role: 'user', content: `Topic: ${topic}\nStudent Context: ${userProfile}` }
   ];
 
@@ -295,6 +314,7 @@ export async function generatePedagogy(topic, userProfile) {
     console.warn('[Orchestrator] ⚠️ Maestro failed or Offline, using default generic pedagogy.');
     const fallback = {
       concept: topic,
+      minSteps,
       concept_type: 'abstract_concept',
       difficulty_level: 'intermediate',
       learning_intent: 'quick_overview',
@@ -336,7 +356,8 @@ export async function generatePedagogy(topic, userProfile) {
   }));
 
   pedagogy.steps = pedagogy.final_steps; // Sync for Stage 2
-  console.log('[Orchestrator] ✅ Orchestrator prepared final_steps package.');
+  pedagogy.minSteps = minSteps;
+  console.log(`[Orchestrator] ✅ Orchestrator prepared final_steps package (${pedagogy.steps.length} steps).`);
 
   const validation = validatePedagogyResponse(pedagogy);
   if (validation.shouldRefine) {
@@ -368,14 +389,20 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
 
     // Step 2: Generate Timeline & Animations
     onProgress('Step 2/2: Generating final visual timeline...');
-    const animationGuide = getAnimationGuide(domain);
-    const nodeTemplates = getNodeTemplates(domain);
+    const visualScaffold = getVisualScaffold(domain);
+
+    // ── Phase 2: Web Search Grounding ──
+    const searchResult = await searchDomainKnowledge(domain, topic);
+    const searchContext = formatSearchContext(searchResult);
     
     const systemPrompt = buildTimelinePrompt({
       topic,
       domain,
       nodeTemplates,
       animationGuide,
+      minSteps,
+      visualScaffold,
+      grounding: searchContext, // Injection point
       plan: pedagogy,
       behavior: { steps: pedagogy.final_steps },
       execution: { execution_plan: pedagogy.final_steps?.map(s => ({ ...s.execution, step_number: s.step_number })) },
@@ -389,30 +416,68 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
     ];
 
     let data;
-    try {
-      data = await callLLMWithRetry(messages, validateTimeline, 1, getTokenBudget());
-    } catch (err) {
-      if (err.message === 'OFFLINE_MODE') {
-        console.warn(`[Orchestrator] APIs exhausted. Enabling Offline Intelligence Mode for: "${topic}".`);
-        const offlineData = { ...FALLBACK_TIMELINE };
-        offlineData.title = `Understanding ${topic}`;
-        offlineData.professorNote = `Note: Real-time AI is offline. I have generated this structural overview of "${topic}" using local intelligence rules.`;
-        return processTimeline(offlineData, domain, topic);
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        data = await runAgentLoop({
+          topic,
+          domain,
+          systemPrompt,
+          maxSteps
+        });
+
+        const validation = validateTimeline(data);
+        if (validation.valid) break;
+
+        console.warn(`[Orchestrator] Timeline validation failed (Attempt ${attempts}): ${validation.errors.join(', ')}`);
+        // Inject errors into the next loop iteration (via system prompt update)
+        systemPrompt += `\n\nERROR FROM PREVIOUS ATTEMPT: ${validation.errors.join('. ')}. Please fix these and expand the step count to meet the requirement.`;
+      } catch (err) {
+        console.error(`[Orchestrator] AgentLoop Error (Attempt ${attempts}):`, err.message);
+        if (attempts >= maxAttempts) throw err;
       }
-      throw err;
     }
 
     if (!data) {
       console.warn(`[Orchestrator] AI failed to generate timeline for: "${topic}". Using high-quality fallback.`);
-      const fallback = { ...FALLBACK_TIMELINE };
-      fallback.title = `Understanding ${topic}`;
-      fallback.professorNote = `Note: The AI agent returned incomplete data. Showing standard visual overview.`;
-      return processTimeline(fallback, domain, topic);
+      return getDomainFallback(domain, topic);
     }
 
     const processed = processTimeline(data, domain, topic);
     processed.domain = processed.domain || domain;
     processed.mode = processed.mode || 'explain';
+
+    // ── Phase 2: Step-Level Critic & Targeted Repair ──
+    console.log(`[Orchestrator] 🕵️ Starting Step Critic evaluation for ${processed.steps.length} steps...`);
+    for (let i = 0; i < processed.steps.length; i++) {
+      const critique = await critqueStep(processed.steps[i]);
+      if (critique.average < 6) {
+        console.warn(`[Orchestrator] 🛠️ Step ${i} ("${processed.steps[i].title}") failed critique (${critique.average}/10). Remedying: ${critique.critique}`);
+        
+        const repairPrompt = `REPAIR TASK:
+The following step scored poorly on pedagogical quality.
+ORIGINAL STEP: ${JSON.stringify(processed.steps[i])}
+ISSUE: ${critique.critique}
+REMEDY: ${critique.remedy}
+
+Generate a REPLACEMENT for this step that fixes these issues while maintaining the same step ID and index.`;
+
+        const repairedStep = await runAgentLoop({
+          topic: `${topic} (Step ${i} Repair)`,
+          domain,
+          systemPrompt: repairPrompt,
+          maxSteps: 1
+        });
+
+        if (repairedStep && repairedStep.steps && repairedStep.steps[0]) {
+          console.log(`[Orchestrator] ✅ Step ${i} repaired successfully.`);
+          processed.steps[i] = { ...processed.steps[i], ...repairedStep.steps[0], index: i };
+        }
+      }
+    }
 
     sessionStore.setTimeline(sessionId, processed);
     return processed;
@@ -420,10 +485,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
   } catch (err) {
     console.error('[Orchestrator] Fatal Error during 5-stage pipeline:', err.message);
     // Absolute safety fallback
-    const safety = { ...FALLBACK_TIMELINE };
-    safety.title = `Lesson: ${topic}`;
-    safety.chatMessage = "I encountered a minor issue with the AI provider, so I have optimized this lesson with our fast-track pedagogical logic.";
-    return processTimeline(safety, domain, topic);
+    return getDomainFallback(domain, topic);
   }
 }
 
@@ -452,10 +514,23 @@ export async function handleDoubt(sessionId, question) {
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
+  const currentStep = (session.steps && session.steps[session.currentStepIndex]) || null;
+  const currentFrames = {
+    step_title: currentStep?.title || 'Intro',
+    step_narration: currentStep?.narration || '',
+    visible_shapes: (session.objects || []).filter(o => 
+      currentStep?.objectIds?.includes(o.id)
+    )
+  };
+
+  const classification = await classifyDoubt(session.topic || '', question);
+  console.log(`[Orchestrator] Doubt Classification: ${classification.pathway} (Conf: ${classification.confidence})`);
+
   const systemPrompt = buildDoubtPrompt({
     topic: session.topic || '',
     domain: session.timeline?.domain || 'general',
-    currentFrames: (session.steps && session.steps[session.currentStepIndex]?.objectIds) || [],
+    classification, // pass the whole object
+    currentFrames: currentFrames,
     priorDoubts: (session.doubts || []).slice(-3).map(d => ({ 
       question: d.question, 
       answer: d.response 
@@ -473,7 +548,21 @@ export async function handleDoubt(sessionId, question) {
     return FALLBACK_DOUBT;
   }
 
-  sessionStore.addDoubt(sessionId, question, data.answer, data.visualUpdate);
+  sessionStore.addDoubt(sessionId, question, data.answer, data.visualUpdate, data.followUp);
   data._question = question;
+
+  // Adaptive Feedback Loop: If confusion spiked, regenerate the lesson to be simpler
+  if (session.needsRegeneration) {
+    console.log(`[Orchestrator] 🔄 Confusion Spike! Regenerating simplified curriculum for ${sessionId}...`);
+    try {
+      const adaptiveTimeline = await generateTimeline(sessionId, session.topic);
+      data.adaptiveTimeline = adaptiveTimeline;
+      session.needsRegeneration = false;
+      console.log(`[Orchestrator] ✨ Adaptive lesson injected into doubt response.`);
+    } catch (err) {
+      console.error('[Orchestrator] Failed to generate adaptive timeline:', err.message);
+    }
+  }
+
   return data;
 }

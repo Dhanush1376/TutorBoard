@@ -15,7 +15,7 @@ EXECUTION: {{EXECUTION_PLAN_JSON}}
 
 2. Improve:
    * simplify explanations (target 1-2 lines)
-   * reduce steps if needed (max 6)
+   * refine steps to ensure clarity (maintain at least {{MIN_STEPS}} steps for complex/algorithmic topics)
    * adjust pacing and intensity (beginners -> slow + low)
 
 📦 OUTPUT (STRICT JSON):

@@ -135,7 +135,14 @@ export class StepOrchestrator {
 
     // Visible objects in display order
     const visibleObjects = [...currentIds]
-      .map(id => objectMap.get(id))
+      .map(id => {
+        const obj = objectMap.get(id);
+        if (!obj) {
+          console.warn(`StepOrchestrator: Phantom ID "${id}" detected in step ${stepIndex}. Object definition is missing!`);
+          return null;
+        }
+        return obj;
+      })
       .filter(Boolean);
 
     // Calculate stagger delays for new objects

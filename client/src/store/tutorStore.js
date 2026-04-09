@@ -254,7 +254,7 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       setDoubtProcessing: (processing) => set({ isDoubtProcessing: processing }),
 
-      addDoubt: (question, answer, hasVisuals = false, visualUpdate = null) => {
+      addDoubt: (question, answer, hasVisuals = false, visualUpdate = null, followUp = null) => {
         const { takeSnapshot } = get();
         const snapshotId = takeSnapshot(); // Save canvas state before doubt
 
@@ -262,6 +262,7 @@ const useTutorStore = create(
           id: `doubt-${Date.now()}`,
           question,
           answer,
+          followUp,
           hasVisuals,
           visualUpdate,
           snapshotId,
@@ -270,7 +271,7 @@ const useTutorStore = create(
 
         set(state => ({
           doubtHistory: [...state.doubtHistory, doubtNode],
-          doubtResponse: { answer, hasVisuals, visualUpdate, _question: question },
+          doubtResponse: { answer, followUp, hasVisuals, visualUpdate, _question: question },
           isDoubtProcessing: false,
           activeDoubtId: doubtNode.id,
         }));

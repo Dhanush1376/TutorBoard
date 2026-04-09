@@ -10,7 +10,9 @@ export {
 export {
   detectDomain, 
   getAnimationGuide, 
-  getNodeTemplates 
+  getNodeTemplates,
+  getMinSteps,
+  getVisualScaffold
 } from './domainConfig.js';
-export { DOUBT_RESPONSE_PROMPT, buildDoubtPrompt } from './doubtPrompt.js';
+export { DOUBT_RESPONSE_PROMPT, buildDoubtPrompt, classifyDoubt } from './doubtPrompt.js';
 export { buildTimelinePrompt } from './timelinePrompt.js';

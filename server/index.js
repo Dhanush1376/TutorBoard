@@ -10,6 +10,13 @@ import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
+import mongoose from 'mongoose';
+
+// ─── Database Connection ─────────────────────────────────────────────────────
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tutorboard';
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log(`[DB] Connected to MongoDB: ${MONGODB_URI.split('@').pop()}`))
+  .catch(err => console.error(`[DB] Connection Error: ${err.message}`));
 
 // ─── Environment Variable Validation ─────────────────────────────────────────
 const REQUIRED_ENV = [

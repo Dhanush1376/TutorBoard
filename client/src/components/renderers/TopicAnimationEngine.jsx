@@ -389,11 +389,29 @@ export function generateSlides(topic, userMessage) {
 // 3. INDIVIDUAL ANIMATION COMPONENTS
 // ─────────────────────────────────────────────
 
-// Binary Search Animation — splits array, highlights mid pointer
+// Binary Search Animation — driven by phase (step index)
 function BinarySearchAnimation({ phase, isAmbient }) {
   const canvasRef = useRef(null);
-  const animRef = useRef(null);
-  const stateRef = useRef({ step: 0, arr: [2, 5, 8, 12, 16, 23, 38, 44, 56, 72], target: 23, lo: 0, hi: 9, mid: 4, found: false });
+  const stateRef = useRef({ arr: [2, 5, 8, 12, 16, 23, 38, 44, 56, 72], target: 23 });
+
+  const getSearchState = (p) => {
+    let lo = 0, hi = 9, mid = 4, found = false;
+    const history = [];
+    for (let i = 0; i <= p; i++) {
+       mid = Math.floor((lo + hi) / 2);
+       history.push({ lo, hi, mid, found });
+       if (stateRef.current.arr[mid] === stateRef.current.target) {
+         found = true;
+         break;
+       } else if (stateRef.current.arr[mid] < stateRef.current.target) {
+         lo = mid + 1;
+       } else {
+         hi = mid - 1;
+       }
+       if (lo > hi) break;
+    }
+    return { lo, hi, mid, found };
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -401,465 +419,151 @@ function BinarySearchAnimation({ phase, isAmbient }) {
     const ctx = canvas.getContext("2d");
     const W = canvas.width, H = canvas.height;
     const s = stateRef.current;
+    const { lo, hi, mid, found } = getSearchState(phase);
     const arr = s.arr;
     const boxW = Math.floor((W - 80) / arr.length);
     const boxH = 52;
     const startX = 40;
     const startY = H / 2 - boxH / 2;
 
-    let frame = 0;
+    ctx.clearRect(0, 0, W, H);
 
-    function draw() {
-      ctx.clearRect(0, 0, W, H);
+    // Title
+    ctx.fillStyle = "#a0a0b0";
+    ctx.font = "13px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText(`Target: ${s.target}`, W / 2, 28);
 
-      // Title
-      ctx.fillStyle = "#a0a0b0";
-      ctx.font = "13px system-ui";
+    arr.forEach((val, i) => {
+      const x = startX + i * boxW;
+      const isLo = i === lo;
+      const isHi = i === hi;
+      const isMid = i === mid;
+      const inRange = i >= lo && i <= hi;
+      const isFound = found && i === mid;
+
+      ctx.fillStyle = isFound ? "#22c55e22" : isMid ? "#f59e0b22" : inRange ? "#3b82f620" : "#ffffff08";
+      ctx.strokeStyle = isFound ? "#22c55e" : isMid ? "#f59e0b" : inRange ? "#3b82f6" : "#333355";
+      ctx.lineWidth = isMid || isFound ? 2 : 1;
+      roundRect(ctx, x + 2, startY, boxW - 4, boxH, 8);
+
+      ctx.fillStyle = isFound ? "#22c55e" : isMid ? "#f59e0b" : inRange ? "#e0e8ff" : "#555577";
+      ctx.font = `${isMid ? "700" : "500"} 18px system-ui`;
       ctx.textAlign = "center";
-      ctx.fillText(`Target: ${s.target}`, W / 2, 28);
+      ctx.fillText(val, x + boxW / 2, startY + boxH / 2 + 6);
 
-      // Draw boxes
-      arr.forEach((val, i) => {
-        const x = startX + i * boxW;
-        const isLo = i === s.lo;
-        const isHi = i === s.hi;
-        const isMid = i === s.mid;
-        const inRange = i >= s.lo && i <= s.hi;
-        const isFound = s.found && i === s.mid;
+      ctx.font = "11px system-ui";
+      if (isLo) { ctx.fillStyle = "#60a5fa"; ctx.fillText("lo", x + boxW / 2, startY - 10); }
+      if (isHi) { ctx.fillStyle = "#60a5fa"; ctx.fillText("hi", x + boxW / 2, startY - (isLo ? 25 : 10)); }
+      if (isMid) { ctx.fillStyle = "#f59e0b"; ctx.fillText("mid", x + boxW / 2, startY + boxH + 20); }
 
-        // Box fill
-        ctx.fillStyle = isFound
-          ? "#22c55e22"
-          : isMid
-          ? "#f59e0b22"
-          : inRange
-          ? "#3b82f620"
-          : "#ffffff08";
-        ctx.strokeStyle = isFound
-          ? "#22c55e"
-          : isMid
-          ? "#f59e0b"
-          : inRange
-          ? "#3b82f6"
-          : "#333355";
-        ctx.lineWidth = isMid || isFound ? 2 : 1;
+      ctx.fillStyle = "#44445a";
+      ctx.font = "10px system-ui";
+      ctx.fillText(i, x + boxW / 2, startY + boxH + 36);
+    });
 
-        roundRect(ctx, x + 2, startY, boxW - 4, boxH, 8);
-
-        // Value
-        ctx.fillStyle = isFound ? "#22c55e" : isMid ? "#f59e0b" : inRange ? "#e0e8ff" : "#555577";
-        ctx.font = `${isMid ? "700" : "500"} 18px system-ui`;
-        ctx.textAlign = "center";
-        ctx.fillText(val, x + boxW / 2, startY + boxH / 2 + 6);
-
-        // Pointer labels
-        ctx.font = "11px system-ui";
-        if (isLo) {
-          ctx.fillStyle = "#60a5fa";
-          ctx.fillText("lo", x + boxW / 2, startY - 10);
-        }
-        if (isHi) {
-          ctx.fillStyle = "#60a5fa";
-          ctx.fillText("hi", x + boxW / 2, startY - (isLo ? 25 : 10));
-        }
-        if (isMid) {
-          ctx.fillStyle = "#f59e0b";
-          ctx.fillText("mid", x + boxW / 2, startY + boxH + 20);
-        }
-
-        // Index
-        ctx.fillStyle = "#44445a";
-        ctx.font = "10px system-ui";
-        ctx.fillText(i, x + boxW / 2, startY + boxH + 36);
-      });
-
-      // Status
-      ctx.fillStyle = "#a0a0b0";
-      ctx.font = "13px system-ui";
-      ctx.textAlign = "center";
-      let status = s.found
-        ? `✓ Found ${s.target} at index ${s.mid}`
-        : `arr[${s.mid}] = ${arr[s.mid]} → ${arr[s.mid] < s.target ? "go right ▶" : arr[s.mid] > s.target ? "◀ go left" : ""}`;
-      ctx.fillText(status, W / 2, H - 20);
-
-      frame++;
-    }
-
-    draw();
-    return () => cancelAnimationFrame(animRef.current);
+    ctx.fillStyle = "#a0a0b0";
+    ctx.font = "13px system-ui";
+    ctx.textAlign = "center";
+    let status = found
+      ? `✓ Found ${s.target} at index ${mid}`
+      : `arr[${mid}] = ${arr[mid]} → ${arr[mid] < s.target ? "go right ▶" : arr[mid] > s.target ? "◀ go left" : ""}`;
+    ctx.fillText(status, W / 2, H - 20);
   }, [phase]);
-
-  // Step through binary search
-  const step = useCallback(() => {
-    const s = stateRef.current;
-    if (s.found || s.lo > s.hi) return;
-    const mid = Math.floor((s.lo + s.hi) / 2);
-    s.mid = mid;
-    if (s.arr[mid] === s.target) {
-      s.found = true;
-    } else if (s.arr[mid] < s.target) {
-      s.lo = mid + 1;
-    } else {
-      s.hi = mid - 1;
-    }
-    // Re-render by updating canvas directly
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // trigger redraw via effect by toggling a dummy state
-    canvasRef.current.dispatchEvent(new Event("tutorredraw"));
-  }, []);
-
-  const reset = () => {
-    stateRef.current = { step: 0, arr: [2, 5, 8, 12, 16, 23, 38, 44, 56, 72], target: 23, lo: 0, hi: 9, mid: 4, found: false };
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    canvasRef.current.dispatchEvent(new Event("tutorredraw"));
-  };
-
-  // Listen for redraw events
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const handler = () => {
-      const s = stateRef.current;
-      const ctx = canvas.getContext("2d");
-      const W = canvas.width, H = canvas.height;
-      const arr = s.arr;
-      const boxW = Math.floor((W - 80) / arr.length);
-      const boxH = 52;
-      const startX = 40;
-      const startY = H / 2 - boxH / 2;
-
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = "#a0a0b0";
-      ctx.font = "13px system-ui";
-      ctx.textAlign = "center";
-      ctx.fillText(`Target: ${s.target}`, W / 2, 28);
-
-      arr.forEach((val, i) => {
-        const x = startX + i * boxW;
-        const isLo = i === s.lo;
-        const isHi = i === s.hi;
-        const isMid = i === s.mid;
-        const inRange = i >= s.lo && i <= s.hi;
-        const isFound = s.found && i === s.mid;
-
-        ctx.fillStyle = isFound ? "#22c55e22" : isMid ? "#f59e0b22" : inRange ? "#3b82f620" : "#ffffff08";
-        ctx.strokeStyle = isFound ? "#22c55e" : isMid ? "#f59e0b" : inRange ? "#3b82f6" : "#333355";
-        ctx.lineWidth = isMid || isFound ? 2 : 1;
-        roundRect(ctx, x + 2, startY, boxW - 4, boxH, 8);
-
-        ctx.fillStyle = isFound ? "#22c55e" : isMid ? "#f59e0b" : inRange ? "#e0e8ff" : "#555577";
-        ctx.font = `${isMid ? "700" : "500"} 18px system-ui`;
-        ctx.textAlign = "center";
-        ctx.fillText(val, x + boxW / 2, startY + boxH / 2 + 6);
-
-        ctx.font = "11px system-ui";
-        if (isLo) { ctx.fillStyle = "#60a5fa"; ctx.fillText("lo", x + boxW / 2, startY - 10); }
-        if (isHi) { ctx.fillStyle = "#60a5fa"; ctx.fillText("hi", x + boxW / 2, startY - (isLo ? 25 : 10)); }
-        if (isMid) { ctx.fillStyle = "#f59e0b"; ctx.fillText("mid", x + boxW / 2, startY + boxH + 20); }
-
-        ctx.fillStyle = "#44445a";
-        ctx.font = "10px system-ui";
-        ctx.fillText(i, x + boxW / 2, startY + boxH + 36);
-      });
-
-      ctx.fillStyle = "#a0a0b0";
-      ctx.font = "13px system-ui";
-      ctx.textAlign = "center";
-      const status = s.found
-        ? `✓ Found ${s.target} at index ${s.mid}`
-        : `arr[${s.mid}] = ${arr[s.mid]} → ${arr[s.mid] < s.target ? "go right ▶" : "◀ go left"}`;
-      ctx.fillText(status, W / 2, H - 20);
-    };
-    canvas.addEventListener("tutorredraw", handler);
-    return () => canvas.removeEventListener("tutorredraw", handler);
-  }, []);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-      <canvas
-        ref={canvasRef}
-        width={680}
-        height={220}
-        style={{ width: "100%", borderRadius: 12, background: "transparent" }}
-      />
-      {!isAmbient && (
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={step} style={btnStyle("#3b82f6")}>Next Step →</button>
-          <button onClick={reset} style={btnStyle("#555")}>Reset</button>
-        </div>
-      )}
+      <canvas ref={canvasRef} width={680} height={220} style={{ width: "100%", borderRadius: 12, background: "transparent" }} />
     </div>
   );
 }
 
-// Bubble Sort Animation
+// Bubble Sort Animation — driven by phase
 function BubbleSortAnimation({ phase, isAmbient }) {
-  const [arr, setArr] = useState([64, 34, 25, 12, 22, 11, 90]);
-  const [comparing, setComparing] = useState([-1, -1]);
-  const [sorted, setSorted] = useState([]);
-  const [running, setRunning] = useState(false);
-  const runRef = useRef(false);
+  const [data, setData] = useState({ 
+    initial: [64, 34, 25, 12, 22, 11, 90],
+    steps: [] 
+  });
 
-  const run = async () => {
-    if (runRef.current) return;
-    runRef.current = true;
-    setRunning(true);
-    const a = [...arr];
-    const sortedSet = new Set();
-
+  useEffect(() => {
+    // Predetermine all swaps
+    const a = [...data.initial];
+    const steps = [];
     for (let i = 0; i < a.length; i++) {
       for (let j = 0; j < a.length - i - 1; j++) {
-        if (!runRef.current) return;
-        setComparing([j, j + 1]);
-        await sleep(400);
+        steps.push({ arr: [...a], comparing: [j, j + 1] });
         if (a[j] > a[j + 1]) {
           [a[j], a[j + 1]] = [a[j + 1], a[j]];
-          setArr([...a]);
         }
       }
-      sortedSet.add(a.length - 1 - i);
-      setSorted([...sortedSet]);
+      steps.push({ arr: [...a], comparing: [-1, -1], sorted: Array.from({length: i+1}, (_, k) => a.length - 1 - k) });
     }
+    setData(d => ({ ...d, steps }));
+  }, []);
 
-    setComparing([-1, -1]);
-    setRunning(false);
-    runRef.current = false;
-  };
-
-  const reset = () => {
-    runRef.current = false;
-    setRunning(false);
-    setArr([64, 34, 25, 12, 22, 11, 90]);
-    setComparing([-1, -1]);
-    setSorted([]);
-  };
-
-  const maxVal = Math.max(...arr);
+  const currentIdx = Math.min(phase, data.steps.length - 1);
+  const state = data.steps[currentIdx] || { arr: data.initial, comparing: [-1,-1], sorted: [] };
+  const maxVal = Math.max(...state.arr);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-      <div
-        style={{
-          width: "100%",
-          height: 200,
-          background: "transparent",
-          borderRadius: 12,
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
-          gap: 6,
-          padding: "16px 24px",
-        }}
-      >
-        {arr.map((val, i) => {
-          const isComparing = comparing.includes(i);
-          const isSorted = sorted.includes(i);
+      <div style={{ width: "100%", height: 200, display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 6, padding: "16px 24px" }}>
+        {state.arr.map((val, i) => {
+          const isComparing = state.comparing?.includes(i);
+          const isSorted = state.sorted?.includes(i);
           return (
             <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
               <span style={{ fontSize: 11, color: isComparing ? "#f59e0b" : isSorted ? "#22c55e" : "#6666aa" }}>{val}</span>
-              <div
-                style={{
-                  width: 42,
-                  height: `${(val / maxVal) * 130}px`,
-                  background: isSorted ? "#22c55e" : isComparing ? "#f59e0b" : "#3b82f6",
-                  borderRadius: "4px 4px 0 0",
-                  transition: "height 0.3s, background 0.2s",
-                }}
-              />
+              <div style={{ width: 42, height: `${(val / maxVal) * 130}px`, background: isSorted ? "#22c55e" : isComparing ? "#f59e0b" : "#3b82f6", borderRadius: "4px 4px 0 0", transition: "all 0.3s" }} />
             </div>
           );
         })}
       </div>
-      {!isAmbient && (
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={run} disabled={running} style={btnStyle("#3b82f6")}>{running ? "Sorting..." : "▶ Run Sort"}</button>
-          <button onClick={reset} style={btnStyle("#555")}>Reset</button>
-        </div>
-      )}
     </div>
   );
 }
 
-// Stack Animation
+// Stack Animation — driven by phase
 function StackAnimation({ phase, isAmbient }) {
-  const [stack, setStack] = useState([10, 20, 30]);
-  const [input, setInput] = useState("");
-  const [log, setLog] = useState("Stack initialized");
-
-  const push = () => {
-    const val = parseInt(input) || Math.floor(Math.random() * 90 + 10);
-    setStack((s) => [...s, val]);
-    setLog(`Pushed ${val} onto stack`);
-    setInput("");
-  };
-
-  const pop = () => {
-    if (stack.length === 0) { setLog("Stack is empty!"); return; }
-    const top = stack[stack.length - 1];
-    setStack((s) => s.slice(0, -1));
-    setLog(`Popped ${top} from stack`);
-  };
-
-  const peek = () => {
-    if (stack.length === 0) { setLog("Stack is empty!"); return; }
-    setLog(`Peek: ${stack[stack.length - 1]} (top of stack)`);
-  };
+  const initialStack = [10, 20, 30];
+  const items = [40, 50, 60, 70, 80, 90];
+  const currentStack = [...initialStack, ...items.slice(0, Math.max(0, phase - 1))];
 
   return (
     <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
-      <div
-        style={{
-          minWidth: 140,
-          background: "transparent",
-          borderRadius: 12,
-          padding: "16px 20px",
-          display: "flex",
-          flexDirection: "column-reverse",
-          gap: 6,
-          minHeight: 200,
-          position: "relative",
-        }}
-      >
+      <div style={{ minWidth: 140, background: "transparent", borderRadius: 12, padding: "16px 20px", display: "flex", flexDirection: "column-reverse", gap: 6, minHeight: 200, position: "relative" }}>
         <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, textAlign: "center", fontSize: 10, color: "#444466" }}>BOTTOM</div>
         <div style={{ position: "absolute", top: 8, left: 0, right: 0, textAlign: "center", fontSize: 10, color: "#60a5fa" }}>TOP ↑</div>
         <div style={{ height: 20 }} />
-        {stack.map((val, i) => (
-          <div
-            key={i}
-            style={{
-              background: i === stack.length - 1 ? "#3b82f6" : "#1e2a4a",
-              border: `1px solid ${i === stack.length - 1 ? "#60a5fa" : "#2a3560"}`,
-              borderRadius: 6,
-              padding: "8px 12px",
-              textAlign: "center",
-              color: i === stack.length - 1 ? "#fff" : "#8888cc",
-              fontWeight: i === stack.length - 1 ? 700 : 400,
-              fontSize: 16,
-              transition: "all 0.2s",
-            }}
-          >
+        {currentStack.map((val, i) => (
+          <div key={i} style={{ background: i === currentStack.length - 1 ? "#3b82f6" : "#1e2a4a", border: `1px solid ${i === currentStack.length - 1 ? "#60a5fa" : "#2a3560"}`, borderRadius: 6, padding: "8px 12px", textAlign: "center", color: i === currentStack.length - 1 ? "#fff" : "#8888cc", fontWeight: i === currentStack.length - 1 ? 700 : 400, fontSize: 16, transition: "all 0.2s" }}>
             {val}
           </div>
         ))}
       </div>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 13, color: "#22c55e", background: "#0a1a0a", borderRadius: 8, padding: "8px 12px" }}>
-          {log}
-        </div>
-        <div style={{ fontSize: 12, color: "#666688" }}>Size: {stack.length}</div>
-        {!isAmbient && (
-          <>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={push} style={btnStyle("#3b82f6")}>Push</button>
-              <button onClick={pop} style={btnStyle("#ef4444")}>Pop</button>
-              <button onClick={peek} style={btnStyle("#f59e0b")}>Peek</button>
-            </div>
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Value to push..."
-              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #2a3560", background: "#0d0d1a", color: "#fff", fontSize: 13 }}
-            />
-          </>
-        )}
-      </div>
     </div>
   );
 }
 
-// Linked List Animation
+// Linked List Animation — driven by phase
 function LinkedListAnimation({ phase, isAmbient }) {
-  const [nodes, setNodes] = useState([
-    { val: 10, id: 0 },
-    { val: 20, id: 1 },
-    { val: 30, id: 2 },
-    { val: 40, id: 3 },
-  ]);
-  const [highlighted, setHighlighted] = useState(null);
-  const [log, setLog] = useState("Traversing: click a node");
-
-  const addHead = () => {
-    const val = Math.floor(Math.random() * 90 + 10);
-    setNodes((n) => [{ val, id: Date.now() }, ...n]);
-    setLog(`Inserted ${val} at head — O(1)`);
-  };
-
-  const removeTail = () => {
-    if (nodes.length === 0) return;
-    const removed = nodes[nodes.length - 1].val;
-    setNodes((n) => n.slice(0, -1));
-    setLog(`Removed tail ${removed}`);
-  };
-
-  const traverse = async () => {
-    for (let i = 0; i < nodes.length; i++) {
-      setHighlighted(i);
-      setLog(`Visiting node ${i}: value = ${nodes[i].val}`);
-      await sleep(500);
-    }
-    setHighlighted(null);
-    setLog("Traversal complete");
-  };
+  const initialNodes = [{ val: 10 }, { val: 20 }, { val: 30 }, { val: 40 }];
+  const highlighted = phase % (initialNodes.length + 1);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div
-        style={{
-          background: "transparent",
-          borderRadius: 12,
-          padding: "24px 16px",
-          display: "flex",
-          alignItems: "center",
-          overflowX: "auto",
-          gap: 0,
-          minHeight: 120,
-        }}
-      >
-        {nodes.map((node, i) => (
-          <div key={node.id} style={{ display: "flex", alignItems: "center" }}>
-            <div
-              onClick={() => { setHighlighted(i); setLog(`Node ${i}: val=${node.val}, next→${i < nodes.length - 1 ? nodes[i + 1].val : "null"}`); }}
-              style={{
-                background: highlighted === i ? "#3b82f6" : "#1e2a4a",
-                border: `2px solid ${highlighted === i ? "#60a5fa" : "#2a3560"}`,
-                borderRadius: 8,
-                padding: "10px 14px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-                minWidth: 56,
-              }}
-            >
+      <div style={{ background: "transparent", borderRadius: 12, padding: "24px 16px", display: "flex", alignItems: "center", overflowX: "auto", gap: 0, minHeight: 120 }}>
+        {initialNodes.map((node, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ background: highlighted === i ? "#3b82f6" : "#1e2a4a", border: `2px solid ${highlighted === i ? "#60a5fa" : "#2a3560"}`, borderRadius: 8, padding: "10px 14px", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 56 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: highlighted === i ? "#fff" : "#8888cc" }}>{node.val}</span>
               <span style={{ fontSize: 9, color: "#444466" }}>next→</span>
             </div>
-            {i < nodes.length - 1 && (
-              <div style={{ color: "#3b82f6", fontSize: 18, padding: "0 4px", userSelect: "none" }}>→</div>
-            )}
-            {i === nodes.length - 1 && (
-              <div style={{ color: "#444466", fontSize: 12, padding: "0 8px" }}>null</div>
-            )}
+            {i < initialNodes.length - 1 && <div style={{ color: "#3b82f6", fontSize: 18, padding: "0 4px" }}>→</div>}
+            {i === initialNodes.length - 1 && <div style={{ color: "#444466", fontSize: 12, padding: "0 8px" }}>null</div>}
           </div>
         ))}
-        {nodes.length === 0 && <div style={{ color: "#444466", margin: "auto" }}>Empty list</div>}
       </div>
-      <div style={{ fontSize: 13, color: "#22c55e", background: "#0a1a0a", borderRadius: 8, padding: "8px 12px" }}>{log}</div>
-      {!isAmbient && (
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={addHead} style={btnStyle("#3b82f6")}>+ Add Head</button>
-          <button onClick={traverse} style={btnStyle("#f59e0b")}>▶ Traverse</button>
-          <button onClick={removeTail} style={btnStyle("#555")}>- Tail</button>
-        </div>
-      )}
     </div>
   );
 }
@@ -980,85 +684,47 @@ function HashTableAnimation({ phase }) {
   );
 }
 
-// BFS Animation
+// BFS Animation — driven by phase
 function BFSAnimation({ phase }) {
   const nodes = { 0: [1, 2], 1: [0, 3, 4], 2: [0, 5], 3: [1], 4: [1, 6], 5: [2], 6: [4] };
-  const positions = {
-    0: [320, 40], 1: [160, 130], 2: [480, 130], 3: [80, 220], 4: [240, 220], 5: [400, 220], 6: [240, 310],
-  };
-  const [visited, setVisited] = useState([]);
-  const [queue, setQueue] = useState([]);
-  const [running, setRunning] = useState(false);
-  const runRef = useRef(false);
+  const positions = { 0: [320, 40], 1: [160, 130], 2: [480, 130], 3: [80, 220], 4: [240, 220], 5: [400, 220], 6: [240, 310] };
 
-  const runBFS = async () => {
-    if (runRef.current) return;
-    runRef.current = true;
-    setRunning(true);
-    const vis = new Set();
+  const getBFSState = (p) => {
+    const vis = [];
     const q = [0];
-    setQueue([...q]);
-    setVisited([...vis]);
-    while (q.length > 0 && runRef.current) {
+    const visitedSet = new Set();
+    for (let i = 0; i < p; i++) {
+      if (q.length === 0) break;
       const node = q.shift();
-      if (vis.has(node)) continue;
-      vis.add(node);
-      setVisited([...vis]);
-      setQueue([...q]);
-      await sleep(600);
+      if (visitedSet.has(node)) continue;
+      visitedSet.add(node);
+      vis.push(node);
       for (const nb of nodes[node]) {
-        if (!vis.has(nb)) { q.push(nb); setQueue([...q]); }
+        if (!visitedSet.has(nb)) q.push(nb);
       }
     }
-    setRunning(false);
-    runRef.current = false;
+    return { visited: vis, queue: q };
   };
 
-  const reset = () => {
-    runRef.current = false;
-    setRunning(false);
-    setVisited([]);
-    setQueue([]);
-  };
+  const { visited, queue } = getBFSState(phase);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <svg width="100%" viewBox="0 0 640 360" style={{ background: "rgba(10,10,30,0.85)", borderRadius: 12 }}>
-        {Object.entries(nodes).map(([from, tos]) =>
-          tos.map((to) =>
-            parseInt(from) < to ? (
-              <line key={`${from}-${to}`}
-                x1={positions[from][0]} y1={positions[from][1]}
-                x2={positions[to][0]} y2={positions[to][1]}
-                stroke={visited.includes(parseInt(from)) && visited.includes(to) ? "#3b82f6" : "#2a3560"}
-                strokeWidth={2}
-              />
-            ) : null
-          )
-        )}
+        {Object.entries(nodes).map(([from, tos]) => tos.map(to => parseInt(from) < to ? (<line key={`${from}-${to}`} x1={positions[from][0]} y1={positions[from][1]} x2={positions[to][0]} y2={positions[to][1]} stroke={visited.includes(parseInt(from)) && visited.includes(to) ? "#3b82f6" : "#2a3560"} strokeWidth={2} />) : null))}
         {Object.entries(positions).map(([id, [x, y]]) => {
           const n = parseInt(id);
           const isVisited = visited.includes(n);
           const inQueue = queue.includes(n);
           return (
             <g key={id}>
-              <circle cx={x} cy={y} r={22}
-                fill={isVisited ? "#3b82f6" : inQueue ? "#f59e0b33" : "#1e2a4a"}
-                stroke={isVisited ? "#60a5fa" : inQueue ? "#f59e0b" : "#2a3560"}
-                strokeWidth={2}
-              />
+              <circle cx={x} cy={y} r={22} fill={isVisited ? "#3b82f6" : inQueue ? "#f59e0b33" : "#1e2a4a"} stroke={isVisited ? "#60a5fa" : inQueue ? "#f59e0b" : "#2a3560"} strokeWidth={2} />
               <text x={x} y={y + 5} textAnchor="middle" fill={isVisited ? "#fff" : "#8888cc"} fontSize={14} fontWeight={600}>{id}</text>
             </g>
           );
         })}
       </svg>
-      <div style={{ fontSize: 13, color: "#a0a0b0" }}>
-        Queue: [{queue.join(", ")}] &nbsp;|&nbsp; Visited: [{visited.join(", ")}]
-      </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={runBFS} disabled={running} style={btnStyle("#3b82f6")}>{running ? "Running..." : "▶ Run BFS"}</button>
-        <button onClick={reset} style={btnStyle("#555")}>Reset</button>
-      </div>
+      <div style={{ fontSize: 13, color: "#a0a0b0" }}>Queue: [{queue.join(", ")}] | Visited: [{visited.join(", ")}]</div>
     </div>
   );
 }

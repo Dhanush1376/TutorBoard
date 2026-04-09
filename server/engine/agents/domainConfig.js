@@ -917,6 +917,57 @@ export const DOMAIN_MIN_STEPS = {
   general: { default: 6 }
 };
 
+/**
+ * Subject-specific Scene Scaffolds.
+ * These provide the "Starter Objects" that the AI MUST use to ensure visual consistency.
+ * @type {Object.<DomainKey, Object[]>}
+ */
+export const DOMAIN_SCENE_SCAFFOLDS = {
+  dsa: [
+    { id: 'cell_0', shape: 'rect', x: 140, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: 'Index 0', appearsAtStep: 0 },
+    { id: 'cell_1', shape: 'rect', x: 210, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: 'Index 1', appearsAtStep: 0 },
+    { id: 'cell_2', shape: 'rect', x: 280, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: 'Index 2', appearsAtStep: 0 },
+    { id: 'cell_3', shape: 'rect', x: 350, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: 'Index 3', appearsAtStep: 0 },
+    { id: 'cell_4', shape: 'rect', x: 420, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: 'Index 4', appearsAtStep: 0 },
+    { id: 'cell_5', shape: 'rect', x: 490, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: 'Index 5', appearsAtStep: 0 },
+  ],
+  mathematics: [
+    { id: 'xaxis', shape: 'line', x1: 50, y1: 350, x2: 750, y2: 350, color: '#ffffff40', appearsAtStep: 0 },
+    { id: 'yaxis', shape: 'line', x1: 400, y1: 50, x2: 400, y2: 550, color: '#ffffff40', appearsAtStep: 0 },
+    { id: 'xlabel', shape: 'text', x: 740, y: 370, text: 'x', fontSize: 14, color: '#ffffff60', appearsAtStep: 0 },
+    { id: 'ylabel', shape: 'text', x: 415, y: 60, text: 'y', fontSize: 14, color: '#ffffff60', appearsAtStep: 0 },
+  ],
+  physics: [
+    { id: 'ground', shape: 'line', x1: 50, y1: 450, x2: 750, y2: 450, color: '#4b5563', appearsAtStep: 0 },
+    { id: 'main_obj', shape: 'circle', x: 400, y: 400, r: 25, color: '#ef4444', label: 'Object', appearsAtStep: 0 },
+  ],
+  chemistry: [
+    { id: 'reactant_zone', shape: 'highlightbox', x: 80, y: 150, w: 220, h: 300, color: '#10b981', opacity: 0.1, appearsAtStep: 0 },
+    { id: 'product_zone', shape: 'highlightbox', x: 500, y: 150, w: 220, h: 300, color: '#3b82f6', opacity: 0.1, appearsAtStep: 0 },
+    { id: 'reaction_label', shape: 'text', x: 400, y: 500, text: 'Reaction Progress', fontSize: 14, color: '#94a3b8', appearsAtStep: 0 },
+  ],
+  computer_science: [
+    { id: 'memory_stack', shape: 'rect', x: 100, y: 100, w: 200, h: 400, color: '#1e293b', label: 'Stack', appearsAtStep: 0 },
+    { id: 'memory_heap', shape: 'rect', x: 450, y: 100, w: 250, h: 400, color: '#1e293b', label: 'Heap', appearsAtStep: 0 },
+  ],
+  history: [
+    { id: 'timeline_base', shape: 'line', x1: 50, y1: 300, x2: 750, y2: 300, color: '#92400e', appearsAtStep: 0 },
+    { id: 'era_indicator', shape: 'badge', x: 400, y: 320, text: 'Main Period', bgColor: '#92400e', textColor: '#fff', appearsAtStep: 0 },
+  ],
+  general: [
+    { id: 'center_hub', shape: 'circle', x: 400, y: 300, r: 40, color: '#6366f1', label: 'Concept', appearsAtStep: 0 },
+  ]
+};
+
+/**
+ * Returns the Scene Scaffold for a given domain.
+ * @param {DomainKey} domain 
+ * @returns {Object[]}
+ */
+export function getVisualScaffold(domain) {
+  return DOMAIN_SCENE_SCAFFOLDS[domain] || DOMAIN_SCENE_SCAFFOLDS.general;
+}
+
 // ─── Detection ────────────────────────────────────────────────────────────────
 
 // ─── Detection ────────────────────────────────────────────────────────────────

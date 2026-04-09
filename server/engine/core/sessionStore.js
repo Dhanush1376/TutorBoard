@@ -1,3 +1,5 @@
+import LearnerProfile from '../../models/LearnerProfile.js';
+
 /**
  * SessionStore — In-memory teaching session storage
  * 
@@ -23,10 +25,12 @@ class SessionStore {
   /**
    * Create a new session.
    */
-  create(sessionId, socketId) {
+  create(sessionId, socketId, userId = null) {
     const session = {
       id: sessionId,
       socketId,
+      userId,
+      learnerProfile: null,
       topic: null,
       timeline: null,           // Full timeline from AI
       steps: [],                // Array of step objects
@@ -38,6 +42,7 @@ class SessionStore {
       complexityPreference: 'intermediate', // Adjusts based on doubts
       conversationContext: [],   // Messages for LLM context
       state: 'IDLE',
+      needsRegeneration: false,
       createdAt: Date.now(),
       lastActivityAt: Date.now(),
     };
@@ -128,13 +133,14 @@ class SessionStore {
   /**
    * Add a doubt to the session.
    */
-  addDoubt(sessionId, question, response, visualData = null) {
+  addDoubt(sessionId, question, response, visualData = null, followUp = null) {
     const session = this.get(sessionId);
     if (!session) return null;
 
     const doubt = {
       question,
       response,
+      followUp,
       visualData,
       stepIndex: session.currentStepIndex,
       timestamp: Date.now(),
@@ -145,11 +151,74 @@ class SessionStore {
 
     // Spike confusion when doubt is asked
     session.confusionIndex = Math.min(10, session.confusionIndex + 3);
-    if (session.confusionIndex >= 5) {
-      session.complexityPreference = 'beginner'; // Simplify subsequent steps
+    
+    // Check for complexity shift
+    if (session.confusionIndex >= 5 && session.complexityPreference !== 'beginner') {
+      console.log(`[SessionStore] 🛡️ Complexity shift: ${session.id} downgraded to beginner.`);
+      session.complexityPreference = 'beginner';
+      session.needsRegeneration = true;
     }
 
+    // Persist to LearnerProfile if userId is present
+    this._persistDoubt(session, question, session.confusionIndex);
+
     return doubt;
+  }
+
+  /**
+   * Initialize or load learner profile from DB.
+   */
+  async initProfile(sessionId, userId) {
+    const session = this.get(sessionId);
+    if (!session || !userId) return null;
+
+    try {
+      let profile = await LearnerProfile.findOne({ userId });
+      if (!profile) {
+        profile = await LearnerProfile.create({ userId });
+      } else {
+        profile.totalSessions += 1;
+        profile.lastSessionDate = Date.now();
+        await profile.save();
+      }
+      session.userId = userId;
+      session.learnerProfile = profile;
+      session.complexityPreference = profile.learningStyle === 'granular' ? 'beginner' : 'intermediate';
+      return profile;
+    } catch (err) {
+      console.error(`[SessionStore] Profile Init Error: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Internal: Sync doubt to DB.
+   */
+  async _persistDoubt(session, question, confusionScore) {
+    if (!session.learnerProfile || !session.userId) return;
+
+    try {
+      const profile = await LearnerProfile.findOne({ userId: session.userId });
+      if (profile) {
+        profile.doubtHistory.push({
+          topic: session.topic || 'General',
+          question,
+          resolved: true,
+          confusionScore,
+        });
+        
+        // Update mastery if confusion is high (decrease mastery)
+        if (session.topic) {
+          const current = profile.topicsMastery.get(session.topic) || 0.5;
+          profile.topicsMastery.set(session.topic, Math.max(0.1, current - 0.05));
+        }
+
+        await profile.save();
+        session.learnerProfile = profile;
+      }
+    } catch (err) {
+      console.error(`[SessionStore] Sync Doubt Error: ${err.message}`);
+    }
   }
 
   /**
