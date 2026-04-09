@@ -139,13 +139,27 @@ const useTutorStore = create(
 
       setCurrentStep: (index) => set({ currentStepIndex: index }),
 
-      setCanvasSnapshot: ({ canvasObjects, canvasSteps, totalSteps }) => set({
-        canvasObjects,
-        canvasSteps,
-        totalSteps: totalSteps || canvasSteps.length,
-        currentStepIndex: Math.max(0, canvasSteps.length - 1),
-        canvasMode: CANVAS_MODE.FULLSCREEN,
-      }),
+      setCanvasSnapshot: ({ canvasObjects, canvasSteps, totalSteps }) => {
+        const steps = canvasSteps || [];
+        const count = totalSteps || steps.length;
+        
+        set({
+          canvasObjects: canvasObjects || [],
+          canvasSteps: steps,
+          totalSteps: count,
+          currentStepIndex: Math.max(0, steps.length - 1),
+          canvasMode: CANVAS_MODE.FULLSCREEN,
+          // Synthesis: Create a virtual timeline so UI/Renderer react
+          timeline: {
+            title: "Lesson Snapshot",
+            domain: "general",
+            objects: canvasObjects || [],
+            steps: steps,
+            totalSteps: count,
+            render_mode: 'svg_canvas'
+          }
+        });
+      },
 
       getCurrentStep: () => {
         const { canvasSteps, currentStepIndex } = get();

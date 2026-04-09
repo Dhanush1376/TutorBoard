@@ -9,7 +9,6 @@ const COOLDOWN_MS = 60000; // 60 seconds before trying a provider again
 class CircuitBreaker {
   constructor() {
     this.providers = {
-      google: { state: 'CLOSED', failures: 0, nextRetry: 0 },
       openrouter: { state: 'CLOSED', failures: 0, nextRetry: 0 }
     };
   }

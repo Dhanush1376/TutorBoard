@@ -473,6 +473,8 @@ const Home = ({ isDark }) => {
         >
           <AgentCanvasRenderer
             timeline={timeline}
+            objects={canvasObjects}
+            steps={canvasSteps}
             currentStepIndex={currentStepIndex}
           />
         </InfiniteCanvas>

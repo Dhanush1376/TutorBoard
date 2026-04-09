@@ -1,13 +1,12 @@
 /**
- * LLM Client — Supports Multi-Provider (Google Direct & OpenRouter)
+ * LLM Client — Pure OpenRouter Implementation
  * 
  * DESIGN:
- *   1. Prefer GOOGLE_API_KEY (Direct Gemini) for stability and speed.
- *   2. Fallback to OPENROUTER_API_KEY if Google fails or is not present.
- *   3. Standardized response format to keep Orchestrator simple.
+ *   1. 100% OpenRouter only. No direct Google SDK.
+ *   2. Support for OpenAI-compatible JSON mode.
+ *   3. High-reliability model defaults.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -18,19 +17,13 @@ import { circuitBreaker } from '../core/circuitBreaker.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// Provider Clients
-let googleAI = null;
+// OpenRouter Client Singleton
 let openRouterClient = null;
 
 /**
- * Initialize Providers
+ * Initialize OpenRouter
  */
-const initProviders = () => {
-  if (!googleAI && process.env.GOOGLE_API_KEY) {
-    googleAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-    console.log('[AI] Google Direct Provider Initialized ✅');
-  }
-
+const initOpenRouter = () => {
   if (!openRouterClient && process.env.OPENROUTER_API_KEY) {
     openRouterClient = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
@@ -40,137 +33,82 @@ const initProviders = () => {
         'X-Title': 'TutorBoard',
       }
     });
-    console.log('[AI] OpenRouter Provider Initialized ✅');
+    console.log('[AI] Pure OpenRouter Engine Initialized ✅');
+  } else if (!process.env.OPENROUTER_API_KEY) {
+    console.warn('[AI] ⚠️ OPENROUTER_API_KEY MISSING in .env');
   }
 };
 
 /**
- * Robust LLM Call — Handles Provider Selection and Switching
+ * Robust LLM Call — Dedicated OpenRouter Dispatcher
  */
 export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseMimeType, responseSchema }) {
-  initProviders();
+  initOpenRouter();
 
-  // 1. Try Google Direct first (if key is present and model is Gemini and circuit is closed)
-  if (googleAI && circuitBreaker.isAvailable('google') && (model.includes('gemini') || !model.includes('/'))) {
-    try {
-      let geminiModel = model.includes('/') ? model.split('/').pop() : model;
-      if (geminiModel.includes('gemini-2.0-flash')) geminiModel = 'gemini-2.0-flash';
-      if (geminiModel.includes('gemini-1.5-pro'))   geminiModel = 'gemini-1.5-pro';
-      
-      const modelInstance = googleAI.getGenerativeModel({ 
-        model: geminiModel || 'gemini-2.0-flash',
-        tools: tools ? [{ functionDeclarations: tools }] : [],
-        generationConfig: {
-          temperature: temperature ?? 0.1,
-          maxOutputTokens: maxTokens ?? 2048,
-          responseMimeType: responseMimeType || "text/plain",
-          responseSchema: responseSchema || undefined,
-        }
-      });
-
-      const lastMessage = messages[messages.length - 1].content;
-      const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
-      
-      // Filter out system message from the content passed to the chat session
-      const chatMessages = messages.filter(m => m.role !== 'system').map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content || '' }]
-      }));
-
-      const chatOptions = {
-        history: chatMessages.slice(0, -1),
-      };
-      if (systemInstruction) {
-        chatOptions.systemInstruction = {
-          role: "system",
-          parts: [{ text: systemInstruction }]
-        };
-      }
-
-      const chat = modelInstance.startChat(chatOptions);
-
-      const result = await chat.sendMessage(lastMessage || 'Continue');
-      const response = await result.response;
-      const content = response.text();
-      const functionCalls = response.functionCalls();
-
-      circuitBreaker.reportSuccess('google');
-      return { 
-        content, 
-        finishReason: 'stop', 
-        provider: 'google',
-        tool_calls: functionCalls?.length ? functionCalls.map(f => ({
-          id: `call_${Date.now()}_${Math.random()}`,
-          function: { name: f.name, arguments: JSON.stringify(f.args) }
-        })) : null
-      };
-    } catch (err) {
-      // Look for 429 quota errors in message
-      const isQuota = err.message.includes('429') || err.message.includes('Quota exceeded');
-      const statusCode = isQuota ? 429 : 500;
-      console.error(`[AI:Google] Error: ${err.message}. Falling back...`);
-      circuitBreaker.reportFailure('google', statusCode);
-    }
+  if (!openRouterClient) {
+    throw new Error('NO_API_AVAILABLE: OpenRouter client not initialized. Check .env');
   }
 
-  // 2. Fallback to OpenRouter (OpenAI SDK)
-  if (openRouterClient && circuitBreaker.isAvailable('openrouter')) {
-    try {
-      let orModel = model;
-      if (!orModel.includes('/')) {
-        if (orModel.includes('gemini-2.0-flash')) orModel = 'google/gemini-2.0-flash-001';
-        else if (orModel.includes('gemini-1.5-flash')) orModel = 'google/gemini-flash-1.5';
-        else if (orModel.includes('gemini-1.5-pro')) orModel = 'google/gemini-pro-1.5';
-        else orModel = `google/${orModel}`;
-      }
-
-      console.log(`[AI:OpenRouter] Calling fallback model: ${orModel}`);
-      const completion = await openRouterClient.chat.completions.create({
-        model: orModel,
-        messages,
-        temperature: temperature ?? 0.1,
-        max_tokens: maxTokens ?? 2048,
-        tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
-      });
-
-      circuitBreaker.reportSuccess('openrouter');
-      const msg = completion.choices?.[0]?.message;
-      return {
-        content: msg?.content || '',
-        finishReason: completion.choices?.[0]?.finish_reason || 'stop',
-        provider: 'openrouter',
-        tool_calls: msg?.tool_calls || null
-      };
-    } catch (orErr) {
-      const isCredits = orErr.message.includes('402');
-      const orStatus = isCredits ? 402 : (orErr.status || 500);
-      console.error(`[AI:OpenRouter] Error: ${orErr.message}`);
-      circuitBreaker.reportFailure('openrouter', orStatus);
-      const customErr = new Error('OpenRouter Fail: ' + orErr.message);
-      customErr.status = orStatus;
-      throw customErr; // Send to orchestrator logic
-    }
+  if (!circuitBreaker.isAvailable('openrouter')) {
+    throw new Error('SERVICE_UNAVAILABLE: OpenRouter circuit is open.');
   }
 
-  throw new Error('NO_API_AVAILABLE');
+  try {
+    const orModel = model || getModel();
+    
+    // Preparation for JSON mode if requested
+    const isJson = responseMimeType === 'application/json' || !!responseSchema;
+    
+    console.log(`[AI:OpenRouter] Calling: ${orModel} (JSON: ${isJson})`);
+
+    const completion = await openRouterClient.chat.completions.create({
+      model: orModel,
+      messages,
+      temperature: temperature ?? 0.1,
+      max_tokens: maxTokens ?? 1000,
+      tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
+      response_format: isJson ? { type: "json_object" } : undefined
+    });
+
+    circuitBreaker.reportSuccess('openrouter');
+    const msg = completion.choices?.[0]?.message;
+
+    return {
+      content: msg?.content || '',
+      finishReason: completion.choices?.[0]?.finish_reason || 'stop',
+      provider: 'openrouter',
+      tool_calls: msg?.tool_calls || null
+    };
+  } catch (err) {
+    const isCredits = err.message.includes('402');
+    const orStatus = isCredits ? 402 : (err.status || 500);
+    console.error(`[AI:OpenRouter] Error: ${err.message}`);
+    
+    circuitBreaker.reportFailure('openrouter', orStatus);
+    
+    const customErr = new Error('OpenRouter Fail: ' + err.message);
+    customErr.status = orStatus;
+    throw customErr;
+  }
 }
 
 /**
- * Get primary model identifier
+ * Get primary model identifier for deep pedagogical generation.
+ * Defaulting to Claude 3.5 Sonnet via OpenRouter for maximum logic reliability.
  */
 export const getModel = () => {
-  return process.env.AI_MODEL || 'gemini-2.0-flash';
+  return process.env.AI_MODEL || 'anthropic/claude-3.5-sonnet';
 };
 
 /**
  * Get text-only model identifier
  */
 export const getTextModel = () => {
-  return process.env.AI_TEXT_MODEL || 'gemini-2.0-flash';
+  return process.env.AI_TEXT_MODEL || 'anthropic/claude-3.5-sonnet';
 };
 
 // Legacy support
 export const getAIClient = () => {
-  initProviders();
+  initOpenRouter();
   return openRouterClient;
 };

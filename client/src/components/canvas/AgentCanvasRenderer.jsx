@@ -65,21 +65,25 @@ const Scene3D = ({ objects, stepIndex }) => (
 
 // ─── Main Dispatcher ───────────────────────────────────────────────────────
 
-export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
+export default function AgentCanvasRenderer({ timeline, objects, steps, currentStepIndex }) {
   const mode = timeline?.render_mode || 'svg_canvas';
-  const currentStep = timeline?.steps?.[currentStepIndex];
+  
+  // Normalize sources: prioritize props (useful for snapshots) then timeline data
+  const finalObjects = objects || timeline?.objects || [];
+  const finalSteps = steps || timeline?.steps || [];
+  const currentStep = finalSteps[currentStepIndex];
   
   const CW = 800;
   const CH = 600;
 
   if (mode === 'html_animation') {
-    return <HTMLSandbox code={timeline.component_code} />;
+    return <HTMLSandbox code={timeline?.component_code} />;
   }
 
   if (mode === 'threejs_3d') {
     return (
       <div className="w-full h-full bg-transparent">
-        <Scene3D objects={timeline.objects} stepIndex={currentStepIndex} />
+        <Scene3D objects={finalObjects} stepIndex={currentStepIndex} />
       </div>
     );
   }
@@ -95,16 +99,15 @@ export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
       >
         <CinematicFilters />
         
-        {/* Background Layer Removed for direct-to-canvas rendering */}
-        
         {/* Object Layer */}
         <AnimatePresence>
-          {timeline?.objects && timeline.objects
-            .filter(obj => obj?.appearsAtStep <= currentStepIndex)
+          {finalObjects
+            .filter(obj => (obj?.appearsAtStep ?? 0) <= currentStepIndex)
             .map((obj, i) => {
               const isNew = obj.appearsAtStep === currentStepIndex;
               const isHighlighted = currentStep?.highlightIds?.includes(obj.id);
               const isFaded = currentStep?.fadeIds?.includes(obj.id);
+              const isMinimalist = timeline?.teaching_format === 'minimalist_pedagogy';
               
               return (
                 <CinematicShapeRouter
@@ -114,6 +117,7 @@ export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
                   isHighlighted={isHighlighted}
                   isFaded={isFaded}
                   currentStep={currentStep}
+                  minimalist={isMinimalist}
                 />
               );
             })}

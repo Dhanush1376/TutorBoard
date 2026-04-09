@@ -914,7 +914,7 @@ export const DOMAIN_MIN_STEPS = {
   environmental_science: { cycle: 12, climate: 12, web: 10, data: 8, solution: 10, default: 8 },
   music: { staff: 10, fifth: 10, chord: 10, rhythm: 8, default: 8 },
   space_astronomy: { solar: 10, evolution: 12, black: 10, cosmology: 12, default: 10 },
-  general: { default: 6 }
+  general: { default: 10 }
 };
 
 /**

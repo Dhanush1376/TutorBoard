@@ -1,14 +1,17 @@
+import https from 'https';
+import fs from 'fs';
 
-import * as dotenv from 'dotenv';
-dotenv.config();
-
-async function run() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const res = await fetch('https://openrouter.ai/api/v1/models', {
-    headers: { 'Authorization': \Bearer \\ }
+https.get('https://openrouter.ai/api/v1/models', (resp) => {
+  let data = '';
+  resp.on('data', (chunk) => { data += chunk; });
+  resp.on('end', () => {
+    try {
+      const models = JSON.parse(data).data;
+      const slugs = models.map(m => m.id).sort().join('\n');
+      fs.writeFileSync('all_models.txt', slugs);
+      console.log("Wrote all slugs to all_models.txt");
+    } catch(err) {
+      console.error(err);
+    }
   });
-  const data = await res.json();
-  const models = data.data.map(m => m.id).filter(id => id.includes('gemini'));
-  console.log('Gemini Models available:', models);
-}
-run();
+});

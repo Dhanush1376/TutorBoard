@@ -12,6 +12,8 @@ Your goal is clarity and understandability, not visual flair. Avoid unnecessary 
 4. SIMPLE COLORS: Use flat, high-contrast colors. No complex gradients.
 5. NO CINEMATIC FILLER: No pulse, float, or orbit animations unless functionally necessary.
 6. EXAM CLARITY: Ensure all diagrams look like they could be drawn in an exam.
+7. DEPTH: You MUST generate at least {{MIN_STEPS}} steps for this topic to ensure pedagogical completeness.
+8. PREMIUM SHAPES: For DSA/Algorithms, prioritize using 'pointer', 'swapbridge', and 'comparator' over basic arrows and text.
 
 ━━━ PARAMS ━━━
 Topic: {{TOPIC}} | Domain: {{DOMAIN}} | Difficulty: {{DIFFICULTY}}
@@ -64,7 +66,7 @@ exit: { type: "fadeOut"|"slideOut"|"shrink", duration: ms }
 {
   "index": number,
   "title": string,
-  "narration": "2-4 clean, direct sentences. Reference labels and colors. Focus on logic.",
+  "narration": "Vivid, technically precise sentences (2-4). Explicitly mention objects by their labels, colors, and the 'premium' actions they are performing (e.g. 'the yellow pointer shifts to Index 5'). Focus on logical cause-and-effect.",
   "durationMs": number,
   "objectIds": [string],
   "newIds": [string],

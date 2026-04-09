@@ -157,12 +157,39 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     stepOrchestrator.setSpeed(playbackSpeed);
   }, [playbackSpeed]);
 
-  // Auto-fit canvas when timeline loads
+  // Attach camera director to canvas
+  useEffect(() => {
+    if (canvasRef.current) {
+      cameraDirector.attach(canvasRef);
+    }
+    return () => cameraDirector.attach(null);
+  }, [canvasRef]);
+
+  // Auto-fit and direct camera when step changes
+  useEffect(() => {
+    if (timeline && canvasRef.current && currentStep) {
+      // 1. Give camera director domain context
+      cameraDirector.setDomain(timeline.domain);
+
+      // 2. Direct camera for this step
+      // Calculate focus point or let director build it
+      cameraDirector.directStep(
+        currentStep,
+        timeline.objects || [],
+        new Set(currentStep.highlightIds || []),
+        new Set(timeline.objects?.filter(o => o.appearsAtStep === currentStepIndex).map(o => o.id) || []),
+        null, // focusPoint centroid
+        3     // focusIntensity (moderate)
+      );
+    }
+  }, [currentStepIndex, timeline, currentStep]);
+
+  // Initial auto-fit on load
   useEffect(() => {
     if (timeline && canvasRef.current) {
       const timer = setTimeout(() => {
-        canvasRef.current.fitToContent?.();
-      }, 500);
+        cameraDirector.resetToOverview();
+      }, 800);
       return () => clearTimeout(timer);
     }
   }, [timeline]);

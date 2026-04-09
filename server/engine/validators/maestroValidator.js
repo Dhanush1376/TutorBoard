@@ -35,8 +35,8 @@ export function validatePedagogyResponse(data) {
         errors.push(`Step ${i} missing/invalid 'interaction_type'`);
       }
 
-      if (step.explanation && step.explanation.split(' ').length > 40) {
-        errors.push(`Step ${i} explanation too long (> 40 words). Keep it concise (1-2 lines).`);
+      if (step.explanation && step.explanation.split(' ').length > 120) {
+        errors.push(`Step ${i} explanation too long (> 120 words). Keep it focused.`);
       }
 
       if (!['beginner', 'intermediate', 'advanced'].includes(step.cognitive_load)) {
@@ -65,15 +65,11 @@ export function validatePedagogyResponse(data) {
     data.steps.forEach(s => {
       const wc = s.explanation ? s.explanation.split(' ').length : 0;
       totalWords += wc;
-      if (wc > 40) {
-        shouldRefine = true;
-        issues.push(`Step ${s.step_number} is too verbose (${wc} words). Target is < 25.`);
-      }
     });
 
-    if (totalWords / data.steps.length > 25) {
+    if (totalWords / data.steps.length > 80) {
       shouldRefine = true;
-      issues.push("Average explanation length is too high. Simplify content.");
+      issues.push("Average explanation length is extremely high. Ensure clarity is maintained.");
     }
   }
 

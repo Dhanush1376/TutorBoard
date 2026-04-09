@@ -37,11 +37,23 @@ JSON SCHEMA EXPECTED:
       "step_number": 1,
       "type": "concept_intro | visual_layout | logic_step | example_case | summary",
       "title": "...",
-      "explanation": "simple, focused (1-2 lines)",
+      "explanation": "Provide a complete, beginner-friendly explanation (2-4 clear sentences). Do not over-simplify complex logic.",
       "exam_key_point": "essential takeaway for this step",
-      "visual_hint": "simple diagram instructions",
-      "focus": "primary focus point"
+      "visual_hint": "detailed diagram instructions including specific shapes (arrow, circle, array, etc.)",
+      "focus": "primary focus point",
+      "cognitive_load": "beginner | intermediate | advanced",
+      "execution": {
+        "intensity": "low | medium | high",
+        "pacing": "slow | medium | fast",
+        "interaction": "passive | guided | interactive"
+      }
     }
+  ],
+  "pedagogical_directives": [
+    "DECOMPOSITION: Break down the logic into the smallest possible digestible units.",
+    "DEPTH: For complex or algorithmic topics, you MUST generate at least 12-15 steps.",
+    "VISUAL SYNC: Ensure every step has a clear visual hint that corresponds to the logic.",
+    "NO FILLER: Avoid introductory fluff; jump directly into the pedagogical hook."
   ]
 }
 
