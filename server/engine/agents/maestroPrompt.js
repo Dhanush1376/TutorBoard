@@ -15,7 +15,7 @@ Your role is to analyze a query, generate a structured plan, and then REFINE it 
 5. Decompose: ONE unit per step.
 6. Self-Critique: Before returning JSON, check if steps are too complex or jargon-heavy. If they are, simplify them.
 7. Decide Execution: intensity, pacing, interaction.
-8. Generate final refined steps (max 5-6).
+8. Generate enough final refined steps to cover the topic logically. For procedural, algorithmic, or system-based topics, a detailed breakdown (6-18 steps) is expected to ensure the visualization remains progressive.
 
 CRITICAL INSTRUCTIONS:
 1. STRICT JSON ONLY.

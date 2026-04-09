@@ -209,6 +209,16 @@ function processTimeline(data, detectedDomain, rawTopic) {
     if (!Array.isArray(step.highlightIds)) step.highlightIds = [];
     if (!step.transition) step.transition = 'fadeIn';
     if (!step.duration) step.duration = step.durationMs || 3000;
+    // Map durationMs back to duration for all steps to ensure client consistency
+    if (step.durationMs && !step.duration) {
+      step.duration = step.durationMs;
+    }
+    // If neither exists, use a sensible default (3000ms)
+    if (!step.duration) step.duration = 3000;
+    
+    // Ensure both are present for maximum compatibility across older client versions
+    if (step.duration && !step.durationMs) step.durationMs = step.duration;
+
     if (!step.narration) step.narration = step.description || step.title || '';
   });
 

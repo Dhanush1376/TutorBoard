@@ -34,11 +34,13 @@ const InfiniteCanvas = memo(React.forwardRef(({
   onZoomChange, 
   onViewportChange,
   onInteractionStart,
+  onInteractionEnd,
   className = '',
   initialTransform = null,
 }, ref) => {
   // Transform state
   const [transform, setTransform] = useState(initialTransform || { x: 0, y: 0, scale: 1 });
+  const [transitionStyle, setTransitionStyle] = useState('transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)');
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isHoveringContent, setIsHoveringContent] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -188,7 +190,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
     setIsDragging(false);
     isDraggingRef.current = false;
 
-    if (contentRef.current) contentRef.current.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+    if (contentRef.current) contentRef.current.style.transition = transitionStyle;
     if (gridRef.current) gridRef.current.style.transition = 'none';
 
     if (containerRef.current) {
@@ -200,7 +202,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
     } else {
       commitTransform(transformRef.current);
     }
-  }, [startInertia, commitTransform, isSpacePressed, isHoveringContent]);
+    onInteractionEnd?.();
+  }, [startInertia, commitTransform, isSpacePressed, isHoveringContent, onInteractionEnd, transitionStyle]);
 
   // ─── DOUBLE-CLICK: Center on point ───
   const handleDoubleClick = useCallback((e) => {
@@ -270,7 +273,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
     isDraggingRef.current = false;
     setIsDragging(false);
     commitTransform(transformRef.current);
-  }, [commitTransform]);
+    onInteractionEnd?.();
+  }, [commitTransform, onInteractionEnd]);
 
   // ─── KEYBOARD ───
   useEffect(() => {
@@ -414,6 +418,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
   React.useImperativeHandle(ref, () => ({
     zoomIn, zoomOut, resetView, fitToContent, centerOn,
     getTransform: () => transformRef.current,
+    setTransition: (duration, easing = 'cubic-bezier(0.16, 1, 0.3, 1)') => {
+      setTransitionStyle(`transform ${duration}ms ${easing}`);
+    },
     applyTransform, // For direct manipulation if needed
   }), [zoomIn, zoomOut, resetView, fitToContent, centerOn, applyTransform]);
 
@@ -462,7 +469,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
           className="absolute top-0 left-0 origin-top-left will-change-transform"
           style={{
             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-            transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: isDragging ? 'none' : transitionStyle,
           }}
           onMouseEnter={() => setIsHoveringContent(true)}
           onMouseLeave={() => setIsHoveringContent(false)}

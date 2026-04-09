@@ -78,6 +78,8 @@ export class CameraDirector {
     this._userInteracting = false;
     /** @type {ReturnType<typeof setTimeout>|null} */
     this._cameraTimer = null;
+    /** @type {ReturnType<typeof setTimeout>|null} */
+    this._interactionTimer = null;
   }
 
   // ─── Configuration ─────────────────────────────────────────────────────
@@ -104,6 +106,18 @@ export class CameraDirector {
    */
   setUserInteracting(interacting) {
     this._userInteracting = interacting;
+    
+    // If interaction stopped, start a cooldown to re-enable camera
+    if (!interacting) {
+      if (this._interactionTimer) clearTimeout(this._interactionTimer);
+      this._interactionTimer = setTimeout(() => {
+        this._userInteracting = false;
+        this._interactionTimer = null;
+      }, 3000); // 3-second cooldown
+    } else {
+      // If we resumed interaction, clear the cooldown
+      if (this._interactionTimer) clearTimeout(this._interactionTimer);
+    }
   }
 
   // ─── Core: Direct camera ───────────────────────────────────────────────
@@ -314,10 +328,8 @@ export class CameraDirector {
    */
   _setTransition(durationMs, easing) {
     const canvas = this._canvasRef?.current;
-    if (!canvas) return;
-    // InfiniteCanvas manages its own transitions via CSS on the contentRef.
-    // We signal the desired duration. fitToContent / centerOn will apply it.
-    // (The actual CSS transition is set inside InfiniteCanvas on the content div)
+    if (!canvas || !canvas.setTransition) return;
+    canvas.setTransition(durationMs, easing);
   }
 
   /**

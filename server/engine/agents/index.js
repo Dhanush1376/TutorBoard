@@ -12,5 +12,5 @@ export {
   getAnimationGuide, 
   getNodeTemplates 
 } from './domainConfig.js';
-export { DOUBT_RESPONSE_PROMPT } from './doubtPrompt.js';
+export { DOUBT_RESPONSE_PROMPT, buildDoubtPrompt } from './doubtPrompt.js';
 export { buildTimelinePrompt } from './timelinePrompt.js';

@@ -33,6 +33,7 @@ import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
 import animEngine from '../../engine/UniversalAnimationEngine';
 import stepOrchestrator from '../../engine/StepOrchestrator';
+import cameraDirector from '../../engine/CameraDirector';
 
 // ─── All 24 domain styles ─────────────────────────────────────────────────────
 const DOMAIN_STYLES = {
@@ -142,13 +143,11 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     }
   }, [isOpen, initialTopic, machineState, startSession, timeline]);
 
-  // Configure animation engine when timeline loads (domain-aware rendering)
   useEffect(() => {
     if (timeline) {
       const domain = timeline.domain?.toLowerCase() || 'general';
       animEngine.setDomain(domain);
       stepOrchestrator.setDomain(domain);
-      stepOrchestrator.reset();
     }
   }, [timeline]);
 
@@ -331,6 +330,8 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               ref={canvasRef}
               onZoomChange={handleZoomChange}
               onViewportChange={handleViewportChange}
+              onInteractionStart={() => cameraDirector.setUserInteracting(true)}
+              onInteractionEnd={() => cameraDirector.setUserInteracting(false)}
               className="bg-[var(--bg-primary)]"
             >
               <CanvasRenderer

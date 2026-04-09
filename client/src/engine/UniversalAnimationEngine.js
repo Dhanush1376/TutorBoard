@@ -308,12 +308,12 @@ export class UniversalAnimationEngine {
 
     // Explicit fade request
     if (isFaded) {
-      return { filter: 'saturate(0.4) brightness(0.65)', opacity: 0.3 };
+      return { filter: 'saturate(0.4) brightness(0.65)', opacity: 0.32 };
     }
 
     // Attention-system fade: background objects recede
     if (this.getIsAttentionActive(attentionOverride) && attentionRole === 'background') {
-      return { filter: 'saturate(0.5) brightness(0.7)', opacity: 0.35 };
+      return { filter: 'saturate(0.5) brightness(0.7)', opacity: 0.32 };
     }
 
     // Dominant / highlighted glow
@@ -404,6 +404,12 @@ export class UniversalAnimationEngine {
     return {
       initial: entrance.initial,
       animate: mergedAnimate,
+      exit: {
+        opacity: 0,
+        scale: 0.7,
+        filter: 'blur(8px)',
+        transition: { duration: 0.38 / this.speed, ease: 'easeIn' }
+      },
       transition: (isHighlighted && !isNew && highlight)
         ? highlight.transition
         : entrance.transition,

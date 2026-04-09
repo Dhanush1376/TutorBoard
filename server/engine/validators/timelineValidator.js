@@ -1,9 +1,5 @@
-/**
- * Timeline Validator
- * Schema validation for AI-generated teaching timelines
- */
-
-import { safeParse } from './parser.js';
+import { safeParse } from '../utils/parser.js';
+import { getMinSteps } from '../agents/domainConfig.js';
 
 // Valid learning node types
 const VALID_NODE_TYPES = [
@@ -158,7 +154,13 @@ export function validateTimeline(data) {
     return { valid: false, errors: ["Missing or empty 'steps' array"] };
   }
 
-  // Soft: Min steps
+  // Strict: Min steps enforcement from Domain Config
+  const minSteps = getMinSteps(data.domain, data.title);
+  if (data.steps.length < minSteps) {
+    errors.push(`Detailed breakdown required: ${data.steps.length} steps provided, but ${minSteps} minimum steps are required to visualize "${data.title}" correctly in the ${data.domain} domain.`);
+  }
+
+  // Soft: Min steps consistency fallback
   if (data.steps.length < 2) {
     console.warn('[Validator] Only 1 step generated. Cloning for stability.');
     data.steps.push({ ...data.steps[0], index: 1, title: 'Conclusion' });
@@ -192,14 +194,18 @@ export function validateTimeline(data) {
     if (!step.title && !step.label) step.title = `Step ${i+1}`;
     if (!step.narration && !step.description) step.narration = "Continuing the explanation...";
     
-    if (!Array.isArray(step.objectIds)) step.objectIds = [];
-    if (!Array.isArray(step.highlightIds)) step.highlightIds = [];
-    if (!Array.isArray(step.newIds)) step.newIds = [];
+    ['objectIds', 'highlightIds', 'newIds', 'fadeIds'].forEach(key => {
+      if (!Array.isArray(step[key])) step[key] = [];
+      
+      step[key].forEach(id => {
+        if (id && !allObjectIdsSet.has(String(id))) {
+          errors.push(`Step ${i} ("${step.title}"): ID "${id}" in ${key} does not exist in any global objects. Check for typos or missing object definitions.`);
+        }
+      });
 
-    // Filter out orphan IDs — prevent frontend crashes
-    step.objectIds = step.objectIds.filter(id => allObjectIdsSet.has(String(id))).map(String);
-    step.highlightIds = step.highlightIds.filter(id => allObjectIdsSet.has(String(id))).map(String);
-    step.newIds = step.newIds.filter(id => allObjectIdsSet.has(String(id))).map(String);
+      // Filter out orphan IDs — prevent frontend crashes if we proceed with errors
+      step[key] = step[key].filter(id => allObjectIdsSet.has(String(id))).map(String);
+    });
 
     // Auto-fill empty objectIds to avoid blank screen
     if (step.objectIds.length === 0 && allObjectIdsSet.size > 0 && i > 0) {
@@ -212,8 +218,8 @@ export function validateTimeline(data) {
   }
 
   return {
-    valid: true, // We auto-fixed everything!
-    errors: [],
+    valid: errors.length === 0,
+    errors: errors,
   };
 }
 

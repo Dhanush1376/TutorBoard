@@ -117,7 +117,7 @@ export function useTeachingMachine() {
   useEffect(() => {
     if (isPlaying && !isPaused && machineState === STATES.TEACHING && timeline) {
       const currentStep = canvasSteps[currentStepIndex];
-      const currentDuration = currentStep?.duration || 3000;
+      const currentDuration = currentStep?.durationMs || currentStep?.duration || 3000;
       const adjustedDuration = currentDuration / playbackSpeed;
 
       playIntervalRef.current = setTimeout(() => {

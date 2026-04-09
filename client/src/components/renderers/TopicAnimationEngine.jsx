@@ -390,7 +390,7 @@ export function generateSlides(topic, userMessage) {
 // ─────────────────────────────────────────────
 
 // Binary Search Animation — splits array, highlights mid pointer
-function BinarySearchAnimation({ phase }) {
+function BinarySearchAnimation({ phase, isAmbient }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const stateRef = useRef({ step: 0, arr: [2, 5, 8, 12, 16, 23, 38, 44, 56, 72], target: 23, lo: 0, hi: 9, mid: 4, found: false });
@@ -588,16 +588,18 @@ function BinarySearchAnimation({ phase }) {
         height={220}
         style={{ width: "100%", borderRadius: 12, background: "transparent" }}
       />
-      <div style={{ display: "flex", gap: 12 }}>
-        <button onClick={step} style={btnStyle("#3b82f6")}>Next Step →</button>
-        <button onClick={reset} style={btnStyle("#555")}>Reset</button>
-      </div>
+      {!isAmbient && (
+        <div style={{ display: "flex", gap: 12 }}>
+          <button onClick={step} style={btnStyle("#3b82f6")}>Next Step →</button>
+          <button onClick={reset} style={btnStyle("#555")}>Reset</button>
+        </div>
+      )}
     </div>
   );
 }
 
 // Bubble Sort Animation
-function BubbleSortAnimation({ phase }) {
+function BubbleSortAnimation({ phase, isAmbient }) {
   const [arr, setArr] = useState([64, 34, 25, 12, 22, 11, 90]);
   const [comparing, setComparing] = useState([-1, -1]);
   const [sorted, setSorted] = useState([]);
@@ -674,16 +676,18 @@ function BubbleSortAnimation({ phase }) {
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 12 }}>
-        <button onClick={run} disabled={running} style={btnStyle("#3b82f6")}>{running ? "Sorting..." : "▶ Run Sort"}</button>
-        <button onClick={reset} style={btnStyle("#555")}>Reset</button>
-      </div>
+      {!isAmbient && (
+        <div style={{ display: "flex", gap: 12 }}>
+          <button onClick={run} disabled={running} style={btnStyle("#3b82f6")}>{running ? "Sorting..." : "▶ Run Sort"}</button>
+          <button onClick={reset} style={btnStyle("#555")}>Reset</button>
+        </div>
+      )}
     </div>
   );
 }
 
 // Stack Animation
-function StackAnimation({ phase }) {
+function StackAnimation({ phase, isAmbient }) {
   const [stack, setStack] = useState([10, 20, 30]);
   const [input, setInput] = useState("");
   const [log, setLog] = useState("Stack initialized");
@@ -749,24 +753,28 @@ function StackAnimation({ phase }) {
           {log}
         </div>
         <div style={{ fontSize: 12, color: "#666688" }}>Size: {stack.length}</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={push} style={btnStyle("#3b82f6")}>Push</button>
-          <button onClick={pop} style={btnStyle("#ef4444")}>Pop</button>
-          <button onClick={peek} style={btnStyle("#f59e0b")}>Peek</button>
-        </div>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Value to push..."
-          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #2a3560", background: "#0d0d1a", color: "#fff", fontSize: 13 }}
-        />
+        {!isAmbient && (
+          <>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={push} style={btnStyle("#3b82f6")}>Push</button>
+              <button onClick={pop} style={btnStyle("#ef4444")}>Pop</button>
+              <button onClick={peek} style={btnStyle("#f59e0b")}>Peek</button>
+            </div>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Value to push..."
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #2a3560", background: "#0d0d1a", color: "#fff", fontSize: 13 }}
+            />
+          </>
+        )}
       </div>
     </div>
   );
 }
 
 // Linked List Animation
-function LinkedListAnimation({ phase }) {
+function LinkedListAnimation({ phase, isAmbient }) {
   const [nodes, setNodes] = useState([
     { val: 10, id: 0 },
     { val: 20, id: 1 },
@@ -845,11 +853,13 @@ function LinkedListAnimation({ phase }) {
         {nodes.length === 0 && <div style={{ color: "#444466", margin: "auto" }}>Empty list</div>}
       </div>
       <div style={{ fontSize: 13, color: "#22c55e", background: "#0a1a0a", borderRadius: 8, padding: "8px 12px" }}>{log}</div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={addHead} style={btnStyle("#3b82f6")}>Insert Head</button>
-        <button onClick={removeTail} style={btnStyle("#ef4444")}>Remove Tail</button>
-        <button onClick={traverse} style={btnStyle("#f59e0b")}>Traverse</button>
-      </div>
+      {!isAmbient && (
+        <div style={{ display: "flex", gap: 12 }}>
+          <button onClick={addHead} style={btnStyle("#3b82f6")}>+ Add Head</button>
+          <button onClick={traverse} style={btnStyle("#f59e0b")}>▶ Traverse</button>
+          <button onClick={removeTail} style={btnStyle("#555")}>- Tail</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1545,7 +1555,7 @@ function OOPAnimation({ phase }) {
 }
 
 // ── Universal fallback for topics with slides but no unique animation ──
-function TopicPlaceholderAnimation({ phase, topicKey }) {
+function TopicPlaceholderAnimation({ phase, topicKey, isAmbient }) {
   const SUBJECT_COLORS = {
     "math": "#8b5cf6", "physics": "#3b82f6", "chemistry": "#ef4444",
     "biology": "#22c55e", "cs": "#f59e0b", "default": "#60a5fa",
@@ -1578,7 +1588,7 @@ function TopicPlaceholderAnimation({ phase, topicKey }) {
 }
 
 // Generic / fallback animation
-function GenericAnimation({ phase }) {
+function GenericAnimation({ phase, isAmbient }) {
   return (
     <div style={{
       background: "transparent", borderRadius: 12, height: 180,
@@ -1667,13 +1677,27 @@ const ANIMATION_MAP = {
 // ─────────────────────────────────────────────
 // 5. MAIN COMPONENT — drop this into your Canvas
 // ─────────────────────────────────────────────
-export function TopicAnimationEngine({ topic = "generic", animationKey, slideIndex = 0 }) {
+export function TopicAnimationEngine({ topic = "generic", animationKey, slideIndex = 0, isAmbient = false }) {
   const key = animationKey || topic;
   const AnimComponent = ANIMATION_MAP[key];
-  if (AnimComponent) return <AnimComponent phase={slideIndex} />;
-  // If we have a known topic but no dedicated animation, show the subject-aware placeholder
-  if (topic !== "generic") return <TopicPlaceholderAnimation phase={slideIndex} topicKey={key} />;
-  return <GenericAnimation phase={slideIndex} />;
+  
+  return (
+    <div style={{ 
+      opacity: isAmbient ? 0.15 : 1, 
+      pointerEvents: isAmbient ? 'none' : 'auto',
+      transition: 'opacity 0.8s ease-in-out',
+      width: '100%',
+      height: '100%'
+    }}>
+      {AnimComponent ? (
+        <AnimComponent phase={slideIndex} isAmbient={isAmbient} />
+      ) : topic !== "generic" ? (
+        <TopicPlaceholderAnimation phase={slideIndex} topicKey={key} isAmbient={isAmbient} />
+      ) : (
+        <GenericAnimation phase={slideIndex} isAmbient={isAmbient} />
+      )}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────

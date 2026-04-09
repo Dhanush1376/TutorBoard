@@ -21,7 +21,7 @@ import {
   GlowOrb, GlassRect, FlowArrow, DataBlock, FlowPointer,
   SwapBridge, Comparator, CodePanel, FloatingBadge,
   DepthText, WavePath, ArcPath, HighlightZone,
-  SimpleLine, OrbitBody,
+  SimpleLine, OrbitBody, CinematicShapeRouter,
 } from '../renderers/CinematicShapes.jsx';
 
 import animEngine from '../../engine/UniversalAnimationEngine.js';
@@ -103,32 +103,7 @@ const CinematicFilters = () => (
   </defs>
 );
 
-// ─── Attention indicator — subtle ring around dominant non-highlight objects ──
-
-const DominanceRing = ({ obj, attentionRole }) => {
-  if (attentionRole !== 'dominant') return null;
-  
-  // Bug 8: Add shape-type guards for x1,y1,x2,y2 shapes
-  let cx, cy, r;
-  if (obj.x1 !== undefined && obj.x2 !== undefined) {
-    cx = safeNum((obj.x1 + obj.x2) / 2, 400);
-    cy = safeNum((obj.y1 + obj.y2) / 2, 300);
-    r  = safeNum(obj.thickness || 2, 2) * 8 + 14;
-  } else {
-    cx = safeNum(obj.x ?? obj.cx, 400);
-    cy = safeNum(obj.y ?? obj.cy, 300);
-    r  = safeNum(obj.r ?? obj.size, 50) + 14;
-  }
-
-  return (
-    <motion.circle
-      cx={cx} cy={cy} r={r}
-      fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0}
-      animate={{ opacity: [0, 0.38, 0.2], r: [r, r + 10, r] }}
-      transition={{ duration: 1.2, ease: 'easeOut', repeat: 1 }}
-    />
-  );
-};
+// ─── Visual Orchestration Helpers (Moved to CinematicShapes.jsx) ────────────
 
 // ─── Highlight Ring Layer ─────────────────────────────────────────────────────
 
@@ -265,77 +240,7 @@ const QuizOverlay = ({ obj, visible }) => {
   );
 };
 
-// ─── Cinematic Shape Router ───────────────────────────────────────────────────
-
-function CinematicShapeRouter({
-  obj, isNew, isHighlighted, isFaded, transition,
-  staggerIndex, stepKey, legacyIndex, attentionRole,
-  narrativeHints, attentionOverride,
-}) {
-  if (!obj) return null;
-  const s = (obj.shape || obj.type || 'circle').toLowerCase();
-
-  const commonProps = { 
-    obj, isNew, isHighlighted, isFaded, transition, 
-    staggerIndex, stepKey, narrativeHints, attentionOverride 
-  };
-
-  // Choose filter based on attention role
-  const filterByRole = (base) => {
-    if (attentionRole === 'dominant')   return 'url(#tb-dominant-glow)';
-    if (attentionRole === 'supporting') return 'url(#tb-soft-glow)';
-    if (attentionRole === 'background') return 'url(#tb-fade-filter)';
-    return base || 'none';
-  };
-
-  const wrapDraggable = (el) => (
-    <motion.g
-      key={`${obj.id}-${stepKey}` || legacyIndex}
-      drag dragMomentum={false}
-      onDragStart={e => e.stopPropagation()}
-      style={{ cursor: 'grab', transformOrigin: 'center', transformBox: 'fill-box' }}
-      whileTap={{ cursor: 'grabbing' }}
-      // Attention role: background objects slightly reduced opacity
-      animate={attentionRole === 'background' ? { opacity: 0.32 } : { opacity: 1 }}
-      transition={{ duration: 0.4 }}
-    >
-      {/* Dominance ring for top-attention shapes */}
-      {attentionRole === 'dominant' && s !== 'text' && s !== 'badge' && (
-        <DominanceRing obj={obj} attentionRole={attentionRole} />
-      )}
-      {el}
-    </motion.g>
-  );
-
-  switch (s) {
-    case 'array':
-    case 'arraycell':     return wrapDraggable(<DataBlock {...commonProps} />);
-    case 'pointer':       return wrapDraggable(<FlowPointer {...commonProps} />);
-    case 'swapbridge':    return wrapDraggable(<SwapBridge obj={obj} isNew={isNew} stepKey={stepKey} />);
-    case 'comparator':    return wrapDraggable(<Comparator {...commonProps} />);
-    case 'codeline':      return wrapDraggable(<CodePanel {...commonProps} />);
-    case 'highlightbox':  return wrapDraggable(<HighlightZone {...commonProps} />);
-    case 'circle':
-    case 'orb':
-    case 'node':          return wrapDraggable(<GlowOrb {...commonProps} />);
-    case 'rect':
-    case 'rectangle':
-    case 'box':           return wrapDraggable(<GlassRect {...commonProps} />);
-    case 'arrow':
-    case 'connector':     return wrapDraggable(<FlowArrow {...commonProps} />);
-    case 'line':          return wrapDraggable(<SimpleLine obj={obj} isNew={isNew} isFaded={isFaded} stepKey={stepKey} />);
-    case 'text':
-    case 'label':
-    case 'formula':       return wrapDraggable(<DepthText {...commonProps} />);
-    case 'badge':         return wrapDraggable(<FloatingBadge {...commonProps} />);
-    case 'arc':
-    case 'angle':         return wrapDraggable(<ArcPath obj={obj} isNew={isNew} stepKey={stepKey} />);
-    case 'path':          return wrapDraggable(<WavePath {...commonProps} />);
-    case 'orbit':
-    case 'planet':        return wrapDraggable(<OrbitBody obj={obj} index={legacyIndex} />);
-    default:              return wrapDraggable(<GlowOrb {...commonProps} />);
-  }
-}
+// ─── Cinematic Shape Router Layer (Moved to CinematicShapes.jsx) ─────────────
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN CANVAS RENDERER
@@ -361,6 +266,13 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
     }
   }, [canvasRef]);
 
+  // ── Derive a unique session key for the current timeline to prevent state leakage ──
+  const sessionKey = useMemo(() => {
+    if (safeSteps.length === 0) return 'idle';
+    // Use first step title + object count as a stable session fingerprint
+    return `sess-${safeSteps[0]?.title || 'untitled'}-${safeObjects.length}`;
+  }, [safeSteps, safeObjects.length]);
+
   // ── Configure engines when domain changes ──
   useEffect(() => {
     const domain = currentStep?.domain || 'general';
@@ -368,12 +280,6 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
     stepOrchestrator.setDomain(domain);
     cameraDirector.setDomain(domain);
   }, [currentStep?.domain]);
-
-  // ── Reset orchestrator on new timeline ──
-  useEffect(() => {
-    stepOrchestrator.reset();
-    cameraDirector.resetToOverview();
-  }, [safeObjects.length > 0 ? safeObjects[0]?.id : null]);
 
   // ── STEP ANALYSIS via orchestrator ──
   const stepData = useMemo(() => {
@@ -389,8 +295,8 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
         focusPoint: null,
       };
     }
-    return stepOrchestrator.analyzeStep(currentStep, safeObjects, currentStepIndex);
-  }, [safeObjects, safeSteps, currentStepIndex, currentStep]);
+    return stepOrchestrator.analyzeStep(currentStep, safeObjects, currentStepIndex, sessionKey);
+  }, [safeObjects, safeSteps, currentStepIndex, currentStep, sessionKey]);
 
   const { visibleObjects = [], newIds, highlightIds, fadeIds, transition: stepTransition, focusPoint } = stepData;
 
@@ -413,10 +319,12 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
 
   const { hints: narrativeHints, attention: attentionOverride } = narrativeData;
 
-  // ── Sync orchestrator and singleton for legacy support (side effects) ──
+  // ── SYNC SEEN STATE ──
   useEffect(() => {
-    stepOrchestrator.syncSeen(visibleObjects);
-  }, [visibleObjects]);
+    if (visibleObjects.length > 0) {
+      stepOrchestrator.syncSeen(visibleObjects, sessionKey);
+    }
+  }, [currentStepIndex, visibleObjects, sessionKey]);
 
   // ── CAMERA DIRECTION: fire per step ──
   useEffect(() => {
@@ -489,11 +397,12 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
       style={{ minWidth: 800, minHeight: 600 }}
     >
       {/* ── Topic-Specific Background Animation Layer ── */}
-      <div className="absolute inset-0 z-[-1] opacity-100">
+      <div className="absolute inset-0 z-[-1]">
         <TopicAnimationEngine 
           topic={currentStep?.domain || "generic"} 
           animationKey={currentStep?.animationKey} 
           slideIndex={currentStepIndex} 
+          isAmbient={currentStepIndex > 0}
         />
       </div>
 
@@ -533,7 +442,6 @@ const CanvasRenderer = ({ objects = [], currentStepIndex = 0, steps = [], canvas
                 transition={narrativeHints.transitionHint || stepTransition}
                 staggerIndex={staggerIndexMap.get(obj.id) || 0}
                 stepKey={`step-${currentStepIndex}`}
-                legacyIndex={i}
                 attentionRole={animEngine.getAttentionRole(obj.id, attentionOverride)}
                 narrativeHints={narrativeHints}
                 attentionOverride={attentionOverride}

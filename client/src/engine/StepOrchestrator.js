@@ -28,6 +28,8 @@ export class StepOrchestrator {
     this.currentStepIndex = 0;
     /** @type {Set<string>} Internal cache of all objects seen across a timeline */
     this._history = new Set();
+    /** @type {string|null} Key of the active session to prevent state leakage */
+    this.currentSessionKey = null;
   }
 
   /**
@@ -53,15 +55,24 @@ export class StepOrchestrator {
     this.seenIds.clear();
     this._history.clear();
     this.currentStepIndex = 0;
+    this.currentSessionKey = null;
   }
 
   /**
    * Sync the 'seen' state for a specific step.
    * Call this from an effect to avoid render-cycle mutations.
    * @param {Object[]} visibleObjects 
+   * @param {string} sessionKey
    */
-  syncSeen(visibleObjects) {
+  syncSeen(visibleObjects, sessionKey) {
     if (!visibleObjects) return;
+    
+    // Safety: ignore sync calls from previous sessions (Prevents race conditions in effects)
+    if (sessionKey && sessionKey !== this.currentSessionKey) {
+      console.warn(`StepOrchestrator: Ignoring syncSeen for stale session "${sessionKey}"`);
+      return;
+    }
+
     visibleObjects.forEach(obj => {
       if (obj?.id) this.seenIds.add(obj.id);
     });
@@ -75,6 +86,7 @@ export class StepOrchestrator {
    * @param {Object} step - Step from timeline
    * @param {Object[]} allObjects - All scene objects
    * @param {number} stepIndex - Current step index
+   * @param {string|null} sessionKey - Unique key for the current lesson/session
    * @returns {{
    *   visibleObjects: Object[],
    *   newIds: Set<string>,
@@ -86,7 +98,14 @@ export class StepOrchestrator {
    *   stepDuration: number,
    * }}
    */
-  analyzeStep(step, allObjects, stepIndex) {
+  analyzeStep(step, allObjects, stepIndex, sessionKey = null) {
+    // ─── Session Isolation ───
+    if (sessionKey && sessionKey !== this.currentSessionKey) {
+      console.log(`StepOrchestrator: New session detected (${sessionKey}). Resetting state.`);
+      this.reset();
+      this.currentSessionKey = sessionKey;
+    }
+
     if (!step || !allObjects) {
       return this._emptyResult();
     }

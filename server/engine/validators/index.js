@@ -4,9 +4,11 @@
 export { safeParse } from '../utils/parser.js';
 export { validatePedagogyResponse } from './maestroValidator.js';
 import { validateTimelineResponse } from '../agents/timelinePrompt.js';
+import { validateTimeline as richValidateTimeline } from './timelineValidator.js';
+
 
 export function validateTimeline(data) {
-  // Structural safety check before calling rich validator
+  // 1. Structural safety check
   if (!data || !Array.isArray(data.steps) || !Array.isArray(data.objects)) {
     return { 
       valid: false, 
@@ -14,10 +16,20 @@ export function validateTimeline(data) {
     };
   }
 
-  const errors = validateTimelineResponse(data);
+  // 2. Technical schema validation (IDs, spans, overlaps)
+  const schemaErrors = validateTimelineResponse(data);
+  
+  // 3. Rich pedagogical validation & hardening (min steps, coordinates, shapes)
+  const richValidation = richValidateTimeline(data);
+  
+  const allErrors = [
+    ...schemaErrors.map(e => e.message),
+    ...richValidation.errors
+  ];
+
   return { 
-    valid: errors.length === 0, 
-    errors: errors.map(e => e.message) 
+    valid: allErrors.length === 0, 
+    errors: allErrors
   };
 }
 

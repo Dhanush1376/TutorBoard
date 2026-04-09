@@ -885,6 +885,38 @@ ANIMATION STRATEGY — GENERAL:
 `,
 };
 
+/**
+ * Machine-readable minimum step requirements per domain/topic.
+ * Used for hard validation in the pedagogical pipeline.
+ * @type {Object.<DomainKey, Object.<string, number>>}
+ */
+export const DOMAIN_MIN_STEPS = {
+  dsa: { sort: 18, search: 10, tree: 12, graph: 14, dp: 16, default: 10 },
+  mathematics: { calculus: 12, geometry: 10, matrix: 10, statistics: 8, probability: 10, default: 8 },
+  physics: { mechanics: 12, wave: 10, circuit: 12, thermodynamic: 10, optic: 10, default: 8 },
+  chemistry: { reaction: 12, bond: 10, organic: 14, titration: 10, default: 8 },
+  biology: { cell: 14, genetics: 12, system: 10, photosynthesis: 12, default: 8 },
+  medicine: { anatomy: 12, pathophys: 14, pharmacol: 10, procedure: 12, default: 8 },
+  computer_science: { os: 12, network: 12, database: 10, oop: 10, web: 10, distributed: 14, default: 10 },
+  engineering: { circuit: 12, structure: 10, mechanism: 12, fluid: 10, control: 12, default: 8 },
+  business: { framework: 10, process: 10, case: 12, financial: 10, default: 8 },
+  law: { case: 10, process: 10, principle: 8, constitution: 10, default: 8 },
+  history: { timeline: 10, cause: 10, biography: 8, battle: 12, default: 8 },
+  geography: { map: 10, climate: 10, process: 10, demographic: 8, default: 8 },
+  psychology: { theory: 10, experiment: 10, brain: 12, model: 10, default: 8 },
+  arts: { color: 10, typo: 8, composition: 10, flow: 12, default: 8 },
+  economics: { supply: 12, gdp: 8, market: 10, game: 10, default: 8 },
+  aviation_maritime: { force: 10, navigation: 12, instrument: 10, weather: 10, rule: 8, default: 8 },
+  data_science: { neural: 14, train: 12, tree: 10, eval: 8, default: 10 },
+  cybersecurity: { attack: 12, network: 12, crypto: 10, auth: 10, threat: 10, default: 10 },
+  linguistics: { syntax: 10, phonolog: 10, morpholog: 8, cross: 10, default: 8 },
+  philosophy: { argument: 8, framework: 10, thought: 10, dialect: 10, default: 8 },
+  environmental_science: { cycle: 12, climate: 12, web: 10, data: 8, solution: 10, default: 8 },
+  music: { staff: 10, fifth: 10, chord: 10, rhythm: 8, default: 8 },
+  space_astronomy: { solar: 10, evolution: 12, black: 10, cosmology: 12, default: 10 },
+  general: { default: 6 }
+};
+
 // ─── Detection ────────────────────────────────────────────────────────────────
 
 // ─── Detection ────────────────────────────────────────────────────────────────
@@ -975,6 +1007,24 @@ export function getDomainConfig(topic) {
     nodeTemplates: getNodeTemplates(primary),
     animationGuide: getAnimationGuide(primary),
   };
+}
+
+/**
+ * Returns the minimum required step count for a specific topic within a domain.
+ * @param {DomainKey} domain 
+ * @param {string} topic 
+ * @returns {number}
+ */
+export function getMinSteps(domain, topic) {
+  const config = DOMAIN_MIN_STEPS[domain] || DOMAIN_MIN_STEPS.general;
+  const t = (topic || '').toLowerCase();
+  
+  // Find specific match (e.g., "sorting")
+  for (const [key, value] of Object.entries(config)) {
+    if (key !== 'default' && t.includes(key)) return value;
+  }
+  
+  return config.default;
 }
 
 // ─── Backward Compatibility ───────────────────────────────────────────────────

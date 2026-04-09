@@ -10,7 +10,7 @@
  * Designed as drop-in replacements for CanvasRenderer shapes.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import animEngine from '../../engine/UniversalAnimationEngine.js';
 import {
@@ -66,6 +66,32 @@ const wrapText = (text, maxChars = 22) => {
   return lines;
 };
 
+// ─── Attention indicator — subtle ring around dominant non-highlight objects ──
+
+const DominanceRing = ({ obj, attentionRole }) => {
+  if (attentionRole !== 'dominant') return null;
+  
+  let cx, cy, r;
+  if (obj.x1 !== undefined && obj.x2 !== undefined) {
+    cx = safeNum((obj.x1 + obj.x2) / 2, 400);
+    cy = safeNum((obj.y1 + obj.y2) / 2, 300);
+    r  = safeNum(obj.thickness || 2, 2) * 8 + 14;
+  } else {
+    cx = safeNum(obj.x ?? obj.cx, 400);
+    cy = safeNum(obj.y ?? obj.cy, 300);
+    r  = safeNum(obj.r ?? obj.size, 50) + 14;
+  }
+
+  return (
+    <motion.circle
+      cx={cx} cy={cy} r={r}
+      fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0}
+      animate={{ opacity: [0, 0.38, 0.2], r: [r, r + 10, r] }}
+      transition={{ duration: 1.2, ease: 'easeOut', repeat: Infinity }}
+    />
+  );
+};
+
 const MultiText = ({ x, y, text, fontSize = 12, fill = '#cbd5e1', fontWeight = '600', anchor = 'middle' }) => {
   const lines = wrapText(text, 22);
   const lh = fontSize * 1.35;
@@ -73,9 +99,9 @@ const MultiText = ({ x, y, text, fontSize = 12, fill = '#cbd5e1', fontWeight = '
   return (
     <>
       {lines.map((l, i) => (
-        <text key={i} x={x} y={sy + i * lh} textAnchor={anchor} fill={fill}
+        <motion.text key={i} animate={{ x, y: sy + i * lh }} textAnchor={anchor} fill={fill}
           fontSize={fontSize} fontWeight={fontWeight} fontFamily="system-ui, sans-serif"
-          dominantBaseline="central" pointerEvents="none">{l}</text>
+          dominantBaseline="central" pointerEvents="none" transition={{ duration: 0.5 }}>{l}</motion.text>
       ))}
     </>
   );
@@ -98,19 +124,20 @@ export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
   const shouldPulse = obj.pulse || isHighlighted;
   const showGlow = obj.glow || isHighlighted;
 
-  // Unique gradient ID
-  const gradId = `orb-grad-${obj.id}`;
+  const uid = useId();
+  const gradId = `orb-grad-${obj.id}-${uid.replace(/:/g, '')}`;
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
+      exit={config.exit}
       transition={config.transition}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      {/* Defs for this orb */}
       <defs>
         <radialGradient id={gradId} cx="35%" cy="35%" r="75%">
           <stop offset="0%" stopColor={c.text} stopOpacity="0.8" />
@@ -119,22 +146,25 @@ export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
         </radialGradient>
       </defs>
 
-      {/* Layer 3: Ambient glow ring */}
       {showGlow && (
         <motion.circle
-          cx={x} cy={y} r={r + 10}
+          animate={{ cx: x, cy: y, r: [r + 8, r + 18, r + 8], opacity: [0.2, 0.5, 0.2] }}
           fill="none" stroke={c.glow} strokeWidth={2} opacity={0.3}
-          animate={{ r: [r + 8, r + 18, r + 8], opacity: [0.2, 0.5, 0.2] }}
-          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ 
+            r: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+            opacity: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+            default: { duration: 0.5 } 
+          }}
         />
       )}
 
-      {/* Layer 1: Main sphere */}
       <motion.circle
         initial={isNew ? config.initial : false}
         animate={{ 
           ...config.animate, 
-          ...(shouldPulse ? { r: [r, r * 1.06, r] } : (micro?.animate || {})) 
+          cx: x, cy: y, 
+          r: shouldPulse ? [r, r * 1.06, r] : r,
+          ...(shouldPulse ? {} : (micro?.animate || {})) 
         }}
         transition={{ 
           ...config.transition, 
@@ -146,24 +176,24 @@ export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
         style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
-      {/* Layer 3: Inner specular highlight */}
-      <circle
-        cx={x - r * 0.2} cy={y - r * 0.25}
-        r={r * 0.25}
+      <motion.circle
+        animate={{ cx: x - r * 0.2, cy: y - r * 0.25, r: r * 0.25 }}
         fill="white" opacity={0.08}
         pointerEvents="none"
+        transition={{ duration: 0.5 }}
       />
 
-      {/* Inner label */}
       {obj.innerLabel && (
-        <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+        <motion.text 
+          animate={{ x, y }}
+          textAnchor="middle" dominantBaseline="central"
           fontSize={Math.max(12, r * 0.45)} fontWeight="800"
           fill="#fff" fontFamily="'JetBrains Mono', monospace"
           filter="url(#tb-drop-shadow)" pointerEvents="none"
-        >{obj.innerLabel}</text>
+          transition={{ duration: 0.5 }}
+        >{obj.innerLabel}</motion.text>
       )}
 
-      {/* External label */}
       {obj.label && (
         <MultiText x={x} y={y + r + 20} text={obj.label}
           fontSize={12} fill="#94a3b8" fontWeight="600" />
@@ -187,25 +217,25 @@ export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, stag
   const c = resolve(obj.color || obj.fill);
   const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex, narrativeHints, attentionOverride });
 
-  // Center-based coords → top-left
   const px = cx - w / 2;
   const py = cy - h / 2;
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
+      exit={config.exit}
       transition={config.transition}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      {/* Glass background */}
       <motion.rect
         initial={isNew ? config.initial : false}
-        animate={config.animate}
+        animate={{ ...config.animate, x: px, y: py, width: w, height: h }}
         transition={config.transition}
-        width={w} height={h} rx={rx}
+        rx={rx}
         fill={c.glass}
         stroke={isHighlighted ? c.stroke : c.stroke + '55'}
         strokeWidth={isHighlighted ? 2.5 : 1.5}
@@ -213,14 +243,14 @@ export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, stag
         style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
-      {/* Top highlight edge — glassmorphism shine */}
-      <rect
-        x={px + 2} y={py + 1} width={w - 4} height={1.5} rx={1}
+      <motion.rect
+        animate={{ x: px + 2, y: py + 1, width: Math.max(0, w - 4) }}
+        height={1.5} rx={1}
         fill="white" opacity={0.06}
         pointerEvents="none"
+        transition={{ duration: 0.5 }}
       />
 
-      {/* Label */}
       {obj.label && (
         <MultiText
           x={cx} y={cy}
@@ -244,16 +274,19 @@ export const FlowArrow = ({ obj, isNew, isHighlighted, isFaded, transition, stag
   const sw = safeNum(obj.strokeWidth ?? obj.thickness, 2.5);
   const c = resolve(obj.color || obj.stroke);
   const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition: 'drawLine', staggerIndex, narrativeHints, attentionOverride });
-  const markerId = `flow-arr-${obj.id}`;
+  const uid = useId();
+  const markerId = `flow-arr-${obj.id}-${uid.replace(/:/g, '')}`;
   const hasFlow = obj.flow || isHighlighted;
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
+      exit={config.exit}
       transition={config.transition}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <defs>
@@ -263,26 +296,23 @@ export const FlowArrow = ({ obj, isNew, isHighlighted, isFaded, transition, stag
         </marker>
       </defs>
 
-      {/* Background track */}
       <motion.path
         initial={isNew ? { pathLength: 0, opacity: 0 } : false}
         animate={{ 
           pathLength: 1, 
           opacity: isFaded ? 0.05 : 0.15,
+          d: `M ${x1} ${y1} L ${x2} ${y2}`
         }}
-        d={`M ${x1} ${y1} L ${x2} ${y2}`}
         stroke={c.stroke} strokeWidth={sw}
         markerEnd={`url(#${markerId})`}
         transition={{ duration: 0.6, ease: EASE_CINEMATIC }}
         style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
-      {/* Active flow effect — marching ants */}
       {hasFlow && (
         <motion.path
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1, strokeDashoffset: [24, 0] }}
-          d={`M ${x1} ${y1} L ${x2} ${y2}`}
+          animate={{ opacity: 1, strokeDashoffset: [24, 0], d: `M ${x1} ${y1} L ${x2} ${y2}` }}
           stroke={c.glow} strokeWidth={sw}
           strokeDasharray="6 12"
           filter="url(#tb-neon-glow)"
@@ -294,14 +324,15 @@ export const FlowArrow = ({ obj, isNew, isHighlighted, isFaded, transition, stag
         />
       )}
 
-      {/* Label */}
       {obj.label && (
-        <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 14}
+        <motion.text 
+          animate={{ x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 14 }}
           textAnchor="middle" dominantBaseline="central"
           fill="#94a3b8" fontSize={11} fontWeight="600"
           fontFamily="system-ui, sans-serif"
           filter="url(#tb-drop-shadow)" pointerEvents="none"
-        >{obj.label}</text>
+          transition={{ duration: 0.5 }}
+        >{obj.label}</motion.text>
       )}
     </motion.g>
   );
@@ -341,22 +372,25 @@ export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
+      exit={config.exit}
       transition={config.transition}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      {/* Label above array */}
       {obj.label && (
-        <text x={px} y={sy - 24} textAnchor="middle" fill="#64748b"
+        <motion.text 
+          animate={{ x: px, y: sy - 24 }}
+          textAnchor="middle" fill="#64748b"
           fontSize={13} fontWeight="700" fontFamily="system-ui, sans-serif"
           filter="url(#tb-drop-shadow)" pointerEvents="none"
-        >{obj.label}</text>
+          transition={{ duration: 0.5 }}
+        >{obj.label}</motion.text>
       )}
 
-      {/* Cells */}
       {values.map((val, i) => {
         const pal = getCellPalette(i);
         const cx = sx + i * cw;
@@ -366,49 +400,56 @@ export const DataBlock = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 
         return (
           <g key={i}>
-            {/* Sorted settle ripple */}
             {isSorted && (
               <motion.rect
-                x={cx - 3} y={sy - 3} width={cw + 6} height={ch + 6} rx={12}
-                fill="none" stroke="#4ade80" strokeWidth={2}
+                rx={12} fill="none" stroke="#4ade80" strokeWidth={2}
                 initial={{ opacity: 0, scale: 0.82 }}
-                animate={{ opacity: [0, 0.65, 0], scale: [0.82, 1.06, 1] }}
+                animate={{ 
+                  opacity: [0, 0.65, 0], 
+                  scale: [0.82, 1.06, 1], 
+                  x: cx - 3, 
+                  y: sy - 3, 
+                  width: cw + 6, 
+                  height: ch + 6 
+                }}
                 transition={{ duration: 0.65, delay: 0.05 }}
               />
             )}
 
-            {/* Cell body — glassmorphic */}
             <motion.rect
               initial={isNew ? config.initial : false}
               animate={{
                 ...config.animate,
                 x: cx, y: sy,
+                width: cw, height: ch,
                 ...(isSwap    ? { y: [sy, sy - 20, sy], scaleX: [1, 1.08, 1] } :
                    isSorted  ? { scale: [1, 1.09, 1] } :
                    isCompare ? { scale: [1, 1.04, 1.04] } : {})
               }}
-              width={cw} height={ch} rx={10}
+              rx={10}
               fill={pal.bg} stroke={pal.border} strokeWidth={2}
               filter={(isSwap || hIdx.has(i)) ? 'url(#tb-neon-glow)' : 'url(#tb-drop-shadow)'}
               transition={{ ...config.transition, duration: 0.55, ...SPRING_BOUNCY }}
               style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
             />
 
-            {/* Value text */}
-            <text
-              x={cx + cw / 2} y={sy + ch / 2}
+            <motion.text
+              animate={{ x: cx + cw / 2, y: sy + ch / 2 }}
               textAnchor="middle" dominantBaseline="central"
               fill={pal.val} fontSize={fs} fontWeight="800"
               fontFamily="'JetBrains Mono','Fira Code',monospace"
               pointerEvents="none"
-            >{val}</text>
+              transition={{ duration: 0.5 }}
+            >{val}</motion.text>
 
-            {/* Index */}
             {obj.showIndex !== false && (
-              <text x={cx + cw / 2} y={sy + ch + 19} textAnchor="middle"
+              <motion.text 
+                animate={{ x: cx + cw / 2, y: sy + ch + 19 }}
+                textAnchor="middle"
                 fill="#475569" fontSize={11} fontWeight="700"
                 fontFamily="system-ui, sans-serif" pointerEvents="none"
-              >[{i}]</text>
+                transition={{ duration: 0.5 }}
+              >[{i}]</motion.text>
             )}
           </g>
         );
@@ -435,7 +476,6 @@ export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, st
   const side = obj.side || 'bottom';
   const c = resolve(obj.color || 'yellow');
 
-  // Calculate pointer position
   const cx = (arrayX - totalW / 2) + idx * cw + cw / 2;
   const SHAFT = 30;
   const tipY = side === 'top' ? (arrayY - ch / 2 - 4) : (arrayY + ch / 2 + 4);
@@ -444,37 +484,47 @@ export const FlowPointer = ({ obj, isNew, isHighlighted, isFaded, transition, st
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={isNew ? { opacity: 0, y: side === 'bottom' ? 16 : -16, scale: 0.6 } : false}
       animate={isNew ? { opacity: 1, y: 0, scale: 1 } : { ...config.animate }}
+      exit={config.exit}
       transition={{ ...SPRING_BOUNCY, ...config.transition }}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      {/* Shaft with neon glow */}
       <motion.line
-        x1={cx} y1={baseY} x2={cx} y2={tipY}
+        animate={{ x1: cx, y1: baseY, x2: cx, y2: tipY }}
         stroke={c.stroke} strokeWidth={3} strokeLinecap="round"
         filter="url(#tb-neon-glow)"
         initial={isNew ? { scaleY: 0 } : false}
-        animate={isNew ? { scaleY: 1 } : {}}
+        animate={isNew ? { scaleY: 1, x1: cx, y1: baseY, x2: cx, y2: tipY } : { x1: cx, y1: baseY, x2: cx, y2: tipY }}
         style={{ transformOrigin: `${cx}px ${baseY}px`, transformBox: 'fill-box' }}
         transition={{ duration: 0.3, delay: 0.08 }}
       />
 
-      {/* Arrowhead */}
-      {side === 'bottom'
-        ? <polygon points={`${cx},${tipY + 8} ${cx - 7},${tipY} ${cx + 7},${tipY}`} fill={c.stroke} filter="url(#tb-neon-glow)" />
-        : <polygon points={`${cx},${tipY - 8} ${cx - 7},${tipY} ${cx + 7},${tipY}`} fill={c.stroke} filter="url(#tb-neon-glow)" />
-      }
+      <motion.polygon 
+        animate={{ points: side === 'bottom'
+          ? `${cx},${tipY + 8} ${cx - 7},${tipY} ${cx + 7},${tipY}`
+          : `${cx},${tipY - 8} ${cx - 7},${tipY} ${cx + 7},${tipY}` 
+        }}
+        fill={c.stroke} filter="url(#tb-neon-glow)" 
+        transition={{ duration: 0.5 }}
+      />
 
-      {/* Label pill */}
-      <rect x={cx - 13} y={labelY - 10} width={26} height={20} rx={10}
-        fill={c.stroke} opacity={0.95} filter="url(#tb-drop-shadow)" />
-      <text x={cx} y={labelY} textAnchor="middle" dominantBaseline="central"
+      <motion.rect 
+        animate={{ x: cx - 13, y: labelY - 10 }}
+        width={26} height={20} rx={10}
+        fill={c.stroke} opacity={0.95} filter="url(#tb-drop-shadow)"
+        transition={{ duration: 0.5 }}
+      />
+      <motion.text 
+        animate={{ x: cx, y: labelY }}
+        textAnchor="middle" dominantBaseline="central"
         fill="#fff" fontSize={11} fontWeight="900"
         fontFamily="'JetBrains Mono', monospace" pointerEvents="none"
-      >{obj.label || 'i'}</text>
+        transition={{ duration: 0.5 }}
+      >{obj.label || 'i'}</motion.text>
     </motion.g>
   );
 };
@@ -503,27 +553,32 @@ export const SwapBridge = ({ obj, isNew, stepKey, narrativeHints, attentionOverr
   const d = `M ${x1} ${baseY} Q ${midX} ${midY} ${x2} ${baseY}`;
 
   return (
-    <motion.g key={`${obj.id}-${stepKey}`} data-id={obj.id} style={{ transformOrigin: 'center', transformBox: 'fill-box' }}>
-      {/* Dashed arc */}
+    <motion.g 
+      key={obj.id} 
+      data-id={obj.id} 
+      exit={{ opacity: 0, scale: 0.8 }}
+      layout
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
+    >
       <motion.path
-        d={d} fill="none" stroke={c.stroke} strokeWidth={2.5}
+        animate={{ d }}
+        fill="none" stroke={c.stroke} strokeWidth={2.5}
         strokeDasharray="7 4" strokeLinecap="round"
         filter="url(#tb-neon-glow)"
         initial={{ pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 0.9 }}
+        animate={{ pathLength: 1, opacity: 0.9, d }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
       />
 
-      {/* Travelling orb along path */}
-      <circle r={7} fill={c.glow} filter="url(#tb-neon-glow)" opacity={0}>
+      <motion.circle r={7} fill={c.glow} filter="url(#tb-neon-glow)" opacity={0}>
         <animate attributeName="opacity" values="0;1;1;0" dur="0.65s" begin="0.28s" fill="freeze" />
         <animateMotion dur="0.65s" begin="0.28s" fill="freeze" path={d} />
-      </circle>
+      </motion.circle>
 
-      {/* SWAP label at apex */}
       <motion.g
+        animate={{ x: midX, y: midY }}
         initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
+        animate={{ opacity: 1, y: 0, x: 0 }}
         transition={{ delay: 0.38, duration: 0.3 }}
       >
         <rect x={midX - 26} y={midY - 15} width={52} height={19} rx={9}
@@ -551,47 +606,48 @@ export const Comparator = ({ obj, isNew, isHighlighted, isFaded, transition, sta
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
+      exit={config.exit}
       transition={config.transition}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      {/* Pill background */}
       <motion.rect
         initial={isNew ? config.initial : false}
-        animate={config.animate}
+        animate={{ ...config.animate, x: x - 95, y: y - 23 }}
         transition={config.transition}
-        x={x - 95} y={y - 23} width={190} height={46} rx={23}
+        width={190} height={46} rx={23}
         fill={isTrue ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)'}
         stroke={c.stroke} strokeWidth={2}
         filter="url(#tb-neon-glow)"
         style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
-      {/* Left value */}
-      <text x={x - 54} y={y} textAnchor="middle" dominantBaseline="central"
+      <motion.text animate={{ x: x - 54, y }} textAnchor="middle" dominantBaseline="central"
         fontSize={21} fontWeight="800" fill={c.text}
         fontFamily="'JetBrains Mono',monospace" pointerEvents="none"
-      >{obj.leftVal || '?'}</text>
+        transition={{ duration: 0.5 }}
+      >{obj.leftVal || '?'}</motion.text>
 
-      {/* Operator */}
-      <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+      <motion.text animate={{ x, y }} textAnchor="middle" dominantBaseline="central"
         fontSize={16} fontWeight="700" fill={c.stroke}
         fontFamily="system-ui, sans-serif" pointerEvents="none"
-      >{obj.operator || '>'}</text>
+        transition={{ duration: 0.5 }}
+      >{obj.operator || '>'}</motion.text>
 
-      {/* Right value */}
-      <text x={x + 54} y={y} textAnchor="middle" dominantBaseline="central"
+      <motion.text animate={{ x: x + 54, y }} textAnchor="middle" dominantBaseline="central"
         fontSize={21} fontWeight="800" fill={c.text}
         fontFamily="'JetBrains Mono',monospace" pointerEvents="none"
-      >{obj.rightVal || '?'}</text>
+        transition={{ duration: 0.5 }}
+      >{obj.rightVal || '?'}</motion.text>
 
-      {/* Result badge — spring pop */}
       <motion.g
+        animate={{ x, y }}
         initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+        animate={{ scale: 1, opacity: 1, x: 0, y: 0 }}
         transition={{ delay: 0.22, ...SPRING_SNAPPY }}
       >
         <rect x={x + 99} y={y - 13} width={52} height={26} rx={13} fill={c.stroke} />
@@ -621,16 +677,21 @@ export const CodePanel = ({ obj, isNew, isHighlighted, isFaded, transition, stag
   const isLit = obj.highlight || isHighlighted;
 
   return (
-    <g key={`${obj.id}-${stepKey}`} data-id={obj.id}>
-      {/* Row background */}
+    <motion.g 
+      key={obj.id} 
+      data-id={obj.id} 
+      exit={config.exit}
+      layout
+    >
       <motion.rect
         initial={isNew ? config.initial : false}
         animate={{ 
           ...config.animate,
           opacity: isLit ? 1 : 0.45,
-          x: x - 10, y: y - 14
+          x: x - 10, y: y - 14,
+          width: w + 20
         }}
-        width={w + 20} height={28} rx={5}
+        height={28} rx={5}
         fill={isLit ? c.glass.replace('12)', '35)') : 'transparent'}
         stroke={isLit ? c.stroke + '55' : 'transparent'}
         strokeWidth={1}
@@ -638,42 +699,37 @@ export const CodePanel = ({ obj, isNew, isHighlighted, isFaded, transition, stag
         style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       />
 
-      {/* Active line indicator bar */}
       {isLit && (
-        <rect x={x - 10} y={y - 14} width={3} height={28} rx={2}
-          fill={c.stroke} />
+        <motion.rect animate={{ x: x - 10, y: y - 14 }} width={3} height={28} rx={2}
+          fill={c.stroke} transition={{ duration: 0.5 }} />
       )}
 
-      {/* Scanline sweep */}
       {isLit && (
         <motion.rect
-          x={x - 10} y={y - 14} width={10} height={28} rx={3}
+          animate={{ x: [x - 10, x + w + 10], y: y - 14 }} width={10} height={28} rx={3}
           fill={c.glow} opacity={0.4}
-          initial={{ x: x - 10 }}
-          animate={{ x: x + w + 10 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
           style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
         />
       )}
 
-      {/* Line number */}
-      {obj.lineNumber !== undefined && (
-        <text x={x + 2} y={y} textAnchor="start" dominantBaseline="central"
-          fontSize={11} fontWeight="400" fill={isLit ? c.stroke : '#334155'}
-          fontFamily="'JetBrains Mono',monospace" pointerEvents="none"
-        >{obj.lineNumber}</text>
-      )}
+      <motion.text 
+        animate={{ x: x + 2, y }} textAnchor="start" dominantBaseline="central"
+        fontSize={11} fontWeight="400" fill={isLit ? c.stroke : '#334155'}
+        fontFamily="'JetBrains Mono',monospace" pointerEvents="none"
+        transition={{ duration: 0.5 }}
+      >{obj.lineNumber}</motion.text>
 
-      {/* Code text */}
-      <text
-        x={x + (obj.lineNumber !== undefined ? 26 : 4)} y={y}
+      <motion.text
+        animate={{ x: x + (obj.lineNumber !== undefined ? 26 : 4), y }}
         dominantBaseline="central"
         fontSize={fs} fontWeight={isLit ? '600' : '400'}
         fill={isLit ? c.text : '#475569'}
         fontFamily="'JetBrains Mono','Fira Code',monospace"
         pointerEvents="none"
-      >{obj.code || ''}</text>
-    </g>
+        transition={{ duration: 0.5 }}
+      >{obj.code || ''}</motion.text>
+    </motion.g>
   );
 };
 
@@ -693,25 +749,30 @@ export const FloatingBadge = ({ obj, isNew, isHighlighted, isFaded, transition, 
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
       animate={{
         ...config.animate,
-        y: isNew ? [y - 4, y] : undefined,
+        y: isNew ? [y - 4, y] : y,
       }}
+      exit={config.exit}
       transition={config.transition}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <motion.rect 
         initial={isNew ? { scaleX: 0 } : false}
-        animate={{ x: x - bw / 2, y: y - 14 }}
-        width={bw} height={28} rx={14}
-        fill={c.stroke} filter="url(#tb-drop-shadow)" />
-      <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+        animate={{ scaleX: 1, x: x - bw / 2, y: y - 14, width: bw }}
+        height={28} rx={14}
+        fill={c.stroke} filter="url(#tb-drop-shadow)" 
+        transition={{ duration: 0.5 }}
+      />
+      <motion.text animate={{ x, y }} textAnchor="middle" dominantBaseline="central"
         fill={obj.textColor || '#fff'} fontSize={11} fontWeight="900"
         fontFamily="system-ui, sans-serif" letterSpacing="0.06em" pointerEvents="none"
-      >{text}</text>
+        transition={{ duration: 0.5 }}
+      >{text}</motion.text>
     </motion.g>
   );
 };
@@ -732,20 +793,21 @@ export const DepthText = ({ obj, isNew, isHighlighted, isFaded, transition, stag
 
   return (
     <motion.text
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
-      animate={{ ...config.animate, x, y }}
+      animate={{ ...config.animate, x, y, fontSize: fs }}
+      exit={config.exit}
       transition={config.transition}
       textAnchor={obj.anchor || obj.align || 'middle'}
       dominantBaseline="central"
-      fontSize={fs}
       fontWeight={isHighlighted ? '800' : (obj.fontWeight || '600')}
       fontStyle={obj.italic ? 'italic' : 'normal'}
       fill={isHighlighted ? c.stroke : c.text}
       fontFamily={obj.fontFamily || 'system-ui, sans-serif'}
       filter="url(#tb-drop-shadow)"
       pointerEvents="none"
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >{content}</motion.text>
   );
@@ -760,19 +822,21 @@ export const WavePath = ({ obj, isNew, isHighlighted, isFaded, transition, stagg
   if (!obj) return null;
   const sw = safeNum(obj.strokeWidth, 2);
   const c = resolve(obj.color);
+  const config = animEngine.getFullConfig(obj, { isNew, isHighlighted, isFaded, transition, staggerIndex });
 
   return (
     <motion.path
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
-      d={obj.d || ''}
+      initial={isNew ? { pathLength: 0, opacity: 0 } : false}
+      animate={{ pathLength: 1, opacity: isFaded ? 0.3 : 1, d: obj.d || '' }}
+      exit={config.exit}
       fill={obj.fill === 'none' || !obj.filled ? 'none' : c.glass}
       stroke={c.stroke} strokeWidth={sw} strokeLinecap="round"
       filter={isHighlighted ? 'url(#tb-neon-glow)' : 'none'}
-      initial={isNew ? { pathLength: 0, opacity: 0 } : false}
-      animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
-      style={{ ...(isFaded ? { opacity: 0.3 } : {}), transformOrigin: 'center', transformBox: 'fill-box' }}
+      style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
       transition={{ duration: 0.8, ease: EASE_CINEMATIC }}
+      layout
     />
   );
 };
@@ -782,7 +846,7 @@ export const WavePath = ({ obj, isNew, isHighlighted, isFaded, transition, stagg
 // Smooth animated arc with angle markers
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const ArcPath = ({ obj, isNew, stepKey, narrativeHints, attentionOverride }) => {
+export const ArcPath = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const cx = safeNum(obj.cx ?? obj.x, CW / 2);
   const cy = safeNum(obj.cy ?? obj.y, CH / 2);
@@ -798,17 +862,20 @@ export const ArcPath = ({ obj, isNew, stepKey, narrativeHints, attentionOverride
   const ex = cx + r * Math.cos(toRad(ea));
   const ey = cy - r * Math.sin(toRad(ea));
   const large = Math.abs(ea - sa) > 180 ? 1 : 0;
+  const d = `M ${sx} ${sy} A ${r} ${r} 0 ${large} 0 ${ex} ${ey}`;
 
   return (
     <motion.path
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
-      d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 0 ${ex} ${ey}`}
+      animate={{ d }}
       fill="none" stroke={c.stroke} strokeWidth={sw} strokeLinecap="round"
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
-      animate={isNew ? { pathLength: 1, opacity: 1 } : {}}
+      animate={{ pathLength: 1, opacity: 1, d }}
+      exit={{ opacity: 0, scale: 0.8 }}
       transition={{ duration: 0.65, ease: EASE_CINEMATIC }}
       style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
+      layout
     />
   );
 };
@@ -829,24 +896,25 @@ export const HighlightZone = ({ obj, isNew, isHighlighted, isFaded, transition, 
 
   return (
     <motion.g
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
       initial={config.initial}
       animate={config.animate}
+      exit={config.exit}
       transition={config.transition}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      {/* Label */}
       {obj.label && (
         <motion.text 
           animate={{ x: x + w / 2, y: y - 11 }}
           textAnchor="middle" dominantBaseline="central"
           fontSize={12} fontWeight="700" fill={c.stroke}
           fontFamily="system-ui, sans-serif" pointerEvents="none"
+          transition={{ duration: 0.5 }}
         >{obj.label}</motion.text>
       )}
 
-      {/* Pulsing zone */}
       <motion.rect
         animate={{ x, y, width: w, height: h, opacity: [0.5, 0.85, 0.5] }}
         rx={10}
@@ -865,7 +933,7 @@ export const HighlightZone = ({ obj, isNew, isHighlighted, isFaded, transition, 
 // SimpleLine — Replaces Line
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const SimpleLine = ({ obj, isNew, isFaded, stepKey, narrativeHints, attentionOverride }) => {
+export const SimpleLine = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const config = animEngine.getFullConfig(obj, { isNew, isFaded, transition: 'drawLine', narrativeHints, attentionOverride });
   
@@ -876,16 +944,18 @@ export const SimpleLine = ({ obj, isNew, isFaded, stepKey, narrativeHints, atten
 
   return (
     <motion.path
-      key={`${obj.id}-${stepKey}`}
+      key={obj.id}
       data-id={obj.id}
-      d={`M ${x1} ${y1} L ${x2} ${y2}`}
+      animate={{ d: `M ${x1} ${y1} L ${x2} ${y2}` }}
       stroke={c.stroke} strokeWidth={sw}
       strokeDasharray={obj.dashed ? '7 3' : undefined}
       strokeLinecap="round" opacity={isFaded ? 0.25 : (obj.opacity ?? 0.65)}
       initial={isNew ? { pathLength: 0, opacity: 0 } : false}
-      animate={isNew ? { pathLength: 1, opacity: obj.opacity ?? 0.65 } : { ...config.animate }}
+      animate={{ pathLength: 1, opacity: obj.opacity ?? 0.65, d: `M ${x1} ${y1} L ${x2} ${y2}` }}
+      exit={config.exit}
       transition={{ duration: 0.55, ease: EASE_CINEMATIC, ...config.transition }}
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
+      layout
     />
   );
 };
@@ -894,7 +964,7 @@ export const SimpleLine = ({ obj, isNew, isFaded, stepKey, narrativeHints, atten
 // Orbit — Orbital body with circular motion
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const OrbitBody = ({ obj, index = 0, narrativeHints, attentionOverride }) => {
+export const OrbitBody = ({ obj, isNew, isHighlighted, isFaded, transition, staggerIndex = 0, stepKey, narrativeHints, attentionOverride }) => {
   if (!obj) return null;
   const config = animEngine.getFullConfig(obj, { isNew: true, narrativeHints, attentionOverride });
   
@@ -904,17 +974,24 @@ export const OrbitBody = ({ obj, index = 0, narrativeHints, attentionOverride })
   const r = safeNum(obj.size ?? obj.r ?? 10, 10);
   const speed = safeNum(obj.speed, 8);
   const c = resolve(obj.color || obj.fill || 'blue');
-  const pathId = `orbit-path-${obj.id || index}`;
+  const uid = useId();
+  const pathId = `orbit-path-${obj.id || index}-${uid.replace(/:/g, '')}`;
 
   return (
     <motion.g
-      initial={{ opacity: 0 }} animate={{ opacity: 1, ...config.animate }}
-      transition={{ delay: index * 0.15, duration: 0.5, ...config.transition }}
+      key={obj.id}
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1, ...config.animate }}
+      exit={config.exit}
+      transition={{ delay: (staggerIndex || 0) * 0.15, duration: 0.5, ...config.transition }}
+      layout
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
-      <circle cx={cx} cy={cy} r={or}
+      <motion.circle animate={{ cx, cy, r: or }}
         fill="none" stroke="#334155" strokeWidth={1}
-        strokeDasharray="4 6" opacity={0.2} />
+        strokeDasharray="4 6" opacity={0.2} 
+        transition={{ duration: 0.5 }}
+      />
       <defs>
         <path id={pathId}
           d={`M ${cx - or},${cy} a ${or},${or} 0 1,1 ${or * 2},0 a ${or},${or} 0 1,1 -${or * 2},0`} />
@@ -934,4 +1011,70 @@ export const OrbitBody = ({ obj, index = 0, narrativeHints, attentionOverride })
       )}
     </motion.g>
   );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CinematicShapeRouter
+// Resolves higher-fidelity shapes based on object type
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const CinematicShapeRouter = (props) => {
+  const { obj, attentionRole, isFaded, stepKey } = props;
+  if (!obj) return null;
+  const s = (obj.type || obj.shape || 'circle').toLowerCase();
+
+  const wrapDraggable = (el) => {
+    const isEffectivelyFaded = isFaded || attentionRole === 'background';
+    const targetOpacity = isEffectivelyFaded ? 0.32 : 1;
+
+    return (
+      <motion.g
+        key={`${obj.id}-${stepKey}`}
+        drag dragMomentum={false}
+        onDragStart={e => e.stopPropagation()}
+        style={{ cursor: 'grab', transformOrigin: 'center', transformBox: 'fill-box' }}
+        whileTap={{ cursor: 'grabbing' }}
+        animate={{ opacity: targetOpacity }}
+        transition={{ duration: 0.4 }}
+        layout
+      >
+        {attentionRole === 'dominant' && s !== 'text' && s !== 'badge' && (
+          <DominanceRing obj={obj} attentionRole={attentionRole} />
+        )}
+        {el}
+      </motion.g>
+    );
+  };
+
+  switch (s) {
+    case 'circle':
+    case 'orb':
+    case 'node':          return wrapDraggable(<GlowOrb {...props} />);
+    case 'rect':
+    case 'rectangle':
+    case 'box':           return wrapDraggable(<GlassRect {...props} />);
+    case 'arrow':
+    case 'connector':
+    case 'line':          return wrapDraggable(<FlowArrow {...props} />);
+    case 'array':
+    case 'arraycell':
+    case 'datablock':     return wrapDraggable(<DataBlock {...props} />);
+    case 'pointer':       return wrapDraggable(<FlowPointer {...props} />);
+    case 'swapbridge':    return wrapDraggable(<SwapBridge {...props} />);
+    case 'comparator':    return wrapDraggable(<Comparator {...props} />);
+    case 'codeline':      return wrapDraggable(<CodePanel {...props} />);
+    case 'badge':         return wrapDraggable(<FloatingBadge {...props} />);
+    case 'text':
+    case 'label':
+    case 'formula':       return wrapDraggable(<DepthText {...props} />);
+    case 'path':          return wrapDraggable(<WavePath {...props} />);
+    case 'arc':
+    case 'angle':         return wrapDraggable(<ArcPath {...props} />);
+    case 'highlightbox':
+    case 'zone':          return wrapDraggable(<HighlightZone {...props} />);
+    case 'simpleline':    return wrapDraggable(<SimpleLine {...props} />);
+    case 'orbit':
+    case 'planet':        return wrapDraggable(<OrbitBody {...props} />);
+    default:              return wrapDraggable(<GlowOrb {...props} />);
+  }
 };

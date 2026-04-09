@@ -514,7 +514,7 @@ const StepPanel = ({
 
   const narrationText = currentStep?.narration || node?.content || currentStep?.description || '';
   const stepTitle = currentStep?.title || node?.title || `Step ${currentStepIndex + 1}`;
-  const duration = currentStep?.duration || 3500;
+  const duration = currentStep?.durationMs || currentStep?.duration || 3500;
 
   const { displayedText, done } = useTypewriter(narrationText, duration);
 
