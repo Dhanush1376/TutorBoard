@@ -421,31 +421,14 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
       { role: 'user', content: buildTeachingPrompt(topic) }
     ];
 
-    let data;
-    let attempts = 0;
-    const maxAttempts = 2;
-
-    while (attempts < maxAttempts) {
-      attempts++;
-      try {
-        data = await runAgentLoop({
-          topic,
-          domain,
-          systemPrompt,
-          maxSteps
-        });
-
-        const validation = validateTimeline(data);
-        if (validation.valid) break;
-
-        console.warn(`[Orchestrator] Timeline validation failed (Attempt ${attempts}): ${validation.errors.join(', ')}`);
-        // Inject errors into the next loop iteration (via system prompt update)
-        systemPrompt += `\n\nERROR FROM PREVIOUS ATTEMPT: ${validation.errors.join('. ')}. Please fix these and expand the step count to meet the requirement.`;
-      } catch (err) {
-        console.error(`[Orchestrator] AgentLoop Error (Attempt ${attempts}):`, err.message);
-        if (attempts >= maxAttempts) throw err;
-      }
-    }
+    // Bypassing agentLoop for timeline generation due to Gemini tool-calling incompatibility.
+    // Reverting to callLLMWithRetry which handles structured validation & retries correctly for Gemini.
+    const data = await callLLMWithRetry(
+      messages,
+      validateTimeline,
+      1,
+      getTokenBudget()
+    );
 
     if (!data) {
       console.warn(`[Orchestrator] AI failed to generate timeline for: "${topic}". Using high-quality fallback.`);
