@@ -11,6 +11,7 @@ import {
   detectDomain,
   buildTimelinePrompt,
   getNodeTemplates,
+  getAnimationGuide,
   getMinSteps,
   getVisualScaffold,
   REFLECTION_AGENT_PROMPT,
@@ -379,6 +380,11 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
 
   const domain = detectDomain(topic);
   console.log(`[Orchestrator] Topic: "${topic}" → Domain: ${domain}`);
+
+  const nodeTemplates = getNodeTemplates(domain);
+  const animationGuide = getAnimationGuide(domain);
+  const minSteps = getMinSteps(domain, topic);
+  const maxSteps = Math.max(minSteps, 15);
 
   try {
     // Step 1: Generate Curriculum (Maestro)
