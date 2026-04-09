@@ -287,9 +287,9 @@ export class CameraDirector {
       };
     }
 
-    // Strategy 4: Step has explicit camera hint
-    if (step?.cameraFocus) {
-      const { x, y, zoom } = step.cameraFocus;
+    // Strategy 4: Step has explicit camera hint (AI-directed)
+    if (step?.cameraHint) {
+      const { x, y, zoom } = step.cameraHint;
       return {
         type: 'focus',
         x: x ?? CANVAS_CENTER.x,

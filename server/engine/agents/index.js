@@ -14,5 +14,6 @@ export {
   getMinSteps,
   getVisualScaffold
 } from './domainConfig.js';
-export { DOUBT_RESPONSE_PROMPT, buildDoubtPrompt, classifyDoubt } from './doubtPrompt.js';
-export { buildTimelinePrompt } from './timelinePrompt.js';
+export { DOUBT_RESPONSE_PROMPT, buildDoubtPrompt } from './doubtPrompt.js';
+export { classifyDoubt } from './doubtClassifier.js';
+export { buildTimelinePrompt, TIMELINE_RESPONSE_SCHEMA } from './timelinePrompt.js';

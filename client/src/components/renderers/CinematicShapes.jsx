@@ -140,15 +140,16 @@ export const GlowOrb = ({ obj, isNew, isHighlighted, isFaded, transition, stagge
     >
       <defs>
         <radialGradient id={gradId} cx="35%" cy="35%" r="75%">
-          <stop offset="0%" stopColor={c.text} stopOpacity="0.8" />
+          <stop offset="0%" stopColor={c.text} stopOpacity="0.85" />
           <stop offset="50%" stopColor={c.fill} stopOpacity="1" />
-          <stop offset="100%" stopColor="#0a0a12" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#020617" stopOpacity="1" />
         </radialGradient>
       </defs>
 
       {showGlow && (
         <motion.circle
-          animate={{ cx: x, cy: y, r: [r + 8, r + 18, r + 8], opacity: [0.2, 0.5, 0.2] }}
+          initial={{ cx: x, cy: y, r: r + 8, opacity: 0 }}
+          animate={{ cx: x, cy: y, r: [r + 8, r + 20, r + 8], opacity: [0.2, 0.45, 0.2] }}
           fill="none" stroke={c.glow} strokeWidth={2} opacity={0.3}
           transition={{ 
             r: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
@@ -232,7 +233,7 @@ export const GlassRect = ({ obj, isNew, isHighlighted, isFaded, transition, stag
       style={{ ...config.style, transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       <motion.rect
-        initial={isNew ? config.initial : false}
+        initial={isNew ? { ...config.initial, x: px, y: py, width: w, height: h } : { x: px, y: py, width: w, height: h }}
         animate={{ ...config.animate, x: px, y: py, width: w, height: h }}
         transition={config.transition}
         rx={rx}
@@ -1017,6 +1018,33 @@ export const OrbitBody = ({ obj, isNew, isHighlighted, isFaded, transition, stag
     </motion.g>
   );
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CinematicFilters
+// Global SVG filters for the AI renderer
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const CinematicFilters = () => (
+  <defs>
+    <filter id="tb-neon-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feFlood floodColor="white" floodOpacity="0.2" result="flood" />
+      <feComposite in="flood" in2="blur" operator="in" result="glow" />
+      <feComposite in="SourceGraphic" in2="glow" operator="over" />
+    </filter>
+    <filter id="tb-drop-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4.5" result="blur" />
+      <feOffset dx="0" dy="8" result="offsetBlur" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.55" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CinematicShapeRouter

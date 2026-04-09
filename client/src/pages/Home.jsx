@@ -13,7 +13,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 // Canvas & Teaching Overlays
 import InfiniteCanvas from '../components/canvas/InfiniteCanvas';
-import CanvasRenderer from '../components/canvas/CanvasRenderer';
+import AgentCanvasRenderer from '../components/canvas/AgentCanvasRenderer';
 import CanvasControls from '../components/canvas/CanvasControls';
 import CanvasMinimap from '../components/canvas/CanvasMinimap';
 import StepPanel from '../components/teaching/StepPanel';
@@ -269,10 +269,38 @@ const Home = ({ isDark }) => {
         return next;
       });
 
-      // Quick Mode UX: Focus Chat & Pan away from Canvas
-      setSidebarOpen(true);
+      // Enforce Canvas-Only UX: Do not pull focus to chat
+      // setSidebarOpen(true);
     }
-  }, [greetingMessage, activeChatId, setSidebarOpen]);
+  }, [greetingMessage, activeChatId]);
+
+  // ── AI Automation: Handle 'prompt' URL param ──
+  const hasAutoStarted = useRef(false);
+  useEffect(() => {
+    if (hasAutoStarted.current) return;
+    
+    const params = new URLSearchParams(window.location.search);
+    const urlPrompt = params.get('prompt');
+    
+    if (urlPrompt) {
+      console.log('[Home] Auto-start detected for prompt:', urlPrompt);
+      hasAutoStarted.current = true;
+      
+      // Give the machine a moment to connect if it hasn't yet
+      const timer = setTimeout(() => {
+        setPrompt(urlPrompt);
+        // We can't call handleSubmit directly because it's defined after many state variables,
+        // so we'll just replicate the startup logic here or wait for prompt state to settle.
+        // Better: trigger startSession directly since we are already in Home.
+        startSession(urlPrompt, urlPrompt, 'explain');
+        // Clear param so it doesn't re-start on refresh if navigating back
+        const newUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', newUrl);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [startSession]);
 
   // ── Sync Errors to Chat ──
   const lastErrorRef = useRef(null);
@@ -407,13 +435,11 @@ const Home = ({ isDark }) => {
       const next = [...prev]; next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; return next;
     });
 
-    if (machineState !== STATES.IDLE && machineState !== STATES.COMPLETED && machineState !== STATES.ERROR) {
-      // ── Session Active: Register as Doubt ──
-      askDoubt(userPrompt, activeMode);
-    } else {
-      // ── New Session ──
-      startSession(userPrompt, userPrompt, activeMode);
-    }
+    // ── Enforce fully visual answers for EVERY question ──
+    // The user explicitly requested perfect animations for all queries
+    // and strictly no text chat bubbles ("blue boxes").
+    setSidebarOpen(false);
+    startSession(userPrompt, userPrompt, activeMode);
   };
 
   const domain = timeline?.domain?.toLowerCase() || 'general';
@@ -445,9 +471,8 @@ const Home = ({ isDark }) => {
           onViewportChange={setCanvasTransform}
           onInteractionStart={() => { isAutoFollow.current = false; }}
         >
-          <CanvasRenderer
-            objects={canvasObjects}
-            steps={canvasSteps}
+          <AgentCanvasRenderer
+            timeline={timeline}
             currentStepIndex={currentStepIndex}
           />
         </InfiniteCanvas>

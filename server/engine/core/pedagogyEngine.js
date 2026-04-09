@@ -1,5 +1,10 @@
 /**
- * AI Orchestrator v4.0 — DeepSeek via OpenRouter
+ * AI Orchestrator v5.0 — Fully Agentic Pipeline
+ * 
+ * v5.0 Changes:
+ *   - Visual Coherence Agent validates spatial, referential, and narrative consistency
+ *   - Pedagogy-grounded retry before fallback (no silent degradation)
+ *   - Real tool calls in agentLoop (see agentLoop.js v2)
  */
 
 import { requestCompletion, getModel, getTextModel } from '../utils/llmClient.js';
@@ -10,6 +15,7 @@ import {
   buildTeachingPrompt,
   detectDomain,
   buildTimelinePrompt,
+  TIMELINE_RESPONSE_SCHEMA,
   getNodeTemplates,
   getAnimationGuide,
   getMinSteps,
@@ -22,9 +28,105 @@ import { safeParse, validateTimeline, validateDoubtResponse, buildRetryPrompt, v
 import sessionStore from './sessionStore.js';
 import { cache } from './cache.js';
 import { runAgentLoop } from './agentLoop.js';
-import { critqueStep } from '../agents/stepCritic.js';
+import { critiqueStep } from '../agents/stepCritic.js';
 import { searchDomainKnowledge, formatSearchContext } from '../tools/webSearch.js';
 import tracer from '../utils/tracer.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VISUAL COHERENCE AGENT
+// Validates that AI-generated timeline is visually consistent and self-consistent.
+// If issues found, triggers one LLM repair call.
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function validateVisualCoherence(timeline, domain, topic) {
+  const issues = [];
+  const objectIds = new Set((timeline.objects || []).map(o => o.id));
+
+  // Rule 1: All objects must have x/y within canvas safe zone [60,740] x [60,540]
+  for (const obj of (timeline.objects || [])) {
+    if (obj.x !== undefined && (obj.x < 40 || obj.x > 760)) {
+      issues.push(`Object "${obj.id}" has x=${obj.x} — out of canvas safe zone [60,740].`);
+    }
+    if (obj.y !== undefined && (obj.y < 40 || obj.y > 560)) {
+      issues.push(`Object "${obj.id}" has y=${obj.y} — out of canvas safe zone [60,540].`);
+    }
+  }
+
+  // Rule 2: Each step's objectIds must reference real objects
+  for (const step of (timeline.steps || [])) {
+    for (const id of (step.objectIds || [])) {
+      if (!objectIds.has(id)) {
+        issues.push(`Step ${step.index} references objectId "${id}" which does not exist in objects[].`);
+      }
+    }
+    // Rule 3: newIds must be a subset of objectIds
+    for (const id of (step.newIds || [])) {
+      if (!(step.objectIds || []).includes(id)) {
+        issues.push(`Step ${step.index}: newId "${id}" is not in objectIds.`);
+      }
+    }
+    // Rule 4: Every step must have narration
+    if (!step.narration || step.narration.trim().length < 20) {
+      issues.push(`Step ${step.index} has missing or too-short narration.`);
+    }
+  }
+
+  // Rule 5: No duplicate object IDs
+  const seenIds = new Set();
+  for (const obj of (timeline.objects || [])) {
+    if (seenIds.has(obj.id)) {
+      issues.push(`Duplicate object ID: "${obj.id}".`);
+    }
+    seenIds.add(obj.id);
+  }
+
+  // Rule 6: appearsAtStep must be within step range
+  const maxStepIdx = (timeline.steps || []).length - 1;
+  for (const obj of (timeline.objects || [])) {
+    if (obj.appearsAtStep > maxStepIdx) {
+      issues.push(`Object "${obj.id}" has appearsAtStep=${obj.appearsAtStep} but max step index is ${maxStepIdx}.`);
+    }
+  }
+
+  if (issues.length === 0) {
+    console.log('[VisualCoherenceAgent] ✅ Timeline passes all coherence checks.');
+    return timeline;
+  }
+
+  console.warn(`[VisualCoherenceAgent] ⚠️ Found ${issues.length} coherence issues. Triggering repair...`);
+  issues.forEach(i => console.warn('  -', i));
+
+  // ONE repair attempt
+  try {
+    const repairMessages = [
+      {
+        role: 'system',
+        content: `You are a JSON repair agent for a visual teaching timeline.
+Fix ONLY the broken fields listed. Do not change correct fields.
+Return the complete corrected timeline JSON. No markdown. No explanation. Only JSON.`
+      },
+      {
+        role: 'user',
+        content: `The following timeline for "${topic}" has these issues:\n${issues.map((i, n) => `${n+1}. ${i}`).join('\n')}\n\nFull timeline to repair:\n${JSON.stringify(timeline)}\n\nReturn the repaired timeline JSON.`
+      }
+    ];
+
+    const repaired = await callLLMWithRetry(repairMessages, validateTimeline, 0, 8192);
+    if (repaired) {
+      console.log('[VisualCoherenceAgent] ✅ Repair succeeded.');
+      return repaired;
+    }
+  } catch (err) {
+    console.error('[VisualCoherenceAgent] Repair failed:', err.message);
+  }
+
+  // If repair fails, return original and let the renderer handle gracefully
+  return timeline;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FALLBACKS & UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
 
 /**
  * Generates a high-quality fallback timeline when the AI fails.
@@ -92,7 +194,7 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const attemptTag = `[Orchestrator:${attempt + 1}/${maxRetries + 1}]`;
-      const totalPromptLength = messages.reduce((acc, m) => acc + m.content.length, 0);
+      const totalPromptLength = messages.reduce((acc, m) => acc + (m.content || '').length, 0);
       console.log(`${attemptTag} Starting LLM call... (Prompt: ${totalPromptLength} chars, Max Tokens: ${maxTokens})`);
 
       const model = getModel();
@@ -182,6 +284,10 @@ async function callLLMWithRetry(messages, validateFn, maxRetries = 1, maxTokens 
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMELINE PROCESSING
+// ═══════════════════════════════════════════════════════════════════════════
+
 function processTimeline(data, detectedDomain, rawTopic) {
   const objects = Array.isArray(data.objects) ? data.objects : [];
   const steps = Array.isArray(data.steps) ? data.steps : [];
@@ -231,9 +337,6 @@ function processTimeline(data, detectedDomain, rawTopic) {
     
     // Ensure both are present for maximum compatibility
     if (!step.durationMs) step.durationMs = step.duration;
-    
-    // Ensure both are present for maximum compatibility across older client versions
-    if (step.duration && !step.durationMs) step.durationMs = step.duration;
 
     if (!step.narration) step.narration = step.description || step.title || '';
   });
@@ -246,6 +349,9 @@ function processTimeline(data, detectedDomain, rawTopic) {
   return data;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PEDAGOGY GENERATION (Maestro → Reflection)
+// ═══════════════════════════════════════════════════════════════════════════
 
 async function refinePedagogy(pedagogy, topic, userProfile) {
   console.log('[Orchestrator] 🚩 Refining pedagogy to remove complexity/confusion...');
@@ -370,6 +476,10 @@ export async function generatePedagogy(topic, userProfile) {
   return pedagogy;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMELINE GENERATION — THE CORE PIPELINE
+// ═══════════════════════════════════════════════════════════════════════════
+
 export async function generateTimeline(sessionId, topic, onProgress = () => {}) {
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
@@ -397,9 +507,15 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
     onProgress('Step 2/2: Generating final visual timeline...');
     const visualScaffold = getVisualScaffold(domain);
 
-    // ── Phase 2: Web Search Grounding ──
-    const searchResult = await searchDomainKnowledge(domain, topic);
-    const searchContext = formatSearchContext(searchResult);
+    // ── Phase: Web Search Grounding ──
+    let searchContext = "";
+    if (domain !== 'dsa' && domain !== 'mathematics') {
+      const searchResult = await searchDomainKnowledge(domain, topic);
+      const formattedContext = formatSearchContext(searchResult);
+      if (formattedContext) {
+        searchContext = `\n━━━ VERIFIED KNOWLEDGE ━━━\n${formattedContext}\nUse the above verified facts to ensure technical accuracy in your narration.`;
+      }
+    }
     
     const systemPrompt = buildTimelinePrompt({
       topic,
@@ -408,7 +524,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
       animationGuide,
       minSteps,
       visualScaffold,
-      grounding: searchContext, // Injection point
+      grounding: searchContext,
       plan: pedagogy,
       behavior: { steps: pedagogy.final_steps },
       execution: { execution_plan: pedagogy.final_steps?.map(s => ({ ...s.execution, step_number: s.step_number })) },
@@ -421,28 +537,50 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
       { role: 'user', content: buildTeachingPrompt(topic) }
     ];
 
-    // Bypassing agentLoop for timeline generation due to Gemini tool-calling incompatibility.
-    // Reverting to callLLMWithRetry which handles structured validation & retries correctly for Gemini.
-    const data = await callLLMWithRetry(
+    // Using responseSchema for guaranteed valid JSON on Gemini 2.0 Flash.
+    const result = await requestCompletion({
+      model: getModel(),
       messages,
-      validateTimeline,
-      1,
-      getTokenBudget()
-    );
+      temperature: 0.1,
+      maxTokens: 8192,
+      responseMimeType: "application/json",
+      responseSchema: TIMELINE_RESPONSE_SCHEMA
+    });
 
+    let data = safeParse(result.content);
+
+    // ── PEDAGOGY-GROUNDED RETRY (before fallback) ──
     if (!data) {
-      console.warn(`[Orchestrator] AI failed to generate timeline for: "${topic}". Using high-quality fallback.`);
-      return getDomainFallback(domain, topic);
+      console.warn(`[Orchestrator] First timeline attempt failed. Attempting pedagogy-grounded retry...`);
+
+      const retryMessages = [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: `Your previous response was incomplete or invalid JSON.
+Here is the full teaching plan you must animate:\n${JSON.stringify(pedagogy, null, 2)}
+Topic: "${topic}". Generate a complete, valid timeline JSON now. Minimum ${minSteps} steps.`
+        }
+      ];
+
+      const retryData = await callLLMWithRetry(retryMessages, validateTimeline, 0, getTokenBudget());
+
+      if (!retryData) {
+        console.warn('[Orchestrator] Retry also failed. Using domain fallback.');
+        return getDomainFallback(domain, topic);
+      }
+
+      data = retryData;
     }
 
     const processed = processTimeline(data, domain, topic);
     processed.domain = processed.domain || domain;
     processed.mode = processed.mode || 'explain';
 
-    // ── Phase 2: Step-Level Critic & Targeted Repair ──
+    // ── Phase: Step-Level Critic & Targeted Repair ──
     console.log(`[Orchestrator] 🕵️ Starting Step Critic evaluation for ${processed.steps.length} steps...`);
     for (let i = 0; i < processed.steps.length; i++) {
-      const critique = await critqueStep(processed.steps[i]);
+      const critique = await critiqueStep(processed.steps[i]);
       if (critique.average < 6) {
         console.warn(`[Orchestrator] 🛠️ Step ${i} ("${processed.steps[i].title}") failed critique (${critique.average}/10). Remedying: ${critique.critique}`);
         
@@ -454,12 +592,17 @@ REMEDY: ${critique.remedy}
 
 Generate a REPLACEMENT for this step that fixes these issues while maintaining the same step ID and index.`;
 
-        const repairedStep = await runAgentLoop({
-          topic: `${topic} (Step ${i} Repair)`,
-          domain,
-          systemPrompt: repairPrompt,
-          maxSteps: 1
-        });
+        const repairMessages = [
+          { role: 'system', content: repairPrompt },
+          { role: 'user', content: "Please provide the JSON replacement for this step." }
+        ];
+
+        const repairedStep = await callLLMWithRetry(
+          repairMessages,
+          (p) => ({ valid: !!(p.steps && p.steps[0]), errors: [] }),
+          1,
+          2048
+        );
 
         if (repairedStep && repairedStep.steps && repairedStep.steps[0]) {
           console.log(`[Orchestrator] ✅ Step ${i} repaired successfully.`);
@@ -468,15 +611,22 @@ Generate a REPLACEMENT for this step that fixes these issues while maintaining t
       }
     }
 
-    sessionStore.setTimeline(sessionId, processed);
-    return processed;
+    // ── Phase: Visual Coherence Agent ──
+    console.log('[Orchestrator] 🔍 Running Visual Coherence Agent...');
+    const coherentTimeline = await validateVisualCoherence(processed, domain, topic);
+    sessionStore.setTimeline(sessionId, coherentTimeline);
+    return coherentTimeline;
 
   } catch (err) {
-    console.error('[Orchestrator] Fatal Error during 5-stage pipeline:', err.message);
+    console.error('[Orchestrator] Fatal Error during agentic pipeline:', err.message);
     // Absolute safety fallback
     return getDomainFallback(domain, topic);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEXT RESPONSE & DOUBT HANDLING
+// ═══════════════════════════════════════════════════════════════════════════
 
 export async function generateTextResponse(sessionId, promptStr) {
   try {

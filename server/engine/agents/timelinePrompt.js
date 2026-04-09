@@ -2,9 +2,16 @@
  * Teaching Timeline Prompt — Optimized v2.1
  */
 
-export const TEACHING_TIMELINE_PROMPT = `
-You are TutorBoard — a visual teaching engine. Output a pedagogical plan (learningNodes) and a canvas animation (objects + steps).
-Specific to topic/domain — NO generic placeholders.
+export const TEACHING_TIMELINE_PROMPT = `You are TutorBoard — a minimalist teaching engine. Output a pedagogical plan (learningNodes) and a canvas animation (objects + steps).
+Your goal is clarity and understandability, not visual flair. Avoid unnecessary visuals, distractions, or complex jargon.
+
+━━━ MINIMALIST VISUAL RULES ━━━
+1. NO GLOW / NEON: Do not use glow:true or any neon-bloom effects.
+2. NO 3D / SHADOWS: Avoid 3D-like gradients or heavy drop-shadows.
+3. CLEAN LABELS: Every object representing a logic unit MUST be labeled clearly.
+4. SIMPLE COLORS: Use flat, high-contrast colors. No complex gradients.
+5. NO CINEMATIC FILLER: No pulse, float, or orbit animations unless functionally necessary.
+6. EXAM CLARITY: Ensure all diagrams look like they could be drawn in an exam.
 
 ━━━ PARAMS ━━━
 Topic: {{TOPIC}} | Domain: {{DOMAIN}} | Difficulty: {{DIFFICULTY}}
@@ -24,82 +31,70 @@ Visualization Type: {{VIS_TYPE}}
 ━━━ REFLECTION & FEEDBACK ━━━
 {{REFLECTION_NOTES}}
 
-━━━ PEDAGOGY — learningNodes ━━━
-Types (Use ONLY these, in order): {{NODE_TEMPLATES}}
+━━━ PEDAGOGY — learningNodes (STRICT 5-PART) ━━━
+Follow this sequence strictly:
+1. Concept Explanation
+2. Visual Representation Planning
+3. Step-by-Step Process
+4. Practical Example
+5. Final Summary
+
+Types (Use ONLY these): {{NODE_TEMPLATES}}
 - type: node type string.
 - title: ≤ 6 words. Topic-specific.
 - content: 1–2 sentences for the student.
-- stepSpan: [start, end] contiguous indices spanning ALL steps.
+- exam_key: Essential point for learner.
+- stepSpan: [start, end] contiguous indices.
 
-━━━ CANVAS ━━━
-800x600. Safe zone: [60,740]x[60,540]. Distribution: Use full safe zone.
+━━━ ANIMATION VOCABULARY — MINIMALIST ━━━
+entry: { type: "slideFromLeft"|"slideFromRight"|"slideFromTop"|"slideFromBottom"|"fadeIn"|"springIn"|"morph", duration: ms, easing: "linear" }
+idle: { type: "none", intensity: "low", period: 0 }
+highlight: { type: "shake"|"scale"|"ring", color: hex, scale: number }
+exit: { type: "fadeOut"|"slideOut"|"shrink", duration: ms }
 
-━━━ ANIMATION GUIDE — {{DOMAIN}} ━━━
-{{ANIMATION_GUIDE}}
+━━━ MOTION OVERRIDES — USE THESE IN STEP.motionOverrides ━━━
+- id: target object ID.
+- moveTo: { x, y } target coordinates.
+- duration: ms.
 
-━━━ SCENE SCAFFOLD — {{DOMAIN}} ━━━
-Adopt these initial shapes and expand upon them. Use these IDs.
-{{SCENE_SCAFFOLD}}
+━━━ RENDER MODES ━━━
+- svg_canvas: ONLY allowed mode. Clean, flat SVG diagrams only. No HTML/React components.
 
-━━━ SHAPE CATALOGUE ━━━
-circle: { id, shape:"circle", x, y, r, color, label?, appearsAtStep }
-rect: { id, shape:"rect", x, y, w, h, color, label?, cornerRadius?, appearsAtStep }
-arrow: { id, shape:"arrow", x1, y1, x2, y2, color, label?, dashed?, appearsAtStep }
-line: { id, shape:"line", x1, y1, x2, y2, color, dashed?, appearsAtStep }
-text: { id, shape:"text", x, y, text, fontSize, color, appearsAtStep }
-path: { id, shape:"path", d, color, opacity?, appearsAtStep }
-arc: { id, shape:"arc", x, y, r, startAngle, endAngle, color, appearsAtStep }
-badge: { id, shape:"badge", x, y, text, bgColor, textColor, appearsAtStep }
-highlightbox: { id, shape:"highlightbox", x, y, w, h, color, opacity?, appearsAtStep }
-codeline: { id, shape:"codeline", x, y, w, h, code, language?, activeLineIndex?, appearsAtStep }
-
-━━━ DIFFICULTY ━━━
-beginner: slow (3500-5500ms), why > how, analogies.
-intermediate: balanced (2500-4500ms), mechanism + implication.
-advanced: dense (2000-3500ms), terminology, precision.
-
-━━━ STEP SCHEMA ━━━
+━━━ STEP SCHEMA (AGENTIC MINIMAL) ━━━
 {
-  "index": number, "title": string, "narration": string,
-  "durationMs": number, "objectIds": [string], "newIds": [string],
-  "highlightIds": [string], "fadeIds": [string], "isDoubtAnchor": boolean
+  "index": number,
+  "title": string,
+  "narration": "2-4 clean, direct sentences. Reference labels and colors. Focus on logic.",
+  "durationMs": number,
+  "objectIds": [string],
+  "newIds": [string],
+  "highlightIds": [string],
+  "transition": "fadeIn"|"slideUp"|"scaleIn"|"popIn"|"drawLine",
+  "motionOverrides": [{ id, moveTo?, duration }],
+  "contextUpdates": {
+    "shapeId": { "context": "swap"|"sorted"|"compare", "values": [...], "highlightCells": [...] }
+  }
 }
 
-━━━ NARRATION ({{DOMAIN}}) ━━━
-- Use high instructional fidelity.
-- 2-4 sentences explaining the specific pedagogical logic.
-- Reference labels/colors (e.g., "Node B", "red arrow").
-- ABSOLUTELY NO generic filler (e.g. "Now we move to the next step").
-- NO: "In this step", "Now let's", "Here we see".
-- Final step: Core insight summary.
+━━━ SHAPE CATALOGUE (CLEAN & MINIMAL) ━━━
+
+ARRAY: { id, shape:"array", x, y, values:[...], color, label?, showIndex:bool, appearsAtStep }
+
+CIRCLE: { id, shape:"circle", x, y, r, color, label?, innerLabel?, pulse:false, glow:false, appearsAtStep }
+
+RECT: { id, shape:"rect", x, y, w, h, color, label?, rx:0, appearsAtStep }
+
+ARROW: { id, shape:"arrow", x1, y1, x2, y2, color, label?, dashed:bool, thickness:1, appearsAtStep }
+
+LINE: { id, shape:"line", x1, y1, x2, y2, color, dashed:bool, appearsAtStep }
+
+TEXT: { id, shape:"text", x, y, text, fontSize:14-24, color, fontWeight:"600", appearsAtStep }
 
 ━━━ RULES ━━━
-1. steps: Generate at least {{MIN_STEPS}} steps. Max 25 steps.
-2. objects: Adopt the SCENE SCAFFOLD objects as your starting set. Update their labels/properties to fit the specific topic.
-3. each step: 1-3 new objects. No empty newIds (except final/setup).
-4. coordination: Round all x/y/w/h/r coordinates to integers.
-5. appearsAtStep MUST match first appearance in newIds.
-6. NO MARKDOWN. NO FENCES. RETURN ONLY JSON.
+1. render_mode: MUST be "svg_canvas".
+2. COORDINATES: [60,740]x[60,540].
+3. NO MARKDOWN. NO FENCES. RETURN ONLY JSON.
 `;
-// ─── Runtime Builder ──────────────────────────────────────────────────────────
-
-/**
- * @typedef {'beginner' | 'intermediate' | 'advanced'} Difficulty
- */
-
-/**
- * @typedef {Object} TimelinePromptContext
- * @property {string} topic
- * @property {string} domain
- * @property {string[]} nodeTemplates - from getNodeTemplates(domain)
- * @property {string} animationGuide - from getAnimationGuide(domain)
- * @property {Difficulty} [difficulty] - defaults to 'intermediate'
- * @property {Object[]} [visualScaffold] - optional starter set of objects
- * @property {Object} [plan] - optional plan from PlannerAgent
- * @property {Object} [behavior] - optional steps from BehaviorIntelligence
- * @property {Object} [execution] - optional strategy from ExecutionStrategyAgent
- * @property {Object} [reflection] - optional feedback from ReflectionAgent
- */
 
 /**
  * @param {TimelinePromptContext} ctx
@@ -344,3 +339,135 @@ if (errors.length > 0) {
   renderLesson(parsed);
 }
 */
+// --- Response Schema (Gemini Optimized) -------------------------------------
+
+export const TIMELINE_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    mode: { type: "string", enum: ["explain"] },
+    title: { type: "string" },
+    domain: { type: "string" },
+    difficulty: { type: "string", enum: ["beginner", "intermediate", "advanced"] },
+    render_mode: { type: "string", enum: ["svg_canvas"] },
+    tech_rationale: { type: "string" },
+    totalSteps: { type: "number" },
+    learningNodes: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          type: { type: "string" },
+          title: { type: "string" },
+          content: { type: "string" },
+          stepSpan: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 }
+        },
+        required: ["type", "title", "content", "stepSpan"]
+      }
+    },
+    objects: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          shape: { type: "string" },
+          x: { type: "number" },
+          y: { type: "number" },
+          r: { type: "number" },
+          w: { type: "number" },
+          h: { type: "number" },
+          color: { type: "string" },
+          label: { type: "string" },
+          appearsAtStep: { type: "number" },
+          animation: {
+            type: "object",
+            properties: {
+              entry: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  duration: { type: "number" },
+                  easing: { type: "string" }
+                }
+              },
+              idle: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  intensity: { type: "string" },
+                  period: { type: "number" }
+                }
+              },
+              highlight: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  color: { type: "string" },
+                  scale: { type: "number" }
+                }
+              },
+              exit: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  duration: { type: "number" }
+                }
+              }
+            }
+          },
+          context: { type: "string" }
+        },
+        required: ["id", "shape", "appearsAtStep"]
+      }
+    },
+    steps: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          index: { type: "number" },
+          title: { type: "string" },
+          narration: { type: "string" },
+          durationMs: { type: "number" },
+          objectIds: { type: "array", items: { type: "string" } },
+          newIds: { type: "array", items: { type: "string" } },
+          highlightIds: { type: "array", items: { type: "string" } },
+          fadeIds: { type: "array", items: { type: "string" } },
+          motionOverrides: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                moveTo: {
+                  type: "object",
+                  properties: { x: { type: "number" }, y: { type: "number" } }
+                },
+                scaleTo: { type: "number" },
+                rotateTo: { type: "number" },
+                colorTo: { type: "string" },
+                duration: { type: "number" }
+              },
+              required: ["id"]
+            }
+          },
+          cameraHint: {
+            type: "object",
+            properties: {
+              focusX: { type: "number" },
+              focusY: { type: "number" },
+              zoom: { type: "number" }
+            }
+          },
+          isDoubtAnchor: { type: "boolean" },
+          pacing: { type: "string", enum: ["slow", "medium", "fast"] },
+          transition: { type: "string" },
+          contextUpdates: { type: "object" }
+        },
+        required: ["index", "title", "narration", "durationMs", "objectIds"]
+      }
+    },
+    component_code: { type: "string" }
+  },
+  required: ["mode", "title", "domain", "render_mode", "learningNodes", "objects", "steps"]
+};

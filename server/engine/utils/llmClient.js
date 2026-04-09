@@ -47,7 +47,7 @@ const initProviders = () => {
 /**
  * Robust LLM Call — Handles Provider Selection and Switching
  */
-export async function requestCompletion({ model, messages, temperature, maxTokens, tools }) {
+export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseMimeType, responseSchema }) {
   initProviders();
 
   // 1. Try Google Direct first (if key is present and model is Gemini and circuit is closed)
@@ -63,6 +63,8 @@ export async function requestCompletion({ model, messages, temperature, maxToken
         generationConfig: {
           temperature: temperature ?? 0.1,
           maxOutputTokens: maxTokens ?? 2048,
+          responseMimeType: responseMimeType || "text/plain",
+          responseSchema: responseSchema || undefined,
         }
       });
 
@@ -75,10 +77,17 @@ export async function requestCompletion({ model, messages, temperature, maxToken
         parts: [{ text: m.content || '' }]
       }));
 
-      const chat = modelInstance.startChat({
+      const chatOptions = {
         history: chatMessages.slice(0, -1),
-        systemInstruction: systemInstruction,
-      });
+      };
+      if (systemInstruction) {
+        chatOptions.systemInstruction = {
+          role: "system",
+          parts: [{ text: systemInstruction }]
+        };
+      }
+
+      const chat = modelInstance.startChat(chatOptions);
 
       const result = await chat.sendMessage(lastMessage || 'Continue');
       const response = await result.response;
@@ -121,13 +130,16 @@ export async function requestCompletion({ model, messages, temperature, maxToken
         messages,
         temperature: temperature ?? 0.1,
         max_tokens: maxTokens ?? 2048,
+        tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
       });
 
       circuitBreaker.reportSuccess('openrouter');
+      const msg = completion.choices?.[0]?.message;
       return {
-        content: completion.choices?.[0]?.message?.content || '',
+        content: msg?.content || '',
         finishReason: completion.choices?.[0]?.finish_reason || 'stop',
-        provider: 'openrouter'
+        provider: 'openrouter',
+        tool_calls: msg?.tool_calls || null
       };
     } catch (orErr) {
       const isCredits = orErr.message.includes('402');

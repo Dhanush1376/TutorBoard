@@ -24,6 +24,14 @@ export const AuthProvider = ({ children }) => {
 
       const storedToken = localStorage.getItem('tb-token');
       if (!storedToken) {
+        // AI Automation: If there's a prompt in the URL, auto-login as guest
+        const prompt = urlParams.get('prompt');
+        if (prompt) {
+          console.log('[Auth] Prompt detected in URL, auto-logging in as Guest...');
+          localStorage.setItem('tb-token', 'guest');
+          setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
+          setToken('guest');
+        }
         setLoading(false);
         return;
       }

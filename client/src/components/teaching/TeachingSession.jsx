@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import InfiniteCanvas from '../canvas/InfiniteCanvas';
-import CanvasRenderer from '../canvas/CanvasRenderer';
+import AgentCanvasRenderer from '../canvas/AgentCanvasRenderer';
 import CanvasControls from '../canvas/CanvasControls';
 import CanvasMinimap from '../canvas/CanvasMinimap';
 import FloatingSidebar from '../layout/FloatingSidebar';
@@ -334,11 +334,9 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               onInteractionEnd={() => cameraDirector.setUserInteracting(false)}
               className="bg-[var(--bg-primary)]"
             >
-              <CanvasRenderer
-                objects={canvasObjects}
-                steps={canvasSteps}
+              <AgentCanvasRenderer
+                timeline={timeline}
                 currentStepIndex={currentStepIndex}
-                canvasRef={canvasRef}
               />
             </InfiniteCanvas>
 

@@ -32,12 +32,6 @@ import {
   SUBJECT_PRESETS,
 } from './animationPresets.js';
 
-import {
-  resolveBehavior,
-  getIdleBehavior,
-  analyzeNarration,
-  classifyAttention,
-} from './BehaviorIntelligence.js';
 
 // ─── Concept Categories ───────────────────────────────────────────────────────
 
@@ -105,9 +99,6 @@ export class UniversalAnimationEngine {
     this.isPaused = false;
     /** @type {number|null} */
     this._autoTimer = null;
-
-    /** @type {number|null} */
-    this._autoTimer = null;
   }
 
   // ─── Configuration ─────────────────────────────────────────────────────
@@ -121,297 +112,100 @@ export class UniversalAnimationEngine {
     this.speed = Math.max(0.25, Math.min(4, speed));
   }
 
-  // ─── v2: Narrative Synchronization ─────────────────────────────────────
-
-  /**
-   * Analyze the step narration and update internal hints.
-   * Call this ONCE per step before calling getFullConfig for any object.
-   *
-   * @param {string} narration - Step's narration text
-   * @param {Object[]} objects - All visible objects this step
-   * @param {Set<string>} highlightIds
-   * @param {Set<string>} newIds
-   */
-  syncNarration(narration, objects = [], highlightIds = new Set(), newIds = new Set()) {
-    // Parse narration for behavioral hints
-    const hints = analyzeNarration(narration, this.domain);
-
-    // Classify attention (dominant / supporting / background)
-    const attention = classifyAttention(
-      objects,
-      highlightIds,
-      newIds,
-      hints.actionType,
-    );
-
-    return { narrativeHints: hints, attention };
-  }
-
-  /**
-   * Get the narrative-driven transition type for the current step.
-   * Overrides step-level transition when narration analysis yields a stronger signal.
-   * @param {string} stepTransition - The step's declared transition
-   * @returns {string}
-   */
-  resolveStepTransition(stepTransition, narrativeHints = null) {
-    const hints = narrativeHints || { actionType: null, transitionHint: 'springIn' };
-    if (hints.actionType && hints.actionType !== 'intro') {
-      return hints.transitionHint;
-    }
-    return stepTransition || getDefaultEntrance(this.domain);
-  }
-
-  // ─── v2: Attention & Focus ─────────────────────────────────────────────
-
-  /**
-   * Determine the attention role of an object.
-   * @param {string} id
-   * @returns {'dominant'|'supporting'|'background'|'neutral'}
-   */
-  /**
-   * Determine the attention role of an object.
-   * @param {string} id
-   * @param {Object} [attentionOverride]
-   * @returns {'dominant'|'supporting'|'background'|'neutral'}
-   */
-  getAttentionRole(id, attentionOverride = null) {
-    if (!attentionOverride) return 'neutral';
-    if (attentionOverride.dominant?.includes(id))   return 'dominant';
-    if (attentionOverride.supporting?.includes(id))  return 'supporting';
-    if (attentionOverride.background?.includes(id))  return 'background';
-    return 'neutral';
-  }
-
-  /**
-   * Are we in a step where attention management is active?
-   * @param {Object} [attentionOverride]
-   */
-  getIsAttentionActive(attentionOverride = null) {
-    return attentionOverride?.dominant?.length > 0;
-  }
-
-  // ─── Layer 1: Base Motion ──────────────────────────────────────────────
-
-  /**
-   * Get entrance animation config for an object.
-   * Now narrative-aware: uses resolved transition from narration.
-   */
-  getEntrance(obj, { isNew = false, transition = 'springIn', staggerIndex = 0, isHighlighted = false, narrativeHints = null } = {}) {
-    if (!isNew) {
-      return { initial: false, animate: {}, transition: {} };
-    }
-
-    // Narrative sync: override transition if action hint is strong
-    const hints = narrativeHints || { actionType: null, transitionHint: 'springIn' };
-    const resolvedTransition = (hints.actionType && hints.actionType !== 'intro')
-      ? hints.transitionHint
-      : (transition || getDefaultEntrance(this.domain));
-
-    const preset = resolveTransition(resolvedTransition);
-    const delay = calculateStaggerDelay(staggerIndex, {
-      isHighlighted,
-      isNew,
-      domain: this.domain,
-    });
-
-    const adjustedTransition = {
-      ...preset.transition,
-      delay: delay / this.speed,
-    };
-    if (adjustedTransition.duration) {
-      adjustedTransition.duration = adjustedTransition.duration / this.speed;
-    }
-
-    return {
-      initial: preset.hidden,
-      animate: preset.visible,
-      transition: adjustedTransition,
-    };
-  }
-
-  // ─── Layer 2: Micro-Interactions (Behavioral Simulation) ──────────────
-
-  /**
-   * Get the behavioral animation for an object.
-   * v2: Uses BehaviorIntelligence catalog instead of simple micro presets.
-   *
-   * @param {Object} obj
-   * @returns {{ animate: Object, transition: Object } | null}
-   */
-  getMicroAnimation(obj, narrativeHints = null, attentionOverride = null) {
-    // 1. Check explicit microAnimation field
-    if (obj.microAnimation) {
-      return resolveMicroAnimation(obj.microAnimation);
-    }
-
-    // 2. Narrative Sync: If an action is detected in narration, auto-apply behavior
-    const attentionRole = this.getAttentionRole(obj.id, attentionOverride);
-    const hints = narrativeHints || { actionType: null };
-
-    if (hints.actionType && (attentionRole === 'dominant' || obj.isHighlighted)) {
-      const behavior = resolveBehavior({ ...obj, behaviorState: hints.actionType }, this.domain);
-      if (behavior) return behavior;
-    }
-
-    // 3. Check explicit behaviorRole + behaviorState (full BehaviorIntelligence path)
-    if (obj.behaviorRole || obj.behaviorState) {
-      const behavior = resolveBehavior(obj, this.domain);
-      if (behavior) return behavior;
-    }
-
-    // 4. Auto-infer idle behavior from BehaviorIntelligence
-    const idleBehavior = getIdleBehavior(obj, this.domain);
-    if (idleBehavior) return idleBehavior;
-
-    // 5. Legacy micro presets fallback
-    const shape = (obj.shape || obj.type || '').toLowerCase();
-    const autoAnim = getDefaultMicroAnimation(shape, this.domain);
-    if (autoAnim) return resolveMicroAnimation(autoAnim);
-
-    return null;
-  }
-
-  /**
-   * Get highlight effect — v2: intensity scales with narrative emphasis.
-   */
-  getHighlightEffect(obj, isHighlighted, narrativeHints = null) {
-    if (!isHighlighted) return null;
-
-    const hints = narrativeHints || { emphasis: 'normal' };
-    const emphasis = hints.emphasis || 'normal';
-
-    // Scale highlight intensity with narrative emphasis
-    const scales = {
-      subtle:   [1, 1.04, 1],
-      normal:   [1, 1.08, 1],
-      dramatic: [1, 1.14, 1],
-    };
-    const scale = scales[emphasis] || scales.normal;
-    const duration = emphasis === 'dramatic' ? 0.8 : 0.6;
-
-    return {
-      animate: { scale },
-      transition: { duration: duration / this.speed, repeat: 1, ease: 'easeInOut' },
-    };
-  }
-
-  // ─── Layer 3: Cinematic Effects ────────────────────────────────────────
-
-  /**
-   * Get depth/glow/fade style for an object.
-   * v2: Attention-aware — dominant objects glow more, background objects fade.
-   */
-  getCinematicStyle(obj, { isHighlighted = false, isFaded = false, narrativeHints = null, attentionOverride = null } = {}) {
-    const attentionRole = this.getAttentionRole(obj.id, attentionOverride);
-    const hints = narrativeHints || { emphasis: 'normal' };
-    const emphasis = hints.emphasis || 'normal';
-
-    // Explicit fade request
-    if (isFaded) {
-      return { filter: 'saturate(0.4) brightness(0.65)', opacity: 0.32 };
-    }
-
-    // Attention-system fade: background objects recede
-    if (this.getIsAttentionActive(attentionOverride) && attentionRole === 'background') {
-      return { filter: 'saturate(0.5) brightness(0.7)', opacity: 0.32 };
-    }
-
-    // Dominant / highlighted glow
-    if (isHighlighted || attentionRole === 'dominant') {
-      const color = this._resolveGlowColor(obj);
-      const glowRadius = emphasis === 'dramatic' ? '14px' : '8px';
-      const shadowDepth = emphasis === 'dramatic' ? '16px' : '10px';
-      return {
-        filter: `drop-shadow(0 0 ${glowRadius} ${color}90) drop-shadow(0 4px ${shadowDepth} rgba(0,0,0,0.45))`,
-        opacity: 1,
-      };
-    }
-
-    // Depth based on depth field
-    const depth = obj.depth || (attentionRole === 'supporting' ? 2 : 1);
-    const shadows = [
-      'none',
-      'drop-shadow(0 1px 2px rgba(0,0,0,0.2))',
-      'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
-      'drop-shadow(0 4px 8px rgba(0,0,0,0.4))',
-      'drop-shadow(0 6px 12px rgba(0,0,0,0.5))',
-      'drop-shadow(0 8px 16px rgba(0,0,0,0.6))',
-    ];
-
-    return {
-      filter: shadows[Math.min(depth, 5)] || shadows[2],
-      opacity: this.getIsAttentionActive(attentionOverride) && attentionRole === 'supporting' ? 0.75 : 1,
-    };
-  }
-
-  // ─── Composite: Full Config ────────────────────────────────────────────
+  // ─── Phase 3: AI-Directed Dispatch ─────────────────────────────────────
 
   /**
    * Get the complete animation configuration for a shape.
-   * Combines all three layers — now fully narrative-aware.
+   * v3: AI-Faithful rendering. Priorities AI-defined 'animation' blocks and 'motionOverrides'.
    *
-   * @param {Object} obj
+   * @param {Object} obj - The base shape object
    * @param {Object} options
    * @param {boolean} options.isNew
    * @param {boolean} options.isHighlighted
    * @param {boolean} options.isFaded
    * @param {string}  options.transition
    * @param {number}  options.staggerIndex
-   * @returns {{
-   *   initial: Object,
-   *   animate: Object,
-   *   transition: Object,
-   *   style: Object,
-   *   microAnimation: { animate: Object, transition: Object } | null,
-   *   attentionRole: 'dominant'|'supporting'|'background'|'neutral'
-   * }}
+   * @param {Object}  options.currentStep - The full step object for overrides
+   * @returns {Object}
    */
   getFullConfig(obj, options = {}) {
     const {
-      isNew       = false,
+      isNew = false,
       isHighlighted = false,
-      isFaded     = false,
-      transition  = 'springIn',
+      isFaded = false,
+      transition = 'springIn',
       staggerIndex = 0,
-      narrativeHints = null,
-      attentionOverride = null,
+      currentStep = null,
     } = options;
 
-    // Layer 1: Base Entrance
-    const entrance = this.getEntrance(obj, { isNew, transition, staggerIndex, isHighlighted, narrativeHints });
+    // 1. Resolve Motion Overrides (Step-level AI control)
+    const override = currentStep?.motionOverrides?.find(m => m.id === obj.id);
+    const targetX = override?.moveTo?.x ?? obj.x;
+    const targetY = override?.moveTo?.y ?? obj.y;
+    const targetScale = override?.scaleTo ?? 1;
+    const targetColor = override?.colorTo ?? obj.color;
 
-    // Layer 2: Behavioral / Action Overlay
-    const micro    = this.getMicroAnimation(obj, narrativeHints, attentionOverride);
-    const highlight = this.getHighlightEffect(obj, isHighlighted, narrativeHints);
+    // 2. Resolve Animation Block (Object-level AI control)
+    const aiAnim = obj.animation || {};
+    const entryType = aiAnim.entry?.type || transition || 'fadeIn';
+    const entryDuration = (aiAnim.entry?.duration || 600) / 1000; // to seconds
+    const entryEasing = aiAnim.entry?.easing || 'spring';
 
-    // Layer 3: Cinematic Look
-    const cinematic = this.getCinematicStyle(obj, { isHighlighted, isFaded, narrativeHints, attentionOverride });
+    // 3. Layer 1: Entrance (Framer Motion 'initial' and 'animate')
+    const preset = resolveTransition(isNew ? entryType : 'none');
+    const delay = calculateStaggerDelay(staggerIndex, { isHighlighted, isNew, domain: this.domain });
+    
+    const entryTransition = {
+      ...(entryEasing === 'spring' ? SPRING_STANDARD : { ease: entryEasing }),
+      duration: entryDuration / this.speed,
+      delay: delay / this.speed,
+    };
 
-    // Merge only non-layout props into the root animation block
-    // CinematicShapes handle their own x,y,cx,cy via SVG attributes to avoid double translation
-    let mergedAnimate = { ...entrance.animate };
-    if (highlight && isHighlighted && !isNew) {
-      mergedAnimate = { ...mergedAnimate, ...highlight.animate };
+    // 4. Layer 2: Idle & Highlights
+    const idleType = aiAnim.idle?.type || 'none';
+    const highlightType = aiAnim.highlight?.type || (isHighlighted ? 'glow' : 'none');
+    
+    let microAnim = null;
+    if (idleType !== 'none') {
+      microAnim = resolveMicroAnimation(idleType, { 
+        intensity: aiAnim.idle?.intensity || 'low',
+        period: (aiAnim.idle?.period || 2000) / 1000 
+      });
     }
 
+    // 5. Layer 3: Cinematic & Overrides
+    const targetOpacity = isFaded ? 0.35 : 1;
+    const filter = (isHighlighted || highlightType !== 'none')
+      ? `drop-shadow(0 0 ${isNew ? '0px' : '8px'} ${targetColor}90)`
+      : 'none';
+
     return {
-      initial: entrance.initial,
-      animate: mergedAnimate,
+      initial: isNew ? preset.hidden : false,
+      animate: {
+        ...((isNew || !override) ? preset.visible : {}),
+        x: targetX,
+        y: targetY,
+        scale: targetScale,
+        opacity: targetOpacity,
+        fill: targetColor,
+        color: targetColor,
+      },
+      transition: {
+        ...entryTransition,
+        // If movement override exists, use its duration
+        ...(override?.duration ? { duration: override.duration / 1000 / this.speed } : {})
+      },
+      style: {
+        filter,
+        transformOrigin: 'center',
+        transformBox: 'fill-box'
+      },
+      microAnimation: microAnim,
       exit: {
         opacity: 0,
-        scale: 0.7,
-        filter: 'blur(8px)',
-        transition: { duration: 0.38 / this.speed, ease: 'easeIn' }
-      },
-      transition: (isHighlighted && !isNew && highlight)
-        ? highlight.transition
-        : entrance.transition,
-      style: {
-        filter: cinematic.filter,
-        opacity: cinematic.opacity,
-      },
-      microAnimation: micro,
-      attentionRole: this.getAttentionRole(obj.id, attentionOverride),
+        scale: 0.5,
+        transition: { duration: (aiAnim.exit?.duration || 400) / 1000 / this.speed }
+      }
     };
   }
 

@@ -1,7 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import animEngine from '../../engine/UniversalAnimationEngine.js';
-import { analyzeNarration } from '../../engine/BehaviorIntelligence.js';
 
 /**
  * SceneRenderer — Full-vocabulary SVG teaching canvas.

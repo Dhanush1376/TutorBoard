@@ -15,6 +15,13 @@ const AuthLanding = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
+
   // Advanced Demo State
   const [activeTopicIndex, setActiveTopicIndex] = useState(0);
   const [demoPhase, setDemoPhase] = useState('ask'); // 'ask', 'think', 'view'

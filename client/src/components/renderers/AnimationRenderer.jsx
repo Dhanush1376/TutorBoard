@@ -72,6 +72,18 @@ function arrayCellX(arrayX, arrayW, cellW, index) {
 // ─── Array ──────────────────────────────────────────────────────────────────
 function ArrayShape({ obj, isHighlighted, isNew, transition, stepKey }) {
   if (!obj) return null;
+
+  // ── CRITICAL FIX: Derive all state from obj props ──────────────────────────
+  const values       = Array.isArray(obj.values)       ? obj.values       : [];
+  const sortedCells  = Array.isArray(obj.sortedCells)  ? obj.sortedCells  : [];
+  const swapCells    = Array.isArray(obj.swapCells)    ? obj.swapCells    : [];
+  const compareCells = Array.isArray(obj.compareCells) ? obj.compareCells : [];
+  const highlightCells = Array.isArray(obj.highlightCells) ? obj.highlightCells : [];
+  const showIndex    = obj.showIndex !== false;
+  const label        = obj.label || null;
+
+  if (values.length === 0) return null; // Nothing to render
+
   const px = safeNum(obj.x, CW / 2);
   const py = safeNum(obj.y, CH / 2);
   const pcw = safeNum(obj.cellW, 60);
@@ -682,7 +694,7 @@ function ArrowShape({ obj, isNew, transition, stepKey }) {
   } = obj;
 
   const c = getColor(color);
-  const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+  const mid = { x: (px1 + px2) / 2, y: (py1 + py2) / 2 };
 
   return (
     <motion.g key={`${obj.id}-${stepKey}`} data-id={obj.id}>
@@ -888,25 +900,56 @@ function PathShape({ obj, isNew, stepKey }) {
 // SHAPE DISPATCHER
 // ════════════════════════════════════════════════════════════════════════════
 
+// ── AI Shape Enrichment ─────────────────────────────────────────────────────
+// Applies intelligent defaults based on the shape's context/domain hints.
+// All data still originates from the AI — this only fills gaps.
+function enrichShape(obj) {
+  if (!obj) return obj;
+  const enriched = { ...obj };
+
+  // If AI tagged this as a "swap" context, default highlight color to red
+  if (enriched.context === 'swap' && !enriched.swapCells) {
+    enriched.swapCells = enriched.highlightCells || [];
+  }
+
+  // If AI tagged this as a "sorted" context, color cells green
+  if (enriched.context === 'sorted' && !enriched.sortedCells) {
+    enriched.sortedCells = enriched.highlightCells || [];
+  }
+
+  // Ensure all text shapes have a fallback color
+  if (enriched.shape === 'text' && !enriched.color) {
+    enriched.color = 'white';
+  }
+
+  // Ensure arrows have a thickness if not specified
+  if (enriched.shape === 'arrow' && !enriched.thickness) {
+    enriched.thickness = 2;
+  }
+
+  return enriched;
+}
+
 function renderShape(obj, { isHighlighted, isNew, transition, stepKey }) {
   if (!obj?.shape) return null;
-  const props = { obj, isHighlighted, isNew, transition, stepKey };
+  const enrichedObj = enrichShape(obj);
+  const props = { obj: enrichedObj, isHighlighted, isNew, transition, stepKey };
 
-  switch (obj.shape) {
-    case 'array':        return <ArrayShape        key={obj.id} {...props} />;
-    case 'pointer':      return <PointerShape      key={obj.id} {...props} />;
-    case 'swapbridge':   return <SwapBridgeShape   key={obj.id} {...props} />;
-    case 'comparator':   return <ComparatorShape   key={obj.id} {...props} />;
-    case 'codeline':     return <CodeLineShape     key={obj.id} {...props} />;
-    case 'highlightbox': return <HighlightBoxShape key={obj.id} {...props} />;
-    case 'circle':       return <CircleShape       key={obj.id} {...props} />;
-    case 'rect':         return <RectShape         key={obj.id} {...props} />;
-    case 'arrow':        return <ArrowShape        key={obj.id} {...props} />;
-    case 'line':         return <LineShape         key={obj.id} {...props} />;
-    case 'text':         return <TextShape         key={obj.id} {...props} />;
-    case 'badge':        return <BadgeShape        key={obj.id} {...props} />;
-    case 'arc':          return <ArcShape          key={obj.id} {...props} />;
-    case 'path':         return <PathShape         key={obj.id} {...props} />;
+  switch (enrichedObj.shape) {
+    case 'array':        return <ArrayShape        key={enrichedObj.id} {...props} />;
+    case 'pointer':      return <PointerShape      key={enrichedObj.id} {...props} />;
+    case 'swapbridge':   return <SwapBridgeShape   key={enrichedObj.id} {...props} />;
+    case 'comparator':   return <ComparatorShape   key={enrichedObj.id} {...props} />;
+    case 'codeline':     return <CodeLineShape     key={enrichedObj.id} {...props} />;
+    case 'highlightbox': return <HighlightBoxShape key={enrichedObj.id} {...props} />;
+    case 'circle':       return <CircleShape       key={enrichedObj.id} {...props} />;
+    case 'rect':         return <RectShape         key={enrichedObj.id} {...props} />;
+    case 'arrow':        return <ArrowShape        key={enrichedObj.id} {...props} />;
+    case 'line':         return <LineShape         key={enrichedObj.id} {...props} />;
+    case 'text':         return <TextShape         key={enrichedObj.id} {...props} />;
+    case 'badge':        return <BadgeShape        key={enrichedObj.id} {...props} />;
+    case 'arc':          return <ArcShape          key={enrichedObj.id} {...props} />;
+    case 'path':         return <PathShape         key={enrichedObj.id} {...props} />;
     default:             return null;
   }
 }
@@ -920,21 +963,30 @@ function useStepDiff(objects, steps, currentStepIndex) {
 
   return useMemo(() => {
     if (!steps || steps.length === 0 || !objects || objects.length === 0) {
-      return { visibleObjects: [], highlightIds: new Set(), newIds: new Set(), transition: 'fadeIn' };
+      return { visibleObjects: [], highlightIds: new Set(), newIds: new Set(), transition: 'fadeIn', stepKey: 'step-0' };
     }
 
     const step = steps[Math.min(currentStepIndex, steps.length - 1)];
-    if (!step) return { visibleObjects: [], highlightIds: new Set(), newIds: new Set(), transition: 'fadeIn' };
+    if (!step) return { visibleObjects: [], highlightIds: new Set(), newIds: new Set(), transition: 'fadeIn', stepKey: 'step-0' };
 
+    // Build base object map
     const objectMap = {};
-    objects.forEach(o => { if (o?.id) objectMap[o.id] = o; });
+    objects.forEach(o => { if (o?.id) objectMap[o.id] = { ...o }; }); // shallow copy
+
+    // ── APPLY contextUpdates from this step ──────────────────────────────────
+    // The AI can mutate shape state each step (e.g. mark cells as sorted/swapped)
+    if (step.contextUpdates) {
+      for (const [shapeId, updates] of Object.entries(step.contextUpdates)) {
+        if (objectMap[shapeId]) {
+          objectMap[shapeId] = { ...objectMap[shapeId], ...updates };
+        }
+      }
+    }
 
     const currentIds   = new Set(step.objectIds  || []);
     const highlightIds = new Set(step.highlightIds || []);
     const newIds       = new Set(step.newIds       || []);
-    const prevIds      = prevObjectIdsRef.current;
 
-    // Objects to show
     const visibleObjects = [...currentIds]
       .map(id => objectMap[id])
       .filter(Boolean);

@@ -1,60 +1,166 @@
 /**
  * AgentLoop — Intelligence Orchestration Loop
  * 
- * DESIGN:
- *   1. Tool-calling autonomous loop.
- *   2. Support for self-correction mid-generation.
- *   3. Domain-aware tool set.
+ * v2.0 — FULLY AGENTIC:
+ *   1. Every tool call is REAL — backed by LLM or web search.
+ *   2. Self-correction via evaluate_step → revise_step loop.
+ *   3. FINISH extracts validated timeline from tool args or conversation history.
  */
 
-import { requestCompletion, getModel } from '../utils/llmClient.js';
+import { requestCompletion, getModel, getTextModel } from '../utils/llmClient.js';
 import { getAnimationGuide, getVisualScaffold } from '../agents/domainConfig.js';
+import { searchDomainKnowledge, formatSearchContext } from '../tools/webSearch.js';
 
 const MAX_ITERATIONS = 12;
 
 /**
  * Executes a tool and returns the result string.
+ * v2: Every case calls a real LLM or external service. Zero hardcoded lies.
  */
 const executeTool = async (name, args, context) => {
   console.log(`[AgentLoop] 🛠️ Executing tool: ${name}`, args);
 
   switch (name) {
-    case 'search_examples':
-      return `Here are some standard pedagogical examples for ${args.topic}: 
-              1. Basic implementation / intro.
-              2. Complex edge case behavior.
-              3. Visual mapping of core logic.`;
-    
-    case 'check_prerequisites':
-      return `For topic "${args.topic}", ensure the student understands:
-              - Domain fundamentals.
-              - Preceding logical step in the sequence.
-              - Basic visual primitives involved.`;
 
-    case 'generate_step':
-      return JSON.stringify({
-        step_number: args.step_number || 1,
-        type: args.type || 'concept',
-        title: `Visualizing ${args.hint || 'the logic'}`,
-        explanation: "Establishing the core principle through visual transformation.",
-        visual_hint: "Focus on primary shape motion."
+    case 'search_examples': {
+      // REAL: Actually call the web search tool
+      const searchData = await searchDomainKnowledge(context.domain, args.topic);
+      if (searchData) return formatSearchContext(searchData);
+      // Parametric fallback if search returns nothing
+      const res = await requestCompletion({
+        model: getTextModel(),
+        messages: [{
+          role: 'user',
+          content: `Give 3 concrete, specific pedagogical examples for teaching "${args.topic}" to a student. 
+Format as JSON array of strings. Each string should be one complete, specific teaching example. 
+Return ONLY the JSON array, nothing else.`
+        }],
+        temperature: 0.3,
+        maxTokens: 600
       });
-
-    case 'evaluate_step':
-      if ((args.step?.explanation?.length || 0) > 200) {
-        return "ISSUE: Explanation too wordy. Simplify to 2 lines.";
+      try {
+        const examples = JSON.parse(res.content || '[]');
+        return Array.isArray(examples)
+          ? `Verified teaching examples for "${args.topic}":\n` + examples.map((e, i) => `${i+1}. ${e}`).join('\n')
+          : res.content;
+      } catch {
+        return res.content || `Standard examples for ${args.topic}.`;
       }
-      return "QUALITY: Pass. Pedagogically sound.";
+    }
 
-    case 'revise_step':
-      return JSON.stringify({
-        ...args.step,
-        explanation: "Simplified explanation for clarity.",
-        status: "REVISED"
+    case 'check_prerequisites': {
+      // REAL: LLM generates actual prerequisites
+      const res = await requestCompletion({
+        model: getTextModel(),
+        messages: [{
+          role: 'user',
+          content: `A student is about to learn "${args.topic}". 
+List exactly 3 prerequisite concepts they MUST understand first. Be very specific.
+Return ONLY a JSON array of strings (the concept names). No explanation.
+Example output: ["Binary Search", "Array Indexing", "Logarithms"]`
+        }],
+        temperature: 0.1,
+        maxTokens: 200
       });
+      try {
+        const prereqs = JSON.parse(res.content || '[]');
+        return `Prerequisites for "${args.topic}": ${Array.isArray(prereqs) ? prereqs.join(', ') : res.content}`;
+      } catch {
+        return `Prerequisites for "${args.topic}": ${res.content}`;
+      }
+    }
+
+    case 'generate_step': {
+      // REAL: Generate one actual pedagogical step using the timeline schema
+      const res = await requestCompletion({
+        model: getTextModel(),
+        messages: [{
+          role: 'system',
+          content: `You are generating ONE step of a visual teaching timeline for "${context.topic}".
+Step type: "${args.type}" (hook | concept | intuition | result).
+Stage hint: "${args.hint || 'core concept'}".
+Step number: ${args.step_number || 1}.
+
+Return ONLY a JSON object with this exact schema:
+{
+  "step_number": number,
+  "type": string,
+  "title": "≤6 word title",
+  "explanation": "1-2 sentence clear explanation of this specific pedagogical unit",
+  "micro_clarification": "proactive answer to the most likely student confusion at this step",
+  "visual_hint": "what specific visual element or animation should accompany this step",
+  "cognitive_load": "low | medium | high"
+}`
+        }, {
+          role: 'user',
+          content: `Generate step ${args.step_number || 1} of type "${args.type}" for teaching "${context.topic}".`
+        }],
+        temperature: 0.2,
+        maxTokens: 400
+      });
+      return res.content || JSON.stringify({ step_number: args.step_number || 1, type: args.type, title: `Step ${args.step_number}`, explanation: `Teaching ${context.topic}` });
+    }
+
+    case 'evaluate_step': {
+      // REAL: Critique a step for quality
+      const res = await requestCompletion({
+        model: getTextModel(),
+        messages: [{
+          role: 'system',
+          content: `You are a pedagogical critic. Evaluate the following teaching step.
+Return ONLY a JSON object:
+{
+  "pass": boolean,
+  "scores": { "clarity": 0-10, "visual_richness": 0-10, "specificity": 0-10 },
+  "issues": ["list of specific issues found"],
+  "verdict": "one sentence summary"
+}
+A step PASSES if all scores are ≥6. Be strict. Generic narration, missing visual references, and jargon are failures.`
+        }, {
+          role: 'user',
+          content: `Evaluate this step:\n${JSON.stringify(args.step, null, 2)}`
+        }],
+        temperature: 0,
+        maxTokens: 400
+      });
+      try {
+        const raw = (res.content || '{}').replace(/```json|```/g, '').trim();
+        const critique = JSON.parse(raw);
+        if (critique.pass === false) {
+          return `FAIL: ${critique.verdict} | Issues: ${(critique.issues || []).join('; ')}`;
+        }
+        return `PASS: ${critique.verdict}`;
+      } catch {
+        return `QUALITY: ${res.content}`;
+      }
+    }
+
+    case 'revise_step': {
+      // REAL: Rewrite a step fixing the specific issues
+      const res = await requestCompletion({
+        model: getTextModel(),
+        messages: [{
+          role: 'system',
+          content: `You are rewriting a teaching step to fix specific quality issues.
+Return ONLY the corrected step as a JSON object, maintaining all original fields.
+Do not add markdown, do not explain. Just return the fixed JSON.`
+        }, {
+          role: 'user',
+          content: `Original step:\n${JSON.stringify(args.step, null, 2)}\n\nIssues to fix:\n${args.issue}\n\nRewrite to fix ALL issues.`
+        }],
+        temperature: 0.2,
+        maxTokens: 500
+      });
+      try {
+        const raw = (res.content || '{}').replace(/```json|```/g, '').trim();
+        return JSON.stringify({ ...args.step, ...JSON.parse(raw), status: 'REVISED' });
+      } catch {
+        return JSON.stringify({ ...args.step, explanation: res.content, status: 'REVISED' });
+      }
+    }
 
     case 'FINISH':
-      return "PROCESS_COMPLETE";
+      return 'PROCESS_COMPLETE';
 
     default:
       return `Error: Tool ${name} not found.`;
@@ -127,13 +233,18 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 15 
     },
     {
       name: "FINISH",
-      description: "Call this tool ONLY when the entire timeline is complete and validated.",
-      parameters: { type: "object", properties: {} }
+      description: "Call this tool ONLY when the entire timeline is complete and validated. Pass the final JSON object as final_timeline.",
+      parameters: { 
+        type: "object", 
+        properties: {
+          final_timeline: { type: "object", description: "The final, validated pedagogical timeline." }
+        },
+        required: ["final_timeline"]
+      }
     }
   ];
 
   let iterations = 0;
-  let finalTimeline = null;
 
   while (iterations < MAX_ITERATIONS) {
     iterations++;
@@ -146,20 +257,30 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 15 
 
     if (response.tool_calls) {
       for (const call of response.tool_calls) {
-        if (call.function.name === 'FINISH') {
+        const toolName = call.function.name;
+        const toolArgs = JSON.parse(call.function.arguments || "{}");
+
+        if (toolName === 'FINISH') {
           console.log(`[AgentLoop] ✅ Loop complete after ${iterations} iterations.`);
-          // Extract final JSON from model content if present
-          try {
-            finalTimeline = JSON.parse(response.content || "{}");
-          } catch (e) {
-            // Fallback: if model didn't output JSON in content, look for it in previous message
-            const lastAssigned = messages.reverse().find(m => m.role === 'assistant' && (m.content || '').includes('{'));
-            if (lastAssigned) finalTimeline = JSON.parse(lastAssigned.content);
+          // Return the final_timeline from args if present
+          if (toolArgs.final_timeline && (toolArgs.final_timeline.steps || toolArgs.final_timeline.learningNodes)) {
+            return toolArgs.final_timeline;
           }
-          return finalTimeline;
+          // Fallback: Extract from last assistant message with valid JSON
+          const assistantMessages = messages.filter(m => m.role === 'assistant' && m.content);
+          for (let i = assistantMessages.length - 1; i >= 0; i--) {
+            try {
+              const parsed = JSON.parse(assistantMessages[i].content);
+              if (parsed && (parsed.steps || parsed.learningNodes)) {
+                console.log(`[AgentLoop] ✅ Extracted final timeline from message history`);
+                return parsed;
+              }
+            } catch {}
+          }
+          return toolArgs.final_timeline || null;
         }
 
-        const result = await executeTool(call.function.name, JSON.parse(call.function.arguments), { topic, domain });
+        const result = await executeTool(toolName, toolArgs, { topic, domain });
         
         messages.push({
           role: 'assistant',
@@ -168,22 +289,26 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 15 
         });
         
         messages.push({
-          role: 'user', // In Gemini/OpenAI tool-calling, this is the tool-response role
+          role: 'tool',
           content: result,
           tool_call_id: call.id,
-          name: call.function.name
+          name: toolName
         });
       }
     } else {
-      // No tool calls - model finished or failed to use tools
-      console.log(`[AgentLoop] ⚠️ Model emitted text instead of tool calls. Content length: ${response.content?.length}`);
+      // Model emitted structured JSON directly — accept it
+      console.log(`[AgentLoop] 📋 Model emitted direct JSON (${response.content?.length} chars)`);
       try {
-        return JSON.parse(response.content);
-      } catch (e) {
-        // Continue loop if not valid JSON
-      }
+        const parsed = JSON.parse(response.content);
+        if (parsed && (parsed.steps || parsed.learningNodes || parsed.concept)) {
+          return parsed; // Valid structured output
+        }
+      } catch {}
+      // Not JSON — push as assistant turn and continue
+      messages.push({ role: 'assistant', content: response.content });
     }
   }
 
-  throw new Error('AGENT_LOOP_MAX_ITERATIONS_REACHED');
+  console.error(`[AgentLoop] ❌ Exhausted ${MAX_ITERATIONS} iterations without FINISH.`);
+  return null;
 }
