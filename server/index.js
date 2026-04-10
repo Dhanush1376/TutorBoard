@@ -42,16 +42,37 @@ const app = express();
 const httpServer = createServer(app);
 const port = process.env.PORT || 3001;
 
-// --------------- Socket.IO ---------------
-const allowedOrigins = [
+// --------------- CORS Origins ---------------
+// Read from env var, or fall back to defaults. Comma-separated.
+const DEFAULT_ORIGINS = [
   'https://tutor-board-mocha.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
 ];
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : DEFAULT_ORIGINS;
 
+// Check if an origin matches — supports wildcard Vercel preview subdomains
+function isOriginAllowed(origin) {
+  if (!origin) return true; // Allow requests with no origin (mobile apps, curl, server-to-server)
+  if (allowedOrigins.includes(origin)) return true;
+  // Match Vercel preview deployments: tutor-board-*.vercel.app
+  if (/^https:\/\/tutor-board[a-z0-9-]*\.vercel\.app$/.test(origin)) return true;
+  return false;
+}
+
+// --------------- Socket.IO ---------------
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS blocked origin (Socket.IO): ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -65,17 +86,10 @@ setupTeachingSocket(io);
 
 // --------------- Middleware ---------------
 
-// CORS: allow Vercel production + localhost dev
-const corsOrigins = [
-  'https://tutor-board-mocha.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:3000',
-];
-
+// CORS: allow configured origins + Vercel preview deployments
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin || corsOrigins.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked origin: ${origin}`);

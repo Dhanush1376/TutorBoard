@@ -37,6 +37,12 @@ const DoubtPanel = ({
     }
   }, [doubtResponse, doubtHistory.length]);
 
+  // Reset panel when step changes — prevents showing stale doubts from a different step
+  useEffect(() => {
+    setIsExpanded(false);
+    setInput('');
+  }, [currentStepTitle]);
+
   const handleSubmit = () => {
     if (!input.trim() || isProcessing || disabled) return;
     const question = input.trim();

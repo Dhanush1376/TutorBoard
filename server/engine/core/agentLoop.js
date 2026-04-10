@@ -11,7 +11,7 @@ import { requestCompletion, getModel, getTextModel } from '../utils/llmClient.js
 import { getAnimationGuide, getVisualScaffold } from '../agents/domainConfig.js';
 import { searchDomainKnowledge, formatSearchContext } from '../tools/webSearch.js';
 
-const MAX_ITERATIONS = 12;
+const DEFAULT_MAX_STEPS = 15;
 
 /**
  * Executes a tool and returns the result string.
@@ -170,7 +170,7 @@ Do not add markdown, do not explain. Just return the fixed JSON.`
 /**
  * RUN THE LOOP
  */
-export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 15 }) {
+export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = DEFAULT_MAX_STEPS }) {
   console.log(`[AgentLoop] 🚀 Starting agentic resolution for: "${topic}"`);
   
   let messages = [
@@ -246,7 +246,7 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 15 
 
   let iterations = 0;
 
-  while (iterations < MAX_ITERATIONS) {
+  while (iterations < maxSteps) {
     iterations++;
     
     const response = await requestCompletion({
@@ -309,6 +309,6 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 15 
     }
   }
 
-  console.error(`[AgentLoop] ❌ Exhausted ${MAX_ITERATIONS} iterations without FINISH.`);
+  console.error(`[AgentLoop] ❌ Exhausted ${maxSteps} iterations without FINISH.`);
   return null;
 }

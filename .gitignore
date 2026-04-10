@@ -8,3 +8,14 @@ coverage/
 .vscode/
 traces.json
 .DS_Store
+
+# Runtime output files
+error.txt
+server_log.txt
+server_output.log
+db_status.log
+debug_latency.log
+
+# Test output logs
+test_*.log
+api_test_output.json

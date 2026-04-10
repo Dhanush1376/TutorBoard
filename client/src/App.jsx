@@ -15,15 +15,23 @@ function App() {
   const { loading: authLoading } = useAuth();
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     // Check if the welcome animation has already played in this session
-    return !sessionStorage.getItem('tb-welcome-played');
+    try {
+      return !sessionStorage.getItem('tb-welcome-played');
+    } catch {
+      return false; // Skip loader if sessionStorage is unavailable (private browsing, SSR)
+    }
   });
 
   useEffect(() => {
     if (welcomeLoading) {
       const timer = setTimeout(() => {
         setWelcomeLoading(false);
-        sessionStorage.setItem('tb-welcome-played', 'true');
-      }, 4000); // 4 seconds initial loader delay
+        try {
+          sessionStorage.setItem('tb-welcome-played', 'true');
+        } catch {
+          // Silently ignore if sessionStorage is unavailable
+        }
+      }, 2000); // 2 seconds initial loader delay
       return () => clearTimeout(timer);
     }
   }, [welcomeLoading]);

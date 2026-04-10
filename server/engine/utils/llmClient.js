@@ -7,15 +7,11 @@
  *   3. High-reliability model defaults.
  */
 
+
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { circuitBreaker } from '../core/circuitBreaker.js';
 
-// Ensure .env is loaded correctly from the server root
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// dotenv is loaded once at startup in index.js — no need to reload here
 
 // OpenRouter Client Singleton
 let openRouterClient = null;

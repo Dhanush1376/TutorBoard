@@ -127,6 +127,19 @@ export function setupTeachingSocket(io) {
       if (socket.user && socket.user.id !== 'guest') {
         console.log(`[WS] Initializing persistent profile for user: ${socket.user.id}`);
         await sessionStore.initProfile(sessionId, socket.user.id);
+      } else {
+        // Initialize a default in-memory learner profile for guest sessions
+        console.log(`[WS] Initializing default guest profile for session: ${sessionId}`);
+        sessionStore.update(sessionId, {
+          learnerProfile: {
+            level: 'beginner',
+            pace: 'normal',
+            confusionIndex: 0,
+            strengths: [],
+            weaknesses: [],
+            preferredExplanationStyle: 'visual',
+          }
+        });
       }
 
       try {

@@ -60,7 +60,7 @@ INSTRUCTIONS:
       return {
         mergedSteps,
         originalSteps,
-        notification: "I've breaken down the next few steps into simpler parts to help clarify things! 👋"
+        notification: "I've broken down the next few steps into simpler parts to help clarify things! 👋"
       };
     }
   } catch (err) {
