@@ -244,6 +244,50 @@ export const HighlightZone = ({ x, y, w, h, color, label, attentionLevel, layout
   );
 };
 
+// ─── Freeform (AI-Invented) Component ──────────────────────────────────────────
+export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, type }) => {
+  const p = resolve(color);
+  const isHigh = attentionLevel === 2;
+
+  return (
+    <AttentionWrapper attentionLevel={attentionLevel} layoutId={layoutId} x={x} y={y}>
+      <rect
+        x={-60} y={-30} width={120} height={60} rx={12}
+        fill={p.glass}
+        stroke={p.stroke}
+        strokeWidth={2}
+      />
+      {label && (
+        <text
+          textAnchor="middle" dominantBaseline="middle"
+          fill={p.text}
+          fontSize={11}
+          fontWeight={isHigh ? 'bold' : 'normal'}
+          className="select-none"
+        >
+          {label}
+        </text>
+      )}
+      <text
+        y={-38}
+        textAnchor="middle" dominantBaseline="middle"
+        fill={p.stroke}
+        fillOpacity={0.8}
+        fontSize={8}
+        fontWeight="bold"
+        className="select-none uppercase tracking-widest"
+      >
+        [{type}]
+      </text>
+      {isHigh && (
+        <circle cx={0} cy={0} r={65} fill="none" stroke={p.stroke} strokeWidth={1} strokeOpacity={0.5} strokeDasharray="4 4">
+          <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="10s" repeatCount="indefinite" />
+        </circle>
+      )}
+    </AttentionWrapper>
+  );
+};
+
 export const CinematicFilters = () => (
   <defs>
     <filter id="tb-neon-glow" x="-50%" y="-50%" width="200%" height="200%">

@@ -126,7 +126,9 @@ const useTutorStore = create(
           elements: data.elements || data.objects || [],
           connections: data.connections || [],
           timeline: data.timeline || data.steps || [],
+          renderer: data.renderer || 'cinematic',
         },
+        renderer: data.renderer || 'cinematic', // Dual storage for easy access
         learningNodes: data.learningNodes || [],
         mode: data.mode || 'explain',
         difficulty: data.difficulty || 'beginner',

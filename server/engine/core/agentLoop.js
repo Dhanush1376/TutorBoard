@@ -159,6 +159,26 @@ Do not add markdown, do not explain. Just return the fixed JSON.`
       }
     }
 
+    case 'animate_for_concept': {
+      // REAL: Ask the Visual Director LLM to generate the SCENE GRAPH layout.
+      const res = await requestCompletion({
+        model: getModel(),
+        messages: [{
+          role: 'system',
+          content: context.planningResult 
+            ? `You are a visual director. Create the animation layout. Freedom level: ${context.planningResult.freedomLevel}. Renderer: ${context.planningResult.renderer}. Return ONLY the JSON scene graph as defined in the master prompt.`
+            : `You are a visual director. Return ONLY the JSON scene graph.`
+        }, {
+          role: 'user',
+          content: `Given the topic "${context.topic}" in domain "${context.domain}", generate the visual scene graph with elements, connections, and timeline. Use creative freedom to convey the concept.`
+        }],
+        temperature: 0.3,
+        maxTokens: 2500,
+        responseMimeType: "application/json"
+      });
+      return `ANIMATION_SCENE_GRAPH_GENERATED:\n${res.content}`;
+    }
+
     case 'FINISH':
       return 'PROCESS_COMPLETE';
 
@@ -170,74 +190,34 @@ Do not add markdown, do not explain. Just return the fixed JSON.`
 /**
  * RUN THE LOOP
  */
-export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = DEFAULT_MAX_STEPS }) {
+export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = DEFAULT_MAX_STEPS, planningResult }) {
   console.log(`[AgentLoop] 🚀 Starting agentic resolution for: "${topic}"`);
   
   let messages = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: `Begin generating the pedagogical timeline for "${topic}". Use your tools to ensure precision.` }
+    { role: 'system', content: `${systemPrompt}\n\nAUTONOMOUS DIRECTIVE:
+1. Use 'animate_for_concept' to generate the full visual narrative immediately.
+2. Ensure you output the complete SCENE GRAPH (elements, connections, and timeline).
+3. Do not generate steps one-by-one; synthesize the whole concept at once.` },
+    { role: 'user', content: `Generate the visual animation for "${topic}".` }
   ];
 
   const tools = [
     {
-      name: "search_examples",
-      description: "Search for high-quality pedagogical examples/patterns for a topic.",
+      name: "animate_for_concept",
+      description: "Generates the complete visual Scene Graph (elements, connections, and timeline). This is the master tool for creating the educational animation. Returns the raw scene graph.",
       parameters: {
         type: "object",
-        properties: { topic: { type: "string" } },
-        required: ["topic"]
-      }
-    },
-    {
-      name: "check_prerequisites",
-      description: "Identify what concepts must be explained before the current one.",
-      parameters: {
-        type: "object",
-        properties: { topic: { type: "string" } },
-        required: ["topic"]
-      }
-    },
-    {
-      name: "generate_step",
-      description: "Generate a single pedagogical step with visual hints.",
-      parameters: {
-        type: "object",
-        properties: { 
-          type: { type: "string", enum: ["hook", "concept", "intuition", "result"] },
-          hint: { type: "string" },
-          step_number: { type: "number" }
-        },
-        required: ["type"]
-      }
-    },
-    {
-      name: "evaluate_step",
-      description: "Perform a self-critique on a single generated step.",
-      parameters: {
-        type: "object",
-        properties: { step: { type: "object" } },
-        required: ["step"]
-      }
-    },
-    {
-      name: "revise_step",
-      description: "Apply a fix to an existing step based on a critique issue.",
-      parameters: {
-        type: "object",
-        properties: { 
-          step: { type: "object" },
-          issue: { type: "string" }
-        },
-        required: ["step", "issue"]
+        properties: {},
+        required: []
       }
     },
     {
       name: "FINISH",
-      description: "Call this tool ONLY when the entire timeline is complete and validated. Pass the final JSON object as final_timeline.",
+      description: "Call this tool ONLY when the animation scene graph is complete. Pass the final JSON object.",
       parameters: { 
         type: "object", 
         properties: {
-          final_timeline: { type: "object", description: "The final, validated pedagogical timeline." }
+          final_timeline: { type: "object", description: "The final, validated pedagogical scene graph." }
         },
         required: ["final_timeline"]
       }
@@ -262,25 +242,47 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = DEF
 
         if (toolName === 'FINISH') {
           console.log(`[AgentLoop] ✅ Loop complete after ${iterations} iterations.`);
-          // Return the final_timeline from args if present
-          if (toolArgs.final_timeline && (toolArgs.final_timeline.steps || toolArgs.final_timeline.learningNodes)) {
+          
+          // Helper to check if a result contains valid SCENE GRAPH keys
+          const isValidScene = (data) => data && (data.elements || data.objects) && (data.timeline || data.steps);
+
+          // 1. Try to extract from tool args
+          if (toolArgs.final_timeline && isValidScene(toolArgs.final_timeline)) {
             return toolArgs.final_timeline;
           }
-          // Fallback: Extract from last assistant message with valid JSON
+
+          // 2. Fallback: Extract from last assistant message with valid JSON SCENE
           const assistantMessages = messages.filter(m => m.role === 'assistant' && m.content);
           for (let i = assistantMessages.length - 1; i >= 0; i--) {
             try {
-              const parsed = JSON.parse(assistantMessages[i].content);
-              if (parsed && (parsed.steps || parsed.learningNodes)) {
-                console.log(`[AgentLoop] ✅ Extracted final timeline from message history`);
+              const raw = assistantMessages[i].content.replace(/```json|```/g, '').trim();
+              const parsed = JSON.parse(raw);
+              if (isValidScene(parsed)) {
+                console.log(`[AgentLoop] ✅ Extracted final SCENE GRAPH from message history`);
                 return parsed;
               }
             } catch {}
           }
+
+          // 3. Last stand: check tool results in message history for the SCENE GRAPH marker
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const m = messages[i];
+            if (m.role === 'tool' && m.content.startsWith('ANIMATION_SCENE_GRAPH_GENERATED:')) {
+              try {
+                const raw = m.content.replace('ANIMATION_SCENE_GRAPH_GENERATED:', '').trim();
+                const parsed = JSON.parse(raw);
+                if (isValidScene(parsed)) {
+                  console.log(`[AgentLoop] ✅ Proactively extracted SCENE GRAPH from tool result`);
+                  return parsed;
+                }
+              } catch {}
+            }
+          }
+
           return toolArgs.final_timeline || null;
         }
 
-        const result = await executeTool(toolName, toolArgs, { topic, domain });
+        const result = await executeTool(toolName, toolArgs, { topic, domain, planningResult });
         
         messages.push({
           role: 'assistant',
@@ -299,9 +301,10 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = DEF
       // Model emitted structured JSON directly — accept it
       console.log(`[AgentLoop] 📋 Model emitted direct JSON (${response.content?.length} chars)`);
       try {
-        const parsed = JSON.parse(response.content);
-        if (parsed && (parsed.steps || parsed.learningNodes || parsed.concept)) {
-          return parsed; // Valid structured output
+        const raw = response.content.replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.elements || parsed.objects) && (parsed.timeline || parsed.steps)) {
+          return parsed; // Valid structured SCENE output
         }
       } catch {}
       // Not JSON — push as assistant turn and continue
@@ -310,5 +313,18 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = DEF
   }
 
   console.error(`[AgentLoop] ❌ Exhausted ${maxSteps} iterations without FINISH.`);
+  
+  // FINAL DESPERATE EXTRACTION: Scan all tool results before giving up
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'tool' && m.content.includes('ANIMATION_SCENE_GRAPH_GENERATED:')) {
+      try {
+        const raw = m.content.split('ANIMATION_SCENE_GRAPH_GENERATED:')[1].trim();
+        const parsed = JSON.parse(raw);
+        if (parsed.elements || parsed.objects) return parsed;
+      } catch {}
+    }
+  }
+
   return null;
 }

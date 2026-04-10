@@ -167,7 +167,7 @@ export function setupTeachingSocket(io) {
             console.log(`[WS] Progress: ${stage}`);
             socket.emit('teaching:progress', { message: stage });
           }),
-          75000,
+          120000,
           'Timeline generation timed out'
         );
 
@@ -196,6 +196,7 @@ export function setupTeachingSocket(io) {
           elements: timeline.elements,
           connections: timeline.connections,
           timeline: timeline.timeline,
+          renderer: timeline.renderer,
           // Legacy keys (backward compat)
           totalSteps: timeline.steps?.length || timeline.timeline?.length || 0,
           objects: timeline.objects || timeline.elements,

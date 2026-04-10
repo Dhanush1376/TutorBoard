@@ -10,20 +10,31 @@
 
 import { requestCompletion, getModel } from '../utils/llmClient.js';
 import { isGreeting } from '../agents/index.js';
-import { UNIFIED_PEDAGOGY_PROMPT } from '../agents/unifiedPrompt.js';
+import { buildUnifiedPrompt } from '../agents/unifiedPrompt.js';
 import { safeParse } from '../utils/parser.js';
 import sessionStore from './sessionStore.js';
 import { cache } from './cache.js';
+import { planAnimation } from './animationPlanner.js';
+import { runAgentLoop } from './agentLoop.js';
+import { getPrimaryDomain } from '../agents/domainConfig.js';
 
 // ─── Fail-Safe Generator ─────────────────────────────────────────────────────
 function generateFailSafeTimeline(topic) {
   return {
     mode: 'explain',
     title: `Understanding ${topic}`,
+    domain: 'general',
+    renderer: 'cinematic',
     totalSteps: 2,
-    objects: [
-      { id: 'main', shape: 'circle', x: 400, y: 300, r: 50, color: 'blue', label: topic, appearsAtStep: 0 }
+    elements: [
+      { id: 'main', type: 'orb', x: 0.5, y: 0.5, size: 80, color: 'blue', label: topic, appearsAtStep: 0 }
     ],
+    timeline: [
+      { index: 0, title: 'Concept', narration: `Let's explore ${topic}.`, objectIds: ['main'], highlightIds: ['main'], durationMs: 4000 },
+      { index: 1, title: 'Summary', narration: `Now you understand the core of ${topic}.`, objectIds: ['main'], highlightIds: ['main'], durationMs: 4000 }
+    ],
+    // Backward compat
+    objects: [{ id: 'main', type: 'orb', x: 0.5, y: 0.5, size: 80, color: 'blue', label: topic, appearsAtStep: 0 }],
     steps: [
       { index: 0, title: 'Concept', narration: `Let's explore ${topic}.`, objectIds: ['main'], highlightIds: ['main'], durationMs: 4000 },
       { index: 1, title: 'Summary', narration: `Now you understand the core of ${topic}.`, objectIds: ['main'], highlightIds: ['main'], durationMs: 4000 }
@@ -32,7 +43,7 @@ function generateFailSafeTimeline(topic) {
 }
 
 // ─── Post-Processing: Normalize & Adapt SCENE GRAPH ───────────────────────
-function postProcessTimeline(raw, topic) {
+function postProcessTimeline(raw, topic, planningResult) {
   const rawElements = raw.elements || raw.objects || [];
   const rawTimeline = raw.timeline || raw.steps || [];
 
@@ -61,13 +72,15 @@ function postProcessTimeline(raw, topic) {
   return {
     mode: 'explain',
     title: raw.scene?.title || `Understanding ${topic}`,
-    scene: raw.scene || { title: topic, type: 'flow' },
+    scene: raw.scene || { title: topic, type: planningResult?.animationStyle || 'linear' },
     elements,
     connections: raw.connections || [],
     timeline,
+    renderer: planningResult?.renderer || 'cinematic',
     // Keep backward compatibility
     objects: elements,
-    steps: timeline
+    steps: timeline,
+    domain: planningResult?.domain || 'general'
   };
 }
 
@@ -84,34 +97,45 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
   const cached = cache.get(topic, userProfile);
   if (cached) return cached;
 
-  console.log(`[CinematicEngine] 🎬 Planning SCENE GRAPH for: "${topic}"`);
+  console.log(`[CinematicEngine] 🎬 Orchestrating Agentic Pipeline for: "${topic}"`);
 
   try {
-    onProgress('Architecting the cinematic scene...');
+    // Stage 1: Animation Planner 
+    onProgress('Classifying concept & selecting renderer...');
+    const domain = getPrimaryDomain(topic);
+    const planningResult = await planAnimation(topic, domain);
 
-    const messages = [
-      { role: 'system', content: UNIFIED_PEDAGOGY_PROMPT },
-      { role: 'user', content: `TOPIC: ${topic}` }
-    ];
-
-    const result = await requestCompletion({
-      model: getModel(),
-      messages,
-      temperature: 0.2,
-      maxTokens: 8000,
-      responseMimeType: "application/json"
+    // Stage 2: Execute Agent Loop
+    onProgress('Running autonomous visual planning loop...');
+    const systemPrompt = buildUnifiedPrompt(planningResult);
+    
+    const rawSceneGraph = await runAgentLoop({ 
+      topic, 
+      domain, 
+      systemPrompt, 
+      maxSteps: 12,
+      planningResult 
     });
 
-    const raw = safeParse(result.content);
-    if (!raw || !raw.timeline || raw.timeline.length === 0) {
-      console.warn("[CinematicEngine] AI response did not match SCENE schema. Falling back.");
+    if (!rawSceneGraph || (!rawSceneGraph.timeline && !rawSceneGraph.steps)) {
+      console.warn("[CinematicEngine] ❗ Agent loop failed to produce a valid scene graph. Using fallback.");
       return generateFailSafeTimeline(topic);
     }
 
-    const timeline = postProcessTimeline(raw, topic);
+    // Stage 3: Normalize and Sanitize
+    onProgress('Finalizing scene graph pipeline...');
+    const timeline = postProcessTimeline(rawSceneGraph, topic, planningResult);
+    
+    // Explicitly ensure metadata
+    timeline.domain = timeline.domain || domain || planningResult.domain;
+
+    // Pipe Consistency Check
+    if (timeline.renderer !== planningResult.renderer) {
+      console.log(`[CinematicEngine] 🔄 Renderer requested: ${planningResult.renderer} | Actually assigned: ${timeline.renderer}`);
+    }
 
     cache.set(topic, userProfile, timeline);
-    console.log(`[CinematicEngine] ✅ Generated ${timeline.totalSteps} cinematic steps for "${topic}"`);
+    console.log(`[CinematicEngine] ✅ SUCCESS: "${topic}" via [${timeline.renderer.toUpperCase()}] renderer`);
     return timeline;
 
   } catch (err) {

@@ -11,8 +11,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   GlowOrb, GlassRect, FlowArrow, DataBlock,
   FlowPointer, CodePanel, FloatingBadge,
-  Comparator, SwapBridge, CinematicFilters
+  Comparator, SwapBridge, CinematicFilters, FreeformShape
 } from '../renderers/CinematicShapes.jsx';
+import PhysicsRenderer from '../renderers/PhysicsRenderer.jsx';
+import NarrativeRenderer from '../renderers/NarrativeRenderer.jsx';
 
 const CW = 800;
 const CH = 600;
@@ -95,12 +97,12 @@ function RenderShape({ obj, highlightIds, fadeIds }) {
     case 'swapbridge':
       return <SwapBridge {...common} x={x} y={y} color={obj.color} />;
     default:
-      // Fallback: render as GlassRect
-      return <GlassRect {...common} x={x - 80} y={y - 30} w={160} h={60} color={obj.color || 'blue'} label={obj.label} />;
+      // Fallback: render as FreeformShape for fully AI-invented shapes
+      return <FreeformShape {...common} x={x} y={y} color={obj.color} label={obj.label} type={shape} />;
   }
 }
 
-export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
+function SVGCanvasRenderer({ timeline, currentStepIndex }) {
   // Extract data from timeline, supporting both new and legacy keys
   const elements = timeline?.elements || timeline?.objects || [];
   const connections = timeline?.connections || [];
@@ -173,4 +175,22 @@ export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
       </svg>
     </div>
   );
+}
+
+export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
+  const elements = timeline?.elements || timeline?.objects || [];
+  if (!elements.length) return null;
+
+  const renderer = timeline?.renderer || 'cinematic';
+
+  if (renderer === 'physics') {
+    return <PhysicsRenderer timeline={timeline} currentStepIndex={currentStepIndex} />;
+  }
+  
+  if (renderer === 'narrative') {
+    return <NarrativeRenderer timeline={timeline} currentStepIndex={currentStepIndex} />;
+  }
+
+  // Default
+  return <SVGCanvasRenderer timeline={timeline} currentStepIndex={currentStepIndex} />;
 }
