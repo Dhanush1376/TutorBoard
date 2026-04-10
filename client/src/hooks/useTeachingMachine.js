@@ -259,6 +259,7 @@ export function useTeachingMachine() {
     doubtHistory,
     error,
     greetingMessage,
+    topic,
 
     // Playback
     isPlaying,

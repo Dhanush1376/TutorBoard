@@ -155,6 +155,14 @@ export class UniversalAnimationEngine {
     const preset = resolveTransition(isNew ? entryType : 'none');
     const delay = calculateStaggerDelay(staggerIndex, { isHighlighted, isNew, domain: this.domain });
     
+    // Anchor 'initial' to the target coordinates so objects don't fly from (0,0)
+    const initialCoords = isNew ? {
+      x: targetX + (preset.hidden?.x ?? 0),
+      y: targetY + (preset.hidden?.y ?? 0),
+      scale: preset.hidden?.scale ?? 1,
+      opacity: preset.hidden?.opacity ?? 0
+    } : false;
+
     const entryTransition = {
       ...(entryEasing === 'spring' ? SPRING_STANDARD : { ease: entryEasing }),
       duration: entryDuration / this.speed,
@@ -180,9 +188,8 @@ export class UniversalAnimationEngine {
       : 'none';
 
     return {
-      initial: isNew ? preset.hidden : false,
+      initial: initialCoords,
       animate: {
-        ...((isNew || !override) ? preset.visible : {}),
         x: targetX,
         y: targetY,
         scale: targetScale,

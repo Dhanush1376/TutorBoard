@@ -1,94 +1,122 @@
 /**
- * AgentCanvasRenderer — AI-Directed Multi-Technology Dispatcher
+ * AgentCanvasRenderer v3.0 — Cinematic SCENE GRAPH Renderer
  * 
- * Supports 4 modes dynamicically selected by the AI:
- *  1. svg_canvas      (Framer Motion shapes)
- *  2. html_animation  (Sandboxed dynamic React components)
- *  3. threejs_3d      (3D scene representation)
- *  4. d3_chart        (Statistical data visualization)
+ * This is the ACTUAL renderer used by TeachingSession.
+ * It consumes the full SCENE GRAPH (elements, connections, timeline)
+ * and renders a cinematic, camera-tracked animation.
  */
 
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as THREE from 'three';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
-import gsap from 'gsap';
-
 import {
-  CinematicShapeRouter, CinematicFilters
+  GlowOrb, GlassRect, FlowArrow, DataBlock,
+  FlowPointer, CodePanel, FloatingBadge,
+  Comparator, SwapBridge, CinematicFilters
 } from '../renderers/CinematicShapes.jsx';
 
-// ─── HTML Sandbox for Dynamic AI Components ───────────────────────────────
+const CW = 800;
+const CH = 600;
+const EASE_CINEMATIC = [0.16, 1, 0.3, 1];
 
-const HTMLSandbox = ({ code }) => {
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    if (!code) return;
-    try {
-      // Sandboxed evaluation of AI-generated component code
-      // Provides React, useState, useEffect, motion, and gsap in scope
-      const createComponent = new Function('React', 'useState', 'useEffect', 'motion', 'gsap', `
-        const { useState, useEffect } = React;
-        return ${code}
-      `);
-      
-      const AIComponent = createComponent(React, useState, useEffect, motion, gsap);
-      
-      // We render it into our local container
-      // Note: In a production app, we'd use a portal or iframe for isolation
-    } catch (err) {
-      console.error("[Sandbox] Component Execution Failed:", err);
+/**
+ * Compute attention levels and camera from the current timeline step.
+ */
+function useStepDirector(elements, connections, timelineSteps, currentStepIndex) {
+  return useMemo(() => {
+    const step = timelineSteps?.[currentStepIndex];
+    if (!step || !elements?.length) {
+      return {
+        highlightIds: new Set(),
+        fadeIds: new Set(),
+        camera: { x: CW / 2, y: CH / 2, zoom: 1 },
+      };
     }
-  }, [code]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
-};
+    const highlightIds = new Set(step.highlight || step.highlightIds || []);
+    const fadeIds = new Set(step.fade || step.fadeIds || []);
 
-// ─── 3D Renderer ───────────────────────────────────────────────────────────
+    // Camera: read from step.cameraFocus (normalized 0-1) and convert to pixels
+    const cf = step.cameraFocus;
+    const camera = {
+      x: (cf?.x ?? 0.5) * CW,
+      y: (cf?.y ?? 0.5) * CH,
+      zoom: Math.min(1.4, Math.max(1.0, cf?.zoom ?? 1)),
+    };
 
-const Scene3D = ({ objects, stepIndex }) => (
-  <Canvas camera={{ position: [0, 5, 10], fov: 50 }}>
-    <ambientLight intensity={0.5} />
-    <pointLight position={[10, 10, 10]} />
-    <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-    {objects.map(obj => (
-      <mesh key={obj.id} position={[obj.x / 100 - 4, 1, obj.y / 100 - 3]}>
-        <sphereGeometry args={[obj.r / 50 || 0.5, 32, 32]} />
-        <meshStandardMaterial color={obj.color || 'blue'} />
-      </mesh>
-    ))}
-    <OrbitControls />
-  </Canvas>
-);
+    return { highlightIds, fadeIds, camera };
+  }, [elements, timelineSteps, currentStepIndex]);
+}
 
-// ─── Main Dispatcher ───────────────────────────────────────────────────────
+/**
+ * Shape dispatcher: routes each element to its cinematic component.
+ */
+function RenderShape({ obj, highlightIds, fadeIds }) {
+  const isHighlighted = highlightIds.has(obj.id);
+  const isFaded = fadeIds.has(obj.id);
+  const attentionLevel = isHighlighted ? 2 : isFaded ? 0 : 1;
 
-export default function AgentCanvasRenderer({ timeline, objects, steps, currentStepIndex }) {
-  const mode = timeline?.render_mode || 'svg_canvas';
-  
-  // Normalize sources: prioritize props (useful for snapshots) then timeline data
-  const finalObjects = objects || timeline?.objects || [];
-  const finalSteps = steps || timeline?.steps || [];
-  const currentStep = finalSteps[currentStepIndex];
-  
-  const CW = 800;
-  const CH = 600;
+  const common = {
+    key: obj.id,
+    layoutId: obj.id,
+    attentionLevel,
+  };
 
-  if (mode === 'html_animation') {
-    return <HTMLSandbox code={timeline?.component_code} />;
+  // Convert normalized 0-1 to pixel space
+  const x = (obj.x ?? 0.5) * CW;
+  const y = (obj.y ?? 0.5) * CH;
+  const shape = (obj.shape || obj.type || 'circle').toLowerCase();
+
+  switch (shape) {
+    case 'circle':
+    case 'orb':
+    case 'node':
+      return <GlowOrb {...common} cx={x} cy={y} r={(obj.scale || 1) * 40} color={obj.color} label={obj.label} />;
+    case 'rect':
+    case 'block':
+    case 'rectangle':
+    case 'box':
+    case 'step_box': {
+      const w = (obj.scale || 1) * 160;
+      const h = (obj.scale || 1) * 60;
+      return <GlassRect {...common} x={x - w / 2} y={y - h / 2} w={w} h={h} color={obj.color} label={obj.label} />;
+    }
+    case 'pointer':
+      return <FlowPointer {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+    case 'array':
+    case 'data_block':
+    case 'datablock':
+      return <DataBlock {...common} x={x} y={y} values={obj.values || []} label={obj.label} color={obj.color} />;
+    case 'badge':
+      return <FloatingBadge {...common} x={x} y={y} text={obj.label || ''} color={obj.color} />;
+    case 'codeline':
+      return <CodePanel {...common} x={x} y={y} code={obj.label || obj.code || ''} />;
+    case 'comparator':
+      return <Comparator {...common} x={x} y={y} leftVal={obj.leftVal} rightVal={obj.rightVal} operator={obj.operator} result={obj.result} color={obj.color} />;
+    case 'swapbridge':
+      return <SwapBridge {...common} x={x} y={y} color={obj.color} />;
+    default:
+      // Fallback: render as GlassRect
+      return <GlassRect {...common} x={x - 80} y={y - 30} w={160} h={60} color={obj.color || 'blue'} label={obj.label} />;
   }
+}
 
-  if (mode === 'threejs_3d') {
-    return (
-      <div className="w-full h-full bg-transparent">
-        <Scene3D objects={finalObjects} stepIndex={currentStepIndex} />
-      </div>
-    );
-  }
+export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
+  // Extract data from timeline, supporting both new and legacy keys
+  const elements = timeline?.elements || timeline?.objects || [];
+  const connections = timeline?.connections || [];
+  const timelineSteps = timeline?.timeline || timeline?.steps || [];
 
-  // Default: SVG Cinematic Canvas
+  const { highlightIds, fadeIds, camera } = useStepDirector(
+    elements, connections, timelineSteps, currentStepIndex
+  );
+
+  if (!elements.length) return null;
+
+  // Camera transform
+  const Z = camera.zoom;
+  const tx = CW / 2 - camera.x * Z;
+  const ty = CH / 2 - camera.y * Z;
+
   return (
     <div className="relative w-[800px] h-[600px] bg-transparent overflow-visible">
       <svg
@@ -98,30 +126,50 @@ export default function AgentCanvasRenderer({ timeline, objects, steps, currentS
         className="block overflow-visible pointer-events-none"
       >
         <CinematicFilters />
-        
-        {/* Object Layer */}
-        <AnimatePresence>
-          {finalObjects
-            .filter(obj => (obj?.appearsAtStep ?? 0) <= currentStepIndex)
-            .map((obj, i) => {
-              const isNew = obj.appearsAtStep === currentStepIndex;
-              const isHighlighted = currentStep?.highlightIds?.includes(obj.id);
-              const isFaded = currentStep?.fadeIds?.includes(obj.id);
-              const isMinimalist = timeline?.teaching_format === 'minimalist_pedagogy';
-              
+
+        {/* Cinematic Camera Layer */}
+        <motion.g
+          animate={{ x: tx, y: ty, scale: Z }}
+          transition={{ duration: 0.7, ease: EASE_CINEMATIC }}
+        >
+          {/* Layer 1: Connections (behind elements) */}
+          <g className="connections-layer">
+            {connections.map((conn, idx) => {
+              const fromEl = elements.find(e => e.id === conn.from);
+              const toEl = elements.find(e => e.id === conn.to);
+              if (!fromEl || !toEl) return null;
+
+              const isHighlighted = highlightIds.has(fromEl.id) || highlightIds.has(toEl.id);
+              const isFaded = fadeIds.has(fromEl.id) && fadeIds.has(toEl.id);
+
               return (
-                <CinematicShapeRouter
-                  key={obj.id}
-                  obj={obj}
-                  isNew={isNew}
-                  isHighlighted={isHighlighted}
-                  isFaded={isFaded}
-                  currentStep={currentStep}
-                  minimalist={isMinimalist}
+                <FlowArrow
+                  key={`conn-${conn.from}-${conn.to}-${idx}`}
+                  layoutId={`conn-${conn.from}-${conn.to}`}
+                  x1={(fromEl.x ?? 0.5) * CW}
+                  y1={(fromEl.y ?? 0.5) * CH}
+                  x2={(toEl.x ?? 0.5) * CW}
+                  y2={(toEl.y ?? 0.5) * CH}
+                  attentionLevel={isHighlighted ? 2 : isFaded ? 0 : 1}
+                  label={conn.label}
+                  color={fromEl.color}
                 />
               );
             })}
-        </AnimatePresence>
+          </g>
+
+          {/* Layer 2: Elements */}
+          <AnimatePresence mode="popLayout">
+            {elements.map(obj => (
+              <RenderShape
+                key={obj.id}
+                obj={obj}
+                highlightIds={highlightIds}
+                fadeIds={fadeIds}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.g>
       </svg>
     </div>
   );

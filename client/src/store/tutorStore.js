@@ -120,16 +120,22 @@ const useTutorStore = create(
       // TIMELINE ACTIONS
       // ═══════════════════════════════════════════════════
       setTimeline: (data) => set({
-        timeline: data,
+        timeline: {
+          ...data,
+          // Ensure SCENE GRAPH keys are always available
+          elements: data.elements || data.objects || [],
+          connections: data.connections || [],
+          timeline: data.timeline || data.steps || [],
+        },
         learningNodes: data.learningNodes || [],
         mode: data.mode || 'explain',
         difficulty: data.difficulty || 'beginner',
         professorNote: data.professorNote || '',
         memoryAnchor: data.memoryAnchor || '',
         keyFormula: data.keyFormula || '',
-        canvasObjects: data.objects || [],
-        canvasSteps: data.steps || [],
-        totalSteps: data.totalSteps || data.steps?.length || 0,
+        canvasObjects: data.elements || data.objects || [],
+        canvasSteps: data.timeline || data.steps || [],
+        totalSteps: data.totalSteps || data.steps?.length || data.timeline?.length || 0,
         currentStepIndex: 0,
         doubtResponse: null,
         greetingMessage: null,

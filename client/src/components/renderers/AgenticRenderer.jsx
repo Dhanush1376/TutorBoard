@@ -37,12 +37,21 @@ const ANIM_CONFIG = {
 };
 
 export default function AgenticRenderer({
-  objects = [],
-  steps = [],
+  scene = {},
+  elements = [],
+  connections = [],
+  timeline = [],
   currentStep = 0,
   onStepChange,
   autoPlay = true,
+
+  // Legacy props support (mapping to new structure)
+  objects = [],
+  steps = []
 }) {
+  const activeElements = elements.length > 0 ? elements : objects;
+  const activeTimeline = timeline.length > 0 ? timeline : steps;
+
   const [localStep, setLocalStep] = useState(currentStep);
   const timerRef = useRef(null);
 
@@ -51,10 +60,10 @@ export default function AgenticRenderer({
 
   // Auto-advance based on AI-specified durationMs for each step
   useEffect(() => {
-    if (!autoPlay || steps.length === 0) return;
+    if (!autoPlay || activeTimeline.length === 0) return;
     clearTimeout(timerRef.current);
 
-    const step = steps[localStep];
+    const step = activeTimeline[localStep];
     if (!step) return;
 
     const duration = step.durationMs ||
@@ -63,19 +72,19 @@ export default function AgenticRenderer({
 
     timerRef.current = setTimeout(() => {
       const next = localStep + 1;
-      if (next < steps.length) {
+      if (next < activeTimeline.length) {
         setLocalStep(next);
         onStepChange?.(next);
       }
     }, duration);
 
     return () => clearTimeout(timerRef.current);
-  }, [localStep, autoPlay, steps, onStepChange]);
+  }, [localStep, autoPlay, activeTimeline, onStepChange]);
 
   // Current step narration for the overlay
-  const currentStepData = steps[localStep] || {};
+  const currentStepData = activeTimeline[localStep] || {};
 
-  if (!objects.length || !steps.length) {
+  if (!activeElements.length || !activeTimeline.length) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="text-[var(--text-tertiary)] text-sm">No animation data</div>
@@ -87,8 +96,10 @@ export default function AgenticRenderer({
     <div className="absolute inset-0 w-full h-full">
       {/* Canvas layer — fully AI-driven via AnimationRenderer */}
       <AnimationRenderer
-        objects={objects}
-        steps={steps}
+        scene={scene}
+        elements={activeElements}
+        connections={connections}
+        timeline={activeTimeline}
         currentStepIndex={localStep}
       />
 

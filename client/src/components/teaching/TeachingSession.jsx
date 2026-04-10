@@ -93,6 +93,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     canvasObjects, canvasSteps,
     doubtResponse, isDoubtProcessing, doubtHistory,
     error,
+    topic,
     isPlaying,
     startSession, askDoubt, goToStep, nextStep, prevStep,
     play, pause, resume, finish, setSpeed, endSession,
@@ -108,9 +109,9 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
   } = useTutorStore();
 
   const handleClose = useCallback(() => {
-    endSession();
+    // endSession(); // STOP wiping state on close!
     onClose();
-  }, [endSession, onClose]);
+  }, [onClose]);
 
   const [doubtInput, setDoubtInput] = useState('');
   const canvasRef = useRef(null);
@@ -135,13 +136,26 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     if (initialTopic) startSession(initialTopic);
   }, [initialTopic, startSession]);
 
-  // Start session on open
+  // Start or Resume session on open
   useEffect(() => {
-    if (isOpen && initialTopic && machineState === STATES.IDLE && !timeline) {
-      // Pass initialTopic as both the topic and the initial question
-      startSession(initialTopic, initialTopic);
+    if (isOpen && initialTopic) {
+      // CASE 1: No session started yet
+      if (machineState === STATES.IDLE && !timeline) {
+        startSession(initialTopic, initialTopic);
+        return;
+      }
+
+      // CASE 2: Topic has changed while session was IDLE or exist
+      // We check if the storeTopic (slugified or direct) matches initialTopic
+      const isSameTopic = storeTopic?.toLowerCase() === initialTopic.toLowerCase();
+      
+      if (!isSameTopic && machineState !== STATES.GENERATING) {
+        console.log(`[Session] Topic changed from "${storeTopic}" to "${initialTopic}". Resetting.`);
+        endSession(); // Clear previous topic state
+        // The next tick will trigger Case 1
+      }
     }
-  }, [isOpen, initialTopic, machineState, startSession, timeline]);
+  }, [isOpen, initialTopic, machineState, startSession, timeline, storeTopic, endSession]);
 
   useEffect(() => {
     if (timeline) {

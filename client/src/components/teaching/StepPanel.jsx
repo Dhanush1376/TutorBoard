@@ -512,7 +512,7 @@ const StepPanel = ({
   const cfg = getCfg(nodeType);
   const isLast = currentStepIndex === totalSteps - 1;
 
-  const narrationText = currentStep?.narration || node?.content || currentStep?.description || '';
+  const narrationText = currentStep?.pedagogicalNarration || currentStep?.narration || node?.content || currentStep?.description || '';
   const stepTitle = currentStep?.title || node?.title || `Step ${currentStepIndex + 1}`;
   const duration = currentStep?.durationMs || currentStep?.duration || 3500;
 

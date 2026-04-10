@@ -185,15 +185,21 @@ export function setupTeachingSocket(io) {
         // Transition to TEACHING
         machine.send(EVENTS.TIMELINE_READY, { timeline });
 
-        // Send full timeline to client
-        console.log(`[WS] Emitting teaching:timeline — "${timeline.title}" (${timeline.steps?.length} steps)`);
+        // Send full timeline to client (SCENE GRAPH + legacy keys)
+        console.log(`[WS] Emitting teaching:timeline — "${timeline.title}" (${timeline.steps?.length || timeline.timeline?.length} steps)`);
         socket.emit('teaching:timeline', {
           sessionId,
           title: timeline.title,
           domain: timeline.domain,
-          totalSteps: timeline.steps.length,
-          objects: timeline.objects,
-          steps: timeline.steps,
+          // New SCENE GRAPH keys
+          scene: timeline.scene,
+          elements: timeline.elements,
+          connections: timeline.connections,
+          timeline: timeline.timeline,
+          // Legacy keys (backward compat)
+          totalSteps: timeline.steps?.length || timeline.timeline?.length || 0,
+          objects: timeline.objects || timeline.elements,
+          steps: timeline.steps || timeline.timeline,
         });
 
         // If the timeline has a chatMessage (e.g., fallback), also emit it as a greeting
