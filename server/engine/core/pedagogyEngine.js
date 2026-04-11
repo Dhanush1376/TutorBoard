@@ -8,8 +8,8 @@
  *   - Contextual visuals mapping.
  */
 
-import { requestCompletion, getModel } from '../utils/llmClient.js';
-import { isGreeting } from '../agents/index.js';
+import { requestCompletion, getModel, getTextModel } from '../utils/llmClient.js';
+import { isGreeting, buildDoubtPrompt, classifyDoubt } from '../agents/index.js';
 import { buildUnifiedPrompt } from '../agents/unifiedPrompt.js';
 import { safeParse } from '../utils/parser.js';
 import sessionStore from './sessionStore.js';
@@ -79,7 +79,7 @@ function postProcessTimeline(raw, topic, planningResult) {
       x: Math.max(0.01, Math.min(0.99, x)),
       y: Math.max(0.01, Math.min(0.99, y)),
       scale: isNaN(scale) ? 1 : scale,
-      shape: el.type === 'orb' ? 'circle' : el.type === 'block' ? 'rect' : el.type || 'circle'
+      shape: el.shape || (el.type === 'orb' ? 'circle' : el.type === 'block' ? 'rect' : el.type || 'circle')
     };
   });
 
@@ -111,19 +111,21 @@ function postProcessTimeline(raw, topic, planningResult) {
 }
 
 // ─── Main Generation Entry Point ─────────────────────────────────────────────
-export async function generateTimeline(sessionId, topic, onProgress = () => {}) {
+export async function generateTimeline(sessionId, topic, onProgress = () => {}, modelId = null) {
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
-  if (isGreeting(topic)) {
-    return { type: 'greeting', answer: "I am the Cinematic Animation Planning Engine. Tell me a topic, and I will architect a visual scene for you." };
-  }
+  const level = session.learnerProfile?.level || 'beginner';
+  const confusion = session.learnerProfile?.confusionIndex || 0;
+  const userProfile = `Target Level = ${level}, Confusion Level = ${confusion}/10`;
+  
+  console.log(`[CinematicEngine] 🎬 Orchestrating Agentic Pipeline for: "${topic}" (Quality: ${userProfile})`);
 
-  const userProfile = `Target Complexity = ${session.complexityPreference}, Confusion Level = ${session.confusionIndex}/10`;
   const cached = await cache.get(topic, userProfile);
-  if (cached) return cached;
-
-  console.log(`[CinematicEngine] 🎬 Orchestrating Agentic Pipeline for: "${topic}"`);
+  if (cached) {
+    console.log(`[CinematicEngine] ⚡ Cache HIT for: "${topic}"`);
+    return cached;
+  }
 
   try {
     // Stage 1: Animation Planner 
@@ -139,6 +141,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
       topic, 
       domain, 
       systemPrompt, 
+      model: modelId,
       maxSteps: 6, // Increased to allow Research -> Design -> Critique -> Revise -> Finish
       planningResult,
       onProgress
@@ -175,25 +178,87 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
 }
 
 // ─── Doubt/Text Handlers ─────────────────────────────────────────────────────
-export async function handleDoubt(sessionId, question) {
+export async function handleDoubt(sessionId, question, modelId = null) {
+  const session = sessionStore.get(sessionId);
+  const topic = session?.topic || "General Education";
+  const domain = session?.domain || "general";
+  
   try {
-    const messages = [
-      { role: 'system', content: 'You are a helpful pedagogical assistant. Answer the student question concisely. Return ONLY a JSON object with a single "answer" key. No markdown, no prose outside the JSON.' }, 
-      { role: 'user', content: question }
-    ];
-    const result = await requestCompletion({ 
-      model: getModel(), 
-      messages, 
-      temperature: 0.2, 
-      maxTokens: 500
+    // 1. Classify the intent of the doubt
+    const classification = await classifyDoubt(topic, question);
+    
+    // 2. Build the context-rich prompt
+    const currentStepIndex = session?.currentStepIndex || 0;
+    const currentStep = session?.steps?.[currentStepIndex] || {};
+    const currentFrames = currentStep.elements || session?.timeline?.elements || [];
+    
+    const prompt = buildDoubtPrompt({
+      topic,
+      domain,
+      currentFrames,
+      priorDoubts: session?.doubtHistory || [],
+      classification
     });
+
+    const result = await requestCompletion({ 
+      model: modelId || getModel(), 
+      messages: [{ role: 'system', content: prompt }], 
+      temperature: 0.3, 
+      maxTokens: 1000,
+      responseMimeType: 'application/json'
+    });
+
     const parsed = safeParse(result.content);
-    return { answer: parsed?.answer || result.content || "Excellent question.", isRelevant: true };
+    
+    // Return the full structured response including visual patches
+    return { 
+      answer: parsed?.answer || result.content || "That's a great question.",
+      isRelevant: parsed?.isRelevant ?? true,
+      hasVisuals: parsed?.hasVisuals || (parsed?.framePatches && parsed.framePatches.length > 0),
+      visualUpdate: {
+        mutations: parsed?.framePatches || []
+      },
+      followUp: parsed?.followUp || null
+    };
   } catch (err) {
-    return { answer: "That is a vital point in our visualization.", isRelevant: true };
+    console.error("[PedagogyEngine] Doubt handling failed:", err.message);
+    return { 
+      answer: "I encountered a minor glitch while analyzing that. Could you rephrase your question?", 
+      isRelevant: true,
+      hasVisuals: false,
+      visualUpdate: { mutations: [] }
+    };
   }
 }
 
-export async function generateTextResponse(sessionId, topic) {
-  return { answer: `I'm ready to visualize "${topic}". Ask me to explain it!`, type: 'text' };
+export async function generateTextResponse(sessionId, prompt, modelId = null) {
+  try {
+    const session = sessionStore.get(sessionId);
+    const topic = session?.topic || "General Discussion";
+    
+    console.log(`[PedagogyEngine] 💬 Generating text response for: "${prompt.substring(0, 30)}..."`);
+    
+    const response = await requestCompletion({
+      model: modelId || getTextModel(),
+      messages: [
+        { 
+          role: 'system', 
+          content: `You are Tutu, a friendly and helpful AI pedagogical assistant. 
+          The current context is: ${topic}. 
+          Answer conversationally, be encouraging, and keep it under 3 sentences.` 
+        },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      maxTokens: 500
+    });
+
+    return { 
+      answer: response.content || "I'm here to help!", 
+      type: 'text' 
+    };
+  } catch (err) {
+    console.error(`[PedagogyEngine] Text response failed:`, err.message);
+    return { answer: "I'm having a bit of trouble connecting to my brain. Could you try asking that again?", type: 'text' };
+  }
 }

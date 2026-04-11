@@ -29,7 +29,10 @@ const VALID_SHAPES = [
   'text', 'label', 'formula', 'orbit', 'planet', 'arc', 'angle', 
   'group', 'connector', 'badge', 'tag', 'chip', 'codeblock',
   'path', 'polyline', 'bezier',
-  'array', 'pointer', 'swapbridge', 'comparator', 'codeline', 'highlightbox'
+  'array', 'pointer', 'swapbridge', 'comparator', 'codeline', 'highlightbox',
+  'polygon', 'triangle', 'shape', 'dot', 'point', 'data_dot', 'axes', 'plot', 'cartesian',
+  'particle', 'wave', 'pendulum', 'spring',
+  'era_block', 'timeline_bar', 'event'
 ];
 
 /**
@@ -134,7 +137,13 @@ export function validateTimeline(data) {
 
   if (!data.title || typeof data.title !== 'string') {
     errors.push("Missing or invalid 'title' (string required)");
+    data.title = 'Generated Lesson'; // Graceful fallback
   }
+
+  // Normalize keys from SCENE GRAPH to LEGACY
+  if (!data.steps && data.timeline) data.steps = data.timeline;
+  if (!data.objects && data.elements) data.objects = data.elements;
+
 
   // mode is optional — default to 'explain' if missing
   if (!data.mode || !VALID_MODES.includes(data.mode)) {

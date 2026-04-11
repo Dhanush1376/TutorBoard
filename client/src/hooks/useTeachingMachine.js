@@ -21,7 +21,7 @@ export function useTeachingMachine() {
   const {
     machineState, sessionId, topic,
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula, currentStepIndex, totalSteps,
-    canvasObjects, canvasSteps,
+    canvasObjects, canvasConnections, canvasSteps,
     doubtResponse, isDoubtProcessing, doubtHistory, activeDoubtId,
     error, greetingMessage,
     isPlaying, isPaused, playbackSpeed,
@@ -253,6 +253,7 @@ export function useTeachingMachine() {
     memoryAnchor,
     keyFormula,
     canvasObjects,
+    canvasConnections,
     canvasSteps,
     doubtResponse,
     isDoubtProcessing,

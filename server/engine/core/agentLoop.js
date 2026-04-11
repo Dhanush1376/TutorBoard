@@ -21,6 +21,7 @@ import { getAnimationGuide, getVisualScaffold } from '../agents/domainConfig.js'
 import { searchDomainKnowledge, formatSearchContext } from '../tools/webSearch.js';
 import { safeParse } from '../utils/parser.js';
 import { circuitBreaker } from './circuitBreaker.js';
+import { SceneGraphSchema } from '../validators/timelineSchema.js';
 
 // ─── Robust JSON Extractor ───────────────────────────────────────────────────
 function extractJSON(text) {
@@ -62,51 +63,34 @@ function validateSceneGraph(obj) {
     return { valid: false, errors: ['Not an object'] };
   }
 
+  // 1. Structural Validation via Zod
+  const result = SceneGraphSchema.safeParse(obj);
   const errors = [];
-  const elements = obj.elements || obj.objects || obj.nodes || [];
+
+  if (!result.success) {
+    // Transform Zod errors into readable strings
+    result.error.issues.forEach(issue => {
+      errors.push(`${issue.path.join('.')}: ${issue.message}`);
+    });
+  }
+
+  // 2. Density & Pedagogical Quality Checks
+  const elements = obj.elements || obj.objects || [];
   const timeline = obj.timeline || obj.steps || [];
 
-  if (!Array.isArray(elements) || elements.length === 0) {
-    errors.push('Missing or empty "elements" array. Need at least 3-5 visual elements.');
-  }
-
-  if (!Array.isArray(timeline) || timeline.length === 0) {
-    errors.push('Missing or empty "timeline" array. Need at least 4-6 steps.');
-  }
-
   if (elements.length < 3) {
-    errors.push(`Only ${elements.length} elements. Need at least 3-5 for a meaningful visualization.`);
+    errors.push(`Visualization too sparse: Only ${elements.length} elements. Need at least 3-5 for a meaningful scene.`);
   }
 
   if (timeline.length < 3) {
-    errors.push(`Only ${timeline.length} steps. Need at least 4-6 steps for clear concept progression.`);
+    errors.push(`Lesson too short: Only ${timeline.length} steps. Need at least 4-6 steps for clear progression.`);
   }
 
-  // Check element structure
-  for (const el of elements) {
-    if (!el || !el.id) {
-      errors.push('Found element without an "id" field.');
-      break;
-    }
-    if (el.x === undefined || el.y === undefined) {
-      errors.push(`Element "${el.id}" missing x/y coordinates.`);
-    }
-  }
-
-  // Check timeline structure
-  for (const step of timeline) {
-    if (!step) continue;
-    if (!step.title && !step.label) {
-      errors.push('Found timeline step without a "title".');
-      break;
-    }
-    if (!step.explanation && !step.narration) {
-      errors.push('Found timeline step without "explanation" or "narration".');
-      break;
-    }
-  }
-
-  return { valid: errors.length === 0, errors };
+  return { 
+    valid: errors.length === 0, 
+    errors,
+    data: result.success ? result.data : obj 
+  };
 }
 
 // ─── Build the Generation Prompt ─────────────────────────────────────────────
@@ -132,7 +116,7 @@ Return ONLY the raw JSON object.`;
 
 
 // ─── Main Autonomous Loop ────────────────────────────────────────────────────
-export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 3, planningResult, onProgress = () => {} }) {
+export async function runAgentLoop({ topic, domain, systemPrompt, model = null, maxSteps = 3, planningResult, onProgress = () => {} }) {
   console.log(`[AgentLoop] 🚀 Autonomous generation for: "${topic}"`);
 
   // ── Phase 0: Optional Research (for factual domains) ──────────────────────
@@ -157,17 +141,17 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 3, 
   let sceneGraph = null;
   let lastErrors = [];
 
+  // Reset circuit breaker before starting attempts (402 credits error trips it)
+  circuitBreaker.reset('openrouter');
+
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      // Reset circuit breaker before each attempt (402 credits error trips it)
-      circuitBreaker.reset('openrouter');
-
       const messages = [
         { role: 'system', content: generationPrompt }
       ];
 
       // Adaptive token budget: smaller on retry to fit credit limits
-      const tokenBudget = attempt === 1 ? 2000 : 1500;
+      const tokenBudget = attempt === 1 ? 4000 : 3000;
 
       // On retry, add the error feedback
       if (attempt > 1 && lastErrors.length > 0) {
@@ -184,17 +168,32 @@ export async function runAgentLoop({ topic, domain, systemPrompt, maxSteps = 3, 
         });
       }
 
+      console.log(`[AgentLoop] 🤖 Phase 1: Requesting LLM completion (Attempt ${attempt}/2) with model: ${model || 'default'}...`);
       const response = await requestCompletion({
-        model: getModel(),
+        model: model || getModel(),
         messages,
         temperature: 0.4,
-        maxTokens: tokenBudget
+        maxTokens: tokenBudget,
+        responseSchema: SceneGraphSchema
       });
 
-      console.log(`[AgentLoop] 📦 Raw response length: ${(response.content || '').length} chars`);
+      if (!response?.content) {
+        console.warn(`[AgentLoop] ⚠️ Attempt ${attempt}: Empty response content`);
+        lastErrors = ['Empty response from AI. Please try again.'];
+        continue;
+      }
+
+      console.log(`[AgentLoop] 📦 Received ${response.content.length} chars of AI output.`);
 
       // ── Phase 2: VALIDATE ─────────────────────────────────────────────────
-      const parsed = extractJSON(response.content);
+      let parsed = null;
+      try {
+        parsed = JSON.parse(response.content);
+        console.log(`[AgentLoop] ✅ Valid JSON parsed.`);
+      } catch (err) {
+        console.log(`[AgentLoop] 🔍 Direct parse failed. Attempting cleanup...`);
+        parsed = extractJSON(response.content);
+      }
 
       if (!parsed) {
         console.warn(`[AgentLoop] ⚠️ Attempt ${attempt}: Failed to extract JSON from response`);

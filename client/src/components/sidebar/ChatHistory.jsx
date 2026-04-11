@@ -30,7 +30,7 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
       <AnimatePresence initial={false}>
         {chatHistory.map((chat, index) => (
           <motion.div 
-            key={chat.id} 
+            key={`${chat.id}-${chat.updatedAt || index}`} 
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}

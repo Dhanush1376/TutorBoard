@@ -1,9 +1,7 @@
 /**
  * TeachingSession v3.0 — FULL-SCREEN IMMERSIVE VISUAL LEARNING ENGINE
  *
- * v3.0 — Cinematic Animation Engine Integration:
- *   - UniversalAnimationEngine configured per-domain for 3-layer animations
- *   - StepOrchestrator manages step transitions and stagger timing
+* v3.0 — Cinematic Animation Engine Integration:
  *   - All 24 subject domains supported with styled badges
  *   - Close button onClick fixed
  *   - StepPanel visible in TEACHING + RESPONDING + RESUMING states
@@ -31,9 +29,6 @@ import SessionOverlay from './SessionOverlay';
 import StepPanel from './StepPanel';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
-import animEngine from '../../engine/UniversalAnimationEngine';
-import stepOrchestrator from '../../engine/StepOrchestrator';
-import cameraDirector from '../../engine/CameraDirector';
 
 // ─── All 24 domain styles ─────────────────────────────────────────────────────
 const DOMAIN_STYLES = {
@@ -90,7 +85,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     machineState, isConnected,
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
     currentStep, currentStepIndex, totalSteps,
-    canvasObjects, canvasSteps,
+    canvasObjects, canvasConnections, canvasSteps,
     doubtResponse, isDoubtProcessing, doubtHistory,
     error,
     topic,
@@ -157,56 +152,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     }
   }, [isOpen, initialTopic, machineState, startSession, timeline, storeTopic, endSession]);
 
-  useEffect(() => {
-    if (timeline) {
-      const domain = timeline.domain?.toLowerCase() || 'general';
-      animEngine.setDomain(domain);
-      stepOrchestrator.setDomain(domain);
-    }
-  }, [timeline]);
 
-  // Sync playback speed to engine
-  useEffect(() => {
-    animEngine.setSpeed(playbackSpeed);
-    stepOrchestrator.setSpeed(playbackSpeed);
-  }, [playbackSpeed]);
-
-  // Attach camera director to canvas
-  useEffect(() => {
-    if (canvasRef.current) {
-      cameraDirector.attach(canvasRef);
-    }
-    return () => cameraDirector.attach(null);
-  }, [canvasRef]);
-
-  // Auto-fit and direct camera when step changes
-  useEffect(() => {
-    if (timeline && canvasRef.current && currentStep) {
-      // 1. Give camera director domain context
-      cameraDirector.setDomain(timeline.domain);
-
-      // 2. Direct camera for this step
-      // Calculate focus point or let director build it
-      cameraDirector.directStep(
-        currentStep,
-        timeline.objects || [],
-        new Set(currentStep.highlightIds || []),
-        new Set(timeline.objects?.filter(o => o.appearsAtStep === currentStepIndex).map(o => o.id) || []),
-        null, // focusPoint centroid
-        3     // focusIntensity (moderate)
-      );
-    }
-  }, [currentStepIndex, timeline, currentStep]);
-
-  // Initial auto-fit on load
-  useEffect(() => {
-    if (timeline && canvasRef.current) {
-      const timer = setTimeout(() => {
-        cameraDirector.resetToOverview();
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [timeline]);
 
   // Voice narration
   useEffect(() => {
@@ -371,12 +317,13 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               ref={canvasRef}
               onZoomChange={handleZoomChange}
               onViewportChange={handleViewportChange}
-              onInteractionStart={() => cameraDirector.setUserInteracting(true)}
-              onInteractionEnd={() => cameraDirector.setUserInteracting(false)}
               className="bg-[var(--bg-primary)]"
             >
               <AgentCanvasRenderer
                 timeline={timeline}
+                elements={canvasObjects}
+                connections={canvasConnections}
+                steps={canvasSteps}
                 currentStepIndex={currentStepIndex}
               />
             </InfiniteCanvas>
@@ -639,29 +586,46 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               </div>
             </div>
 
-            {/* Progress Bar — capped at 50 segments */}
+            {/* Progress Bar — Normalized scaling for short vs long timelines */}
             {timeline && totalSteps > 0 && (
               <div className="w-full max-w-xl px-6">
-                <div className="flex gap-0.5">
-                  {Array.from({ length: progressSegments }).map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        const targetStep = totalSteps > 50
-                          ? Math.round((i / (progressSegments - 1)) * (totalSteps - 1))
-                          : i;
-                        goToStep(targetStep);
-                      }}
-                      className={`flex-1 h-1.5 rounded-full transition-all duration-300 hover:h-2.5 ${
-                        i < progressStep
-                          ? 'bg-[var(--text-primary)]'
-                          : i === progressStep
-                          ? 'bg-[var(--text-primary)] shadow-[0_0_8px_rgba(0,0,0,0.2)] scale-y-150'
-                          : 'bg-[var(--border-color)]'
-                      }`}
-                      title={`Step ${i + 1}${canvasSteps[i]?.title ? ': ' + canvasSteps[i].title : ''}`}
-                    />
-                  ))}
+                <div className="relative group/track flex items-center justify-center gap-1 h-3 px-2 rounded-full bg-[var(--bg-secondary)]/30 backdrop-blur-sm border border-[var(--border-color)]/20">
+                  {Array.from({ length: progressSegments }).map((_, i) => {
+                    const isActive = i === progressStep;
+                    const isPast = i < progressStep;
+
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          const targetStep = totalSteps > 50
+                            ? Math.round((i / (progressSegments - 1)) * (totalSteps - 1))
+                            : i;
+                          goToStep(targetStep);
+                        }}
+                        className={`
+                          h-1.5 rounded-full transition-all duration-300 relative
+                          ${isActive ? 'w-8 bg-[var(--text-primary)] shadow-[0_0_12px_rgba(255,255,255,0.3)] z-10' : 
+                            isPast ? 'w-4 bg-[var(--text-secondary)] opacity-80' : 
+                            'w-4 bg-[var(--border-color)] opacity-40 hover:opacity-100'}
+                          hover:h-2
+                        `}
+                        style={{
+                          maxWidth: '40px',
+                          minWidth: '6px',
+                          flexShrink: 1,
+                        }}
+                        title={`Step ${i + 1}${canvasSteps[i]?.title ? ': ' + canvasSteps[i].title : ''}`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="active-progress-glow"
+                            className="absolute inset-0 bg-white/20 blur-sm rounded-full"
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

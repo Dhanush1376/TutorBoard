@@ -63,6 +63,7 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       canvasMode: CANVAS_MODE.CLOSED,
       canvasObjects: [],        // Mutable array of scene objects
+      canvasConnections: [],    // Mutable array of scene connections
       canvasSteps: [],          // Step definitions
       canvasTransform: { x: 0, y: 0, scale: 1 },
 
@@ -136,6 +137,7 @@ const useTutorStore = create(
         memoryAnchor: data.memoryAnchor || '',
         keyFormula: data.keyFormula || '',
         canvasObjects: data.elements || data.objects || [],
+        canvasConnections: data.connections || [],
         canvasSteps: data.timeline || data.steps || [],
         totalSteps: data.totalSteps || data.steps?.length || data.timeline?.length || 0,
         currentStepIndex: 0,
@@ -186,29 +188,49 @@ const useTutorStore = create(
 
       setCanvasTransform: (transform) => set({ canvasTransform: transform }),
 
-      // Mutate canvas objects (supports legacy mutations and modern framePatches)
+      // Mutate canvas objects and steps (supports doubt-driven frame patches)
       mutateCanvasObjects: (mutationsOrPatches) => {
-        const { canvasObjects } = get();
+        const { canvasObjects, canvasSteps } = get();
         let newObjects = [...canvasObjects];
+        let newSteps = [...canvasSteps];
 
-        // Normalise inputs (AI returns framePatches now)
         const items = Array.isArray(mutationsOrPatches) ? mutationsOrPatches : [];
 
         for (const item of items) {
           // ─── Modern Schema (framePatches with op: add/modify) ───
-          if (item.op === 'add' && item.frame?.shapes) {
-            item.frame.shapes.forEach(shape => {
-              if (!newObjects.find(o => o.id === shape.id)) {
-                newObjects.push({ ...shape, doubtDriven: true });
-              }
-            });
+          if (item.op === 'add' && item.frame) {
+            // Addition at step level (Doubt-driven additional explanation)
+            const newStepIndex = item.afterStepIndex + 1;
+            const newStep = {
+              index: newStepIndex,
+              id: item.frame.id,
+              title: item.frame.label || 'Explanation',
+              narration: item.frame.label || '',
+              // The new step shows the new shapes + potentially existing ones if needed
+              // For simplicity in doubt-mode, we often just highlight the new ones
+              highlightIds: item.frame.shapes?.map(s => s.id) || [],
+              objectIds: item.frame.shapes?.map(s => s.id) || [],
+              cameraFocus: { x: 0.5, y: 0.5, zoom: 0.8 } // overview for new content
+            };
+
+            // Insert at the right place
+            newSteps.splice(newStepIndex, 0, newStep);
+            
+            // Add any new shapes to the global objects list
+            if (item.frame.shapes) {
+              item.frame.shapes.forEach(shape => {
+                if (!newObjects.find(o => o.id === shape.id)) {
+                  newObjects.push({ ...shape, doubtDriven: true });
+                }
+              });
+            }
           } else if (item.op === 'modify' && item.shapeId) {
             newObjects = newObjects.map(obj =>
               obj.id === item.shapeId ? { ...obj, ...item.props } : obj
             );
           }
           
-          // ─── Legacy Schema (mutations with action: add/modify/etc) ───
+          // ─── Legacy Schema (backward compat) ───
           else if (item.action === 'add' && item.object) {
             if (!newObjects.find(o => o.id === item.object.id)) {
               newObjects.push(item.object);
@@ -217,16 +239,14 @@ const useTutorStore = create(
             newObjects = newObjects.map(obj =>
               obj.id === item.targetId ? { ...obj, ...item.changes } : obj
             );
-          } else if (item.action === 'remove' && item.targetId) {
-            newObjects = newObjects.filter(obj => obj.id !== item.targetId);
-          } else if (item.action === 'highlight' && item.targetIds) {
-            newObjects = newObjects.map(obj =>
-              item.targetIds.includes(obj.id) ? { ...obj, glow: true, pulse: true } : obj
-            );
           }
         }
 
-        set({ canvasObjects: newObjects });
+        set({ 
+          canvasObjects: newObjects,
+          canvasSteps: newSteps,
+          totalSteps: newSteps.length
+        });
       },
 
       // Add objects to canvas (append without replacing)
@@ -241,13 +261,14 @@ const useTutorStore = create(
       // SNAPSHOT ACTIONS (for doubt timeline navigation)
       // ═══════════════════════════════════════════════════
       takeSnapshot: () => {
-        const { canvasObjects, currentStepIndex, canvasTransform, canvasSteps } = get();
+        const { canvasObjects, canvasConnections, currentStepIndex, canvasTransform, canvasSteps } = get();
         const id = `snap-${Date.now()}`;
         set(state => ({
           snapshots: {
             ...state.snapshots,
             [id]: {
               objects: [...canvasObjects],
+              connections: [...canvasConnections],
               steps: [...canvasSteps],
               stepIndex: currentStepIndex,
               transform: { ...canvasTransform },
@@ -265,6 +286,7 @@ const useTutorStore = create(
 
         set({
           canvasObjects: [...snap.objects],
+          canvasConnections: [...(snap.connections || [])],
           canvasSteps: [...snap.steps],
           currentStepIndex: snap.stepIndex,
           canvasTransform: { ...snap.transform },

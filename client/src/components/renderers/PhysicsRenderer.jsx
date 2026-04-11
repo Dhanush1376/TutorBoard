@@ -11,10 +11,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 const CW = 800;
 const CH = 600;
 
-export default function PhysicsRenderer({ timeline, currentStepIndex }) {
-  const elements = timeline?.elements || [];
-  const connections = timeline?.connections || [];
-  const steps = timeline?.timeline || [];
+export default function PhysicsRenderer({ timeline, currentStepIndex, elements: extElements, connections: extConnections, steps: extSteps }) {
+  const elements = extElements || timeline?.elements || [];
+  const connections = extConnections || timeline?.connections || [];
+  const steps = extSteps || timeline?.timeline || timeline?.steps || [];
   const currentStep = steps[currentStepIndex] || {};
 
   const canvasRef = useRef(null);
@@ -27,7 +27,7 @@ export default function PhysicsRenderer({ timeline, currentStepIndex }) {
     return { highlightIds: hl, fadeIds: fd, camera: cam };
   }, [currentStep]);
 
-  const Z = Math.min(1.5, Math.max(1.0, camera.zoom || 1));
+  const Z = Math.min(1.8, Math.max(0.5, camera.zoom || 1));
   const tx = CW / 2 - (camera.x || 0.5) * CW * Z;
   const ty = CH / 2 - (camera.y || 0.5) * CH * Z;
 

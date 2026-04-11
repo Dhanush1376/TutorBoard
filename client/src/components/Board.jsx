@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useRef, Component } from 'react';
 import { motion, useMotionValue, useSpring as useFramerSpring, AnimatePresence } from 'framer-motion';
 
-// Import New Visual Engine Renderers
-import FlowRenderer from './renderers/FlowRenderer';
-import TimelineRenderer from './renderers/TimelineRenderer';
-import DiagramRenderer from './renderers/DiagramRenderer';
-import AnimationRenderer from './renderers/AnimationRenderer';
-import SceneRenderer from './renderers/SceneRenderer';
+// Legacy Visual Engine Renderers Removed
 
 // ─── ERROR BOUNDARY ─── Catches rendering crashes and shows fallback UI
 class BoardErrorBoundary extends Component {
@@ -209,52 +204,20 @@ const SceneDispatcher = ({ stepData, steps, currentStep, domain, vizType, dsl, s
   const hasSequence = Array.isArray(sequence) && sequence.length > 0;
   const hasSteps = Array.isArray(steps) && steps.length > 0;
 
-  // ═══ PRIORITY 1: SceneRenderer — real SVG visual diagrams ═══
-  if (hasObjects) {
-    return <SceneRenderer objects={objects} steps={steps} currentStepIndex={currentStep} />;
-  }
+  // ═══ PRIORITY 1: SceneRenderer removed (Obsolete) ═══
 
-  // ═══ PRIORITY 2: DSL-based renderers ═══
-  const hasDSL = dsl && typeof dsl === 'object' && !Array.isArray(dsl) && Object.keys(dsl).length > 0;
-  if (hasDSL) {
-    switch (vizType) {
-      case "flow":
-      case "node_graph":
-        return <FlowRenderer dsl={dsl} style={style} />;
-      case "timeline":
-        return <TimelineRenderer dsl={dsl} style={style} />;
-      case "diagram":
-        return <DiagramRenderer dsl={dsl} style={style} />;
-      default:
-        break;
-    }
-  }
+  // ═══ PRIORITY 2: DSL-based renderers removed ═══
 
   // ═══ PRIORITY 3: ProcessRenderer for step-based flow ═══
   if (hasSteps) {
     return <ProcessRenderer steps={steps} currentStep={currentStep} />;
   }
 
-  // ═══ PRIORITY 4: AnimationRenderer for elements ═══
-  if (hasElements || hasSequence) {
-    return (
-      <AnimationRenderer
-        objects={objects}
-        steps={steps}
-        currentStepIndex={currentStep}
-        data={{ elements, motion: motionData, sequence, connections, type: vizType }}
-      />
-    );
-  }
+  // ═══ PRIORITY 4: AnimationRenderer removed ═══
 
   // ═══ PRIORITY 5: Legacy renderers ═══
   if (stepData) {
     switch (vizType) {
-      case "array":
-      case "array_visualization":
-        // Refactor: If no objects for SceneRenderer, fallback to Timeline or null
-        if (hasSteps) return <TimelineRenderer steps={steps} currentStep={currentStep} />;
-        return null;
       case "quiz":
         return <QuizRenderer stepData={stepData} />;
       default:

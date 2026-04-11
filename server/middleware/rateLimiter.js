@@ -63,15 +63,15 @@ export function httpRateLimiter(req, res, next) {
  * Socket-level rate limiter — call from socket event handlers
  * Returns true if the event should be allowed, false if rate-limited.
  */
-export function checkSocketRate(socketId) {
+export function checkSocketRate(key) {
   const now = Date.now();
 
-  if (!hitsBySocket.has(socketId)) hitsBySocket.set(socketId, []);
-  const timestamps = hitsBySocket.get(socketId);
+  if (!hitsBySocket.has(key)) hitsBySocket.set(key, []);
+  const timestamps = hitsBySocket.get(key);
 
   const fresh = timestamps.filter(t => now - t < SOCKET_WINDOW_MS);
   fresh.push(now);
-  hitsBySocket.set(socketId, fresh);
+  hitsBySocket.set(key, fresh);
 
   return fresh.length <= SOCKET_MAX_HITS;
 }

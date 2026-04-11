@@ -10,6 +10,7 @@
 
 import OpenAI from 'openai';
 import { circuitBreaker } from '../core/circuitBreaker.js';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // dotenv is loaded once at startup in index.js — no need to reload here
 
@@ -36,10 +37,28 @@ const initOpenRouter = () => {
 };
 
 /**
+ * Helper to map UI-friendly model IDs to actual API slugs
+ */
+function resolveModelId(modelId) {
+  if (!modelId || modelId === 'OpenRouter' || modelId === 'OpenRouterAI') {
+    return getModel();
+  }
+  
+  const mapping = {
+    'Bytez': 'anthropic/claude-opus-4-20250514',
+    'Bytez (Opus)': 'anthropic/claude-opus-4-20250514'
+  };
+
+  return mapping[modelId] || modelId;
+}
+
+/**
  * Robust LLM Call — Dedicated OpenRouter Dispatcher
  */
-export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseSchema }) {
+export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType }) {
   initOpenRouter();
+
+  const orModel = resolveModelId(model);
 
   if (!openRouterClient) {
     throw new Error('NO_API_AVAILABLE: OpenRouter client not initialized. Check .env');
@@ -50,12 +69,24 @@ export async function requestCompletion({ model, messages, temperature, maxToken
   }
 
   try {
-    const orModel = model || getModel();
-    
     // Preparation for JSON mode if requested
-    const isJson = !!responseSchema || messages.some(m => m.content?.toLowerCase().includes('json'));
+    const isJson = responseMimeType === 'application/json' || !!responseSchema;
     
-    console.log(`[AI:OpenRouter] Calling: ${orModel} (JSON: ${isJson})`);
+    let response_format;
+    if (responseSchema) {
+      response_format = {
+        type: "json_schema",
+        json_schema: {
+          name: "structured_output",
+          strict: false,
+          schema: zodToJsonSchema(responseSchema, "root").definitions?.root || zodToJsonSchema(responseSchema)
+        }
+      };
+    } else if (isJson) {
+      response_format = { type: "json_object" };
+    }
+    
+    console.log(`[AI:OpenRouter] Calling: ${orModel} (Structured: ${!!responseSchema}, JSON: ${isJson})`);
 
     const completion = await openRouterClient.chat.completions.create({
       model: orModel,
@@ -63,7 +94,7 @@ export async function requestCompletion({ model, messages, temperature, maxToken
       temperature: temperature ?? 0.1,
       max_tokens: maxTokens ?? 1000,
       tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
-      response_format: isJson ? { type: "json_object" } : undefined
+      response_format
     });
 
     circuitBreaker.reportSuccess('openrouter');

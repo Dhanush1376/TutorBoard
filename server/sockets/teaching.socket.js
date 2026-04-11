@@ -34,6 +34,20 @@ import { sanitizeInput } from '../utils/sanitize.js';
 import { replanRemainingSteps } from '../engine/core/adaptivePlanner.js';
 import jwt from 'jsonwebtoken';
 
+// ─── Rate Limit Helper ───────────────────────────────────────────────────────
+function getRateKey(socket) {
+  const user = socket.user;
+  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+  
+  // Authenticated users are limited by their ID (prevents multi-tab bypass)
+  if (user && !user.isGuest && user.id !== 'guest') {
+    return `auth:${user.id}`;
+  }
+  
+  // Guests are limited by IP (prevents refresh bypass)
+  return `guest:${ip}`;
+}
+
 // ─── Timeout wrapper ─────────────────────────────────────────────────────────
 function withTimeout(promise, ms, fallbackMessage) {
   return Promise.race([
@@ -58,7 +72,8 @@ export function setupTeachingSocket(io) {
       
       // Allow frontend built-in Guest sessions
       if (token === 'guest') {
-        socket.user = { id: 'guest', name: 'Guest User', email: 'guest@tutorboard.ai' };
+        const guestId = `guest-${socket.id.substring(0, 8)}`;
+        socket.user = { id: guestId, name: 'Guest User', email: `${guestId}@tutorboard.ai`, isGuest: true };
         return next();
       }
 
@@ -94,7 +109,7 @@ export function setupTeachingSocket(io) {
     // ─── START SESSION ───
     socket.on('session:start', async ({ topic, selectedAgent, activeMode }) => {
       // Rate limit check
-      if (!checkSocketRate(socket.id)) {
+      if (!checkSocketRate(getRateKey(socket))) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
         return;
       }
@@ -151,7 +166,7 @@ export function setupTeachingSocket(io) {
           // Process as a fast conversational text chat instead of generating a visual timeline
           console.log(`[WS] Generating text-only response...`);
           const response = await withTimeout(
-            generateTextResponse(sessionId, cleanTopic),
+            generateTextResponse(sessionId, cleanTopic, selectedAgent),
             45000,
             'Text response timed out'
           );
@@ -167,7 +182,7 @@ export function setupTeachingSocket(io) {
           generateTimeline(sessionId, cleanTopic, (stage) => {
             console.log(`[WS] Progress: ${stage}`);
             socket.emit('teaching:progress', { message: stage });
-          }),
+          }, selectedAgent),
           120000,
           'Timeline generation timed out'
         );
@@ -237,7 +252,7 @@ export function setupTeachingSocket(io) {
     // ─── ASK DOUBT ───
     socket.on('session:doubt', async ({ question, selectedAgent, activeMode }) => {
       // Rate limit check
-      if (!checkSocketRate(socket.id)) {
+      if (!checkSocketRate(getRateKey(socket))) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
         return;
       }
@@ -271,7 +286,7 @@ export function setupTeachingSocket(io) {
           // Fast-track a text response for default modes
           console.log(`[WS] Generating text-only doubt response...`);
           const textRes = await withTimeout(
-            generateTextResponse(sessionId, cleanQuestion),
+            generateTextResponse(sessionId, cleanQuestion, selectedAgent),
             45000,
             'Doubt text response timed out'
           );
@@ -285,7 +300,7 @@ export function setupTeachingSocket(io) {
           // Explicitly requested visualization or deep modes
           console.log(`[WS] Generating visual doubt response...`);
           response = await withTimeout(
-            handleDoubt(sessionId, cleanQuestion),
+            handleDoubt(sessionId, cleanQuestion, selectedAgent),
             30000,
             'Doubt visual response timed out'
           );

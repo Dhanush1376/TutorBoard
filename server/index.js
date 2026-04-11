@@ -14,11 +14,40 @@ import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
 import mongoose from 'mongoose';
 
+const app = express();
+
+// ─── Core Middleware ─────────────────────────────────────────────────────────
+// Parse JSON bodies first
+app.use(express.json({ limit: '1mb' }));
+// CORS must be early
+app.use(cors({
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
+// Request Logger
+app.use((req, _res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
 // ─── Database Connection ─────────────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tutorboard';
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log(`[DB] Connected to MongoDB: ${MONGODB_URI.split('@').pop()}`))
-  .catch(err => console.error(`[DB] Connection Error: ${err.message}`));
+mongoose.connect(MONGODB_URI, {
+  serverSelectionTimeoutMS: 2000, // Fail fast (2s)
+  connectTimeoutMS: 5000,
+})
+  .then(() => console.log(`[DB] Connected to MongoDB ✅`))
+  .catch(err => console.error(`[DB] Connection Error (Non-fatal): ${err.message}`));
 
 // ─── Environment Variable Validation ─────────────────────────────────────────
 const REQUIRED_ENV = [
@@ -40,7 +69,6 @@ if (!hasAllCritical) {
   process.exit(1);
 }
 
-const app = express();
 const httpServer = createServer(app);
 const port = process.env.PORT || 3001;
 
@@ -96,32 +124,13 @@ setupTeachingSocket(io);
 // --------------- Middleware ---------------
 
 // CORS: allow configured origins + Vercel preview deployments
-app.use(cors({
-  origin: (origin, callback) => {
-    if (isOriginAllowed(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-}));
-
-// Parse JSON bodies (with a size limit for safety)
-app.use(express.json({ limit: '1mb' }));
+// CORS and JSON parsing were moved to top
 
 // Initialize Passport for Social Auth
 import passport from 'passport';
 app.use(passport.initialize());
 
-// Request logger (useful for debugging on Render)
-app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
-});
+// Request logger was moved to top
 
 // --------------- Routes ---------------
 

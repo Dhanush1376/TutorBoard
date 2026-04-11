@@ -17,6 +17,12 @@
 export function buildUnifiedPrompt(planningResult) {
   const { conceptType, renderer, animationStyle, freedomLevel, domainGuide } = planningResult;
 
+  const allowedTypes = renderer === 'physics' 
+    ? 'particle|wave|orbit|pendulum|spring|axes'
+    : renderer === 'narrative'
+    ? 'era_block|timeline_bar|event|badge'
+    : 'dot|axes|polygon|array|orb|block|pointer|codeline|badge|comparator|swapbridge|circle|rect';
+
   return `
 You are an AGENTIC VISUAL LEARNING ENGINE.
 
@@ -90,8 +96,21 @@ You MUST use precise (x, y) coordinates to draw actual shapes. NEVER use a flowc
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VISUAL VOCABULARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${freedomLevel === 'high'
-    ? `🟢 HIGH CREATIVE FREEDOM: Use whatever shapes best explain the concept.
+${renderer === 'physics' ? `⚛️ PHYSICS RENDERER ACTIVE: Use simulation primitives.
+Available:
+- "orbit" (requires "color", "label"): Draws an orbiting particle with a path. Use for planets, electrons, satellites.
+- "wave" (requires "color", "label", "scale"): Draws a sinusoidal wave. Use for sound, light, signals.
+- "pendulum" (requires "color", "label"): Draws a swinging weight.
+- "spring" (requires "color"): Draws an oscillating coil.
+- "particle": Generic physics entity (defaults to a glowing sphere).
+- "axes": Background grid for plots.` : 
+  renderer === 'narrative' ? `📜 NARRATIVE RENDERER ACTIVE: Use storytelling primitives.
+Available:
+- "era_block" (requires "label", "color"): A large stylized container for a historical period or major event.
+- "timeline_bar": A vertical design element indicating the passage of time.
+- "event": A specific point in time (renders as a highlighted container).
+- "badge": Small labels for dates or categories.` : 
+  freedomLevel === 'high' ? `🟢 HIGH CREATIVE FREEDOM: Use whatever shapes best explain the concept.
 Available:
 - "dot" (tiny solid circle for scatter plots)
 - "axes" (X/Y coordinate background)
@@ -103,9 +122,9 @@ Available:
 - "pointer" (indicators, cursors)
 - "codeline" (code, formulas)
 - "comparator" (comparisons)
+- "swapbridge" (arc for sorting steps)
 
-Connections: default is an arrow, but you can set "type": "line" for raw geometric edges without arrowheads.`
-    : `🟡 PRECISE MODE: Use standard shapes for accuracy.
+Connections: default is an arrow, but you can set "type": "line" for raw geometric edges without arrowheads.` : `🟡 PRECISE MODE: Use standard shapes for accuracy.
 Available: dot, axes, polygon, array, orb, block, pointer, codeline, badge, comparator.`}
 
 Colors: blue, cyan, green, yellow, orange, red, purple, gray, white
@@ -119,7 +138,7 @@ OUTPUT FORMAT (STRICT JSON)
   "elements": [
     { 
       "id": "unique_id", 
-      "type": "dot|axes|polygon|array|orb|block|pointer|codeline|badge|comparator", 
+      "type": "${allowedTypes}", 
       "x": 0.5, 
       "y": 0.5, 
       "label": "Specific Label", 
@@ -137,6 +156,7 @@ OUTPUT FORMAT (STRICT JSON)
       "highlight": ["id1"],
       "fade": [],
       "cameraFocus": { "x": 0.5, "y": 0.5, "zoom": 1.0 },
+      "animation": { "type": "slide_in|fade|scale|draw", "duration": 0.5 },
       "explanation": "One clear teaching sentence for this step."
     }
   ]

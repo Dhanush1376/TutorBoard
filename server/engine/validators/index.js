@@ -3,33 +3,36 @@
  */
 export { safeParse } from '../utils/parser.js';
 export { validatePedagogyResponse } from './maestroValidator.js';
-import { validateTimelineResponse } from '../agents/timelinePrompt.js';
+import { SceneGraphSchema } from './timelineSchema.js';
 import { validateTimeline as richValidateTimeline } from './timelineValidator.js';
 
-
 export function validateTimeline(data) {
-  // 1. Structural safety check
-  if (!data || !Array.isArray(data.steps) || !Array.isArray(data.objects)) {
-    return { 
-      valid: false, 
-      errors: ['Invalid timeline structure: missing steps or objects array'] 
-    };
+  // Normalize legacy keys
+  if (data && !data.timeline && data.steps) data.timeline = data.steps;
+  if (data && !data.elements && data.objects) data.elements = data.objects;
+
+  // 1. Structural Validation via Zod
+  const result = SceneGraphSchema.safeParse(data);
+  const errors = [];
+
+  if (!result.success) {
+    result.error.issues.forEach(issue => {
+      errors.push(`${issue.path.join('.') || 'root'}: ${issue.message}`);
+    });
   }
 
-  // 2. Technical schema validation (IDs, spans, overlaps)
-  const schemaErrors = validateTimelineResponse(data);
-  
-  // 3. Rich pedagogical validation & hardening (min steps, coordinates, shapes)
+  // 2. Rich pedagogical validation (Fall back to legacy for density and ID isolation)
   const richValidation = richValidateTimeline(data);
   
   const allErrors = [
-    ...schemaErrors.map(e => e.message),
+    ...errors,
     ...richValidation.errors
   ];
 
   return { 
     valid: allErrors.length === 0, 
-    errors: allErrors
+    errors: allErrors,
+    data: result.success ? result.data : data
   };
 }
 
