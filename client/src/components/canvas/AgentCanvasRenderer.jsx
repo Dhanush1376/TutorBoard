@@ -182,13 +182,21 @@ export default function AgentCanvasRenderer({ timeline, currentStepIndex }) {
   if (!elements.length) return null;
 
   const renderer = timeline?.renderer || 'cinematic';
+  
+  // Normalize data for specialized renderers
+  const normalizedTimeline = {
+    ...timeline,
+    elements,
+    connections: timeline.connections || [],
+    timeline: timeline.timeline || timeline.steps || []
+  };
 
   if (renderer === 'physics') {
-    return <PhysicsRenderer timeline={timeline} currentStepIndex={currentStepIndex} />;
+    return <PhysicsRenderer timeline={normalizedTimeline} currentStepIndex={currentStepIndex} />;
   }
   
   if (renderer === 'narrative') {
-    return <NarrativeRenderer timeline={timeline} currentStepIndex={currentStepIndex} />;
+    return <NarrativeRenderer timeline={normalizedTimeline} currentStepIndex={currentStepIndex} />;
   }
 
   // Default

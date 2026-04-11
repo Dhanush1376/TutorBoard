@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+process.stdout.setEncoding('utf8');
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
@@ -47,7 +49,10 @@ const port = process.env.PORT || 3001;
 const DEFAULT_ORIGINS = [
   'https://tutor-board-mocha.vercel.app',
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
 ];
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
@@ -57,6 +62,10 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 function isOriginAllowed(origin) {
   if (!origin) return true; // Allow requests with no origin (mobile apps, curl, server-to-server)
   if (allowedOrigins.includes(origin)) return true;
+  
+  // Allow any localhost or 127.0.0.1 origin for robust development
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+
   // Match Vercel preview deployments: tutor-board-*.vercel.app
   if (/^https:\/\/tutor-board[a-z0-9-]*\.vercel\.app$/.test(origin)) return true;
   return false;

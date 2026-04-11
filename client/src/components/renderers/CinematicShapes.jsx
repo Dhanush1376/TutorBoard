@@ -130,6 +130,26 @@ export const FlowArrow = ({ x1, y1, x2, y2, color, label, attentionLevel, layout
   );
 };
 
+export const RawLine = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId, dashed = false }) => {
+  const c = resolve(color);
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  const rx1 = x1 - mx, ry1 = y1 - my;
+  const rx2 = x2 - mx, ry2 = y2 - my;
+
+  return (
+    <AttentionWrapper attentionLevel={attentionLevel} layoutId={layoutId} x={mx} y={my}>
+      <line 
+        x1={rx1} y1={ry1} x2={rx2} y2={ry2} 
+        stroke={c.stroke} 
+        strokeWidth={2.5} 
+        strokeDasharray={dashed ? "5 5" : "none"} 
+      />
+      {label && <text y={-12} textAnchor="middle" fill="#94a3b8" fontSize={12} fontWeight="bold">{label}</text>}
+    </AttentionWrapper>
+  );
+};
+
 export const DataBlock = ({ x, y, values = [], label, color, attentionLevel, layoutId }) => {
   const c = resolve(color);
   const cw = 60, ch = 56;
@@ -210,12 +230,11 @@ export const Comparator = ({ x, y, leftVal, rightVal, operator, result, color, a
   );
 };
 
-export const DepthText = ({ x, y, text, color, attentionLevel, layoutId }) => {
-  const c = resolve(color || 'white');
+export const DepthText = ({ x, y, text, attentionLevel, layoutId }) => {
   return (
     <AttentionWrapper attentionLevel={attentionLevel} layoutId={layoutId} x={x} y={y}>
       <rect x={-100} y={-15} width={200} height={30} rx={6} fill="rgba(15, 23, 42, 0.75)" />
-      <text textAnchor="middle" dominantBaseline="central" fill={c.text} fontSize={16} fontWeight="600">{text}</text>
+      <text textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize={16} fontWeight="600">{text}</text>
     </AttentionWrapper>
   );
 };
@@ -240,6 +259,56 @@ export const HighlightZone = ({ x, y, w, h, color, label, attentionLevel, layout
     <AttentionWrapper attentionLevel={attentionLevel} layoutId={layoutId} x={x} y={y}>
       <rect x={-w/2} y={-h/2} width={w} height={h} rx={12} fill={c.glass} stroke={c.stroke} strokeWidth={2} strokeDasharray="5 5" />
       {label && <text y={-h/2 - 10} textAnchor="middle" fill={c.stroke} fontSize={12} fontWeight="700">{label}</text>}
+    </AttentionWrapper>
+  );
+};
+
+// ─── Geometric & Plot Shapes (ML/Math) ─────────────────────────────────────────
+
+export const DataDot = ({ x, y, color, label, attentionLevel, layoutId }) => {
+  const c = resolve(color);
+  return (
+    <AttentionWrapper attentionLevel={attentionLevel} layoutId={layoutId} x={x} y={y}>
+      <circle r={8} fill={c.stroke} />
+      {label && <text y={18} textAnchor="middle" fill={c.text} fontSize={10} fontWeight="bold">{label}</text>}
+    </AttentionWrapper>
+  );
+};
+
+export const CartesianAxes = ({ x, y, color, label, attentionLevel, layoutId }) => {
+  const c = resolve(color || 'gray');
+  const w = 400; // Plot width
+  const h = 300; // Plot height
+  return (
+    <AttentionWrapper attentionLevel={attentionLevel} layoutId={layoutId} x={x} y={y}>
+      {/* Y Axis */}
+      <line x1={-w/2} y1={h/2} x2={-w/2} y2={-h/2} stroke={c.stroke} strokeWidth={2} />
+      {/* X Axis */}
+      <line x1={-w/2} y1={h/2} x2={w/2} y2={h/2} stroke={c.stroke} strokeWidth={2} />
+      {label && <text y={-h/2 - 10} textAnchor="middle" fill={c.text} fontSize={16} fontWeight="bold">{label}</text>}
+    </AttentionWrapper>
+  );
+};
+
+export const GeometryPolygon = ({ x, y, points, color, label, attentionLevel, layoutId }) => {
+  const c = resolve(color);
+  // points should be an array like [[0,0], [100,0], [0,-100]] relative to x,y
+  // Handle fallback if points is missing or invalid
+  const validPoints = Array.isArray(points) && points.length > 2 
+    ? points 
+    : [[0,0], [50, 80], [-50, 80]]; 
+    
+  const ptsString = validPoints.map(p => `${p[0]},${p[1]}`).join(' ');
+
+  return (
+    <AttentionWrapper attentionLevel={attentionLevel} layoutId={layoutId} x={x} y={y}>
+      <polygon 
+        points={ptsString} 
+        fill={c.glass} 
+        stroke={c.stroke} 
+        strokeWidth={attentionLevel === 2 ? 3 : 2} 
+      />
+      {label && <text y={validPoints[0][1] - 20} textAnchor="middle" fill={c.text} fontSize={14} fontWeight="bold">{label}</text>}
     </AttentionWrapper>
   );
 };

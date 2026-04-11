@@ -560,31 +560,27 @@ export const DOMAIN_NODE_TEMPLATES = {
 export const DOMAIN_ANIMATION_GUIDE = {
   dsa: `
 ANIMATION STRATEGY — DSA / ALGORITHMS:
-  Primitives: array, pointer, swapbridge, comparator, codeline, highlightbox, circle, arrow
+  Primitives: array, pointer, swapbridge, comparator, codeline, highlightbox
   Layout rules:
-    - Data structures: centered at x=400. Arrays = horizontal rect cells.
-    - Trees/graphs: root at (400,120), children below. circle=node, arrow=edge.
-    - Linked lists: rect cells with arrow connectors left→right at y=250.
-    - Stacks/queues: rect cells stacked vertically at x=400.
+    - Array Sorting/Searching: STRICTLY use a SINGLE 'array' shape with a 'values' property (e.g. "values": [5,2,9,1]). Do NOT draw an array as multiple disconnected rectangles or flowcharts.
+    - Swapping: Use 'swapbridge' to show swaps between indices.
+    - Pointers: Use 'pointer' shape pointing to array indices.
+    - Trees/graphs: root at (0.5, 0.2), children below. circle=node, type: "line"=edge.
   Step rhythm:
     - One comparison = one step. One swap = one step. One pointer move = one step.
-    - sortedCells → green fill. compareCells → orange fill. activeCells → yellow fill.
-    - codeline (x=80) shows pseudocode; highlight current executing line each step.
-  MINIMUM STEPS: sorting=18 | searching=10 | trees=12 | graph traversal=14 | dp=16
+    - codeline (x=0.2) shows pseudocode; highlight current executing line each step.
+  MINIMUM STEPS: sorting=12 | searching=8 | trees=12 | graph traversal=14 | dp=16
 `,
 
   mathematics: `
 ANIMATION STRATEGY — MATHEMATICS:
-  Primitives: path (curves/functions), circle (points/roots), arrow (vectors/direction),
-              text (labels/equations), arc (angles), rect (matrix cells/axes)
+  Primitives: polygon, axes, dot, circle, line (connection), text, arc
   Layout rules:
-    - Function label prominently at (400,60) as text.
-    - Coordinate axes: horizontal line y=350, vertical line x=100.
-    - Animate left→right for input→output logic.
-    - Matrix: rect grid with text inside each cell; highlight active row/col.
-    - Vectors: arrow from origin; label components with badge.
-    - Statistics: rect bars (histogram) with text values on top.
-  MINIMUM STEPS: calculus=12 | geometry=10 | matrices=10 | statistics=8 | probability=10
+    - Geometry: ALWAYS draw explicit shapes using 'polygon' with precise 'points' (e.g., [[-0.2, 0.2], [0.2, 0.2], [-0.2, -0.2]] for a right triangle). DO NOT string circles together as a flowchart.
+    - Graphing/Functions: Use 'axes' for the background coordinate system.
+    - Equations: Center label prominently.
+    - Connections: Use "type": "line" for non-directional geometric edges.
+  MINIMUM STEPS: calculus=12 | geometry=8 | matrices=10 | statistics=8
 `,
 
   physics: `
@@ -776,16 +772,13 @@ ANIMATION STRATEGY — AVIATION & MARITIME:
 
   data_science: `
 ANIMATION STRATEGY — DATA SCIENCE & ML:
-  Primitives: circle (neurons/nodes), arrow (weights/data flow), rect (layers/matrices),
-              path (decision boundaries/curves), badge (metrics/values), codeline (code)
+  Primitives: axes, dot, circle, arrow, rect, badge, codeline
   Layout rules:
-    - Neural network: circles in column layers (input→hidden→output), weighted arrows.
+    - Clustering / Regression (Scatter Plots): Use a SINGLE 'axes' element securely in the center. Then, scatter multiple 'dot' elements (x,y points). NEVER use a flowchart.
+    - Neural network: circles in column layers (input→hidden→output), weighted lines/arrows.
     - Decision tree: binary tree of rect nodes, arrow branches, badge=split condition.
-    - Training loop: circular arrow (data→model→loss→gradient→model).
     - Confusion matrix: 2×2 rect grid with values; color TP=green, FP=red, FN=orange, TN=gray.
-    - Dimensionality reduction: scatter of circles in 3D→arrow→2D scatter.
-    - Gradient descent: path curve (loss function), circle (current point) moving down.
-  MINIMUM STEPS: neural net=14 | training=12 | decision tree=10 | evaluation=8
+  MINIMUM STEPS: plotting=8 | neural net=14 | training=12 | decision tree=10 | evaluation=8
 `,
 
   cybersecurity: `

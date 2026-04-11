@@ -15,6 +15,9 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimationRenderer from './AnimationRenderer';
+import PhysicsRenderer from './PhysicsRenderer';
+import NarrativeRenderer from './NarrativeRenderer';
+import DiagramRenderer from './DiagramRenderer';
 
 // ── Transition timing map based on AI-specified pacing ────────────────────────
 const PACING_DURATION = {
@@ -92,16 +95,46 @@ export default function AgenticRenderer({
     );
   }
 
+  // Branching based on renderer type
+  const renderScene = () => {
+    const rendererType = (scene?.renderer || activeTimeline[0]?.renderer || 'cinematic').toLowerCase();
+    
+    // Normalize data for specialized renderers that expect a 'timeline' object containing elements/connections
+    const rendererData = {
+      scene,
+      elements: activeElements,
+      connections,
+      timeline: activeTimeline
+    };
+
+    switch (rendererType) {
+      case 'physics':
+        return <PhysicsRenderer timeline={rendererData} currentStepIndex={localStep} />;
+      case 'narrative':
+      case 'history':
+        return <NarrativeRenderer timeline={rendererData} currentStepIndex={localStep} />;
+      case 'diagram':
+      case 'data':
+        // DiagramRenderer expects a 'dsl' prop with nodes/sections
+        return <DiagramRenderer dsl={{ nodes: activeElements }} />;
+      case 'cinematic':
+      default:
+        return (
+          <AnimationRenderer
+            scene={scene}
+            elements={activeElements}
+            connections={connections}
+            timeline={activeTimeline}
+            currentStepIndex={localStep}
+          />
+        );
+    }
+  };
+
   return (
     <div className="absolute inset-0 w-full h-full">
-      {/* Canvas layer — fully AI-driven via AnimationRenderer */}
-      <AnimationRenderer
-        scene={scene}
-        elements={activeElements}
-        connections={connections}
-        timeline={activeTimeline}
-        currentStepIndex={localStep}
-      />
+      {/* Dynamic Canvas Layer — routes to specialized renderers based on AI classification */}
+      {renderScene()}
 
       {/* Narration overlay — AI-generated narration per step */}
       <AnimatePresence mode="wait">

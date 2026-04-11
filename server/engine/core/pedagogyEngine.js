@@ -44,40 +44,66 @@ function generateFailSafeTimeline(topic) {
 
 // ─── Post-Processing: Normalize & Adapt SCENE GRAPH ───────────────────────
 function postProcessTimeline(raw, topic, planningResult) {
-  const rawElements = raw.elements || raw.objects || [];
-  const rawTimeline = raw.timeline || raw.steps || [];
+  if (!raw) {
+    console.warn("[PostProcess] ⚠️ Received null raw graph. Using fallback.");
+    return generateFailSafeTimeline(topic);
+  }
+
+  const rawElements = (raw.elements || raw.objects || raw.nodes || raw.shapes || raw.items || []).filter(Boolean);
+  const rawTimeline = (raw.timeline || raw.steps || raw.narrative || raw.events || raw.flow || raw.sequence || []).filter(Boolean);
+
+  const isPixel = rawElements.some(el => {
+    if (!el) return false;
+    let checkX = parseFloat(el.x ?? el.p?.x ?? 0);
+    let checkY = parseFloat(el.y ?? el.p?.y ?? 0);
+    return checkX > 1.0 || checkY > 1.0;
+  });
 
   const elements = rawElements.map(el => {
-    const x = parseFloat(el.x ?? el.p?.x ?? 0.5);
-    const y = parseFloat(el.y ?? el.p?.y ?? 0.5);
+    if (!el) return { id: 'err', type: 'orb', x: 0.5, y: 0.5, label: '?' };
+    
+    let x = parseFloat(el.x ?? el.p?.x ?? 0.5);
+    let y = parseFloat(el.y ?? el.p?.y ?? 0.5);
     const scale = parseFloat(el.scale ?? 1);
+
+    if (isNaN(x)) x = 0.5;
+    if (isNaN(y)) y = 0.5;
+
+    if (isPixel) {
+      if (x > 1) x = x / 800;
+      if (y > 1) y = y / 600;
+    }
 
     return {
       ...el,
-      x: isNaN(x) ? 0.5 : x,
-      y: isNaN(y) ? 0.5 : y,
+      x: Math.max(0.01, Math.min(0.99, x)),
+      y: Math.max(0.01, Math.min(0.99, y)),
       scale: isNaN(scale) ? 1 : scale,
       shape: el.type === 'orb' ? 'circle' : el.type === 'block' ? 'rect' : el.type || 'circle'
     };
   });
 
-  const timeline = rawTimeline.map((t, idx) => ({
-    ...t,
-    index: idx,
-    title: t.title || 'Step',
-    narration: t.explanation || t.narration || '...',
-    durationMs: 5000
-  }));
+  const timeline = rawTimeline.map((t, idx) => {
+    if (!t) return { index: idx, title: 'Step', narration: '...' };
+    return {
+      ...t,
+      index: idx,
+      title: t.title || t.label || `Step ${idx + 1}`,
+      narration: t.explanation || t.narration || t.audio || '...',
+      durationMs: parseFloat(t.duration || t.durationMs || 5000),
+      highlightIds: t.highlightIds || t.highlight || [],
+      objectIds: t.objectIds || t.elements || []
+    };
+  });
 
   return {
     mode: 'explain',
-    title: raw.scene?.title || `Understanding ${topic}`,
+    title: raw.scene?.title || raw.title || `Understanding ${topic}`,
     scene: raw.scene || { title: topic, type: planningResult?.animationStyle || 'linear' },
     elements,
-    connections: raw.connections || [],
+    connections: (raw.connections || []).filter(Boolean),
     timeline,
-    renderer: planningResult?.renderer || 'cinematic',
-    // Keep backward compatibility
+    renderer: planningResult?.renderer || raw.renderer || 'cinematic',
     objects: elements,
     steps: timeline,
     domain: planningResult?.domain || 'general'
@@ -94,7 +120,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
   }
 
   const userProfile = `Target Complexity = ${session.complexityPreference}, Confusion Level = ${session.confusionIndex}/10`;
-  const cached = cache.get(topic, userProfile);
+  const cached = await cache.get(topic, userProfile);
   if (cached) return cached;
 
   console.log(`[CinematicEngine] 🎬 Orchestrating Agentic Pipeline for: "${topic}"`);
@@ -113,8 +139,9 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
       topic, 
       domain, 
       systemPrompt, 
-      maxSteps: 12,
-      planningResult 
+      maxSteps: 6, // Increased to allow Research -> Design -> Critique -> Revise -> Finish
+      planningResult,
+      onProgress
     });
 
     if (!rawSceneGraph || (!rawSceneGraph.timeline && !rawSceneGraph.steps)) {
@@ -126,15 +153,18 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
     onProgress('Finalizing scene graph pipeline...');
     const timeline = postProcessTimeline(rawSceneGraph, topic, planningResult);
     
-    // Explicitly ensure metadata
-    timeline.domain = timeline.domain || domain || planningResult.domain;
+    console.log(`[CinematicEngine] 📊 Data density: ${timeline.elements.length} elements, ${timeline.timeline.length} steps`);
+
+    // Explicitly hard-seal metadata
+    timeline.domain = domain || planningResult.domain || timeline.domain || 'general';
+    timeline.renderer = planningResult.renderer || timeline.renderer || 'cinematic';
 
     // Pipe Consistency Check
     if (timeline.renderer !== planningResult.renderer) {
       console.log(`[CinematicEngine] 🔄 Renderer requested: ${planningResult.renderer} | Actually assigned: ${timeline.renderer}`);
     }
 
-    cache.set(topic, userProfile, timeline);
+    await cache.set(topic, userProfile, timeline);
     console.log(`[CinematicEngine] ✅ SUCCESS: "${topic}" via [${timeline.renderer.toUpperCase()}] renderer`);
     return timeline;
 
@@ -147,10 +177,18 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}) 
 // ─── Doubt/Text Handlers ─────────────────────────────────────────────────────
 export async function handleDoubt(sessionId, question) {
   try {
-    const messages = [{ role: 'system', content: 'You are a helpful cinematic pedagogical assistant. Answer concisely.' }, { role: 'user', content: question }];
-    const result = await requestCompletion({ model: getModel(), messages, temperature: 0.2, maxTokens: 500, responseMimeType: "application/json" });
+    const messages = [
+      { role: 'system', content: 'You are a helpful pedagogical assistant. Answer the student question concisely. Return ONLY a JSON object with a single "answer" key. No markdown, no prose outside the JSON.' }, 
+      { role: 'user', content: question }
+    ];
+    const result = await requestCompletion({ 
+      model: getModel(), 
+      messages, 
+      temperature: 0.2, 
+      maxTokens: 500
+    });
     const parsed = safeParse(result.content);
-    return { answer: parsed?.answer || "Excellent question. Let's look closer.", isRelevant: true };
+    return { answer: parsed?.answer || result.content || "Excellent question.", isRelevant: true };
   } catch (err) {
     return { answer: "That is a vital point in our visualization.", isRelevant: true };
   }

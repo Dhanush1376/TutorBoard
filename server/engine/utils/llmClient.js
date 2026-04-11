@@ -38,7 +38,7 @@ const initOpenRouter = () => {
 /**
  * Robust LLM Call — Dedicated OpenRouter Dispatcher
  */
-export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseMimeType, responseSchema }) {
+export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseSchema }) {
   initOpenRouter();
 
   if (!openRouterClient) {
@@ -53,7 +53,7 @@ export async function requestCompletion({ model, messages, temperature, maxToken
     const orModel = model || getModel();
     
     // Preparation for JSON mode if requested
-    const isJson = responseMimeType === 'application/json' || !!responseSchema;
+    const isJson = !!responseSchema || messages.some(m => m.content?.toLowerCase().includes('json'));
     
     console.log(`[AI:OpenRouter] Calling: ${orModel} (JSON: ${isJson})`);
 
@@ -108,3 +108,27 @@ export const getAIClient = () => {
   initOpenRouter();
   return openRouterClient;
 };
+
+/**
+ * Get vector embeddings for a string.
+ * Target model: openai/text-embedding-3-small
+ */
+export async function getEmbeddings(text) {
+  initOpenRouter();
+  
+  if (!openRouterClient) {
+    throw new Error('NO_API_AVAILABLE: OpenAI/OpenRouter client not initialized.');
+  }
+
+  try {
+    const response = await openRouterClient.embeddings.create({
+      model: 'openai/text-embedding-3-small',
+      input: text.replace(/\n/g, ' '),
+    });
+
+    return response.data[0].embedding;
+  } catch (err) {
+    console.error(`[AI:Embeddings] Error: ${err.message}`);
+    return null;
+  }
+}

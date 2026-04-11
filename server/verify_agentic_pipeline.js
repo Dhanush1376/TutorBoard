@@ -7,8 +7,12 @@
 
 import { generateTimeline } from './engine/core/pedagogyEngine.js';
 import sessionStore from './engine/core/sessionStore.js';
+import { cache } from './engine/core/cache.js';
 import * as dotenv from 'dotenv';
 dotenv.config();
+
+// Clear cache before verification to prevent stale / failsafe pollution
+cache.clear();
 
 async function runTest(topic) {
   console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);

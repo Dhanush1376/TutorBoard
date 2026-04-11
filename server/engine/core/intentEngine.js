@@ -1,33 +1,72 @@
 /**
  * intentEngine.js
- * Parses raw text input to detect the user's intent or desired mode,
- * specifically targeting visualization triggers vs standard text chat.
+ * v2.0 — AGENTIC CLASSIFICATION
+ * Moves from regex-based intent detection to a structured LLM call.
  */
 
-const INTENT_PATTERNS = {
-  deep: /\b(explain|teach|show|visualize|draw|animate|diagram|full|detailed|step by step)\b/i,
-  quick: /\b(quick|fast|summary|brief|short|just tell me|tldr|one line)\b/i,
-  test_me: /\b(test me|ask questions|practice|challenge me|quiz)\b/i,
-};
+import { requestCompletion, getTextModel } from '../utils/llmClient.js';
 
-export function detectIntent(prompt, explicitMode) {
-  // 1. Explicit UI Mode always wins
-  if (explicitMode && (explicitMode === 'quick' || explicitMode === 'deep' || explicitMode === 'test_me')) {
-    return explicitMode;
+/**
+ * Detects user intent and preferred renderer using a cheap, fast LLM call.
+ */
+export async function detectIntent(prompt, explicitMode) {
+  // 1. Explicit UI Mode always wins (for manual triggers)
+  if (explicitMode && ['quick', 'deep', 'test_me'].includes(explicitMode)) {
+    return {
+      intent: explicitMode,
+      renderer: explicitMode === 'deep' ? 'cinematic' : 'none',
+      confidence: 1.0
+    };
   }
 
-  // 2. Fallbacks to visual for old UI explicit mode
-  if (explicitMode && ['explain', 'solve', 'show_diagram', 'explain_in_detail'].includes(explicitMode)) {
-    return 'deep';
+  // 2. Request LLM Classification
+  try {
+    const res = await requestCompletion({
+      model: 'openai/gpt-4o-mini', // Fast, cheap, high-reliability for JSON
+      messages: [
+        {
+          role: 'system',
+          content: `You are an intent classifier for TutorBoard, an AI learning system.
+Classify the user prompt into one of these intents:
+- deep: The user wants a visualization, animation, diagram, or deep conceptual explanation.
+- quick: The user wants a fast text answer, summary, or simple fact.
+- test_me: The user wants to be quizzed or assessed.
+
+Also suggest a renderer if the intent is 'deep':
+- cinematic: For general abstract concepts, science, or logic.
+- physics: For mechanical systems, orbits, pendulums, or force-based systems.
+- narrative: For history, timelines, story-driven logic, or sequential events.
+
+Return ONLY a JSON object:
+{ "intent": "deep"|"quick"|"test_me", "renderer": "cinematic"|"physics"|"narrative", "confidence": 0-1 }`
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0,
+      responseSchema: true // Triggers JSON mode
+    });
+
+    const raw = (res.content || '{}').replace(/```json|```/g, '').trim();
+    const result = JSON.parse(raw);
+
+    console.log(`[IntentEngine] 🧠 Classified: ${result.intent} (${result.renderer}) | Conf: ${result.confidence}`);
+    
+    return {
+      intent: result.intent || 'quick',
+      renderer: result.renderer || 'cinematic',
+      confidence: result.confidence || 0.5
+    };
+  } catch (err) {
+    console.error(`[IntentEngine] ⚠️ LLM Classification failed, falling back to regex: ${err.message}`);
+    // Minimal regex fallback
+    const isDeep = /\b(visualize|draw|animate|diagram|timeline|deep)\b/i.test(prompt);
+    return {
+      intent: isDeep ? 'deep' : 'quick',
+      renderer: 'cinematic',
+      confidence: 0.1
+    };
   }
-
-  // 3. NLP Parsing
-  const normalizedPrompt = prompt.trim();
-  
-  if (INTENT_PATTERNS.test_me.test(normalizedPrompt)) return 'test_me';
-  if (INTENT_PATTERNS.quick.test(normalizedPrompt)) return 'quick';
-  if (INTENT_PATTERNS.deep.test(normalizedPrompt)) return 'deep';
-
-  // 4. Default for TutorBoard is deep visual teaching
-  return 'deep';
 }

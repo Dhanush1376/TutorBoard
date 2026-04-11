@@ -13,7 +13,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   GlowOrb, GlassRect, FlowArrow, DataBlock, 
   FlowPointer, SwapBridge, Comparator, 
-  CodePanel, FloatingBadge, CinematicFilters
+  CodePanel, FloatingBadge, CinematicFilters,
+  FreeformShape, DataDot, CartesianAxes, GeometryPolygon, RawLine
 } from './CinematicShapes';
 
 // Virtual Canvas Dimensions
@@ -56,25 +57,25 @@ function useStepDirector(elements, timeline, connections, currentStepIndex) {
 /**
  * Shape Dispatcher with layoutId (Fix #3) and attentionLevel (Fix #4)
  */
-function RenderShape({ obj, highlightIds, fadeIds, stepKey }) {
+function RenderShape({ obj, highlightIds, fadeIds, stepKey, index }) {
   const isHighlighted = highlightIds.has(obj.id);
   const isFaded = fadeIds.has(obj.id);
-  
-  // 3-Tier Attention System (Fix #4)
   const attentionLevel = isHighlighted ? 2 : isFaded ? 0 : 1;
 
   const common = {
-    key: obj.id, 
-    layoutId: obj.id, // Motion Persistence
     id: obj.id,
+    layoutId: obj.id,
     attentionLevel,
     stepKey
   };
 
   const x = obj.x * CW;
   const y = obj.y * CH;
+  const shapeType = String(obj.type || obj.shape || '').toLowerCase().trim();
 
-  switch (obj.shape) {
+  // Unique keys are assigned at the top level in the .map call.
+  // We use shape-specific rendering based on AI 'type'.
+  switch (shapeType) {
     case 'circle':
     case 'orb':
       return <GlowOrb {...common} cx={x} cy={y} r={(obj.scale || 1) * 40} color={obj.color} label={obj.label} />;
@@ -82,21 +83,30 @@ function RenderShape({ obj, highlightIds, fadeIds, stepKey }) {
     case 'block':
       const w = (obj.scale || 1) * 160;
       const h = (obj.scale || 1) * 60;
-      return <GlassRect {...common} x={x - w/2} y={y - h/2} w={w} h={h} color={obj.color} label={obj.label} />;
+      return <GlassRect {...common} layoutId={obj.id} x={x - w/2} y={y - h/2} w={w} h={h} color={obj.color} label={obj.label} />;
     case 'pointer':
-      return <FlowPointer {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+      return <FlowPointer {...common} layoutId={obj.id} x={x} y={y} color={obj.color} label={obj.label} />;
     case 'array':
-      return <DataBlock {...common} x={x} y={y} values={obj.values} label={obj.label} color={obj.color} />;
+      return <DataBlock {...common} layoutId={obj.id} x={x} y={y} values={obj.values} label={obj.label} color={obj.color} />;
     case 'badge':
-      return <FloatingBadge {...common} x={x} y={y} text={obj.label} color={obj.color} />;
+      return <FloatingBadge {...common} layoutId={obj.id} x={x} y={y} text={obj.label} color={obj.color} />;
     case 'codeline':
-      return <CodePanel {...common} x={x} y={y} code={obj.label} />;
+      return <CodePanel {...common} layoutId={obj.id} x={x} y={y} code={obj.label} />;
     case 'comparator':
-      return <Comparator {...common} x={x} y={y} leftVal={obj.leftVal} rightVal={obj.rightVal} operator={obj.operator} result={obj.result} color={obj.color} />;
+      return <Comparator {...common} layoutId={obj.id} x={x} y={y} leftVal={obj.leftVal} rightVal={obj.rightVal} operator={obj.operator} result={obj.result} color={obj.color} />;
     case 'swapbridge':
-      return <SwapBridge {...common} x={x} y={y} color={obj.color} />;
+      return <SwapBridge {...common} layoutId={obj.id} x={x} y={y} color={obj.color} />;
+    case 'dot':
+    case 'scatter':
+      return <DataDot {...common} layoutId={obj.id} x={x} y={y} color={obj.color} label={obj.label} />;
+    case 'axes':
+    case 'plot':
+      return <CartesianAxes {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+    case 'polygon':
+    case 'math_shape':
+      return <GeometryPolygon {...common} x={x} y={y} points={obj.points} color={obj.color} label={obj.label} />;
     default:
-      return null;
+      return <FreeformShape {...common} x={x} y={y} label={obj.label} color={obj.color} type={shapeType || 'element'} />;
   }
 }
 
@@ -130,34 +140,45 @@ const AnimationRenderer = ({ scene, elements = [], connections = [], timeline = 
             {connections.map((conn, idx) => {
               const fromEl = elements.find(e => e.id === conn.from);
               const toEl = elements.find(e => e.id === conn.to);
-              if (!fromEl || !toEl) return null;
+              
+              // CRITICAL: Skip if elements missing, but don't crash the whole layer
+              if (!fromEl || !toEl) {
+                console.warn(`[Renderer] Connection ${idx} missing endpoint: from=${conn.from}, to=${conn.to}`);
+                return null;
+              }
 
               const isHighlighted = highlightIds.has(conn.id) || highlightIds.has(fromEl.id) || highlightIds.has(toEl.id);
               const isFaded = fadeIds.has(conn.id) || (fadeIds.has(fromEl.id) && fadeIds.has(toEl.id));
+              
+              const connProps = {
+                key: `conn-${conn.from}-${conn.to}-${idx}`,
+                layoutId: `conn-${conn.from}-${conn.to}`,
+                x1: fromEl.x * CW, y1: fromEl.y * CH,
+                x2: toEl.x * CW, y2: toEl.y * CH,
+                attentionLevel: isHighlighted ? 2 : isFaded ? 0 : 1,
+                label: conn.label,
+                color: fromEl.color,
+                dashed: conn.dashed
+              };
 
-              return (
-                <FlowArrow
-                  key={`conn-${conn.from}-${conn.to}-${idx}`}
-                  layoutId={`conn-${conn.from}-${conn.to}`}
-                  x1={fromEl.x * CW} y1={fromEl.y * CH}
-                  x2={toEl.x * CW} y2={toEl.y * CH}
-                  attentionLevel={isHighlighted ? 2 : isFaded ? 0 : 1}
-                  label={conn.label}
-                  color={fromEl.color}
-                />
-              );
+              if (conn.type === 'line') {
+                return <RawLine {...connProps} />;
+              }
+
+              return <FlowArrow {...connProps} />;
             })}
           </g>
 
           {/* Layer 2: Elements */}
           <AnimatePresence mode="popLayout">
-            {elements.map((obj) => (
+            {elements.map((obj, idx) => (
               <RenderShape 
-                key={obj.id} 
+                key={`${obj.id || 'el'}-${idx}`} 
                 obj={obj} 
                 highlightIds={highlightIds} 
                 fadeIds={fadeIds} 
                 stepKey={stepKey} 
+                index={idx}
               />
             ))}
           </AnimatePresence>

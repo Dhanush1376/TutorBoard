@@ -143,8 +143,9 @@ export function setupTeachingSocket(io) {
       }
 
       try {
-        const intent = detectIntent(topic, activeMode);
-        console.log(`[WS] Detected Intent: ${intent}`);
+        const intentResult = await detectIntent(cleanTopic, activeMode);
+        const intent = intentResult.intent;
+        console.log(`[WS] Detected Intent: ${intent} (${intentResult.renderer})`);
 
         if (intent === 'quick' || intent === 'text_only') {
           // Process as a fast conversational text chat instead of generating a visual timeline
@@ -261,7 +262,8 @@ export function setupTeachingSocket(io) {
       socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
       try {
-        const intent = detectIntent(cleanQuestion, activeMode);
+        const intentResult = await detectIntent(cleanQuestion, activeMode);
+        const intent = intentResult.intent;
         console.log(`[WS] Doubt Detected Intent: ${intent}`);
 
         let response;
