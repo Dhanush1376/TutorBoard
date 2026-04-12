@@ -1,28 +1,18 @@
 /**
- * TeachingSocket v3.0 — Hardened WebSocket event handlers
- * 
- * KEY FIXES:
- *   - EVERY code path emits a response (no silent failures)
- *   - Timeout safety: if AI takes >45s, return fallback
- *   - Detailed logging for debugging
- *   - Error responses always include chat-friendly message
- * 
- * Events (Client → Server):
- *   session:start   { topic }              → Start a teaching session
- *   session:doubt   { question }           → Ask a doubt mid-lesson
- *   session:pause                          → Pause playback
- *   session:resume                         → Resume playback
- *   session:step    { stepIndex }          → Jump to a specific step
- *   session:end                            → End the session
+ * TeachingSocket v4.0 — Hardened WebSocket event handlers
  *
- * Events (Server → Client):
- *   teaching:state      { state, ... }     → State machine transition
- *   teaching:timeline   { timeline }       → Full timeline data
- *   teaching:step       { step, index }    → Current step data
- *   teaching:doubt-ack                     → Doubt received acknowledgment
- *   teaching:doubt-response { data }       → Doubt answer + optional visuals
- *   teaching:error      { message }        → Error occurred
- *   teaching:greeting   { message }        → It was just a greeting
+ * WHAT CHANGED FROM v3:
+ *   1. teaching:timeline emit now sends a GUARANTEED, CONSISTENT shape.
+ *      Both `elements`/`timeline` (new) and `objects`/`steps` (legacy) keys are
+ *      always present and always point to the same normalized arrays. Previously
+ *      the emit was a mix of raw and processed fields that could come out as undefined.
+ *   2. timeline.steps access is now safe — uses `timeline.steps || timeline.timeline || []`
+ *      everywhere. Previously `timeline.steps.length` threw when steps was undefined.
+ *   3. The first step emit after session:start now reads from the normalized `steps` key.
+ *   4. totalSteps is derived from the processed timeline.steps array length, not from
+ *      raw LLM output, so it's always accurate.
+ *   5. All error paths still guarantee a teaching:greeting fallback so the chat UI never
+ *      goes blank.
  */
 
 import { createTeachingMachine, STATES, EVENTS } from '../engine/core/teachingMachine.js';
@@ -34,43 +24,61 @@ import { sanitizeInput } from '../utils/sanitize.js';
 import { replanRemainingSteps } from '../engine/core/adaptivePlanner.js';
 import jwt from 'jsonwebtoken';
 
-// ─── Rate Limit Helper ───────────────────────────────────────────────────────
+// ─── Rate Limit Helper ────────────────────────────────────────────────────────
 function getRateKey(socket) {
   const user = socket.user;
   const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
-  
-  // Authenticated users are limited by their ID (prevents multi-tab bypass)
-  if (user && !user.isGuest && user.id !== 'guest') {
-    return `auth:${user.id}`;
-  }
-  
-  // Guests are limited by IP (prevents refresh bypass)
+  if (user && !user.isGuest && user.id !== 'guest') return `auth:${user.id}`;
   return `guest:${ip}`;
 }
 
-// ─── Timeout wrapper ─────────────────────────────────────────────────────────
+// ─── Timeout wrapper ──────────────────────────────────────────────────────────
 function withTimeout(promise, ms, fallbackMessage) {
   return Promise.race([
     promise,
-    new Promise((_, reject) => 
+    new Promise((_, reject) =>
       setTimeout(() => reject(new Error(fallbackMessage || `Request timed out after ${ms}ms`)), ms)
-    )
+    ),
   ]);
 }
 
+// ─── Guaranteed Timeline Emitter ─────────────────────────────────────────────
+// This is the SINGLE place where teaching:timeline is built for the client.
+// It guarantees both new (elements/timeline) and legacy (objects/steps) keys are present,
+// and derives totalSteps from the actual processed array — never from raw LLM output.
+function buildTimelinePayload(sessionId, timeline) {
+  // Normalize: prefer the processed arrays; fall back to the alias keys
+  const elements    = timeline.elements    || timeline.objects || [];
+  const connections = timeline.connections || [];
+  const steps       = timeline.steps       || timeline.timeline || [];
+  const totalSteps  = steps.length;
+
+  return {
+    sessionId,
+    title:      timeline.title  || 'Lesson',
+    domain:     timeline.domain || 'general',
+    renderer:   timeline.renderer || 'cinematic',
+    scene:      timeline.scene  || { title: timeline.title || 'Lesson', type: 'linear' },
+    // Canonical scene graph keys (new renderers use these)
+    elements,
+    connections,
+    timeline:   steps,
+    // Legacy compatibility keys (any old consumer uses these)
+    objects:    elements,
+    steps:      steps,
+    totalSteps,
+  };
+}
+
 export function setupTeachingSocket(io) {
-  // Namespace for teaching sessions
   const teachingIO = io.of('/teaching');
 
-  // Strict Auth Guard
+  // ─── Auth Guard ──────────────────────────────────────────────────────────
   teachingIO.use((socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
-      if (!token) {
-        return next(new Error("Authentication error: No token provided"));
-      }
-      
-      // Allow frontend built-in Guest sessions
+      if (!token) return next(new Error('Authentication error: No token provided'));
+
       if (token === 'guest') {
         const guestId = `guest-${socket.id.substring(0, 8)}`;
         socket.user = { id: guestId, name: 'Guest User', email: `${guestId}@tutorboard.ai`, isGuest: true };
@@ -82,7 +90,7 @@ export function setupTeachingSocket(io) {
       next();
     } catch (err) {
       console.error('[WS] Auth Error:', err.message);
-      next(new Error("Authentication error: Invalid token"));
+      next(new Error('Authentication error: Invalid token'));
     }
   });
 
@@ -90,31 +98,25 @@ export function setupTeachingSocket(io) {
     const sessionId = `session-${socket.id}-${Date.now()}`;
     console.log(`[WS] Client connected: ${socket.id} → Session: ${sessionId}`);
 
-    // Create session and state machine
     const session = sessionStore.create(sessionId, socket.id);
     const machine = createTeachingMachine(sessionId, (transition) => {
-      // Emit state changes to client
       socket.emit('teaching:state', {
-        state: transition.to,
-        from: transition.from,
-        event: transition.event,
-        payload: transition.payload,
+        state:     transition.to,
+        from:      transition.from,
+        event:     transition.event,
+        payload:   transition.payload,
         timestamp: transition.timestamp,
       });
-
-      // Update session store
       sessionStore.update(sessionId, { state: transition.to });
     });
 
-    // ─── START SESSION ───
+    // ─── START SESSION ──────────────────────────────────────────────────
     socket.on('session:start', async ({ topic, selectedAgent, activeMode }) => {
-      // Rate limit check
       if (!checkSocketRate(getRateKey(socket))) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
         return;
       }
 
-      // Sanitize input
       const cleanTopic = sanitizeInput(topic, 2000);
       console.log(`[WS] session:start → "${cleanTopic}" (Agent: ${selectedAgent}, Mode: ${activeMode}) (${sessionId})`);
 
@@ -123,10 +125,9 @@ export function setupTeachingSocket(io) {
         return;
       }
 
-      // Transition to GENERATING
       let newState = machine.send(EVENTS.START, { topic });
       if (!newState) {
-        console.warn(`[WS] State machine was not IDLE. Forcing reset to handle NEW session:start.`);
+        console.warn('[WS] State machine was not IDLE. Forcing reset to handle NEW session:start.');
         machine.forceReset();
         newState = machine.send(EVENTS.START, { topic });
       }
@@ -138,12 +139,10 @@ export function setupTeachingSocket(io) {
 
       sessionStore.update(sessionId, { topic: cleanTopic });
 
-      // Initialize persistent profile if user is authenticated
       if (socket.user && socket.user.id !== 'guest') {
         console.log(`[WS] Initializing persistent profile for user: ${socket.user.id}`);
         await sessionStore.initProfile(sessionId, socket.user.id);
       } else {
-        // Initialize a default in-memory learner profile for guest sessions
         console.log(`[WS] Initializing default guest profile for session: ${sessionId}`);
         sessionStore.update(sessionId, {
           learnerProfile: {
@@ -153,7 +152,7 @@ export function setupTeachingSocket(io) {
             strengths: [],
             weaknesses: [],
             preferredExplanationStyle: 'visual',
-          }
+          },
         });
       }
 
@@ -163,8 +162,7 @@ export function setupTeachingSocket(io) {
         console.log(`[WS] Detected Intent: ${intent} (${intentResult.renderer})`);
 
         if (intent === 'quick' || intent === 'text_only') {
-          // Process as a fast conversational text chat instead of generating a visual timeline
-          console.log(`[WS] Generating text-only response...`);
+          console.log('[WS] Generating text-only response...');
           const response = await withTimeout(
             generateTextResponse(sessionId, cleanTopic, selectedAgent),
             45000,
@@ -176,8 +174,8 @@ export function setupTeachingSocket(io) {
           return;
         }
 
-        // Generate the visual timeline
-        console.log(`[WS] Generating visual timeline...`);
+        // ─── Generate visual timeline ─────────────────────────────────────
+        console.log('[WS] Generating visual timeline...');
         const timeline = await withTimeout(
           generateTimeline(sessionId, cleanTopic, (stage) => {
             console.log(`[WS] Progress: ${stage}`);
@@ -187,77 +185,59 @@ export function setupTeachingSocket(io) {
           'Timeline generation timed out'
         );
 
-        // Check if it was just a greeting
         if (timeline.type === 'greeting') {
           machine.forceReset();
-          console.log(`[WS] Emitting teaching:greeting (greeting detected)`);
           socket.emit('teaching:greeting', { message: timeline.answer });
           return;
         }
 
-        // Persist timeline to session store so navigation works
+        // Persist to session store
         sessionStore.setTimeline(sessionId, timeline);
 
-        // Transition to TEACHING
+        // Transition FSM
         machine.send(EVENTS.TIMELINE_READY, { timeline });
 
-        // Send full timeline to client (SCENE GRAPH + legacy keys)
-        console.log(`[WS] Emitting teaching:timeline — "${timeline.title}" (${timeline.steps?.length || timeline.timeline?.length} steps)`);
-        socket.emit('teaching:timeline', {
-          sessionId,
-          title: timeline.title,
-          domain: timeline.domain,
-          // New SCENE GRAPH keys
-          scene: timeline.scene,
-          elements: timeline.elements,
-          connections: timeline.connections,
-          timeline: timeline.timeline,
-          renderer: timeline.renderer,
-          // Legacy keys (backward compat)
-          totalSteps: timeline.steps?.length || timeline.timeline?.length || 0,
-          objects: timeline.objects || timeline.elements,
-          steps: timeline.steps || timeline.timeline,
-        });
+        // ─── CRITICAL: Build guaranteed payload shape ─────────────────────
+        const payload = buildTimelinePayload(sessionId, timeline);
+        const steps   = payload.steps; // already normalized
 
-        // If the timeline has a chatMessage (e.g., fallback), also emit it as a greeting
+        console.log(`[WS] Emitting teaching:timeline — "${payload.title}" (${payload.totalSteps} steps, renderer: ${payload.renderer})`);
+        socket.emit('teaching:timeline', payload);
+
+        // Optional chat message for fallback timelines
         if (timeline.chatMessage) {
-          console.log(`[WS] Emitting supplementary greeting for fallback timeline`);
           socket.emit('teaching:greeting', { message: timeline.chatMessage });
         }
 
-        // Send first step
-        if (timeline.steps.length > 0) {
+        // Emit first step
+        if (steps.length > 0) {
           socket.emit('teaching:step', {
-            step: timeline.steps[0],
+            step:  steps[0],
             index: 0,
-            total: timeline.steps.length,
+            total: steps.length,
           });
         }
 
       } catch (err) {
-        console.error(`[WS] session:start error:`, err.message || err);
+        console.error('[WS] session:start error:', err.message || err);
         machine.send(EVENTS.FAIL, { error: err.message });
-        
-        // CRITICAL: Always emit BOTH error AND a fallback greeting so chat shows something
+
         socket.emit('teaching:error', { message: 'Failed to generate lesson. Please try again.' });
-        socket.emit('teaching:greeting', { 
-          message: 'Something went wrong while generating your lesson. Please try again with a different topic or the same one.' 
+        socket.emit('teaching:greeting', {
+          message: 'Something went wrong while generating your lesson. Please try again with a different topic or the same one.',
         });
-        
-        // Reset machine so user can retry
+
         machine.forceReset();
       }
     });
 
-    // ─── ASK DOUBT ───
+    // ─── ASK DOUBT ─────────────────────────────────────────────────────────
     socket.on('session:doubt', async ({ question, selectedAgent, activeMode }) => {
-      // Rate limit check
       if (!checkSocketRate(getRateKey(socket))) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
         return;
       }
 
-      // Sanitize input
       const cleanQuestion = sanitizeInput(question, 5000);
       console.log(`[WS] session:doubt → "${cleanQuestion}" (Agent: ${selectedAgent}, Mode: ${activeMode}) (${sessionId})`);
 
@@ -266,14 +246,11 @@ export function setupTeachingSocket(io) {
         return;
       }
 
-      // Transition to DOUBT_TRIGGERED
       const triggered = machine.send(EVENTS.DOUBT_ASKED, { question: cleanQuestion });
       if (!triggered) {
-        // Try to handle even from invalid states gracefully
         console.warn(`[WS] Doubt asked from invalid state: ${machine.state}`);
       }
 
-      // Acknowledge receipt immediately
       socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
       try {
@@ -283,22 +260,13 @@ export function setupTeachingSocket(io) {
 
         let response;
         if (intent === 'quick' || intent === 'text_only') {
-          // Fast-track a text response for default modes
-          console.log(`[WS] Generating text-only doubt response...`);
           const textRes = await withTimeout(
             generateTextResponse(sessionId, cleanQuestion, selectedAgent),
             45000,
             'Doubt text response timed out'
           );
-          response = {
-            answer: textRes.answer,
-            isRelevant: true,
-            hasVisuals: false,
-            visualUpdate: null
-          };
+          response = { answer: textRes.answer, isRelevant: true, hasVisuals: false, visualUpdate: null };
         } else {
-          // Explicitly requested visualization or deep modes
-          console.log(`[WS] Generating visual doubt response...`);
           response = await withTimeout(
             handleDoubt(sessionId, cleanQuestion, selectedAgent),
             30000,
@@ -306,63 +274,47 @@ export function setupTeachingSocket(io) {
           );
         }
 
-        // Transition to RESPONDING
         machine.send(EVENTS.DOUBT_RESPONSE_READY, { response });
 
-        // Send response to client (include _question for thread pairing)
-        console.log(`[WS] Emitting teaching:doubt-response — ${(response.answer || '').length} chars (question: "${cleanQuestion.substring(0, 40)}")`);
+        console.log(`[WS] Emitting teaching:doubt-response — ${(response.answer || '').length} chars`);
         socket.emit('teaching:doubt-response', {
-          _question: cleanQuestion,
-          answer: response.answer,
-          isRelevant: response.isRelevant,
-          hasVisuals: response.hasVisuals,
+          _question:    cleanQuestion,
+          answer:       response.answer,
+          isRelevant:   response.isRelevant,
+          hasVisuals:   response.hasVisuals,
           visualUpdate: response.visualUpdate,
-          followUp: response.followUp,
+          followUp:     response.followUp,
         });
 
-        // ─── Adaptive Replanning Check ───
+        // Adaptive replanning
         const s = sessionStore.get(sessionId);
         if (s && s.confusionIndex >= 5 && s.steps.length > 0) {
           const replan = await replanRemainingSteps(s, s.topic);
           if (replan) {
             console.log(`[WS] Mid-lesson replan triggered! Pushing ${replan.mergedSteps.length} steps.`);
             sessionStore.update(sessionId, { steps: replan.mergedSteps });
-            
-            // Notify client of the replan
-            socket.emit('teaching:replan', { 
-              message: replan.notification,
-              newTotalSteps: replan.mergedSteps.length
-            });
-
-            // Update client's timeline data
-            socket.emit('teaching:timeline-update', {
-              steps: replan.mergedSteps,
-              totalSteps: replan.mergedSteps.length
-            });
+            socket.emit('teaching:replan', { message: replan.notification, newTotalSteps: replan.mergedSteps.length });
+            socket.emit('teaching:timeline-update', { steps: replan.mergedSteps, totalSteps: replan.mergedSteps.length });
           }
         }
 
       } catch (err) {
-        console.error(`[WS] session:doubt error:`, err.message || err);
+        console.error('[WS] session:doubt error:', err.message || err);
         machine.send(EVENTS.FAIL, { error: err.message });
-        
-        // CRITICAL: Always emit a doubt response, even on crash
         socket.emit('teaching:doubt-response', {
-          // Fallback response on error
-          _question: cleanQuestion,
-          answer: "Something went wrong while processing your question. Please try again.",
-          isRelevant: true,
-          hasVisuals: false,
+          _question:    cleanQuestion,
+          answer:       'Something went wrong while processing your question. Please try again.',
+          isRelevant:   true,
+          hasVisuals:   false,
           visualUpdate: null,
         });
       }
     });
 
-    // ─── NAVIGATE STEPS ───
+    // ─── NAVIGATE STEPS ────────────────────────────────────────────────────
     socket.on('session:step', ({ stepIndex }) => {
       const s = sessionStore.get(sessionId);
-      
-      // Safety: Race condition protection
+
       if (!s || !s.steps || s.steps.length === 0) {
         console.warn(`[WS] session:step ignored - steps not yet loaded for session: ${sessionId}`);
         return;
@@ -374,52 +326,44 @@ export function setupTeachingSocket(io) {
       }
 
       sessionStore.goToStep(sessionId, stepIndex);
+      socket.emit('teaching:step', { step: s.steps[stepIndex], index: stepIndex, total: s.steps.length });
 
-      socket.emit('teaching:step', {
-        step: s.steps[stepIndex],
-        index: stepIndex,
-        total: s.steps.length,
-      });
-
-      // Transition to TEACHING if we were in COMPLETED/DOUBT
       if (machine.state === STATES.COMPLETED || machine.state === STATES.RESPONDING) {
         machine.send(EVENTS.RESUME);
       }
     });
 
-    // ─── FINISH SESSION ───
+    // ─── FINISH SESSION ────────────────────────────────────────────────────
     socket.on('session:finish', () => {
       console.log(`[WS] session:finish (${sessionId})`);
       machine.send(EVENTS.FINISH);
     });
 
-    // ─── PAUSE ───
-    socket.on('session:pause', () => {
-      machine.send(EVENTS.PAUSE);
-    });
+    // ─── PAUSE ─────────────────────────────────────────────────────────────
+    socket.on('session:pause', () => { machine.send(EVENTS.PAUSE); });
 
-    // ─── RESUME ───
+    // ─── RESUME ────────────────────────────────────────────────────────────
     socket.on('session:resume', () => {
-      const result = machine.send(EVENTS.RESUME) || machine.send(EVENTS.PLAY);
-      
+      machine.send(EVENTS.RESUME) || machine.send(EVENTS.PLAY);
+
       const s = sessionStore.get(sessionId);
-      if (s) {
+      if (s && s.steps && s.steps.length > 0) {
         socket.emit('teaching:step', {
-          step: s.steps[s.currentStepIndex],
+          step:  s.steps[s.currentStepIndex],
           index: s.currentStepIndex,
           total: s.steps.length,
         });
       }
     });
 
-    // ─── END SESSION ───
+    // ─── END SESSION ───────────────────────────────────────────────────────
     socket.on('session:end', () => {
       console.log(`[WS] session:end (${sessionId})`);
       machine.forceReset();
       sessionStore.destroy(sessionId);
     });
 
-    // ─── DISCONNECT ───
+    // ─── DISCONNECT ────────────────────────────────────────────────────────
     socket.on('disconnect', (reason) => {
       console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
       sessionStore.destroy(sessionId);
@@ -428,10 +372,10 @@ export function setupTeachingSocket(io) {
 
     // Send initial state
     socket.emit('teaching:state', {
-      state: STATES.IDLE,
-      from: null,
-      event: 'INIT',
-      payload: { sessionId },
+      state:     STATES.IDLE,
+      from:      null,
+      event:     'INIT',
+      payload:   { sessionId },
       timestamp: Date.now(),
     });
   });

@@ -1,6 +1,12 @@
 /**
  * Agents Index
  */
+export { PLANNER_AGENT_PROMPT } from './plannerAgent.js';
+export { NARRATOR_AGENT_PROMPT } from './narratorAgent.js';
+export { VISUALIZER_AGENT_PROMPT } from './visualizerAgent.js';
+export { ANIMATOR_AGENT_PROMPT } from './animatorAgent.js';
+export { CRITIC_AGENT_PROMPT } from './criticAgent.js';
+export { VALIDATOR_AGENT_PROMPT } from './validatorAgent.js';
 export { REFLECTION_AGENT_PROMPT } from './reflectionPrompt.js';
 export { MAESTRO_PEDAGOGY_PROMPT } from './maestroPrompt.js';
 export { 

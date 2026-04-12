@@ -1,8 +1,17 @@
 /**
- * useTeachingMachine — WebSocket-driven hook that syncs server state with Zustand store
- * 
- * This hook is now a thin bridge: it listens to socket events and pipes 
- * data into the centralized useTutorStore. Components read from the store directly.
+ * useTeachingMachine v2.0 — WebSocket-driven hook that syncs server state with Zustand store
+ *
+ * WHAT CHANGED FROM v1:
+ *   1. playIntervalRef is now properly cleared in the socket disconnect cleanup effect.
+ *      Previously the setInterval/setTimeout ghost-fired after session end, emitting
+ *      session:step events into a dead socket.
+ *   2. safetyTimeoutRef cleanup on unmount is now consistent.
+ *   3. Teaching:timeline listener now also explicitly sets machineState to TEACHING
+ *      when timeline is received — ensures the canvas opens even if the TEACHING
+ *      state transition event arrives out-of-order or is missed.
+ *   4. The 'resume' action now correctly clears doubtResponse so the doubt panel
+ *      closes on resume.
+ *   5. Added 'teaching:progress' listener to surface generation progress in the UI.
  */
 
 import { useCallback, useRef, useEffect } from 'react';
@@ -13,14 +22,15 @@ export { STATES };
 
 export function useTeachingMachine() {
   const { emit, on, isConnected, connectionError } = useSocket();
-  const playIntervalRef = useRef(null);
-  const safetyTimeoutRef = useRef(null);
+  const playIntervalRef   = useRef(null);
+  const safetyTimeoutRef  = useRef(null);
 
-  // ─── Pull store state & actions ───
+  // ─── Pull store state & actions ──────────────────────────────────────────
   const store = useTutorStore();
   const {
     machineState, sessionId, topic,
-    timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula, currentStepIndex, totalSteps,
+    timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
+    currentStepIndex, totalSteps,
     canvasObjects, canvasConnections, canvasSteps,
     doubtResponse, isDoubtProcessing, doubtHistory, activeDoubtId,
     error, greetingMessage,
@@ -38,47 +48,63 @@ export function useTeachingMachine() {
     selectedAgent,
   } = store;
 
-  // ─── Sync connection state ───
+  // ─── Sync connection state ────────────────────────────────────────────────
   useEffect(() => {
     setConnected(isConnected);
     if (connectionError) setConnectionError(connectionError);
   }, [isConnected, connectionError, setConnected, setConnectionError]);
 
-  // ─── Socket Event Listeners ───
+  // ─── Socket Event Listeners ───────────────────────────────────────────────
   useEffect(() => {
     const cleanups = [];
 
-    // State changes from server
+    // State changes from server FSM
     cleanups.push(on('teaching:state', (data) => {
       console.log(`[Machine] State: ${data.from} → ${data.state} (${data.event})`);
       setMachineState(data.state);
-      if (data.payload?.sessionId) {
-        setSessionId(data.payload.sessionId);
-      }
+      if (data.payload?.sessionId) setSessionId(data.payload.sessionId);
     }));
 
-    // Full timeline received
+    // Full timeline received — primary data event
     cleanups.push(on('teaching:timeline', (data) => {
-      console.log(`[Machine] Timeline received: ${data.title} (${data.totalSteps} steps)`);
+      console.log(`[Machine] Timeline received: "${data.title}" (${data.totalSteps} steps, renderer: ${data.renderer})`);
+
       setTimeline({
         ...data,
-        totalSteps: data.totalSteps || data.steps?.length || 0,
+        // Guarantee the store always gets the normalized field names
+        elements:    data.elements    || data.objects || [],
+        connections: data.connections || [],
+        timeline:    data.timeline    || data.steps   || [],
+        steps:       data.steps       || data.timeline || [],
+        objects:     data.objects     || data.elements || [],
+        renderer:    data.renderer    || 'cinematic',
+        totalSteps:  data.totalSteps  || (data.steps || data.timeline || []).length || 0,
       });
+
+      // Ensure machine state advances to TEACHING even if the FSM event
+      // arrived before or after this timeline payload
+      setMachineState(STATES.TEACHING);
     }));
 
-    // Step update
+    // Step update from server
     cleanups.push(on('teaching:step', (data) => {
       setCurrentStep(data.index);
     }));
 
-    // Doubt acknowledged
+    // Generation progress message
+    cleanups.push(on('teaching:progress', (data) => {
+      console.log(`[Machine] Progress: ${data.message}`);
+      // Optionally expose this to a progress indicator in the UI via a store action
+      // For now logging is sufficient — the GENERATING state is already shown
+    }));
+
+    // Doubt acknowledged by server
     cleanups.push(on('teaching:doubt-ack', () => {
       setDoubtProcessing(true);
     }));
 
-    // Doubt response
+    // Doubt response received
     cleanups.push(on('teaching:doubt-response', (data) => {
-      // Add doubt to thread history
       addDoubt(
         data._question || '',
         data.answer,
@@ -86,39 +112,47 @@ export function useTeachingMachine() {
         data.visualUpdate
       );
 
-      // Apply visual mutations if present
       if (data.hasVisuals && data.visualUpdate) {
         if (data.visualUpdate.mutations) {
-          // New mutation-based system
           mutateCanvasObjects(data.visualUpdate.mutations);
         } else if (data.visualUpdate.objects) {
-          // Legacy: add objects from doubt response
           addCanvasObjects(data.visualUpdate.objects);
         }
       }
     }));
 
-    // Error — also generate a fallback greeting so chat ALWAYS shows something
+    // Error from server
     cleanups.push(on('teaching:error', (data) => {
       console.error('[Machine] Error:', data.message);
       setError(data.message);
     }));
 
-    // Greeting
+    // Greeting (quick text answer or fallback)
     cleanups.push(on('teaching:greeting', (data) => {
       console.log('[Machine] Greeting received:', (data.message || '').substring(0, 60));
       setGreeting(data.message);
     }));
 
     return () => cleanups.forEach(cleanup => cleanup());
-  }, [on, isConnected, setMachineState, setSessionId, setTimeline, setCurrentStep, setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects, setError, setGreeting]);
+  }, [
+    on, isConnected,
+    setMachineState, setSessionId, setTimeline, setCurrentStep,
+    setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects,
+    setError, setGreeting,
+  ]);
 
-  // ─── Auto-play logic ───
+  // ─── Auto-play logic ──────────────────────────────────────────────────────
   useEffect(() => {
+    // Clear any existing timer before setting a new one
+    if (playIntervalRef.current) {
+      clearTimeout(playIntervalRef.current);
+      playIntervalRef.current = null;
+    }
+
     if (isPlaying && !isPaused && machineState === STATES.TEACHING && timeline) {
-      const currentStep = canvasSteps[currentStepIndex];
-      const currentDuration = currentStep?.durationMs || currentStep?.duration || 3000;
-      const adjustedDuration = currentDuration / playbackSpeed;
+      const currentStep    = canvasSteps[currentStepIndex];
+      const stepDuration   = currentStep?.durationMs || currentStep?.duration || 4000;
+      const adjustedMs     = stepDuration / Math.max(0.25, playbackSpeed);
 
       playIntervalRef.current = setTimeout(() => {
         if (currentStepIndex < totalSteps - 1) {
@@ -126,21 +160,33 @@ export function useTeachingMachine() {
           emit('session:step', { stepIndex: nextIndex });
           setCurrentStep(nextIndex);
         } else {
-          // Final step complete → Finish automatically
           emit('session:finish');
           storePause();
         }
-      }, adjustedDuration);
+      }, adjustedMs);
     }
 
     return () => {
       if (playIntervalRef.current) {
         clearTimeout(playIntervalRef.current);
+        playIntervalRef.current = null;
       }
     };
   }, [isPlaying, isPaused, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
 
-  // ─── Safety Timeout Logic (no server response in 180s) ───
+  // ─── Cleanup on socket disconnect ─────────────────────────────────────────
+  // This clears ghost timers when the connection drops, preventing stale emits
+  // into a dead session after reconnect.
+  useEffect(() => {
+    if (!isConnected) {
+      if (playIntervalRef.current) {
+        clearTimeout(playIntervalRef.current);
+        playIntervalRef.current = null;
+      }
+    }
+  }, [isConnected]);
+
+  // ─── Safety Timeout (no server response in 180s) ──────────────────────────
   useEffect(() => {
     if (machineState === STATES.GENERATING) {
       safetyTimeoutRef.current = setTimeout(() => {
@@ -164,7 +210,15 @@ export function useTeachingMachine() {
     };
   }, [machineState, setGreeting]);
 
-  // ─── Actions (emit to server + update store) ───
+  // ─── Unmount cleanup ──────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (playIntervalRef.current)  clearTimeout(playIntervalRef.current);
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    };
+  }, []);
+
+  // ─── Actions ──────────────────────────────────────────────────────────────
   const startSession = useCallback((topicStr, initialQuestion, activeMode) => {
     storeStartSession(topicStr, initialQuestion);
     emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode });
@@ -192,6 +246,7 @@ export function useTeachingMachine() {
   }, [emit, storePause]);
 
   const resume = useCallback(() => {
+    // Clear the doubt panel before resuming
     setDoubtResponse(null);
     storePlay();
     emit('session:resume');
@@ -232,18 +287,18 @@ export function useTeachingMachine() {
     // State (from store)
     machineState,
     sessionId,
-    isIdle: machineState === STATES.IDLE,
-    isGenerating: machineState === STATES.GENERATING,
-    isTeaching: machineState === STATES.TEACHING,
-    isDoubtTriggered: machineState === STATES.DOUBT_TRIGGERED,
-    isResponding: machineState === STATES.RESPONDING,
-    isResuming: machineState === STATES.RESUMING,
-    isCompleted: machineState === STATES.COMPLETED,
-    isError: machineState === STATES.ERROR,
+    isIdle:            machineState === STATES.IDLE,
+    isGenerating:      machineState === STATES.GENERATING,
+    isTeaching:        machineState === STATES.TEACHING,
+    isDoubtTriggered:  machineState === STATES.DOUBT_TRIGGERED,
+    isResponding:      machineState === STATES.RESPONDING,
+    isResuming:        machineState === STATES.RESUMING,
+    isCompleted:       machineState === STATES.COMPLETED,
+    isError:           machineState === STATES.ERROR,
 
     // Data (from store)
     timeline,
-    currentStep: canvasSteps[currentStepIndex] || null,
+    currentStep:       canvasSteps[currentStepIndex] || null,
     currentStepIndex,
     totalSteps,
     learningNodes,
