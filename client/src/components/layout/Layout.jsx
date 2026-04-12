@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import AccountMenu from '../sidebar/AccountMenu';
+import Toolbar from '../toolbar/Toolbar';
 import ThemeSelector from '../ThemeSelector';
 import { X } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
@@ -42,11 +43,11 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             exit={{ opacity: 0, scale: 0.9, x: isLeftHand ? 20 : -20 }}
             transition={{ duration: 0.2 }}
             className={`tb-top-left-pill absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-50 flex items-center pointer-events-auto`}
-            style={{ ...miniGlass, borderRadius: 16, padding: '6px' }}
+            style={{ ...miniGlass, borderRadius: 9999, padding: '6px' }}
           >
             <button
               onClick={toggleSidebar}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all text-[var(--text-primary)] font-bold active:scale-95 group hover:bg-[var(--bg-secondary)]"
+              className="flex items-center gap-2 px-3 py-2 rounded-full transition-all text-[var(--text-primary)] font-bold active:scale-95 group hover:bg-[var(--bg-secondary)]"
             >
               <PanelLeft size={15} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
               <span className="text-[11px] uppercase tracking-[0.2em] opacity-90 pr-1">Workspace</span>
@@ -59,63 +60,12 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       {/* ── FLOATING TOP-RIGHT: Integrated Control Center ── */}
       {!forceCollapse && (
         <div
-          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-50 flex items-center gap-1.5 p-1.5 pointer-events-auto shadow-sm`}
-          style={{ borderRadius: 16, ...miniGlass }}
+          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-50 flex items-center gap-1.5 p-0 pointer-events-auto`}
         >
-          {/* A. Drawing & Session Tools (Collapsible on Mobile) */}
-          <div className={`flex items-center gap-1.5 overflow-hidden transition-all duration-300 ${showMobileTools ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0 md:max-w-[400px] md:opacity-100'}`}>
-            {[
-              { icon: <Hand size={15} />, label: 'Pan Tool' },
-              { icon: <Type size={15} />, label: 'Add Text' },
-              { icon: <Square size={15} />, label: 'Draw Shape' },
-              { icon: <StickyNote size={15} />, label: 'Sticky Note' },
-              { icon: <LayoutGrid size={15} />, label: 'Layout Grid' },
-            ].map(({ icon, label }) => (
-              <div key={label} className="relative group flex-shrink-0">
-                <button
-                  onClick={() => alert(`${label} is coming soon!`)}
-                  className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90"
-                >
-                  {icon}
-                </button>
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-                  {label}
-                </div>
-              </div>
-            ))}
-            
-            <div className="relative group flex-shrink-0">
-              <button onClick={() => alert('Rename is coming soon!')} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
-                <Edit size={15} strokeWidth={2} />
-              </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-                Rename
-              </div>
-            </div>
-
-            <div className="relative group flex-shrink-0">
-              <button onClick={() => alert('Share is coming soon!')} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:scale-90">
-                <Share size={15} strokeWidth={2} />
-              </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-                Share
-              </div>
-            </div>
-
-            <div className="relative group flex-shrink-0">
-              <button
-                onClick={() => alert('Delete is coming soon!')}
-                className="p-2 rounded-xl hover:bg-red-500/10 transition-all text-[var(--text-tertiary)] hover:text-red-500 active:scale-90"
-              >
-                <Trash size={15} />
-              </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-red-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap shadow-xl">
-                Delete
-              </div>
-            </div>
-
-            <div className="w-[1px] h-4 bg-[var(--border-color)] mx-1 flex-shrink-0" />
-          </div>
+          <Toolbar 
+            onShare={() => {}} 
+            onSettingsClick={() => setShowSettings(true)}
+          />
 
           {/* B. Mobile Tools Toggle (Visible only on mobile) */}
           <button 
@@ -125,16 +75,6 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           >
              <Edit size={16} strokeWidth={2.5}/>
           </button>
-          
-          <div className="w-[1px] h-4 bg-[var(--border-color)] mx-1 md:hidden flex-shrink-0" />
-
-          <AnimatePresence mode="wait">
-            <AccountMenu
-              variant="compact"
-              onSettingsClick={() => setShowSettings(true)}
-              layoutView={layoutView}
-            />
-          </AnimatePresence>
         </div>
       )}
 
@@ -236,7 +176,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           style={{
             width: 320,
             height: 'calc(100vh - 32px)',
-            borderRadius: 20,
+            borderRadius: 32,
             ...glassStyle,
           }}
         >

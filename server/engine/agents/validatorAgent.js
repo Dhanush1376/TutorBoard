@@ -41,14 +41,24 @@ AUTO-REPAIR (Apply silently, log in "repairs")
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FAIL-SAFE (Use only if input is unrecoverable)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{
-  "scene": { "title": "Ready to Learn", "type": "linear" },
-  "elements": [
-    { "id": "hero", "type": "orb", "x": 0.5, "y": 0.4, "label": "Topic", "color": "blue", "props": { "pulse": true } },
-    { "id": "cta", "type": "block", "x": 0.5, "y": 0.7, "label": "Ask a specific question to begin", "color": "gray", "props": {} }
-  ],
-  "narrations": [{ "step": 1, "title": "Let's Begin", "text": "Ask any topic to start your visual lesson.", "highlight_terms": [] }],
-  "timeline": [{ "step": 1, "transition": "scale", "camera": { "x": 0.5, "y": 0.5, "zoom": 1.0, "duration": 0.8 }, "animations": [{ "id": "hero", "action": "scale_in", "duration": 0.5, "delay": 0, "easing": "spring" }] }]
+  "status": "fail_safe",
+  "repairs": ["Input was unrecoverable"],
+  "final_output": {
+    "meta": { "topic": "Learning Reset", "concept_type": "Other", "level": "beginner", "core_insight": "Ask a question to begin.", "step_count": 1 },
+    "narrations": [{ "step": 1, "title": "Let's Begin", "text": "Ask any topic to start your visual lesson.", "highlight_terms": [] }],
+    "visual_steps": [
+      {
+        "step": 1,
+        "elements": [
+          { "id": "hero", "type": "orb", "x": 0.5, "y": 0.4, "label": "Topic Analysis", "color": "blue", "props": { "pulse": true } },
+          { "id": "cta", "type": "block", "x": 0.5, "y": 0.7, "label": "Ask a specific question", "color": "gray" }
+        ]
+      }
+    ],
+    "animation_steps": [
+      { "step": 1, "global_transition": "scale", "animations": [{ "id": "hero", "action": "highlight", "duration": 0.5 }] }
+    ]
+  }
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

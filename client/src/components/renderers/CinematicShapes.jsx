@@ -52,12 +52,17 @@ const AW = ({ attentionLevel = 1, layoutId, animation, children, cx = 0, cy = 0 
     aType === 'slide' ? { x: cx - 60, opacity: 0 } :
     aType === 'scale' ? { scale: 0.1, opacity: 0 } :
     aType === 'draw'  ? { pathLength: 0, opacity: 0 } :
+    aType === 'drop'  ? { scale: 0.2, rotate: -3, opacity: 0 } :
+    aType === 'bounce' ? { scale: 0.5, opacity: 0 } :
     { opacity: 0 };
 
   const animate = {
     x: cx, y: cy, opacity, scale,
+    rotate: (aType === 'drop' && attentionLevel !== 0) ? 0 : undefined,
     filter: blur,
-    transition: { duration: dur, delay, ease: EASE_CINEMATIC },
+    transition: aType === 'bounce' 
+      ? { type: 'spring', stiffness: 500, damping: 15, delay }
+      : { duration: dur, delay, ease: EASE_CINEMATIC },
   };
 
   return (
@@ -102,12 +107,20 @@ export const GlowOrb = ({ cx, cy, r, color, label, attentionLevel, layoutId, ani
   );
 };
 
-export const GlassRect = ({ x, y, w, h, color, label, attentionLevel, layoutId, animation }) => {
+export const GlassRect = ({ x, y, w, h, color, label, attentionLevel, layoutId, animation, dashed, fill = 'none' }) => {
   const c = resolve(color);
+  const getFill = () => {
+    if (fill === 'glass') return c.glass;
+    if (fill === 'subtle') return `${c.fill}22`;
+    return 'none';
+  };
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x + w / 2} cy={y + h / 2}>
       <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={12}
-        fill={c.glass} stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 2.5 : 1.5}
+        fill={getFill()}
+        stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 2.5 : 1.5}
+        strokeDasharray={dashed ? '6 4' : 'none'}
+        style={fill === 'glass' ? { backdropFilter: 'blur(4px)' } : {}}
         filter="url(#tb-drop-shadow)" />
       {label && (
         <text textAnchor="middle" dominantBaseline="central" fill="#f1f5f9" fontSize={13} fontWeight="700"
@@ -117,7 +130,7 @@ export const GlassRect = ({ x, y, w, h, color, label, attentionLevel, layoutId, 
   );
 };
 
-export const FlowArrow = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId }) => {
+export const FlowArrow = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId, dashed }) => {
   const c = resolve(color);
   const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
   const uid = useId().replace(/:/g, '');
@@ -130,7 +143,9 @@ export const FlowArrow = ({ x1, y1, x2, y2, color, label, attentionLevel, layout
         </marker>
       </defs>
       <line x1={x1 - mx} y1={y1 - my} x2={x2 - mx} y2={y2 - my}
-        stroke={c.stroke} strokeWidth={2.5} markerEnd={`url(#${mid})`} />
+        stroke={c.stroke} strokeWidth={2.5} 
+        strokeDasharray={dashed ? '6 4' : 'none'}
+        markerEnd={`url(#${mid})`} />
       {label && <text y={-12} textAnchor="middle" fill="#94a3b8" fontSize={11}>{label}</text>}
     </AW>
   );
@@ -142,7 +157,7 @@ export const RawLine = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} cx={mx} cy={my}>
       <line x1={x1 - mx} y1={y1 - my} x2={x2 - mx} y2={y2 - my}
-        stroke={c.stroke} strokeWidth={2} strokeDasharray={dashed ? '5 5' : 'none'} />
+        stroke={c.stroke} strokeWidth={2} strokeDasharray={dashed ? '6 4' : 'none'} />
       {label && <text y={-10} textAnchor="middle" fill="#94a3b8" fontSize={11}>{label}</text>}
     </AW>
   );
@@ -273,13 +288,23 @@ export const CartesianAxes = ({ x, y, color, label, attentionLevel, layoutId, an
   );
 };
 
-export const GeometryPolygon = ({ x, y, points, color, label, attentionLevel, layoutId, animation }) => {
+export const GeometryPolygon = ({ x, y, points, color, label, attentionLevel, layoutId, animation, dashed, fill = 'none' }) => {
   const c = resolve(color);
   const pts = Array.isArray(points) && points.length > 2 ? points : [[0, 0], [60, 100], [-60, 100]];
   const pstr = pts.map(p => `${p[0]},${p[1]}`).join(' ');
+  const getFill = () => {
+    if (fill === 'glass') return c.glass;
+    if (fill === 'subtle') return `${c.fill}22`;
+    return 'none';
+  };
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y}>
-      <polygon points={pstr} fill={c.glass} stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 3 : 2} />
+      <polygon points={pstr} 
+        fill={getFill()} 
+        stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 3 : 2}
+        strokeDasharray={dashed ? '6 4' : 'none'}
+        style={fill === 'glass' ? { backdropFilter: 'blur(4px)' } : {}}
+      />
       {label && <text y={pts[0][1] - 18} textAnchor="middle" fill={c.text} fontSize={13} fontWeight="bold">{label}</text>}
     </AW>
   );

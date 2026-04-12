@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
+import useTutorStore from '../../store/tutorStore';
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -42,8 +43,13 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const [transform, setTransform] = useState(initialTransform || { x: 0, y: 0, scale: 1 });
   const [transitionStyle, setTransitionStyle] = useState('transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)');
   const [isSpacePressed, setIsSpacePressed] = useState(false);
-  const [isHoveringContent, setIsHoveringContent] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHoveringContent, setIsHoveringContent] = useState(false);
+  const activeTool = useTutorStore(state => state.activeTool);
+  const showGrid   = useTutorStore(state => state.showGrid);
+  const gridType   = useTutorStore(state => state.gridType);
+  const gridSize   = useTutorStore(state => state.gridSize);
+  const canvasTheme = useTutorStore(state => state.canvasTheme);
 
   // Refs for performance (no re-renders during interaction)
   const containerRef = useRef(null);
@@ -69,16 +75,18 @@ const InfiniteCanvas = memo(React.forwardRef(({
     if (contentRef.current) {
       contentRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
     }
-    // High-performance Grid synchronization (Syncing the dots via DOM)
-    if (gridRef.current) {
+    // High-performance Grid synchronization
+    if (gridRef.current && showGrid) {
       const s = t.scale;
-      gridRef.current.style.backgroundSize = `${20 * s}px ${20 * s}px, ${100 * s}px ${100 * s}px`;
+      const gSize = gridSize * s;
+      const major = gSize * 5;
+      gridRef.current.style.backgroundSize = `${gSize}px ${gSize}px, ${major}px ${major}px`;
       gridRef.current.style.backgroundPosition = `
-        ${t.x % (20 * s)}px ${t.y % (20 * s)}px, 
-        ${t.x % (100 * s)}px ${t.y % (100 * s)}px
+        ${t.x % gSize}px ${t.y % gSize}px, 
+        ${t.x % major}px ${t.y % major}px
       `;
     }
-  }, []);
+  }, [showGrid]);
 
   // Update transform state (batched)
   const commitTransform = useCallback((t) => {
@@ -148,7 +156,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const handleMouseDown = useCallback((e) => {
     const isMiddleButton = e.button === 1;
     const isSpacePan = (isSpacePressed && e.button === 0);
-    const isDirectPan = e.button === 0 && !isHoveringContent;
+    const isDirectPan = e.button === 0 && (!isHoveringContent || activeTool === 'hand');
     
     if (!isMiddleButton && !isSpacePan && !isDirectPan) return;
 
@@ -425,17 +433,31 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }), [zoomIn, zoomOut, resetView, fitToContent, centerOn, applyTransform]);
 
   const getCursor = () => {
+    // 1. Interactive Panning overrides
     if (isDragging) return 'grabbing';
     if (isSpacePressed) return 'grab';
-    if (isHoveringContent) return 'default';
-    return 'crosshair';
+
+    // 2. State-driven Cursors (Figma-feel)
+    if (activeTool.startsWith('draw:')) return 'url(\'data:image/svg+xml;utf8,<svg fill="black" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>\') 0 24, auto';
+
+    switch(activeTool) {
+      case 'select': return 'default';
+      case 'hand': return 'grab';
+      case 'text': return 'text';
+      case 'note': return 'copy'; 
+      default: return isHoveringContent ? 'default' : 'crosshair';
+    }
   };
 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden bg-[var(--bg-primary)] ${className}`}
-      style={{ cursor: getCursor(), touchAction: 'none' }}
+      className={`relative w-full h-full overflow-hidden transition-colors duration-500 ${className}`}
+      style={{ 
+        cursor: getCursor(), 
+        touchAction: 'none',
+        background: canvasTheme === 'midnight' ? '#09090b' : canvasTheme === 'blueprint' ? '#0f172a' : 'var(--bg-primary)'
+      }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       onTouchStart={handleTouchStart}
@@ -443,22 +465,27 @@ const InfiniteCanvas = memo(React.forwardRef(({
       onTouchEnd={handleTouchEnd}
     >
       <CanvasContext.Provider value={{ transform, zoomIn, zoomOut, resetView, fitToContent, centerOn }}>
-        {/* ── Infinite Structural Grid Background ── (DOM Ref Added) */}
+        {/* ── Infinite Structural Grid Background ── */}
         <div
           ref={gridRef}
-          className="absolute inset-0 pointer-events-none opacity-20"
+          className="absolute inset-0 pointer-events-none transition-opacity duration-300"
           style={{
-            backgroundImage: `
-              radial-gradient(circle, var(--text-tertiary) 0.8px, transparent 0.8px),
-              radial-gradient(circle, var(--text-tertiary) 1.5px, transparent 1.5px)
-            `,
+            display: showGrid ? 'block' : 'none',
+            opacity: canvasTheme === 'blueprint' ? 0.3 : 0.2,
+            backgroundImage: gridType === 'dots' 
+              ? `radial-gradient(circle, ${canvasTheme === 'blueprint' ? '#00e5ff' : 'var(--text-tertiary)'} 0.8px, transparent 0.8px),
+                 radial-gradient(circle, ${canvasTheme === 'blueprint' ? '#00e5ff' : 'var(--text-tertiary)'} 1.5px, transparent 1.5px)`
+              : `linear-gradient(to right, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.1)' : 'var(--border-color)'} 1px, transparent 1px),
+                 linear-gradient(to bottom, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.1)' : 'var(--border-color)'} 1px, transparent 1px),
+                 linear-gradient(to right, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.2)' : 'var(--text-tertiary)'} 1px, transparent 1px),
+                 linear-gradient(to bottom, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.2)' : 'var(--text-tertiary)'} 1px, transparent 1px)`,
             backgroundSize: `
-              ${20 * transform.scale}px ${20 * transform.scale}px,
-              ${100 * transform.scale}px ${100 * transform.scale}px
+              ${gridSize * transform.scale}px ${gridSize * transform.scale}px,
+              ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px
             `,
             backgroundPosition: `
-              ${transform.x % (20 * transform.scale)}px ${transform.y % (20 * transform.scale)}px,
-              ${transform.x % (100 * transform.scale)}px ${transform.y % (100 * transform.scale)}px
+              ${transform.x % (gridSize * transform.scale)}px ${transform.y % (gridSize * transform.scale)}px,
+              ${transform.x % (gridSize * 5 * transform.scale)}px ${transform.y % (gridSize * 5 * transform.scale)}px
             `,
           }}
         />

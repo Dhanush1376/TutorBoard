@@ -14,6 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 // Canvas & Teaching Overlays
 import InfiniteCanvas from '../components/canvas/InfiniteCanvas';
 import AgentCanvasRenderer from '../components/canvas/AgentCanvasRenderer';
+import InteractiveCanvasLayer from '../components/canvas/InteractiveCanvasLayer';
 import CanvasControls from '../components/canvas/CanvasControls';
 import CanvasMinimap from '../components/canvas/CanvasMinimap';
 import StepPanel from '../components/teaching/StepPanel';
@@ -412,7 +413,7 @@ const Home = ({ isDark }) => {
       }
     }
     // Reveal the canvas by collapsing the sidebar
-    setSidebarOpen(false);
+    // setSidebarOpen(false); // USER_REQUEST: Do not close while generating/visualizing
   };
 
   const handleSubmit = async () => {
@@ -438,7 +439,7 @@ const Home = ({ isDark }) => {
     // ── Enforce fully visual answers for EVERY question ──
     // The user explicitly requested perfect animations for all queries
     // and strictly no text chat bubbles ("blue boxes").
-    setSidebarOpen(false);
+    // setSidebarOpen(false); // USER_REQUEST: Do not close while generating/visualizing
     startSession(userPrompt, userPrompt, activeMode);
   };
 
@@ -477,6 +478,7 @@ const Home = ({ isDark }) => {
             steps={canvasSteps}
             currentStepIndex={currentStepIndex}
           />
+          <InteractiveCanvasLayer />
         </InfiniteCanvas>
       </div>
 

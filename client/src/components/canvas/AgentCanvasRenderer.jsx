@@ -24,6 +24,7 @@ import {
 } from '../renderers/CinematicShapes.jsx';
 import PhysicsRenderer from '../renderers/PhysicsRenderer.jsx';
 import NarrativeRenderer from '../renderers/NarrativeRenderer.jsx';
+import useTutorStore from '../../store/tutorStore.js';
 
 const CW = 800;
 const CH = 600;
@@ -148,6 +149,35 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'graph_axes':
     case 'coordinate_system':
       return <CartesianAxes {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+    
+    // ── LINE & ARROW ──────────────────────────────────────────
+    case 'arrow': {
+      const x1 = (obj.x1 ?? 0.5) * CW;
+      const y1 = (obj.y1 ?? 0.5) * CH;
+      const x2 = (obj.x2 ?? 0.5) * CW;
+      const y2 = (obj.y2 ?? 0.5) * CH;
+      const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, dashed: obj.dashed };
+      return shape === 'line' ? <RawLine {...props} /> : <FlowArrow {...props} />;
+    }
+
+    // ── PATH / DRAWING ───────────────────────────────────────
+    case 'path': {
+      return (
+        <motion.path
+          {...common}
+          d={obj.path}
+          fill="none"
+          stroke={obj.color.startsWith('var') ? 'var(--text-primary)' : obj.color}
+          strokeWidth={obj.strokeWidth || 3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="pointer-events-auto"
+        />
+      );
+    }
 
     // ── Polygon / Triangle / Shape ───────────────────────────
     case 'polygon':
@@ -219,6 +249,27 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'note':
       return <LabelText {...common} x={x} y={y} label={obj.label} color={obj.color} />;
 
+    // ── IMAGE (NEW) ──────────────────────────────────────────
+    case 'image': {
+      const w = (obj.scale || 1) * 200;
+      const h = (obj.scale || 1) * 200;
+      return (
+        <motion.image 
+          {...common}
+          href={obj.url}
+          x={x - w / 2}
+          y={y - h / 2}
+          width={w}
+          height={h}
+          preserveAspectRatio="xMidYMid slice"
+          style={{ 
+            clipPath: 'inset(0% round 12px)',
+            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
+          }}
+        />
+      );
+    }
+
     // ── DEFAULT FALLBACK ─────────────────────────────────────
     default:
       return <FreeformShape {...common} x={x} y={y}
@@ -251,6 +302,8 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
   }, [rawElements, stepObjectIds, currentStep.mutations]);
 
   const { highlightIds, fadeIds, camera } = useStepDirector(elements, timelineSteps, currentStepIndex);
+  
+  const { activeTool, selectedElementIds, setSelectedElements } = useTutorStore();
 
   if (!elements.length) return null;
 
@@ -332,16 +385,44 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
 
           {/* Elements */}
           <AnimatePresence mode="popLayout">
-            {elements.map(obj => (
-              <ErrorBoundary key={obj.id} onClose={() => {}}>
-                <RenderShape
-                  obj={obj}
-                  highlightIds={highlightIds}
-                  fadeIds={fadeIds}
-                  animation={currentStep.animation}
-                />
-              </ErrorBoundary>
-            ))}
+            {elements.map(obj => {
+              const isSelected = selectedElementIds?.includes(obj.id);
+              return (
+                <ErrorBoundary key={obj.id} onClose={() => {}}>
+                  <g 
+                    onPointerDown={(e) => {
+                      if (activeTool === 'select') {
+                        e.stopPropagation();
+                        setSelectedElements([obj.id]);
+                      }
+                    }}
+                    style={{ cursor: activeTool === 'select' ? 'pointer' : 'crosshair' }}
+                  >
+                    {/* Selection Highlight Ring */}
+                    {isSelected && (
+                      <rect 
+                        x={(obj.x * CW) - ((obj.scale || 1) * 90)} 
+                        y={(obj.y * CH) - ((obj.scale || 1) * 40)} 
+                        width={(obj.scale || 1) * 180} 
+                        height={(obj.scale || 1) * 80} 
+                        fill="none" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2} 
+                        strokeDasharray="4 4" 
+                        rx={8}
+                        className="pointer-events-none"
+                      />
+                    )}
+                    <RenderShape
+                      obj={obj}
+                      highlightIds={highlightIds}
+                      fadeIds={fadeIds}
+                      animation={currentStep.animation}
+                    />
+                  </g>
+                </ErrorBoundary>
+              );
+            })}
           </AnimatePresence>
         </motion.g>
       </svg>

@@ -20,6 +20,7 @@ import {
 
 import InfiniteCanvas from '../canvas/InfiniteCanvas';
 import AgentCanvasRenderer from '../canvas/AgentCanvasRenderer';
+import InteractiveCanvasLayer from '../canvas/InteractiveCanvasLayer';
 import CanvasControls from '../canvas/CanvasControls';
 import CanvasMinimap from '../canvas/CanvasMinimap';
 import FloatingSidebar from './FloatingSidebar';
@@ -326,6 +327,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 steps={canvasSteps}
                 currentStepIndex={currentStepIndex}
               />
+              <InteractiveCanvasLayer />
             </InfiniteCanvas>
 
             {/* Canvas Controls */}

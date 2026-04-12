@@ -82,6 +82,10 @@ const useTutorStore = create(
       canvasConnections: [],      // Normalized connections array
       canvasSteps:       [],      // Normalized timeline/steps array
       canvasTransform:   { x: 0, y: 0, scale: 1 },
+      
+      // Canvas Interaction State (Figma/Miro features)
+      selectedElementIds: [],
+      history: { past: [], future: [] },
 
       // ═══════════════════════════════════════════════════
       // DOUBT STATE
@@ -113,6 +117,33 @@ const useTutorStore = create(
       selectedAgent:       'OpenRouter',
       layoutView:          'right',
       isSidebarOpen:       true,
+      activeTool:          'select',
+      
+      // Fine-grained UI preferences
+      showGrid:            true,
+      isSnapToGrid:        true,
+      isProfileOpen:       false,
+      
+      // Drawing Properties
+      drawColor:           'var(--text-primary)',
+      drawWidth:           3,
+
+      // Grid & Layout Properties
+      gridType:            'dots',
+      gridSize:            20,
+      canvasTheme:         'dark',
+
+      // Note Properties
+      noteColor:           '#fbbf24',
+      noteSize:            'medium',
+
+      // Shape Properties
+      shapeFill:           'none',
+      shapeStrokeStyle:    'solid',
+
+      // Typography Properties
+      textType:            'standard',
+      textSize:            16,
 
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
@@ -285,6 +316,56 @@ const useTutorStore = create(
         set({ canvasObjects: [...canvasObjects, ...newOnes] });
       },
 
+      // ────────────────────────────────────────────────────────
+      // INTERACTIVE DRAWING ACTIONS (Figma/Miro behaviors)
+      // ────────────────────────────────────────────────────────
+      setSelectedElements: (ids) => set({ selectedElementIds: ids }),
+      
+      setCanvasObjectsWithHistory: (newObjects) => {
+        const { canvasObjects, history } = get();
+        set({
+          canvasObjects: newObjects,
+          history: {
+            past: [...history.past, canvasObjects], // Save old state
+            future: [], // Clear redo stack on new action
+          }
+        });
+      },
+
+      undo: () => {
+        const { history, canvasObjects } = get();
+        if (history.past.length === 0) return;
+        
+        const previousState = history.past[history.past.length - 1];
+        const newPast = history.past.slice(0, -1);
+        
+        set({
+          canvasObjects: previousState,
+          selectedElementIds: [],
+          history: {
+            past: newPast,
+            future: [canvasObjects, ...history.future]
+          }
+        });
+      },
+
+      redo: () => {
+        const { history, canvasObjects } = get();
+        if (history.future.length === 0) return;
+        
+        const nextState = history.future[0];
+        const newFuture = history.future.slice(1);
+        
+        set({
+          canvasObjects: nextState,
+          selectedElementIds: [],
+          history: {
+            past: [...history.past, canvasObjects],
+            future: newFuture
+          }
+        });
+      },
+
       // ═══════════════════════════════════════════════════
       // SNAPSHOT ACTIONS
       // ═══════════════════════════════════════════════════
@@ -420,6 +501,97 @@ const useTutorStore = create(
       openFloatingSidebar:   () => set({ showFloatingSidebar: true }),
       closeFloatingSidebar:  () => set({ showFloatingSidebar: false }),
       toggleMinimap:         () => set(s => ({ showMinimap: !s.showMinimap })),
+      setActiveTool:         (tool) => set({ activeTool: tool }),
+      toggleGrid:            ()     => set(s => ({ showGrid: !s.showGrid })),
+      toggleSnap:            ()     => set(s => ({ isSnapToGrid: !s.isSnapToGrid })),
+      toggleProfile:         ()     => set(s => ({ isProfileOpen: !s.isProfileOpen })),
+      
+      // Cleanup Actions
+      clearAll: () => set(state => ({ 
+        canvasObjects: [],
+        history: { past: [], present: [], future: [] } 
+      })),
+      
+      clearDrawings: () => set(state => ({ 
+        canvasObjects: state.canvasObjects.filter(o => o.type !== 'path') 
+      })),
+
+      clearNotes: () => set(state => ({ 
+        canvasObjects: state.canvasObjects.filter(o => o.type !== 'note' && o.type !== 'step_box') 
+      })),
+
+      setDrawColor:          (color) => set({ drawColor: color }),
+      setDrawWidth:          (width) => set({ drawWidth: width }),
+
+      setGridType:           (type)  => set({ gridType: type }),
+      setGridSize:           (size)  => set({ gridSize: size }),
+      setCanvasTheme:        (theme) => set({ canvasTheme: theme }),
+
+      setNoteColor:          (color) => set({ noteColor: color }),
+      setNoteSize:           (size)  => set({ noteSize: size }),
+
+      setShapeFill:          (fill)  => set({ shapeFill: fill }),
+      setShapeStrokeStyle:   (style) => set({ shapeStrokeStyle: style }),
+
+      setTextType:           (type)  => set({ textType: type }),
+      setTextSize:           (size)  => set({ textSize: size }),
+
+      // ── Canvas Interaction Actions ──
+      setSelectedElements: (ids) => set({ selectedElementIds: ids }),
+      
+      setCanvasObjectsWithHistory: (newObjects) => {
+        const { canvasObjects, history } = get();
+        set({
+          canvasObjects: newObjects,
+          history: {
+            past: [...history.past, canvasObjects],
+            future: []
+          }
+        });
+      },
+
+      addCanvasObjects: (objects) => {
+        const { canvasObjects, history } = get();
+        set({
+          canvasObjects: [...canvasObjects, ...objects],
+          history: {
+            past: [...history.past, canvasObjects],
+            future: []
+          }
+        });
+      },
+
+      undo: () => {
+        const { canvasObjects, history } = get();
+        if (history.past.length === 0) return;
+        
+        const previous = history.past[history.past.length - 1];
+        const newPast = history.past.slice(0, history.past.length - 1);
+        
+        set({
+          canvasObjects: previous,
+          history: {
+            past: newPast,
+            future: [canvasObjects, ...history.future]
+          }
+        });
+      },
+
+      redo: () => {
+        const { canvasObjects, history } = get();
+        if (history.future.length === 0) return;
+        
+        const next = history.future[0];
+        const newFuture = history.future.slice(1);
+        
+        set({
+          canvasObjects: next,
+          history: {
+            past: [...history.past, canvasObjects],
+            future: newFuture
+          }
+        });
+      },
 
       // ═══════════════════════════════════════════════════
       // SESSION LIFECYCLE
