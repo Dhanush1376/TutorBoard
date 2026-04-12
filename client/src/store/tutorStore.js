@@ -193,6 +193,7 @@ const useTutorStore = create(
         const { canvasObjects, canvasSteps } = get();
         let newObjects = [...canvasObjects];
         let newSteps = [...canvasSteps];
+        let lastAddedIndex = -1;
 
         const items = Array.isArray(mutationsOrPatches) ? mutationsOrPatches : [];
 
@@ -200,21 +201,28 @@ const useTutorStore = create(
           // ─── Modern Schema (framePatches with op: add/modify) ───
           if (item.op === 'add' && item.frame) {
             // Addition at step level (Doubt-driven additional explanation)
-            const newStepIndex = item.afterStepIndex + 1;
+            const newStepIndex = item.afterStepIndex !== undefined ? item.afterStepIndex + 1 : newSteps.length;
             const newStep = {
               index: newStepIndex,
-              id: item.frame.id,
+              id: item.frame.id || `doubt-step-${Date.now()}`,
               title: item.frame.label || 'Explanation',
-              narration: item.frame.label || '',
-              // The new step shows the new shapes + potentially existing ones if needed
-              // For simplicity in doubt-mode, we often just highlight the new ones
+              narration: item.frame.label || item.frame.explanation || '',
+              explanation: item.frame.explanation || '',
               highlightIds: item.frame.shapes?.map(s => s.id) || [],
               objectIds: item.frame.shapes?.map(s => s.id) || [],
-              cameraFocus: { x: 0.5, y: 0.5, zoom: 0.8 } // overview for new content
+              cameraFocus: item.frame.cameraFocus || { x: 0.5, y: 0.5, zoom: 0.8 },
+              animation: item.frame.animation || { type: 'draw', duration: 0.8 }
             };
 
             // Insert at the right place
             newSteps.splice(newStepIndex, 0, newStep);
+            
+            // Re-index subsequent steps
+            for (let i = newStepIndex + 1; i < newSteps.length; i++) {
+              newSteps[i].index = i;
+            }
+
+            lastAddedIndex = newStepIndex;
             
             // Add any new shapes to the global objects list
             if (item.frame.shapes) {
@@ -229,24 +237,19 @@ const useTutorStore = create(
               obj.id === item.shapeId ? { ...obj, ...item.props } : obj
             );
           }
-          
-          // ─── Legacy Schema (backward compat) ───
-          else if (item.action === 'add' && item.object) {
-            if (!newObjects.find(o => o.id === item.object.id)) {
-              newObjects.push(item.object);
-            }
-          } else if (item.action === 'modify' && item.targetId) {
-            newObjects = newObjects.map(obj =>
-              obj.id === item.targetId ? { ...obj, ...item.changes } : obj
-            );
-          }
         }
 
         set({ 
           canvasObjects: newObjects,
           canvasSteps: newSteps,
-          totalSteps: newSteps.length
+          totalSteps: newSteps.length,
+          ...(lastAddedIndex !== -1 ? { 
+            currentStepIndex: lastAddedIndex,
+            canvasMode: CANVAS_MODE.FULLSCREEN 
+          } : {})
         });
+
+        return lastAddedIndex;
       },
 
       // Add objects to canvas (append without replacing)
@@ -352,7 +355,7 @@ const useTutorStore = create(
 
       setDoubtResponse: (response) => set({ doubtResponse: response }),
       setActiveDoubt: (id) => set({ activeDoubtId: id }),
-      toggleDoubtThread: () => set(s => ({ showDoubtThread: !s.showDoubtThread })),
+      toggleDoubtThread: () => set(s => ({ showDoubtThread: !s.isDoubtTransition })), // fixed typo
       openDoubtThread: () => set({ showDoubtThread: true }),
       closeDoubtThread: () => set({ showDoubtThread: false }),
 

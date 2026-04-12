@@ -46,8 +46,9 @@ Return ONLY a JSON object:
         }
       ],
       temperature: 0,
-      responseSchema: true // Triggers JSON mode
+      responseMimeType: 'application/json'
     });
+
 
     const raw = (res.content || '{}').replace(/```json|```/g, '').trim();
     const result = JSON.parse(raw);

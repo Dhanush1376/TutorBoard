@@ -16,7 +16,8 @@
  *   Result: 1-2 LLM calls max, full context, rich output, no FINISH bug.
  */
 
-import { requestCompletion, getModel, getTextModel } from '../utils/llmClient.js';
+import { requestCompletion, requestAnthropic, getModel, getTextModel } from '../utils/llmClient.js';
+
 import { getAnimationGuide, getVisualScaffold } from '../agents/domainConfig.js';
 import { searchDomainKnowledge, formatSearchContext } from '../tools/webSearch.js';
 import { safeParse } from '../utils/parser.js';
@@ -47,12 +48,13 @@ function extractJSON(text) {
   }
 
   // Last resort: try to find JSON within the text using regex
-  const jsonMatch = cleaned.match(/\{[\s\S]*"elements"[\s\S]*"timeline"[\s\S]*\}/);
+  const jsonMatch = cleaned.match(/\{[\s\S]*("elements"|"objects"|"shapes"|"nodes")[\s\S]*("timeline"|"steps"|"flow"|"sequence")[\s\S]*\}/);
   if (jsonMatch) {
     try {
       return JSON.parse(jsonMatch[0]);
     } catch (_) { /* fall through */ }
   }
+
 
   return null;
 }
@@ -63,7 +65,17 @@ function validateSceneGraph(obj) {
     return { valid: false, errors: ['Not an object'] };
   }
 
-  // 1. Structural Validation via Zod
+  // 1. Pre-Validation Normalization (Wire Fix)
+  // If the LLM uses aliases, map them BEFORE Zod checks
+  if (obj.objects && !obj.elements) obj.elements = obj.objects;
+  if (obj.shapes && !obj.elements) obj.elements = obj.shapes;
+  if (obj.items && !obj.elements) obj.elements = obj.items;
+  
+  if (obj.steps && !obj.timeline) obj.timeline = obj.steps;
+  if (obj.flow && !obj.timeline) obj.timeline = obj.flow;
+  if (obj.sequence && !obj.timeline) obj.timeline = obj.sequence;
+
+  // 2. Structural Validation via Zod
   const result = SceneGraphSchema.safeParse(obj);
   const errors = [];
 
@@ -74,16 +86,16 @@ function validateSceneGraph(obj) {
     });
   }
 
-  // 2. Density & Pedagogical Quality Checks
+  // 3. Density & Pedagogical Quality Checks (Loosened for Geometry/Concision)
   const elements = obj.elements || obj.objects || [];
   const timeline = obj.timeline || obj.steps || [];
 
-  if (elements.length < 3) {
-    errors.push(`Visualization too sparse: Only ${elements.length} elements. Need at least 3-5 for a meaningful scene.`);
+  if (elements.length < 1) {
+    errors.push(`Visualization empty. Need at least 1 element (e.g., polygon, axes, orb) to render.`);
   }
 
-  if (timeline.length < 3) {
-    errors.push(`Lesson too short: Only ${timeline.length} steps. Need at least 4-6 steps for clear progression.`);
+  if (timeline.length < 2) {
+    errors.push(`Lesson too short: Only ${timeline.length} steps. Need at least 2 steps for a progression.`);
   }
 
   return { 
@@ -92,6 +104,7 @@ function validateSceneGraph(obj) {
     data: result.success ? result.data : obj 
   };
 }
+
 
 // ─── Build the Generation Prompt ─────────────────────────────────────────────
 function buildGenerationPrompt(topic, domain, planningResult, systemPrompt, researchContext) {
@@ -169,13 +182,30 @@ export async function runAgentLoop({ topic, domain, systemPrompt, model = null, 
       }
 
       console.log(`[AgentLoop] 🤖 Phase 1: Requesting LLM completion (Attempt ${attempt}/2) with model: ${model || 'default'}...`);
-      const response = await requestCompletion({
-        model: model || getModel(),
-        messages,
-        temperature: 0.4,
-        maxTokens: tokenBudget,
-        responseSchema: SceneGraphSchema
-      });
+      
+      let response;
+      const isClaude = (model || getModel()).includes('claude-3-5');
+
+      if (isClaude && process.env.ANTHROPIC_API_KEY) {
+        // Direct Anthropic Call (v4)
+        response = await requestAnthropic({
+          model: model || 'claude-3-5-sonnet-20241022',
+          messages,
+          temperature: 0.4,
+          maxTokens: tokenBudget,
+          responseSchema: SceneGraphSchema
+        });
+      } else {
+        // OpenRouter Fallback
+        response = await requestCompletion({
+          model: model || getModel(),
+          messages,
+          temperature: 0.4,
+          maxTokens: tokenBudget,
+          responseSchema: SceneGraphSchema
+        });
+      }
+
 
       if (!response?.content) {
         console.warn(`[AgentLoop] ⚠️ Attempt ${attempt}: Empty response content`);

@@ -34,23 +34,39 @@ const resolve = (name) => {
 };
 
 // --- Layer Wrapper ---
-const AttentionWrapper = ({ attentionLevel, layoutId, x, y, children }) => {
+const AttentionWrapper = ({ attentionLevel, layoutId, x, y, animation, children }) => {
   const opacity = attentionLevel === 2 ? 1 : attentionLevel === 0 ? 0.15 : 0.8;
   const scale = attentionLevel === 2 ? 1.08 : attentionLevel === 0 ? 0.95 : 1;
   const blur = attentionLevel === 0 ? 'blur(3px)' : 'none';
 
+  // Animation hints (fade, draw, slide, scale)
+  const animType = animation?.type || 'fade';
+  const duration = animation?.duration || 0.5;
+  const delay = animation?.delay || 0;
+
+  const variants = {
+    initial: animType === 'slide' ? { x: x - 50, opacity: 0 } : 
+             animType === 'scale' ? { scale: 0, opacity: 0 } : 
+             { opacity: 0 },
+    animate: { 
+      x, y, opacity, scale, filter: blur,
+      transition: { duration, delay, ease: EASE_CINEMATIC }
+    }
+  };
+
   return (
     <motion.g
       layoutId={layoutId}
-      initial={false}
-      animate={{ x, y, opacity, scale, filter: blur }}
-      transition={{ duration: 0.5, ease: EASE_CINEMATIC }}
+      initial="initial"
+      animate="animate"
+      variants={variants}
       style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
     >
       {children}
     </motion.g>
   );
 };
+
 
 // --- Shape Components ---
 

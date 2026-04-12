@@ -64,7 +64,7 @@ function useStepDirector(elements, connections, timelineSteps, currentStepIndex)
 /**
  * Shape dispatcher: routes each element to its cinematic component.
  */
-function RenderShape({ obj, highlightIds, fadeIds }) {
+function RenderShape({ obj, highlightIds, fadeIds, animation }) {
   const isHighlighted = highlightIds.has(obj.id);
   const isFaded = fadeIds.has(obj.id);
   const attentionLevel = isHighlighted ? 2 : isFaded ? 0 : 1;
@@ -73,7 +73,9 @@ function RenderShape({ obj, highlightIds, fadeIds }) {
     key: obj.id,
     layoutId: obj.id,
     attentionLevel,
+    animation,
   };
+
 
   // Convert normalized 0-1 to pixel space
   const x = (obj.x ?? 0.5) * CW;
@@ -131,13 +133,33 @@ function RenderShape({ obj, highlightIds, fadeIds }) {
 
 function SVGCanvasRenderer({ timeline, currentStepIndex, elements: externalElements, connections: externalConnections, steps: externalSteps }) {
   // Extract data from live state (preferred) or static timeline
-  const elements = externalElements || timeline?.elements || timeline?.objects || [];
+  const rawElements = externalElements || timeline?.elements || timeline?.objects || [];
   const connections = externalConnections || timeline?.connections || [];
   const timelineSteps = externalSteps || timeline?.timeline || timeline?.steps || [];
+  const currentStep = timelineSteps?.[currentStepIndex] || {};
+
+  // 1. Visibility Filtering: Only show elements explicitly in objectIds
+  const stepObjectIds = useMemo(() => {
+    return new Set(currentStep.objectIds || currentStep.elements || []);
+  }, [currentStep]);
+
+  // 2. Mutation Application: Apply step-specific overrides
+  const elements = useMemo(() => {
+    return rawElements
+      .filter(el => stepObjectIds.has(el.id) || stepObjectIds.size === 0)
+      .map(el => {
+        const mutation = (currentStep.mutations || []).find(m => m.id === el.id);
+        if (mutation) {
+          return { ...el, ...mutation.props };
+        }
+        return el;
+      });
+  }, [rawElements, stepObjectIds, currentStep.mutations]);
 
   const { highlightIds, fadeIds, camera } = useStepDirector(
     elements, connections, timelineSteps, currentStepIndex
   );
+
 
   if (!elements.length) return null;
 
@@ -203,7 +225,9 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: externalEleme
                     obj={obj}
                     highlightIds={highlightIds}
                     fadeIds={fadeIds}
+                    animation={currentStep.animation}
                   />
+
                 </ErrorBoundary>
               ))}
           </AnimatePresence>

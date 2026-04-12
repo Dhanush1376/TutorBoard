@@ -79,22 +79,26 @@ function postProcessTimeline(raw, topic, planningResult) {
       x: Math.max(0.01, Math.min(0.99, x)),
       y: Math.max(0.01, Math.min(0.99, y)),
       scale: isNaN(scale) ? 1 : scale,
-      shape: el.shape || (el.type === 'orb' ? 'circle' : el.type === 'block' ? 'rect' : el.type || 'circle')
+      shape: el.shape || el.type || 'circle'
     };
+
   });
 
   const timeline = rawTimeline.map((t, idx) => {
     if (!t) return { index: idx, title: 'Step', narration: '...' };
+    const stepObjectIds = t.objectIds || t.elements || [];
     return {
       ...t,
       index: idx,
       title: t.title || t.label || `Step ${idx + 1}`,
       narration: t.explanation || t.narration || t.audio || '...',
+      explanation: t.explanation || t.narration || '...',
       durationMs: parseFloat(t.duration || t.durationMs || 5000),
       highlightIds: t.highlightIds || t.highlight || [],
-      objectIds: t.objectIds || t.elements || []
+      objectIds: stepObjectIds.length > 0 ? stepObjectIds : elements.map(e => e.id)
     };
   });
+
 
   return {
     mode: 'explain',

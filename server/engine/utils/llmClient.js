@@ -9,18 +9,16 @@
 
 
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { circuitBreaker } from '../core/circuitBreaker.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-// dotenv is loaded once at startup in index.js — no need to reload here
-
-// OpenRouter Client Singleton
+// OpenRouter processes standard OpenAI calls
 let openRouterClient = null;
+// Anthropic processes high-fidelity generation requests
+let anthropicClient = null;
 
-/**
- * Initialize OpenRouter
- */
-const initOpenRouter = () => {
+const initClients = () => {
   if (!openRouterClient && process.env.OPENROUTER_API_KEY) {
     openRouterClient = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
@@ -31,10 +29,16 @@ const initOpenRouter = () => {
       }
     });
     console.log('[AI] Pure OpenRouter Engine Initialized ✅');
-  } else if (!process.env.OPENROUTER_API_KEY) {
-    console.warn('[AI] ⚠️ OPENROUTER_API_KEY MISSING in .env');
+  }
+
+  if (!anthropicClient && process.env.ANTHROPIC_API_KEY) {
+    anthropicClient = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY
+    });
+    console.log('[AI] Direct Anthropic Engine Initialized 🚀');
   }
 };
+
 
 /**
  * Helper to map UI-friendly model IDs to actual API slugs
@@ -56,7 +60,7 @@ function resolveModelId(modelId) {
  * Robust LLM Call — Dedicated OpenRouter Dispatcher
  */
 export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType }) {
-  initOpenRouter();
+  initClients();
 
   const orModel = resolveModelId(model);
 
@@ -136,16 +140,61 @@ export const getTextModel = () => {
 
 // Legacy support
 export const getAIClient = () => {
-  initOpenRouter();
+  initClients();
   return openRouterClient;
 };
+
+/**
+ * Direct Anthropic Dispatcher (v4)
+ */
+export async function requestAnthropic({ model, messages, temperature, maxTokens, responseSchema, system }) {
+  initClients();
+
+  if (!anthropicClient) {
+    throw new Error('NO_API_AVAILABLE: Anthropic client not initialized.');
+  }
+
+  const modelId = model || 'claude-3-5-sonnet-20241022';
+
+  try {
+    console.log(`[AI:Anthropic] Calling: ${modelId} (Structured Output Requested: ${!!responseSchema})`);
+    
+    // Convert OpenAI messages to Anthropic format
+    const anthropicMessages = messages.filter(m => m.role !== 'system').map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+
+    const systemPrompt = system || messages.find(m => m.role === 'system')?.content;
+
+    const options = {
+      model: modelId,
+      max_tokens: maxTokens || 4000,
+      temperature: temperature ?? 0.4,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    };
+
+    const response = await anthropicClient.messages.create(options);
+    
+    return {
+      content: response.content[0].text || '',
+      provider: 'anthropic',
+      finishReason: response.stop_reason
+    };
+  } catch (err) {
+    console.error(`[AI:Anthropic] Error: ${err.message}`);
+    throw err;
+  }
+}
+
 
 /**
  * Get vector embeddings for a string.
  * Target model: openai/text-embedding-3-small
  */
 export async function getEmbeddings(text) {
-  initOpenRouter();
+  initClients();
   
   if (!openRouterClient) {
     throw new Error('NO_API_AVAILABLE: OpenAI/OpenRouter client not initialized.');

@@ -49,7 +49,8 @@ INSTRUCTIONS:
       maxSteps: remainingStepsContext.length * 2
     });
 
-    if (data && Array.isArray(data.steps)) {
+    if (data && (Array.isArray(data.steps) || Array.isArray(data.timeline))) {
+
       // Splice the new simplified steps into the session
       const originalSteps = [...session.steps];
       const previousSteps = originalSteps.slice(0, currentStepIndex + 1);

@@ -143,6 +143,9 @@ export function validateTimeline(data) {
   // Normalize keys from SCENE GRAPH to LEGACY
   if (!data.steps && data.timeline) data.steps = data.timeline;
   if (!data.objects && data.elements) data.objects = data.elements;
+  if (!data.timeline && data.steps) data.timeline = data.steps;
+  if (!data.elements && data.objects) data.elements = data.objects;
+
 
 
   // mode is optional — default to 'explain' if missing

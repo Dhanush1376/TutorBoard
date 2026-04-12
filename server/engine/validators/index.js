@@ -8,8 +8,19 @@ import { validateTimeline as richValidateTimeline } from './timelineValidator.js
 
 export function validateTimeline(data) {
   // Normalize legacy keys
-  if (data && !data.timeline && data.steps) data.timeline = data.steps;
-  if (data && !data.elements && data.objects) data.elements = data.objects;
+  const elems = data.elements || data.objects;
+  const steps = data.timeline || data.steps;
+
+  // 0. Hard Guard Fix: Ensure we have at least these arrays before Zod
+  if (!data || !Array.isArray(elems) || !Array.isArray(steps)) {
+    return { valid: false, errors: ['Invalid timeline structure: missing elements or timeline array'], data };
+  }
+
+  // Ensure normalized keys for Zod and legacy pipeline
+  if (!data.timeline) data.timeline = steps;
+  if (!data.elements) data.elements = elems;
+  if (!data.steps) data.steps = steps;
+  if (!data.objects) data.objects = elems;
 
   // 1. Structural Validation via Zod
   const result = SceneGraphSchema.safeParse(data);

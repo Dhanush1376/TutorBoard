@@ -6,18 +6,19 @@ export function validatePedagogyResponse(data) {
   if (typeof data.concept !== 'string') errors.push("Missing or invalid 'concept'");
   if (typeof data.learning_goal !== 'string') errors.push("Missing or invalid 'learning_goal'");
   
-  const validIntent = ['quick_overview', 'deep_understanding', 'problem_solving'];
-  if (!validIntent.includes(data.learning_intent)) errors.push(`Invalid learning_intent: ${data.learning_intent}`);
+  // Normalize legacy keys
+  const steps = data.timeline || data.steps;
 
-  const validDiff = ['beginner', 'intermediate', 'advanced'];
-  if (!validDiff.includes(data.difficulty_level)) errors.push(`Invalid difficulty_level: ${data.difficulty_level}`);
+  const validIntent = ['quick_overview', 'deep_understanding', 'problem_solving'];
+  if (data.learning_intent && !validIntent.includes(data.learning_intent)) errors.push(`Invalid learning_intent: ${data.learning_intent}`);
 
   if (!Array.isArray(data.predicted_pain_points)) errors.push("Missing predicted_pain_points array");
 
-  if (!Array.isArray(data.steps) || data.steps.length === 0) {
+  if (!Array.isArray(steps) || steps.length === 0) {
     errors.push("'steps' must be a non-empty array");
   } else {
-    data.steps.forEach((step, i) => {
+    steps.forEach((step, i) => {
+
       if (typeof step.title !== 'string') errors.push(`Step ${i} missing 'title'`);
       if (typeof step.explanation !== 'string') errors.push(`Step ${i} missing 'explanation'`);
       const exec = step.execution || {};

@@ -153,25 +153,40 @@ OUTPUT FORMAT (STRICT JSON)
   "timeline": [
     {
       "title": "Specific Step Title",
-      "highlight": ["id1"],
-      "fade": [],
-      "cameraFocus": { "x": 0.5, "y": 0.5, "zoom": 1.0 },
-      "animation": { "type": "slide_in|fade|scale|draw", "duration": 0.5 },
-      "explanation": "One clear teaching sentence for this step."
+      "explanation": "One clear teaching sentence for this step.",
+      "objectIds": ["id1", "id2"], // REQUIRED: Only these IDs will be visible
+      "highlightIds": ["id1"], // Optional
+      "animation": { "type": "draw|fade|slide", "duration": 0.5 },
+      "mutations": [{ "id": "id1", "props": { "color": "red", "scale": 1.2 } }]
     }
   ]
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORKED EXAMPLES (USE AS BLUEPRINTS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Example 1: Pythagorean Theorem
+- Elements: One "polygon" for the triangle, 3 "badge" labels.
+- Step 1: Draw the triangle. Animation type: "draw".
+- Step 2: Highlight side 'a'. Use cameraFocus on the label.
+
+Example 2: Binary Search
+- Elements: One "array" (id: "arr1"), one "pointer" (id: "p1").
+- Step 1: Set array values [5, 10, 15, 20].
+- Step 2: Use "mutations" to move "p1" to the middle of "arr1" (change x,y).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRICT RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- USE "type" property for all visual elements (e.g., "type": "polygon").
-- GEOMETRY IS LITERAL: DO NOT draw a flowchart for a triangle. DO NOT use a center circle.
-- Draw exactly ONE "polygon" with "points" representing the shape.
-- Place "badge" element labels at the midpoint of each triangle side (e.g., x=0.5, y=0.6).
-- For Algorithms: Use a single "array" and mutate "values". DO NOT use scattered orbs.
-- For Data Science: Use "axes" as background and "dot" for data points.
-- Every label, title, and explanation must be SPECIFIC to the topic.
+- "objectIds" is MANDATORY. Only IDs listed here are rendered in each step.
+- USE "animation" to control how NEWLY appearing elements enter the screen.
+- USE "mutations" to shift coordinates or change colors of existing elements.
+- GEOMETRY: Draw exactly ONE "polygon" with "points" for shapes.
+- ALGORITHMS: Use "array" and "mutations" to update values.
+- NO PLACEHOLDERS: All labels and explanations must be topic-specific.
 - Return ONLY the raw JSON.
+
+
 `;
 }
