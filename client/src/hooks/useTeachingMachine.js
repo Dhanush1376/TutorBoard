@@ -119,6 +119,8 @@ export function useTeachingMachine() {
           addCanvasObjects(data.visualUpdate.objects);
         }
       }
+      
+      setDoubtProcessing(false); // Bug 54 Fix: Reset spinner when response arrives
     }));
 
     // Error from server
@@ -261,23 +263,29 @@ export function useTeachingMachine() {
     storePause();
   }, [emit, storePause]);
 
+  // BUG FIX #45: Wrap goToStep to emit socket event, keeping server sessionStore in sync
+  const goToStepWithSocket = useCallback((index) => {
+    storeGoToStep(index);
+    emit('session:step', { stepIndex: index });
+  }, [emit, storeGoToStep]);
+
   const nextStep = useCallback(() => {
     if (activeDoubtId) {
       resume();
       return;
     }
     if (currentStepIndex < totalSteps - 1) {
-      goToStep(currentStepIndex + 1);
+      goToStepWithSocket(currentStepIndex + 1);
     } else {
       finish();
     }
-  }, [currentStepIndex, totalSteps, goToStep, finish, activeDoubtId, resume]);
+  }, [currentStepIndex, totalSteps, goToStepWithSocket, finish, activeDoubtId, resume]);
 
   const prevStep = useCallback(() => {
     if (currentStepIndex > 0) {
-      goToStep(currentStepIndex - 1);
+      goToStepWithSocket(currentStepIndex - 1);
     }
-  }, [currentStepIndex, goToStep]);
+  }, [currentStepIndex, goToStepWithSocket]);
 
   return {
     // Connection
@@ -324,7 +332,7 @@ export function useTeachingMachine() {
     // Actions
     startSession,
     askDoubt,
-    goToStep,
+    goToStep: goToStepWithSocket,  // BUG FIX #45: Use socket-aware version
     nextStep,
     prevStep,
     play,

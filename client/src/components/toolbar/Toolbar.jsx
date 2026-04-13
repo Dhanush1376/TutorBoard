@@ -10,8 +10,8 @@ import {
 
 import ToolButtonBase from './components/ToolButtonBase';
 import ActionButtonBase from './components/ActionButtonBase';
-import ToolbarDivider from './ToolbarDivider';
 import useTutorStore from '../../store/tutorStore';
+import { useAuth } from '../../context/AuthContext';
 
 // Tool Components
 import HandTool from './tools/HandTool';
@@ -30,11 +30,17 @@ const Toolbar = ({ onSettingsClick }) => {
   const [hoveredId, setHoveredId] = React.useState(null);
   const toolbarRef = useRef(null);
   
-  const { 
-    isProfileOpen, toggleProfile, endSession
+    const { 
+    isProfileOpen, toggleProfile, endSession, layoutView
   } = useTutorStore();
 
+  const { user, logout } = useAuth();
+  
+  const isLeftHand = layoutView === 'left';
+  const userInitial = user?.name ? user.name[0].toUpperCase() : (user?.isGuest ? 'G' : '?');
+
   const handleLogout = () => {
+    logout();
     endSession();
   };
 
@@ -76,13 +82,11 @@ const Toolbar = ({ onSettingsClick }) => {
       <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
       <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
       <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
-      
       <ImageTool {...commonToolProps} isHoveredExternally={hoveredId === 'image'} />
-
       <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
-
+      
       <GridTool {...commonToolProps} isHoveredExternally={hoveredId === 'layout'} />
-
+      
       <ShareAction 
         {...commonToolProps} 
         id="action:share"
@@ -132,7 +136,7 @@ const Toolbar = ({ onSettingsClick }) => {
                 transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
               />
             )}
-            G
+            <span className="relative z-10">{userInitial}</span>
           </motion.button>
           
           <AnimatePresence>
@@ -141,7 +145,7 @@ const Toolbar = ({ onSettingsClick }) => {
                 initial={{ opacity: 0, y: -10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="absolute top-full right-0 mt-4 z-[9999] min-w-[200px]"
+                className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
               >
                 <div 
                   className="p-1.5 rounded-2xl overflow-hidden"
@@ -153,8 +157,8 @@ const Toolbar = ({ onSettingsClick }) => {
                   }}
                 >
                   <div className="px-4 py-3 border-b border-[var(--border-color)] mb-1">
-                    <p className="text-[12px] font-bold text-[var(--text-primary)]">Guest</p>
-                    <p className="text-[10px] text-[var(--text-tertiary)]">guest@tutorboard.ai</p>
+                    <p className="text-[12px] font-bold text-[var(--text-primary)]">{user?.name || (user?.isGuest ? 'Guest' : 'Account')}</p>
+                    <p className="text-[10px] text-[var(--text-tertiary)]">{user?.email || 'Not signed in'}</p>
                   </div>
                   
                   {[

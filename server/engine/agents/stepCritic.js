@@ -54,13 +54,13 @@ export async function critiqueStep(step) {
     return data;
   } catch (err) {
     console.error('[StepCritic] Error:', err.message);
-    // CRITICAL FIX: Return a passing score (e.g. 8) on technical failure 
-    // to prevent infinite retry loops in the agent loop.
+    // FIXED: Technical failure now returns a failing score (0) to trigger a retry or fallback
+    // instead of silently passing unvalidated content.
     return { 
-      average: 8, 
-      scores: { clarity: 8, cognitive_minimalism: 8, exam_relevance: 8, labeling: 8 },
-      critique: `Critic Technical Failure bypassed: ${err.message}`,
-      remedy: "N/A - Technical pass."
+      average: 0, 
+      scores: { clarity: 0, cognitive_minimalism: 0, exam_relevance: 0, labeling: 0 },
+      critique: `Critic Technical Failure: ${err.message}`,
+      remedy: "Retry or fallback to maestro."
     };
   }
 }

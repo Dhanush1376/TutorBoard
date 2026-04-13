@@ -1,63 +1,96 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Square, 
-  Circle, 
-  Triangle, 
-  Minus, 
+import {
+  Square,
+  Circle,
+  Triangle,
+  Minus,
   ArrowUpRight,
+  Diamond,
+  Star,
+  Hexagon,
+  MessageSquare,
+  Cloud,
   Check,
-  Spline,
-  Layers,
 } from 'lucide-react';
 import useTutorStore from '../../../store/tutorStore';
 import ToolButtonBase from '../components/ToolButtonBase';
 
 const SHAPES = [
-  { id: 'shape:rect',     icon: Square,       label: 'Rectangle' },
-  { id: 'shape:ellipse',  icon: Circle,       label: 'Circle' },
-  { id: 'shape:triangle', icon: Triangle,     label: 'Triangle' },
-  { id: 'shape:line',     icon: Minus,        label: 'Line' },
-  { id: 'shape:arrow',    icon: ArrowUpRight, label: 'Arrow' },
+  { id: 'shape:rect',     icon: Square,        label: 'Rectangle' },
+  { id: 'shape:ellipse',  icon: Circle,        label: 'Circle'    },
+  { id: 'shape:triangle', icon: Triangle,      label: 'Triangle'  },
+  { id: 'shape:line',     icon: Minus,         label: 'Line'      },
+  { id: 'shape:arrow',    icon: ArrowUpRight,  label: 'Arrow'     },
+  { id: 'shape:diamond',  icon: Diamond,       label: 'Diamond'   },
+  { id: 'shape:star',     icon: Star,          label: 'Star'      },
+  { id: 'shape:hexagon',  icon: Hexagon,       label: 'Hexagon'   },
+  { id: 'shape:callout',  icon: MessageSquare, label: 'Callout'   },
+  { id: 'shape:cloud',    icon: Cloud,         label: 'Cloud'     },
 ];
 
 const STROKE_STYLES = [
-  { id: 'solid',  label: 'Solid' },
+  { id: 'solid',  label: 'Solid'  },
   { id: 'dashed', label: 'Dashed' },
+  { id: 'dotted', label: 'Dotted' },
 ];
 
 const FILL_STYLES = [
-  { id: 'none',   label: 'None',   icon: Spline },
-  { id: 'subtle', label: 'Subtle', icon: Layers },
-  { id: 'glass',  label: 'Glass',  icon: Layers },
+  { id: 'none',   label: 'None'   },
+  { id: 'subtle', label: 'Subtle' },
+  { id: 'solid',  label: 'Solid'  },
 ];
 
+const StrokePreview = ({ style }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+    <div
+      style={{
+        flex: 1,
+        height: 2,
+        borderRadius: 1,
+        borderTop:
+          style === 'solid'
+            ? '2px solid currentColor'
+            : style === 'dashed'
+            ? '2px dashed currentColor'
+            : '2px dotted currentColor',
+        background: 'transparent',
+      }}
+    />
+  </div>
+);
+
 const ShapeTool = (props) => {
-  const { 
+  const {
     activeTool, setActiveTool,
-    shapeFill, setShapeFill,
-    shapeStrokeStyle, setShapeStrokeStyle
+    shapeFill,        setShapeFill,
+    shapeStrokeStyle, setShapeStrokeStyle,
+    shapeOpacity,     setShapeOpacity,
   } = useTutorStore();
 
   const Submenu = (
-    <div className="flex flex-col gap-5 p-3.5 min-w-[210px]">
-      {/* Shape Selector Grid */}
-      <div className="flex flex-col gap-2.5">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">Geometric Primitive</span>
+    <div className="flex flex-col gap-4 p-3.5" style={{ minWidth: 230 }}>
+
+      {/* Shape grid */}
+      <div className="flex flex-col gap-2">
+        <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+          Geometric primitive
+        </span>
         <div className="grid grid-cols-5 gap-1">
-          {SHAPES.map((shape) => {
-            const isActive = activeTool === shape.id;
+          {SHAPES.map(({ id, icon: Icon, label }) => {
+            const isActive = activeTool === id;
             return (
               <button
-                key={shape.id}
-                onClick={() => setActiveTool(shape.id)}
-                className="flex items-center justify-center p-2 rounded-lg transition-all"
-                style={{ 
-                  background: isActive ? 'var(--bg-secondary)' : 'transparent',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                key={id}
+                onClick={() => setActiveTool(id)}
+                title={label}
+                className="flex items-center justify-center p-2 rounded-lg transition-all border"
+                style={{
+                  background:   isActive ? 'var(--bg-secondary)' : 'transparent',
+                  borderColor:  isActive ? 'var(--border-color)' : 'transparent',
+                  color:        isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 }}
               >
-                <shape.icon size={16} strokeWidth={isActive ? 2.5 : 1.8} />
+                <Icon size={15} strokeWidth={isActive ? 2.5 : 1.8} />
               </button>
             );
           })}
@@ -66,75 +99,112 @@ const ShapeTool = (props) => {
 
       <div className="h-px bg-[var(--border-color)] opacity-40 mx-1" />
 
-      {/* Stroke Style */}
-      <div className="flex flex-col gap-2.5">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">Stroke style</span>
-        <div className="flex gap-1 p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]">
-          {STROKE_STYLES.map((style) => {
-            const isActive = shapeStrokeStyle === style.id;
+      {/* Stroke style */}
+      <div className="flex flex-col gap-2">
+        <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+          Stroke style
+        </span>
+        <div
+          className="flex gap-1 p-1 rounded-xl border"
+          style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+        >
+          {STROKE_STYLES.map(({ id, label }) => {
+            const isActive = shapeStrokeStyle === id;
             return (
               <button
-                key={style.id}
-                onClick={() => setShapeStrokeStyle(style.id)}
-                className="flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all"
-                style={{ 
-                  background: isActive ? 'var(--bg-primary)' : 'transparent',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                  boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none',
-                  border: isActive ? '1px solid var(--border-color)' : '1px solid transparent'
+                key={id}
+                onClick={() => setShapeStrokeStyle(id)}
+                className="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-all"
+                style={{
+                  background:  isActive ? 'var(--bg-primary)' : 'transparent',
+                  color:       isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  border:      isActive ? '1px solid var(--border-color)' : '1px solid transparent',
+                  boxShadow:   isActive ? '0 2px 8px rgba(0,0,0,.12)' : 'none',
                 }}
               >
-                {style.label}
+                <StrokePreview style={id} />
+                <span style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                  {label}
+                </span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Fill Style */}
-      <div className="flex flex-col gap-2.5">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">Fill effect</span>
+      {/* Fill effect */}
+      <div className="flex flex-col gap-2">
+        <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+          Fill effect
+        </span>
         <div className="flex gap-1.5">
-          {FILL_STYLES.map((fill) => {
-            const isActive = shapeFill === fill.id;
+          {FILL_STYLES.map(({ id, label }) => {
+            const isActive = shapeFill === id;
             return (
               <button
-                key={fill.id}
-                onClick={() => setShapeFill(fill.id)}
+                key={id}
+                onClick={() => setShapeFill(id)}
                 className="flex-1 flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all border"
-                style={{ 
-                  background: isActive ? 'var(--bg-secondary)' : 'transparent',
+                style={{
+                  background:  isActive ? 'var(--bg-secondary)' : 'transparent',
                   borderColor: isActive ? 'var(--text-primary)' : 'var(--border-color)',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                  color:       isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 }}
               >
-                <div 
-                  className="w-full h-8 rounded-lg mb-1 flex items-center justify-center" 
-                  style={{ 
-                    background: fill.id === 'none' ? 'transparent' : fill.id === 'subtle' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)',
-                    border: fill.id === 'none' ? '1.5px dashed var(--border-color)' : 'none',
-                    backdropFilter: fill.id === 'glass' ? 'blur(4px)' : 'none'
+                <div
+                  className="w-full h-7 rounded-lg flex items-center justify-center"
+                  style={{
+                    background:
+                      id === 'none'
+                        ? 'transparent'
+                        : id === 'subtle'
+                        ? 'rgba(128,128,255,.08)'
+                        : 'var(--bg-secondary)',
+                    border: id === 'none' ? '1.5px dashed var(--border-color)' : 'none',
                   }}
                 >
-                  {isActive && <Check size={12} />}
+                  {isActive && <Check size={11} />}
                 </div>
-                <span className="text-[9px] font-bold uppercase tracking-tight">{fill.label}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                  {label}
+                </span>
               </button>
             );
           })}
         </div>
+      </div>
+
+      {/* Opacity */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+            Opacity
+          </span>
+          <span className="text-[11px] text-[var(--text-secondary)]">
+            {shapeOpacity ?? 100}%
+          </span>
+        </div>
+        <input
+          type="range"
+          min={10}
+          max={100}
+          step={1}
+          value={shapeOpacity ?? 100}
+          onChange={(e) => setShapeOpacity(Number(e.target.value))}
+          className="w-full"
+        />
       </div>
     </div>
   );
 
-  const CurrentIcon = SHAPES.find(s => s.id === activeTool)?.icon || Square;
+  const CurrentIcon = SHAPES.find((s) => s.id === activeTool)?.icon ?? Square;
 
   return (
-    <ToolButtonBase 
+    <ToolButtonBase
       {...props}
-      id="shape" 
-      icon={CurrentIcon} 
-      label="Shape" 
+      id="shape"
+      icon={CurrentIcon}
+      label="Shape"
       shortcut="R"
       customSubmenu={Submenu}
     />

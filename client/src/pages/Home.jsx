@@ -443,13 +443,50 @@ const Home = ({ isDark }) => {
     startSession(userPrompt, userPrompt, activeMode);
   };
 
+  // ── Manual Note Creation ──
+  const { activeTool, noteColor, noteSize, addCanvasObjects } = useTutorStore();
+  
+  const handleCanvasDoubleClick = useCallback((e) => {
+    if (activeTool !== 'note') return false; // Let InfiniteCanvas do default behavior
+
+    const canvas = canvasRef.current;
+    if (!canvas) return false;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+
+    const { x, y, scale } = canvas.getTransform();
+    const worldX = (cx - x) / scale;
+    const worldY = (cy - y) / scale;
+
+    const sizeMap = { small: 140, medium: 180, large: 240 };
+    const s = sizeMap[noteSize] || 180;
+
+    const newNote = {
+      id: `manual-note-${Date.now()}`,
+      type: 'note',
+      x: worldX,
+      y: worldY,
+      w: s,
+      h: s,
+      label: 'New Note',
+      color: noteColor,
+      attentionLevel: 1,
+    };
+
+    addCanvasObjects([newNote]);
+    return true; // Intercepted
+  }, [activeTool, noteColor, noteSize, addCanvasObjects]);
+
   const domain = timeline?.domain?.toLowerCase() || 'general';
   const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
   const showStepPanel = currentStep && PANEL_VISIBLE_STATES.has(machineState);
 
   const leftPanel = (
-    <LeftPanel
-      activeView={activeView} setActiveView={setActiveView}
+    <ErrorBoundary reloadOnRetry={true}>
+      <LeftPanel
+        activeView={activeView} setActiveView={setActiveView}
       chatHistory={chatHistory} activeChatId={activeChatId}
       onNewChat={handleNewChat} onSelectChat={handleSelectChat}
       onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
@@ -461,6 +498,7 @@ const Home = ({ isDark }) => {
       selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent}
       isDark={isDark}
     />
+    </ErrorBoundary>
   );
 
   return (
@@ -471,6 +509,8 @@ const Home = ({ isDark }) => {
           ref={canvasRef}
           onViewportChange={setCanvasTransform}
           onInteractionStart={() => { isAutoFollow.current = false; }}
+          onDoubleClick={handleCanvasDoubleClick}
+          overlay={<InteractiveCanvasLayer />}
         >
           <AgentCanvasRenderer
             timeline={timeline}
@@ -478,7 +518,6 @@ const Home = ({ isDark }) => {
             steps={canvasSteps}
             currentStepIndex={currentStepIndex}
           />
-          <InteractiveCanvasLayer />
         </InfiniteCanvas>
       </div>
 

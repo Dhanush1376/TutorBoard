@@ -125,13 +125,17 @@ function postProcessTimeline(raw, topic, planningResult) {
     const rawMutations = t.mutations || [];
     const validMutations = rawMutations.filter(m => m?.id && elementIds.has(m.id));
 
-    return {
-      ...t,
-      index: idx,
-      title: t.title || t.label || `Step ${idx + 1}`,
-      narration: t.explanation || t.narration || t.audio || '...',
-      explanation: t.explanation || t.narration || '...',
-      durationMs: parseFloat(t.duration || t.durationMs || 5000),
+      const rawDurationArr = t.duration || t.durationMs || 5000;
+      const parsedDuration = parseFloat(rawDurationArr);
+      const durationMs = (parsedDuration > 0 && parsedDuration < 20) ? parsedDuration * 1000 : parsedDuration;
+      
+      return {
+        ...t,
+        index: idx,
+        title: t.title || t.label || `Step ${idx + 1}`,
+        narration: t.explanation || t.narration || t.audio || '...',
+        explanation: t.explanation || t.narration || '...',
+        durationMs: isNaN(durationMs) ? 5000 : durationMs,
       highlightIds: validHighlight,
       objectIds: finalIds,
       mutations: validMutations,

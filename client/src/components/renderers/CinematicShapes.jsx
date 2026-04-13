@@ -38,6 +38,25 @@ const resolve = (name) => {
   return { stroke: s, fill: s, glass: s + '33', text: '#f8fafc', glow: s };
 };
 
+/**
+ * Derives rich note colors (tape, ruled lines) from a base background color.
+ */
+const resolveNoteColors = (bgColor) => {
+  const c = String(bgColor).toLowerCase();
+  // Match demo colors
+  if (c === '#fef9c3' || c === '#fbbf24') return { bg: '#fef9c3', ruled: '#fde047', tape: '#facc15' }; // Yellow
+  if (c === '#dcfce7' || c === '#6ee7b7') return { bg: '#dcfce7', ruled: '#86efac', tape: '#4ade80' }; // Lime/Mint
+  if (c === '#dbeafe' || c === '#7dd3fc') return { bg: '#dbeafe', ruled: '#93c5fd', tape: '#60a5fa' }; // Sky
+  if (c === '#fce7f3' || c === '#fca5a5') return { bg: '#fce7f3', ruled: '#f9a8d4', tape: '#f472b6' }; // Rose/Peach
+  if (c === '#ffedd5' || c === '#fdba74') return { bg: '#ffedd5', ruled: '#fdba74', tape: '#fb923c' }; // Orange/Apricot
+  if (c === '#ede9fe' || c === '#c4b5fd') return { bg: '#ede9fe', ruled: '#c4b5fd', tape: '#a78bfa' }; // Lavender
+  if (c === '#ccfbf1') return { bg: '#ccfbf1', ruled: '#5eead4', tape: '#2dd4bf' }; // Mint
+  if (c === '#fffef9' || c === '#ffffff') return { bg: '#fffef9', ruled: '#e5e7eb', tape: '#d1d5db' }; // White
+  
+  // Fallback derivation
+  return { bg: bgColor, ruled: 'rgba(0,0,0,0.1)', tape: 'rgba(0,0,0,0.2)' };
+};
+
 // ─── Attention Wrapper ────────────────────────────────────────────────────────
 const AW = ({ attentionLevel = 1, layoutId, animation, children, cx = 0, cy = 0 }) => {
   const opacity = attentionLevel === 2 ? 1 : attentionLevel === 0 ? 0.12 : 0.82;
@@ -51,7 +70,7 @@ const AW = ({ attentionLevel = 1, layoutId, animation, children, cx = 0, cy = 0 
   const initial =
     aType === 'slide' ? { x: cx - 60, opacity: 0 } :
     aType === 'scale' ? { scale: 0.1, opacity: 0 } :
-    aType === 'draw'  ? { pathLength: 0, opacity: 0 } :
+    aType === 'draw'  ? { opacity: 0 } :
     aType === 'drop'  ? { scale: 0.2, rotate: -3, opacity: 0 } :
     aType === 'bounce' ? { scale: 0.5, opacity: 0 } :
     { opacity: 0 };
@@ -130,34 +149,67 @@ export const GlassRect = ({ x, y, w, h, color, label, attentionLevel, layoutId, 
   );
 };
 
-export const FlowArrow = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId, dashed }) => {
+export const GlassEllipse = ({ cx, cy, rx, ry, color, label, attentionLevel, layoutId, animation, dashed, fill = 'none' }) => {
+  const c = resolve(color);
+  const getFill = () => {
+    if (fill === 'glass') return c.glass;
+    if (fill === 'subtle') return `${c.fill}22`;
+    return 'none';
+  };
+  return (
+    <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={cx} cy={cy}>
+      <ellipse rx={rx} ry={ry}
+        fill={getFill()}
+        stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 2.5 : 1.5}
+        strokeDasharray={dashed ? '6 4' : 'none'}
+        style={fill === 'glass' ? { backdropFilter: 'blur(4px)' } : {}}
+        filter="url(#tb-drop-shadow)" />
+      {label && (
+        <text textAnchor="middle" dominantBaseline="central" fill="#f1f5f9" fontSize={13} fontWeight="700"
+          style={{ fontFamily: 'system-ui, sans-serif' }}>{label}</text>
+      )}
+    </AW>
+  );
+};
+
+export const FlowArrow = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId, dashed, animation }) => {
   const c = resolve(color);
   const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
   const uid = useId().replace(/:/g, '');
   const mid = `m-${layoutId}-${uid}`;
   return (
-    <AW attentionLevel={attentionLevel} layoutId={layoutId} cx={mx} cy={my}>
+    <AW attentionLevel={attentionLevel} layoutId={layoutId} cx={mx} cy={my} animation={animation}>
       <defs>
         <marker id={mid} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
           <path d="M0 0L10 5L0 10z" fill={c.stroke} />
         </marker>
       </defs>
-      <line x1={x1 - mx} y1={y1 - my} x2={x2 - mx} y2={y2 - my}
+      <motion.line 
+        x1={x1 - mx} y1={y1 - my} x2={x2 - mx} y2={y2 - my}
         stroke={c.stroke} strokeWidth={2.5} 
         strokeDasharray={dashed ? '6 4' : 'none'}
-        markerEnd={`url(#${mid})`} />
+        markerEnd={`url(#${mid})`}
+        initial={animation?.type === 'draw' ? { pathLength: 0 } : {}}
+        animate={animation?.type === 'draw' ? { pathLength: 1 } : {}}
+        transition={{ duration: animation?.duration || 0.5, delay: animation?.delay || 0 }}
+      />
       {label && <text y={-12} textAnchor="middle" fill="#94a3b8" fontSize={11}>{label}</text>}
     </AW>
   );
 };
 
-export const RawLine = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId, dashed = false }) => {
+export const RawLine = ({ x1, y1, x2, y2, color, label, attentionLevel, layoutId, dashed = false, animation }) => {
   const c = resolve(color);
   const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
   return (
-    <AW attentionLevel={attentionLevel} layoutId={layoutId} cx={mx} cy={my}>
-      <line x1={x1 - mx} y1={y1 - my} x2={x2 - mx} y2={y2 - my}
-        stroke={c.stroke} strokeWidth={2} strokeDasharray={dashed ? '6 4' : 'none'} />
+    <AW attentionLevel={attentionLevel} layoutId={layoutId} cx={mx} cy={my} animation={animation}>
+      <motion.line 
+        x1={x1 - mx} y1={y1 - my} x2={x2 - mx} y2={y2 - my}
+        stroke={c.stroke} strokeWidth={2} strokeDasharray={dashed ? '6 4' : 'none'}
+        initial={animation?.type === 'draw' ? { pathLength: 0 } : {}}
+        animate={animation?.type === 'draw' ? { pathLength: 1 } : {}}
+        transition={{ duration: animation?.duration || 0.5, delay: animation?.delay || 0 }}
+      />
       {label && <text y={-10} textAnchor="middle" fill="#94a3b8" fontSize={11}>{label}</text>}
     </AW>
   );
@@ -411,7 +463,7 @@ export const VennCircle = ({ x, y, label, color, attentionLevel, layoutId, anima
 /**
  * FlowStep — Rounded process step / pipeline stage
  */
-export const FlowStep = ({ x, y, label, color, attentionLevel, layoutId, animation }) => {
+export const FlowStep = ({ x, y, label, color, attentionLevel, layoutId, animation, fontSize }) => {
   const c = resolve(color || 'blue');
   const text = label || '';
   const w = Math.max(110, text.length * 9 + 28);
@@ -425,7 +477,7 @@ export const FlowStep = ({ x, y, label, color, attentionLevel, layoutId, animati
         filter={attentionLevel === 2 ? 'url(#tb-drop-shadow)' : 'none'} />
       <text textAnchor="middle" dominantBaseline="central"
         fill={attentionLevel === 2 ? '#fff' : c.stroke}
-        fontSize={13} fontWeight="700"
+        fontSize={fontSize || 13} fontWeight="700"
         style={{ fontFamily: 'system-ui, sans-serif' }}>{text}</text>
     </AW>
   );
@@ -466,14 +518,14 @@ export const MoleculeNode = ({ x, y, label, color, attentionLevel, layoutId, ani
 /**
  * LabelText — Full-width text for equations, axis labels, annotations
  */
-export const LabelText = ({ x, y, label, color, attentionLevel, layoutId, animation }) => {
+export const LabelText = ({ x, y, label, color, attentionLevel, layoutId, animation, fontSize }) => {
   const c = resolve(color || 'white');
   const opacity = attentionLevel === 0 ? 0.2 : attentionLevel === 2 ? 1 : 0.75;
 
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y}>
       <text textAnchor="middle" dominantBaseline="central"
-        fill={c.stroke} fontSize={14} fontWeight="600" opacity={opacity}
+        fill={c.stroke} fontSize={fontSize || 14} fontWeight="600" opacity={opacity}
         style={{ fontFamily: 'system-ui, sans-serif' }}>{label}</text>
     </AW>
   );
@@ -495,6 +547,70 @@ export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, ty
       <text y={-40} textAnchor="middle" dominantBaseline="middle"
         fill={c.stroke} fillOpacity={0.6} fontSize={8} fontWeight="700"
         style={{ textTransform: 'uppercase', letterSpacing: '2px' }}>[{type}]</text>
+    </AW>
+  );
+};
+
+/**
+ * StickyNote — A premium pedagogical sticky note with tape, ruled lines, and folded corner
+ */
+export const StickyNoteShape = ({ x, y, w, h, label, color, attentionLevel, layoutId, animation }) => {
+  const col = resolveNoteColors(color || '#fef9c3');
+  const width = w || 180;
+  const height = h || 180;
+  const fontSize = Math.max(12, Math.min(width, height) / 12);
+  const lineH = fontSize * 1.75;
+  
+  // Ruled lines paths
+  const lines = [];
+  for (let ly = lineH * 2.5; ly < height - 10; ly += lineH) {
+    lines.push(`M ${-width/2 + 8} ${-height/2 + ly} L ${width/2 - 8} ${-height/2 + ly}`);
+  }
+
+  return (
+    <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y}>
+      {/* Note Body with shadow */}
+      <rect x={-width/2} y={-height/2} width={width} height={height} rx={2}
+        fill={col.bg} filter="url(#tb-drop-shadow)" />
+      
+      {/* Ruled Lines */}
+      {lines.map((d, i) => (
+        <path key={i} d={d} stroke={col.ruled} strokeWidth={1} fill="none" opacity={0.6} />
+      ))}
+
+      {/* Folded Corner (Bottom Right) */}
+      <path d={`M ${width/2 - 18} ${height/2} L ${width/2} ${height/2 - 18} L ${width/2} ${height/2} Z`}
+        fill="rgba(0,0,0,0.08)" />
+      <path d={`M ${width/2 - 14} ${height/2} L ${width/2} ${height/2 - 14} L ${width/2} ${height/2} Z`}
+        fill={col.tape} opacity={0.25} />
+
+      {/* Tape Strip (Top Center) */}
+      <rect x={-22} y={-height/2 - 8} width={44} height={18} rx={1}
+        fill={col.tape} opacity={0.5} />
+      {/* Tape Texture (diagonal stripes) */}
+      <g opacity={0.15}>
+        <path d="M-20,-height/2-6 L-14,-height/2+8 M-12,-height/2-6 L-6,-height/2+8 M-4,-height/2-6 L2,-height/2+8 M10,-height/2-6 L16,-height/2+8" 
+          stroke="white" strokeWidth={1} />
+      </g>
+
+      {/* Label Text */}
+      <foreignObject x={-width/2 + 12} y={-height/2 + 8} width={width - 24} height={height - 24}>
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: "'Caveat', cursive, 'Comic Sans MS', cursive",
+          fontSize: `${fontSize}px`,
+          color: 'rgba(0,0,0,0.7)',
+          lineHeight: 1.75,
+          overflow: 'hidden',
+          wordWrap: 'break-word',
+          textAlign: 'left'
+        }}>
+          {label}
+        </div>
+      </foreignObject>
     </AW>
   );
 };

@@ -15,6 +15,12 @@ export function sanitizeText(str) {
   return str
     // Remove HTML/SVG tags
     .replace(/<[^>]*>/g, '')
+    // Encode special characters for safe SVGs/Canvas rendering
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
     // Remove javascript: protocol attempts
     .replace(/javascript\s*:/gi, '')
     // Remove on* event handlers that might survive

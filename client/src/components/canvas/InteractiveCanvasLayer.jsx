@@ -1,6 +1,6 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useContext } from 'react';
 import useTutorStore from '../../store/tutorStore';
-import { v4 as uuidv4 } from 'uuid';
+import { CanvasContext } from './InfiniteCanvas';
 
 /**
  * InteractiveCanvasLayer
@@ -9,6 +9,10 @@ import { v4 as uuidv4 } from 'uuid';
  * Intercepts drawing, shape creation, and text interactions.
  * Pushes finalized elements to the global `tutorStore`.
  */
+
+// Virtual Space Constants for coordinate normalization
+const V_WIDTH = 800;
+const V_HEIGHT = 600;
 
 // Helper: Convert raw points to a smooth SVG path string (Midpoint averaging)
 const getSvgPath = (points, width, height) => {
@@ -27,16 +31,21 @@ const getSvgPath = (points, width, height) => {
   d += ` L ${last[0]},${last[1]}`;
   return d;
 };
+
+// ID generator fallback
+const generateId = () => `drawn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
 const InteractiveCanvasLayer = () => {
   const { 
-    activeTool: rawActiveTool, canvasObjects, setCanvasObjectsWithHistory, addCanvasObjects, 
-    getCanvasTransform, selectedElementIds, setSelectedElements, history,
-    undo, redo, isSnapToGrid, drawColor, drawWidth, gridSize,
-    noteColor, noteSize, shapeFill, shapeStrokeStyle,
-    textType, textSize
+    activeTool: rawActiveTool, canvasObjects, setCanvasObjectsWithHistory,
+    selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
+    drawColor, drawWidth, gridSize, noteColor, noteSize, shapeFill, 
+    shapeStrokeStyle, textType, textSize
   } = useTutorStore();
   
-  // Normalize tool IDs: Treat root IDs as their primary variants
+  // Use transform from context to handle "Infinite Drawing" coordinates
+  const { transform } = useContext(CanvasContext);
+  
   const activeTool = useMemo(() => {
     if (rawActiveTool === 'draw') return 'draw:pen';
     if (rawActiveTool === 'shape') return 'shape:rect';
@@ -44,12 +53,11 @@ const InteractiveCanvasLayer = () => {
   }, [rawActiveTool]);
 
   const [draftObject, setDraftObject] = useState(null);
-  
   const layerRef = useRef(null);
   const isDrawing = useRef(false);
   const startPoint = useRef(null);
+  const cachedRect = useRef(null);
 
-  // Determine if this layer should actually handle events
   const isInteractionTool = activeTool.startsWith('draw:') || 
                             activeTool.startsWith('shape:') || 
                             activeTool === 'text' || 
@@ -74,11 +82,7 @@ const InteractiveCanvasLayer = () => {
 
       if (cmdKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        if (e.shiftKey) {
-          redo();
-        } else {
-          undo();
-        }
+        if (e.shiftKey) redo(); else undo();
       }
     };
 
@@ -98,24 +102,22 @@ const InteractiveCanvasLayer = () => {
     return () => clearInterval(interval);
   }, [canvasObjects, setCanvasObjectsWithHistory]);
 
-  // CRITICAL: If we are not using a drawing tool, don't even render.
-  // This allows events (selection, panning) to fall through to siblings or parents.
   if (!isInteractionTool) return null;
 
   const handlePointerDown = (e) => {
-    // Stop propagation ONLY if we are actually handling a click
     e.stopPropagation();
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0) return;
 
     const rect = layerRef.current.getBoundingClientRect();
-    const snap = (val, size = gridSize) => isSnapToGrid ? Math.round(val / size) * size : val;
-
-    // We use relative coordinates because this layer is already inside the InfiniteCanvas transform container
-    const rawX = e.nativeEvent.offsetX;
-    const rawY = e.nativeEvent.offsetY;
+    cachedRect.current = rect;
     
-    const normalizedX = (rawX) / 800; 
-    const normalizedY = (rawY) / 600;
+    // BUG 13 FIX: Calculate world coordinates by accounting for the current pan/zoom
+    const { scale, x: tx, y: ty } = transform;
+    const worldX = (e.clientX - rect.left - tx) / scale;
+    const worldY = (e.clientY - rect.top - ty) / scale;
+    
+    const normalizedX = (worldX) / V_WIDTH; 
+    const normalizedY = (worldY) / V_HEIGHT;
 
     isDrawing.current = true;
     startPoint.current = { x: normalizedX, y: normalizedY };
@@ -125,7 +127,7 @@ const InteractiveCanvasLayer = () => {
       const isLinear = shapeType === 'line' || shapeType === 'arrow';
       
       setDraftObject({
-        id: `draft-${Date.now()}`,
+        id: generateId(),
         type: shapeType,
         x: normalizedX,
         y: normalizedY,
@@ -144,10 +146,10 @@ const InteractiveCanvasLayer = () => {
         animation: { type: 'bounce', duration: 0.3 }
       });
     } else if (activeTool.startsWith('draw:')) {
-      if (activeTool === 'draw:eraser') return;
+      if (activeTool === 'draw:eraser') return; // Eraser doesn't create a draft object
       
       setDraftObject({
-        id: `draft-${Date.now()}`,
+        id: generateId(),
         type: 'path',
         points: [[normalizedX, normalizedY]],
         color: activeTool === 'draw:highlighter' 
@@ -166,9 +168,8 @@ const InteractiveCanvasLayer = () => {
         textType === 'formula' ? 'equation' : 'label'
       );
 
-      // Text & Notes immediately drop an editable bounding box
       setDraftObject({
-        id: `draft-${Date.now()}`,
+        id: generateId(),
         type,
         x: normalizedX,
         y: normalizedY,
@@ -185,25 +186,27 @@ const InteractiveCanvasLayer = () => {
   };
 
   const handlePointerMove = (e) => {
-    if (!isDrawing.current || !draftObject || draftObject.isTyping) return;
+    // Eraser works without a draftObject
+    if (!isDrawing.current || (!draftObject && activeTool !== 'draw:eraser') || draftObject?.isTyping) return;
     
-    const snap = (val, size = gridSize) => isSnapToGrid ? Math.round(val / size) * size : val;
+    const { scale, x: tx, y: ty } = transform;
+    const rect = cachedRect.current || layerRef.current.getBoundingClientRect();
 
-    const normalizedX = snap(e.nativeEvent.offsetX) / 800;
-    const normalizedY = snap(e.nativeEvent.offsetY) / 600;
+    const worldX = (e.clientX - rect.left - tx) / scale;
+    const worldY = (e.clientY - rect.top - ty) / scale;
+
+    const normalizedX = (isSnapToGrid ? Math.round(worldX / gridSize) * gridSize : worldX) / V_WIDTH;
+    const normalizedY = (isSnapToGrid ? Math.round(worldY / gridSize) * gridSize : worldY) / V_HEIGHT;
 
     if (activeTool.startsWith('shape:')) {
-      // Calculate bounding box logic
       const w = normalizedX - startPoint.current.x;
       const h = normalizedY - startPoint.current.y;
-      const shapeType = draftObject.type;
-      const isLinear = shapeType === 'line' || shapeType === 'arrow';
+      const isLinear = draftObject.type === 'line' || draftObject.type === 'arrow';
       
       setDraftObject(prev => ({
         ...prev,
         w: Math.abs(w),
         h: Math.abs(h),
-        // If drawing backwards, shift the anchor
         x: w < 0 ? normalizedX : startPoint.current.x,
         y: h < 0 ? normalizedY : startPoint.current.y,
         x2: isLinear ? normalizedX : undefined,
@@ -228,7 +231,6 @@ const InteractiveCanvasLayer = () => {
         return;
       }
 
-      // Smoothing: only add points if they moved significantly
       const lastPoint = draftObject.points[draftObject.points.length - 1];
       const dist = Math.sqrt(Math.pow(normalizedX - lastPoint[0], 2) + Math.pow(normalizedY - lastPoint[1], 2));
       
@@ -245,7 +247,6 @@ const InteractiveCanvasLayer = () => {
     if (!force && (!isDrawing.current || !draftObject)) return;
     isDrawing.current = false;
     
-    // Commit to global store
     const finalizedObject = { ...draftObject };
     delete finalizedObject.isDraft;
 
@@ -254,28 +255,31 @@ const InteractiveCanvasLayer = () => {
       finalizedObject.animation = { type: 'scale', duration: 0.8 };
     }
     
-    // Formatting
+    // Formatting & Coordinate Restoration (Fix Bug 14)
     if (finalizedObject.type === 'rect' || finalizedObject.type === 'ellipse' || finalizedObject.type === 'step_box') {
+      // Keep coordinates normalized (0..1) but finalize center point
       finalizedObject.x = finalizedObject.x + (finalizedObject.w / 2);
       finalizedObject.y = finalizedObject.y + (finalizedObject.h / 2);
-      finalizedObject.scale = Math.max(finalizedObject.w, finalizedObject.h); 
+      
+      // Calculate a scale that represents the object's size relative to the standard 160px box.
+      // scale = 1 means 160px. V_WIDTH=800.
+      finalizedObject.scale = (finalizedObject.w * V_WIDTH) / 160; 
     }
     
-    // Pass text into label prop for CinematicShapes
     if (finalizedObject.text !== undefined) {
       finalizedObject.label = finalizedObject.text;
       delete finalizedObject.text;
       delete finalizedObject.isTyping;
     }
     
-    // Process final path
     if (finalizedObject.type === 'path') {
-      finalizedObject.path = getSvgPath(finalizedObject.points, 1, 1); // Normalized path
+      finalizedObject.path = getSvgPath(finalizedObject.points, V_WIDTH, V_HEIGHT);
     }
 
-    // Process Triangle points
     if (finalizedObject.type === 'triangle') {
       const { x, y, w, h } = finalizedObject;
+      finalizedObject.x = x + w / 2;
+      finalizedObject.y = y + h / 2;
       finalizedObject.points = [
         [x + w / 2, y],      // Top Middle
         [x + w,     y + h],  // Bottom Right
@@ -287,88 +291,89 @@ const InteractiveCanvasLayer = () => {
     setDraftObject(null);
   };
 
-  // Render the draft object live
   return (
     <div 
       ref={layerRef}
-      className={`absolute inset-0 z-50 ${draftObject?.isTyping ? '' : 'cursor-crosshair touch-none'}`}
+      className="absolute inset-0 z-[100] cursor-crosshair pointer-events-auto"
       onPointerDown={draftObject?.isTyping ? undefined : handlePointerDown}
       onPointerMove={draftObject?.isTyping ? undefined : handlePointerMove}
-      onPointerUp={draftObject?.isTyping ? undefined : handlePointerUp}
-      onPointerCancel={draftObject?.isTyping ? undefined : handlePointerUp}
-      style={{ width: 800, height: 600 }}
+      onPointerUp={draftObject?.isTyping ? undefined : () => handlePointerUp()}
     >
       {draftObject && !draftObject.isTyping && (
-        <svg width="100%" height="100%" viewBox="0 0 800 600" className="pointer-events-none">
-          {draftObject.type === 'rect' && (
-             <rect 
-               x={draftObject.x * 800} 
-               y={draftObject.y * 600} 
-               width={draftObject.w * 800} 
-               height={draftObject.h * 600} 
-               fill="transparent" 
-               stroke={draftObject.color} 
-               strokeWidth={2} 
-               strokeDasharray="4 4"
-             />
-          )}
-          {draftObject.type === 'ellipse' && (
-             <ellipse 
-               cx={(draftObject.x + draftObject.w/2) * 800} 
-               cy={(draftObject.y + draftObject.h/2) * 600} 
-               rx={(draftObject.w/2) * 800} 
-               ry={(draftObject.h/2) * 600} 
-               fill="transparent" 
-               stroke={draftObject.color} 
-               strokeWidth={2} 
-               strokeDasharray="4 4"
-             />
-          )}
-          {draftObject.type === 'path' && (
-             <path
-               d={getSvgPath(draftObject.points, 800, 600)}
-               fill="none"
-               stroke={draftObject.color}
-               strokeWidth={draftObject.strokeWidth}
-               strokeLinecap="round"
-               strokeLinejoin="round"
-             />
-          )}
-          {(draftObject.type === 'line' || draftObject.type === 'arrow') && (
-            <line
-              x1={draftObject.x1 * 800} y1={draftObject.y1 * 600}
-              x2={draftObject.x2 * 800} y2={draftObject.y2 * 600}
-              stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
-            />
-          )}
-          {draftObject.type === 'triangle' && (
-             <polygon
-               points={`
-                 ${(draftObject.x + draftObject.w/2)*800}, ${draftObject.y*600}
-                 ${(draftObject.x + draftObject.w)*800},   ${(draftObject.y + draftObject.h)*600}
-                 ${draftObject.x*800},                     ${(draftObject.y + draftObject.h)*600}
-               `}
-               fill="none"
-               stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
-             />
-          )}
+        <svg width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
+          <motion.g animate={{ x: transform.x, y: transform.y, scale: transform.scale }}>
+            {draftObject.type === 'rect' && (
+               <rect 
+                 x={(draftObject.x - draftObject.w/2) * V_WIDTH} 
+                 y={(draftObject.y - draftObject.h/2) * V_HEIGHT} 
+                 width={draftObject.w * V_WIDTH} 
+                 height={draftObject.h * V_HEIGHT} 
+                 fill="transparent" 
+                 stroke={draftObject.color} 
+                 strokeWidth={2} 
+                 strokeDasharray="4 4"
+                 rx={12}
+               />
+            )}
+            {draftObject.type === 'ellipse' && (
+               <ellipse 
+                 cx={draftObject.x * V_WIDTH} 
+                 cy={draftObject.y * V_HEIGHT} 
+                 rx={(draftObject.w/2) * V_WIDTH} 
+                 ry={(draftObject.h/2) * V_HEIGHT} 
+                 fill="transparent" 
+                 stroke={draftObject.color} 
+                 strokeWidth={2} 
+                 strokeDasharray="4 4"
+               />
+            )}
+            {draftObject.type === 'path' && (
+               <path
+                 d={getSvgPath(draftObject.points, V_WIDTH, V_HEIGHT)}
+                 fill="none"
+                 stroke={draftObject.color}
+                 strokeWidth={draftObject.strokeWidth}
+                 strokeLinecap="round"
+                 strokeLinejoin="round"
+               />
+            )}
+            {(draftObject.type === 'line' || draftObject.type === 'arrow') && (
+              <line
+                x1={draftObject.x1 * V_WIDTH} y1={draftObject.y1 * V_HEIGHT}
+                x2={draftObject.x2 * V_WIDTH} y2={draftObject.y2 * V_HEIGHT}
+                stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
+              />
+            )}
+            {draftObject.type === 'triangle' && (
+               <polygon
+                 points={`
+                   ${draftObject.x * V_WIDTH}, ${(draftObject.y - draftObject.h/2)*V_HEIGHT}
+                   ${(draftObject.x + draftObject.w/2)*V_WIDTH},   ${(draftObject.y + draftObject.h/2)*V_HEIGHT}
+                   ${(draftObject.x - draftObject.w/2)*V_WIDTH},   ${(draftObject.y + draftObject.h/2)*V_HEIGHT}
+                 `}
+                 fill="none"
+                 stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
+               />
+            )}
+          </motion.g>
         </svg>
       )}
 
       {draftObject?.isTyping && (
         <textarea
           autoFocus
-          className="absolute bg-transparent text-[var(--text-primary)] outline-none resize-none font-medium leading-relaxed"
+          placeholder="Start typing..."
+          className="absolute bg-transparent text-[var(--text-primary)] outline-none resize-none font-medium leading-relaxed placeholder:opacity-50"
           style={{
-            left: draftObject.x * 800,
-            top: draftObject.y * 600,
-            width: draftObject.w * 800,
-            height: draftObject.h * 600,
-            fontSize: draftObject.type === 'label' ? 24 : 16,
-            background: draftObject.type === 'step_box' ? 'rgba(251,191,36,0.9)' : 'transparent',
+            left: ((draftObject.x - draftObject.w/2) * V_WIDTH * transform.scale) + transform.x,
+            top: ((draftObject.y - draftObject.h/2) * V_HEIGHT * transform.scale) + transform.y,
+            width: draftObject.w * V_WIDTH * transform.scale,
+            height: draftObject.h * V_HEIGHT * transform.scale,
+            fontSize: (draftObject.type === 'label' ? 24 : 14) * transform.scale,
+            background: draftObject.type === 'step_box' ? (noteColor || 'rgba(251,191,36,0.9)') : 'transparent',
             color: draftObject.type === 'step_box' ? '#fff' : 'var(--text-primary)',
-            padding: draftObject.type === 'step_box' ? '12px' : 0,
-            borderRadius: draftObject.type === 'step_box' ? '8px' : 0,
+            padding: (draftObject.type === 'step_box' ? 12 : 0) * transform.scale,
+            borderRadius: 8 * transform.scale,
             boxShadow: draftObject.type === 'step_box' ? '0 8px 32px rgba(0,0,0,0.2)' : 'none',
             border: draftObject.type === 'label' ? '1px dashed var(--border-color)' : 'none',
           }}

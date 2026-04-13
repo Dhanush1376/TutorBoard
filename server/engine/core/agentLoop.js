@@ -182,6 +182,11 @@ function validateSceneGraph(obj) {
   if ((obj.elements || []).length < 1) errors.push('Visualization empty.');
   if ((obj.timeline || []).length < 2) errors.push('Lesson too short.');
 
+  if (errors.length > 5) {
+    console.warn(`[AgentLoop] ❌ FATAL Scene Graph Validation: ${errors.length} issues detected. Tripping failsafe.`);
+    return { valid: false, errors, fatal: true };
+  }
+
   return { valid: errors.length === 0, errors, data: result.success ? result.data : obj };
 }
 
@@ -196,8 +201,14 @@ async function runStage({ stageName, prompt, input, model, onProgress }) {
   ];
 
   let lastError = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
+      if (attempt > 1) {
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        console.log(`[AgentLoop] ⏳ Retrying Stage "${stageName}" in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+
       const response = await requestCompletion({
         model: model || getModel(),
         messages,
@@ -221,15 +232,15 @@ async function runStage({ stageName, prompt, input, model, onProgress }) {
 }
 
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
-export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {} }) {
+export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null }) {
   console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
 
   try {
     // Stage 1: PLANNING
-    const plannerOutput = await runStage({
+    const plannerOutput = planningResult || await runStage({
       stageName: 'Thinking deeply about the topic...',
-      prompt: PLANNER_AGENT_PROMPT,
-      input: { topic, domain },
+      prompt: systemPrompt || PLANNER_AGENT_PROMPT,
+      input: { topic, domain, maxSteps },
       model, onProgress
     });
     console.log(`[AgentLoop] ✅ Stage 1 — ${plannerOutput.flow?.length || 0} steps planned`);
@@ -288,6 +299,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
 
     const validated = validateSceneGraph(unwrapped);
     if (!validated.valid) {
+      if (validated.fatal) return null;
       console.warn('[AgentLoop] ⚠️ Validation issues (non-fatal):', validated.errors.join(', '));
     }
 

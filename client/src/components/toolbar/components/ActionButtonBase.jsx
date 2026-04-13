@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check } from 'lucide-react';
+import useTutorStore from '../../../store/tutorStore';
 
 /**
  * ActionButtonBase
@@ -26,6 +27,9 @@ const ActionButtonBase = ({
   const [didAction, setDidAction] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const { layoutView } = useTutorStore();
+  const isLeftHand = layoutView === 'left';
 
   const handleClick = () => {
     if (disabled) return;
@@ -75,11 +79,11 @@ const ActionButtonBase = ({
 
 
         {/* Shared Liquid Hover Pill */}
-        {isHovered && !disabled && !showSuccess && !showMenu && (
+        {(isHovered || isHoveredExternally) && !disabled && !showSuccess && !showMenu && (
           <motion.div
             layoutId="liquid-hover-pill"
             className="absolute inset-0 rounded-full z-0"
-            style={{ 
+            style={{
               background: isDestructive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.08)',
               boxShadow: '0 0 15px rgba(255,255,255,0.02)'
             }}
@@ -94,8 +98,8 @@ const ActionButtonBase = ({
             animate={{ opacity: 1, scale: 1 }}
             className="absolute inset-0 rounded-[9px] z-0"
             style={{
-              boxShadow: showSuccess 
-                ? 'inset 0 0 0 1px rgba(34,197,94,0.35)' 
+              boxShadow: showSuccess
+                ? 'inset 0 0 0 1px rgba(34,197,94,0.35)'
                 : 'inset 0 0 0 1px rgba(255,255,255,0.1)',
               background: showSuccess ? 'rgba(34,197,94,0.1)' : 'transparent',
             }}
@@ -130,8 +134,8 @@ const ActionButtonBase = ({
                     color: isDestructive
                       ? (isHovered || isHoveredExternally) ? 'rgb(239,68,68)' : 'var(--text-tertiary)'
                       : (isHovered || isHoveredExternally || showMenu)
-                      ? 'var(--text-primary)'
-                      : 'var(--text-tertiary)',
+                        ? 'var(--text-primary)'
+                        : 'var(--text-tertiary)',
                     transition: 'color 0.15s ease',
                   }}
                 />
@@ -149,14 +153,14 @@ const ActionButtonBase = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -3, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
-            className="absolute top-full right-0 mt-3 z-[9999]"
+            className={`absolute top-full mt-3 z-[9999] ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
-            <div 
+            <div
               className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl backdrop-blur-xl overflow-hidden"
               style={{ boxShadow: '0 12px 48px rgba(0,0,0,0.3)' }}
               onMouseEnter={() => setIsMenuOpen(true)}
             >
-              {React.cloneElement(customSubmenu, { 
+              {React.cloneElement(customSubmenu, {
                 onMouseLeave: () => {
                   setIsHovered(false);
                   setIsMenuOpen(false);
@@ -184,15 +188,14 @@ const ActionButtonBase = ({
                 background: isDestructive
                   ? 'rgba(220,38,38,0.92)'
                   : showSuccess
-                  ? 'rgba(22,163,74,0.92)'
-                  : 'var(--bg-primary)',
-                border: `1px solid ${
-                  isDestructive
+                    ? 'rgba(22,163,74,0.92)'
+                    : 'var(--bg-primary)',
+                border: `1px solid ${isDestructive
                     ? 'rgba(239,68,68,0.25)'
                     : showSuccess
-                    ? 'rgba(34,197,94,0.25)'
-                    : 'var(--border-color)'
-                }`,
+                      ? 'rgba(34,197,94,0.25)'
+                      : 'var(--border-color)'
+                  }`,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
                 backdropFilter: 'blur(8px)',
               }}
@@ -213,8 +216,8 @@ const ActionButtonBase = ({
                 background: isDestructive
                   ? 'rgba(220,38,38,0.92)'
                   : showSuccess
-                  ? 'rgba(22,163,74,0.92)'
-                  : 'var(--bg-primary)',
+                    ? 'rgba(22,163,74,0.92)'
+                    : 'var(--bg-primary)',
                 borderLeft: `1px solid ${isDestructive ? 'rgba(239,68,68,0.25)' : showSuccess ? 'rgba(34,197,94,0.25)' : 'var(--border-color)'}`,
                 borderTop: `1px solid ${isDestructive ? 'rgba(239,68,68,0.25)' : showSuccess ? 'rgba(34,197,94,0.25)' : 'var(--border-color)'}`,
               }}

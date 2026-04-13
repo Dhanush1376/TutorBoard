@@ -7,14 +7,35 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
+import helmet from 'helmet';
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
+import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
 import mongoose from 'mongoose';
 
 const app = express();
+app.set('trust proxy', true); // Trust reverse proxies (Vercel, Cloudflare, etc.) for rate limiting
+
+// BUG FIX #57: Enhanced CSP header to prevent SVG/script injection from LLM-generated content
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],  // React requires unsafe-inline
+      styleSrc: ["'self'", "'unsafe-inline'"],    // Tailwind CSS dynamic styles
+      imgSrc: ["'self'", 'data:', 'https:'],      // Allow data: URLs for canvas exports
+      svgSrc: ["'self'"],                         // SVG content only from self
+      objectSrc: ["'none'"],                      // Prevent plugin injection
+      baseUri: ["'self'"],                        // Restrict base tag
+      formAction: ["'self'"],                     // Forms must target same origin
+      frameAncestors: ["'self'"],                 // Prevent clickjacking
+      upgradeInsecureRequests: [],                // Allow HTTP in development
+    },
+  },
+}));
 
 // ─── Core Middleware ─────────────────────────────────────────────────────────
 // Parse JSON bodies first
@@ -40,6 +61,9 @@ app.use((req, _res, next) => {
   next();
 });
 
+// BUG FIX #60: Request correlation ID for distributed tracing across agent pipeline
+app.use(requestIdMiddleware);
+
 // ─── Database Connection ─────────────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tutorboard';
 mongoose.connect(MONGODB_URI, {
@@ -50,9 +74,11 @@ mongoose.connect(MONGODB_URI, {
   .catch(err => console.error(`[DB] Connection Error (Non-fatal): ${err.message}`));
 
 // ─── Environment Variable Validation ─────────────────────────────────────────
+// BUG FIX #47: Added JWT_EXPIRES_IN to required env vars for token expiry validation
 const REQUIRED_ENV = [
   { key: 'OPENROUTER_API_KEY', critical: true,  label: 'OpenRouter API Key' },
-  { key: 'JWT_SECRET',         critical: false, label: 'JWT Secret' },
+  { key: 'JWT_SECRET',         critical: true,  label: 'JWT Secret' },
+  { key: 'JWT_EXPIRES_IN',     critical: false, label: 'JWT Expiry Time (default: 7d)' },
 ];
 
 console.log("=====================================");
@@ -88,7 +114,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 // Check if an origin matches — supports wildcard Vercel preview subdomains
 function isOriginAllowed(origin) {
-  if (!origin) return true; // Allow requests with no origin (mobile apps, curl, server-to-server)
+  if (!origin) return false; // Block requests with no origin (strictly follow CORS for credentialed setup)
   if (allowedOrigins.includes(origin)) return true;
   
   // Allow any localhost or 127.0.0.1 origin for robust development

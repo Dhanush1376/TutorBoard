@@ -105,9 +105,9 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
   } = useTutorStore();
 
   const handleClose = useCallback(() => {
-    // endSession(); // STOP wiping state on close!
+    endSession(); // CLEANUP server session on close!
     onClose();
-  }, [onClose]);
+  }, [onClose, endSession]);
 
   const [doubtInput, setDoubtInput] = useState('');
   const canvasRef = useRef(null);
@@ -142,32 +142,44 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
       }
 
       // CASE 2: Topic has changed while session was IDLE or exist
-      // We check if the storeTopic (slugified or direct) matches initialTopic
-      const isSameTopic = storeTopic?.toLowerCase() === initialTopic.toLowerCase();
+      // We check if the current topic (from machine) matches initialTopic
+      const isSameTopic = topic?.toLowerCase() === initialTopic.toLowerCase();
       
       if (!isSameTopic && machineState !== STATES.GENERATING) {
-        console.log(`[Session] Topic changed from "${storeTopic}" to "${initialTopic}". Resetting.`);
+        console.log(`[Session] Topic changed from "${topic}" to "${initialTopic}". Resetting.`);
         endSession(); // Clear previous topic state
         // The next tick will trigger Case 1
       }
     }
-  }, [isOpen, initialTopic, machineState, startSession, timeline, storeTopic, endSession]);
+  }, [isOpen, initialTopic, machineState, startSession, timeline, topic, endSession]);
 
 
 
   // Voice narration
   useEffect(() => {
+    // BUG FIX #58: Feature detection for speechSynthesis (not available in all browsers)
+    if (!window.speechSynthesis) return;
+    
+    // Force immediate cancel on any change (Bug 41 Fix)
+    window.speechSynthesis.cancel();
+
     if (voiceEnabled && currentStep?.narration && PANEL_VISIBLE_STATES.has(machineState)) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(currentStep.narration || currentStep.description);
+      const text = currentStep.narration || currentStep.description;
+      const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = playbackSpeed;
       utterance.pitch = 1;
       utterance.volume = 0.8;
-      window.speechSynthesis.speak(utterance);
-    } else {
-      window.speechSynthesis.cancel();
+      
+      // We wrap it in a small timeout to ensure internal state of synth is ready
+      const t = setTimeout(() => {
+        window.speechSynthesis.speak(utterance);
+      }, 50);
+
+      return () => {
+        clearTimeout(t);
+        window.speechSynthesis.cancel();
+      };
     }
-    return () => window.speechSynthesis.cancel();
   }, [currentStepIndex, voiceEnabled, currentStep, machineState, playbackSpeed]);
 
   // Auto-fit on doubt response visuals
@@ -190,13 +202,13 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
       if (e.key === 'Escape') { handleClose(); return; }
       if (isTyping) return;
 
-      switch (e.key) {
-        case 'ArrowRight': case 'l': e.preventDefault(); nextStep(); break;
-        case 'ArrowLeft':  case 'h': e.preventDefault(); prevStep(); break;
-        case ' ':                    e.preventDefault(); isPlaying ? pause() : play(); break;
-        case '?': case '/':          e.preventDefault(); doubtInputRef.current?.focus(); break;
-        case 's':                    e.preventDefault(); openFloatingSidebar(); break;
-        case 'd':                    e.preventDefault(); toggleDoubtThread(); break;
+      switch (e.key.toLowerCase()) {
+        case 'arrowright':             e.preventDefault(); nextStep(); break;
+        case 'arrowleft':              e.preventDefault(); prevStep(); break;
+        case ' ':                      e.preventDefault(); isPlaying ? pause() : play(); break;
+        case '?': case '/':            e.preventDefault(); doubtInputRef.current?.focus(); break;
+        case 's': if (e.altKey) { e.preventDefault(); openFloatingSidebar(); } break;
+        case 'd': if (e.altKey) { e.preventDefault(); toggleDoubtThread(); } break;
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -262,8 +274,9 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
           <div className="absolute inset-0 opacity-60 pointer-events-none">
             <svg viewBox="0 0 800 600" className="w-full h-full">
               {canvasObjects.slice(0, 10).map((obj, i) => {
-                const cx = parseFloat(obj.x ?? obj.cx) || 400;
-                const cy = parseFloat(obj.y ?? obj.cy) || 300;
+                // Bug 44 Fix: Multiply normalized 0-1 coords by SVG viewBox (800x600)
+                const cx = (parseFloat(obj.x ?? obj.cx) || 0.5) * 800;
+                const cy = (parseFloat(obj.y ?? obj.cy) || 0.5) * 600;
                 return (
                   <circle key={obj.id || i} cx={cx} cy={cy} r={4} fill="var(--text-tertiary)" opacity={0.5} />
                 );
@@ -296,20 +309,23 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 2147483647 }}
+          style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 1000 }}
           className="flex flex-col bg-[var(--bg-primary)] overflow-hidden"
         >
           {/* ─── STATE OVERLAYS ─── */}
           <SessionOverlay
             machineState={machineState}
             error={error}
-            topic={initialTopic}
+            topic={topic || initialTopic}
             totalSteps={totalSteps}
             doubtHistory={doubtHistory}
             onRetry={handleRetry}
             onNewTopic={handleClose}
             onClose={handleClose}
             onReplay={() => goToStep(0)}
+            goToStep={goToStep}
+            play={play}
+            pause={pause}
           />
 
           {/* ─── CANVAS LAYER ─── */}
@@ -361,7 +377,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               <button
                 onClick={openFloatingSidebar}
                 className="p-2.5 rounded-xl bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
-                title="Open sidebar (S)"
+                title="Open sidebar (Alt + S)"
               >
                 <Menu size={16} />
               </button>
@@ -436,7 +452,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                     ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent'
                     : 'bg-[var(--bg-secondary)]/80 backdrop-blur-xl border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
-                title="Doubt thread (D)"
+                title="Doubt thread (Alt + D)"
               >
                 {/* Pulse ring for new doubts */}
                 {doubtHistory.length > 0 && !showDoubtThread && (

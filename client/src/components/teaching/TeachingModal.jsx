@@ -109,6 +109,9 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
 
   // Voice narration
   useEffect(() => {
+    // BUG FIX #58: Feature detection for speechSynthesis (not available in all browsers)
+    if (!window.speechSynthesis) return;
+    
     if (voiceEnabled && activeStepData?.description) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(activeStepData.description);

@@ -9,14 +9,11 @@
 
 
 import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import { circuitBreaker } from '../core/circuitBreaker.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // OpenRouter processes standard OpenAI calls
 let openRouterClient = null;
-// Anthropic processes high-fidelity generation requests
-let anthropicClient = null;
 
 const initClients = () => {
   if (!openRouterClient && process.env.OPENROUTER_API_KEY) {
@@ -30,13 +27,6 @@ const initClients = () => {
     });
     console.log('[AI] Pure OpenRouter Engine Initialized ✅');
   }
-
-  if (!anthropicClient && process.env.ANTHROPIC_API_KEY) {
-    anthropicClient = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY
-    });
-    console.log('[AI] Direct Anthropic Engine Initialized 🚀');
-  }
 };
 
 
@@ -49,8 +39,8 @@ function resolveModelId(modelId) {
   }
   
   const mapping = {
-    'Bytez': 'anthropic/claude-opus-4-20250514',
-    'Bytez (Opus)': 'anthropic/claude-opus-4-20250514'
+    'Bytez': 'anthropic/claude-opus-4-5',
+    'Bytez (Opus)': 'anthropic/claude-opus-4-5'
   };
 
   return mapping[modelId] || modelId;
@@ -128,7 +118,7 @@ export async function requestCompletion({ model, messages, temperature, maxToken
  * Defaulting to Claude 3.5 Sonnet via OpenRouter for maximum logic reliability.
  */
 export const getModel = () => {
-  return process.env.AI_MODEL || 'anthropic/claude-3.5-sonnet';
+  return process.env.AI_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
 };
 
 /**
@@ -138,55 +128,30 @@ export const getTextModel = () => {
   return process.env.AI_TEXT_MODEL || 'anthropic/claude-3.5-sonnet';
 };
 
+/**
+ * BUG FIX #50: Get model identifier for a user-selected agent
+ * Returns null if agent is not recognized (falls back to default)
+ */
+export const getModelForAgent = (agent) => {
+  if (!agent) return null;
+  
+  const mapping = {
+    'Bytez': 'anthropic/claude-opus-4-5',
+    'Bytez (Opus)': 'anthropic/claude-opus-4-5',
+    'OpenRouter': getModel(),
+    'OpenRouterAI': getModel(),
+  };
+
+  return mapping[agent] || null;
+};
+
 // Legacy support
 export const getAIClient = () => {
   initClients();
   return openRouterClient;
 };
 
-/**
- * Direct Anthropic Dispatcher (v4)
- */
-export async function requestAnthropic({ model, messages, temperature, maxTokens, responseSchema, system }) {
-  initClients();
-
-  if (!anthropicClient) {
-    throw new Error('NO_API_AVAILABLE: Anthropic client not initialized.');
-  }
-
-  const modelId = model || 'claude-3-5-sonnet-20241022';
-
-  try {
-    console.log(`[AI:Anthropic] Calling: ${modelId} (Structured Output Requested: ${!!responseSchema})`);
-    
-    // Convert OpenAI messages to Anthropic format
-    const anthropicMessages = messages.filter(m => m.role !== 'system').map(m => ({
-      role: m.role,
-      content: m.content
-    }));
-
-    const systemPrompt = system || messages.find(m => m.role === 'system')?.content;
-
-    const options = {
-      model: modelId,
-      max_tokens: maxTokens || 4000,
-      temperature: temperature ?? 0.4,
-      system: systemPrompt,
-      messages: anthropicMessages,
-    };
-
-    const response = await anthropicClient.messages.create(options);
-    
-    return {
-      content: response.content[0].text || '',
-      provider: 'anthropic',
-      finishReason: response.stop_reason
-    };
-  } catch (err) {
-    console.error(`[AI:Anthropic] Error: ${err.message}`);
-    throw err;
-  }
-}
+// Direct Anthropic path removed — transitioning to pure OpenRouter orchestration
 
 
 /**

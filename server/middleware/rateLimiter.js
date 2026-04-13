@@ -79,6 +79,6 @@ export function checkSocketRate(key) {
 /**
  * Clean up a socket's rate limit data on disconnect
  */
-export function cleanupSocket(socketId) {
-  hitsBySocket.delete(socketId);
+export function cleanupSocket(key) {
+  hitsBySocket.delete(key);
 }

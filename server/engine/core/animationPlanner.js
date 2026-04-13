@@ -88,7 +88,8 @@ Return ONLY a JSON: { "conceptType": "TYPE", "confidence": 0.0-1.0, "reason": "o
 
     const parsed = JSON.parse(res.content || '{}');
     return parsed.conceptType || 'FLOW';
-  } catch {
+  } catch (err) {
+    console.error(`[AnimationPlanner] ⚠️ Deep classification failed: ${err.message}. Falling back to heuristics.`);
     return classifyFast(topic);
   }
 }

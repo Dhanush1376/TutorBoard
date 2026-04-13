@@ -39,7 +39,9 @@ class TopicCache {
 
   async get(topic, userProfile) {
     const normalized = this._normalize(topic);
-    const entryKey = `${normalized.replace(/\s+/g, '-')}_${userProfile}`;
+    // Mask confusionIndex in the profile to ensure stability in hits
+    const stableProfile = (userProfile || '').replace(/Confusion Level = \d+\/10/g, 'Confusion Level = *');
+    const entryKey = `${normalized}:::${stableProfile}`;
     
     // 1. Direct Hit
     const directEntry = this.cache.get(entryKey);
@@ -56,8 +58,9 @@ class TopicCache {
     for (const [key, entry] of this.cache) {
       if (Date.now() > entry.expiry) continue;
       
-      // Only compare topics with the same user profile
-      if (!key.endsWith(userProfile)) continue;
+      // Only compare topics with the same stable user profile
+      const [entryTopic, entryProfile] = key.split(':::');
+      if (entryProfile !== stableProfile) continue;
 
       const similarity = cosineSimilarity(queryVector, entry.embedding);
       if (similarity > SIMILARITY_THRESHOLD) {
@@ -71,7 +74,8 @@ class TopicCache {
 
   async set(topic, userProfile, data) {
     const normalized = this._normalize(topic);
-    const key = `${normalized.replace(/\s+/g, '-')}_${userProfile}`;
+    const stableProfile = (userProfile || '').replace(/Confusion Level = \d+\/10/g, 'Confusion Level = *');
+    const key = `${normalized}:::${stableProfile}`;
 
     // Eviction
     if (this.cache.size >= MAX_CACHE_SIZE && !this.cache.has(key)) {

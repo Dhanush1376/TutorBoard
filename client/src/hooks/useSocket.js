@@ -36,6 +36,17 @@ export function useSocket() {
 
     const socket = globalSocket;
 
+    // Handle Auth Refresh (Bug 37 Fix)
+    const checkToken = () => {
+      const currentToken = localStorage.getItem('tb-token');
+      // If socket initialized with no token but we have one now, or vice versa
+      if (socket.auth?.token !== currentToken) {
+        console.log('[Socket] Auth token mismatch. Reconnecting with fresh credentials...');
+        socket.auth = { token: currentToken };
+        socket.disconnect().connect();
+      }
+    };
+
     const onConnect = () => {
       console.log('[Socket] Connected:', socket.id);
       setIsConnected(true);
@@ -59,6 +70,12 @@ export function useSocket() {
       socket.auth = { token: freshToken };
     };
 
+    // BUG FIX #37: Check token immediately and on every mount
+    checkToken();
+
+    // BUG FIX #37: Set up periodic token refresh (every 30 seconds) to catch auth changes
+    const tokenCheckInterval = setInterval(checkToken, 30000);
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('connect_error', onError);
@@ -70,6 +87,8 @@ export function useSocket() {
     }
 
     return () => {
+      // BUG FIX #38: Clean up listeners and interval on unmount
+      clearInterval(tokenCheckInterval);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onError);
@@ -89,24 +108,31 @@ export function useSocket() {
     }
   }, []);
 
-  // Listen to an event (auto-cleanup on unmount)
+  // BUG FIX #38: Listen to an event with proper listener tracking and cleanup
+  // Components MUST call the returned cleanup function in useEffect() on unmount
   const on = useCallback((event, callback) => {
     if (!globalSocket) return () => {};
 
     globalSocket.on(event, callback);
 
-    // Track listener for cleanup
+    // Track listener for cleanup and leak detection
     if (!listenersRef.current.has(event)) {
       listenersRef.current.set(event, []);
     }
-    listenersRef.current.get(event).push(callback);
+    const listeners = listenersRef.current.get(event);
+    listeners.push(callback);
+    
+    // Warn if too many listeners accumulate (likely unclean unmounts)
+    if (listeners.length > 10) {
+      console.warn(`[Socket] Event "${event}" has ${listeners.length} listeners (possible listener leak from unmounted components)`);
+    }
 
     // Return cleanup function
     return () => {
       globalSocket?.off(event, callback);
-      const listeners = listenersRef.current.get(event) || [];
-      const idx = listeners.indexOf(callback);
-      if (idx > -1) listeners.splice(idx, 1);
+      const listeningList = listenersRef.current.get(event) || [];
+      const idx = listeningList.indexOf(callback);
+      if (idx > -1) listeningList.splice(idx, 1);
     };
   }, []);
 

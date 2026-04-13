@@ -131,7 +131,6 @@ const useTutorStore = create(
       // Grid & Layout Properties
       gridType:            'dots',
       gridSize:            20,
-      canvasTheme:         'dark',
 
       // Note Properties
       noteColor:           '#fbbf24',
@@ -322,12 +321,27 @@ const useTutorStore = create(
       setSelectedElements: (ids) => set({ selectedElementIds: ids }),
       
       setCanvasObjectsWithHistory: (newObjects) => {
-        const { canvasObjects, history } = get();
+        const { canvasObjects, history, canvasSteps, currentStepIndex } = get();
+        
+        // AUTO-VISIBILITY: If we are in a session, ensure new objects are visible in current step
+        let newSteps = [...canvasSteps];
+        if (currentStepIndex >= 0 && newSteps[currentStepIndex]) {
+          const existingIds = new Set(canvasObjects.map(o => o.id));
+          const addedIds = newObjects.filter(o => !existingIds.has(o.id)).map(o => o.id);
+          
+          if (addedIds.length > 0) {
+            const step = { ...newSteps[currentStepIndex] };
+            step.objectIds = [...(step.objectIds || []), ...addedIds];
+            newSteps[currentStepIndex] = step;
+          }
+        }
+
         set({
           canvasObjects: newObjects,
+          canvasSteps: newSteps,
           history: {
-            past: [...history.past, canvasObjects], // Save old state
-            future: [], // Clear redo stack on new action
+            past: [...history.past, canvasObjects],
+            future: [],
           }
         });
       },
@@ -525,7 +539,6 @@ const useTutorStore = create(
 
       setGridType:           (type)  => set({ gridType: type }),
       setGridSize:           (size)  => set({ gridSize: size }),
-      setCanvasTheme:        (theme) => set({ canvasTheme: theme }),
 
       setNoteColor:          (color) => set({ noteColor: color }),
       setNoteSize:           (size)  => set({ noteSize: size }),
@@ -551,9 +564,21 @@ const useTutorStore = create(
       },
 
       addCanvasObjects: (objects) => {
-        const { canvasObjects, history } = get();
+        const { canvasObjects, history, canvasSteps, currentStepIndex } = get();
+        const existingIds = new Set(canvasObjects.map(o => o.id));
+        const newOnes = objects.filter(o => !existingIds.has(o.id));
+        const addedIds = newOnes.map(o => o.id);
+
+        let newSteps = [...canvasSteps];
+        if (currentStepIndex >= 0 && newSteps[currentStepIndex] && addedIds.length > 0) {
+          const step = { ...newSteps[currentStepIndex] };
+          step.objectIds = [...(step.objectIds || []), ...addedIds];
+          newSteps[currentStepIndex] = step;
+        }
+
         set({
-          canvasObjects: [...canvasObjects, ...objects],
+          canvasObjects: [...canvasObjects, ...newOnes],
+          canvasSteps: newSteps,
           history: {
             past: [...history.past, canvasObjects],
             future: []

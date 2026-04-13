@@ -32,10 +32,12 @@ export const CanvasContext = React.createContext({
 
 const InfiniteCanvas = memo(React.forwardRef(({ 
   children, 
+  overlay,
   onZoomChange, 
   onViewportChange,
   onInteractionStart,
   onInteractionEnd,
+  onDoubleClick,
   className = '',
   initialTransform = null,
 }, ref) => {
@@ -49,7 +51,6 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const showGrid   = useTutorStore(state => state.showGrid);
   const gridType   = useTutorStore(state => state.gridType);
   const gridSize   = useTutorStore(state => state.gridSize);
-  const canvasTheme = useTutorStore(state => state.canvasTheme);
 
   // Refs for performance (no re-renders during interaction)
   const containerRef = useRef(null);
@@ -61,14 +62,33 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const velocity = useRef({ x: 0, y: 0 });
   const inertiaFrame = useRef(null);
   const transformRef = useRef(transform);
-  const isPinching = useRef(false);
   const lastPinchDist = useRef(0);
   const lastPinchCenter = useRef({ x: 0, y: 0 });
+  const isPinching = useRef(false);
+  
+  // Refs for settings to prevent stale closures in requestAnimationFrame (Bug 42 Fix)
+  const gridSizeRef = useRef(gridSize);
+  const gridTypeRef = useRef(gridType);
+  const showGridRef = useRef(showGrid);
+
+  useEffect(() => { gridSizeRef.current = gridSize; }, [gridSize]);
+  useEffect(() => { gridTypeRef.current = gridType; }, [gridType]);
+  useEffect(() => { showGridRef.current = showGrid; }, [showGrid]);
 
   // Keep ref in sync
   useEffect(() => {
     transformRef.current = transform;
   }, [transform]);
+
+  // BUG FIX #55: Clean up inertia animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (inertiaFrame.current) {
+        cancelAnimationFrame(inertiaFrame.current);
+        inertiaFrame.current = null;
+      }
+    };
+  }, []);
 
   // Apply transform via CSS (no React re-render)
   const applyTransform = useCallback((t) => {
@@ -76,17 +96,31 @@ const InfiniteCanvas = memo(React.forwardRef(({
       contentRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
     }
     // High-performance Grid synchronization
-    if (gridRef.current && showGrid) {
+    if (gridRef.current && showGridRef.current) {
       const s = t.scale;
-      const gSize = gridSize * s;
-      const major = gSize * 5;
-      gridRef.current.style.backgroundSize = `${gSize}px ${gSize}px, ${major}px ${major}px`;
+      const gs = gridSizeRef.current;
+      const gSizeStr = `${gs * s}px ${gs * s}px`;
+      const majorStr = `${gs * 5 * s}px ${gs * 5 * s}px`;
+      
+      // Ensure all layers get square sizing
+      const sizes = gridTypeRef.current === 'dots' 
+        ? `${gSizeStr}, ${majorStr}`
+        : `${gSizeStr}, ${gSizeStr}, ${majorStr}, ${majorStr}`;
+        
+      gridRef.current.style.backgroundSize = sizes;
       gridRef.current.style.backgroundPosition = `
-        ${t.x % gSize}px ${t.y % gSize}px, 
-        ${t.x % major}px ${t.y % major}px
+        ${t.x % (gs * s)}px ${t.y % (gs * s)}px, 
+        ${t.x % (gs * 5 * s)}px ${t.y % (gs * 5 * s)}px
       `;
     }
-  }, [showGrid]);
+  }, []);
+
+  // BUG FIX #36: Reapply transform when gridSize changes to update grid CSS immediately
+  useEffect(() => {
+    if (transformRef.current) {
+      applyTransform(transformRef.current);
+    }
+  }, [gridSize, applyTransform]);
 
   // Update transform state (batched)
   const commitTransform = useCallback((t) => {
@@ -154,9 +188,19 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE PAN ───
   const handleMouseDown = useCallback((e) => {
+    // BUG 1 FIX: If a drawing/interactive tool is active, yield control to InteractiveCanvasLayer
+    const isDrawTool = activeTool.startsWith('draw:') || 
+                       activeTool.startsWith('shape:') || 
+                       activeTool === 'text' || 
+                       activeTool === 'note';
+    
+    // Middle button and Space-panning are always allowed
     const isMiddleButton = e.button === 1;
     const isSpacePan = (isSpacePressed && e.button === 0);
-    const isDirectPan = e.button === 0 && (!isHoveringContent || activeTool === 'hand');
+    
+    // BUG 2 FIX: Direct panning should only happen if the Hand tool is active 
+    // OR if we are clicking on empty canvas space (not an object) AND no draw tool is active.
+    const isDirectPan = e.button === 0 && (activeTool === 'hand' || (!isHoveringContent && !isDrawTool));
     
     if (!isMiddleButton && !isSpacePan && !isDirectPan) return;
 
@@ -173,7 +217,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
     if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
     onInteractionStart?.();
-  }, [isSpacePressed, isHoveringContent, onInteractionStart]);
+    // BUG 3 FIX: Added activeTool to dependency array
+  }, [isSpacePressed, isHoveringContent, activeTool, onInteractionStart]);
 
   const handleMouseMove = useCallback((e) => {
     if (!isDraggingRef.current) return;
@@ -215,6 +260,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── DOUBLE-CLICK: Center on point ───
   const handleDoubleClick = useCallback((e) => {
+    // If a custom handler is provided and it returns true, we skip the default zoom behavior
+    if (onDoubleClick?.(e)) return;
+
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -456,7 +504,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
       style={{ 
         cursor: getCursor(), 
         touchAction: 'none',
-        background: canvasTheme === 'midnight' ? '#09090b' : canvasTheme === 'blueprint' ? '#0f172a' : 'var(--bg-primary)'
+        background: 'var(--bg-primary)'
       }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
@@ -471,18 +519,21 @@ const InfiniteCanvas = memo(React.forwardRef(({
           className="absolute inset-0 pointer-events-none transition-opacity duration-300"
           style={{
             display: showGrid ? 'block' : 'none',
-            opacity: canvasTheme === 'blueprint' ? 0.3 : 0.2,
+            opacity: 0.2,
             backgroundImage: gridType === 'dots' 
-              ? `radial-gradient(circle, ${canvasTheme === 'blueprint' ? '#00e5ff' : 'var(--text-tertiary)'} 0.8px, transparent 0.8px),
-                 radial-gradient(circle, ${canvasTheme === 'blueprint' ? '#00e5ff' : 'var(--text-tertiary)'} 1.5px, transparent 1.5px)`
-              : `linear-gradient(to right, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.1)' : 'var(--border-color)'} 1px, transparent 1px),
-                 linear-gradient(to bottom, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.1)' : 'var(--border-color)'} 1px, transparent 1px),
-                 linear-gradient(to right, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.2)' : 'var(--text-tertiary)'} 1px, transparent 1px),
-                 linear-gradient(to bottom, ${canvasTheme === 'blueprint' ? 'rgba(0,229,255,0.2)' : 'var(--text-tertiary)'} 1px, transparent 1px)`,
-            backgroundSize: `
-              ${gridSize * transform.scale}px ${gridSize * transform.scale}px,
-              ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px
-            `,
+              ? `radial-gradient(circle, var(--text-tertiary) 0.8px, transparent 0.8px),
+                 radial-gradient(circle, var(--text-tertiary) 1.5px, transparent 1.5px)`
+              : `linear-gradient(to right, var(--border-color) 1px, transparent 1px),
+                 linear-gradient(to bottom, var(--border-color) 1px, transparent 1px),
+                 linear-gradient(to right, var(--text-tertiary) 1px, transparent 1px),
+                 linear-gradient(to bottom, var(--text-tertiary) 1px, transparent 1px)`,
+            backgroundSize: gridType === 'dots'
+              ? `${gridSize * transform.scale}px ${gridSize * transform.scale}px,
+                 ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px`
+              : `${gridSize * transform.scale}px ${gridSize * transform.scale}px,
+                 ${gridSize * transform.scale}px ${gridSize * transform.scale}px,
+                 ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px,
+                 ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px`,
             backgroundPosition: `
               ${transform.x % (gridSize * transform.scale)}px ${transform.y % (gridSize * transform.scale)}px,
               ${transform.x % (gridSize * 5 * transform.scale)}px ${transform.y % (gridSize * 5 * transform.scale)}px
@@ -506,6 +557,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
             : children
           }
         </div>
+
+        {/* Overlays (Interaction layers, etc) */}
+        {overlay}
       </CanvasContext.Provider>
     </div>
   );

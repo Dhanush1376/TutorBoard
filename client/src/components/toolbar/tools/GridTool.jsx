@@ -24,19 +24,12 @@ const SIZES = [
   { id: 80, label: 'Large',  icon: Maximize2 },
 ];
 
-const THEMES = [
-  { id: 'dark',      color: '#121212', label: 'Classic' },
-  { id: 'midnight',  color: '#09090b', label: 'Midnight' },
-  { id: 'blueprint', color: '#0f172a', label: 'Blueprint' },
-];
-
 const GridTool = (props) => {
   const { 
     showGrid, toggleGrid,
     isSnapToGrid, toggleSnap,
     gridType, setGridType,
-    gridSize, setGridSize,
-    canvasTheme, setCanvasTheme
+    gridSize, setGridSize
   } = useTutorStore();
 
   const Submenu = (
@@ -133,38 +126,6 @@ const GridTool = (props) => {
         </motion.div>
       )}
 
-      <div className="h-px bg-[var(--border-color)] opacity-40 mx-1" />
-
-      {/* Themes */}
-      <div className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Theme</span>
-          <span className="text-[9px] font-medium text-[var(--text-secondary)]">{THEMES.find(t => t.id === canvasTheme)?.label}</span>
-        </div>
-        <div className="flex items-center gap-3 px-1.5 pb-1">
-          {THEMES.map(theme => {
-            const isActive = canvasTheme === theme.id;
-            return (
-              <button
-                key={theme.id}
-                onClick={() => setCanvasTheme(theme.id)}
-                className="relative w-8 h-8 rounded-lg transition-all hover:scale-105 active:scale-95"
-                style={{ 
-                  background: theme.color,
-                  border: '1.5px solid var(--border-color)',
-                  boxShadow: isActive ? `0 0 0 2px var(--bg-primary), 0 0 0 4px var(--text-primary)` : 'none'
-                }}
-              >
-                {isActive && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Check size={14} color="white" strokeWidth={3} />
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 

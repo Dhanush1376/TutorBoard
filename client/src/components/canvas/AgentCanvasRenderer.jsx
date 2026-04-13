@@ -14,13 +14,13 @@ import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
 import {
-  GlowOrb, GlassRect, FlowArrow, DataBlock,
+  GlowOrb, GlassRect, GlassEllipse, FlowArrow, DataBlock,
   FlowPointer, CodePanel, FloatingBadge,
   Comparator, SwapBridge, CinematicFilters, FreeformShape,
   DataDot, CartesianAxes, GeometryPolygon, RawLine,
   // NEW shapes v3
   EquationBlock, TreeNode, BarShape, VennCircle,
-  FlowStep, MoleculeNode, LabelText,
+  FlowStep, MoleculeNode, LabelText, StickyNoteShape,
 } from '../renderers/CinematicShapes.jsx';
 import PhysicsRenderer from '../renderers/PhysicsRenderer.jsx';
 import NarrativeRenderer from '../renderers/NarrativeRenderer.jsx';
@@ -79,9 +79,20 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'circle':
     case 'orb':
     case 'node':
-    case 'planet':
+    case 'planet': {
+      // Respect explicit world-unit radius if provided, else fallback to scale-based sizing
+      const r = obj.r ? obj.r * CW : (obj.scale || 1) * 38;
       return <GlowOrb {...common} cx={x} cy={y}
-        r={(obj.scale || 1) * 38} color={obj.color} label={obj.label} />;
+        r={r} color={obj.color} label={obj.label} />;
+    }
+
+    case 'ellipse':
+    case 'oval': {
+      const rx = obj.w ? (obj.w * CW) / 2 : (obj.scale || 1) * 80;
+      const ry = obj.h ? (obj.h * CH) / 2 : (obj.scale || 1) * 29;
+      return <GlassEllipse {...common} cx={x} cy={y} rx={rx} ry={ry}
+        color={obj.color} label={obj.label} fill="glass" />;
+    }
 
     // ── Rectangles / Blocks ─────────────────────────────────
     case 'rect':
@@ -90,9 +101,18 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'box':
     case 'step_box':
     case 'flowstep_rect': {
-      const w = (obj.scale || 1) * 160;
-      const h = (obj.scale || 1) * 58;
+      // Respect explicit world-unit dimensions if provided, else fallback to hardcoded base size
+      const w = obj.w ? obj.w * CW : (obj.scale || 1) * 160;
+      const h = obj.h ? obj.h * CH : (obj.scale || 1) * 58;
       return <GlassRect {...common} x={x - w / 2} y={y - h / 2} w={w} h={h}
+        color={obj.color} label={obj.label} />;
+    }
+
+    case 'note':
+    case 'sticky': {
+      const w = obj.w || (obj.scale || 1) * 180;
+      const h = obj.h || (obj.scale || 1) * 180;
+      return <StickyNoteShape {...common} x={x} y={y} w={w} h={h}
         color={obj.color} label={obj.label} />;
     }
 
@@ -151,11 +171,13 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
       return <CartesianAxes {...common} x={x} y={y} color={obj.color} label={obj.label} />;
     
     // ── LINE & ARROW ──────────────────────────────────────────
+    case 'line':
     case 'arrow': {
       const x1 = (obj.x1 ?? 0.5) * CW;
       const y1 = (obj.y1 ?? 0.5) * CH;
-      const x2 = (obj.x2 ?? 0.5) * CW;
-      const y2 = (obj.y2 ?? 0.5) * CH;
+      // Default to a 10% offset if coordinates are missing or identical
+      const x2 = (obj.x2 ?? (obj.x1 ?? 0.5) + 0.1) * CW;
+      const y2 = (obj.y2 ?? (obj.y1 ?? 0.5) + 0.1) * CH;
       const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, dashed: obj.dashed };
       return shape === 'line' ? <RawLine {...props} /> : <FlowArrow {...props} />;
     }
@@ -231,7 +253,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'process_step':
     case 'pipeline_step':
     case 'stage':
-      return <FlowStep {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <FlowStep {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
 
     // ── MOLECULE (NEW) ───────────────────────────────────────
     case 'molecule':
@@ -247,7 +269,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'annotation':
     case 'caption':
     case 'note':
-      return <LabelText {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <LabelText {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
 
     // ── IMAGE (NEW) ──────────────────────────────────────────
     case 'image': {
@@ -287,8 +309,17 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
   // Visibility filtering: only render elements listed in objectIds
   const stepObjectIds = useMemo(() => {
     const ids = currentStep.objectIds || currentStep.elements || [];
-    // If empty, show ALL elements (graceful fallback)
-    return ids.length > 0 ? new Set(ids) : new Set(rawElements.map(e => e?.id).filter(Boolean));
+    const baseSet = new Set(ids);
+    
+    // Always include custom user-created objects
+    rawElements.forEach(el => {
+      if (el?.id?.startsWith?.('custom-')) {
+        baseSet.add(el.id);
+      }
+    });
+
+    // If empty (no AI IDs and no custom IDs), show ALL elements (graceful fallback)
+    return baseSet.size > 0 ? baseSet : new Set(rawElements.map(e => e?.id).filter(Boolean));
   }, [currentStep, rawElements]);
 
   // Mutation application: per-step property overrides
@@ -388,7 +419,7 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
             {elements.map(obj => {
               const isSelected = selectedElementIds?.includes(obj.id);
               return (
-                <ErrorBoundary key={obj.id} onClose={() => {}}>
+                <ErrorBoundary key={obj.id} onClose={() => {}} reloadOnRetry={true}>
                   <g 
                     onPointerDown={(e) => {
                       if (activeTool === 'select') {
@@ -478,7 +509,7 @@ export default function AgentCanvasRenderer({
   }
 
   return (
-    <ErrorBoundary key={`canvas-${currentStepIndex}`} onClose={() => {}}>
+    <ErrorBoundary key={`canvas-${currentStepIndex}`} onClose={() => {}} reloadOnRetry={true}>
       <SVGCanvasRenderer
         timeline={timeline}
         currentStepIndex={currentStepIndex}

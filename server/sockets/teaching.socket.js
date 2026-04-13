@@ -22,6 +22,7 @@ import { detectIntent } from '../engine/core/intentEngine.js';
 import { checkSocketRate, cleanupSocket } from '../middleware/rateLimiter.js';
 import { sanitizeInput } from '../utils/sanitize.js';
 import { replanRemainingSteps } from '../engine/core/adaptivePlanner.js';
+import { getOrCreateRequestId, createTrackedSessionId } from '../middleware/requestIdMiddleware.js';
 import jwt from 'jsonwebtoken';
 
 // ─── Rate Limit Helper ────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ function buildTimelinePayload(sessionId, timeline) {
 
   return {
     sessionId,
-    title:      timeline.title  || 'Lesson',
+    title:      timeline.title || timeline.scene?.title || 'Lesson',
     domain:     timeline.domain || 'general',
     renderer:   timeline.renderer || 'cinematic',
     scene:      timeline.scene  || { title: timeline.title || 'Lesson', type: 'linear' },
@@ -95,10 +96,19 @@ export function setupTeachingSocket(io) {
   });
 
   teachingIO.on('connection', (socket) => {
-    const sessionId = `session-${socket.id}-${Date.now()}`;
-    console.log(`[WS] Client connected: ${socket.id} → Session: ${sessionId}`);
+    // BUG FIX #60: Get or create request ID for correlation tracing
+    const requestId = getOrCreateRequestId(socket);
+    const sessionId = createTrackedSessionId(socket.id, requestId);
+    console.log(`[${requestId}] [WS] Client connected: ${socket.id} → Session: ${sessionId}`);
 
-    const session = sessionStore.create(sessionId, socket.id);
+    let session;
+    try {
+      session = sessionStore.create(sessionId, socket.id);
+    } catch (err) {
+      console.error(`[WS] Failed to create session: ${err.message}`);
+      socket.emit('session:error', { error: 'SESSION_LIMIT_REACHED', message: 'The server is at maximum capacity. Please try again later.' });
+      return socket.disconnect();
+    }
     const machine = createTeachingMachine(sessionId, (transition) => {
       socket.emit('teaching:state', {
         state:     transition.to,
@@ -118,7 +128,7 @@ export function setupTeachingSocket(io) {
       }
 
       const cleanTopic = sanitizeInput(topic, 2000);
-      console.log(`[WS] session:start → "${cleanTopic}" (Agent: ${selectedAgent}, Mode: ${activeMode}) (${sessionId})`);
+      console.log(`[${requestId}] [WS] session:start → "${cleanTopic}" (Agent: ${selectedAgent}, Mode: ${activeMode})`);
 
       if (!cleanTopic) {
         socket.emit('teaching:error', { message: 'Topic is required' });
@@ -157,12 +167,12 @@ export function setupTeachingSocket(io) {
       }
 
       try {
-        const intentResult = await detectIntent(cleanTopic, activeMode);
+        const intentResult = await detectIntent(cleanTopic, activeMode, selectedAgent);
         const intent = intentResult.intent;
-        console.log(`[WS] Detected Intent: ${intent} (${intentResult.renderer})`);
+        console.log(`[${requestId}] [WS] Detected Intent: ${intent} (${intentResult.renderer})`);
 
         if (intent === 'quick' || intent === 'text_only') {
-          console.log('[WS] Generating text-only response...');
+          console.log(`[${requestId}] [WS] Generating text-only response...`);;
           const response = await withTimeout(
             generateTextResponse(sessionId, cleanTopic, selectedAgent),
             45000,
@@ -175,7 +185,7 @@ export function setupTeachingSocket(io) {
         }
 
         // ─── Generate visual timeline ─────────────────────────────────────
-        console.log('[WS] Generating visual timeline...');
+        console.log(`[${requestId}] [WS] Generating visual timeline...`);
         const timeline = await withTimeout(
           generateTimeline(sessionId, cleanTopic, (stage) => {
             console.log(`[WS] Progress: ${stage}`);
@@ -201,7 +211,7 @@ export function setupTeachingSocket(io) {
         const payload = buildTimelinePayload(sessionId, timeline);
         const steps   = payload.steps; // already normalized
 
-        console.log(`[WS] Emitting teaching:timeline — "${payload.title}" (${payload.totalSteps} steps, renderer: ${payload.renderer})`);
+        console.log(`[${requestId}] [WS] Emitting teaching:timeline — "${payload.title}" (${payload.totalSteps} steps, renderer: ${payload.renderer})`);
         socket.emit('teaching:timeline', payload);
 
         // Optional chat message for fallback timelines
@@ -231,8 +241,24 @@ export function setupTeachingSocket(io) {
       }
     });
 
+    let doubtCount = 0;
+    let lastDoubtReset = Date.now();
+
     // ─── ASK DOUBT ─────────────────────────────────────────────────────────
     socket.on('session:doubt', async ({ question, selectedAgent, activeMode }) => {
+      // ─── Per-Session Rate Limiting ────────────────────────────────────────
+      const now = Date.now();
+      if (now - lastDoubtReset > 60000) {
+        doubtCount = 0;
+        lastDoubtReset = now;
+      }
+      if (doubtCount >= 5) {
+        console.warn(`[WS] Rate limit exceeded: Session ${sessionId} (5 doubts/min)`);
+        socket.emit('teaching:error', { message: 'You are asking questions too fast. Please wait a minute.' });
+        return;
+      }
+      doubtCount++;
+
       if (!checkSocketRate(getRateKey(socket))) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
         return;
@@ -254,7 +280,7 @@ export function setupTeachingSocket(io) {
       socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
       try {
-        const intentResult = await detectIntent(cleanQuestion, activeMode);
+        const intentResult = await detectIntent(cleanQuestion, activeMode, selectedAgent);
         const intent = intentResult.intent;
         console.log(`[WS] Doubt Detected Intent: ${intent}`);
 
@@ -286,9 +312,22 @@ export function setupTeachingSocket(io) {
           followUp:     response.followUp,
         });
 
-        // Adaptive replanning
+        // ─── Update Session State (Confusion & History) ─────────────────────
         const s = sessionStore.get(sessionId);
-        if (s && s.confusionIndex >= 5 && s.steps.length > 0) {
+        if (s) {
+          // Increment confusionIndex (capped at 10)
+          if (!s.learnerProfile) s.learnerProfile = { level: 'beginner', pace: 'normal', confusionIndex: 0 };
+          s.learnerProfile.confusionIndex = Math.min(10, (s.learnerProfile.confusionIndex || 0) + 1);
+
+          // Append to doubtHistory for contextual coherence
+          if (!s.doubtHistory) s.doubtHistory = [];
+          s.doubtHistory.push({ question: cleanQuestion, answer: response.answer, timestamp: Date.now() });
+          
+          console.log(`[WS] Session Updated: Confusion=${s.learnerProfile.confusionIndex}, DoubtHistory=${s.doubtHistory.length}`);
+        }
+
+        // Adaptive replanning 
+        if (s && s.learnerProfile.confusionIndex >= 5 && s.steps && s.steps.length > 0) {
           const replan = await replanRemainingSteps(s, s.topic);
           if (replan) {
             console.log(`[WS] Mid-lesson replan triggered! Pushing ${replan.mergedSteps.length} steps.`);
@@ -340,11 +379,15 @@ export function setupTeachingSocket(io) {
     });
 
     // ─── PAUSE ─────────────────────────────────────────────────────────────
-    socket.on('session:pause', () => { machine.send(EVENTS.PAUSE); });
+    socket.on('session:pause', () => { 
+      machine.send(EVENTS.PAUSE);
+      sessionStore.update(sessionId, { state: machine.state });
+    });
 
     // ─── RESUME ────────────────────────────────────────────────────────────
     socket.on('session:resume', () => {
       machine.send(EVENTS.RESUME) || machine.send(EVENTS.PLAY);
+      sessionStore.update(sessionId, { state: machine.state });
 
       const s = sessionStore.get(sessionId);
       if (s && s.steps && s.steps.length > 0) {
@@ -367,7 +410,7 @@ export function setupTeachingSocket(io) {
     socket.on('disconnect', (reason) => {
       console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
       sessionStore.destroy(sessionId);
-      cleanupSocket(socket.id);
+      cleanupSocket(getRateKey(socket));
     });
 
     // Send initial state

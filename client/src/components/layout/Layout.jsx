@@ -3,7 +3,6 @@ import { PanelLeft, PanelRight, Check, Trash, Type, Square, StickyNote, Share, E
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import AccountMenu from '../sidebar/AccountMenu';
 import Toolbar from '../toolbar/Toolbar';
 import ThemeSelector from '../ThemeSelector';
 import { X } from 'lucide-react';
@@ -42,7 +41,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.9, x: isLeftHand ? 20 : -20 }}
             transition={{ duration: 0.2 }}
-            className={`tb-top-left-pill absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-50 flex items-center pointer-events-auto`}
+            className={`tb-top-left-pill absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-[5000] flex items-center pointer-events-auto`}
             style={{ ...miniGlass, borderRadius: 9999, padding: '6px' }}
           >
             <button
@@ -60,7 +59,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       {/* ── FLOATING TOP-RIGHT: Integrated Control Center ── */}
       {!forceCollapse && (
         <div
-          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-50 flex items-center gap-1.5 p-0 pointer-events-auto`}
+          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-[5000] flex items-center gap-1.5 p-0 pointer-events-auto`}
         >
           <Toolbar 
             onShare={() => {}} 
@@ -85,7 +84,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
       {/* Settings Modal (Global) */}
       {showSettings && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-[var(--border-color)]">
               <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-widest">
@@ -162,7 +161,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="tb-mobile-backdrop absolute inset-0 z-40 bg-black/20 backdrop-blur-md pointer-events-auto hidden"
+            className="tb-mobile-backdrop absolute inset-0 z-[4999] bg-black/20 backdrop-blur-md pointer-events-auto hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -172,7 +171,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: isLeftHand ? 350 : -350, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`tb-sidebar absolute top-4 ${isLeftHand ? 'right-4' : 'left-4'} z-50 flex flex-col overflow-hidden pointer-events-auto`}
+            className={`tb-sidebar absolute top-4 ${isLeftHand ? 'right-4' : 'left-4'} z-[5000] flex flex-col overflow-hidden pointer-events-auto`}
           style={{
             width: 320,
             height: 'calc(100vh - 32px)',

@@ -1,11 +1,7 @@
 /**
  * SessionStore — Simple in-memory session persistence
- * 
- * v3.0 — HARDENED:
- *   - Aggressive cleanup of idle sessions.
- *   - MAX_SESSIONS capacity limit.
- *   - Helper methods for timeline and navigation.
  */
+import LearnerProfile from '../../models/LearnerProfile.js';
 
 const SESSION_TTL_MS = 20 * 60 * 1000; // 20 minutes for active sessions
 const IDLE_TTL_MS = 5 * 60 * 1000;     // 5 minutes for sessions that never started
@@ -89,9 +85,29 @@ class SessionStore {
   }
 
   async initProfile(id, userId) {
-    // Placeholder for actual DB profile fetch
-    console.log(`[SessionStore] Mock profile init for ${userId} in session ${id}`);
-    this.update(id, { userId });
+    try {
+      console.log(`[SessionStore] Initializing profile for user: ${userId} in session ${id}`);
+      let profile = await LearnerProfile.findOne({ userId });
+
+      if (!profile) {
+        console.log(`[SessionStore] No profile found for ${userId}. Creating default.`);
+        profile = await LearnerProfile.create({ userId });
+      }
+
+      const learnerProfile = {
+        level: 'beginner', // could be derived from mastery
+        pace: 'normal',
+        confusionIndex: 0,
+        learningStyle: profile.learningStyle || 'visual',
+        topicsMastery: profile.topicsMastery || new Map(),
+      };
+
+      this.update(id, { userId, learnerProfile });
+      console.log(`[SessionStore] Profile loaded for ${userId}: style=${learnerProfile.learningStyle}`);
+    } catch (err) {
+      console.error(`[SessionStore] Failed to init profile for ${userId}:`, err.message);
+      // Fallback to default guest-like profile already set in create()
+    }
   }
 
   destroy(id) {

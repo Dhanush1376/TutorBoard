@@ -18,4 +18,13 @@ debug_latency.log
 
 # Test output logs
 test_*.log
+
+# Scratch/test files with potential env variable access or test API calls
+server/scratch/
 api_test_output.json
+
+# Scratch and test scripts
+server/scratch/
+server/test_*.js
+server/verify_*.js
+scratch_test_schema.js

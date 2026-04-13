@@ -1,18 +1,19 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
+import User from '../models/User.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Passport Serialize/Deserialize - Mock implementation
+// Passport Serialize/Deserialize - DB implementation
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
   try {
-    // Return a mock user
-    const user = { id, name: 'Guest User', email: 'guest@example.com' };
+    const user = await User.findById(id);
+    if (!user) return done(null, false);
     done(null, user);
   } catch (err) {
     done(err, null);
@@ -28,13 +29,22 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     proxy: true
   }, async (accessToken, refreshToken, profile, done) => {
     try {
-      // Mock user creation/finding
-      const user = {
-        id: profile.id,
-        name: profile.displayName,
-        email: profile.emails?.[0]?.value || 'google-user@example.com',
-        avatar: profile.photos?.[0]?.value
-      };
+      const email = profile.emails?.[0]?.value;
+      if (!email) return done(new Error('No email found in Google profile'), null);
+
+      // Find or create user
+      const user = await User.findOneAndUpdate(
+        { googleId: profile.id },
+        { 
+          $set: { 
+            name: profile.displayName, 
+            email: email.toLowerCase(),
+            avatar: profile.photos?.[0]?.value 
+          } 
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      
       return done(null, user);
     } catch (err) {
       return done(err, null);
@@ -53,13 +63,20 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
     scope: ['user:email']
   }, async (accessToken, refreshToken, profile, done) => {
     try {
-      // Mock user creation/finding
-      const user = {
-        id: profile.id,
-        name: profile.displayName || profile.username,
-        email: profile.emails?.[0]?.value || `${profile.username}@github.com`,
-        avatar: profile.photos?.[0]?.value
-      };
+      // GitHub sometimes hides email; we use username fallback locally but prefer profile.emails
+      const email = profile.emails?.[0]?.value || `${profile.username}@github.com`;
+
+      const user = await User.findOneAndUpdate(
+        { githubId: profile.id },
+        { 
+          $set: { 
+            name: profile.displayName || profile.username, 
+            email: email.toLowerCase(),
+            avatar: profile.photos?.[0]?.value 
+          } 
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
       return done(null, user);
     } catch (err) {
       return done(err, null);

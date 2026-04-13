@@ -54,7 +54,9 @@ INSTRUCTIONS:
       // Splice the new simplified steps into the session
       const originalSteps = [...session.steps];
       const previousSteps = originalSteps.slice(0, currentStepIndex + 1);
-      const newSteps = data.steps.map((s, i) => ({ ...s, index: currentStepIndex + 1 + i }));
+      
+      const rawSteps = data.steps || data.timeline || [];
+      const newSteps = rawSteps.map((s, i) => ({ ...s, index: currentStepIndex + 1 + i }));
       
       const mergedSteps = [...previousSteps, ...newSteps];
       

@@ -1,10 +1,11 @@
 import express from 'express';
-import { signup, signin, getMe, socialLoginSuccess } from '../controllers/auth.controller.js';
+import { signup, signin, getMe, socialLoginSuccess, exchangeToken } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import passport from '../utils/passport.js';
 
 const router = express.Router();
 
+router.get('/exchange', exchangeToken);
 router.get('/me', protect, getMe);
 
 // ─── GOOGLE OAUTH ───

@@ -31,7 +31,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   // Determine if this group is currently active
   const isGroupActive = hasVariants 
     ? variants.some(v => v.id === activeTool)
-    : activeTool === id;
+    : (activeTool === id || (customSubmenu && activeTool.startsWith(`${id}:`)));
 
   // Determine what to display natively
   const currentVariant = hasVariants ? variants.find(v => v.id === activeVariantId) : null;
@@ -122,7 +122,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         }}
       >
         {/* Shared Liquid Hover Pill */}
-        {isHovered && !disabled && (
+        {(isHovered || isHoveredExternally) && !disabled && (
           <motion.div
             layoutId="liquid-hover-pill"
             className="absolute inset-0 rounded-full z-0"

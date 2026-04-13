@@ -2,14 +2,21 @@
  * intentEngine.js
  * v2.0 — AGENTIC CLASSIFICATION
  * Moves from regex-based intent detection to a structured LLM call.
+ * 
+ * BUG FIX #50: Now respects user's selectedAgent when performing intent classification
+ * BUG FIX #56: Now validates topics for prompt injection attempts
  */
 
-import { requestCompletion, getTextModel } from '../utils/llmClient.js';
+import { requestCompletion, getTextModel, getModelForAgent } from '../utils/llmClient.js';
+import { sanitizeTopicForPrompt } from '../../utils/topicValidator.js';
 
 /**
  * Detects user intent and preferred renderer using a cheap, fast LLM call.
+ * 
+ * BUG FIX #50: Now accepts selectedAgent parameter and uses appropriate model
+ * BUG FIX #56: Sanitizes prompt to prevent injection attacks
  */
-export async function detectIntent(prompt, explicitMode) {
+export async function detectIntent(prompt, explicitMode, selectedAgent) {
   // 1. Explicit UI Mode always wins (for manual triggers)
   if (explicitMode && ['quick', 'deep', 'test_me'].includes(explicitMode)) {
     return {
@@ -19,10 +26,23 @@ export async function detectIntent(prompt, explicitMode) {
     };
   }
 
+  // BUG FIX #56: Sanitize prompt to prevent JSON-level prompt injection
+  const sanitizedPrompt = sanitizeTopicForPrompt(prompt);
+
   // 2. Request LLM Classification
   try {
+    // BUG FIX #50: Use user's selected agent model instead of hardcoded default
+    let modelToUse = getTextModel();
+    if (selectedAgent) {
+      const agentModel = getModelForAgent(selectedAgent);
+      if (agentModel) {
+        modelToUse = agentModel;
+        console.log(`[IntentEngine] Using selected agent model: ${modelToUse}`);
+      }
+    }
+
     const res = await requestCompletion({
-      model: 'openai/gpt-4o-mini', // Fast, cheap, high-reliability for JSON
+      model: modelToUse,
       messages: [
         {
           role: 'system',
@@ -42,7 +62,7 @@ Return ONLY a JSON object:
         },
         {
           role: 'user',
-          content: prompt
+          content: sanitizedPrompt
         }
       ],
       temperature: 0,
@@ -52,9 +72,7 @@ Return ONLY a JSON object:
 
     const raw = (res.content || '{}').replace(/```json|```/g, '').trim();
     const result = JSON.parse(raw);
-
     console.log(`[IntentEngine] 🧠 Classified: ${result.intent} (${result.renderer}) | Conf: ${result.confidence}`);
-    
     return {
       intent: result.intent || 'quick',
       renderer: result.renderer || 'cinematic',
@@ -62,6 +80,9 @@ Return ONLY a JSON object:
     };
   } catch (err) {
     console.error(`[IntentEngine] ⚠️ LLM Classification failed, falling back to regex: ${err.message}`);
+    if (err.name === 'SyntaxError') {
+      console.warn(`[IntentEngine] RAW RESPONSE PREVIEW: ${res?.content?.substring(0, 500)}`);
+    }
     // Minimal regex fallback
     const isDeep = /\b(visualize|draw|animate|diagram|timeline|deep)\b/i.test(prompt);
     return {

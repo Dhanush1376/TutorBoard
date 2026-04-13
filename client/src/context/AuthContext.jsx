@@ -4,6 +4,10 @@ const AuthContext = createContext(null);
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+  throw new Error('[Auth] CRITICAL: VITE_API_URL is missing in production environment. Authentication will fail.');
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('tb-token'));
@@ -61,7 +65,9 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (err) {
         console.error('Token verification failed:', err);
-        // Keep token if it's just a network error (server might be down)
+        // If it's a 4xx/5xx or CORS, we should stop loading. 
+        // We'll keep the token in localStorage but clear memory state to trigger fallback UI.
+        setUser(null);
       } finally {
         setLoading(false);
       }

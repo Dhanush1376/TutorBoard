@@ -22,6 +22,10 @@ const CanvasMinimap = ({
   onNavigate 
 }) => {
   const minimapRef = useRef(null);
+  
+  // Guard against null transform (Bug 52 Fix)
+  if (!transform) return null;
+
   const scaleX = MINIMAP_WIDTH / CANVAS_WIDTH;
   const scaleY = MINIMAP_HEIGHT / CANVAS_HEIGHT;
   const scale = Math.min(scaleX, scaleY);

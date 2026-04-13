@@ -24,8 +24,10 @@ const SessionOverlay = ({
   onNewTopic,
   onClose,
   onReplay,
+  goToStep,
+  play,
+  pause
 }) => {
-  const { goToStep, play } = useTutorStore();
   const [showActions, setShowActions] = useState(true);
 
   return (
