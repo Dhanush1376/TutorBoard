@@ -1,21 +1,11 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pencil, Highlighter, Eraser, Zap, Circle, Pipette, RotateCcw } from 'lucide-react';
+import { Pencil, Highlighter, Eraser, Zap, Circle, RotateCcw } from 'lucide-react';
 import ToolButtonBase from '../components/ToolButtonBase';
 import useTutorStore from '../../../store/tutorStore';
+import ColorPicker, { resolveColor } from '../components/ColorPicker';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const PRESET_COLORS = [
-  { id: 'default',  value: 'var(--text-primary)', display: '#e5e5e5', label: 'Default' },
-  { id: 'indigo',   value: '#6366f1', label: 'Indigo' },
-  { id: 'emerald',  value: '#10b981', label: 'Emerald' },
-  { id: 'rose',     value: '#f43f5e', label: 'Rose' },
-  { id: 'amber',    value: '#f59e0b', label: 'Amber' },
-  { id: 'sky',      value: '#38bdf8', label: 'Sky' },
-  { id: 'violet',   value: '#a78bfa', label: 'Violet' },
-  { id: 'lime',     value: '#a3e635', label: 'Lime' },
-];
 
 const WEIGHTS = [
   { id: 'hairline', value: 1,  label: 'Hair' },
@@ -36,13 +26,6 @@ const MAX_RECENT = 5;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Resolve a CSS-var color token to a hex so we can display it */
-function resolveColor(value) {
-  if (!value.startsWith('var')) return value;
-  const preset = PRESET_COLORS.find((c) => c.value === value);
-  return preset?.display ?? '#e5e5e5';
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const DrawTool = (props) => {
@@ -50,6 +33,7 @@ const DrawTool = (props) => {
     activeTool, setActiveTool,
     drawColor,    setDrawColor,
     drawWidth,    setDrawWidth,
+    laserWidth,   setLaserWidth,
     recentColors, addRecentColor,
   } = useTutorStore();
 
@@ -78,22 +62,24 @@ const DrawTool = (props) => {
 
       switch (e.key) {
         case '[': {
-          // Decrease stroke width
-          const idx = WEIGHTS.findIndex((w) => w.value === drawWidth);
-          if (idx > 0) setDrawWidth(WEIGHTS[idx - 1].value);
+          const val = isLaser ? laserWidth : drawWidth;
+          const setter = isLaser ? setLaserWidth : setDrawWidth;
+          const idx = WEIGHTS.findIndex((w) => w.value === val);
+          if (idx > 0) setter(WEIGHTS[idx - 1].value);
           break;
         }
         case ']': {
-          // Increase stroke width
-          const idx = WEIGHTS.findIndex((w) => w.value === drawWidth);
-          if (idx < WEIGHTS.length - 1) setDrawWidth(WEIGHTS[idx + 1].value);
+          const val = isLaser ? laserWidth : drawWidth;
+          const setter = isLaser ? setLaserWidth : setDrawWidth;
+          const idx = WEIGHTS.findIndex((w) => w.value === val);
+          if (idx < WEIGHTS.length - 1) setter(WEIGHTS[idx + 1].value);
           break;
         }
         default:
           break;
       }
     },
-    [isDrawing, drawWidth, setDrawWidth]
+    [isDrawing, drawWidth, laserWidth, isLaser, setDrawWidth, setLaserWidth, setActiveTool]
   );
 
   useEffect(() => {
@@ -107,7 +93,7 @@ const DrawTool = (props) => {
   const handleColorPick = (value) => {
     setDrawColor(value);
     // Track recent colors (skip CSS vars and duplicates)
-    if (!value.startsWith('var') && addRecentColor) {
+    if (!value.startsWith('var')) {
       addRecentColor(value);
     }
   };
@@ -121,13 +107,56 @@ const DrawTool = (props) => {
 
   // ── Submenu ────────────────────────────────────────────────────────────────
   const Submenu = (
-    <div className="flex flex-col gap-0 min-w-[210px]">
+    <div className="flex flex-col gap-0 min-w-[240px]">
+      {/* ─── Real-time Stroke Status ─── */}
+      <div className="px-4 py-3 bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
+            Live Preview
+          </span>
+          {!isEraser && (
+             <span className="text-[9px] font-mono text-[var(--text-secondary)]">
+               {isLaser ? laserWidth : drawWidth}px • {previewColor.toUpperCase()}
+             </span>
+          )}
+        </div>
+        
+        <div 
+          className="h-10 w-full rounded-lg flex items-center justify-center relative overflow-hidden"
+          style={{ 
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
+          }}
+        >
+          {/* Subtle Grid Pattern in background */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, var(--text-primary) 1px, transparent 1px)', backgroundSize: '12px 12px' }} />
+          
+          <svg width="100%" height="100%" className="relative z-10 overflow-visible">
+            {!isEraser ? (
+               <motion.path
+                 d="M 40 20 Q 80 5 120 20 T 200 20"
+                 fill="none"
+                 stroke={previewColor}
+                 strokeWidth={isLaser ? laserWidth : drawWidth}
+                 strokeLinecap="round"
+                 initial={false}
+                 animate={{ 
+                    stroke: previewColor, 
+                    strokeWidth: isLaser ? laserWidth : drawWidth 
+                 }}
+                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+               />
+            ) : (
+              <Eraser size={20} className="text-[var(--text-tertiary)] opacity-40" />
+            )}
+          </svg>
+        </div>
+      </div>
+
       {/* Mode Strip */}
       <div className="px-2 pt-3 pb-2">
-        <span className="px-2 text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
-          Tool
-        </span>
-        <div className="flex items-center gap-1 mt-2">
+        <div className="flex items-center gap-1">
           {MODES.map((mode) => {
             const isActive = activeTool === mode.id;
             return (
@@ -176,120 +205,14 @@ const DrawTool = (props) => {
             className="overflow-hidden"
           >
             {/* Color */}
-            <div className="px-3 pt-3 pb-1">
-              <div className="flex items-center justify-between mb-2.5">
-                <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
-                  Color
-                </span>
-                {/* Live preview swatch */}
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="w-5 h-5 rounded-full border-2"
-                    style={{
-                      background: previewColor,
-                      borderColor: 'rgba(255,255,255,0.12)',
-                      boxShadow: `0 0 8px ${previewColor}55`,
-                    }}
-                  />
-                  <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
-                    {previewColor.startsWith('#') ? previewColor.toUpperCase() : 'CSS'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Preset swatches */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {PRESET_COLORS.map((c) => {
-                  const isActive = drawColor === c.value;
-                  const display  = c.display ?? c.value;
-                  return (
-                    <button
-                      key={c.id}
-                      title={c.label}
-                      onClick={() => handleColorPick(c.value)}
-                      className="relative rounded-full transition-all duration-150"
-                      style={{
-                        width: isActive ? '22px' : '18px',
-                        height: isActive ? '22px' : '18px',
-                        background: display,
-                        boxShadow: isActive
-                          ? `0 0 0 2px var(--bg-primary), 0 0 0 3.5px ${display}, 0 0 10px ${display}88`
-                          : 'none',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {isActive && (
-                        <span className="absolute inset-0 flex items-center justify-center">
-                          <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ background: 'rgba(0,0,0,0.4)' }}
-                          />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-
-                {/* Custom color picker trigger */}
-                <button
-                  title="Custom color"
-                  onClick={() => colorInputRef.current?.click()}
-                  className="w-[18px] h-[18px] rounded-full flex items-center justify-center transition-all duration-150"
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1.5px dashed rgba(255,255,255,0.2)',
-                    flexShrink: 0,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                  }}
-                >
-                  <Pipette size={9} style={{ color: 'var(--text-tertiary)' }} />
-                  <input
-                    ref={colorInputRef}
-                    type="color"
-                    className="sr-only"
-                    value={previewColor.startsWith('#') ? previewColor : '#e5e5e5'}
-                    onChange={handleNativeColorChange}
-                  />
-                </button>
-              </div>
-
-              {/* Recent colors */}
-              {recents.length > 0 && (
-                <div className="mt-2.5">
-                  <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.12em] block mb-1.5">
-                    Recent
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {recents.slice(0, MAX_RECENT).map((color, i) => (
-                      <button
-                        key={i}
-                        title={color}
-                        onClick={() => handleColorPick(color)}
-                        className="w-[16px] h-[16px] rounded-full transition-all duration-150"
-                        style={{
-                          background: color,
-                          boxShadow: drawColor === color ? `0 0 0 2px var(--bg-primary), 0 0 0 3px ${color}` : 'none',
-                          opacity: drawColor === color ? 1 : 0.7,
-                        }}
-                      />
-                    ))}
-                    <button
-                      title="Clear recent"
-                      onClick={() => addRecentColor?.('__clear__')}
-                      className="w-[16px] h-[16px] rounded-full flex items-center justify-center"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                    >
-                      <RotateCcw size={8} style={{ color: 'var(--text-tertiary)' }} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <ColorPicker
+              label="Stroke Color"
+              color={drawColor}
+              onChange={handleColorPick}
+              recentColors={recents}
+              onClearRecent={() => addRecentColor?.('__clear__')}
+              maxRecent={MAX_RECENT}
+            />
 
             {/* Divider */}
             <div className="mx-3 my-1" style={{ height: '1px', background: 'linear-gradient(to right, transparent, var(--border-color), transparent)', opacity: 0.5 }} />
@@ -307,25 +230,30 @@ const DrawTool = (props) => {
               <div className="flex items-center gap-1">
                 {WEIGHTS.map((w) => {
                   const isActive = drawWidth === w.value;
-                  const dotSize  = Math.max(4, Math.min(16, 3 + w.value * 0.7));
                   return (
                     <button
                       key={w.id}
                       title={`${w.label} (${w.value}px)`}
                       onClick={() => setDrawWidth(w.value)}
-                      className="flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all duration-150"
+                      className="flex-1 flex flex-col items-center gap-2 py-2.5 rounded-xl transition-all duration-150"
                       style={{
                         background: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-                        border:     isActive ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent',
+                        border:     isActive ? '1px solid rgba(255,255,255,0.15)' : '1px solid transparent',
                         color:      isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
                       }}
                     >
-                      <Circle
-                        size={dotSize}
-                        fill="currentColor"
-                        stroke="none"
-                      />
-                      <span className="text-[8px] font-bold uppercase">{w.label}</span>
+                      <div className="h-6 flex items-center justify-center w-full">
+                         <div 
+                           className="w-full mx-2 rounded-full transition-all" 
+                           style={{ 
+                             height: w.value, 
+                             background: 'currentColor',
+                             boxShadow: isActive ? `0 0 8px currentColor` : 'none',
+                             opacity: isActive ? 1 : 0.4
+                           }} 
+                         />
+                      </div>
+                      <span className="text-[8px] font-bold uppercase tracking-wider">{w.label}</span>
                     </button>
                   );
                 })}
@@ -344,27 +272,38 @@ const DrawTool = (props) => {
               {isLaser ? 'Laser Size' : 'Eraser Size'}
             </span>
             <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
-              {drawWidth}px
+              {isLaser ? laserWidth : drawWidth}px
             </span>
           </div>
           <div className="flex items-center gap-1">
             {WEIGHTS.map((w) => {
-              const isActive = drawWidth === w.value;
-              const dotSize  = Math.max(4, Math.min(18, 3 + w.value * 0.7));
+              const val = isLaser ? laserWidth : drawWidth;
+              const isActive = val === w.value;
+              const setter = isLaser ? setLaserWidth : setDrawWidth;
               return (
                 <button
                   key={w.id}
                   title={`${w.label} (${w.value}px)`}
-                  onClick={() => setDrawWidth(w.value)}
-                  className="flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all duration-150"
+                  onClick={() => setter(w.value)}
+                  className="flex-1 flex flex-col items-center gap-2 py-2.5 rounded-xl transition-all duration-150"
                   style={{
                     background: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
                     border:     isActive ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent',
                     color:      isActive ? (isLaser ? '#f43f5e' : 'var(--text-primary)') : 'var(--text-tertiary)',
                   }}
                 >
-                  <Circle size={dotSize} fill="currentColor" stroke="none" />
-                  <span className="text-[8px] font-bold uppercase">{w.label}</span>
+                  <div className="h-6 flex items-center justify-center w-full">
+                     <div 
+                       className="w-full mx-2 rounded-full transition-all" 
+                       style={{ 
+                         height: w.value, 
+                         background: 'currentColor',
+                         boxShadow: isActive && isLaser ? `0 0 10px #f43f5e` : (isActive ? '0 0 8px currentColor' : 'none'),
+                         opacity: isActive ? 1 : 0.4
+                       }} 
+                     />
+                  </div>
+                  <span className="text-[8px] font-bold uppercase tracking-wider">{w.label}</span>
                 </button>
               );
             })}

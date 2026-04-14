@@ -48,7 +48,7 @@ const ActionButtonBase = ({
   return (
     <div
       className="relative flex-shrink-0"
-      style={{ width: 36, height: 36 }}
+      style={{ width: 'var(--tool-size)', height: 'var(--tool-size)' }}
       onMouseEnter={() => {
         if (!disabled) {
           setIsHovered(true);
@@ -156,16 +156,19 @@ const ActionButtonBase = ({
             className={`absolute top-full mt-3 z-[9999] ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
             <div
-              className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl backdrop-blur-xl overflow-hidden"
+              className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden"
               style={{ boxShadow: '0 12px 48px rgba(0,0,0,0.3)' }}
               onMouseEnter={() => setIsMenuOpen(true)}
             >
-              {React.cloneElement(customSubmenu, {
-                onMouseLeave: () => {
-                  setIsHovered(false);
-                  setIsMenuOpen(false);
-                }
-              })}
+              {React.isValidElement(customSubmenu) 
+                ? React.cloneElement(customSubmenu, {
+                    onMouseLeave: () => {
+                      setIsHovered(false);
+                      setIsMenuOpen(false);
+                    }
+                  })
+                : customSubmenu
+              }
             </div>
           </motion.div>
         )}
@@ -197,7 +200,6 @@ const ActionButtonBase = ({
                       : 'var(--border-color)'
                   }`,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
-                backdropFilter: 'blur(8px)',
               }}
             >
               <span

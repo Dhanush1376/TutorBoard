@@ -197,7 +197,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="flex items-center gap-3 bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] px-5 py-2.5 rounded-2xl shadow-xl"
+              className="flex items-center gap-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] px-5 py-2.5 rounded-2xl shadow-xl"
             >
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               {normalizedDomain && DOMAIN_STYLES[normalizedDomain] && (
@@ -241,7 +241,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
                 className={`p-2.5 rounded-xl border transition-all ${
                   voiceEnabled
                     ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent'
-                    : 'bg-[var(--bg-secondary)]/80 backdrop-blur-xl border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
                 title={voiceEnabled ? 'Disable narration' : 'Enable narration'}
               >
@@ -251,7 +251,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
               {/* Close */}
               <button
                 onClick={onClose}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
+                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
               >
                 <X size={16} />
               </button>
@@ -267,7 +267,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
               transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
               className="relative z-10 ml-6 mt-6 max-w-sm"
             >
-              <div className="bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl p-5 shadow-2xl">
+              <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl p-5 shadow-2xl">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
                     Step {currentStep + 1}

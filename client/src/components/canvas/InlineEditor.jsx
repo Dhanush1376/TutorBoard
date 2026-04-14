@@ -26,6 +26,10 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
 
   if (!obj) return null;
 
+  const isPremiumText = obj.type === 'text' || obj.type === 'label' || obj.type === 'annotation' || obj.type === 'caption';
+  if (isPremiumText) return null; // PremiumTextBox handles its own editing state natively
+
+
   // Compute scaled coordinate metrics
   const cx = (obj.x ?? 0.5) * CW;
   const cy = (obj.y ?? 0.5) * CH;
@@ -79,15 +83,14 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
           />
         ) : (
           <div className="w-full h-full relative">
-            {/* Step 2: MS Paint Style Bounding Box (Dashed) */}
-            <div className="absolute inset-x-[-12px] inset-y-[-12px] pointer-events-none border-2 border-dashed border-cyan-500/50 rounded-lg animate-pulse z-0" />
+
             
             <textarea
               autoFocus
               value={localContent}
               onChange={(e) => handleChange(e.target.value)}
               onBlur={() => setEditingObjectId(null)}
-              className={`w-full h-full bg-transparent outline-none resize-none p-2 rounded-lg shadow-xl backdrop-blur-md transition-all relative z-10
+              className={`w-full h-full bg-transparent outline-none resize-none p-2 rounded-lg shadow-xl transition-all relative z-10
                 ${obj.type === 'code' ? 'font-mono' : 'font-sans'}`}
               style={{
                 fontSize: (obj.styles?.fontSize || 16) * Z,
@@ -121,91 +124,364 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
 }
 
 function CodeModalEditor({ obj, value, onChange, onClose }) {
+  const [language, setLanguage] = useState('javascript');
+  const [output, setOutput] = useState('');
+  const textareaRef = useRef(null);
+  const gutterRef = useRef(null);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [showOutput, setShowOutput] = useState(false);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+
+  // Sync scroll between textarea and gutter
+  const handleScroll = (e) => {
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = e.target.scrollTop;
+    }
+  };
+
+  // ─── DRAGGABLE STATE ───
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const dragRef = useRef(null);
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
+
+  const onDragStart = (e) => {
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+    isDragging.current = true;
+    dragStart.current = { x: e.clientX, y: e.clientY, px: pos.x, py: pos.y };
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+  };
+
+  const onDragMove = (e) => {
+    if (!isDragging.current) return;
+    setPos({
+      x: dragStart.current.px + (e.clientX - dragStart.current.x),
+      y: dragStart.current.py + (e.clientY - dragStart.current.y),
+    });
+  };
+
+  const onDragEnd = () => {
+    isDragging.current = false;
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+  };
+
+  // Line number computation
+  const lines = (value || '').split('\n');
+  const lineCount = Math.max(lines.length, 12);
+
+  const handleRun = () => {
+    setShowOutput(true);
+    try {
+      // Simulated output — in real app, this could call an API
+      setOutput(`> Running ${language}...\n> Compiled successfully.\n> Output: (sandbox execution not available)`);
+    } catch (err) {
+      setOutput(`Error: ${err.message}`);
+    }
+  };
+
+  const LANGUAGES = [
+    { id: 'javascript', label: 'JavaScript', ext: '.js' },
+    { id: 'python',     label: 'Python',     ext: '.py' },
+    { id: 'cpp',        label: 'C++',        ext: '.cpp' },
+    { id: 'java',       label: 'Java',       ext: '.java' },
+    { id: 'html',       label: 'HTML/CSS',   ext: '.html' },
+    { id: 'typescript', label: 'TypeScript', ext: '.ts' },
+    { id: 'rust',       label: 'Rust',       ext: '.rs' },
+    { id: 'go',         label: 'Go',         ext: '.go' },
+  ];
+
+  const activeLang = LANGUAGES.find(l => l.id === language) || LANGUAGES[0];
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md">
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="w-[85vw] h-[85vh] max-w-4xl bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col"
+    <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-transparent">
+      <motion.div
+        initial={{ scale: 0.92, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.92, opacity: 0, y: 20 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        className="flex flex-col overflow-hidden"
+        style={{
+          width: isMaximized ? 'min(98vw, 1200px)' : 'min(90vw, 620px)',
+          height: isMinimized ? '42px' : (isMaximized ? 'min(95vh, 800px)' : 'min(80vh, 480px)'),
+          borderRadius: 14,
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.03) inset',
+          transform: `translate(${pos.x}px, ${pos.y}px)`,
+          transition: 'width 0.3s cubic-bezier(0.16, 1, 0.3, 1), height 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-              <Code2 size={18} className="text-blue-400" />
+        {/* ═══ TITLE BAR (Draggable) ═══ */}
+        <div
+          ref={dragRef}
+          onMouseDown={onDragStart}
+          className="flex items-center justify-between px-3.5 py-2 border-b select-none"
+          style={{
+            cursor: isDragging.current ? 'grabbing' : 'grab',
+            borderColor: 'var(--border-color)',
+            background: 'var(--bg-tertiary)',
+          }}
+        >
+          {/* Traffic lights + Title */}
+          <div className="flex items-center gap-3 group/lights">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+                className="w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-[#ff3b30] transition-all border border-[#e14640]/40 shadow-[0_1px_2px_rgba(0,0,0,0.1)] active:scale-95 flex items-center justify-center group"
+                title="Close"
+              >
+                <X size={8} className="opacity-0 group-hover/lights:opacity-100 transition-opacity text-black/40 stroke-[4px]" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }}
+                className="w-3 h-3 rounded-full bg-[#febc2e] hover:bg-[#fdb119] transition-all border border-[#d79a1d]/40 shadow-[0_1px_2px_rgba(0,0,0,0.1)] active:scale-95 flex items-center justify-center" 
+                title={isMinimized ? "Restore" : "Minimize"} 
+              >
+                <div className="w-1.5 h-[1.5px] bg-black/40 opacity-0 group-hover/lights:opacity-100 transition-opacity" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsMaximized(!isMaximized); setIsMinimized(false); }}
+                className="w-3 h-3 rounded-full bg-[#28c840] hover:bg-[#20af35] transition-all border border-[#1fa233]/40 shadow-[0_1px_2px_rgba(0,0,0,0.1)] active:scale-95 flex items-center justify-center" 
+                title={isMaximized ? "Restore Size" : "Maximize"} 
+              >
+                <Maximize2 size={8} className="opacity-0 group-hover/lights:opacity-100 transition-opacity text-black/40 stroke-[4px]" />
+              </button>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-white tracking-wide uppercase">Code Editor</h3>
-              <p className="text-[10px] text-slate-500 font-mono">Editing: {obj.id}</p>
+
+            <div className="flex items-center gap-2 ml-2">
+              <Code2 size={14} style={{ color: 'var(--text-tertiary)' }} />
+              <span className="text-[11px] font-bold tracking-wide" style={{ color: 'var(--text-secondary)' }}>
+                untitled{activeLang.ext}
+              </span>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-             <select className="bg-slate-800 text-slate-300 text-xs px-3 py-1.5 rounded-md outline-none border border-slate-700">
-               <option>JavaScript</option>
-               <option>Python</option>
-               <option>C++</option>
-               <option>Java</option>
-               <option>HTML/CSS</option>
-             </select>
-             <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-lg transition text-slate-400 hover:text-white">
-               <X size={20} />
-             </button>
+
+          {/* Custom Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+              className="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border"
+              style={{
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-color)',
+              }}
+            >
+              {activeLang.label}
+              <ChevronRight size={10} className={`transform transition-transform ${showLanguageMenu ? 'rotate-90' : 'rotate-0'}`} />
+            </button>
+            
+            <AnimatePresence>
+              {showLanguageMenu && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                  className="absolute top-full right-0 mt-2 z-[7000] p-1.5 rounded-xl shadow-2xl border"
+                  style={{
+                    background: 'var(--bg-primary)',
+                    borderColor: 'var(--border-color)',
+                    minWidth: '140px'
+                  }}
+                >
+                  {LANGUAGES.map(lang => (
+                    <button
+                      key={lang.id}
+                      onClick={() => { setLanguage(lang.id); setShowLanguageMenu(false); }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--bg-secondary)] transition-colors"
+                      style={{ color: language === lang.id ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
+                    >
+                      {lang.label}
+                      {language === lang.id && <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)]" />}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Editor Body - Step 4: Split View */}
-        <div className="flex-1 flex overflow-hidden">
+        {/* ═══ EDITOR BODY ═══ */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          {/* Line Numbers Gutter */}
+          <div
+            ref={gutterRef}
+            className="flex flex-col items-end py-4 pr-3 pl-3 select-none overflow-hidden"
+            style={{
+              background: 'var(--bg-tertiary)',
+              borderRight: '1px solid var(--border-color)',
+              minWidth: 48,
+            }}
+          >
+            {Array.from({ length: lineCount }).map((_, i) => (
+              <div
+                key={i}
+                className="leading-[1.7] text-right"
+                style={{
+                  fontSize: 12,
+                  fontFamily: "'Geist Mono', 'Fira Code', 'JetBrains Mono', monospace",
+                  color: i < lines.length
+                    ? 'var(--text-tertiary)'
+                    : 'transparent',
+                  opacity: i < lines.length ? 0.5 : 0,
+                }}
+              >
+                {i + 1}
+              </div>
+            ))}
+          </div>
+
+          {/* Code Textarea */}
           <textarea
+            ref={textareaRef}
             autoFocus
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="flex-1 bg-[#0a0f1d] p-8 font-mono text-sm leading-relaxed text-blue-100 outline-none resize-none scrollbar-thin border-r border-slate-800"
+            onScroll={handleScroll}
+            className="flex-1 outline-none resize-none p-4 overflow-auto scroll-smooth"
             placeholder="// Start coding here..."
             spellCheck={false}
+            style={{
+              background: 'var(--bg-primary)',
+              color: 'var(--text-primary)',
+              fontFamily: "'Geist Mono', 'Fira Code', 'JetBrains Mono', monospace",
+              fontSize: 12,
+              lineHeight: 1.6,
+              letterSpacing: '0.01em',
+              caretColor: '#60a5fa',
+              tabSize: 4,
+            }}
+            onKeyDown={(e) => {
+              // Tab support
+              if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                const newVal = value.substring(0, start) + '  ' + value.substring(end);
+                onChange(newVal);
+                setTimeout(() => {
+                  e.target.selectionStart = e.target.selectionEnd = start + 2;
+                }, 0);
+              }
+            }}
           />
-          
-          {/* Visual Execution Pane */}
-          <div className="w-[350px] bg-slate-950 flex flex-col">
-            <div className="p-4 border-b border-slate-800 flex items-center gap-2">
-               <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Visual Output</span>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
-               <div className="w-32 h-32 rounded-full border-2 border-dashed border-slate-800 flex items-center justify-center relative">
-                  <Wand2 size={40} className="text-slate-800 absolute opacity-20" />
-                  <motion.div 
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                    className="absolute inset-0 border-t-2 border-cyan-500/40 rounded-full"
-                  />
-               </div>
-               <p className="text-[11px] text-slate-600 font-medium">Click "Visualize" below to start the step-by-step code animation.</p>
-            </div>
-          </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/50 flex items-center justify-between">
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/40 transition group">
-              <Play size={14} className="fill-white" />
-              <span>RUN CODE</span>
-            </button>
-            <button className="flex items-center gap-2 px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition">
-              <Terminal size={14} />
-              <span>VISUALIZE</span>
-            </button>
+        {/* ═══ TERMINAL OUTPUT (Collapsible) ═══ */}
+        <AnimatePresence>
+          {showOutput && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 120, opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden border-t"
+              style={{ borderColor: 'var(--border-color)' }}
+            >
+              <div className="h-full flex flex-col" style={{ background: 'var(--bg-tertiary)' }}>
+                <div className="flex items-center justify-between px-3 py-1.5 border-b"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Terminal size={11} style={{ color: 'var(--text-tertiary)' }} />
+                    <span className="text-[9px] font-bold uppercase tracking-widest"
+                      style={{ color: 'var(--text-tertiary)' }}
+                    >
+                      Terminal Output
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowOutput(false)}
+                    className="p-0.5 rounded transition-colors"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <pre
+                  className="flex-1 p-3 overflow-auto text-[11px] leading-relaxed"
+                  style={{
+                    fontFamily: "'Geist Mono', monospace",
+                    color: 'var(--text-secondary)',
+                    margin: 0,
+                  }}
+                >
+                  {output || '> Waiting for execution...'}
+                </pre>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ═══ FOOTER STATUS BAR ═══ */}
+        <div
+          className="flex items-center justify-between px-4 py-2 border-t"
+          style={{
+            borderColor: 'var(--border-color)',
+            background: 'var(--bg-tertiary)',
+          }}
+        >
+          {/* Left: Status indicators */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+                Ready
+              </span>
+            </div>
+            <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
+              Ln {lines.length}, Col {(value || '').length > 0 ? value.split('\n').pop().length + 1 : 1}
+            </span>
+            <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
+              {(value || '').length} chars
+            </span>
           </div>
 
-          <button 
-            onClick={onClose}
-            className="flex items-center gap-2 px-6 py-2 bg-slate-200 hover:bg-white text-slate-900 text-xs font-bold rounded-xl transition"
-          >
-            <Save size={14} />
-            <span>SAVE & FINISH</span>
-          </button>
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRun}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 border"
+              style={{
+                background: '#10b981',
+                color: '#fff',
+                borderColor: '#059669',
+                boxShadow: '0 2px 8px rgba(16,185,129,0.15)',
+              }}
+            >
+              <Play size={10} className="fill-white" strokeWidth={3} />
+              Run
+            </button>
+
+            <button
+              onClick={() => setShowOutput(!showOutput)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border"
+              style={{
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-color)',
+              }}
+            >
+              <Terminal size={10} strokeWidth={3} />
+              Terminal
+            </button>
+
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border shadow-md"
+              style={{
+                background: 'var(--text-primary)',
+                color: 'var(--bg-primary)',
+                borderColor: 'var(--text-primary)',
+              }}
+            >
+              <Save size={10} strokeWidth={3} />
+              Save
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

@@ -5,7 +5,7 @@ const Loader = ({ fullScreen = true, autoFade = false, glass = false, className 
     <div 
       className={`flex flex-col items-center justify-center 
         ${fullScreen ? "h-screen w-full" : "w-full py-8"} 
-        ${glass ? "fixed inset-0 z-[999] backdrop-blur-2xl bg-[var(--bg-primary)]/45" : "bg-[var(--bg-primary)]"}
+        ${glass ? "fixed inset-0 z-[999] bg-[var(--bg-primary)]" : "bg-[var(--bg-primary)]"}
         ${autoFade ? "loader-fade" : ""} 
         ${className}`}
     >

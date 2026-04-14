@@ -19,7 +19,7 @@ class BoardErrorBoundary extends Component {
     if (this.state.hasError) {
       return (
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full mx-6 shadow-2xl text-center">
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full mx-6 shadow-2xl text-center">
             <div className="text-4xl mb-4">⚠️</div>
             <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Renderer Error</h3>
             <p className="text-sm text-[var(--text-secondary)] mb-4">The visualization encountered an issue. Try a different query.</p>
@@ -99,7 +99,7 @@ const QuizRenderer = ({ stepData }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-[var(--bg-secondary)]/90 backdrop-blur-3xl border border-[var(--border-color)] rounded-[2.5rem] p-10 max-w-xl w-[500px] shadow-2xl pointer-events-auto cursor-grab active:cursor-grabbing"
+        className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[2.5rem] p-10 max-w-xl w-[500px] shadow-2xl pointer-events-auto cursor-grab active:cursor-grabbing"
       >
         <div className="flex justify-center mb-6 drag-handle">
            <span className="px-4 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-2">
@@ -164,7 +164,7 @@ const ProcessRenderer = ({ steps, currentStep }) => {
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col items-center w-full"
             >
-              <div className={`relative flex flex-col items-center gap-2 px-8 py-5 rounded-[24px] border border-[var(--border-color)] transition-all duration-500 max-w-[400px] text-center ${isActive ? 'bg-[var(--bg-secondary)]/90 shadow-[0_30px_60px_rgba(0,0,0,0.15)] scale-105 z-20 border-[var(--text-tertiary)]' : 'bg-[var(--bg-secondary)]/40 text-[var(--text-secondary)] backdrop-blur-xl z-10 opacity-70 scale-95'}`}>
+              <div className={`relative flex flex-col items-center gap-2 px-8 py-5 rounded-[24px] border border-[var(--border-color)] transition-all duration-500 max-w-[400px] text-center ${isActive ? 'bg-[var(--bg-secondary)] shadow-[0_30px_60px_rgba(0,0,0,0.15)] scale-105 z-20 border-[var(--text-tertiary)]' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] z-10 opacity-70 scale-95'}`}>
                 
                 <div className="flex items-center justify-center gap-3 w-full">
                   <span className={`text-2xl transition-transform duration-500 ${isActive ? 'scale-110 text-[var(--text-primary)]' : 'opacity-60'}`}>{getIcon(step.icon || step.type)}</span>

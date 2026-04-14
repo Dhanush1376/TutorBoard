@@ -46,10 +46,10 @@ const LeftPanel = ({
           <div className="sticky top-0 bg-[var(--bg-primary)] z-10 pt-0 pb-2.5">
             <button
               onClick={() => { setActiveView('history'); }}
-              className="flex items-center gap-1.5 px-0.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
+              className="flex items-center gap-1.5 px-0.5 py-1 text-[12px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
             >
-              <ChevronLeft size={13} strokeWidth={3.5} className="text-[10px] font-bold uppercase tracking-[0.15em] px-0.5 text-[var(--text-tertiary)]" />
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">All Sessions</p>
+              <ChevronLeft size={14} strokeWidth={3.5} className="text-[12px] font-bold uppercase tracking-[0.15em] px-0.5 text-[var(--text-tertiary)]" />
+              <p className="text-[12px] font-bold uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">All Sessions</p>
             </button>
           </div>
           <ChatWindow
@@ -165,7 +165,7 @@ const LeftPanel = ({
         <div className="px-5 pt-5 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <VisaiLogo size="xs" className="text-[var(--text-primary)]" />
-            <span className="text-[14px] font-black uppercase tracking-[0.25em] text-[var(--text-primary)]">
+            <span className="text-[16px] font-black uppercase tracking-[0.25em] text-[var(--text-primary)]">
               TutorBoard
             </span>
           </div>
@@ -187,7 +187,7 @@ const LeftPanel = ({
               {/* 1. New Chat (Primary Action) */}
               <button
                 onClick={() => { onNewChat(); setActiveView('chat'); }}
-                className="flex items-center gap-3 w-full px-4 py-3 text-[14px] font-semibold bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-[20px] shadow-sm hover:opacity-95 active:scale-[0.97] transition-all group"
+                className="flex items-center gap-3 w-full px-4 py-3 text-[16px] font-semibold bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-[20px] shadow-sm hover:opacity-95 active:scale-[0.97] transition-all group"
               >
                 <div className="p-1.5 bg-[var(--bg-primary)]/15 rounded-xl border border-transparent group-hover:border-[var(--bg-primary)]/20 transition-all">
                   <Plus size={16} strokeWidth={3.5} />
@@ -258,7 +258,7 @@ const LeftPanel = ({
         {showSettings && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40"
           >
             {/* Modal Container */}
             <motion.div
@@ -268,9 +268,7 @@ const LeftPanel = ({
               transition={{ type: "spring", bounce: 0, duration: 0.4 }}
               className="w-full max-w-md bg-[var(--bg-primary)] border border-[var(--glass-border)] rounded-[24px] shadow-2xl overflow-hidden"
               style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(24px) saturate(1.8)',
-                WebkitBackdropFilter: 'blur(24px) saturate(1.8)',
+                background: 'var(--bg-secondary)',
               }}
             >
               <div className="flex items-center justify-between p-6 border-b border-[var(--border-color)]">

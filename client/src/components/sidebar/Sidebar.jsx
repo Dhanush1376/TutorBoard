@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ChatHistory from './ChatHistory';
-import { Plus, Search, MessageSquare, Library, PanelLeftClose, Settings, Send, BookOpen, Lightbulb, HelpCircle, Activity, Layers, ChevronDown } from 'lucide-react';
+import { Plus, Search, MessageSquare, PanelLeftClose, Settings, Send, BookOpen, Lightbulb, HelpCircle, Activity, Layers, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Sidebar = ({ 
@@ -48,7 +48,7 @@ const Sidebar = ({
   ];
 
   const handleNewChatOption = (mode) => {
-    onNewChat(mode); // Passing mode if backend supports it
+    onNewChat(mode);
     setActiveView('chat');
     setIsDropdownOpen(false);
   };
@@ -57,7 +57,7 @@ const Sidebar = ({
     <div className="flex flex-col h-full text-[var(--text-primary)] transition-colors duration-300 font-sans min-h-0 bg-[var(--bg-primary)]">
       
       {/* ─── 1. FIXED TOP SECTION ─── */}
-      <div className="flex-shrink-0 z-20 bg-[var(--bg-primary)]/80 backdrop-blur-xl border-b border-[var(--border-color)]">
+      <div className="flex-shrink-0 z-20 bg-[var(--bg-primary)] border-b border-[var(--border-color)]">
         {/* Branding Header */}
         <div className="p-4 pb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ const Sidebar = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -5, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute left-0 right-0 top-full mt-2 bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-xl shadow-xl overflow-hidden z-[100] border-t-0 p-1"
+                  className="absolute left-0 right-0 top-full mt-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-xl overflow-hidden z-[100] border-t-0 p-1"
                 >
                   {newChatOptions.map((option) => (
                     <button 
@@ -250,7 +250,7 @@ const Sidebar = ({
       </div>
 
       {/* ─── 3. FIXED BOTTOM SECTION ─── */}
-      <div className="flex-shrink-0 bg-[var(--bg-primary)]/80 backdrop-blur-xl border-t border-[var(--border-color)] p-3">
+      <div className="flex-shrink-0 bg-[var(--bg-primary)] border-t border-[var(--border-color)] p-3">
         <div className="relative flex flex-col gap-2">
           <div className="relative flex items-center bg-[var(--bg-tertiary)] border border-transparent rounded-2xl shadow-sm focus-within:border-[var(--border-strong)] transition-all pr-2 pl-1 group/input">
             <textarea 

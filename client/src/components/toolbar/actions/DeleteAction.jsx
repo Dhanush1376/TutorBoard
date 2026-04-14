@@ -5,7 +5,8 @@ import {
   Pencil, 
   StickyNote,
   Eraser,
-  Hammer
+  Hammer,
+  Square,
 } from 'lucide-react';
 import { motion, useAnimation } from 'framer-motion';
 import useTutorStore from '../../../store/tutorStore';
@@ -84,7 +85,13 @@ const HoldToConfirmButton = ({ onConfirm }) => {
 };
 
 const DeleteAction = (props) => {
-  const { clearAll, clearDrawings, clearNotes } = useTutorStore();
+  const { clearAll, clearDrawings, clearNotes, clearShapes } = useTutorStore();
+  const [successId, setSuccessId] = React.useState(null);
+
+  const triggerFeedback = (id) => {
+    setSuccessId(id);
+    setTimeout(() => setSuccessId(null), 1500);
+  };
 
   const Submenu = (
     <div className="flex flex-col gap-4 p-4" style={{ minWidth: 240 }}>
@@ -95,22 +102,41 @@ const DeleteAction = (props) => {
           <button
             onClick={() => {
               clearDrawings();
-              props.onMouseLeave?.();
+              triggerFeedback('drawings');
             }}
-            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group"
+            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group w-full"
           >
-            <Pencil size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
-            <span className="text-xs font-medium text-[var(--text-primary)]">Clean Drawings</span>
+            <div className="flex items-center gap-2.5">
+              <Pencil size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
+              <span className="text-xs font-medium text-[var(--text-primary)]">Clean Drawings</span>
+            </div>
+            {successId === 'drawings' && <div className="text-[9px] font-bold text-green-500 uppercase">Cleared</div>}
           </button>
           <button
             onClick={() => {
               clearNotes();
-              props.onMouseLeave?.();
+              triggerFeedback('notes');
             }}
-            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group"
+            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group w-full"
           >
-            <StickyNote size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
-            <span className="text-xs font-medium text-[var(--text-primary)]">Clear All Notes</span>
+            <div className="flex items-center gap-2.5">
+              <StickyNote size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
+              <span className="text-xs font-medium text-[var(--text-primary)]">Clear All Notes</span>
+            </div>
+            {successId === 'notes' && <div className="text-[9px] font-bold text-green-500 uppercase">Cleared</div>}
+          </button>
+          <button
+            onClick={() => {
+              clearShapes();
+              triggerFeedback('shapes');
+            }}
+            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group w-full"
+          >
+            <div className="flex items-center gap-2.5">
+              <Square size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
+              <span className="text-xs font-medium text-[var(--text-primary)]">Clean Geometry</span>
+            </div>
+            {successId === 'shapes' && <div className="text-[9px] font-bold text-green-500 uppercase">Cleared</div>}
           </button>
         </div>
       </div>

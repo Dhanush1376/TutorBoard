@@ -46,7 +46,7 @@ const LoginNavbar = () => {
 
     return (
         <>
-        <nav className="fixed top-0 left-0 right-0 z-[100] border-b border-[var(--border-color)] bg-[var(--bg-primary)]/80 backdrop-blur-xl">
+        <nav className="fixed top-0 left-0 right-0 z-[100] border-b border-[var(--border-color)] bg-[var(--bg-primary)]">
             <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-20 py-4 flex items-center justify-between font-sans">
                 {/* Logo Area */}
                 <Link to="/" className="flex items-center gap-3 group">
@@ -137,7 +137,7 @@ const LoginNavbar = () => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={toggleMenu}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] lg:hidden"
+                        className="fixed inset-0 bg-black/60 z-[100] lg:hidden"
                     />
                     <motion.aside
                         initial={{ x: '100%' }}

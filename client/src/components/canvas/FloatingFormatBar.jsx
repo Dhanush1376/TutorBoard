@@ -1,12 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Pin, Trash2, Code2, Sigma, Highlighter } from 'lucide-react';
+import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Pin, Trash2, Code2, Sigma } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
+import { PRESET_COLORS } from '../toolbar/components/ColorPicker';
 
-const PRESET_COLORS = [
-  '#e5e5e5', '#6366f1', '#10b981', '#f43f5e', 
-  '#f59e0b', '#38bdf8', '#a78bfa', '#a3e635'
-];
+
 
 const FONTS = [
   { id: "'Inter', sans-serif", label: "Inter" },
@@ -49,7 +47,6 @@ export default function FloatingFormatBar({ element, updateCanvasObject }) {
       style={{
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-color)',
-        backdropFilter: 'blur(10px)',
       }}
       onPointerDown={(e) => e.stopPropagation()} // Prevent canvas dragging
     >
@@ -124,50 +121,22 @@ export default function FloatingFormatBar({ element, updateCanvasObject }) {
         })}
       </div>
 
-      <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
-
-      {/* Highlighter Button */}
-      <button 
-        onClick={() => {
-          const defaultHighlight = styles.backgroundColor === '#fef08a' ? 'transparent' : '#fef08a'; // Default yellow
-          handleStyleUpdate({ backgroundColor: defaultHighlight });
-        }}
-        className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition"
-        style={{ background: styles.backgroundColor && styles.backgroundColor !== 'transparent' ? 'rgba(251,191,36,0.15)' : 'transparent' }}
-        title="Highlight"
-      >
-        <Highlighter size={14} color={styles.backgroundColor && styles.backgroundColor !== 'transparent' ? "#fbbf24" : "var(--text-primary)"} />
-      </button>
 
       <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
 
-      {/* Basic Color Palette */}
+      {/* Basic Color Palette — synced with shared ColorPicker */}
       <div className="flex flex-col gap-1 px-1">
-        <div className="flex gap-1">
-          {PRESET_COLORS.slice(0, 4).map(color => (
+        <div className="flex gap-1 flex-wrap">
+          {PRESET_COLORS.filter(c => c.id !== 'default').slice(0, 6).map(preset => (
             <button 
-              key={color}
-              onClick={() => handleUpdate({ color })}
+              key={preset.id}
+              onClick={() => handleUpdate({ color: preset.value })}
               className="w-3.5 h-3.5 rounded-full border border-gray-600 transition hover:scale-110"
               style={{ 
-                background: color,
-                boxShadow: element.color === color ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${color}` : 'none'
+                background: preset.value,
+                boxShadow: element.color === preset.value ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${preset.value}` : 'none'
               }}
-              title="Text Color"
-            />
-          ))}
-        </div>
-        <div className="flex gap-1">
-          {['#fef08a', '#bbf7d0', '#bfdbfe', '#fecaca'].map(color => (
-            <button 
-              key={color}
-              onClick={() => handleStyleUpdate({ backgroundColor: styles.backgroundColor === color ? 'transparent' : color })}
-              className="w-3.5 h-3.5 rounded border border-gray-600 transition hover:scale-110"
-              style={{ 
-                background: color,
-                boxShadow: styles.backgroundColor === color ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${color}` : 'none'
-              }}
-              title="Highlight Color"
+              title={preset.label}
             />
           ))}
         </div>

@@ -348,14 +348,57 @@ const InfiniteCanvas = memo(React.forwardRef(({
         if (containerRef.current) containerRef.current.style.cursor = 'grab';
       }
       const container = containerRef.current;
-      if (!container) return;
+      if (!container || isCanvasLocked) return;
       const rect = container.getBoundingClientRect();
       const cx = rect.width / 2 + rect.left;
       const cy = rect.height / 2 + rect.top;
-      switch (e.key) {
-        case '+': case '=': e.preventDefault(); zoomAtPoint(-150, cx, cy); break;
-        case '-': case '_': e.preventDefault(); zoomAtPoint(150, cx, cy); break;
-        case '0': e.preventDefault(); commitTransform({ x: 0, y: 0, scale: 1 }); break;
+
+      // M5 FIX: Only allow canvas-specific shortcuts (F/R) when no interactive tool is active
+      // to avoid conflicts with tool shortcuts (R = ShapeTool, G = GridTool, etc.)
+      const currentTool = useTutorStore.getState().activeTool;
+      const isNavigationTool = currentTool === 'hand' || currentTool === 'select';
+
+      switch (e.key.toLowerCase()) {
+        case '+': case '=': 
+          if (e.metaKey || e.ctrlKey) {
+            e.preventDefault(); 
+            zoomIn(); 
+          } else {
+            e.preventDefault(); 
+            zoomAtPoint(-150, cx, cy); 
+          }
+          break;
+        case '-': case '_': 
+          if (e.metaKey || e.ctrlKey) {
+            e.preventDefault(); 
+            zoomOut(); 
+          } else {
+            e.preventDefault(); 
+            zoomAtPoint(150, cx, cy); 
+          }
+          break;
+        case '0': 
+          e.preventDefault(); 
+          if (e.metaKey || e.ctrlKey) {
+            resetView();
+          } else {
+            commitTransform({ x: 0, y: 0, scale: 1 }); 
+          }
+          break;
+        case 'f':
+          // Only fit-to-content when using navigation tools or with Ctrl
+          if (isNavigationTool || e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            fitToContent();
+          }
+          break;
+        case 'r':
+          // Only reset view when using navigation tools or with Ctrl — avoids conflict with ShapeTool 'R' shortcut
+          if (isNavigationTool || e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            resetView();
+          }
+          break;
       }
     };
     const handleKeyUp = (e) => {
@@ -384,6 +427,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── Public methods via ref ───
   const zoomIn = useCallback(() => {
+    if (isCanvasLocked) return;
     const t = transformRef.current;
     const newScale = Math.min(MAX_ZOOM, t.scale * 1.3);
     const container = containerRef.current;
@@ -404,6 +448,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }, [applyTransform, commitTransform]);
 
   const zoomOut = useCallback(() => {
+    if (isCanvasLocked) return;
     const t = transformRef.current;
     const newScale = Math.max(MIN_ZOOM, t.scale / 1.3);
     const container = containerRef.current;
@@ -424,6 +469,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }, [applyTransform, commitTransform]);
 
   const resetView = useCallback(() => {
+    if (isCanvasLocked) return;
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -437,6 +483,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }, [applyTransform, commitTransform]);
 
   const fitToContent = useCallback((cw = 800, ch = 600) => {
+    if (isCanvasLocked) return;
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -454,6 +501,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }, [applyTransform, commitTransform]);
 
   const centerOn = useCallback((wx, wy, zoom = null) => {
+    if (isCanvasLocked) return;
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();

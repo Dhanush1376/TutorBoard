@@ -98,6 +98,12 @@ const resolve = (name) => {
   return { stroke: s, fill: s, glass: s + "33", text: "#f8fafc", glow: s };
 };
 
+const getStrokeDash = (strokeStyle) => {
+  if (strokeStyle === 'dotted') return "2 4";
+  if (strokeStyle === 'dashed') return "6 4";
+  return "none";
+};
+
 /**
  * Derives rich note colors (tape, ruled lines) from a base background color.
  */
@@ -278,15 +284,7 @@ const AW = ({
       }}
     >
       {/* Selection Border */}
-      {isSelected && (
-        <rect 
-          x={-w / 2 - 12} y={-h / 2 - 12} 
-          width={w + 24} height={h + 24} 
-          fill="none" stroke="#22d3ee" 
-          strokeWidth={2} strokeDasharray="4 2" rx={12}
-          pointerEvents="none"
-        />
-      )}
+
 
       {/* Main Content */}
       <g style={{ pointerEvents: onUpdate ? "visiblePainted" : "auto" }}>
@@ -395,7 +393,7 @@ export const GlassRect = ({
   attentionLevel,
   layoutId,
   animation,
-  dashed,
+  strokeStyle = "solid",
   fill = "none",
   isSelected,
   onUpdate,
@@ -431,8 +429,8 @@ export const GlassRect = ({
         fill={getFill()}
         stroke={c.stroke}
         strokeWidth={attentionLevel === 2 ? 2.5 : 1.5}
-        strokeDasharray={dashed ? "6 4" : "none"}
-        style={fill === "glass" ? { backdropFilter: "blur(4px)" } : {}}
+        strokeDasharray={getStrokeDash(strokeStyle)}
+        style={fill === "glass" ? {} : {}}
         filter="url(#tb-drop-shadow)"
       />
       {label && (
@@ -461,7 +459,7 @@ export const GlassEllipse = ({
   attentionLevel,
   layoutId,
   animation,
-  dashed,
+  strokeStyle = "solid",
   fill = "none",
 }) => {
   const c = resolve(color);
@@ -484,8 +482,8 @@ export const GlassEllipse = ({
         fill={getFill()}
         stroke={c.stroke}
         strokeWidth={attentionLevel === 2 ? 2.5 : 1.5}
-        strokeDasharray={dashed ? "6 4" : "none"}
-        style={fill === "glass" ? { backdropFilter: "blur(4px)" } : {}}
+        strokeDasharray={getStrokeDash(strokeStyle)}
+        style={fill === "glass" ? {} : {}}
         filter="url(#tb-drop-shadow)"
       />
       {label && (
@@ -513,7 +511,7 @@ export const FlowArrow = ({
   label,
   attentionLevel,
   layoutId,
-  dashed,
+  strokeStyle = "solid",
   animation,
 }) => {
   const c = resolve(color);
@@ -549,7 +547,7 @@ export const FlowArrow = ({
         y2={y2 - my}
         stroke={c.stroke}
         strokeWidth={2.5}
-        strokeDasharray={dashed ? "6 4" : "none"}
+        strokeDasharray={getStrokeDash(strokeStyle)}
         markerEnd={`url(#${mid})`}
         initial={animation?.type === "draw" ? { pathLength: 0 } : {}}
         animate={animation?.type === "draw" ? { pathLength: 1 } : {}}
@@ -576,7 +574,7 @@ export const RawLine = ({
   label,
   attentionLevel,
   layoutId,
-  dashed = false,
+  strokeStyle = "solid",
   animation,
 }) => {
   const c = resolve(color);
@@ -597,7 +595,7 @@ export const RawLine = ({
         y2={y2 - my}
         stroke={c.stroke}
         strokeWidth={2}
-        strokeDasharray={dashed ? "6 4" : "none"}
+        strokeDasharray={getStrokeDash(strokeStyle)}
         initial={animation?.type === "draw" ? { pathLength: 0 } : {}}
         animate={animation?.type === "draw" ? { pathLength: 1 } : {}}
         transition={{
@@ -757,7 +755,7 @@ export const CodePanel = ({
         }
         stroke={c.stroke}
         strokeWidth={attentionLevel === 2 ? 1.5 : 0.5}
-        style={{ backdropFilter: "blur(4px)" }}
+        style={{}}
       />
       <foreignObject
         x={-w / 2 + 12}
@@ -844,7 +842,6 @@ export const SwapBridge = ({
         fill="none"
         stroke={c.stroke}
         strokeWidth={3}
-        strokeDasharray="5 4"
         animate={attentionLevel === 2 ? { strokeDashoffset: [0, -18] } : {}}
         transition={{ duration: 0.6, repeat: Infinity, ease: "linear" }}
       />
@@ -1052,7 +1049,7 @@ export const GeometryPolygon = ({
   attentionLevel,
   layoutId,
   animation,
-  dashed,
+  strokeStyle = "solid",
   fill = "none",
 }) => {
   const c = resolve(color);
@@ -1083,8 +1080,7 @@ export const GeometryPolygon = ({
         fill={getFill()}
         stroke={c.stroke}
         strokeWidth={attentionLevel === 2 ? 3 : 2}
-        strokeDasharray={dashed ? "6 4" : "none"}
-        style={fill === "glass" ? { backdropFilter: "blur(4px)" } : {}}
+        style={fill === "glass" ? {} : {}}
       />
       {label && (
         <text
@@ -1129,7 +1125,7 @@ export const EquationBlock = ({
   useEffect(() => {
     if (containerRef.current && text) {
       try {
-        katex.render(text, containerRef.current, {
+        katex.render(text || "\\text{Type LaTeX here...}", containerRef.current, {
           throwOnError: false,
           displayMode: true,
         });
@@ -1157,7 +1153,7 @@ export const EquationBlock = ({
         stroke={c.stroke}
         strokeWidth={attentionLevel === 2 ? 2.5 : 1}
         filter={attentionLevel === 2 ? "url(#tb-neon-glow)" : "none"}
-        style={{ backdropFilter: "blur(8px)" }}
+        style={{}}
       />
       <foreignObject
         x={-w / 2 + 10}
@@ -1224,7 +1220,6 @@ export const TreeNode = ({
           fill="none"
           stroke={c.glow}
           strokeWidth={1.5}
-          strokeDasharray="3 3"
         >
           <animateTransform
             attributeName="transform"
@@ -1339,7 +1334,6 @@ export const VennCircle = ({
         fill={attentionLevel === 2 ? `${c.fill}44` : `${c.fill}22`}
         stroke={c.stroke}
         strokeWidth={attentionLevel === 2 ? 3 : 2}
-        strokeDasharray={attentionLevel === 0 ? "6 6" : "none"}
       />
       {label && (
         <text
@@ -1359,7 +1353,7 @@ export const VennCircle = ({
 /**
  * EllipseShape — Smooth circular/elliptical primitive
  */
-export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, dashed, isSelected, onUpdate, onDelete, rotation }) => {
+export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y} 
@@ -1367,7 +1361,6 @@ export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
       <ellipse 
         rx={Math.max(2, w / 2)} ry={Math.max(2, h / 2)} 
         fill={c.glass} stroke={c.stroke} strokeWidth={2} 
-        strokeDasharray={dashed ? "6 4" : "none"}
       />
       {label && <text y={h/2 + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1377,7 +1370,7 @@ export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
 /**
  * DiamondShape — Rotated square primitive
  */
-export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, dashed, isSelected, onUpdate, onDelete, rotation }) => {
+export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const dw = w / 2;
   const dh = h / 2;
@@ -1387,7 +1380,6 @@ export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
       <polygon 
         points={pts} fill={c.glass} stroke={c.stroke} strokeWidth={2} 
-        strokeDasharray={dashed ? "6 4" : "none"}
       />
       {label && <text y={dh + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1397,7 +1389,7 @@ export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
 /**
  * StarShape — 5-pointed star primitive
  */
-export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, dashed, isSelected, onUpdate, onDelete, rotation }) => {
+export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const rOuter = Math.min(w, h) / 2;
   const rInner = rOuter * 0.4;
@@ -1412,7 +1404,6 @@ export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animati
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
       <polygon 
         points={points.join(" ")} fill={c.glass} stroke={c.stroke} strokeWidth={2} 
-        strokeDasharray={dashed ? "6 4" : "none"}
       />
       {label && <text y={rOuter + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1422,7 +1413,7 @@ export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animati
 /**
  * HexagonShape — 6-sided geometric primitive
  */
-export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, dashed, isSelected, onUpdate, onDelete, rotation }) => {
+export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const rw = w / 2;
   const rh = h / 2;
@@ -1436,7 +1427,6 @@ export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
       <polygon 
         points={points.join(" ")} fill={c.glass} stroke={c.stroke} strokeWidth={2} 
-        strokeDasharray={dashed ? "6 4" : "none"}
       />
       {label && <text y={rh + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1457,7 +1447,7 @@ export const CalloutShape = ({
   animation,
   label,
   content,
-  dashed,
+  strokeStyle = "solid",
   isSelected,
   onUpdate,
   onDelete,
@@ -1496,8 +1486,7 @@ export const CalloutShape = ({
         fill={c.glass}
         stroke={c.stroke}
         strokeWidth={2}
-        strokeDasharray={dashed ? "6 4" : "none"}
-        style={{ backdropFilter: "blur(8px)" }}
+        style={{}}
       />
       
       {/* Wrapped Text Content */}
@@ -1533,7 +1522,7 @@ export const CalloutShape = ({
 /**
  * CloudShape — Cloud-like bubble primitive
  */
-export const CloudShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, dashed, isSelected, onUpdate, onDelete, rotation }) => {
+export const CloudShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const rw = w / 2;
   const rh = h / 2;
@@ -1979,7 +1968,6 @@ export const StickyNoteShape = ({
           fill="none"
           stroke="#3b82f6"
           strokeWidth={2}
-          strokeDasharray="4 4"
         />
       )}
 
@@ -2026,7 +2014,7 @@ export const StickyNoteShape = ({
           rx={2}
           fill={col.tape}
           opacity={0.55}
-          style={{ backdropFilter: 'blur(2px)' }}
+          style={{}}
         />
         {/* Tape Texture (Repeating Stripes) */}
         <defs>
@@ -2056,7 +2044,7 @@ export const StickyNoteShape = ({
           ref={textAreaRef}
           value={label}
           onChange={handleTextChange}
-          placeholder="Write here..."
+          placeholder="// Type here..."
           onFocus={() => setCanvasLocked(true)}
           onBlur={() => setCanvasLocked(false)}
           style={{

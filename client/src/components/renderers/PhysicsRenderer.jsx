@@ -90,7 +90,7 @@ export default function PhysicsRenderer({ timeline, currentStepIndex, elements: 
         return (
           <motion.div {...common} className="flex flex-col items-center justify-center pointer-events-none" style={{ transform: 'translate(-50%, -50%)' }}>
             <div className="w-8 h-8 rounded-full shadow-[0_0_15px_currentColor]" style={{ backgroundColor: obj.color || '#ef4444', color: obj.color || '#ef4444' }} />
-            {obj.label && <span className="mt-2 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-[10px] font-bold text-white tracking-widest uppercase border border-white/10">{obj.label}</span>}
+            {obj.label && <span className="mt-2 px-2 py-0.5 rounded-full bg-black/50 text-[10px] font-bold text-white tracking-widest uppercase border border-white/10">{obj.label}</span>}
           </motion.div>
         );
     }

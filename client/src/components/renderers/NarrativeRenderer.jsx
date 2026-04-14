@@ -57,7 +57,7 @@ export default function NarrativeRenderer({ timeline, currentStepIndex, elements
       default:
         return (
           <motion.div {...common} className={`flex flex-col items-center pointer-events-none ${isHigh ? 'scale-110 z-10' : 'scale-100 z-0'} transition-transform`}>
-            <div className="px-4 py-3 rounded-lg backdrop-blur-md shadow-xl border border-white/20 flex flex-col items-center gap-1" style={{ backgroundColor: obj.color || '#475569' }}>
+            <div className="px-4 py-3 rounded-lg shadow-xl border border-white/20 flex flex-col items-center gap-1" style={{ backgroundColor: obj.color || '#475569' }}>
               <span className="text-xs font-bold text-white tracking-widest uppercase">{obj.label}</span>
             </div>
           </motion.div>

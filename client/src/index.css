@@ -43,7 +43,7 @@
   --color-bg-primary: #f9f6e5;
   --color-bg-secondary: #f0ede0;
   --color-bg-tertiary: #e7e4d8;
-  --color-bg-overlay: rgba(249, 246, 229, 0.85);
+  --color-bg-overlay: #f9f6e5;
 
   --color-text-primary: #1a1a18;
   --color-text-secondary: #5c5a52;
@@ -89,7 +89,7 @@
   --color-dark-bg-primary: #0b0b0a;
   --color-dark-bg-secondary: #141412;
   --color-dark-bg-tertiary: #1c1c1a;
-  --color-dark-bg-overlay: rgba(11, 11, 10, 0.85);
+  --color-dark-bg-overlay: #0b0b0a;
 
   --color-dark-text-primary: #f9f6e5;
   --color-dark-text-secondary: #a3a198;
@@ -145,6 +145,10 @@
     --glass-border: rgba(0, 0, 0, 0.08);
     --glass-shadow: 0 12px 48px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.95) inset;
     --input-glass-bg: rgba(255, 255, 255, 0.94);
+    
+    /* Toolbar Sizing */
+    --tool-size: 38px;
+    --tool-gap: 6px;
   }
 
   /* Automatic dark mode based on device preference */
@@ -413,16 +417,12 @@
 
 /* Glass morphism */
 @utility glass {
-  background-color: var(--bg-overlay);
-  backdrop-filter: blur(12px) saturate(1.5);
-  -webkit-backdrop-filter: blur(12px) saturate(1.5);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
 }
 
 @utility glass-strong {
-  background-color: var(--bg-overlay);
-  backdrop-filter: blur(24px) saturate(1.8);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-lg);
 }
@@ -773,5 +773,11 @@
   
   .tb-top-left-pill span {
     display: none !important;
+  }
+
+  /* Reduce tool size and gaps on mobile */
+  :root {
+    --tool-size: 30px !important;
+    --tool-gap: 2px !important;
   }
 }

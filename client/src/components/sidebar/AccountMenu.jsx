@@ -52,7 +52,7 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
         <div 
           className={`absolute top-full ${isLeftHand ? 'left-0' : 'right-0'} pt-2 w-56 transition-all duration-300 ease-spring z-[100] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
         >
-          <div className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-2xl backdrop-blur-3xl overflow-hidden" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)' }}>
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-2xl overflow-hidden">
             <div className="px-4 py-3 mb-1 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
                <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-[var(--text-primary)] flex items-center justify-center text-[var(--bg-primary)] font-bold text-xs uppercase tracking-wider">
@@ -112,7 +112,7 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
       <div 
         className={`absolute bottom-full left-0 w-full pb-2 transition-all duration-300 ease-spring z-[100] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
       >
-        <div className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[18px] p-1.5 shadow-2xl backdrop-blur-3xl" style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)' }}>
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[18px] p-1.5 shadow-2xl">
           <button 
             onClick={() => { setIsOpen(false); onSettingsClick(); }} 
             className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"

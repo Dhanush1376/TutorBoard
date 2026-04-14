@@ -8,6 +8,8 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Pipette,
+  RotateCcw,
 } from 'lucide-react';
 import useTutorStore from '../../../store/tutorStore';
 import ToolButtonBase from '../components/ToolButtonBase';
@@ -19,11 +21,11 @@ const MODES = [
 ];
 
 const SIZES = [
-  { id: 12, label: 'XS' },
-  { id: 16, label: 'S'  },
-  { id: 24, label: 'M'  },
-  { id: 32, label: 'L'  },
-  { id: 48, label: 'XL' },
+  { id: 12, label: 'XS (12px)' },
+  { id: 16, label: 'S (16px)'  },
+  { id: 24, label: 'M (24px)'  },
+  { id: 32, label: 'L (32px)'  },
+  { id: 48, label: 'XL (48px)' },
 ];
 
 const WEIGHTS = [
@@ -74,7 +76,9 @@ const TextTool = (props) => {
     textWeight, setTextWeight,
     textAlign,  setTextAlign,
     textBgColor, setTextBgColor,
+    recentColors, addRecentColor,
     addCanvasObjects, canvasTransform,
+    isSidebarOpen,
     setEditingObjectId
   } = useTutorStore();
 
@@ -82,23 +86,26 @@ const TextTool = (props) => {
     const id = `manual-${type}-${Date.now()}`;
     const { x: tx, y: ty, scale } = canvasTransform;
     
-    // Calculate world center with a small scatter offset
-    const scatter = (Math.random() * 40) - 20;
-    const worldX = (window.innerWidth / 2 - tx + scatter) / scale / 800;
-    const worldY = (window.innerHeight / 2 - ty + scatter) / scale / 600;
+    const sidebarWidth = isSidebarOpen ? 340 : 0;
+    const centerX = (window.innerWidth + sidebarWidth) / 2;
+    const centerY = window.innerHeight / 2;
+
+    const scatter = (Math.random() - 0.5) * 40;
+    const worldX = (centerX - tx + scatter) / scale / 800;
+    const worldY = (centerY - ty + scatter) / scale / 600;
 
     const newObj = {
       id,
       type: type === 'formula' ? 'equation' : (type === 'code' ? 'code' : 'label'),
       x: worldX,
       y: worldY,
-      w: type === 'code' ? 0.4 : 0.25,
-      h: type === 'code' ? 0.3 : 0.15,
+      w: type === 'code' ? 0.4 : (type === 'formula' ? 0.35 : 0.25),
+      h: type === 'code' ? 0.3 : (type === 'formula' ? 0.18 : 0.15),
       content: '',
       label: '',
       styles: {
         fontSize: textSize || 20,
-        fontWeight: textWeight || 'bold',
+        fontWeight: WEIGHTS.find(w => w.id === textWeight)?.style || 700,
         textAlign: textAlign || 'center',
         backgroundColor: textBgColor || 'transparent',
         fontFamily: type === 'code' ? "'Geist Mono', monospace" : "'Inter', sans-serif"
@@ -124,24 +131,26 @@ const TextTool = (props) => {
         <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
           Quick add to canvas
         </span>
-        <div className="grid grid-cols-1 gap-1.5">
+        <div className="grid grid-cols-1 gap-1">
           {MODES.map(({ id, icon: Icon, label, desc }) => (
             <button
               key={id}
               onClick={() => handleAdd(id)}
-              className="flex items-center gap-3 p-3 rounded-xl transition-all border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-secondary)] group overflow-hidden relative"
+              className="flex items-center gap-2.5 p-2 rounded-xl transition-all border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-secondary)] group overflow-hidden relative"
               style={{ background: 'rgba(255,255,255,0.03)' }}
             >
               <div className="absolute inset-0 bg-blue-500/0 group-active:bg-blue-500/10 transition-colors" />
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)] transition-transform group-hover:scale-105 shadow-sm">
-                <Icon size={16} className="text-blue-400" />
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)] transition-transform group-hover:scale-105 shadow-sm">
+                <Icon size={14} className="text-blue-400" />
               </div>
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[11px] font-bold text-[var(--text-primary)]">Add {label}</span>
-                <span className="text-[9px] text-[var(--text-tertiary)]">{desc}</span>
-              </div>
-              <div className="ml-auto w-5 h-5 rounded-full flex items-center justify-center bg-[var(--bg-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-[10px] text-blue-400">+</span>
+              <div className="flex flex-col text-left leading-tight py-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold text-[var(--text-primary)]">Add {label}</span>
+                  {id === 'formula' && (
+                    <span className="text-[7px] font-bold bg-blue-500/10 text-blue-400 px-1 rounded uppercase tracking-tighter">KaTeX</span>
+                  )}
+                </div>
+                <span className="text-[8.5px] text-[var(--text-tertiary)]">{desc}</span>
               </div>
             </button>
           ))}
@@ -167,7 +176,7 @@ const TextTool = (props) => {
       {/* Font weight */}
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Text color & Highlight
+          Font weight
         </span>
         <SegBar>
           {WEIGHTS.map(({ id, label, style: fw }) => (
@@ -182,47 +191,6 @@ const TextTool = (props) => {
           ))}
         </SegBar>
       </div>
-      {/* Text Appearance */}
-      <div className="flex flex-col gap-2 px-1">
-        <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-          Text Appearance
-        </span>
-        <div className="grid grid-cols-2 gap-2">
-           <div className="flex flex-col gap-1.5 p-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">Text</span>
-              <div className="flex gap-1">
-                {['var(--text-primary)', '#6366f1', '#10b981', '#f43f5e'].map(c => (
-                  <button 
-                    key={c}
-                    onClick={() => useTutorStore.getState().setDrawColor(c)}
-                    className="w-3.5 h-3.5 rounded-full border border-white/5"
-                    style={{ 
-                      background: c,
-                      boxShadow: useTutorStore.getState().drawColor === c ? '0 0 0 1.5px var(--bg-primary), 0 0 0 3px ' + c : 'none'
-                    }}
-                  />
-                ))}
-              </div>
-           </div>
-           <div className="flex flex-col gap-1.5 p-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">Bg</span>
-              <div className="flex gap-1">
-                {['transparent', '#fef08a', '#bbf7d0', '#bfdbfe'].map(c => (
-                  <button 
-                    key={c}
-                    onClick={() => setTextBgColor(c)}
-                    className="w-3.5 h-3.5 rounded border border-white/5"
-                    style={{ 
-                      background: c === 'transparent' ? 'repeating-conic-gradient(#444 0% 25%, #222 0% 50%) 50% / 3px 3px' : c,
-                      boxShadow: textBgColor === c ? '0 0 0 1.5px var(--bg-primary), 0 0 0 3px ' + (c === 'transparent' ? '#666' : c) : 'none'
-                    }}
-                  />
-                ))}
-              </div>
-           </div>
-        </div>
-      </div>
-
       <div className="h-px bg-[var(--border-color)] opacity-40 mx-1" />
 
       {/* Alignment */}
@@ -232,19 +200,14 @@ const TextTool = (props) => {
         </span>
         <SegBar>
           {ALIGNMENTS.map(({ id, icon: Icon }) => (
-            <button
+            <SegButton
               key={id}
+              isActive={(textAlign ?? 'left') === id}
               onClick={() => setTextAlign(id)}
-              className="flex-1 flex items-center justify-center py-1.5 rounded-lg transition-all"
-              style={{
-                background:  (textAlign ?? 'left') === id ? 'var(--bg-primary)' : 'transparent',
-                color:       (textAlign ?? 'left') === id ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                border:      (textAlign ?? 'left') === id ? '1px solid var(--border-color)' : '1px solid transparent',
-                boxShadow:   (textAlign ?? 'left') === id ? '0 2px 8px rgba(0,0,0,.12)' : 'none',
-              }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Icon size={13} />
-            </button>
+            </SegButton>
           ))}
         </SegBar>
       </div>
@@ -261,6 +224,11 @@ const TextTool = (props) => {
       icon={CurrentIcon}
       label="Text"
       shortcut="T"
+      onClick={() => {
+        // H1 FIX: Only activate the tool — don't create elements from toolbar click.
+        // Elements are created via submenu "Quick Add" buttons or via canvas click.
+        useTutorStore.getState().setActiveTool('text');
+      }}
       customSubmenu={Submenu}
     />
   );

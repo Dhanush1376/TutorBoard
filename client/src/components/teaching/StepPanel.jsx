@@ -533,9 +533,7 @@ const StepPanel = ({
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="glass-strong"
         style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
+          background: 'var(--bg-secondary)',
           border: `1px solid ${cfg.border}`,
           borderRadius: 18,
           padding: '16px 18px',

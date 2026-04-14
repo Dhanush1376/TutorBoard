@@ -108,7 +108,7 @@ const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) 
       {!isExpanded && messages.length === 0 && (
         <button
           onClick={() => setIsExpanded(true)}
-          className="flex items-center gap-2 mx-auto px-4 py-2 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-full text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
+          className="flex items-center gap-2 mx-auto px-4 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
         >
           <MessageCircleQuestion size={14} />
           Ask a doubt about this step
@@ -117,7 +117,7 @@ const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) 
 
       {/* Expanded Chat */}
       {(isExpanded || messages.length > 0) && (
-        <div className="bg-[var(--bg-secondary)]/90 backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl overflow-hidden shadow-2xl">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl overflow-hidden shadow-2xl">
           
           {/* Messages Thread */}
           {messages.length > 0 && (

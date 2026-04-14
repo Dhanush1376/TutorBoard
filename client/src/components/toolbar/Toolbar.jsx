@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import {
   Share2,
   Trash2,
@@ -19,7 +19,6 @@ import TextTool from './tools/TextTool';
 import DrawTool from './tools/DrawTool';
 import NoteTool from './tools/NoteTool';
 import ShapeTool from './tools/ShapeTool';
-import FillTool from './tools/FillTool';
 import GridTool from './tools/GridTool';
 
 import ShareAction from './actions/ShareAction';
@@ -67,23 +66,23 @@ const Toolbar = ({ onSettingsClick }) => {
       initial={{ y: 16, opacity: 0, scale: 0.97 }}
       animate={{ y: 0, opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}
-      className="flex items-center gap-1 px-2 py-1.5 rounded-2xl relative"
+      className="flex items-center rounded-2xl relative"
       style={{
+        gap: 'var(--tool-gap)',
+        padding: 'calc(var(--tool-gap) * 1.5) calc(var(--tool-gap) * 2)',
         background: 'var(--bg-primary)',
         border: '1px solid var(--border-color)',
         boxShadow:
           '0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.06)',
-        backdropFilter: 'blur(20px) saturate(1.8)',
-        WebkitBackdropFilter: 'blur(20px) saturate(1.8)',
         userSelect: 'none',
       }}
     >
-      <HandTool {...commonToolProps} isHoveredExternally={hoveredId === 'hand'} />
+      <LayoutGroup id="main-toolbar">
+        <HandTool {...commonToolProps} isHoveredExternally={hoveredId === 'hand'} />
       <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
       <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
       <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
       <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
-      <FillTool {...commonToolProps} isHoveredExternally={hoveredId === 'fill'} />
       
       <GridTool {...commonToolProps} isHoveredExternally={hoveredId === 'layout'} />
       
@@ -116,10 +115,10 @@ const Toolbar = ({ onSettingsClick }) => {
             }}
             className="relative w-[32px] h-[32px] rounded-full flex items-center justify-center font-bold text-[11px] overflow-visible"
             style={{
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
               color: '#fff',
-              boxShadow: isProfileOpen ? '0 0 0 2px var(--text-primary)' : 'none',
-              border: '1px solid rgba(255,255,255,0.2)',
+              boxShadow: isProfileOpen ? '0 0 0 2px var(--text-primary)' : '0 4px 12px rgba(79, 70, 229, 0.3)',
+              border: '1px solid rgba(255,255,255,0.25)',
               cursor: 'pointer'
             }}
           >
@@ -153,7 +152,6 @@ const Toolbar = ({ onSettingsClick }) => {
                     background: 'var(--bg-primary)',
                     border: '1px solid var(--border-color)',
                     boxShadow: '0 16px 48px rgba(0,0,0,0.25)',
-                    backdropFilter: 'blur(20px) saturate(1.8)',
                   }}
                 >
                   <div className="px-4 py-3 border-b border-[var(--border-color)] mb-1">
@@ -180,6 +178,7 @@ const Toolbar = ({ onSettingsClick }) => {
             )}
           </AnimatePresence>
         </div>
+      </LayoutGroup>
 
         <style>{`
           @keyframes active-glow {

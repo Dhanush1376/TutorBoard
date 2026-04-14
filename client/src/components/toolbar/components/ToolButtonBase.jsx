@@ -12,7 +12,7 @@ import useTutorStore from '../../../store/tutorStore';
  * - Hover submenu for tool variants (Shape, Draw)
  */
 const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, disabled = false, variants, customSubmenu, forceOpenSubmenu, onClick, onMouseEnter, onMouseLeave, isHoveredExternally }) => {
-  const { activeTool, setActiveTool } = useTutorStore();
+  const { activeTool, setActiveTool, editingObjectId } = useTutorStore();
   const [isHovered, setIsHovered] = useState(false);
   
   // Track this group's "last used" variant, defaulting to the first variant or the group itself.
@@ -95,7 +95,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   return (
     <div
       className="relative flex-shrink-0"
-      style={{ width: 36, height: 36, isolation: 'isolate' }}
+      style={{ width: 'var(--tool-size)', height: 'var(--tool-size)', isolation: 'isolate' }}
       onMouseEnter={() => {
         if (!disabled) {
           setIsHovered(true);
@@ -121,7 +121,6 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
           opacity: disabled ? 0.35 : 1,
         }}
       >
-        {/* Shared Liquid Hover Pill */}
         {(isHovered || isHoveredExternally) && !disabled && (
           <motion.div
             layoutId="liquid-hover-pill"
@@ -134,7 +133,6 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
           />
         )}
 
-        {/* Shared layout active background pill */}
         {isGroupActive && (
           <motion.div
             layoutId="active-tool-pill"
@@ -246,12 +244,14 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                 background: 'var(--bg-primary)',
                 border: '1px solid var(--border-color)',
                 boxShadow: '0 12px 32px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.08)',
-                backdropFilter: 'blur(20px) saturate(1.8)',
-                WebkitBackdropFilter: 'blur(20px) saturate(1.8)',
                 minWidth: customSubmenu ? 'auto' : 160,
               }}
             >
-              {customSubmenu ? customSubmenu : (
+              {customSubmenu ? (
+                React.isValidElement(customSubmenu) 
+                  ? React.cloneElement(customSubmenu, { closeMenu: () => setIsHovered(false) })
+                  : customSubmenu
+              ) : (
                 variants.map((variant) => {
                   const isVariantActive = variant.activeState !== undefined 
                     ? variant.activeState 
@@ -293,7 +293,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                         />
                       )}
 
-                      {!isVariantActive && variant.shortcut && (
+                      {variant.shortcut && (
                         <span className="text-[10px] font-bold text-[var(--text-tertiary)] bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded border border-[var(--border-color)]">
                           {variant.shortcut}
                         </span>

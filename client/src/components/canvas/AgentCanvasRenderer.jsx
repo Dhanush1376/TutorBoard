@@ -27,6 +27,7 @@ import PhysicsRenderer from '../renderers/PhysicsRenderer.jsx';
 import NarrativeRenderer from '../renderers/NarrativeRenderer.jsx';
 import FloatingFormatBar from './FloatingFormatBar.jsx';
 import InlineEditor from './InlineEditor.jsx';
+import PremiumTextBox from './PremiumTextBox.jsx';
 import useTutorStore from '../../store/tutorStore.js';
 
 const CW = 800;
@@ -112,7 +113,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       const rx = obj.w ? (obj.w <= 1 ? (obj.w * CW) / 2 : obj.w / 2) : (obj.scale || 1) * 40;
       const ry = obj.h ? (obj.h <= 1 ? (obj.h * CH) / 2 : obj.h / 2) : (obj.scale || 1) * 40;
       return <EllipseShape key={obj.id} {...common} x={x} y={y} w={rx * 2} h={ry * 2}
-        color={obj.color} label={obj.label} dashed={obj.dashed}
+        color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
 
     case 'note':
@@ -196,7 +197,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       // Default to a 10% offset if coordinates are missing or identical
       const x2 = (obj.x2 ?? (obj.x1 ?? 0.5) + 0.1) * CW;
       const y2 = (obj.y2 ?? (obj.y1 ?? 0.5) + 0.1) * CH;
-      const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, dashed: obj.dashed };
+      const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, strokeStyle: obj.strokeStyle };
       return shape === 'line' ? <RawLine key={obj.id} {...props} /> : <FlowArrow key={obj.id} {...props} />;
     }
 
@@ -231,28 +232,28 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       ]);
       return <GeometryPolygon key={obj.id} {...common} x={x} y={y}
         points={pts.length > 2 ? pts : [[-60, 80], [60, 80], [0, -80]]}
-        color={obj.color} label={obj.label} dashed={obj.dashed}
+        color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'diamond': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <DiamondShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+      return <DiamondShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'star': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <StarShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+      return <StarShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'hexagon': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <HexagonShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+      return <HexagonShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
@@ -260,14 +261,14 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'speech': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 180;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 120;
-      return <CalloutShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+      return <CalloutShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'cloud': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 200;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 140;
-      return <CloudShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+      return <CloudShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
@@ -437,7 +438,7 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
           className="absolute top-4 left-0 right-0 flex items-center justify-center gap-3 pointer-events-none z-10"
         >
           <span className="text-xs font-mono text-slate-500 tabular-nums">
-            {totalSteps > 0 ? `${stepNumber}/${totalSteps}` : 'Canvas'}
+            {totalSteps > 0 ? `${stepNumber}/${totalSteps}` : ''}
           </span>
           <span className="text-sm font-semibold text-slate-300 max-w-[540px] truncate">
             {stepTitle}
@@ -493,8 +494,23 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
 
           {/* Elements */}
           <AnimatePresence mode="popLayout">
-            {elements.map(obj => {
+            {elements.filter(o => o.id !== editingObjectId).map(obj => {
               const isSelected = selectedElementIds?.includes(obj.id);
+              
+              // NEW TEXT IMPLEMENTATION
+              if (obj.type === 'text' || obj.type === 'label' || obj.type === 'annotation' || obj.type === 'caption') {
+                return (
+                  <ErrorBoundary key={obj.id} onClose={() => {}} reloadOnRetry={true}>
+                    <PremiumTextBox 
+                      obj={obj}
+                      isSelected={isSelected}
+                      onUpdate={updateCanvasObject}
+                      onDelete={deleteCanvasObject}
+                    />
+                  </ErrorBoundary>
+                );
+              }
+
               return (
                 <ErrorBoundary key={obj.id} onClose={() => {}} reloadOnRetry={true}>
                   <g 
@@ -519,21 +535,7 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
                     }}
                     style={{ cursor: activeTool === 'fill' ? 'copy' : 'move' }}
                   >
-                    {/* Selection Highlight Ring */}
-                    {isSelected && (
-                      <rect 
-                        x={(obj.x * CW) - ((obj.scale || 1) * 90)} 
-                        y={(obj.y * CH) - ((obj.scale || 1) * 40)} 
-                        width={(obj.scale || 1) * 180} 
-                        height={(obj.scale || 1) * 80} 
-                        fill="none" 
-                        stroke="#3b82f6" 
-                        strokeWidth={2} 
-                        strokeDasharray="4 4" 
-                        rx={8}
-                        className="pointer-events-none"
-                      />
-                    )}
+
                     <RenderShape
                       obj={obj}
                       highlightIds={highlightIds}
@@ -554,7 +556,7 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
       {/* Inline Editing Overlay */}
       {editingObjectId && (
         <InlineEditor 
-          elements={elements}
+          elements={rawElements}
           editingObjectId={editingObjectId}
           Z={Z} tx={tx} ty={ty}
         />
@@ -571,7 +573,7 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
             transition={{ duration: 0.4, delay: 0.15 }}
             className="absolute bottom-6 left-8 right-8 pointer-events-none"
           >
-            <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 rounded-xl px-5 py-3 text-center">
+            <div className="bg-slate-900 border border-slate-700/60 rounded-xl px-5 py-3 text-center">
               <p className="text-sm text-slate-200 leading-relaxed font-medium">
                 {stepNarration}
               </p>

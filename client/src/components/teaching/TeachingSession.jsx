@@ -22,7 +22,6 @@ import InfiniteCanvas from '../canvas/InfiniteCanvas';
 import AgentCanvasRenderer from '../canvas/AgentCanvasRenderer';
 import InteractiveCanvasLayer from '../canvas/InteractiveCanvasLayer';
 import CanvasControls from '../canvas/CanvasControls';
-import CanvasMinimap from '../canvas/CanvasMinimap';
 import FloatingSidebar from './FloatingSidebar';
 import DoubtThread from './DoubtThread';
 import DoubtTimeline from './DoubtTimeline';
@@ -96,9 +95,9 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
   } = machine;
 
   const {
-    canvasMode, canvasTransform, showMinimap, voiceEnabled, playbackSpeed,
+    canvasMode, canvasTransform, voiceEnabled, playbackSpeed,
     showFloatingSidebar,
-    setCanvasMode, setCanvasTransform, toggleMinimap, toggleVoice,
+    setCanvasMode, setCanvasTransform, toggleVoice,
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread,
     showDoubtThread,
@@ -268,7 +267,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
       >
         <div
           className="w-[200px] h-[130px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative"
-          style={{ background: 'rgba(var(--bg-secondary-rgb, 22,22,20), 0.9)', backdropFilter: 'blur(12px)' }}
+          style={{ background: 'var(--bg-secondary)' }}
         >
           {/* Mini canvas preview */}
           <div className="absolute inset-0 opacity-60 pointer-events-none">
@@ -288,7 +287,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
             <p className="text-[9px] text-white/60">Step {currentStepIndex + 1}/{totalSteps}</p>
           </div>
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="p-1 rounded-lg bg-white/10 backdrop-blur-sm"><Maximize2 size={12} className="text-white" /></div>
+            <div className="p-1 rounded-lg bg-white/10"><Maximize2 size={12} className="text-white" /></div>
           </div>
           <div className="absolute top-2 left-2">
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-500/20 text-[7px] font-bold text-red-400 uppercase">
@@ -357,12 +356,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                       onZoomOut={handleZoomOut}
                       onFitToContent={() => canvasRef.current?.fitToContent?.()}
                       onResetView={handleResetView}
-                      onToggleMinimap={toggleMinimap}
-                      showMinimap={showMinimap}
                     />
-                  </div>
-                  <div className="absolute bottom-24 right-6 pointer-events-auto">
-                    <CanvasMinimap visible={showMinimap} objects={canvasObjects} transform={canvasTransform} />
                   </div>
                 </div>
               )}
@@ -376,7 +370,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
             <div className="flex items-center gap-2">
               <button
                 onClick={openFloatingSidebar}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
+                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
                 title="Open sidebar (Alt + S)"
               >
                 <Menu size={16} />
@@ -386,7 +380,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="flex items-center gap-3 bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] px-5 py-2.5 rounded-2xl shadow-xl"
+                className="flex items-center gap-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] px-5 py-2.5 rounded-2xl shadow-xl"
               >
                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
 
@@ -450,7 +444,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 className={`p-2.5 rounded-xl border transition-all relative group ${
                   showDoubtThread
                     ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent'
-                    : 'bg-[var(--bg-secondary)]/80 backdrop-blur-xl border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Doubt thread (Alt + D)"
               >
@@ -476,7 +470,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 className={`p-2.5 rounded-xl border transition-all ${
                   voiceEnabled
                     ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent'
-                    : 'bg-[var(--bg-secondary)]/80 backdrop-blur-xl border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
@@ -484,7 +478,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
 
               <button
                 onClick={handleMinimize}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
+                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
                 title="Minimize"
               >
                 <Minimize2 size={16} />
@@ -493,7 +487,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               {/* FIXED: onClick was missing in original */}
               <button
                 onClick={handleClose}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
+                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
                 title="Close (Esc)"
               >
                 <X size={16} />
@@ -533,7 +527,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30"
               >
-                <div className="flex items-center gap-3 px-6 py-3 bg-[var(--bg-secondary)]/90 backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl shadow-2xl">
+                <div className="flex items-center gap-3 px-6 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-2xl">
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
@@ -556,7 +550,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 exit={{ opacity: 0, y: -20 }}
                 className="absolute top-24 left-1/2 -translate-x-1/2 z-30 max-w-md"
               >
-                <div className="px-5 py-3 bg-[var(--bg-secondary)]/90 backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl shadow-2xl">
+                <div className="px-5 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-2xl">
                   <p className="text-xs text-[var(--text-primary)] leading-relaxed">{doubtResponse.answer}</p>
                   {doubtResponse.hasVisuals && (
                     <span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400">
@@ -578,7 +572,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
 
             {/* Doubt Input Bar */}
             <div className="w-full max-w-2xl px-5">
-              <div className="flex items-center gap-2 bg-[var(--bg-secondary)]/90 backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl px-4 py-2 shadow-xl">
+              <div className="flex items-center gap-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl px-4 py-2 shadow-xl">
                 <MessageCircleQuestion size={14} className="text-[var(--text-tertiary)] flex-shrink-0" />
                 <input
                   ref={doubtInputRef}
@@ -607,7 +601,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
             {/* Progress Bar — Normalized scaling for short vs long timelines */}
             {timeline && totalSteps > 0 && (
               <div className="w-full max-w-xl px-6">
-                <div className="relative group/track flex items-center justify-center gap-1 h-3 px-2 rounded-full bg-[var(--bg-secondary)]/30 backdrop-blur-sm border border-[var(--border-color)]/20">
+                <div className="relative group/track flex items-center justify-center gap-1 h-3 px-2 rounded-full bg-[var(--bg-secondary)]/30 border border-[var(--border-color)]/20">
                   {Array.from({ length: progressSegments }).map((_, i) => {
                     const isActive = i === progressStep;
                     const isPast = i < progressStep;
@@ -657,7 +651,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 className="flex items-center gap-2"
               >
                 {/* Speed */}
-                <div className="flex items-center gap-1 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-xl px-2 py-1">
+                <div className="flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl px-2 py-1">
                   {[0.5, 1, 1.5, 2].map(spd => (
                     <button
                       key={spd}
@@ -674,7 +668,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 </div>
 
                 {/* Main controls */}
-                <div className="flex items-center gap-1 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl px-3 py-1.5">
+                <div className="flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl px-3 py-1.5">
                   <button
                     onClick={prevStep}
                     disabled={currentStepIndex <= 0}
@@ -702,7 +696,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 </div>
 
                 {/* Step counter */}
-                <div className="px-3 py-2 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-xl">
+                <div className="px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl">
                   <span className="text-[11px] font-bold text-[var(--text-tertiary)] tabular-nums">
                     {currentStepIndex + 1} / {totalSteps}
                   </span>

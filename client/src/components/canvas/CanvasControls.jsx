@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, Map } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, Lock, LockOpen } from 'lucide-react';
+import useTutorStore from '../../store/tutorStore';
 
 const CanvasControls = ({ 
   transform, 
@@ -12,11 +13,10 @@ const CanvasControls = ({
   onZoomOut, 
   onFitToContent, 
   onResetView,
-  onToggleMinimap,
-  showMinimap = false,
   layoutView = 'right',
   isSidebarOpen = true,
 }) => {
+  const { isCanvasLocked, setCanvasLocked } = useTutorStore();
   const zoomPercent = Math.round(transform.scale * 100);
   const isLeftHand = layoutView === 'left';
 
@@ -30,7 +30,12 @@ const CanvasControls = ({
       {/* Zoom Out */}
       <button
         onClick={onZoomOut}
-        className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-90"
+        disabled={isCanvasLocked}
+        className={`p-2 rounded-xl transition-all active:scale-90 ${
+          isCanvasLocked 
+            ? 'opacity-30 cursor-not-allowed text-[var(--text-tertiary)]' 
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+        }`}
         title="Zoom out (−)"
       >
         <ZoomOut size={15} />
@@ -46,7 +51,12 @@ const CanvasControls = ({
       {/* Zoom In */}
       <button
         onClick={onZoomIn}
-        className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-90"
+        disabled={isCanvasLocked}
+        className={`p-2 rounded-xl transition-all active:scale-90 ${
+          isCanvasLocked 
+            ? 'opacity-30 cursor-not-allowed text-[var(--text-tertiary)]' 
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+        }`}
         title="Zoom in (+)"
       >
         <ZoomIn size={15} />
@@ -58,7 +68,12 @@ const CanvasControls = ({
       {/* Maximize / Fit to Content */}
       <button
         onClick={onFitToContent}
-        className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-90"
+        disabled={isCanvasLocked}
+        className={`p-2 rounded-xl transition-all active:scale-90 ${
+          isCanvasLocked 
+            ? 'opacity-30 cursor-not-allowed text-[var(--text-tertiary)]' 
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+        }`}
         title={isSidebarOpen ? "Maximize / Fit to content" : "Minimize / Restore view"}
       >
         {isSidebarOpen ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
@@ -67,23 +82,30 @@ const CanvasControls = ({
       {/* Reset View */}
       <button
         onClick={onResetView}
-        className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-90"
+        disabled={isCanvasLocked}
+        className={`p-2 rounded-xl transition-all active:scale-90 ${
+          isCanvasLocked 
+            ? 'opacity-30 cursor-not-allowed text-[var(--text-tertiary)]' 
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+        }`}
         title="Reset view (0)"
       >
         <RotateCcw size={15} />
       </button>
 
-      {/* Minimap Toggle */}
+
+
+      {/* Lock Toggle */}
       <button
-        onClick={onToggleMinimap}
+        onClick={() => setCanvasLocked(!isCanvasLocked)}
         className={`p-2 rounded-xl transition-all active:scale-90 ${
-          showMinimap 
-            ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' 
-            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+          isCanvasLocked 
+            ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20' 
+            : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
         }`}
-        title="Toggle minimap"
+        title={isCanvasLocked ? "Unlock Viewport" : "Lock Viewport"}
       >
-        <Map size={15} />
+        {isCanvasLocked ? <Lock size={15} /> : <LockOpen size={15} />}
       </button>
     </motion.div>
   );

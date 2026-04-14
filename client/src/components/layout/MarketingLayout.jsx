@@ -35,7 +35,7 @@ const MarketingLayout = () => {
       {/* Desktop Navigation: Floating Glass Pill */}
       <div className="fixed top-8 left-0 right-0 z-50 hidden md:flex justify-center px-6">
         <nav 
-          className="flex items-center justify-between w-full max-w-5xl px-3 py-2.5 rounded-[28px] border border-[var(--border-color)] bg-[var(--bg-primary)]/70 backdrop-blur-2xl shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] relative"
+          className="flex items-center justify-between w-full max-w-5xl px-3 py-2.5 rounded-[28px] border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] relative"
         >
           {/* Logo Section */}
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity pl-3">

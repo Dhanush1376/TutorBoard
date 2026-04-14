@@ -146,7 +146,7 @@ export default function AgenticRenderer({
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 max-w-2xl w-full px-6"
         >
-          <div className="bg-[var(--bg-primary)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl px-6 py-4 shadow-2xl">
+          <div className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl px-6 py-4 shadow-2xl">
             {/* Step title */}
             {currentStepData.title && (
               <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-1">

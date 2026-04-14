@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PanelLeft, PanelRight, Check, Trash, Type, Square, StickyNote, Share, Edit, Hand, LayoutGrid, Sparkles, User } from 'lucide-react';
+import { PanelLeft, PanelRight, Check, Trash, Type, Square, StickyNote, Share, Hand, LayoutGrid, Sparkles, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -23,7 +23,6 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   const { isSidebarOpen, setSidebarOpen, toggleSidebar, layoutView, setLayoutView } = useTutorStore();
   const isLeftHand = layoutView === 'left';
   const [showSettings, setShowSettings] = useState(false);
-  const [showMobileTools, setShowMobileTools] = useState(false);
   const { user } = useAuth();
 
   const sidebarVisible = isSidebarOpen && !forceCollapse;
@@ -41,15 +40,21 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.9, x: isLeftHand ? 20 : -20 }}
             transition={{ duration: 0.2 }}
-            className={`tb-top-left-pill absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-[5000] flex items-center pointer-events-auto`}
-            style={{ ...miniGlass, borderRadius: 9999, padding: '6px' }}
+            className={`tb-top-left-pill absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-[5000] flex items-center pointer-events-auto transition-all`}
+            style={{ 
+              ...miniGlass, 
+              borderRadius: 'var(--radius-2xl)', 
+              gap: 'var(--tool-gap)',
+              padding: 'calc(var(--tool-gap) * 1.5) calc(var(--tool-gap) * 2)'
+            }}
           >
             <button
               onClick={toggleSidebar}
-              className="flex items-center gap-2 px-3 py-2 rounded-full transition-all text-[var(--text-primary)] font-bold active:scale-95 group hover:bg-[var(--bg-secondary)]"
+              className="flex items-center gap-2 px-3 rounded-xl transition-all text-[var(--text-primary)] font-bold active:scale-95 group hover:bg-[var(--bg-secondary)]"
+              style={{ height: 'var(--tool-size)' }}
             >
-              <PanelLeft size={15} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] uppercase tracking-[0.2em] opacity-90 pr-1">Workspace</span>
+              <PanelLeft size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+              <span className="text-[11px] uppercase tracking-[0.2em] opacity-90 pr-1 max-md:hidden">Workspace</span>
             </button>
           </motion.div>
         )}
@@ -59,21 +64,14 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       {/* ── FLOATING TOP-RIGHT: Integrated Control Center ── */}
       {!forceCollapse && (
         <div
-          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-[5000] flex items-center gap-1.5 p-0 pointer-events-auto`}
+          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-[5000] flex items-center gap-1.5 p-0 pointer-events-auto transition-opacity duration-300 ${
+            isSidebarOpen ? 'max-md:opacity-0 max-md:pointer-events-none' : 'opacity-100'
+          }`}
         >
           <Toolbar 
             onShare={() => {}} 
             onSettingsClick={() => setShowSettings(true)}
           />
-
-          {/* B. Mobile Tools Toggle (Visible only on mobile) */}
-          <button 
-             onClick={() => setShowMobileTools(!showMobileTools)}
-             className="md:hidden p-2 rounded-xl text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 transition-all flex items-center justify-center flex-shrink-0"
-             title="Toggle Drawing Tools"
-          >
-             <Edit size={16} strokeWidth={2.5}/>
-          </button>
         </div>
       )}
 
@@ -84,7 +82,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
       {/* Settings Modal (Global) */}
       {showSettings && createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60">
           <div className="w-full max-w-md bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-[var(--border-color)]">
               <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-widest">
@@ -161,7 +159,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="tb-mobile-backdrop absolute inset-0 z-[4999] bg-black/20 backdrop-blur-md pointer-events-auto hidden"
+            className="tb-mobile-backdrop absolute inset-0 z-[4999] bg-black/20 pointer-events-auto hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}

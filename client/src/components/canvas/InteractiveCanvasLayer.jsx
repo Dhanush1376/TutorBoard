@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useContext } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './InfiniteCanvas';
 
@@ -36,7 +36,7 @@ const InteractiveCanvasLayer = () => {
   const { 
     activeTool: rawActiveTool, canvasObjects, setCanvasObjectsWithHistory,
     selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
-    drawColor, drawWidth, gridSize, noteColor, noteSize, shapeFill, 
+    drawColor, drawWidth, laserWidth, gridSize, noteColor, noteSize, shapeFill, 
     shapeStrokeStyle, textType, textSize, textWeight, textAlign, textBgColor,
     addNoteToCanvas, setActiveTool,
     showNotes, setShowNotes
@@ -90,23 +90,32 @@ const InteractiveCanvasLayer = () => {
     return () => window.removeEventListener('keydown', handleKey);
   }, [selectedElementIds, canvasObjects, setCanvasObjectsWithHistory, setSelectedElements, undo, redo]);
 
-  // Laser Pointer Auto-Cleanup
+  // Laser Pointer Auto-Cleanup (L4 FIX: bypasses undo history to avoid stack pollution)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
-      const needsCleanup = canvasObjects.some(obj => obj.expiresAt && obj.expiresAt < now);
+      const currentObjects = useTutorStore.getState().canvasObjects;
+      const needsCleanup = currentObjects.some(obj => obj.expiresAt && obj.expiresAt < now);
       if (needsCleanup) {
-        setCanvasObjectsWithHistory(canvasObjects.filter(obj => !obj.expiresAt || obj.expiresAt >= now));
+        // Direct set — don't push to undo history for automatic cleanup
+        useTutorStore.setState({ 
+          canvasObjects: currentObjects.filter(obj => !obj.expiresAt || obj.expiresAt >= now) 
+        });
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [canvasObjects, setCanvasObjectsWithHistory]);
+  }, []);
 
   if (!isInteractionTool) return null;
 
   const handlePointerDown = (e) => {
     e.stopPropagation();
     if (e.button !== 0) return;
+
+    // C1 FIX: Always clear previous selection when starting a new interaction
+    if (selectedElementIds.length > 0) {
+      setSelectedElements([]);
+    }
 
     const rect = layerRef.current.getBoundingClientRect();
     cachedRect.current = rect;
@@ -145,7 +154,11 @@ const InteractiveCanvasLayer = () => {
         animation: { type: 'bounce', duration: 0.3 }
       });
     } else if (activeTool.startsWith('draw:')) {
-      if (activeTool === 'draw:eraser') return;
+      if (activeTool === 'draw:eraser') {
+        // H5 FIX: Set isDrawing flag so eraser only works while mouse is held down
+        isDrawing.current = true;
+        return;
+      }
       
       setDraftObject({
         id: generateId(),
@@ -154,26 +167,15 @@ const InteractiveCanvasLayer = () => {
         color: activeTool === 'draw:highlighter' 
           ? (drawColor === 'var(--text-primary)' ? 'rgba(255, 255, 0, 0.5)' : `${drawColor}80`) 
           : (activeTool === 'draw:laser' ? '#fde047' : drawColor),
-        strokeWidth: activeTool === 'draw:highlighter' ? 12 : (activeTool === 'draw:laser' ? 4 : drawWidth),
+        strokeWidth: activeTool === 'draw:highlighter' ? 12 : (activeTool === 'draw:laser' ? laserWidth : drawWidth),
         isDraft: true,
       });
     } else if (activeTool === 'note') {
-      const now = Date.now();
-      if (!tapCounter.current) tapCounter.current = { count: 0, last: 0 };
+      // Create note on a simple single click when note tool is active
+      addNoteToCanvas(worldX, worldY);
       
-      // Reset if more than 1200ms since last tap
-      if (now - tapCounter.current.last > 1200) {
-        tapCounter.current.count = 1;
-      } else {
-        tapCounter.current.count += 1;
-      }
-      
-      tapCounter.current.last = now;
-
-      if (tapCounter.current.count === 3) {
-        addNoteToCanvas(worldX, worldY);
-        tapCounter.current.count = 0; // Reset after success
-      }
+      // Optional: switch back to 'select' tool after placing a note, or let them place multiple.
+      // E.g., setActiveTool('select');
       return; 
     } else if (activeTool === 'text') {
       const newId = generateId();
@@ -190,7 +192,7 @@ const InteractiveCanvasLayer = () => {
         label: '',
         styles: {
           fontSize: textSize || 16,
-          fontWeight: textWeight || 'normal',
+          fontWeight: textWeight === 'bold' ? 700 : (textWeight === 'medium' ? 500 : 400),
           textAlign: textAlign || 'center',
           backgroundColor: textBgColor || 'transparent',
           fontFamily: textType === 'code' ? "'Geist Mono', monospace" : "'Inter', sans-serif"
@@ -239,6 +241,8 @@ const InteractiveCanvasLayer = () => {
       }));
     } else if (activeTool.startsWith('draw:')) {
       if (activeTool === 'draw:eraser') {
+        // H5 FIX: Only erase while mouse button is held down
+        if (!isDrawing.current) return;
         const hit = canvasObjects.find(obj => {
           if (obj.points) {
             return obj.points.some(p => Math.abs(p[0]-normalizedX) < 0.02 && Math.abs(p[1]-normalizedY) < 0.02);
@@ -336,7 +340,6 @@ const InteractiveCanvasLayer = () => {
                  fill="transparent" 
                  stroke={draftObject.color} 
                  strokeWidth={2} 
-                 strokeDasharray="4 4"
                  rx={draftObject.type === 'rect' ? 4 : 0}
                />
             )}
@@ -349,7 +352,6 @@ const InteractiveCanvasLayer = () => {
                  fill="transparent" 
                  stroke={draftObject.color} 
                  strokeWidth={2} 
-                 strokeDasharray="4 4"
                />
             )}
             {draftObject.type === 'path' && (
@@ -366,7 +368,7 @@ const InteractiveCanvasLayer = () => {
               <line
                 x1={draftObject.x1 * V_WIDTH} y1={draftObject.y1 * V_HEIGHT}
                 x2={draftObject.x2 * V_WIDTH} y2={draftObject.y2 * V_HEIGHT}
-                stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
+                stroke={draftObject.color} strokeWidth={2} 
               />
             )}
             {(draftObject.type === 'triangle') && (
@@ -377,7 +379,7 @@ const InteractiveCanvasLayer = () => {
                    ${draftObject.x * V_WIDTH},                     ${(draftObject.y + draftObject.h) * V_HEIGHT}
                  `}
                  fill="none"
-                 stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
+                 stroke={draftObject.color} strokeWidth={2} 
                />
             )}
             {(draftObject.type === 'pentagon') && (
@@ -389,7 +391,6 @@ const InteractiveCanvasLayer = () => {
                 fill="transparent" 
                 stroke={draftObject.color} 
                 strokeWidth={1} 
-                strokeDasharray="2 2"
               />
             )}
           </motion.g>

@@ -65,7 +65,7 @@ const CanvasMinimap = ({
           <div
             ref={minimapRef}
             onClick={handleClick}
-            className="bg-[var(--bg-secondary)]/90 backdrop-blur-2xl border border-[var(--border-color)] rounded-xl overflow-hidden shadow-2xl cursor-crosshair"
+            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl overflow-hidden shadow-2xl cursor-crosshair"
             style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
           >
             {/* Mini scene */}

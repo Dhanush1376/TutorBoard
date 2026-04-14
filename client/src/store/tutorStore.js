@@ -83,7 +83,7 @@ const useTutorStore = create(
       canvasConnections: [],      // Normalized connections array
       canvasSteps:       [],      // Normalized timeline/steps array
       canvasTransform:   { x: 0, y: 0, scale: 1 },
-      isCanvasLocked:    false,   // Disables pan/zoom when a note is active
+      isCanvasLocked:    false,   // Disables pan/zoom when a note is active or manually locked
       showNotes:         true,    // Global toggle for sticky notes visibility
       chatInputText:     "",      // Pipeline to inject sticky note text to AI Chat
       
@@ -132,6 +132,8 @@ const useTutorStore = create(
       // Drawing Properties
       drawColor:           'var(--text-primary)',
       drawWidth:           3,
+      laserWidth:          6,
+      recentColors:        [],
 
       // Grid & Layout Properties
       gridType:            'dots',
@@ -140,9 +142,8 @@ const useTutorStore = create(
       // Note Properties
       noteColor:           '#fef9c3', // Standard Yellow
       noteSize:            'M',
+      notePinned:          false,
 
-      // Shape Properties
-      shapeFill:           'none',
       shapeStrokeStyle:    'solid',
 
       // Typography Properties
@@ -530,27 +531,44 @@ const useTutorStore = create(
       // Cleanup Actions
       clearAll: () => set(state => ({ 
         canvasObjects: [],
-        history: { past: [], present: [], future: [] } 
+        history: { past: [], future: [] } 
       })),
       
+      clearShapes: () => set(state => {
+        const shapeTypes = ['rect', 'ellipse', 'triangle', 'line', 'arrow', 'diamond', 'star', 'hexagon', 'callout', 'cloud'];
+        return { 
+          canvasObjects: state.canvasObjects.filter(o => !shapeTypes.includes(o.type)) 
+        };
+      }),
       clearDrawings: () => set(state => ({ 
         canvasObjects: state.canvasObjects.filter(o => o.type !== 'path') 
       })),
 
       clearNotes: () => set(state => ({ 
-        canvasObjects: state.canvasObjects.filter(o => o.type !== 'note' && o.type !== 'step_box') 
+        canvasObjects: state.canvasObjects.filter(o => 
+          o.type !== 'note' && o.type !== 'sticky' && o.type !== 'step_box' && o.type !== 'doubt_note'
+        ) 
       })),
 
       setDrawColor:          (color) => set({ drawColor: color }),
       setDrawWidth:          (width) => set({ drawWidth: width }),
+      setLaserWidth:         (width) => set({ laserWidth: width }),
+
+      addRecentColor: (color) => set(state => {
+        if (color === '__clear__') return { recentColors: [] };
+        if (color.startsWith('var')) return {}; // Don't track CSS vars
+        
+        const filtered = (state.recentColors || []).filter(c => c !== color);
+        return { recentColors: [color, ...filtered].slice(0, 8) };
+      }),
 
       setGridType:           (type)  => set({ gridType: type }),
       setGridSize:           (size)  => set({ gridSize: size }),
 
       setNoteColor:          (color) => set({ noteColor: color }),
       setNoteSize:           (size)  => set({ noteSize: size }),
+      setNotePinned:         (pinned) => set({ notePinned: pinned }),
 
-      setShapeFill:          (fill)  => set({ shapeFill: fill }),
       setShapeStrokeStyle:   (style) => set({ shapeStrokeStyle: style }),
 
       setTextType:           (type)  => set({ textType: type }),
@@ -584,7 +602,7 @@ const useTutorStore = create(
       },
 
       addNoteToCanvas: (worldX, worldY) => {
-        const { noteColor, noteSize, notePinned, addCanvasObjects } = get();
+        const { noteColor, noteSize, notePinned, textSize, addCanvasObjects } = get();
         
         // Map logical sizes to world-unit dimensions (approx 160px base)
         const sizeMap = {
@@ -615,7 +633,7 @@ const useTutorStore = create(
           rotation: (Math.random() * 12) - 6,
           isPinned: !!notePinned,
           styles: {
-            fontSize: 16,
+            fontSize: textSize || 16,
             fontWeight: 500,
           }
         };
@@ -849,6 +867,8 @@ const useTutorStore = create(
         voiceEnabled:  state.voiceEnabled,
         layoutView:    state.layoutView,
         pinnedNotes:   state.pinnedNotes,
+        recentColors:  state.recentColors,
+        laserWidth:    state.laserWidth,
       }),
     }
   )

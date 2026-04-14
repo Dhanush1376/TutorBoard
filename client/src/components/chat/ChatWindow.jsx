@@ -35,10 +35,10 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         className="mb-8"
       >
-        <p className="!text-[8px] lg:!text-[12px] font-medium text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
+        <p className="!text-[11px] lg:!text-[12px] font-medium text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
           {getTimeGreeting()}
         </p>
-        <h1 className="!text-[13px] lg:!text-[30px] font-medium text-[var(--text-primary)] leading-[1.2] tracking-tight">
+        <h1 className="!text-[22px] lg:!text-[30px] font-medium text-[var(--text-primary)] leading-[1.2] tracking-tight">
           Where should <br /> we start?
         </h1>
       </motion.div>
@@ -52,7 +52,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setActiveMode(mode.id)}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
+            className={`flex items-center gap-3 px-5 py-3.5 rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
               activeMode === mode.id 
                 ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
                 : 'bg-[var(--bg-tertiary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/90'
@@ -61,9 +61,9 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             <div className={`flex items-center justify-center transition-transform group-hover:scale-110 ${
               activeMode === mode.id ? 'opacity-100' : 'opacity-80'
             }`}>
-              <mode.icon size={18} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
+              <mode.icon size={20} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
             </div>
-            <span className="text-[14px] font-medium tracking-tight pr-1">
+            <span className="text-[16px] font-medium tracking-tight pr-1">
               {mode.label}
             </span>
           </motion.button>

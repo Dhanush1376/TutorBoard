@@ -456,8 +456,13 @@ const Home = ({ isDark }) => {
   const lastClickTimeRef = useRef(0);
   
   const handleCanvasDoubleClick = useCallback((e) => {
-    // Check if we are clicking on an empty area (not a child element)
-    if (e.target !== e.currentTarget) return false;
+    // If clicking on an actual nested element (like a note, text box, shape, or button), don't create a new note
+    const target = e.target;
+    const isClickableElement = target.closest('.sticky') || target.closest('textarea') || target.closest('button') || target.closest('svg') || target.tagName === 'INPUT';
+    
+    if (isClickableElement) {
+      return false; // Let it handle its own events
+    }
 
     const canvas = canvasRef.current;
     if (!canvas) return false;
@@ -471,7 +476,8 @@ const Home = ({ isDark }) => {
     const worldY = (cy - y) / scale;
 
     addNoteToCanvas(worldX, worldY);
-    return true;
+    // Let the user know a note was created
+    return true; // Return true to prevent default canvas zooming
   }, [addNoteToCanvas]);
 
   const handleCanvasClick = useCallback((e) => {
@@ -535,7 +541,7 @@ const Home = ({ isDark }) => {
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] px-5 py-2 rounded-2xl shadow-xl pointer-events-auto"
+              className="flex items-center gap-3 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] px-5 py-2 rounded-2xl shadow-xl pointer-events-auto"
             >
               <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
               <span
@@ -614,7 +620,7 @@ const Home = ({ isDark }) => {
 
             <div className="flex items-center gap-2 pointer-events-auto">
               {/* Playback Controls */}
-              <div className="flex items-center gap-1 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl px-3 py-1.5 shadow-2xl">
+              <div className="flex items-center gap-1 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] rounded-2xl px-3 py-1.5 shadow-2xl">
                 <button onClick={prevStep} disabled={currentStepIndex <= 0} className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20"><SkipBack size={16} /></button>
                 <button onClick={isPlaying ? pause : play} className="p-3 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm active:scale-95 transition-transform">
                   {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
@@ -623,7 +629,7 @@ const Home = ({ isDark }) => {
               </div>
 
               {/* Step Counter */}
-              <div className="px-3 py-2 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border border-[var(--border-color)] rounded-xl shadow-2xl">
+              <div className="px-3 py-2 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] rounded-xl shadow-2xl">
                 <span className="text-[11px] font-bold text-[var(--text-tertiary)] tabular-nums">
                   {currentStepIndex + 1} / {totalSteps}
                 </span>

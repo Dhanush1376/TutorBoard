@@ -52,9 +52,7 @@ const FloatingSidebar = () => {
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             className="fixed top-0 left-0 z-[10002] h-full w-[280px] flex flex-col glass"
             style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(24px) saturate(1.6)',
-              WebkitBackdropFilter: 'blur(24px) saturate(1.6)',
+              background: 'var(--bg-secondary)',
               borderRight: '1px solid var(--glass-border)',
               boxShadow: 'var(--glass-shadow)',
             }}
