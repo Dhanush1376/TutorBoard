@@ -12,8 +12,11 @@ import useTutorStore from '../../../store/tutorStore';
  * - Hover submenu for tool variants (Shape, Draw)
  */
 const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, disabled = false, variants, customSubmenu, forceOpenSubmenu, onClick, onMouseEnter, onMouseLeave, isHoveredExternally }) => {
-  const { activeTool, setActiveTool, editingObjectId } = useTutorStore();
-  const [isHovered, setIsHovered] = useState(false);
+  const { activeTool, setActiveTool, editingObjectId, layoutView } = useTutorStore();
+  const isLeftHand = layoutView === 'left';
+  const [isHovered, setIsHovered] = useState(false); // Unconditional hook call!
+  const [isShortcutOpen, setIsShortcutOpen] = useState(false);
+  const shortcutTimerRef = useRef(null);
   
   // Track this group's "last used" variant, defaulting to the first variant or the group itself.
   const [activeVariantId, setActiveVariantId] = useState(variants ? variants[0].id : id);
@@ -38,32 +41,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   const DisplayIcon = currentVariant ? currentVariant.icon : DefaultIcon;
   const displayLabel = currentVariant ? currentVariant.label : defaultLabel;
 
-  // Global keyboard shortcut binding
-  useEffect(() => {
-    if (disabled) return;
-    
-    const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-      
-      // Handle base tool shortcut
-      if (shortcut && e.key.toUpperCase() === shortcut.toUpperCase() && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        setActiveTool(activeVariantId);
-      }
-      
-      // Handle variant shortcuts
-      if (hasVariants) {
-        variants.forEach(variant => {
-          if (variant.shortcut && e.key.toUpperCase() === variant.shortcut.toUpperCase() && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            setActiveTool(variant.id);
-            setActiveVariantId(variant.id);
-          }
-        });
-      }
-    };
-    
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [shortcut, activeVariantId, disabled, setActiveTool, hasVariants, variants]);
+  // Keyboard shortcuts removed per user request
 
   const handleMainClick = () => {
     if (disabled) return;
@@ -90,7 +68,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
 
   // Only show tooltip if NOT showing variants menu
   const showTooltip = isHovered && !disabled && !hasVariants && !customSubmenu;
-  const showVariantsMenu = (isHovered || forceOpenSubmenu) && !disabled && (hasVariants || customSubmenu);
+  const showVariantsMenu = (isHovered || forceOpenSubmenu || isShortcutOpen) && !disabled && (hasVariants || customSubmenu);
 
   return (
     <div
@@ -112,7 +90,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         whileTap={!disabled ? { scale: 0.93 } : {}}
         onClick={handleMainClick}
         disabled={disabled}
-        aria-label={`${displayLabel}${shortcut ? ` (${shortcut})` : ''}`}
+        aria-label={displayLabel}
         aria-pressed={isGroupActive}
         title=""
         className="relative w-full h-full flex items-center justify-center rounded-full transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-primary)]/40"
@@ -181,7 +159,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
             exit={{ opacity: 0, y: 3, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 600, damping: 32, mass: 0.6 }}
             role="tooltip"
-            className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 z-[9999] pointer-events-none"
+            className={`absolute top-full mt-2.5 z-[9999] pointer-events-none ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
             <div
               className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg whitespace-nowrap"
@@ -197,26 +175,11 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
               >
                 {displayLabel}
               </span>
-              {shortcut && (
-                <span
-                  className="flex items-center justify-center rounded-md text-[10px] font-bold"
-                  style={{
-                    minWidth: 18,
-                    height: 18,
-                    padding: '0 5px',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-tertiary)',
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  {shortcut}
-                </span>
-              )}
+              {/* Shortcut badges removed */}
             </div>
             {/* Tooltip caret */}
             <div
-              className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
+              className={`absolute -top-1 w-2 h-2 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
               style={{
                 background: 'var(--bg-primary)',
                 borderLeft: '1px solid var(--border-color)',
@@ -235,8 +198,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
-            role="menu"
-            className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[9999]"
+            className={`absolute top-full mt-2 z-[9999] ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
             <div
               className="flex flex-col p-1 rounded-xl"
@@ -293,24 +255,21 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                         />
                       )}
 
-                      {variant.shortcut && (
-                        <span className="text-[10px] font-bold text-[var(--text-tertiary)] bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded border border-[var(--border-color)]">
-                          {variant.shortcut}
-                        </span>
-                      )}
+                      {/* Shortcut removed */}
                     </button>
                   )
                 })
               )}
             </div>
             
-            {/* Submenu Caret */}
+            {/* Submenu Caret - Shifted to stay above the button center */}
             <div
-              className="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45"
+              className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
               style={{
                 background: 'var(--bg-primary)',
                 borderLeft: '1px solid var(--border-color)',
                 borderTop: '1px solid var(--border-color)',
+                zIndex: -1
               }}
             />
           </motion.div>

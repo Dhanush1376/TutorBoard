@@ -26,8 +26,8 @@ const ThemeSelector = () => {
         </button>
       </div>
 
-      {/* 2. 2x2 Theme Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* 2. 4-Column Theme Row */}
+      <div className="grid grid-cols-4 gap-2.5">
         {themes.map((theme) => {
           const isSelected = currentThemeId === theme.id;
           const displayColors = theme.colors[mode];
@@ -36,28 +36,22 @@ const ThemeSelector = () => {
             <button
               key={theme.id}
               onClick={() => setCurrentThemeId(theme.id)}
-              className={`flex flex-col items-start p-3 rounded-2xl border transition-all text-left relative group ${
+              className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative group ${
                 isSelected 
-                  ? 'bg-[var(--bg-tertiary)] border-[var(--text-primary)] shadow-lg' 
+                  ? 'bg-[var(--bg-tertiary)] border-[var(--text-primary)] shadow-md' 
                   : 'bg-transparent border-[var(--border-color)] hover:border-[var(--text-tertiary)]'
               }`}
             >
-              {isSelected && (
-                <div className="absolute top-2 right-2 w-4 h-4 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full flex items-center justify-center">
-                   <Check size={10} strokeWidth={4} />
-                </div>
-              )}
-
-              <span className={`text-[11px] font-bold mb-3 transition-colors ${isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-                {theme.name}
+              <span className={`text-[9px] font-bold mb-2.5 transition-colors leading-tight ${isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+                {theme.name.split(' & ')[0]}<br/>& {theme.name.split(' & ')[1]}
               </span>
 
               {/* Color Swatch Strip */}
-              <div className="flex gap-1.5 mt-auto">
+              <div className="flex gap-1 mt-auto">
                 {[displayColors.bg, displayColors.surface, displayColors.text, displayColors.aiBubble].map((color, i) => (
                   <div 
                     key={i} 
-                    className="w-3 h-3 rounded-full border border-black/5 shadow-sm" 
+                    className="w-2.5 h-2.5 rounded-full border border-black/5 shadow-sm" 
                     style={{ backgroundColor: color }} 
                   />
                 ))}

@@ -5,7 +5,7 @@ import {
   Check,
 } from 'lucide-react';
 import useTutorStore from '../../../store/tutorStore';
-import ToolButtonBase from '../components/ToolButtonBase';
+import ToolButtonBase from './ToolButtonBase';
 import { CanvasContext } from '../../canvas/InfiniteCanvas';
 
 const MODES = [
@@ -40,30 +40,7 @@ const HandTool = ({ closeMenu, ...props }) => {
 
   // Tools shortcuts (P, M, L, E) are handled in their respective components or Toolbar.
   // HandTool only handles mode switching.
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (
-        e.target.tagName === 'INPUT' ||
-        e.target.tagName === 'TEXTAREA' ||
-        e.target.isContentEditable
-      )
-        return;
-
-      if (e.key.toLowerCase() === 'h') {
-        setActiveTool('hand');
-      } else if (e.key.toLowerCase() === 'v') {
-        setActiveTool('select');
-      } else if (e.key === 'Escape') {
-        setSelectedElements?.([]);
-      }
-    },
-    [setActiveTool, setSelectedElements]
-  );
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  // Keyboard shortcuts removed per user request
 
   const handleMainClick = () => {
     setActiveTool(lastActiveHandMode.current);
@@ -143,16 +120,7 @@ const HandTool = ({ closeMenu, ...props }) => {
                     <Check size={9} />
                   </div>
                 )}
-                <kbd
-                  className="px-1.5 py-0.5 rounded text-[9px] font-bold"
-                  style={{
-                    background: isActive ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
-                    color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                    border: isActive ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.08)',
-                  }}
-                >
-                  {mode.shortcut}
-                </kbd>
+                {/* Shortcut removed */}
               </div>
             </button>
           );
@@ -168,7 +136,6 @@ const HandTool = ({ closeMenu, ...props }) => {
       id="hand"
       icon={CurrentIcon}
       label={currentMode.label.split(' ')[0]}
-      shortcut={currentMode.shortcut}
       onClick={handleMainClick}
       customSubmenu={Submenu}
     />

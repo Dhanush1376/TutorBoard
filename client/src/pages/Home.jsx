@@ -175,9 +175,11 @@ const Home = ({ isDark }) => {
     const saved = localStorage.getItem('tutorboard-history');
     return saved ? JSON.parse(saved) : [];
   });
-  const [activeChatId, setActiveChatId] = useState(() => {
-    return localStorage.getItem('tutorboard-active-chat') || null;
-  });
+  const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore();
+  
+  // Use machine.sessionId as the single source of truth for the local chat pointer
+  const activeChatId = machineSessionId;
+  const setActiveChatId = storeSetSessionId;
   
   useEffect(() => {
     localStorage.setItem('tutorboard-history', JSON.stringify(chatHistory));
@@ -187,8 +189,6 @@ const Home = ({ isDark }) => {
   useEffect(() => {
     if (activeChatId) {
       localStorage.setItem('tutorboard-active-chat', activeChatId);
-    } else {
-      localStorage.removeItem('tutorboard-active-chat');
     }
   }, [activeChatId]);
 
@@ -389,16 +389,7 @@ const Home = ({ isDark }) => {
 
   const safeNum = (v, f) => { const n = parseFloat(v); return isNaN(n) ? f : n; };
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
-        e.preventDefault();
-        toggleSidebar();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSidebar]);
+  // Sidebar shortcut removed per user request
 
   const handleNewChat = () => { setActiveChatId(null); setPrompt(''); endSession(); };
   const handleSelectChat = (id) => { setActiveChatId(id); setActiveView('chat'); };
@@ -453,32 +444,7 @@ const Home = ({ isDark }) => {
 
   // ── Manual Note Creation ──
   const { activeTool } = useTutorStore();
-  const lastClickTimeRef = useRef(0);
-  
-  const handleCanvasDoubleClick = useCallback((e) => {
-    // If clicking on an actual nested element (like a note, text box, shape, or button), don't create a new note
-    const target = e.target;
-    const isClickableElement = target.closest('.sticky') || target.closest('textarea') || target.closest('button') || target.closest('svg') || target.tagName === 'INPUT';
-    
-    if (isClickableElement) {
-      return false; // Let it handle its own events
-    }
 
-    const canvas = canvasRef.current;
-    if (!canvas) return false;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const cy = e.clientY - rect.top;
-
-    const { x, y, scale } = canvas.getTransform();
-    const worldX = (cx - x) / scale;
-    const worldY = (cy - y) / scale;
-
-    addNoteToCanvas(worldX, worldY);
-    // Let the user know a note was created
-    return true; // Return true to prevent default canvas zooming
-  }, [addNoteToCanvas]);
 
   const handleCanvasClick = useCallback((e) => {
     // Standard click handling
@@ -515,7 +481,6 @@ const Home = ({ isDark }) => {
           ref={canvasRef}
           onViewportChange={setCanvasTransform}
           onInteractionStart={() => { isAutoFollow.current = false; }}
-          onDoubleClick={handleCanvasDoubleClick}
           overlay={<InteractiveCanvasLayer />}
         >
           <AgentCanvasRenderer

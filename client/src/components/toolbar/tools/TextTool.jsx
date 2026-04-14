@@ -12,7 +12,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import useTutorStore from '../../../store/tutorStore';
-import ToolButtonBase from '../components/ToolButtonBase';
+import ToolButtonBase from './ToolButtonBase';
 
 const MODES = [
   { id: 'standard', icon: Type,          label: 'Label',   desc: 'Clean'       },
@@ -72,7 +72,7 @@ const SegBar = ({ children }) => (
 const TextTool = (props) => {
   const {
     textType,   setTextType,
-    textSize,   setTextSize,
+    textToolSize,setTextToolSize,
     textWeight, setTextWeight,
     textAlign,  setTextAlign,
     textBgColor, setTextBgColor,
@@ -104,7 +104,7 @@ const TextTool = (props) => {
       content: '',
       label: '',
       styles: {
-        fontSize: textSize || 20,
+        fontSize: textToolSize || 24,
         fontWeight: WEIGHTS.find(w => w.id === textWeight)?.style || 700,
         textAlign: textAlign || 'center',
         backgroundColor: textBgColor || 'transparent',
@@ -166,7 +166,7 @@ const TextTool = (props) => {
         </span>
         <SegBar>
           {SIZES.map(({ id, label }) => (
-            <SegButton key={id} isActive={textSize === id} onClick={() => setTextSize(id)}>
+            <SegButton key={id} isActive={textToolSize === id} onClick={() => setTextToolSize(id)}>
               {label}
             </SegButton>
           ))}
@@ -223,7 +223,6 @@ const TextTool = (props) => {
       id="text"
       icon={CurrentIcon}
       label="Text"
-      shortcut="T"
       onClick={() => {
         // H1 FIX: Only activate the tool — don't create elements from toolbar click.
         // Elements are created via submenu "Quick Add" buttons or via canvas click.

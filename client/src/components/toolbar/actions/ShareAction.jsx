@@ -6,7 +6,7 @@ import {
   FileJson,
   QrCode
 } from 'lucide-react';
-import ActionButtonBase from '../components/ActionButtonBase';
+import ActionButtonBase from '../tools/ActionButtonBase';
 import useTutorStore from '../../../store/tutorStore';
 import { Check, Copy } from 'lucide-react';
 
@@ -61,6 +61,36 @@ const ShareAction = (props) => {
         downloadLink.click();
         document.body.removeChild(downloadLink);
         URL.revokeObjectURL(url);
+        
+        // ── Camera Snap / Flash Animation ──
+        const flash = document.createElement('div');
+        flash.style.position = 'fixed';
+        flash.style.inset = '0';
+        flash.style.backgroundColor = 'white';
+        flash.style.zIndex = '99999';
+        flash.style.pointerEvents = 'none';
+        flash.style.transition = 'opacity 0.5s ease-out';
+        flash.style.opacity = '0.85';
+        document.body.appendChild(flash);
+        
+        const mainView = document.querySelector('main') || document.body;
+        const originalTransform = mainView.style.transform;
+        const originalTransition = mainView.style.transition;
+        mainView.style.transition = 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)';
+        mainView.style.transform = 'scale(0.97)';
+        
+        // Trigger the flash fade-out and bounce-back
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            flash.style.opacity = '0';
+            mainView.style.transform = originalTransform || 'scale(1)';
+            setTimeout(() => {
+              if (document.body.contains(flash)) document.body.removeChild(flash);
+              mainView.style.transition = originalTransition;
+            }, 500);
+          }, 50);
+        });
+
         showFeedback('png');
       };
       img.src = url;

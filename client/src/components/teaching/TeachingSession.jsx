@@ -101,6 +101,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread,
     showDoubtThread,
+    showNotes, // NEW destructure
   } = useTutorStore();
 
   const handleClose = useCallback(() => {
@@ -191,28 +192,16 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     }
   }, [doubtResponse]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts removed per user request
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e) => {
-      const tag = e.target.tagName.toLowerCase();
-      const isTyping = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
-
-      if (e.key === 'Escape') { handleClose(); return; }
-      if (isTyping) return;
-
-      switch (e.key.toLowerCase()) {
-        case 'arrowright':             e.preventDefault(); nextStep(); break;
-        case 'arrowleft':              e.preventDefault(); prevStep(); break;
-        case ' ':                      e.preventDefault(); isPlaying ? pause() : play(); break;
-        case '?': case '/':            e.preventDefault(); doubtInputRef.current?.focus(); break;
-        case 's': if (e.altKey) { e.preventDefault(); openFloatingSidebar(); } break;
-        case 'd': if (e.altKey) { e.preventDefault(); toggleDoubtThread(); } break;
-      }
+      // Standard accessibility Escape-to-close preserved, all others stripped
+      if (e.key === 'Escape') { handleClose(); }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, handleClose, nextStep, prevStep, isPlaying, pause, play, openFloatingSidebar, toggleDoubtThread]);
+  }, [isOpen, handleClose]);
 
 // Redundant callback placement removed. Still using memoized versions.
 
@@ -341,6 +330,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 connections={canvasConnections}
                 steps={canvasSteps}
                 currentStepIndex={currentStepIndex}
+                showNotes={showNotes} // Pass it down
               />
               <InteractiveCanvasLayer />
             </InfiniteCanvas>

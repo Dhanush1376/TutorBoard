@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { motion, useAnimation } from 'framer-motion';
 import useTutorStore from '../../../store/tutorStore';
-import ActionButtonBase from '../components/ActionButtonBase';
+import ActionButtonBase from '../tools/ActionButtonBase';
 
 const HoldToConfirmButton = ({ onConfirm }) => {
   const [isHolding, setIsHolding] = React.useState(false);

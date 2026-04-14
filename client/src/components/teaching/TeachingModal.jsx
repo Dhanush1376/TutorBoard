@@ -128,21 +128,14 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
   // Keyboard controls — skip when typing in inputs
   useEffect(() => {
     if (!isOpen) return;
+    // Keyboard shortcuts removed per user request
     const handleKey = (e) => {
-      const tag = e.target.tagName.toLowerCase();
-      const isTyping = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
-
+      // Standard accessibility Escape-to-close preserved, all others stripped
       if (e.key === 'Escape') onClose();
-
-      if (!isTyping) {
-        if (e.key === 'ArrowRight' || e.key === 'l') handleNext();
-        if (e.key === 'ArrowLeft' || e.key === 'h') handlePrev();
-        if (e.key === ' ') { e.preventDefault(); handlePlayPause(); }
-      }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, currentStep, isPlaying]);
+  }, [isOpen, onClose]);
 
   const handlePlayPause = useCallback(() => setIsPlaying(p => !p), []);
   const handlePrev = useCallback(() => {

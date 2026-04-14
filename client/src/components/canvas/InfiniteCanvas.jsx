@@ -13,6 +13,7 @@
 
 import React, { useState, useRef, useCallback, useEffect, memo, useImperativeHandle } from 'react';
 import useTutorStore from '../../store/tutorStore';
+import { getToolCursor } from '../../utils/cursors';
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -45,7 +46,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   // Transform state
   const [transform, setTransform] = useState(initialTransform || { x: 0, y: 0, scale: 1 });
   const [transitionStyle, setTransitionStyle] = useState('transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)');
-  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const isSpacePressed = false; // Shortcuts removed
   const [isDragging, setIsDragging] = useState(false);
   const [isHoveringContent, setIsHoveringContent] = useState(false);
   const transformRef = useRef(transform);
@@ -204,9 +205,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const isMiddleButton = e.button === 1;
     const isSpacePan = (isSpacePressed && e.button === 0);
     
-    // BUG 2 FIX: Direct panning should only happen if the Hand tool is active 
-    // OR if we are clicking on empty canvas space (not an object) AND no draw tool is active.
-    const isDirectPan = e.button === 0 && (activeTool === 'hand' || (!isHoveringContent && !isDrawTool));
+    // STRICT LOCK: Direct panning should ONLY happen if the Hand tool is active 
+    // AND it's a left-click on the background.
+    const isDirectPan = e.button === 0 && activeTool === 'hand' && !isHoveringContent;
     
     if (!isMiddleButton && !isSpacePan && !isDirectPan) return;
 
@@ -338,82 +339,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
     onInteractionEnd?.();
   }, [commitTransform, onInteractionEnd]);
 
-  // ─── KEYBOARD ───
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      const tag = (e.target.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
-      if (e.code === 'Space' && !isSpacePressed) {
-        setIsSpacePressed(true);
-        if (containerRef.current) containerRef.current.style.cursor = 'grab';
-      }
-      const container = containerRef.current;
-      if (!container || isCanvasLocked) return;
-      const rect = container.getBoundingClientRect();
-      const cx = rect.width / 2 + rect.left;
-      const cy = rect.height / 2 + rect.top;
-
-      // M5 FIX: Only allow canvas-specific shortcuts (F/R) when no interactive tool is active
-      // to avoid conflicts with tool shortcuts (R = ShapeTool, G = GridTool, etc.)
-      const currentTool = useTutorStore.getState().activeTool;
-      const isNavigationTool = currentTool === 'hand' || currentTool === 'select';
-
-      switch (e.key.toLowerCase()) {
-        case '+': case '=': 
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault(); 
-            zoomIn(); 
-          } else {
-            e.preventDefault(); 
-            zoomAtPoint(-150, cx, cy); 
-          }
-          break;
-        case '-': case '_': 
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault(); 
-            zoomOut(); 
-          } else {
-            e.preventDefault(); 
-            zoomAtPoint(150, cx, cy); 
-          }
-          break;
-        case '0': 
-          e.preventDefault(); 
-          if (e.metaKey || e.ctrlKey) {
-            resetView();
-          } else {
-            commitTransform({ x: 0, y: 0, scale: 1 }); 
-          }
-          break;
-        case 'f':
-          // Only fit-to-content when using navigation tools or with Ctrl
-          if (isNavigationTool || e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            fitToContent();
-          }
-          break;
-        case 'r':
-          // Only reset view when using navigation tools or with Ctrl — avoids conflict with ShapeTool 'R' shortcut
-          if (isNavigationTool || e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            resetView();
-          }
-          break;
-      }
-    };
-    const handleKeyUp = (e) => {
-      if (e.code === 'Space') {
-        setIsSpacePressed(false);
-        if (containerRef.current) containerRef.current.style.cursor = isHoveringContent ? 'default' : 'crosshair';
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [zoomAtPoint, commitTransform, isSpacePressed, isHoveringContent]);
+  // Keyboard shortcuts removed per user request
 
   // ─── Global mouse events for drag ───
   useEffect(() => {
@@ -539,20 +465,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }), [zoomIn, zoomOut, resetView, fitToContent, centerOn, applyTransform, commitTransform]);
 
   const getCursor = () => {
-    // 1. Interactive Panning overrides
-    if (isDragging) return 'grabbing';
-    if (isSpacePressed) return 'grab';
-
-    // 2. State-driven Cursors (Figma-feel)
-    if (activeTool.startsWith('draw:')) return 'url(\'data:image/svg+xml;utf8,<svg fill="black" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>\') 0 24, auto';
-
-    switch(activeTool) {
-      case 'select': return 'default';
-      case 'hand': return 'grab';
-      case 'text': return 'text';
-      case 'note': return 'copy'; 
-      default: return isHoveringContent ? 'default' : 'crosshair';
-    }
+    return getToolCursor(activeTool, isDragging, isSpacePressed);
   };
 
   return (

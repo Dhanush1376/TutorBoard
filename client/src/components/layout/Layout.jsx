@@ -1,12 +1,55 @@
 import React, { useState } from 'react';
-import { PanelLeft, PanelRight, Check, Trash, Type, Square, StickyNote, Share, Hand, LayoutGrid, Sparkles, User } from 'lucide-react';
+import { PanelLeft, PanelRight, Check, Trash, Type, Square, StickyNote, Share, Hand, LayoutGrid, Sparkles, User, TableProperties, Grid3X3, Minimize2, Maximize2, X, MousePointer2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import Toolbar from '../toolbar/Toolbar';
 import ThemeSelector from '../ThemeSelector';
-import { X } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
+
+const GRID_TYPES = [
+  { id: 'dots',  icon: TableProperties, label: 'Dots' },
+  { id: 'lines', icon: Grid3X3,        label: 'Lines' },
+];
+
+const SIZES = [
+  { id: 20, label: 'Small',  icon: Minimize2 },
+  { id: 40, label: 'Medium', icon: Square },
+  { id: 80, label: 'Large',  icon: Maximize2 },
+];
+
+const GridPreview = ({ type, size, isActive }) => {
+  const isDots = type === 'dots';
+  
+  return (
+    <div 
+      className="w-10 h-10 rounded-xl border border-[var(--border-color)] overflow-hidden bg-[var(--bg-secondary)] flex items-center justify-center p-1.5 shadow-sm transition-all"
+      style={{ opacity: isActive ? 1 : 0.4 }}
+    >
+      {isDots ? (
+        <div className="grid grid-cols-4 gap-1.5 opacity-60">
+          {[...Array(16)].map((_, i) => (
+            <div 
+              key={i} 
+              className={`w-[2px] h-[2px] rounded-full ${i === 10 ? 'bg-[var(--text-primary)] scale-150 shadow-[0_0_4px_var(--text-primary)]' : 'bg-[var(--text-tertiary)]'}`}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="w-full h-full relative opacity-40">
+          <div className="absolute inset-0 grid grid-cols-4">
+            {[...Array(3)].map((_, i) => <div key={i} className="border-r border-[var(--text-tertiary)] h-full" />)}
+          </div>
+          <div className="absolute inset-0 grid grid-rows-4">
+            {[...Array(3)].map((_, i) => <div key={i} className="border-b border-[var(--text-tertiary)] w-full" />)}
+          </div>
+          {/* Highlighted intersection */}
+          <div className="absolute top-[50%] left-[50%] w-1.5 h-1.5 bg-[var(--text-primary)] rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_4px_var(--text-primary)]" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 const glassStyle = {
   background: 'var(--bg-primary)',
@@ -20,7 +63,10 @@ const miniGlass = {
 };
 
 const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse = false }) => {
-  const { isSidebarOpen, setSidebarOpen, toggleSidebar, layoutView, setLayoutView } = useTutorStore();
+  const { 
+    isSidebarOpen, setSidebarOpen, toggleSidebar, layoutView, setLayoutView,
+    showGrid, toggleGrid, isSnapToGrid, toggleSnap, gridType, setGridType, gridSize, setGridSize
+  } = useTutorStore();
   const isLeftHand = layoutView === 'left';
   const [showSettings, setShowSettings] = useState(false);
   const { user } = useAuth();
@@ -98,7 +144,51 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
                 <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Theme</h4>
                 <ThemeSelector />
               </div>
-              
+
+              {/* Grid Layout Settings - Unified Design */}
+              <div>
+                <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-4">Grid Settings</h4>
+                
+                {/* 1. Status Row - Styled like Mode Toggle */}
+                <div className="flex items-center justify-between px-1 mb-4">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider leading-none mb-1">Live Preview</span>
+                    <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+                      {(gridType || 'dots').charAt(0).toUpperCase() + (gridType || 'dots').slice(1)} • {gridSize || 20}px
+                    </span>
+                  </div>
+                  <div className="p-1 px-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl">
+                    <GridPreview type={gridType || 'dots'} size={gridSize || 20} isActive={true} />
+                  </div>
+                </div>
+
+                {/* 2. Style Grid - Styled like Layout View Cards */}
+                <div className="flex gap-3">
+                  {GRID_TYPES.map(type => {
+                    const isActive = (gridType || 'dots') === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={() => setGridType(type.id)}
+                        className={`flex-1 flex flex-col items-center justify-center gap-2 px-3 py-4 rounded-2xl border transition-all relative ${
+                          isActive 
+                            ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)] shadow-md' 
+                            : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-tertiary)] opacity-60'
+                        }`}
+                      >
+                        {isActive && (
+                          <div className="absolute top-2 right-2 w-4 h-4 bg-[var(--bg-primary)] text-[var(--text-primary)] rounded-full flex items-center justify-center">
+                            <Check size={10} strokeWidth={4} />
+                          </div>
+                        )}
+                        <type.icon size={22} strokeWidth={2.5} />
+                        <span className="text-[12px] font-bold uppercase tracking-widest leading-none">{type.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Layout View</h4>
                 <div className="flex gap-3">
@@ -137,6 +227,8 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
                   </button>
                 </div>
               </div>
+
+
             </div>
 
             <div className="p-4 bg-[var(--bg-tertiary)] border-t border-[var(--border-color)] flex justify-end">

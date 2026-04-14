@@ -12,12 +12,12 @@
  *  - All existing shapes preserved and improved
  */
 
-import React, { useId, useState, useRef, useEffect, useContext } from "react";
+import React, { useId, useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Palette, ArrowUp, Copy, Pin, Layers, RotateCw, Trash2 } from "lucide-react";
 import katex from "katex";
 import useTutorStore from "../../store/tutorStore";
-import { CanvasContext } from "../canvas/InfiniteCanvas";
+/* CanvasContext removed */
 
 const CW = 800;
 const CH = 600;
@@ -145,6 +145,7 @@ const AW = ({
   onUpdate,
   onDelete,
   rotation: initialRotation = 0,
+  isLocked = false,
   ...props
 }) => {
   const opacity = attentionLevel === 2 ? 1 : attentionLevel === 0 ? 0.12 : 1.0;
@@ -215,7 +216,8 @@ const AW = ({
   const [isDragging, setIsDragging] = useState(false);
 
   const handleMovePointerDown = (e) => {
-    if (!onUpdate) return;
+    e.stopPropagation();
+    if (!onUpdate || isLocked) return;
     
     const svgEl = e.currentTarget.closest('svg');
     if (!svgEl) return;
@@ -267,6 +269,67 @@ const AW = ({
     document.addEventListener("pointerup", onUp);
   };
 
+  const handleResizePointerDown = (e, dirX, dirY) => {
+    e.stopPropagation();
+    if (!onUpdate || isLocked) return;
+
+    const svgEl = e.currentTarget.closest('svg');
+    if (!svgEl) return;
+
+    let ctm;
+    try { ctm = e.currentTarget.getScreenCTM(); } catch { return; }
+    if (!ctm) return;
+
+    const pt = svgEl.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    let startWorld = pt.matrixTransform(ctm.inverse());
+    
+    setIsDragging(true);
+
+    const onMove = (moveEvent) => {
+      pt.x = moveEvent.clientX;
+      pt.y = moveEvent.clientY;
+      const moveWorld = pt.matrixTransform(ctm.inverse());
+
+      // Optional: Snap resizing if grid snapping is desired
+      const GRID_SNAP = 20;
+      const snappedWorldX = Math.round(moveWorld.x / GRID_SNAP) * GRID_SNAP;
+      const snappedWorldY = Math.round(moveWorld.y / GRID_SNAP) * GRID_SNAP;
+
+      const deltaX = snappedWorldX - startWorld.x;
+      const deltaY = snappedWorldY - startWorld.y;
+
+      if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
+        // Compute dimension deltas based on drag direction
+        const sizeDeltaX = deltaX * dirX;
+        const sizeDeltaY = deltaY * dirY;
+
+        // The center must shift by half the delta to keep the opposite edge stationary
+        const shiftX = deltaX / 2;
+        const shiftY = deltaY / 2;
+
+        onUpdate({ 
+           dw: sizeDeltaX / 800, // Normalize relative to Viewport Width
+           dh: sizeDeltaY / 600, // Normalize relative to Viewport Height
+           dx: shiftX / 800,
+           dy: shiftY / 600
+        });
+
+        startWorld = { x: snappedWorldX, y: snappedWorldY };
+      }
+    };
+
+    const onUp = () => {
+      setIsDragging(false);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+    };
+
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  };
+
   return (
     <motion.g
       initial={initial}
@@ -276,6 +339,7 @@ const AW = ({
       }}
       exit={{ scale: 0.8, opacity: 0 }}
       onPointerDown={handleMovePointerDown}
+      onMouseDown={(e) => e.stopPropagation()}
       style={{ 
         cursor: onUpdate ? "move" : "default",
         transformOrigin: "center", 
@@ -300,8 +364,14 @@ const AW = ({
             exit={{ opacity: 0, scale: 0.8 }}
             pointerEvents="auto"
           >
+            {/* Resize Handles */}
+            <circle cx={-w/2} cy={-h/2} r={6} fill="#3b82f6" stroke="#fff" strokeWidth={2} style={{cursor: 'nwse-resize'}} onPointerDown={(e) => handleResizePointerDown(e, -1, -1)} onMouseDown={(e) => e.stopPropagation()} />
+            <circle cx={w/2} cy={-h/2} r={6} fill="#3b82f6" stroke="#fff" strokeWidth={2} style={{cursor: 'nesw-resize'}} onPointerDown={(e) => handleResizePointerDown(e, 1, -1)} onMouseDown={(e) => e.stopPropagation()} />
+            <circle cx={-w/2} cy={h/2} r={6} fill="#3b82f6" stroke="#fff" strokeWidth={2} style={{cursor: 'nesw-resize'}} onPointerDown={(e) => handleResizePointerDown(e, -1, 1)} onMouseDown={(e) => e.stopPropagation()} />
+            <circle cx={w/2} cy={h/2} r={6} fill="#3b82f6" stroke="#fff" strokeWidth={2} style={{cursor: 'nwse-resize'}} onPointerDown={(e) => handleResizePointerDown(e, 1, 1)} onMouseDown={(e) => e.stopPropagation()} />
+
             {/* Rotation Handle */}
-            <g transform={`translate(0, ${-h / 2 - 35})`} onPointerDown={handleRotatePointerDown} style={{ cursor: 'alias' }}>
+            <g transform={`translate(0, ${-h / 2 - 35})`} onPointerDown={handleRotatePointerDown} onMouseDown={(e) => e.stopPropagation()} style={{ cursor: 'alias' }}>
               <circle r={14} fill="var(--bg-primary)" stroke="#22d3ee" strokeWidth={1.5} shadow="0 4px 12px rgba(0,0,0,0.2)" />
               <RotateCw size={14} x={-7} y={-7} stroke="#22d3ee" />
             </g>
@@ -329,6 +399,9 @@ export const GlowOrb = ({
   attentionLevel,
   layoutId,
   animation,
+  isSelected,
+  onUpdate,
+  onDelete,
 }) => {
   const c = resolve(color);
   const radius = r || 40;
@@ -342,6 +415,11 @@ export const GlowOrb = ({
       animation={animation}
       cx={cx}
       cy={cy}
+      w={radius * 2}
+      h={radius * 2}
+      isSelected={isSelected}
+      onUpdate={onUpdate}
+      onDelete={onDelete}
     >
       <defs>
         <radialGradient id={gradId} cx="35%" cy="35%" r="75%">
@@ -513,6 +591,9 @@ export const FlowArrow = ({
   layoutId,
   strokeStyle = "solid",
   animation,
+  isSelected,
+  onUpdate,
+  onDelete,
 }) => {
   const c = resolve(color);
   const mx = (x1 + x2) / 2,
@@ -525,7 +606,12 @@ export const FlowArrow = ({
       layoutId={layoutId}
       cx={mx}
       cy={my}
+      w={Math.max(40, Math.abs(x2 - x1))}
+      h={Math.max(40, Math.abs(y2 - y1))}
       animation={animation}
+      isSelected={isSelected}
+      onUpdate={onUpdate}
+      onDelete={onDelete}
     >
       <defs>
         <marker
@@ -576,6 +662,9 @@ export const RawLine = ({
   layoutId,
   strokeStyle = "solid",
   animation,
+  isSelected,
+  onUpdate,
+  onDelete,
 }) => {
   const c = resolve(color);
   const mx = (x1 + x2) / 2,
@@ -586,7 +675,12 @@ export const RawLine = ({
       layoutId={layoutId}
       cx={mx}
       cy={my}
+      w={Math.max(40, Math.abs(x2 - x1))}
+      h={Math.max(40, Math.abs(y2 - y1))}
       animation={animation}
+      isSelected={isSelected}
+      onUpdate={onUpdate}
+      onDelete={onDelete}
     >
       <motion.line
         x1={x1 - mx}
@@ -1353,14 +1447,15 @@ export const VennCircle = ({
 /**
  * EllipseShape — Smooth circular/elliptical primitive
  */
-export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
+export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", fill, isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y} 
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
       <ellipse 
         rx={Math.max(2, w / 2)} ry={Math.max(2, h / 2)} 
-        fill={c.glass} stroke={c.stroke} strokeWidth={2} 
+        fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
+        strokeDasharray={getStrokeDash(strokeStyle)}
       />
       {label && <text y={h/2 + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1370,7 +1465,7 @@ export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
 /**
  * DiamondShape — Rotated square primitive
  */
-export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
+export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", fill, isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const dw = w / 2;
   const dh = h / 2;
@@ -1379,7 +1474,8 @@ export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y} 
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
       <polygon 
-        points={pts} fill={c.glass} stroke={c.stroke} strokeWidth={2} 
+        points={pts} fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
+        strokeDasharray={getStrokeDash(strokeStyle)}
       />
       {label && <text y={dh + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1389,7 +1485,7 @@ export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
 /**
  * StarShape — 5-pointed star primitive
  */
-export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
+export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", fill, isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const rOuter = Math.min(w, h) / 2;
   const rInner = rOuter * 0.4;
@@ -1403,7 +1499,8 @@ export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animati
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y} 
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
       <polygon 
-        points={points.join(" ")} fill={c.glass} stroke={c.stroke} strokeWidth={2} 
+        points={points.join(" ")} fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
+        strokeDasharray={getStrokeDash(strokeStyle)}
       />
       {label && <text y={rOuter + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1413,7 +1510,7 @@ export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animati
 /**
  * HexagonShape — 6-sided geometric primitive
  */
-export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
+export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", fill, isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const rw = w / 2;
   const rh = h / 2;
@@ -1426,7 +1523,8 @@ export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y} 
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
       <polygon 
-        points={points.join(" ")} fill={c.glass} stroke={c.stroke} strokeWidth={2} 
+        points={points.join(" ")} fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
+        strokeDasharray={getStrokeDash(strokeStyle)}
       />
       {label && <text y={rh + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
@@ -1437,22 +1535,7 @@ export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
  * CalloutShape — Speech bubble primitive
  */
 export const CalloutShape = ({
-  x,
-  y,
-  w,
-  h,
-  color,
-  attentionLevel,
-  layoutId,
-  animation,
-  label,
-  content,
-  strokeStyle = "solid",
-  isSelected,
-  onUpdate,
-  onDelete,
-  rotation,
-  styles = {},
+  x, y, w, h, color, attentionLevel, layoutId, animation, label, content, strokeStyle = "solid", fill, isSelected, onUpdate, onDelete, rotation, styles = {},
 }) => {
   const c = resolve(color);
   const rw = w / 2;
@@ -1473,23 +1556,14 @@ export const CalloutShape = ({
       onDelete={onDelete}
       rotation={rotation}
     >
-      {/* Refined Callout Path with a "Tail" */}
       <path
-        d={`M ${-rw},${-rh} 
-           H ${rw} 
-           V ${rh} 
-           H ${-rw + 30} 
-           L ${-rw},${rh + 20} 
-           L ${-rw + 15},${rh} 
-           H ${-rw} 
-           Z`}
-        fill={c.glass}
+        d={`M ${-rw},${-rh} H ${rw} V ${rh} H ${-rw + 30} L ${-rw},${rh + 20} L ${-rw + 15},${rh} H ${-rw} Z`}
+        fill={fill === "none" ? "none" : c.glass}
         stroke={c.stroke}
         strokeWidth={2}
-        style={{}}
+        strokeDasharray={getStrokeDash(strokeStyle)}
       />
       
-      {/* Wrapped Text Content */}
       <foreignObject
         x={-rw + 10}
         y={-rh + 10}
@@ -1522,16 +1596,17 @@ export const CalloutShape = ({
 /**
  * CloudShape — Cloud-like bubble primitive
  */
-export const CloudShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", isSelected, onUpdate, onDelete, rotation }) => {
+export const CloudShape = ({ x, y, w, h, color, attentionLevel, layoutId, animation, label, strokeStyle = "solid", fill, isSelected, onUpdate, onDelete, rotation }) => {
   const c = resolve(color);
   const rw = w / 2;
   const rh = h / 2;
+  const f = fill === "none" ? "none" : c.glass;
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y}
         w={w} h={h} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}>
-      <ellipse cx={-rw * 0.4} cy={-rh * 0.2} rx={rw * 0.5} ry={rh * 0.5} fill={c.glass} stroke={c.stroke} strokeWidth={2} />
-      <ellipse cx={rw * 0.4} cy={-rh * 0.2} rx={rw * 0.5} ry={rh * 0.5} fill={c.glass} stroke={c.stroke} strokeWidth={2} />
-      <ellipse cx={0} cy={rh * 0.2} rx={rw * 0.6} ry={rh * 0.5} fill={c.glass} stroke={c.stroke} strokeWidth={2} />
+      <ellipse cx={-rw * 0.4} cy={-rh * 0.2} rx={rw * 0.5} ry={rh * 0.5} fill={f} stroke={c.stroke} strokeWidth={2} strokeDasharray={getStrokeDash(strokeStyle)} />
+      <ellipse cx={rw * 0.4} cy={-rh * 0.2} rx={rw * 0.5} ry={rh * 0.5} fill={f} stroke={c.stroke} strokeWidth={2} strokeDasharray={getStrokeDash(strokeStyle)} />
+      <ellipse cx={0} cy={rh * 0.2} rx={rw * 0.6} ry={rh * 0.5} fill={f} stroke={c.stroke} strokeWidth={2} strokeDasharray={getStrokeDash(strokeStyle)} />
       {label && <text y={rh + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
   );
@@ -1812,8 +1887,7 @@ export const StickyNoteShape = ({
     bringToFront,
     pinnedNotes = [],
   } = useTutorStore();
-  const canvasCtx = useContext(CanvasContext);
-  const canvasScale = canvasCtx?.transform?.scale || 1;
+  const canvasScale = useTutorStore(s => s.canvasTransform.scale) || 1;
   const isPinned = pinnedNotes.some((n) => n.id === layoutId);
 
   useEffect(() => {
@@ -1886,8 +1960,8 @@ export const StickyNoteShape = ({
 
       if (onUpdate) {
         onUpdate({
-          x: originalWorldX + (dx / CW),
-          y: originalWorldY + (dy / CH),
+          x: (originalWorldX + dx) / CW,
+          y: (originalWorldY + dy) / CH,
         });
       }
     };
@@ -1913,8 +1987,8 @@ export const StickyNoteShape = ({
       attentionLevel={attentionLevel}
       layoutId={layoutId}
       animation={animation}
-      cx={x * CW}
-      cy={y * CH}
+      cx={x}
+      cy={y}
       rotate={isDragging ? rotation + 1.5 : rotation}
       scale={isDragging ? 1.02 : 1}
       onHoverStart={() => setIsHovered(true)}
@@ -1922,10 +1996,10 @@ export const StickyNoteShape = ({
         setIsHovered(false);
         setShowColorPicker(false);
       }}
-      initial={{ x: x * CW, y: y * CH, scale: 0.7, opacity: 0, rotate: rotation - 8 }}
+      initial={{ x, y, scale: 0.7, opacity: 0, rotate: rotation - 8 }}
       animate={{ 
-        x: x * CW,
-        y: y * CH,
+        x,
+        y,
         scale: isDragging ? 1.02 : 1, 
         opacity: 1, 
         rotate: isDragging ? rotation + 1.5 : rotation 
@@ -1989,8 +2063,8 @@ export const StickyNoteShape = ({
         cx={-width / 2 + 15}
         cy={-height / 2 + 15}
         r={4}
-        fill={isPinned ? "#ef4444" : "#475569"}
-        opacity={isPinned ? 0.9 : 0.22}
+        fill={isPinned ? "#ef4444" : "#000000"}
+        opacity={isPinned ? 0.9 : 0.35}
       />
 
       {/* Folded Corner (Bottom Right) */}
@@ -2057,16 +2131,16 @@ export const StickyNoteShape = ({
             padding: "2px 12px 12px",
             fontFamily: fontFamily || "'Caveat', cursive, 'DM Sans', sans-serif",
             fontSize: `${fontSize}px`,
-            color: color || "rgba(0,0,0,0.72)",
+            color: "#000000",
             lineHeight: 1.75,
-            fontWeight: fontWeight || 500,
+            fontWeight: fontWeight || 600,
             fontStyle: fontStyle || "normal",
             textDecoration: textDecoration || "none",
             overflow: "hidden",
             cursor: "text"
           }}
           onPointerDown={(e) => {
-            e.stopPropagation();
+            // No stopPropagation: allow click to reach AgentCanvasRenderer for selection
             bringToFront(layoutId);
           }}
         />
@@ -2117,8 +2191,8 @@ export const StickyNoteShape = ({
               style={{ cursor: "pointer" }}
               pointerEvents="auto"
             >
-              <circle r={10} fill={col.bg} stroke={col.tape} strokeWidth={1.5} opacity={0.9} />
-              <Palette size={12} x={-6} y={-6} stroke={col.tape} strokeWidth={2} />
+              <circle r={10} fill={col.bg} stroke="#000000" strokeWidth={1.5} opacity={0.9} />
+              <Palette size={12} x={-6} y={-6} stroke="#000000" strokeWidth={2} />
             </g>
 
             {/* Pin Toggle Button */}
@@ -2129,8 +2203,8 @@ export const StickyNoteShape = ({
               style={{ cursor: "pointer" }}
               pointerEvents="auto"
             >
-              <circle r={10} fill={isPinned ? col.tape : col.bg} stroke={col.tape} strokeWidth={1.5} opacity={0.9} />
-              <Pin size={12} x={-6} y={-6} stroke={isPinned ? "white" : col.tape} strokeWidth={2} />
+              <circle r={10} fill={isPinned ? "#000000" : col.bg} stroke="#000000" strokeWidth={1.5} opacity={0.9} />
+              <Pin size={12} x={-6} y={-6} stroke={isPinned ? "white" : "#000000"} strokeWidth={2} />
             </g>
 
             {/* Duplicate Button */}
@@ -2141,8 +2215,8 @@ export const StickyNoteShape = ({
               style={{ cursor: "pointer" }}
               pointerEvents="auto"
             >
-              <circle r={10} fill={col.bg} stroke={col.tape} strokeWidth={1.5} opacity={0.9} />
-              <Copy size={12} x={-6} y={-6} stroke={col.tape} strokeWidth={2} />
+              <circle r={10} fill={col.bg} stroke="#000000" strokeWidth={1.5} opacity={0.9} />
+              <Copy size={12} x={-6} y={-6} stroke="#000000" strokeWidth={2} />
             </g>
 
             {/* Sync To Chat Button (Bottom area) */}
@@ -2153,8 +2227,8 @@ export const StickyNoteShape = ({
               style={{ cursor: "pointer" }}
               pointerEvents="auto"
             >
-              <circle r={10} fill={col.bg} stroke={col.tape} strokeWidth={1.5} opacity={0.9} />
-              <ArrowUp size={12} x={-6} y={-6} stroke={col.tape} strokeWidth={2} />
+              <circle r={10} fill={col.bg} stroke="#000000" strokeWidth={1.5} opacity={0.9} />
+              <ArrowUp size={12} x={-6} y={-6} stroke="#000000" strokeWidth={2} />
             </g>
 
             {/* Integrated Color Picker Popover */}
@@ -2162,14 +2236,14 @@ export const StickyNoteShape = ({
               <motion.g
                 initial={{ scale: 0.9, opacity: 0, y: -10 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
-                transform={`translate(${-width / 2 + 35}, ${-height / 2 + 45})`}
+                transform={`translate(${-width / 2 + 10}, ${-height / 2 + 45})`}
                 pointerEvents="auto"
               >
                 <rect
-                  x={-10} y={0} width={130} height={30}
-                  rx={15} fill="white"
-                  stroke={col.tape} strokeWidth={1}
-                  style={{ filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.1))" }}
+                  x={0} y={0} width={150} height={40}
+                  rx={20} fill="white"
+                  stroke="#000000" strokeWidth={1.5}
+                  style={{ filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.15))" }}
                 />
                 {[
                   "#fef9c3", "#dcfce7", "#dbeafe", "#fce7f3",
@@ -2177,9 +2251,9 @@ export const StickyNoteShape = ({
                 ].map((c, i) => (
                   <circle
                     key={c}
-                    cx={10 + i * 15} cy={15} r={8}
+                    cx={18 + i * 16} cy={20} r={6.5}
                     fill={c}
-                    stroke={color === c ? col.tape : "rgba(0,0,0,0.1)"}
+                    stroke={color === c ? "#000000" : "rgba(0,0,0,0.1)"}
                     strokeWidth={color === c ? 2 : 1}
                     style={{ cursor: "pointer" }}
                     onPointerDown={(e) => {

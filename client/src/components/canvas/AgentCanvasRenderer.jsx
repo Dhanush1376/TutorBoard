@@ -92,7 +92,8 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       // Respect explicit world-unit radius if provided, else fallback to scale-based sizing
       const r = obj.r ? obj.r * CW : (obj.scale || 1) * 38;
       return <GlowOrb key={obj.id} {...common} cx={x} cy={y}
-        r={r} color={obj.color} label={obj.label} />;
+        r={r} color={obj.color} label={obj.label}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
     }
 
     case 'rect':
@@ -113,7 +114,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       const rx = obj.w ? (obj.w <= 1 ? (obj.w * CW) / 2 : obj.w / 2) : (obj.scale || 1) * 40;
       const ry = obj.h ? (obj.h <= 1 ? (obj.h * CH) / 2 : obj.h / 2) : (obj.scale || 1) * 40;
       return <EllipseShape key={obj.id} {...common} x={x} y={y} w={rx * 2} h={ry * 2}
-        color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
+        color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
 
     case 'note':
@@ -139,7 +140,8 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'pointer':
     case 'cursor':
     case 'index':
-      return <FlowPointer key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+      return <FlowPointer key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Array / Data Block ──────────────────────────────────
     case 'array':
@@ -147,39 +149,45 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'datablock':
     case 'list':
       return <DataBlock key={obj.id} {...common} x={x} y={y}
-        values={obj.values || []} label={obj.label} color={obj.color} />;
+        values={obj.values || []} label={obj.label} color={obj.color}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Badge / Pill ─────────────────────────────────────────
     case 'badge':
     case 'tag':
     case 'chip':
-      return <FloatingBadge key={obj.id} {...common} x={x} y={y} text={obj.label || ''} color={obj.color} />;
+      return <FloatingBadge key={obj.id} {...common} x={x} y={y} text={obj.label || ''} color={obj.color}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Code Line ────────────────────────────────────────────
     case 'codeline':
     case 'code':
     case 'code_line':
-      return <CodePanel key={obj.id} {...common} x={x} y={y} code={obj.code || obj.label || ''} />;
+      return <CodePanel key={obj.id} {...common} x={x} y={y} code={obj.code || obj.label || ''}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Comparator ───────────────────────────────────────────
     case 'comparator':
     case 'compare':
       return <Comparator key={obj.id} {...common} x={x} y={y}
         leftVal={obj.leftVal} rightVal={obj.rightVal}
-        operator={obj.operator} result={obj.result} color={obj.color} />;
+        operator={obj.operator} result={obj.result} color={obj.color}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Swap Bridge ──────────────────────────────────────────
     case 'swapbridge':
     case 'swap':
     case 'swap_bridge':
-      return <SwapBridge key={obj.id} {...common} x={x} y={y} color={obj.color} />;
+      return <SwapBridge key={obj.id} {...common} x={x} y={y} color={obj.color}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Data Dot ─────────────────────────────────────────────
     case 'dot':
     case 'point':
     case 'data_dot':
     case 'scatter_point':
-      return <DataDot key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+      return <DataDot key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Cartesian Axes ───────────────────────────────────────
     case 'axes':
@@ -187,7 +195,8 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'cartesian':
     case 'graph_axes':
     case 'coordinate_system':
-      return <CartesianAxes key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+      return <CartesianAxes key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
     
     // ── LINE & ARROW ──────────────────────────────────────────
     case 'line':
@@ -197,26 +206,31 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       // Default to a 10% offset if coordinates are missing or identical
       const x2 = (obj.x2 ?? (obj.x1 ?? 0.5) + 0.1) * CW;
       const y2 = (obj.y2 ?? (obj.y1 ?? 0.5) + 0.1) * CH;
-      const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, strokeStyle: obj.strokeStyle };
+      const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, strokeStyle: obj.strokeStyle, isSelected, onUpdate: (p) => onUpdate?.(obj.id, p), onDelete: () => onDelete?.(obj.id) };
       return shape === 'line' ? <RawLine key={obj.id} {...props} /> : <FlowArrow key={obj.id} {...props} />;
     }
 
     // ── PATH / DRAWING ───────────────────────────────────────
     case 'path': {
+      const isLaser = obj.isLaser || obj.id.includes('laser');
+      const laserColor = '#fde047'; // Neon Yellow
+      
       return (
         <motion.path
           key={obj.id}
           {...common}
           d={obj.path}
           fill="none"
-          stroke={obj.color.startsWith('var') ? 'var(--text-primary)' : obj.color}
+          stroke={isLaser ? laserColor : (obj.color.startsWith('var') ? 'var(--text-primary)' : obj.color)}
           strokeWidth={obj.strokeWidth || 3}
           strokeLinecap="round"
           strokeLinejoin="round"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-          className="pointer-events-auto"
+          initial={false} // Disable redundant mounting animation
+          animate={{ opacity: 1 }}
+          style={{ 
+            filter: isLaser ? `drop-shadow(0 0 4px ${laserColor})` : 'none',
+            pointerEvents: 'auto'
+          }}
         />
       );
     }
@@ -239,21 +253,21 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'diamond': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <DiamondShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
+      return <DiamondShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'star': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <StarShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
+      return <StarShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'hexagon': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <HexagonShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
+      return <HexagonShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
@@ -261,14 +275,14 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'speech': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 180;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 120;
-      return <CalloutShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
+      return <CalloutShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'cloud': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 200;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 140;
-      return <CloudShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
+      return <CloudShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
@@ -356,9 +370,14 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
 }
 
 // ─── SVG Canvas Renderer ──────────────────────────────────────────────────────
-function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connections: extConn, steps: extSteps }) {
+function SVGCanvasRenderer({ 
+  timeline, currentStepIndex, 
+  elements: extElements, objects: extObjects, 
+  connections: extConnections, steps: extSteps,
+  showNotes: propShowNotes 
+}) {
   const { 
-    showNotes = true, 
+    showNotes: storeShowNotes = true, 
     activeTool, 
     selectedElementIds, 
     setSelectedElements, 
@@ -368,13 +387,15 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
     setEditingObjectId
   } = useTutorStore();
   
+  const showNotes = propShowNotes !== undefined ? propShowNotes : storeShowNotes;
+
   // Merge ALL sources from Props
   const rawElements = useMemo(() => {
     const timelineEls = timeline?.elements || timeline?.objects || [];
-    return [...(extEl || []), ...timelineEls];
-  }, [extEl, timeline]);
+    return [...(extElements || extObjects || []), ...timelineEls];
+  }, [extElements, extObjects, timeline]);
 
-  const connections  = extConn  || timeline?.connections || [];
+  const connections  = extConnections  || timeline?.connections || [];
   const timelineSteps= extSteps || timeline?.timeline    || timeline?.steps   || [];
   const currentStep  = timelineSteps?.[currentStepIndex] || {};
 
@@ -397,8 +418,19 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
 
   // Mutation application: per-step property overrides
   const elements = useMemo(() => {
-    let finalElements = rawElements
-      .filter(el => el?.id && stepObjectIds.has(el.id))
+    // ── DE-DUPLICATION SAFETY ──
+    const uniqueMap = new Map();
+    rawElements.forEach(el => {
+      if (el?.id) uniqueMap.set(el.id, el);
+    });
+    const dedupedRaw = Array.from(uniqueMap.values());
+
+    let finalElements = dedupedRaw
+      .filter(el => {
+        if (!el?.id) return false;
+        // Keep it if it's a manual user addition OR it's listed in the current step
+        return el.id.startsWith('manual-') || el.id.startsWith('laser-') || stepObjectIds.has(el.id);
+      })
       .map(el => {
         const mutation = (currentStep.mutations || []).find(m => m.id === el.id);
         return mutation ? { ...el, ...mutation.props } : el;
@@ -412,7 +444,10 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
     return finalElements;
   }, [rawElements, stepObjectIds, currentStep.mutations, showNotes]);
 
-  const { highlightIds, fadeIds, camera } = useStepDirector(elements, timelineSteps, currentStepIndex);
+  const worldElements = useMemo(() => elements.filter(el => !el.isPinned && !el.pinned), [elements]);
+  const pinnedElements = useMemo(() => elements.filter(el => el.isPinned || el.pinned), [elements]);
+
+  const { highlightIds, fadeIds, camera } = useStepDirector(worldElements, timelineSteps, currentStepIndex);
   
   if (!elements.length) return null;
 
@@ -492,12 +527,11 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
             })}
           </g>
 
-          {/* Elements */}
+          {/* World Elements */}
           <AnimatePresence mode="popLayout">
-            {elements.filter(o => o.id !== editingObjectId).map(obj => {
+            {worldElements.filter(o => o.id !== editingObjectId).map(obj => {
               const isSelected = selectedElementIds?.includes(obj.id);
               
-              // NEW TEXT IMPLEMENTATION
               if (obj.type === 'text' || obj.type === 'label' || obj.type === 'annotation' || obj.type === 'caption') {
                 return (
                   <ErrorBoundary key={obj.id} onClose={() => {}} reloadOnRetry={true}>
@@ -524,10 +558,8 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
                         const currentDrawColor = useTutorStore.getState().drawColor;
                         updateCanvasObject(obj.id, { color: currentDrawColor, fill: 'glass' });
                       } else {
-                        // Always allow selecting the shape first, even if not explicitly in select mode!
                         e.stopPropagation();
                         setSelectedElements([obj.id]);
-                        // Optional: switch to select tool automatically to avoid accidental drawing
                         if (activeTool !== 'select') {
                            useTutorStore.getState().setActiveTool('select');
                         }
@@ -535,7 +567,6 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
                     }}
                     style={{ cursor: activeTool === 'fill' ? 'copy' : 'move' }}
                   >
-
                     <RenderShape
                       obj={obj}
                       highlightIds={highlightIds}
@@ -551,6 +582,40 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
             })}
           </AnimatePresence>
         </motion.g>
+
+        {/* Pinned / HUD Elements (Fixed to Viewport) */}
+        <g>
+          <AnimatePresence mode="popLayout">
+            {pinnedElements.filter(o => o.id !== editingObjectId).map(obj => {
+              const isSelected = selectedElementIds?.includes(obj.id);
+              return (
+                <ErrorBoundary key={obj.id} onClose={() => {}} reloadOnRetry={true}>
+                  <g 
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingObjectId(obj.id);
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setSelectedElements([obj.id]);
+                    }}
+                    style={{ cursor: 'default' }}
+                  >
+                    <RenderShape
+                      obj={obj}
+                      highlightIds={highlightIds}
+                      fadeIds={fadeIds}
+                      animation={{ type: 'fade', duration: 0.3 }}
+                      isSelected={isSelected}
+                      onUpdate={updateCanvasObject}
+                      onDelete={deleteCanvasObject}
+                    />
+                  </g>
+                </ErrorBoundary>
+              );
+            })}
+          </AnimatePresence>
+        </g>
       </svg>
 
       {/* Inline Editing Overlay */}
@@ -590,6 +655,7 @@ export default function AgentCanvasRenderer({
   timeline, currentStepIndex,
   elements: extElements, objects: extObjects, 
   connections: extConnections, steps: extSteps,
+  showNotes,
 }) {
   const elements = extElements || extObjects || [];
   const renderer = timeline?.renderer || 'cinematic';
@@ -617,6 +683,7 @@ export default function AgentCanvasRenderer({
         elements={elements}
         connections={extConnections}
         steps={extSteps}
+        showNotes={showNotes}
       />
     </ErrorBoundary>
   );

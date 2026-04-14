@@ -156,19 +156,32 @@ const ActionButtonBase = ({
             className={`absolute top-full mt-3 z-[9999] ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
             <div
-              className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden"
+              className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl relative"
               style={{ boxShadow: '0 12px 48px rgba(0,0,0,0.3)' }}
               onMouseEnter={() => setIsMenuOpen(true)}
             >
-              {React.isValidElement(customSubmenu) 
-                ? React.cloneElement(customSubmenu, {
-                    onMouseLeave: () => {
-                      setIsHovered(false);
-                      setIsMenuOpen(false);
-                    }
-                  })
-                : customSubmenu
-              }
+              {/* Submenu Caret */}
+              <div
+                className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+                style={{
+                  background: 'var(--bg-primary)',
+                  borderLeft: '1px solid var(--border-color)',
+                  borderTop: '1px solid var(--border-color)',
+                  zIndex: -1
+                }}
+              />
+              
+              <div className="rounded-2xl overflow-hidden">
+                {React.isValidElement(customSubmenu) 
+                  ? React.cloneElement(customSubmenu, {
+                      onMouseLeave: () => {
+                        setIsHovered(false);
+                        setIsMenuOpen(false);
+                      }
+                    })
+                  : customSubmenu
+                }
+              </div>
             </div>
           </motion.div>
         )}
@@ -183,7 +196,7 @@ const ActionButtonBase = ({
             exit={{ opacity: 0, y: 3, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 600, damping: 32, mass: 0.6 }}
             role="tooltip"
-            className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 z-[9999] pointer-events-none"
+            className={`absolute top-full mt-2.5 z-[9999] pointer-events-none ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
             <div
               className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg whitespace-nowrap"
@@ -213,7 +226,7 @@ const ActionButtonBase = ({
               </span>
             </div>
             <div
-              className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
+              className={`absolute -top-1 w-2 h-2 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
               style={{
                 background: isDestructive
                   ? 'rgba(220,38,38,0.92)'

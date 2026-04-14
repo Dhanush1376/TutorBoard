@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Pin, Trash2, Code2, Sigma } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import { PRESET_COLORS } from '../toolbar/components/ColorPicker';
+import { PRESET_COLORS } from '../toolbar/tools/ColorPicker';
 
 
 

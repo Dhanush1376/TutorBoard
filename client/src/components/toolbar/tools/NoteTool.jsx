@@ -2,7 +2,7 @@ import React from 'react';
 import { StickyNote, Check, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../../store/tutorStore';
-import ToolButtonBase from '../components/ToolButtonBase';
+import ToolButtonBase from './ToolButtonBase';
 
 const NOTE_COLORS = [
   { id: 'yellow',   bg: '#fef9c3', tape: '#facc15', ruled: '#fde047', dark: '#854d0e', label: 'Yellow'   },
@@ -56,7 +56,7 @@ const NoteTool = (props) => {
     noteColor,  setNoteColor,
     noteSize,   setNoteSize,
     notePinned, setNotePinned,
-    textSize, setTextSize,
+    noteToolSize, setNoteToolSize, // Use isolated note size
     isSidebarOpen,
     canvasTransform, addNoteToCanvas,
     showNotes, setShowNotes
@@ -73,8 +73,8 @@ const NoteTool = (props) => {
     const centerX = (window.innerWidth + sidebarWidth) / 2;
     const centerY = window.innerHeight / 2;
 
-    const worldX = (centerX - x + offsetX) / scale;
-    const worldY = (centerY - y + offsetY) / scale;
+    const worldX = (centerX - x) / scale + offsetX;
+    const worldY = (centerY - y) / scale + offsetY;
 
     addNoteToCanvas(worldX, worldY);
   };
@@ -206,7 +206,7 @@ const NoteTool = (props) => {
         </span>
         <SegBar>
           {[12, 16, 24, 32, 48].map((s) => (
-            <SegButton key={s} isActive={textSize === s} onClick={() => setTextSize(s)}>
+            <SegButton key={s} isActive={noteToolSize === s} onClick={() => setNoteToolSize(s)}>
               {s}
             </SegButton>
           ))}
@@ -247,7 +247,6 @@ const NoteTool = (props) => {
       id="note"
       icon={StickyNote}
       label="Sticky Note"
-      shortcut="N"
       customSubmenu={Submenu}
     />
   );

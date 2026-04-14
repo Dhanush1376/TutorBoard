@@ -8,8 +8,8 @@ import {
   LogOut,
 } from 'lucide-react';
 
-import ToolButtonBase from './components/ToolButtonBase';
-import ActionButtonBase from './components/ActionButtonBase';
+import ToolButtonBase from './tools/ToolButtonBase';
+import ActionButtonBase from './tools/ActionButtonBase';
 import useTutorStore from '../../store/tutorStore';
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,7 +19,6 @@ import TextTool from './tools/TextTool';
 import DrawTool from './tools/DrawTool';
 import NoteTool from './tools/NoteTool';
 import ShapeTool from './tools/ShapeTool';
-import GridTool from './tools/GridTool';
 
 import ShareAction from './actions/ShareAction';
 import DeleteAction from './actions/DeleteAction';
@@ -66,7 +65,7 @@ const Toolbar = ({ onSettingsClick }) => {
       initial={{ y: 16, opacity: 0, scale: 0.97 }}
       animate={{ y: 0, opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}
-      className="flex items-center rounded-2xl relative"
+      className={`flex items-center rounded-2xl relative ${isLeftHand ? 'flex-row-reverse' : 'flex-row'}`}
       style={{
         gap: 'var(--tool-gap)',
         padding: 'calc(var(--tool-gap) * 1.5) calc(var(--tool-gap) * 2)',
@@ -83,8 +82,6 @@ const Toolbar = ({ onSettingsClick }) => {
       <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
       <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
       <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
-      
-      <GridTool {...commonToolProps} isHoveredExternally={hoveredId === 'layout'} />
       
       <ShareAction 
         {...commonToolProps} 
@@ -147,13 +144,25 @@ const Toolbar = ({ onSettingsClick }) => {
                 className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
               >
                 <div 
-                  className="p-1.5 rounded-2xl overflow-hidden"
+                  className="p-1.5 rounded-2xl relative shadow-2xl"
                   style={{
                     background: 'var(--bg-primary)',
                     border: '1px solid var(--border-color)',
                     boxShadow: '0 16px 48px rgba(0,0,0,0.25)',
                   }}
                 >
+                  {/* Dropdown Caret */}
+                  <div
+                    className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+                    style={{
+                      background: 'var(--bg-primary)',
+                      borderLeft: '1px solid var(--border-color)',
+                      borderTop: '1px solid var(--border-color)',
+                      zIndex: -1
+                    }}
+                  />
+
+                  <div className="rounded-2xl overflow-hidden">
                   <div className="px-4 py-3 border-b border-[var(--border-color)] mb-1">
                     <p className="text-[12px] font-bold text-[var(--text-primary)]">{user?.name || (user?.isGuest ? 'Guest' : 'Account')}</p>
                     <p className="text-[10px] text-[var(--text-tertiary)]">{user?.email || 'Not signed in'}</p>
@@ -173,6 +182,7 @@ const Toolbar = ({ onSettingsClick }) => {
                       {item.label}
                     </button>
                   ))}
+                  </div>
                 </div>
               </motion.div>
             )}

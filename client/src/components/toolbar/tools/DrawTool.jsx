@@ -1,9 +1,9 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Pencil, Highlighter, Eraser, Zap, Circle, RotateCcw } from 'lucide-react';
-import ToolButtonBase from '../components/ToolButtonBase';
+import ToolButtonBase from './ToolButtonBase';
 import useTutorStore from '../../../store/tutorStore';
-import ColorPicker, { resolveColor } from '../components/ColorPicker';
+import ColorPicker, { resolveColor } from './ColorPicker';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -47,45 +47,7 @@ const DrawTool = (props) => {
   const isLaser   = activeTool === 'draw:laser';
   const hideColorControls = isEraser || isLaser;
 
-  // ── Sync last draw mode ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (activeTool.startsWith('draw:')) {
-      lastActiveDrawMode.current = activeTool;
-    }
-  }, [activeTool]);
-
-  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-      if (!isDrawing) return; // only active when draw tool is selected
-
-      switch (e.key) {
-        case '[': {
-          const val = isLaser ? laserWidth : drawWidth;
-          const setter = isLaser ? setLaserWidth : setDrawWidth;
-          const idx = WEIGHTS.findIndex((w) => w.value === val);
-          if (idx > 0) setter(WEIGHTS[idx - 1].value);
-          break;
-        }
-        case ']': {
-          const val = isLaser ? laserWidth : drawWidth;
-          const setter = isLaser ? setLaserWidth : setDrawWidth;
-          const idx = WEIGHTS.findIndex((w) => w.value === val);
-          if (idx < WEIGHTS.length - 1) setter(WEIGHTS[idx + 1].value);
-          break;
-        }
-        default:
-          break;
-      }
-    },
-    [isDrawing, drawWidth, laserWidth, isLaser, setDrawWidth, setLaserWidth, setActiveTool]
-  );
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  // Keyboard shortcuts ([ / ]) removed per user request
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleMainClick = () => setActiveTool(lastActiveDrawMode.current);
@@ -137,13 +99,16 @@ const DrawTool = (props) => {
                <motion.path
                  d="M 40 20 Q 80 5 120 20 T 200 20"
                  fill="none"
-                 stroke={previewColor}
+                 stroke={isLaser ? '#fde047' : previewColor}
                  strokeWidth={isLaser ? laserWidth : drawWidth}
                  strokeLinecap="round"
                  initial={false}
                  animate={{ 
-                    stroke: previewColor, 
+                    stroke: isLaser ? '#fde047' : previewColor, 
                     strokeWidth: isLaser ? laserWidth : drawWidth 
+                 }}
+                 style={{
+                   filter: isLaser ? 'drop-shadow(0 0 8px #fde047)' : 'none'
                  }}
                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                />
@@ -163,7 +128,7 @@ const DrawTool = (props) => {
               <button
                 key={mode.id}
                 onClick={() => setActiveTool(mode.id)}
-                title={`${mode.label} (${mode.shortcut})`}
+                title={mode.label}
                 className="flex-1 flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl transition-all duration-150"
                 style={{
                   background: isActive ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.03)',
@@ -175,15 +140,7 @@ const DrawTool = (props) => {
                 <span className="text-[8px] font-bold uppercase tracking-wider leading-none">
                   {mode.label}
                 </span>
-                <kbd
-                  className="text-[7px] font-bold px-1 rounded"
-                  style={{
-                    background: isActive ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
-                    color:      isActive ? 'var(--text-secondary)' : 'var(--text-tertiary)',
-                  }}
-                >
-                  {mode.shortcut}
-                </kbd>
+                {/* Shortcut removed */}
               </button>
             );
           })}
@@ -224,7 +181,7 @@ const DrawTool = (props) => {
                   Stroke
                 </span>
                 <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
-                  {drawWidth}px <span style={{ opacity: 0.5 }}>[ / ]</span>
+                  {drawWidth}px
                 </span>
               </div>
               <div className="flex items-center gap-1">
@@ -321,7 +278,6 @@ const DrawTool = (props) => {
       id="draw"
       icon={currentModeIcon}
       label="Draw"
-      shortcut="P"
       onClick={handleMainClick}
       customSubmenu={Submenu}
     />

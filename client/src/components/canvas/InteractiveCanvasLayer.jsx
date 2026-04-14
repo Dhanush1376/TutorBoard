@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useContext } from 'react';
 import { motion } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './InfiniteCanvas';
+import { getToolCursor } from '../../utils/cursors';
 
 /**
  * InteractiveCanvasLayer
@@ -32,12 +33,48 @@ const getSvgPath = (points, width, height) => {
   return d;
 };
 
+// High-Fidelity Geometry Helpers for Drafting
+const getStarPoints = (x, y, w, h) => {
+  const rOuter = Math.min(w, h) / 2;
+  const rInner = rOuter * 0.4;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const points = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? rOuter : rInner;
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    points.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+  }
+  return points.join(' ');
+};
+
+const getHexagonPoints = (x, y, w, h) => {
+  const rw = w / 2;
+  const rh = h / 2;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const points = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i;
+    points.push(`${cx + rw * Math.cos(angle)},${cy + rh * Math.sin(angle)}`);
+  }
+  return points.join(' ');
+};
+
+const getDiamondPoints = (x, y, w, h) => {
+  const dw = w / 2;
+  const dh = h / 2;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  return `${cx},${cy - dh} ${cx + dw},${cy} ${cx},${cy + dh} ${cx - dw},${cy}`;
+};
+
 const InteractiveCanvasLayer = () => {
   const { 
     activeTool: rawActiveTool, canvasObjects, setCanvasObjectsWithHistory,
     selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
     drawColor, drawWidth, laserWidth, gridSize, noteColor, noteSize, shapeFill, 
-    shapeStrokeStyle, textType, textSize, textWeight, textAlign, textBgColor,
+    shapeStrokeStyle, textType, textToolSize, textWeight, textAlign, textBgColor,
     addNoteToCanvas, setActiveTool,
     showNotes, setShowNotes
   } = useTutorStore();
@@ -59,52 +96,13 @@ const InteractiveCanvasLayer = () => {
   const cachedRect = useRef(null);
 
   const isInteractionTool = activeTool.startsWith('draw:') || 
+                            activeTool === 'shape' ||
                             activeTool.startsWith('shape:') || 
-                            activeTool === 'text' || 
-                            activeTool === 'note';
+                            activeTool === 'text';
 
-  // Global Keyboard Shortcuts (Undo, Redo, Delete)
-  useEffect(() => {
-    const handleKey = (e) => {
-      const tag = e.target.tagName.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+  // Keyboard shortcuts (Undo, Redo, Delete) removed per user request
 
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const cmdKey = isMac ? e.metaKey : e.ctrlKey;
-
-      if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (selectedElementIds.length > 0) {
-          const newObjects = canvasObjects.filter(obj => !selectedElementIds.includes(obj.id));
-          setCanvasObjectsWithHistory(newObjects);
-          setSelectedElements([]);
-        }
-      }
-
-      if (cmdKey && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo(); else undo();
-      }
-    };
-
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [selectedElementIds, canvasObjects, setCanvasObjectsWithHistory, setSelectedElements, undo, redo]);
-
-  // Laser Pointer Auto-Cleanup (L4 FIX: bypasses undo history to avoid stack pollution)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const currentObjects = useTutorStore.getState().canvasObjects;
-      const needsCleanup = currentObjects.some(obj => obj.expiresAt && obj.expiresAt < now);
-      if (needsCleanup) {
-        // Direct set — don't push to undo history for automatic cleanup
-        useTutorStore.setState({ 
-          canvasObjects: currentObjects.filter(obj => !obj.expiresAt || obj.expiresAt >= now) 
-        });
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, []);
+  // Keyboard shortcuts (Undo, Redo, Delete) removed per user request
 
   if (!isInteractionTool) return null;
 
@@ -170,13 +168,6 @@ const InteractiveCanvasLayer = () => {
         strokeWidth: activeTool === 'draw:highlighter' ? 12 : (activeTool === 'draw:laser' ? laserWidth : drawWidth),
         isDraft: true,
       });
-    } else if (activeTool === 'note') {
-      // Create note on a simple single click when note tool is active
-      addNoteToCanvas(worldX, worldY);
-      
-      // Optional: switch back to 'select' tool after placing a note, or let them place multiple.
-      // E.g., setActiveTool('select');
-      return; 
     } else if (activeTool === 'text') {
       const newId = generateId();
       const type = textType === 'formula' ? 'equation' : (textType === 'code' ? 'code' : 'label');
@@ -191,7 +182,7 @@ const InteractiveCanvasLayer = () => {
         content: '',
         label: '',
         styles: {
-          fontSize: textSize || 16,
+          fontSize: textToolSize || 24,
           fontWeight: textWeight === 'bold' ? 700 : (textWeight === 'medium' ? 500 : 400),
           textAlign: textAlign || 'center',
           backgroundColor: textBgColor || 'transparent',
@@ -276,22 +267,39 @@ const InteractiveCanvasLayer = () => {
     if (!force && (!isDrawing.current || !draftObject)) return;
     isDrawing.current = false;
     
-    const finalizedObject = { ...draftObject };
+    // Tap Detection: Abort shape creation if the drag was practically zero (a click)
+    if (activeTool.startsWith('shape:')) {
+      const isTiny = Math.abs(draftObject.w * V_WIDTH) < 5 && Math.abs(draftObject.h * V_HEIGHT) < 5;
+      if (isTiny) {
+        setDraftObject(null);
+        setActiveTool('hand'); // Revert to hand so user can select underneath
+        return;
+      }
+    }
+    
+    const finalizedObject = { 
+      ...draftObject,
+      animation: { type: 'none' }, // Instant appearance for manual drawing
+      fill: activeTool.startsWith('shape:') ? 'none' : draftObject.fill // Default to outline for shapes
+    };
     delete finalizedObject.isDraft;
 
     if (activeTool === 'draw:laser') {
-      finalizedObject.expiresAt = Date.now() + 1500;
+      finalizedObject.isLaser = true;
       finalizedObject.animation = { type: 'scale', duration: 0.8 };
     }
     
-    // Formatting & Coordinate Restoration (Fix Bug 14)
-    if (finalizedObject.type === 'rect' || finalizedObject.type === 'ellipse' || finalizedObject.type === 'step_box' || finalizedObject.type === 'sticky') {
+    // Formatting & Coordinate Restoration
+    const centerOriginTypes = [
+      'rect', 'ellipse', 'step_box', 'sticky', 
+      'diamond', 'star', 'hexagon', 'callout', 'cloud'
+    ];
+    if (centerOriginTypes.includes(finalizedObject.type)) {
       // Keep coordinates normalized (0..1) but finalize center point
       finalizedObject.x = finalizedObject.x + (finalizedObject.w / 2);
       finalizedObject.y = finalizedObject.y + (finalizedObject.h / 2);
       
       // Calculate a scale that represents the object's size relative to the standard 160px box.
-      // scale = 1 means 160px. V_WIDTH=800.
       finalizedObject.scale = (finalizedObject.w * V_WIDTH) / 160; 
     }
     
@@ -318,12 +326,19 @@ const InteractiveCanvasLayer = () => {
 
     setCanvasObjectsWithHistory([...canvasObjects, finalizedObject]);
     setDraftObject(null);
+
+    // Single-Use Tool Logic: Auto-select and revert to hand for continuous flow
+    if (activeTool.startsWith('shape:')) {
+      setSelectedElements([finalizedObject.id]);
+      setActiveTool('hand');
+    }
   };
 
   return (
     <div 
       ref={layerRef}
-      className="absolute inset-0 z-[100] cursor-crosshair pointer-events-auto"
+      className="absolute inset-0 z-[100] pointer-events-auto"
+      style={{ cursor: getToolCursor(activeTool) }}
       onPointerDown={draftObject?.isTyping ? undefined : handlePointerDown}
       onPointerMove={draftObject?.isTyping ? undefined : handlePointerMove}
       onPointerUp={draftObject?.isTyping ? undefined : () => handlePointerUp()}
@@ -331,68 +346,49 @@ const InteractiveCanvasLayer = () => {
       {draftObject && !draftObject.isTyping && (
         <svg width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
           <motion.g animate={{ x: transform.x, y: transform.y, scale: transform.scale }}>
-            {(draftObject.type === 'rect' || draftObject.type === 'diamond' || draftObject.type === 'star' || draftObject.type === 'hexagon' || draftObject.type === 'callout' || draftObject.type === 'cloud') && (
-               <rect 
-                 x={draftObject.x * V_WIDTH} 
-                 y={draftObject.y * V_HEIGHT} 
-                 width={draftObject.w * V_WIDTH} 
-                 height={draftObject.h * V_HEIGHT} 
-                 fill="transparent" 
-                 stroke={draftObject.color} 
-                 strokeWidth={2} 
-                 rx={draftObject.type === 'rect' ? 4 : 0}
-               />
-            )}
-            {draftObject.type === 'ellipse' && (
-               <ellipse 
-                 cx={(draftObject.x + draftObject.w/2) * V_WIDTH} 
-                 cy={(draftObject.y + draftObject.h/2) * V_HEIGHT} 
-                 rx={(draftObject.w/2) * V_WIDTH} 
-                 ry={(draftObject.h/2) * V_HEIGHT} 
-                 fill="transparent" 
-                 stroke={draftObject.color} 
-                 strokeWidth={2} 
-               />
-            )}
-            {draftObject.type === 'path' && (
-               <path
-                 d={getSvgPath(draftObject.points, V_WIDTH, V_HEIGHT)}
-                 fill="none"
-                 stroke={draftObject.color}
-                 strokeWidth={draftObject.strokeWidth}
-                 strokeLinecap="round"
-                 strokeLinejoin="round"
-               />
-            )}
-            {(draftObject.type === 'line' || draftObject.type === 'arrow') && (
-              <line
-                x1={draftObject.x1 * V_WIDTH} y1={draftObject.y1 * V_HEIGHT}
-                x2={draftObject.x2 * V_WIDTH} y2={draftObject.y2 * V_HEIGHT}
-                stroke={draftObject.color} strokeWidth={2} 
-              />
-            )}
-            {(draftObject.type === 'triangle') && (
-               <polygon
-                 points={`
-                   ${(draftObject.x + draftObject.w/2) * V_WIDTH}, ${draftObject.y * V_HEIGHT}
-                   ${(draftObject.x + draftObject.w) * V_WIDTH},   ${(draftObject.y + draftObject.h) * V_HEIGHT}
-                   ${draftObject.x * V_WIDTH},                     ${(draftObject.y + draftObject.h) * V_HEIGHT}
-                 `}
-                 fill="none"
-                 stroke={draftObject.color} strokeWidth={2} 
-               />
-            )}
-            {(draftObject.type === 'pentagon') && (
-              <rect 
-                x={draftObject.x * V_WIDTH} 
-                y={draftObject.y * V_HEIGHT} 
-                width={draftObject.w * V_WIDTH} 
-                height={draftObject.h * V_HEIGHT} 
-                fill="transparent" 
-                stroke={draftObject.color} 
-                strokeWidth={1} 
-              />
-            )}
+            {(() => {
+              const dx = draftObject.x * V_WIDTH;
+              const dy = draftObject.y * V_HEIGHT;
+              const dw = draftObject.w * V_WIDTH;
+              const dh = draftObject.h * V_HEIGHT;
+              const strokeProps = {
+                fill: "transparent",
+                stroke: draftObject.color,
+                strokeWidth: 2,
+                strokeDasharray: draftObject.strokeStyle === 'dashed' ? '6,6' : (draftObject.strokeStyle === 'dotted' ? '2,4' : 'none')
+              };
+
+              switch (draftObject.type) {
+                case 'rect':
+                  return <rect x={dx} y={dy} width={dw} height={dh} rx={4} {...strokeProps} />;
+                case 'diamond':
+                  return <polygon points={getDiamondPoints(dx, dy, dw, dh)} {...strokeProps} />;
+                case 'triangle':
+                  return <polygon points={`${dx + dw/2},${dy} ${dx + dw},${dy + dh} ${dx},${dy + dh}`} {...strokeProps} />;
+                case 'star':
+                  return <polygon points={getStarPoints(dx, dy, dw, dh)} {...strokeProps} />;
+                case 'hexagon':
+                  return <polygon points={getHexagonPoints(dx, dy, dw, dh)} {...strokeProps} />;
+                case 'ellipse':
+                  return <ellipse cx={dx + dw/2} cy={dy + dh/2} rx={dw/2} ry={dh / 2} {...strokeProps} />;
+                case 'line':
+                case 'arrow':
+                   return <line x1={draftObject.x1 * V_WIDTH} y1={draftObject.y1 * V_HEIGHT} x2={draftObject.x2 * V_WIDTH} y2={draftObject.y2 * V_HEIGHT} {...strokeProps} />;
+                case 'path':
+                  return <path d={getSvgPath(draftObject.points, V_WIDTH, V_HEIGHT)} fill="none" stroke={draftObject.color} strokeWidth={draftObject.strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={strokeProps.strokeDasharray} />;
+                case 'callout':
+                case 'speech': {
+                  const rw = dw / 2; const rh = dh / 2; const cx = dx + rw; const cy = dy + rh;
+                  return <path d={`M ${cx - rw},${cy - rh} H ${cx + rw} V ${cy + rh} H ${cx - rw + 30} L ${cx - rw},${cy + rh + 20} L ${cx - rw + 15},${cy + rh} H ${cx - rw} Z`} {...strokeProps} />;
+                }
+                case 'cloud':
+                  return <rect x={dx} y={dy} width={dw} height={dh} rx={20} {...strokeProps} />;
+                default:
+                  return <rect x={dx} y={dy} width={dw} height={dh} {...strokeProps} />;
+              }
+            })()}
+
+
           </motion.g>
         </svg>
       )}

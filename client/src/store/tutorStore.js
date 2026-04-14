@@ -101,9 +101,9 @@ const useTutorStore = create(
       showDoubtThread:   false,
 
       // ═══════════════════════════════════════════════════
-      // CANVAS SNAPSHOTS
+      // SESSION MANIFEST (Isolation & Persistence)
       // ═══════════════════════════════════════════════════
-      snapshots: {},
+      sessionManifest: {}, // { [sessionId]: { objects: [], pinned: [], transform: {} } }
 
       // ═══════════════════════════════════════════════════
       // PLAYBACK STATE
@@ -148,7 +148,8 @@ const useTutorStore = create(
 
       // Typography Properties
       textType:            'standard',
-      textSize:            16,
+      textToolSize:        24, // Optimized default for labels
+      noteToolSize:        16, // Optimized default for sticky notes
       textWeight:          'regular',
       textAlign:           'center',
       textBgColor:         'transparent',
@@ -160,7 +161,61 @@ const useTutorStore = create(
       setMachineState:  (state) => set({ machineState: state, error: null }),
       setSidebarOpen:   (open)  => set({ isSidebarOpen: open }),
       toggleSidebar:    ()      => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
-      setSessionId:     (id)    => set({ sessionId: id }),
+      setSessionId: (newId) => {
+        const { sessionId: oldId, canvasObjects, pinnedNotes, canvasTransform, sessionManifest } = get();
+        if (newId === oldId) return;
+
+        // 1. Save CURRENT state to manifest before switching
+        const updatedManifest = { ...sessionManifest };
+        if (oldId) {
+          const { 
+            canvasObjects, pinnedNotes, canvasTransform,
+            drawColor, drawWidth, textToolSize, noteToolSize,
+            noteColor, noteSize, notePinned
+          } = get();
+          
+          updatedManifest[oldId] = {
+            canvasObjects: [...canvasObjects],
+            pinnedNotes:   [...pinnedNotes],
+            canvasTransform: { ...canvasTransform },
+            tools: {
+              drawColor, drawWidth, textToolSize, noteToolSize,
+              noteColor, noteSize, notePinned
+            }
+          };
+        }
+
+        // 2. MIGRATION & MERGE: Moving from temp client ID to stable server ID
+        if (oldId?.startsWith('msg-') && !newId.startsWith('msg-')) {
+          const oldData = updatedManifest[oldId];
+          if (oldData) {
+            updatedManifest[newId] = {
+              ...(updatedManifest[newId] || {}),
+              ...oldData
+            };
+            // Cleanup temp key to keep manifest lean
+            delete updatedManifest[oldId];
+          }
+        }
+
+        // 3. Load NEW session state if it exists
+        const loadedState = updatedManifest[newId] || {
+          canvasObjects:   [],
+          pinnedNotes:     [],
+          canvasTransform: { x: 0, y: 0, scale: 1 },
+          tools: {}
+        };
+
+        set({ 
+          sessionId: newId, 
+          sessionManifest: updatedManifest,
+          canvasObjects:   loadedState.canvasObjects,
+          pinnedNotes:     loadedState.pinnedNotes,
+          canvasTransform: loadedState.canvasTransform,
+          // Hydrate tools if they exist
+          ...(loadedState.tools || {})
+        });
+      },
       setTopic:         (topic) => set({ topic }),
       setSelectedAgent: (agent) => {
         localStorage.setItem('tutorboard-agent', agent);
@@ -177,16 +232,16 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       setTimeline: (data) => {
         // ── CRITICAL: Explicit canvas field mapping ──────────────────────────
-        // These three lines are the most important in the store.
-        // AgentCanvasRenderer reads ONLY from canvasObjects, canvasConnections, canvasSteps.
-        // If these aren't set here, the canvas renders nothing.
-        //
-        // The server always sends both aliased keys (elements/objects, timeline/steps)
-        // but we normalize to one canonical set on the client side.
-        const canvasObjects     = data.elements     || data.objects      || [];
+        // We normalize server keys and MERGE with any existing manual user additions
+        const serverObjects     = data.elements     || data.objects      || [];
         const canvasConnections = data.connections  || [];
         const canvasSteps       = data.timeline     || data.steps        || [];
-        const totalSteps        = canvasSteps.length; // Derive from array, never trust LLM's reported count
+        const totalSteps        = canvasSteps.length;
+        
+        // Preserve manual drawings (IDs starting with 'manual-')
+        const currentObjects = get().canvasObjects || [];
+        const manualObjects = currentObjects.filter(obj => obj.id?.startsWith('manual-'));
+        const canvasObjects = [...manualObjects, ...serverObjects];
 
         set({
           timeline: {
@@ -223,6 +278,28 @@ const useTutorStore = create(
           canvasMode:        CANVAS_MODE.FULLSCREEN,
           canvasTransform:   { x: 0, y: 0, scale: 1 },
         });
+
+        // ── SYNC MANIFEST ──
+        const { sessionId, sessionManifest, pinnedNotes } = get();
+        if (sessionId) {
+          const existing = sessionManifest[sessionId] || {};
+          set({
+            sessionManifest: {
+              ...sessionManifest,
+              [sessionId]: {
+                ...existing, // PRESERVE pinnedNotes and tools!
+                canvasObjects,
+                canvasConnections,
+                canvasSteps,
+                canvasTransform: { x: 0, y: 0, scale: 1 },
+                // If the manifest already had pinnedNotes, restore them to the active state too
+                pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
+              }
+            },
+            // Hydrate active pinnedNotes from manifest if they exist
+            pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
+          });
+        }
       },
 
       setCurrentStep: (index) => set({ currentStepIndex: index }),
@@ -526,29 +603,72 @@ const useTutorStore = create(
       setActiveTool:         (tool) => set({ activeTool: tool }),
       toggleGrid:            ()     => set(s => ({ showGrid: !s.showGrid })),
       toggleSnap:            ()     => set(s => ({ isSnapToGrid: !s.isSnapToGrid })),
+      setGridType:           (type) => set({ gridType: type }),
+      setGridSize:           (size) => set({ gridSize: size }),
       toggleProfile:         ()     => set(s => ({ isProfileOpen: !s.isProfileOpen })),
       
       // Cleanup Actions
-      clearAll: () => set(state => ({ 
-        canvasObjects: [],
-        history: { past: [], future: [] } 
-      })),
+      clearAll: () => {
+        const { canvasObjects } = get();
+        if (canvasObjects.length > 0) {
+          // Push to history for undo!
+          set(state => ({
+            history: {
+              past: [...state.history.past, state.canvasObjects].slice(-30),
+              future: []
+            },
+            canvasObjects: []
+          }));
+        }
+      },
       
-      clearShapes: () => set(state => {
+      clearShapes: () => {
+        const { canvasObjects } = get();
         const shapeTypes = ['rect', 'ellipse', 'triangle', 'line', 'arrow', 'diamond', 'star', 'hexagon', 'callout', 'cloud'];
-        return { 
-          canvasObjects: state.canvasObjects.filter(o => !shapeTypes.includes(o.type)) 
-        };
-      }),
-      clearDrawings: () => set(state => ({ 
-        canvasObjects: state.canvasObjects.filter(o => o.type !== 'path') 
-      })),
+        const remaining = canvasObjects.filter(o => !shapeTypes.includes(o.type));
+        
+        if (remaining.length !== canvasObjects.length) {
+          set(state => ({
+             history: {
+               past: [...state.history.past, state.canvasObjects].slice(-30),
+               future: []
+             },
+             canvasObjects: remaining
+          }));
+        }
+      },
 
-      clearNotes: () => set(state => ({ 
-        canvasObjects: state.canvasObjects.filter(o => 
+      clearDrawings: () => {
+        const { canvasObjects } = get();
+        const remaining = canvasObjects.filter(o => o.type !== 'path');
+        
+        if (remaining.length !== canvasObjects.length) {
+          set(state => ({
+             history: {
+               past: [...state.history.past, state.canvasObjects].slice(-30),
+               future: []
+             },
+             canvasObjects: remaining
+          }));
+        }
+      },
+
+      clearNotes: () => {
+        const { canvasObjects } = get();
+        const remaining = canvasObjects.filter(o => 
           o.type !== 'note' && o.type !== 'sticky' && o.type !== 'step_box' && o.type !== 'doubt_note'
-        ) 
-      })),
+        );
+        
+        if (remaining.length !== canvasObjects.length) {
+          set(state => ({
+             history: {
+               past: [...state.history.past, state.canvasObjects].slice(-30),
+               future: []
+             },
+             canvasObjects: remaining
+          }));
+        }
+      },
 
       setDrawColor:          (color) => set({ drawColor: color }),
       setDrawWidth:          (width) => set({ drawWidth: width }),
@@ -567,12 +687,13 @@ const useTutorStore = create(
 
       setNoteColor:          (color) => set({ noteColor: color }),
       setNoteSize:           (size)  => set({ noteSize: size }),
+      setNoteToolSize:       (size)  => set({ noteToolSize: size }), // NEW isolated note size
       setNotePinned:         (pinned) => set({ notePinned: pinned }),
 
       setShapeStrokeStyle:   (style) => set({ shapeStrokeStyle: style }),
 
       setTextType:           (type)  => set({ textType: type }),
-      setTextSize:           (size)  => set({ textSize: size }),
+      setTextToolSize:       (size)  => set({ textToolSize: size }), // NEW isolated text size
       setTextWeight:         (weight) => set({ textWeight: weight }),
       setTextAlign:          (align) => set({ textAlign: align }),
       setTextBgColor:        (color) => set({ textBgColor: color }),
@@ -602,7 +723,7 @@ const useTutorStore = create(
       },
 
       addNoteToCanvas: (worldX, worldY) => {
-        const { noteColor, noteSize, notePinned, textSize, addCanvasObjects } = get();
+        const { noteColor, noteSize, notePinned, noteToolSize, addCanvasObjects } = get();
         
         // Map logical sizes to world-unit dimensions (approx 160px base)
         const sizeMap = {
@@ -621,25 +742,40 @@ const useTutorStore = create(
         const dims = sizeMap[noteSize] || sizeMap['m'];
 
         const newNote = {
-          id: `manual-note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          id: `manual-note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Hyper-unique ID to prevent collisions
           type: 'sticky',
           x: worldX / 800,
           y: worldY / 600,
           w: dims.w,
           h: dims.h,
-          content: '', // Unified field
-          label: '',   // Keep for legacy compat
+          content: '',
+          label: '',
           color: noteColor,
-          rotation: (Math.random() * 12) - 6,
+          rotation: (Math.random() * 8) - 4, // More subtle rotation
           isPinned: !!notePinned,
           styles: {
-            fontSize: textSize || 16,
+            fontSize: noteToolSize || 16,
             fontWeight: 500,
           }
         };
 
         if (notePinned) {
-          set({ pinnedNotes: [...get().pinnedNotes, newNote] });
+          const newPinned = [...get().pinnedNotes, newNote];
+          set({ pinnedNotes: newPinned });
+          
+          // Sync to manifest immediately
+          const { sessionId, sessionManifest } = get();
+          if (sessionId) {
+            set({
+              sessionManifest: {
+                ...sessionManifest,
+                [sessionId]: {
+                  ...(sessionManifest[sessionId] || {}),
+                  pinnedNotes: newPinned
+                }
+              }
+            });
+          }
         } else {
           addCanvasObjects([newNote]);
         }
@@ -659,18 +795,31 @@ const useTutorStore = create(
             next.styles = { ...(obj.styles || {}), ...updates.styles };
           }
 
-          // Handle spatial deltas with bounds clamping (Step 7)
+          // Handle spatial deltas (Step 7)
           if (updates.dx !== undefined) {
-             const newX = (obj.x || 0) + updates.dx;
-             next.x = Math.max(0.02, Math.min(0.98, newX));
+             next.x = (obj.x || 0) + updates.dx;
+             if (obj.x1 !== undefined) next.x1 = obj.x1 + updates.dx;
+             if (obj.x2 !== undefined) next.x2 = obj.x2 + updates.dx;
           }
           if (updates.dy !== undefined) {
-             const newY = (obj.y || 0) + updates.dy;
-             next.y = Math.max(0.02, Math.min(0.98, newY));
+             next.y = (obj.y || 0) + updates.dy;
+             if (obj.y1 !== undefined) next.y1 = obj.y1 + updates.dy;
+             if (obj.y2 !== undefined) next.y2 = obj.y2 + updates.dy;
+          }
+          
+          if (updates.dw !== undefined) {
+             const newW = (obj.w || 0.2) + updates.dw;
+             next.w = Math.max(0.05, newW);
+          }
+          if (updates.dh !== undefined) {
+             const newH = (obj.h || 0.1) + updates.dh;
+             next.h = Math.max(0.05, newH);
           }
           
           delete next.dx; 
           delete next.dy;
+          delete next.dw;
+          delete next.dh;
 
           // Mirror content to legacy fields if necessary
           if (updates.content !== undefined) {
@@ -683,20 +832,62 @@ const useTutorStore = create(
 
         const isPinned = pinnedNotes.some(n => n.id === id);
         
+        let updatedObjects = canvasObjects;
+        let updatedPinned = pinnedNotes;
+
         if (isPinned) {
-          set({ pinnedNotes: pinnedNotes.map(obj => obj.id === id ? applyUpdates(obj) : obj) });
+          updatedPinned = pinnedNotes.map(obj => obj.id === id ? applyUpdates(obj) : obj);
+          set({ pinnedNotes: updatedPinned });
         } else {
-          setCanvasObjectsWithHistory(canvasObjects.map(obj => obj.id === id ? applyUpdates(obj) : obj));
+          updatedObjects = canvasObjects.map(obj => obj.id === id ? applyUpdates(obj) : obj);
+          setCanvasObjectsWithHistory(updatedObjects);
+        }
+
+        // Sync to manifest immediately for persistence
+        const { sessionId, sessionManifest, canvasTransform } = get();
+        if (sessionId) {
+          set({
+            sessionManifest: {
+              ...sessionManifest,
+              [sessionId]: {
+                ...(sessionManifest[sessionId] || {}),
+                canvasObjects: updatedObjects,
+                pinnedNotes: updatedPinned,
+                canvasTransform
+              }
+            }
+          });
         }
       },
 
       deleteCanvasObject: (id) => {
         const { canvasObjects, pinnedNotes, setCanvasObjectsWithHistory } = get();
         const isPinned = pinnedNotes.some(n => n.id === id);
+        
+        let updatedObjects = canvasObjects;
+        let updatedPinned = pinnedNotes;
+
         if (isPinned) {
-          set({ pinnedNotes: pinnedNotes.filter(n => n.id !== id) });
+          updatedPinned = pinnedNotes.filter(n => n.id !== id);
+          set({ pinnedNotes: updatedPinned });
         } else {
-          setCanvasObjectsWithHistory(canvasObjects.filter(obj => obj.id !== id));
+          updatedObjects = canvasObjects.filter(obj => obj.id !== id);
+          setCanvasObjectsWithHistory(updatedObjects);
+        }
+
+        // Sync to manifest immediately
+        const { sessionId, sessionManifest } = get();
+        if (sessionId) {
+          set({
+            sessionManifest: {
+              ...sessionManifest,
+              [sessionId]: {
+                ...(sessionManifest[sessionId] || {}),
+                canvasObjects: updatedObjects,
+                pinnedNotes: updatedPinned
+              }
+            }
+          });
         }
       },
 
@@ -731,7 +922,7 @@ const useTutorStore = create(
 
         const clone = {
           ...srcNote,
-          id: `manual-note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          id: `manual-note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Hyper-unique ID to prevent collisions
           x: srcNote.x + (20 / 800), // Drop slightly to the right
           y: srcNote.y + (20 / 600), // Drop slightly down
         };
@@ -767,6 +958,28 @@ const useTutorStore = create(
         }
       },
 
+
+      // ═══════════════════════════════════════════════════
+      // SYSTEM & REHYDRATION
+      // ═══════════════════════════════════════════════════
+      hydrate: () => {
+        if (typeof window === 'undefined') return;
+        set({
+          isSidebarOpen: window.innerWidth >= 1024, // Desktop default
+          selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+        });
+      },
+
+      // ═══════════════════════════════════════════════════
+      // SYSTEM & REHYDRATION
+      // ═══════════════════════════════════════════════════
+      hydrate: () => {
+        if (typeof window === 'undefined') return;
+        set({
+          isSidebarOpen: window.innerWidth >= 1024, // Desktop default
+          selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+        });
+      },
 
       // ═══════════════════════════════════════════════════
       // SESSION LIFECYCLE
@@ -867,8 +1080,12 @@ const useTutorStore = create(
         voiceEnabled:  state.voiceEnabled,
         layoutView:    state.layoutView,
         pinnedNotes:   state.pinnedNotes,
+        canvasObjects: state.canvasObjects,
+        canvasConnections: state.canvasConnections,
         recentColors:  state.recentColors,
         laserWidth:    state.laserWidth,
+        textToolSize:  state.textToolSize, // Persist sizing across sessions
+        noteToolSize:  state.noteToolSize,
       }),
     }
   )

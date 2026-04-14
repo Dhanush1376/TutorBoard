@@ -14,8 +14,8 @@ import {
   Plus,
 } from 'lucide-react';
 import useTutorStore from '../../../store/tutorStore';
-import ToolButtonBase from '../components/ToolButtonBase';
-import ColorPicker from '../components/ColorPicker';
+import ToolButtonBase from './ToolButtonBase';
+import ColorPicker from './ColorPicker';
 
 const SHAPES = [
   { id: 'shape:rect',     icon: Square,        label: 'Rectangle' },
@@ -95,50 +95,8 @@ const ShapeTool = (props) => {
     recentColors, addRecentColor
   } = useTutorStore();
 
-  const handleInstantAdd = (e, toolId) => {
-    e.stopPropagation();
+  const handleShapeClick = (toolId) => {
     setActiveTool(toolId);
-    
-    // Parse shape type from 'shape:rect' -> 'rect'
-    const type = toolId.split(':')[1];
-    const id = `stamped-${type}-${Date.now()}`;
-    const { x: tx, y: ty, scale } = canvasTransform;
-    
-    // Calculate world center
-    const scatter = (Math.random() * 20) - 10;
-    const worldX = (window.innerWidth / 2 - tx + scatter) / scale / 800;
-    const worldY = (window.innerHeight / 2 - ty + scatter) / scale / 600;
-
-    const isLinear = type === 'line' || type === 'arrow';
-
-    const newObj = {
-      id,
-      type,
-      x: worldX,
-      y: worldY,
-      w: isLinear ? 0.2 : 0.15,
-      h: isLinear ? 0.02 : 0.15,
-      color: drawColor || '#3b82f6',
-      fill: 'none',
-      strokeStyle: shapeStrokeStyle || 'solid',
-      dashed: shapeStrokeStyle !== 'solid',
-      animation: { type: 'bounce', duration: 0.4 }
-    };
-
-    // For linear shapes, we need endpoints
-    if (isLinear) {
-      newObj.x1 = worldX - 0.1;
-      newObj.y1 = worldY;
-      newObj.x2 = worldX + 0.1;
-      newObj.y2 = worldY;
-    }
-
-    addCanvasObjects([newObj]);
-    
-    // Auto-select for immediate manipulation
-    setTimeout(() => {
-      setSelectedElements([id]);
-    }, 50);
   };
 
   const Submenu = (
@@ -155,7 +113,7 @@ const ShapeTool = (props) => {
             return (
               <div key={id} className="relative group">
                 <button
-                  onClick={() => setActiveTool(id)}
+                  onClick={() => handleShapeClick(id)}
                   title={label}
                   className="w-full flex items-center justify-center p-2 rounded-lg transition-all border outline-none overflow-hidden"
                   style={{
@@ -165,15 +123,6 @@ const ShapeTool = (props) => {
                   }}
                 >
                   <Icon size={16} strokeWidth={isActive ? 2.5 : 2} className="relative z-10 transition-transform group-hover:scale-110" />
-                </button>
-                
-                {/* Instant Add / Stamp badge */}
-                <button 
-                   onClick={(e) => handleInstantAdd(e, id)}
-                   className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-lg border border-white/20"
-                   title="Quick Stamp at center"
-                >
-                   <Plus size={10} strokeWidth={3} />
                 </button>
               </div>
             );
@@ -234,7 +183,6 @@ const ShapeTool = (props) => {
       id="shape"
       icon={CurrentIcon}
       label="Shape"
-      shortcut="R"
       customSubmenu={Submenu}
     />
   );
