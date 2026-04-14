@@ -79,9 +79,13 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       canvasMode:        CANVAS_MODE.CLOSED,
       canvasObjects:     [],      // Normalized elements array — AgentCanvasRenderer reads this
+      pinnedNotes:       [],      // Global floating sticky notes
       canvasConnections: [],      // Normalized connections array
       canvasSteps:       [],      // Normalized timeline/steps array
       canvasTransform:   { x: 0, y: 0, scale: 1 },
+      isCanvasLocked:    false,   // Disables pan/zoom when a note is active
+      showNotes:         true,    // Global toggle for sticky notes visibility
+      chatInputText:     "",      // Pipeline to inject sticky note text to AI Chat
       
       // Canvas Interaction State (Figma/Miro features)
       selectedElementIds: [],
@@ -118,6 +122,7 @@ const useTutorStore = create(
       layoutView:          'right',
       isSidebarOpen:       true,
       activeTool:          'select',
+      editingObjectId:     null,
       
       // Fine-grained UI preferences
       showGrid:            true,
@@ -133,8 +138,8 @@ const useTutorStore = create(
       gridSize:            20,
 
       // Note Properties
-      noteColor:           '#fbbf24',
-      noteSize:            'medium',
+      noteColor:           '#fef9c3', // Standard Yellow
+      noteSize:            'M',
 
       // Shape Properties
       shapeFill:           'none',
@@ -143,6 +148,9 @@ const useTutorStore = create(
       // Typography Properties
       textType:            'standard',
       textSize:            16,
+      textWeight:          'regular',
+      textAlign:           'center',
+      textBgColor:         'transparent',
 
       // ═══════════════════════════════════════════════════
       // SESSION ACTIONS
@@ -247,6 +255,11 @@ const useTutorStore = create(
       },
 
       // ═══════════════════════════════════════════════════
+      // UI ACTIONS
+      // ═══════════════════════════════════════════════════
+      setEditingObjectId: (id) => set({ editingObjectId: id }),
+
+      // ═══════════════════════════════════════════════════
       // CANVAS ACTIONS
       // ═══════════════════════════════════════════════════
       setCanvasMode: (mode) => set({ canvasMode: mode }),
@@ -256,6 +269,9 @@ const useTutorStore = create(
       expandCanvas:  ()     => set({ canvasMode: CANVAS_MODE.FULLSCREEN }),
 
       setCanvasTransform: (transform) => set({ canvasTransform: transform }),
+      setChatInputText:   (text) => set({ chatInputText: text }),
+      setShowNotes:       (val) => set({ showNotes: val }),
+      setCanvasLocked:    (locked) => set({ isCanvasLocked: locked }),
 
       mutateCanvasObjects: (mutationsOrPatches) => {
         const { canvasObjects, canvasSteps } = get();
@@ -308,16 +324,7 @@ const useTutorStore = create(
         return lastAddedIndex;
       },
 
-      addCanvasObjects: (objects) => {
-        const { canvasObjects } = get();
-        const existingIds = new Set(canvasObjects.map(o => o.id));
-        const newOnes = objects.filter(o => !existingIds.has(o.id));
-        set({ canvasObjects: [...canvasObjects, ...newOnes] });
-      },
 
-      // ────────────────────────────────────────────────────────
-      // INTERACTIVE DRAWING ACTIONS (Figma/Miro behaviors)
-      // ────────────────────────────────────────────────────────
       setSelectedElements: (ids) => set({ selectedElementIds: ids }),
       
       setCanvasObjectsWithHistory: (newObjects) => {
@@ -548,21 +555,11 @@ const useTutorStore = create(
 
       setTextType:           (type)  => set({ textType: type }),
       setTextSize:           (size)  => set({ textSize: size }),
+      setTextWeight:         (weight) => set({ textWeight: weight }),
+      setTextAlign:          (align) => set({ textAlign: align }),
+      setTextBgColor:        (color) => set({ textBgColor: color }),
 
-      // ── Canvas Interaction Actions ──
-      setSelectedElements: (ids) => set({ selectedElementIds: ids }),
-      
-      setCanvasObjectsWithHistory: (newObjects) => {
-        const { canvasObjects, history } = get();
-        set({
-          canvasObjects: newObjects,
-          history: {
-            past: [...history.past, canvasObjects],
-            future: []
-          }
-        });
-      },
-
+      // Advanced addCanvasObjects with Step tracking Support
       addCanvasObjects: (objects) => {
         const { canvasObjects, history, canvasSteps, currentStepIndex } = get();
         const existingIds = new Set(canvasObjects.map(o => o.id));
@@ -586,37 +583,172 @@ const useTutorStore = create(
         });
       },
 
-      undo: () => {
-        const { canvasObjects, history } = get();
-        if (history.past.length === 0) return;
+      addNoteToCanvas: (worldX, worldY) => {
+        const { noteColor, noteSize, notePinned, addCanvasObjects } = get();
         
-        const previous = history.past[history.past.length - 1];
-        const newPast = history.past.slice(0, history.past.length - 1);
-        
-        set({
-          canvasObjects: previous,
-          history: {
-            past: newPast,
-            future: [canvasObjects, ...history.future]
+        // Map logical sizes to world-unit dimensions (approx 160px base)
+        const sizeMap = {
+          'xs': { w: 120, h: 120 },
+          's':  { w: 160, h: 160 },
+          'm':  { w: 200, h: 200 },
+          'l':  { w: 260, h: 260 },
+          'xl': { w: 340, h: 340 },
+          // Support uppercase too just in case
+          'XS': { w: 120, h: 120 },
+          'S':  { w: 160, h: 160 },
+          'M':  { w: 200, h: 200 },
+          'L':  { w: 260, h: 260 },
+          'XL': { w: 340, h: 340 }
+        };
+        const dims = sizeMap[noteSize] || sizeMap['m'];
+
+        const newNote = {
+          id: `manual-note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          type: 'sticky',
+          x: worldX / 800,
+          y: worldY / 600,
+          w: dims.w,
+          h: dims.h,
+          content: '', // Unified field
+          label: '',   // Keep for legacy compat
+          color: noteColor,
+          rotation: (Math.random() * 12) - 6,
+          isPinned: !!notePinned,
+          styles: {
+            fontSize: 16,
+            fontWeight: 500,
           }
-        });
+        };
+
+        if (notePinned) {
+          set({ pinnedNotes: [...get().pinnedNotes, newNote] });
+        } else {
+          addCanvasObjects([newNote]);
+        }
       },
 
-      redo: () => {
-        const { canvasObjects, history } = get();
-        if (history.future.length === 0) return;
+      setCanvasLocked: (isLocked) => set({ isCanvasLocked: isLocked }),
+      setChatInputText: (text) => set({ chatInputText: text }),
+
+       updateCanvasObject: (id, updates) => {
+        const { canvasObjects, pinnedNotes, setCanvasObjectsWithHistory } = get();
         
-        const next = history.future[0];
-        const newFuture = history.future.slice(1);
-        
-        set({
-          canvasObjects: next,
-          history: {
-            past: [...history.past, canvasObjects],
-            future: newFuture
+        const applyUpdates = (obj) => {
+          const next = { ...obj, ...updates };
+          
+          // Handle nested styles if provided
+          if (updates.styles) {
+            next.styles = { ...(obj.styles || {}), ...updates.styles };
           }
-        });
+
+          // Handle spatial deltas with bounds clamping (Step 7)
+          if (updates.dx !== undefined) {
+             const newX = (obj.x || 0) + updates.dx;
+             next.x = Math.max(0.02, Math.min(0.98, newX));
+          }
+          if (updates.dy !== undefined) {
+             const newY = (obj.y || 0) + updates.dy;
+             next.y = Math.max(0.02, Math.min(0.98, newY));
+          }
+          
+          delete next.dx; 
+          delete next.dy;
+
+          // Mirror content to legacy fields if necessary
+          if (updates.content !== undefined) {
+             if (obj.type === 'code') next.code = updates.content;
+             else next.label = updates.content;
+          }
+
+          return next;
+        };
+
+        const isPinned = pinnedNotes.some(n => n.id === id);
+        
+        if (isPinned) {
+          set({ pinnedNotes: pinnedNotes.map(obj => obj.id === id ? applyUpdates(obj) : obj) });
+        } else {
+          setCanvasObjectsWithHistory(canvasObjects.map(obj => obj.id === id ? applyUpdates(obj) : obj));
+        }
       },
+
+      deleteCanvasObject: (id) => {
+        const { canvasObjects, pinnedNotes, setCanvasObjectsWithHistory } = get();
+        const isPinned = pinnedNotes.some(n => n.id === id);
+        if (isPinned) {
+          set({ pinnedNotes: pinnedNotes.filter(n => n.id !== id) });
+        } else {
+          setCanvasObjectsWithHistory(canvasObjects.filter(obj => obj.id !== id));
+        }
+      },
+
+      toggleNotePin: (id) => {
+        const { canvasObjects, pinnedNotes } = get();
+        
+        // Find if it's currently pinned or unpinned
+        const pinnedIndex = pinnedNotes.findIndex(n => n.id === id);
+        if (pinnedIndex !== -1) {
+          // Unpin: move to canvasObjects
+          const note = { ...pinnedNotes[pinnedIndex], isPinned: false };
+          const newPinned = [...pinnedNotes];
+          newPinned.splice(pinnedIndex, 1);
+          set({ pinnedNotes: newPinned, canvasObjects: [...canvasObjects, note] });
+        } else {
+          // Pin: move to pinnedNotes
+          const canvasIndex = canvasObjects.findIndex(n => n.id === id);
+          if (canvasIndex !== -1) {
+            const note = { ...canvasObjects[canvasIndex], isPinned: true };
+            const newObj = [...canvasObjects];
+            newObj.splice(canvasIndex, 1);
+            set({ canvasObjects: newObj, pinnedNotes: [...pinnedNotes, note] });
+          }
+        }
+      },
+
+      duplicateNote: (id) => {
+        const { canvasObjects, pinnedNotes } = get();
+        const srcArray = pinnedNotes.find(n => n.id === id) ? pinnedNotes : canvasObjects;
+        const srcNote = srcArray.find(n => n.id === id);
+        if (!srcNote) return;
+
+        const clone = {
+          ...srcNote,
+          id: `manual-note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          x: srcNote.x + (20 / 800), // Drop slightly to the right
+          y: srcNote.y + (20 / 600), // Drop slightly down
+        };
+
+        if (srcNote.isPinned) {
+          set({ pinnedNotes: [...pinnedNotes, clone] });
+        } else {
+          set({ canvasObjects: [...canvasObjects, clone] });
+        }
+      },
+
+      bringToFront: (id) => {
+        const { canvasObjects, pinnedNotes } = get();
+        
+        // Z-Index trick for SVG: move node to end of array
+        const isPinned = pinnedNotes.some(n => n.id === id);
+        if (isPinned) {
+          const arr = [...pinnedNotes];
+          const idx = arr.findIndex(n => n.id === id);
+          if (idx !== -1) {
+            const [item] = arr.splice(idx, 1);
+            arr.push(item);
+            set({ pinnedNotes: arr });
+          }
+        } else {
+          const arr = [...canvasObjects];
+          const idx = arr.findIndex(n => n.id === id);
+          if (idx !== -1) {
+            const [item] = arr.splice(idx, 1);
+            arr.push(item);
+            set({ canvasObjects: arr }); // We don't necessarily need full history for just a reorder
+          }
+        }
+      },
+
 
       // ═══════════════════════════════════════════════════
       // SESSION LIFECYCLE
@@ -711,11 +843,12 @@ const useTutorStore = create(
     }),
     {
       name: 'tutorboard-session',
-      // Only persist UI preferences — never session data (canvas state, timelines, etc.)
+      // Only persist UI preferences and global notes — never session data (canvas state, timelines, etc.)
       partialize: (state) => ({
         playbackSpeed: state.playbackSpeed,
         voiceEnabled:  state.voiceEnabled,
         layoutView:    state.layoutView,
+        pinnedNotes:   state.pinnedNotes,
       }),
     }
   )

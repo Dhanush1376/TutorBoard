@@ -167,7 +167,8 @@ const Home = ({ isDark }) => {
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
-    setCanvasSnapshot, greetingMessage, layoutView
+    setCanvasSnapshot, greetingMessage, layoutView, addNoteToCanvas,
+    chatInputText, setChatInputText, pinnedNotes
   } = useTutorStore();
 
   const [chatHistory, setChatHistory] = useState(() => {
@@ -416,6 +417,16 @@ const Home = ({ isDark }) => {
     // setSidebarOpen(false); // USER_REQUEST: Do not close while generating/visualizing
   };
 
+  // ── AI Chat Injection from Notes ──
+  useEffect(() => {
+    if (chatInputText) {
+      setPrompt(chatInputText);
+      setSidebarOpen(true);
+      setActiveView('chat');
+      setChatInputText('');
+    }
+  }, [chatInputText, setPrompt, setSidebarOpen, setActiveView, setChatInputText]);
+
   const handleSubmit = async () => {
     if (!prompt.trim() || isSubmittingRef.current) return;
     
@@ -437,17 +448,16 @@ const Home = ({ isDark }) => {
     });
 
     // ── Enforce fully visual answers for EVERY question ──
-    // The user explicitly requested perfect animations for all queries
-    // and strictly no text chat bubbles ("blue boxes").
-    // setSidebarOpen(false); // USER_REQUEST: Do not close while generating/visualizing
     startSession(userPrompt, userPrompt, activeMode);
   };
 
   // ── Manual Note Creation ──
-  const { activeTool, noteColor, noteSize, addCanvasObjects } = useTutorStore();
+  const { activeTool } = useTutorStore();
+  const lastClickTimeRef = useRef(0);
   
   const handleCanvasDoubleClick = useCallback((e) => {
-    if (activeTool !== 'note') return false; // Let InfiniteCanvas do default behavior
+    // Check if we are clicking on an empty area (not a child element)
+    if (e.target !== e.currentTarget) return false;
 
     const canvas = canvasRef.current;
     if (!canvas) return false;
@@ -460,24 +470,14 @@ const Home = ({ isDark }) => {
     const worldX = (cx - x) / scale;
     const worldY = (cy - y) / scale;
 
-    const sizeMap = { small: 140, medium: 180, large: 240 };
-    const s = sizeMap[noteSize] || 180;
+    addNoteToCanvas(worldX, worldY);
+    return true;
+  }, [addNoteToCanvas]);
 
-    const newNote = {
-      id: `manual-note-${Date.now()}`,
-      type: 'note',
-      x: worldX,
-      y: worldY,
-      w: s,
-      h: s,
-      label: 'New Note',
-      color: noteColor,
-      attentionLevel: 1,
-    };
-
-    addCanvasObjects([newNote]);
-    return true; // Intercepted
-  }, [activeTool, noteColor, noteSize, addCanvasObjects]);
+  const handleCanvasClick = useCallback((e) => {
+    // Standard click handling
+    return false;
+  }, []);
 
   const domain = timeline?.domain?.toLowerCase() || 'general';
   const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
@@ -514,7 +514,7 @@ const Home = ({ isDark }) => {
         >
           <AgentCanvasRenderer
             timeline={timeline}
-            objects={canvasObjects}
+            objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
             steps={canvasSteps}
             currentStepIndex={currentStepIndex}
           />

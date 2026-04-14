@@ -64,16 +64,62 @@ const ShapeTool = (props) => {
     activeTool, setActiveTool,
     shapeFill,        setShapeFill,
     shapeStrokeStyle, setShapeStrokeStyle,
-    shapeOpacity,     setShapeOpacity,
+    addCanvasObjects, canvasTransform,
+    setSelectedElements, drawColor
   } = useTutorStore();
 
+  const handleInstantAdd = (toolId) => {
+    setActiveTool(toolId);
+    
+    // Parse shape type from 'shape:rect' -> 'rect'
+    const type = toolId.split(':')[1];
+    const id = `stamped-${type}-${Date.now()}`;
+    const { x: tx, y: ty, scale } = canvasTransform;
+    
+    // Calculate world center
+    const scatter = (Math.random() * 20) - 10;
+    const worldX = (window.innerWidth / 2 - tx + scatter) / scale / 800;
+    const worldY = (window.innerHeight / 2 - ty + scatter) / scale / 600;
+
+    const isLinear = type === 'line' || type === 'arrow';
+
+    const newObj = {
+      id,
+      type,
+      x: worldX,
+      y: worldY,
+      w: isLinear ? 0.2 : 0.15,
+      h: isLinear ? 0.001 : 0.15,
+      color: drawColor || '#3b82f6',
+      fill: shapeFill || 'none',
+      strokeStyle: shapeStrokeStyle || 'solid',
+      dashed: shapeStrokeStyle === 'dashed',
+      animation: { type: 'bounce', duration: 0.4 }
+    };
+
+    // For linear shapes, we need endpoints
+    if (isLinear) {
+      newObj.x1 = worldX - 0.1;
+      newObj.y1 = worldY;
+      newObj.x2 = worldX + 0.1;
+      newObj.y2 = worldY;
+    }
+
+    addCanvasObjects([newObj]);
+    
+    // Auto-select for immediate manipulation
+    setTimeout(() => {
+      setSelectedElements([id]);
+    }, 50);
+  };
+
   const Submenu = (
-    <div className="flex flex-col gap-4 p-3.5" style={{ minWidth: 230 }}>
+    <div className="flex flex-col gap-4 p-4" style={{ minWidth: 240 }}>
 
       {/* Shape grid */}
       <div className="flex flex-col gap-2">
-        <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Geometric primitive
+        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+          Geometric primitives
         </span>
         <div className="grid grid-cols-5 gap-1">
           {SHAPES.map(({ id, icon: Icon, label }) => {
@@ -81,16 +127,17 @@ const ShapeTool = (props) => {
             return (
               <button
                 key={id}
-                onClick={() => setActiveTool(id)}
+                onClick={() => handleInstantAdd(id)}
                 title={label}
-                className="flex items-center justify-center p-2 rounded-lg transition-all border"
+                className="flex items-center justify-center p-2 rounded-lg transition-all border outline-none overflow-hidden relative group"
                 style={{
-                  background:   isActive ? 'var(--bg-secondary)' : 'transparent',
+                  background:   isActive ? 'var(--bg-secondary)' : 'rgba(255,255,255,0.02)',
                   borderColor:  isActive ? 'var(--border-color)' : 'transparent',
                   color:        isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 }}
               >
-                <Icon size={15} strokeWidth={isActive ? 2.5 : 1.8} />
+                <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/5 transition-colors" />
+                <Icon size={15} strokeWidth={isActive ? 2.5 : 1.8} className="relative z-10 transition-transform group-hover:scale-110" />
               </button>
             );
           })}
@@ -101,8 +148,8 @@ const ShapeTool = (props) => {
 
       {/* Stroke style */}
       <div className="flex flex-col gap-2">
-        <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Stroke style
+        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+          Outline style
         </span>
         <div
           className="flex gap-1 p-1 rounded-xl border"
@@ -134,8 +181,8 @@ const ShapeTool = (props) => {
 
       {/* Fill effect */}
       <div className="flex flex-col gap-2">
-        <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Fill effect
+        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+          Fill appearance
         </span>
         <div className="flex gap-1.5">
           {FILL_STYLES.map(({ id, label }) => {
@@ -174,26 +221,6 @@ const ShapeTool = (props) => {
         </div>
       </div>
 
-      {/* Opacity */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-            Opacity
-          </span>
-          <span className="text-[11px] text-[var(--text-secondary)]">
-            {shapeOpacity ?? 100}%
-          </span>
-        </div>
-        <input
-          type="range"
-          min={10}
-          max={100}
-          step={1}
-          value={shapeOpacity ?? 100}
-          onChange={(e) => setShapeOpacity(Number(e.target.value))}
-          className="w-full"
-        />
-      </div>
     </div>
   );
 

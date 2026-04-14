@@ -11,7 +11,7 @@
  *   - Performance: CSS transform only, no re-renders during interaction
  */
 
-import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, memo, useImperativeHandle } from 'react';
 import useTutorStore from '../../store/tutorStore';
 
 const MIN_ZOOM = 0.15;
@@ -38,6 +38,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   onInteractionStart,
   onInteractionEnd,
   onDoubleClick,
+  onClick,
   className = '',
   initialTransform = null,
 }, ref) => {
@@ -47,10 +48,13 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isHoveringContent, setIsHoveringContent] = useState(false);
+  const transformRef = useRef(transform);
+
   const activeTool = useTutorStore(state => state.activeTool);
   const showGrid   = useTutorStore(state => state.showGrid);
   const gridType   = useTutorStore(state => state.gridType);
   const gridSize   = useTutorStore(state => state.gridSize);
+  const isCanvasLocked = useTutorStore(state => state.isCanvasLocked);
 
   // Refs for performance (no re-renders during interaction)
   const containerRef = useRef(null);
@@ -61,7 +65,6 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const lastMouse = useRef({ x: 0, y: 0 });
   const velocity = useRef({ x: 0, y: 0 });
   const inertiaFrame = useRef(null);
-  const transformRef = useRef(transform);
   const lastPinchDist = useRef(0);
   const lastPinchCenter = useRef({ x: 0, y: 0 });
   const isPinching = useRef(false);
@@ -153,10 +156,11 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE WHEEL ───
   const handleWheel = useCallback((e) => {
+    if (isCanvasLocked) return;
     e.preventDefault();
     zoomAtPoint(e.deltaY, e.clientX, e.clientY);
     onInteractionStart?.();
-  }, [zoomAtPoint, onInteractionStart]);
+  }, [zoomAtPoint, onInteractionStart, isCanvasLocked]);
 
   // ─── INERTIA ───
   const startInertia = useCallback(() => {
@@ -188,6 +192,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE PAN ───
   const handleMouseDown = useCallback((e) => {
+    if (isCanvasLocked) return;
+
     // BUG 1 FIX: If a drawing/interactive tool is active, yield control to InteractiveCanvasLayer
     const isDrawTool = activeTool.startsWith('draw:') || 
                        activeTool.startsWith('shape:') || 
@@ -218,7 +224,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
     if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
     onInteractionStart?.();
     // BUG 3 FIX: Added activeTool to dependency array
-  }, [isSpacePressed, isHoveringContent, activeTool, onInteractionStart]);
+  }, [isSpacePressed, isHoveringContent, activeTool, onInteractionStart, isCanvasLocked]);
 
   const handleMouseMove = useCallback((e) => {
     if (!isDraggingRef.current) return;
@@ -471,14 +477,18 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }, [handleWheel]);
 
   // ─── Public methods via ref ───
-  React.useImperativeHandle(ref, () => ({
+  useImperativeHandle(ref, () => ({
     zoomIn, zoomOut, resetView, fitToContent, centerOn,
     getTransform: () => transformRef.current,
+    setTransform: (newT) => {
+      applyTransform(newT);
+      commitTransform(newT);
+    },
     setTransition: (duration, easing = 'cubic-bezier(0.16, 1, 0.3, 1)') => {
       setTransitionStyle(`transform ${duration}ms ${easing}`);
     },
-    applyTransform, // For direct manipulation if needed
-  }), [zoomIn, zoomOut, resetView, fitToContent, centerOn, applyTransform]);
+    applyTransform,
+  }), [zoomIn, zoomOut, resetView, fitToContent, centerOn, applyTransform, commitTransform]);
 
   const getCursor = () => {
     // 1. Interactive Panning overrides
@@ -507,6 +517,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
         background: 'var(--bg-primary)'
       }}
       onMouseDown={handleMouseDown}
+      onClick={onClick}
       onDoubleClick={handleDoubleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}

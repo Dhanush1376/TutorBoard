@@ -1,5 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Geist&display=swap");
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 /* ─── Design Tokens ─────────────────────────────────────────────────────── */
 

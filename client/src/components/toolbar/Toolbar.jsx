@@ -19,8 +19,8 @@ import TextTool from './tools/TextTool';
 import DrawTool from './tools/DrawTool';
 import NoteTool from './tools/NoteTool';
 import ShapeTool from './tools/ShapeTool';
+import FillTool from './tools/FillTool';
 import GridTool from './tools/GridTool';
-import ImageTool from './tools/ImageTool';
 
 import ShareAction from './actions/ShareAction';
 import DeleteAction from './actions/DeleteAction';
@@ -82,8 +82,8 @@ const Toolbar = ({ onSettingsClick }) => {
       <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
       <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
       <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
-      <ImageTool {...commonToolProps} isHoveredExternally={hoveredId === 'image'} />
       <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
+      <FillTool {...commonToolProps} isHoveredExternally={hoveredId === 'fill'} />
       
       <GridTool {...commonToolProps} isHoveredExternally={hoveredId === 'layout'} />
       

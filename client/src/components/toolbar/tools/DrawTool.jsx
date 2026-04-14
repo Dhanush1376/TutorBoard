@@ -32,8 +32,6 @@ const MODES = [
   { id: 'draw:eraser',      icon: Eraser,      label: 'Eraser',  shortcut: 'E' },
 ];
 
-const OPACITY_STEPS = [25, 50, 75, 100];
-
 const MAX_RECENT = 5;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -52,8 +50,6 @@ const DrawTool = (props) => {
     activeTool, setActiveTool,
     drawColor,    setDrawColor,
     drawWidth,    setDrawWidth,
-    // Optional extras we add to the store (fall back gracefully)
-    drawOpacity,  setDrawOpacity,
     recentColors, addRecentColor,
   } = useTutorStore();
 
@@ -61,7 +57,6 @@ const DrawTool = (props) => {
   const colorInputRef = useRef(null);
 
   // ── Derived state ──────────────────────────────────────────────────────────
-  const opacity   = drawOpacity  ?? 100;
   const recents   = recentColors ?? [];
   const isDrawing = activeTool.startsWith('draw:');
   const isEraser  = activeTool === 'draw:eraser';
@@ -337,57 +332,6 @@ const DrawTool = (props) => {
               </div>
             </div>
 
-            {/* Divider */}
-            <div className="mx-3 my-1" style={{ height: '1px', background: 'linear-gradient(to right, transparent, var(--border-color), transparent)', opacity: 0.5 }} />
-
-            {/* Opacity */}
-            <div className="px-3 pt-2 pb-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
-                  Opacity
-                </span>
-                <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
-                  {opacity}%
-                </span>
-              </div>
-
-              {/* Segmented opacity picker */}
-              <div className="flex gap-1">
-                {OPACITY_STEPS.map((step) => {
-                  const isActive = opacity === step;
-                  return (
-                    <button
-                      key={step}
-                      onClick={() => setDrawOpacity?.(step)}
-                      className="flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all duration-150"
-                      style={{
-                        background: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-                        border:     isActive ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent',
-                        color:      isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                        opacity:    step / 100,
-                      }}
-                    >
-                      {step}%
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Fine slider */}
-              <input
-                type="range"
-                min={5}
-                max={100}
-                step={5}
-                value={opacity}
-                onChange={(e) => setDrawOpacity?.(Number(e.target.value))}
-                className="w-full mt-2.5"
-                style={{
-                  accentColor: previewColor.startsWith('#') ? previewColor : 'var(--text-primary)',
-                  height: '3px',
-                }}
-              />
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

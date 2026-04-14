@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useContext } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './InfiniteCanvas';
 
@@ -14,33 +15,31 @@ import { CanvasContext } from './InfiniteCanvas';
 const V_WIDTH = 800;
 const V_HEIGHT = 600;
 
+const generateId = () => `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
 // Helper: Convert raw points to a smooth SVG path string (Midpoint averaging)
 const getSvgPath = (points, width, height) => {
-  if (points.length < 2) return '';
-  
+  if (!points || points.length < 2) return '';
   const pts = points.map(p => [p[0] * width, p[1] * height]);
   let d = `M ${pts[0][0]},${pts[0][1]}`;
-  
   for (let i = 1; i < pts.length - 1; i++) {
     const xc = (pts[i][0] + pts[i + 1][0]) / 2;
     const yc = (pts[i][1] + pts[i + 1][1]) / 2;
     d += ` Q ${pts[i][0]},${pts[i][1]} ${xc},${yc}`;
   }
-  
   const last = pts[pts.length - 1];
   d += ` L ${last[0]},${last[1]}`;
   return d;
 };
-
-// ID generator fallback
-const generateId = () => `drawn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 const InteractiveCanvasLayer = () => {
   const { 
     activeTool: rawActiveTool, canvasObjects, setCanvasObjectsWithHistory,
     selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
     drawColor, drawWidth, gridSize, noteColor, noteSize, shapeFill, 
-    shapeStrokeStyle, textType, textSize
+    shapeStrokeStyle, textType, textSize, textWeight, textAlign, textBgColor,
+    addNoteToCanvas, setActiveTool,
+    showNotes, setShowNotes
   } = useTutorStore();
   
   // Use transform from context to handle "Infinite Drawing" coordinates
@@ -54,6 +53,7 @@ const InteractiveCanvasLayer = () => {
 
   const [draftObject, setDraftObject] = useState(null);
   const layerRef = useRef(null);
+  const tapCounter = useRef({ count: 0, last: 0 });
   const isDrawing = useRef(false);
   const startPoint = useRef(null);
   const cachedRect = useRef(null);
@@ -111,7 +111,6 @@ const InteractiveCanvasLayer = () => {
     const rect = layerRef.current.getBoundingClientRect();
     cachedRect.current = rect;
     
-    // BUG 13 FIX: Calculate world coordinates by accounting for the current pan/zoom
     const { scale, x: tx, y: ty } = transform;
     const worldX = (e.clientX - rect.left - tx) / scale;
     const worldY = (e.clientY - rect.top - ty) / scale;
@@ -146,7 +145,7 @@ const InteractiveCanvasLayer = () => {
         animation: { type: 'bounce', duration: 0.3 }
       });
     } else if (activeTool.startsWith('draw:')) {
-      if (activeTool === 'draw:eraser') return; // Eraser doesn't create a draft object
+      if (activeTool === 'draw:eraser') return;
       
       setDraftObject({
         id: generateId(),
@@ -158,30 +157,56 @@ const InteractiveCanvasLayer = () => {
         strokeWidth: activeTool === 'draw:highlighter' ? 12 : (activeTool === 'draw:laser' ? 4 : drawWidth),
         isDraft: true,
       });
-    } else if (activeTool === 'text' || activeTool === 'note') {
-      const isNote = activeTool === 'note';
-      const w = isNote ? (noteSize === 'small' ? 0.18 : noteSize === 'large' ? 0.35 : 0.25) : 0.25;
-      const h = isNote ? (noteSize === 'small' ? 0.1 : noteSize === 'large' ? 0.22 : 0.15) : 0.15;
+    } else if (activeTool === 'note') {
+      const now = Date.now();
+      if (!tapCounter.current) tapCounter.current = { count: 0, last: 0 };
       
-      const type = isNote ? 'step_box' : (
-        textType === 'code' ? 'code_panel' : 
-        textType === 'formula' ? 'equation' : 'label'
-      );
+      // Reset if more than 1200ms since last tap
+      if (now - tapCounter.current.last > 1200) {
+        tapCounter.current.count = 1;
+      } else {
+        tapCounter.current.count += 1;
+      }
+      
+      tapCounter.current.last = now;
 
-      setDraftObject({
-        id: generateId(),
+      if (tapCounter.current.count === 3) {
+        addNoteToCanvas(worldX, worldY);
+        tapCounter.current.count = 0; // Reset after success
+      }
+      return; 
+    } else if (activeTool === 'text') {
+      const newId = generateId();
+      const type = textType === 'formula' ? 'equation' : (textType === 'code' ? 'code' : 'label');
+      
+      const newObj = {
+        id: newId,
         type,
         x: normalizedX,
         y: normalizedY,
-        w,
-        h,
-        scale: isNote ? 1 : (textSize / 16),
-        color: isNote ? noteColor : 'var(--text-primary)',
-        text: '',
-        isDraft: true,
-        isTyping: true,
-        animation: { type: isNote ? 'drop' : 'scale', duration: 0.4 }
-      });
+        w: 0.2, // Default width
+        h: 0.1, // Default height
+        content: '',
+        label: '',
+        styles: {
+          fontSize: textSize || 16,
+          fontWeight: textWeight || 'normal',
+          textAlign: textAlign || 'center',
+          backgroundColor: textBgColor || 'transparent',
+          fontFamily: textType === 'code' ? "'Geist Mono', monospace" : "'Inter', sans-serif"
+        },
+        color: drawColor || 'var(--text-primary)',
+        animation: { type: 'scale', duration: 0.4 }
+      };
+
+      setCanvasObjectsWithHistory([...canvasObjects, newObj]);
+      setSelectedElements([newId]);
+      
+      // Delay slightly to ensure store update propagates before focusing
+      setTimeout(() => {
+        useTutorStore.getState().setEditingObjectId(newId);
+      }, 50);
+      return;
     }
   };
 
@@ -256,7 +281,7 @@ const InteractiveCanvasLayer = () => {
     }
     
     // Formatting & Coordinate Restoration (Fix Bug 14)
-    if (finalizedObject.type === 'rect' || finalizedObject.type === 'ellipse' || finalizedObject.type === 'step_box') {
+    if (finalizedObject.type === 'rect' || finalizedObject.type === 'ellipse' || finalizedObject.type === 'step_box' || finalizedObject.type === 'sticky') {
       // Keep coordinates normalized (0..1) but finalize center point
       finalizedObject.x = finalizedObject.x + (finalizedObject.w / 2);
       finalizedObject.y = finalizedObject.y + (finalizedObject.h / 2);
@@ -302,23 +327,23 @@ const InteractiveCanvasLayer = () => {
       {draftObject && !draftObject.isTyping && (
         <svg width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
           <motion.g animate={{ x: transform.x, y: transform.y, scale: transform.scale }}>
-            {draftObject.type === 'rect' && (
+            {(draftObject.type === 'rect' || draftObject.type === 'diamond' || draftObject.type === 'star' || draftObject.type === 'hexagon' || draftObject.type === 'callout' || draftObject.type === 'cloud') && (
                <rect 
-                 x={(draftObject.x - draftObject.w/2) * V_WIDTH} 
-                 y={(draftObject.y - draftObject.h/2) * V_HEIGHT} 
+                 x={draftObject.x * V_WIDTH} 
+                 y={draftObject.y * V_HEIGHT} 
                  width={draftObject.w * V_WIDTH} 
                  height={draftObject.h * V_HEIGHT} 
                  fill="transparent" 
                  stroke={draftObject.color} 
                  strokeWidth={2} 
                  strokeDasharray="4 4"
-                 rx={12}
+                 rx={draftObject.type === 'rect' ? 4 : 0}
                />
             )}
             {draftObject.type === 'ellipse' && (
                <ellipse 
-                 cx={draftObject.x * V_WIDTH} 
-                 cy={draftObject.y * V_HEIGHT} 
+                 cx={(draftObject.x + draftObject.w/2) * V_WIDTH} 
+                 cy={(draftObject.y + draftObject.h/2) * V_HEIGHT} 
                  rx={(draftObject.w/2) * V_WIDTH} 
                  ry={(draftObject.h/2) * V_HEIGHT} 
                  fill="transparent" 
@@ -344,55 +369,33 @@ const InteractiveCanvasLayer = () => {
                 stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
               />
             )}
-            {draftObject.type === 'triangle' && (
+            {(draftObject.type === 'triangle') && (
                <polygon
                  points={`
-                   ${draftObject.x * V_WIDTH}, ${(draftObject.y - draftObject.h/2)*V_HEIGHT}
-                   ${(draftObject.x + draftObject.w/2)*V_WIDTH},   ${(draftObject.y + draftObject.h/2)*V_HEIGHT}
-                   ${(draftObject.x - draftObject.w/2)*V_WIDTH},   ${(draftObject.y + draftObject.h/2)*V_HEIGHT}
+                   ${(draftObject.x + draftObject.w/2) * V_WIDTH}, ${draftObject.y * V_HEIGHT}
+                   ${(draftObject.x + draftObject.w) * V_WIDTH},   ${(draftObject.y + draftObject.h) * V_HEIGHT}
+                   ${draftObject.x * V_WIDTH},                     ${(draftObject.y + draftObject.h) * V_HEIGHT}
                  `}
                  fill="none"
                  stroke={draftObject.color} strokeWidth={2} strokeDasharray="4 4"
                />
             )}
+            {(draftObject.type === 'pentagon') && (
+              <rect 
+                x={draftObject.x * V_WIDTH} 
+                y={draftObject.y * V_HEIGHT} 
+                width={draftObject.w * V_WIDTH} 
+                height={draftObject.h * V_HEIGHT} 
+                fill="transparent" 
+                stroke={draftObject.color} 
+                strokeWidth={1} 
+                strokeDasharray="2 2"
+              />
+            )}
           </motion.g>
         </svg>
       )}
 
-      {draftObject?.isTyping && (
-        <textarea
-          autoFocus
-          placeholder="Start typing..."
-          className="absolute bg-transparent text-[var(--text-primary)] outline-none resize-none font-medium leading-relaxed placeholder:opacity-50"
-          style={{
-            left: ((draftObject.x - draftObject.w/2) * V_WIDTH * transform.scale) + transform.x,
-            top: ((draftObject.y - draftObject.h/2) * V_HEIGHT * transform.scale) + transform.y,
-            width: draftObject.w * V_WIDTH * transform.scale,
-            height: draftObject.h * V_HEIGHT * transform.scale,
-            fontSize: (draftObject.type === 'label' ? 24 : 14) * transform.scale,
-            background: draftObject.type === 'step_box' ? (noteColor || 'rgba(251,191,36,0.9)') : 'transparent',
-            color: draftObject.type === 'step_box' ? '#fff' : 'var(--text-primary)',
-            padding: (draftObject.type === 'step_box' ? 12 : 0) * transform.scale,
-            borderRadius: 8 * transform.scale,
-            boxShadow: draftObject.type === 'step_box' ? '0 8px 32px rgba(0,0,0,0.2)' : 'none',
-            border: draftObject.type === 'label' ? '1px dashed var(--border-color)' : 'none',
-          }}
-          value={draftObject.text || ''}
-          onChange={(e) => setDraftObject(prev => ({ ...prev, text: e.target.value }))}
-          onBlur={() => {
-            if (draftObject.text.trim()) {
-              handlePointerUp(true); // Force commit
-            } else {
-              setDraftObject(null); // Cancel empty drafts
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' || (e.key === 'Enter' && e.shiftKey)) {
-              e.target.blur();
-            }
-          }}
-        />
-      )}
     </div>
   );
 };

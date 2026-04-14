@@ -10,7 +10,7 @@ import ActionButtonBase from '../components/ActionButtonBase';
 
 const ShareAction = (props) => {
   const Submenu = (
-    <div className="flex flex-col gap-4 p-3.5 min-w-[200px]">
+    <div className="flex flex-col gap-4 p-4 min-w-[240px]">
       {/* Collaboration */}
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">Collaborate</span>

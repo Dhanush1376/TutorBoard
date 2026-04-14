@@ -21,9 +21,12 @@ import {
   // NEW shapes v3
   EquationBlock, TreeNode, BarShape, VennCircle,
   FlowStep, MoleculeNode, LabelText, StickyNoteShape,
+  EllipseShape, DiamondShape, StarShape, HexagonShape, CalloutShape, CloudShape
 } from '../renderers/CinematicShapes.jsx';
 import PhysicsRenderer from '../renderers/PhysicsRenderer.jsx';
 import NarrativeRenderer from '../renderers/NarrativeRenderer.jsx';
+import FloatingFormatBar from './FloatingFormatBar.jsx';
+import InlineEditor from './InlineEditor.jsx';
 import useTutorStore from '../../store/tutorStore.js';
 
 const CW = 800;
@@ -56,16 +59,21 @@ function useStepDirector(elements, timelineSteps, currentStepIndex) {
 }
 
 // ─── Shape Dispatcher ─────────────────────────────────────────────────────────
-function RenderShape({ obj, highlightIds, fadeIds, animation }) {
+function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpdate, onDelete }) {
   const isHighlighted  = highlightIds.has(obj.id);
   const isFaded        = fadeIds.has(obj.id);
   const attentionLevel = isHighlighted ? 2 : isFaded ? 0 : 1;
 
   const common = {
-    key:          obj.id,
     layoutId:     obj.id,
     attentionLevel,
     animation,
+    content:      obj.content,
+    styles:       obj.styles || {},
+    fontFamily:   obj.styles?.fontFamily || obj.fontFamily,
+    fontWeight:   obj.styles?.fontWeight || obj.fontWeight,
+    fontStyle:    obj.styles?.fontStyle || obj.fontStyle,
+    textDecoration: obj.styles?.textDecoration || obj.textDecoration,
   };
 
   const x = (obj.x ?? 0.5) * CW;
@@ -82,70 +90,80 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'planet': {
       // Respect explicit world-unit radius if provided, else fallback to scale-based sizing
       const r = obj.r ? obj.r * CW : (obj.scale || 1) * 38;
-      return <GlowOrb {...common} cx={x} cy={y}
+      return <GlowOrb key={obj.id} {...common} cx={x} cy={y}
         r={r} color={obj.color} label={obj.label} />;
     }
 
-    case 'ellipse':
-    case 'oval': {
-      const rx = obj.w ? (obj.w * CW) / 2 : (obj.scale || 1) * 80;
-      const ry = obj.h ? (obj.h * CH) / 2 : (obj.scale || 1) * 29;
-      return <GlassEllipse {...common} cx={x} cy={y} rx={rx} ry={ry}
-        color={obj.color} label={obj.label} fill="glass" />;
-    }
-
-    // ── Rectangles / Blocks ─────────────────────────────────
     case 'rect':
     case 'block':
     case 'rectangle':
+    case 'square':
     case 'box':
     case 'step_box':
     case 'flowstep_rect': {
-      // Respect explicit world-unit dimensions if provided, else fallback to hardcoded base size
-      const w = obj.w ? obj.w * CW : (obj.scale || 1) * 160;
-      const h = obj.h ? obj.h * CH : (obj.scale || 1) * 58;
-      return <GlassRect {...common} x={x - w / 2} y={y - h / 2} w={w} h={h}
-        color={obj.color} label={obj.label} />;
-    }
+      const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
+      const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 58;
+      return <GlassRect key={obj.id} {...common} x={x - w / 2} y={y - h / 2} w={w} h={h}
+        color={obj.color} label={obj.label} dashed={obj.dashed} fill={obj.fill}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
+
+    case 'ellipse':
+    case 'oval': {
+      const rx = obj.w ? (obj.w <= 1 ? (obj.w * CW) / 2 : obj.w / 2) : (obj.scale || 1) * 40;
+      const ry = obj.h ? (obj.h <= 1 ? (obj.h * CH) / 2 : obj.h / 2) : (obj.scale || 1) * 40;
+      return <EllipseShape key={obj.id} {...common} x={x} y={y} w={rx * 2} h={ry * 2}
+        color={obj.color} label={obj.label} dashed={obj.dashed}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
 
     case 'note':
-    case 'sticky': {
+    case 'sticky':
+    case 'sticky_note': {
       const w = obj.w || (obj.scale || 1) * 180;
       const h = obj.h || (obj.scale || 1) * 180;
-      return <StickyNoteShape {...common} x={x} y={y} w={w} h={h}
-        color={obj.color} label={obj.label} />;
+      return (
+        <StickyNoteShape 
+          key={obj.id}
+          {...common} 
+          x={x} y={y} w={w} h={h}
+          color={obj.color} label={obj.label || obj.text} 
+          rotation={obj.rotation}
+          isSelected={isSelected}
+          onUpdate={(props) => onUpdate && onUpdate(obj.id, props)}
+          onDelete={() => onDelete && onDelete(obj.id)}
+        />
+      );
     }
 
     // ── Pointer / Cursor ────────────────────────────────────
     case 'pointer':
     case 'cursor':
     case 'index':
-      return <FlowPointer {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+      return <FlowPointer key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label} />;
 
     // ── Array / Data Block ──────────────────────────────────
     case 'array':
     case 'data_block':
     case 'datablock':
     case 'list':
-      return <DataBlock {...common} x={x} y={y}
+      return <DataBlock key={obj.id} {...common} x={x} y={y}
         values={obj.values || []} label={obj.label} color={obj.color} />;
 
     // ── Badge / Pill ─────────────────────────────────────────
     case 'badge':
     case 'tag':
     case 'chip':
-      return <FloatingBadge {...common} x={x} y={y} text={obj.label || ''} color={obj.color} />;
+      return <FloatingBadge key={obj.id} {...common} x={x} y={y} text={obj.label || ''} color={obj.color} />;
 
     // ── Code Line ────────────────────────────────────────────
     case 'codeline':
     case 'code':
     case 'code_line':
-      return <CodePanel {...common} x={x} y={y} code={obj.code || obj.label || ''} />;
+      return <CodePanel key={obj.id} {...common} x={x} y={y} code={obj.code || obj.label || ''} />;
 
     // ── Comparator ───────────────────────────────────────────
     case 'comparator':
     case 'compare':
-      return <Comparator {...common} x={x} y={y}
+      return <Comparator key={obj.id} {...common} x={x} y={y}
         leftVal={obj.leftVal} rightVal={obj.rightVal}
         operator={obj.operator} result={obj.result} color={obj.color} />;
 
@@ -153,14 +171,14 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'swapbridge':
     case 'swap':
     case 'swap_bridge':
-      return <SwapBridge {...common} x={x} y={y} color={obj.color} />;
+      return <SwapBridge key={obj.id} {...common} x={x} y={y} color={obj.color} />;
 
     // ── Data Dot ─────────────────────────────────────────────
     case 'dot':
     case 'point':
     case 'data_dot':
     case 'scatter_point':
-      return <DataDot {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+      return <DataDot key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label} />;
 
     // ── Cartesian Axes ───────────────────────────────────────
     case 'axes':
@@ -168,7 +186,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'cartesian':
     case 'graph_axes':
     case 'coordinate_system':
-      return <CartesianAxes {...common} x={x} y={y} color={obj.color} label={obj.label} />;
+      return <CartesianAxes key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label} />;
     
     // ── LINE & ARROW ──────────────────────────────────────────
     case 'line':
@@ -179,13 +197,14 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
       const x2 = (obj.x2 ?? (obj.x1 ?? 0.5) + 0.1) * CW;
       const y2 = (obj.y2 ?? (obj.y1 ?? 0.5) + 0.1) * CH;
       const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, dashed: obj.dashed };
-      return shape === 'line' ? <RawLine {...props} /> : <FlowArrow {...props} />;
+      return shape === 'line' ? <RawLine key={obj.id} {...props} /> : <FlowArrow key={obj.id} {...props} />;
     }
 
     // ── PATH / DRAWING ───────────────────────────────────────
     case 'path': {
       return (
         <motion.path
+          key={obj.id}
           {...common}
           d={obj.path}
           fill="none"
@@ -210,9 +229,46 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
         (p[0] ?? 0) * CW - x,
         (p[1] ?? 0) * CH - y,
       ]);
-      return <GeometryPolygon {...common} x={x} y={y}
+      return <GeometryPolygon key={obj.id} {...common} x={x} y={y}
         points={pts.length > 2 ? pts : [[-60, 80], [60, 80], [0, -80]]}
-        color={obj.color} label={obj.label} />;
+        color={obj.color} label={obj.label} dashed={obj.dashed}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
+    }
+
+    case 'diamond': {
+      const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
+      const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
+      return <DiamondShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
+    }
+
+    case 'star': {
+      const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
+      const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
+      return <StarShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
+    }
+
+    case 'hexagon': {
+      const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
+      const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
+      return <HexagonShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
+    }
+
+    case 'callout':
+    case 'speech': {
+      const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 180;
+      const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 120;
+      return <CalloutShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
+    }
+
+    case 'cloud': {
+      const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 200;
+      const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 140;
+      return <CloudShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} dashed={obj.dashed}
+        isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     // ── EQUATION (NEW) ───────────────────────────────────────
@@ -221,7 +277,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'math':
     case 'expression':
     case 'term':
-      return <EquationBlock {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <EquationBlock key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} />;
 
     // ── TREE NODE (NEW) ──────────────────────────────────────
     case 'tree_node':
@@ -229,14 +285,14 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'graph_node':
     case 'vertex':
     case 'bst_node':
-      return <TreeNode {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <TreeNode key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} />;
 
     // ── BAR (NEW) ────────────────────────────────────────────
     case 'bar':
     case 'column':
     case 'histogram_bar':
     case 'bar_element':
-      return <BarShape {...common} x={x} y={y}
+      return <BarShape key={obj.id} {...common} x={x} y={y}
         label={obj.label} color={obj.color} scale={obj.scale || 1} />;
 
     // ── VENN CIRCLE (NEW) ────────────────────────────────────
@@ -244,7 +300,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'venn_circle':
     case 'set_circle':
     case 'set':
-      return <VennCircle {...common} x={x} y={y}
+      return <VennCircle key={obj.id} {...common} x={x} y={y}
         label={obj.label} color={obj.color} scale={obj.scale || 1} />;
 
     // ── FLOW STEP (NEW) ──────────────────────────────────────
@@ -253,7 +309,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'process_step':
     case 'pipeline_step':
     case 'stage':
-      return <FlowStep {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
+      return <FlowStep key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
 
     // ── MOLECULE (NEW) ───────────────────────────────────────
     case 'molecule':
@@ -261,15 +317,13 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
     case 'chemical':
     case 'compound':
     case 'ion':
-      return <MoleculeNode {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <MoleculeNode key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} />;
 
-    // ── LABEL TEXT (NEW) ─────────────────────────────────────
     case 'label':
     case 'text':
     case 'annotation':
     case 'caption':
-    case 'note':
-      return <LabelText {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
+      return <LabelText key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
 
     // ── IMAGE (NEW) ──────────────────────────────────────────
     case 'image': {
@@ -277,6 +331,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
       const h = (obj.scale || 1) * 200;
       return (
         <motion.image 
+          key={obj.id}
           {...common}
           href={obj.url}
           x={x - w / 2}
@@ -294,26 +349,43 @@ function RenderShape({ obj, highlightIds, fadeIds, animation }) {
 
     // ── DEFAULT FALLBACK ─────────────────────────────────────
     default:
-      return <FreeformShape {...common} x={x} y={y}
+      return <FreeformShape key={obj.id} {...common} x={x} y={y}
         color={obj.color} label={obj.label} type={shape} />;
   }
 }
 
 // ─── SVG Canvas Renderer ──────────────────────────────────────────────────────
 function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connections: extConn, steps: extSteps }) {
-  const rawElements  = extEl    || timeline?.elements    || timeline?.objects || [];
+  const { 
+    showNotes = true, 
+    activeTool, 
+    selectedElementIds, 
+    setSelectedElements, 
+    updateCanvasObject, 
+    deleteCanvasObject,
+    editingObjectId,
+    setEditingObjectId
+  } = useTutorStore();
+  
+  // Merge ALL sources from Props
+  const rawElements = useMemo(() => {
+    const timelineEls = timeline?.elements || timeline?.objects || [];
+    return [...(extEl || []), ...timelineEls];
+  }, [extEl, timeline]);
+
   const connections  = extConn  || timeline?.connections || [];
   const timelineSteps= extSteps || timeline?.timeline    || timeline?.steps   || [];
   const currentStep  = timelineSteps?.[currentStepIndex] || {};
 
-  // Visibility filtering: only render elements listed in objectIds
+  // Visibility filtering: only render elements listed in objectIds OR pinned elements
   const stepObjectIds = useMemo(() => {
     const ids = currentStep.objectIds || currentStep.elements || [];
     const baseSet = new Set(ids);
     
-    // Always include custom user-created objects
+    // Always include Pinned objects (Step 6: "Visible across pages")
+    // and custom user-created objects
     rawElements.forEach(el => {
-      if (el?.id?.startsWith?.('custom-')) {
+      if (el?.isPinned || el?.pinned || el?.id?.startsWith?.('custom-') || el?.id?.startsWith?.('manual-')) {
         baseSet.add(el.id);
       }
     });
@@ -324,18 +396,23 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
 
   // Mutation application: per-step property overrides
   const elements = useMemo(() => {
-    return rawElements
+    let finalElements = rawElements
       .filter(el => el?.id && stepObjectIds.has(el.id))
       .map(el => {
         const mutation = (currentStep.mutations || []).find(m => m.id === el.id);
         return mutation ? { ...el, ...mutation.props } : el;
       });
-  }, [rawElements, stepObjectIds, currentStep.mutations]);
+
+    // Enforce Show/Hide Notes toggle
+    if (!showNotes) {
+      finalElements = finalElements.filter(el => el.type !== 'sticky' && el.type !== 'note' && el.type !== 'sticky_note');
+    }
+    
+    return finalElements;
+  }, [rawElements, stepObjectIds, currentStep.mutations, showNotes]);
 
   const { highlightIds, fadeIds, camera } = useStepDirector(elements, timelineSteps, currentStepIndex);
   
-  const { activeTool, selectedElementIds, setSelectedElements } = useTutorStore();
-
   if (!elements.length) return null;
 
   const Z  = camera.zoom;
@@ -360,7 +437,7 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
           className="absolute top-4 left-0 right-0 flex items-center justify-center gap-3 pointer-events-none z-10"
         >
           <span className="text-xs font-mono text-slate-500 tabular-nums">
-            {stepNumber}/{totalSteps}
+            {totalSteps > 0 ? `${stepNumber}/${totalSteps}` : 'Canvas'}
           </span>
           <span className="text-sm font-semibold text-slate-300 max-w-[540px] truncate">
             {stepTitle}
@@ -421,13 +498,26 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
               return (
                 <ErrorBoundary key={obj.id} onClose={() => {}} reloadOnRetry={true}>
                   <g 
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingObjectId(obj.id);
+                    }}
                     onPointerDown={(e) => {
-                      if (activeTool === 'select') {
+                      if (activeTool === 'fill') {
+                        e.stopPropagation();
+                        const currentDrawColor = useTutorStore.getState().drawColor;
+                        updateCanvasObject(obj.id, { color: currentDrawColor, fill: 'glass' });
+                      } else {
+                        // Always allow selecting the shape first, even if not explicitly in select mode!
                         e.stopPropagation();
                         setSelectedElements([obj.id]);
+                        // Optional: switch to select tool automatically to avoid accidental drawing
+                        if (activeTool !== 'select') {
+                           useTutorStore.getState().setActiveTool('select');
+                        }
                       }
                     }}
-                    style={{ cursor: activeTool === 'select' ? 'pointer' : 'crosshair' }}
+                    style={{ cursor: activeTool === 'fill' ? 'copy' : 'move' }}
                   >
                     {/* Selection Highlight Ring */}
                     {isSelected && (
@@ -449,6 +539,9 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
                       highlightIds={highlightIds}
                       fadeIds={fadeIds}
                       animation={currentStep.animation}
+                      isSelected={isSelected}
+                      onUpdate={updateCanvasObject}
+                      onDelete={deleteCanvasObject}
                     />
                   </g>
                 </ErrorBoundary>
@@ -457,6 +550,15 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
           </AnimatePresence>
         </motion.g>
       </svg>
+
+      {/* Inline Editing Overlay */}
+      {editingObjectId && (
+        <InlineEditor 
+          elements={elements}
+          editingObjectId={editingObjectId}
+          Z={Z} tx={tx} ty={ty}
+        />
+      )}
 
       {/* Step narration bar */}
       <AnimatePresence mode="wait">
@@ -484,18 +586,15 @@ function SVGCanvasRenderer({ timeline, currentStepIndex, elements: extEl, connec
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export default function AgentCanvasRenderer({
   timeline, currentStepIndex,
-  elements: extElements, connections: extConnections, steps: extSteps,
+  elements: extElements, objects: extObjects, 
+  connections: extConnections, steps: extSteps,
 }) {
-  const elements = extElements || timeline?.elements || timeline?.objects || [];
-
-  // Gate rendering on non-empty elements
-  if (!elements.length) return null;
-
+  const elements = extElements || extObjects || [];
   const renderer = timeline?.renderer || 'cinematic';
 
   const normalizedTimeline = {
     ...timeline,
-    elements,
+    elements: elements.length ? elements : (timeline?.elements || timeline?.objects || []),
     connections: extConnections || timeline?.connections || [],
     timeline:    extSteps || timeline?.timeline || timeline?.steps || [],
   };
@@ -511,9 +610,9 @@ export default function AgentCanvasRenderer({
   return (
     <ErrorBoundary key={`canvas-${currentStepIndex}`} onClose={() => {}} reloadOnRetry={true}>
       <SVGCanvasRenderer
-        timeline={timeline}
+        timeline={normalizedTimeline}
         currentStepIndex={currentStepIndex}
-        elements={extElements}
+        elements={elements}
         connections={extConnections}
         steps={extSteps}
       />

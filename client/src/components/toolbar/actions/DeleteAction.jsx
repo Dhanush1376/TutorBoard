@@ -87,8 +87,8 @@ const DeleteAction = (props) => {
   const { clearAll, clearDrawings, clearNotes } = useTutorStore();
 
   const Submenu = (
-    <div className="flex flex-col gap-4 p-3.5 min-w-[200px]">
-      {/* Selective Hygiene */}
+    <div className="flex flex-col gap-4 p-4" style={{ minWidth: 240 }}>
+      {/* Quick Purge */}
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">Quick Purge</span>
         <div className="flex flex-col gap-1">
