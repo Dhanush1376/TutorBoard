@@ -135,8 +135,8 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
           <DisplayIcon size={17} strokeWidth={isGroupActive ? 2.2 : 1.9} />
         </span>
         
-        {/* Tiny dropdown indicator if variants exist */}
-        {hasVariants && (
+        {/* Tiny dropdown indicator if variants or custom submenu exist */}
+        {(hasVariants || customSubmenu) && (
            <div 
              className="absolute bottom-1 right-1 w-0 h-0" 
              style={{

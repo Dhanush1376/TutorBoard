@@ -13,7 +13,7 @@ const CW = 800;
 const CH = 600;
 
 export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
-  const { updateCanvasObject, setEditingObjectId } = useTutorStore();
+  const { updateCanvasObjectSilently, commitHistory, setEditingObjectId } = useTutorStore();
   const obj = elements.find(e => e.id === editingObjectId);
   
   const [localContent, setLocalContent] = useState('');
@@ -43,7 +43,7 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
 
   const handleChange = (val) => {
     setLocalContent(val);
-    updateCanvasObject(obj.id, { content: val });
+    updateCanvasObjectSilently(obj.id, { content: val });
   };
 
   const isMath = obj.type === 'equation' || obj.type === 'math' || obj.type === 'formula';
@@ -55,19 +55,15 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
         obj={obj} 
         value={localContent} 
         onChange={handleChange} 
-        onClose={() => setEditingObjectId(null)} 
+        onLanguageChange={(lang) => updateCanvasObjectSilently(obj.id, { language: lang })}
+        onClose={() => { commitHistory(); setEditingObjectId(null); }} 
       />
     );
   }
 
   return (
     <>
-      <div 
-        className="absolute z-50 transition-all duration-300"
-        style={{ left, top: top - 55 }}
-      >
-        <FloatingFormatBar element={obj} updateCanvasObject={updateCanvasObject} />
-      </div>
+      {/* Format Bar removed here - now handled by selection-only logic in individual components or top-level overlay if needed */}
       
       <div 
         className="absolute z-40 bg-transparent flex flex-col"
@@ -89,7 +85,7 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
               autoFocus
               value={localContent}
               onChange={(e) => handleChange(e.target.value)}
-              onBlur={() => setEditingObjectId(null)}
+              onBlur={() => { commitHistory(); setEditingObjectId(null); }}
               className={`w-full h-full bg-transparent outline-none resize-none p-2 rounded-lg shadow-xl transition-all relative z-10
                 ${obj.type === 'code' ? 'font-mono' : 'font-sans'}`}
               style={{
@@ -105,6 +101,13 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
                 fontFamily: obj.type === 'code' ? "'Geist Mono', monospace" : (obj.styles?.fontFamily || 'var(--font-sans)'),
                 lineHeight: 1.2
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  commitHistory();
+                  setEditingObjectId(null);
+                }
+              }}
               spellCheck={false}
             />
           </div>
@@ -115,7 +118,7 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
       <div 
         className="absolute inset-0 z-30" 
         onPointerDown={(e) => {
-          e.stopPropagation();
+          commitHistory();
           setEditingObjectId(null);
         }} 
       />
@@ -123,8 +126,8 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
   );
 }
 
-function CodeModalEditor({ obj, value, onChange, onClose }) {
-  const [language, setLanguage] = useState('javascript');
+function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
+  const [language, setLanguage] = useState(obj.language || 'javascript');
   const [output, setOutput] = useState('');
   const textareaRef = useRef(null);
   const gutterRef = useRef(null);
@@ -176,7 +179,7 @@ function CodeModalEditor({ obj, value, onChange, onClose }) {
     setShowOutput(true);
     try {
       // Simulated output — in real app, this could call an API
-      setOutput(`> Running ${language}...\n> Compiled successfully.\n> Output: (sandbox execution not available)`);
+      setOutput(`> Running ${language}...\n> Compiled successfully.\n> Output: (Preview Only — Run locally for full execution)`);
     } catch (err) {
       setOutput(`Error: ${err.message}`);
     }
@@ -290,7 +293,7 @@ function CodeModalEditor({ obj, value, onChange, onClose }) {
                   {LANGUAGES.map(lang => (
                     <button
                       key={lang.id}
-                      onClick={() => { setLanguage(lang.id); setShowLanguageMenu(false); }}
+                      onClick={() => { setLanguage(lang.id); onLanguageChange?.(lang.id); setShowLanguageMenu(false); }}
                       className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--bg-secondary)] transition-colors"
                       style={{ color: language === lang.id ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
                     >
@@ -508,7 +511,7 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
   };
 
   return (
-    <div className="w-full h-full relative flex flex-col bg-slate-900/95 rounded-xl overflow-hidden shadow-2xl border border-slate-700">
+    <div className="w-full h-full relative flex flex-col bg-[var(--bg-secondary)] rounded-xl overflow-hidden shadow-2xl border border-[var(--border-color)]">
       <div className="flex-1 flex overflow-hidden">
         {/* LaTeX Input */}
         <textarea
@@ -516,11 +519,17 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Enter LaTeX..."
-          className="flex-1 bg-slate-950/50 p-3 font-mono text-sm text-cyan-400 outline-none resize-none border-r border-slate-800"
+          className="flex-1 bg-[var(--bg-primary)] p-3 font-mono text-sm text-[var(--text-primary)] outline-none resize-none border-r border-[var(--border-color)]"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setEditingObjectId(null);
+            }
+          }}
         />
 
         {/* Scientific Panel - Step 3: Calculator Grid */}
-        <div className="w-56 bg-slate-900 p-2 grid grid-cols-4 gap-1 overflow-y-auto content-start">
+        <div className="w-56 bg-[var(--bg-tertiary)] p-2 grid grid-cols-4 gap-1 overflow-y-auto content-start">
            {[
              { label: 'sin', val: '\\sin(' }, { label: 'cos', val: '\\cos(' }, { label: 'tan', val: '\\tan(' }, { label: '√', val: '\\sqrt{' },
              { label: 'ln', val: '\\ln(' }, { label: 'log', val: '\\log_{10}(' }, { label: '^', val: '^' }, { label: 'π', val: '\\pi' },
@@ -533,9 +542,9 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
              <button
                key={sym.label}
                onPointerDown={(e) => { e.stopPropagation(); insertMath(sym.val); }}
-               className={`h-9 flex items-center justify-center rounded border border-slate-700/50 transition text-[11px] font-bold ${
-                 /[0-9]/.test(sym.label) ? 'bg-slate-800/80 text-white' : 'bg-slate-900 text-cyan-400'
-               } hover:brightness-125 active:scale-95`}
+               className={`h-9 flex items-center justify-center rounded border border-[var(--border-color)] transition text-[11px] font-bold ${
+                 /[0-9]/.test(sym.label) ? 'bg-[var(--bg-primary)] text-[var(--text-primary)]' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
+               } hover:brightness-105 active:scale-95`}
              >
                {sym.label}
              </button>
@@ -544,14 +553,14 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
       </div>
 
       {/* Real-time Preview */}
-      <div className="h-20 flex items-center justify-center p-4 overflow-auto bg-slate-950/80 border-t border-slate-800 relative group">
-        <div ref={previewRef} style={{ color: color || 'white', fontSize: (styles.fontSize || 20) * Z }} />
-        <div className="absolute top-1 left-2 text-[8px] font-bold text-slate-600 uppercase">Preview</div>
+      <div className="h-20 flex items-center justify-center p-4 overflow-auto bg-[var(--bg-primary)] border-t border-[var(--border-color)] relative group">
+        <div ref={previewRef} style={{ color: color || 'var(--text-primary)', fontSize: (styles.fontSize || 20) * Z }} />
+        <div className="absolute top-1 left-2 text-[8px] font-bold text-[var(--text-tertiary)] uppercase">Preview</div>
       </div>
       
       <button 
         onPointerDown={(e) => { e.stopPropagation(); setEditingObjectId(null); }}
-        className="absolute bottom-2 right-2 px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors z-20 shadow-lg"
+        className="absolute bottom-2 right-2 px-3 py-1 bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-primary)] text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all z-20 shadow-lg"
       >
         Done
       </button>

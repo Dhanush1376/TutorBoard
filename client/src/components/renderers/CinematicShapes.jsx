@@ -2077,6 +2077,8 @@ export const StickyNoteShape = ({
       <g
         transform={`rotate(-0.5, 0, ${-height / 2})`}
         onPointerDown={handleDragPointerDown}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{ cursor: "grab" }}
         pointerEvents="auto"
       >
@@ -2112,6 +2114,8 @@ export const StickyNoteShape = ({
         y={-height / 2 + 30}
         width={width - 20}
         height={height - 50}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         pointerEvents={isDragging ? "none" : "auto"}
       >
         <textarea
@@ -2153,6 +2157,8 @@ export const StickyNoteShape = ({
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             pointerEvents="auto"
           >
             {/* Resize Handle (Bottom Right) */}

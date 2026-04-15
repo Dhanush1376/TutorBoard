@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Copy, Edit2, Trash2, Check, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import VisaiLogo from '../common/VisaiLogo';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -99,9 +100,7 @@ const Message = ({
       {/* Avatar + label row */}
       <div className={`flex items-center gap-1.5 mb-1.5 ${isAssistant ? '' : 'flex-row-reverse'}`}>
         {isAssistant ? (
-          <div className="w-5 h-5 rounded-full bg-[var(--text-primary)] flex items-center justify-center flex-shrink-0">
-            <Sparkles size={10} className="text-[var(--bg-primary)]" />
-          </div>
+          <VisaiLogo size="xxs" />
         ) : (
           <div className="w-5 h-5 rounded-full bg-[var(--text-secondary)]/20 border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
             <User size={10} className="text-[var(--text-secondary)]" />

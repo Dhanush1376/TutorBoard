@@ -338,7 +338,16 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'text':
     case 'annotation':
     case 'caption':
-      return <LabelText key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
+      return (
+        <PremiumTextBox 
+          key={obj.id} 
+          obj={obj} 
+          {...common} 
+          isSelected={isSelected}
+          onUpdate={(p) => onUpdate?.(obj.id, p)}
+          onDelete={() => onDelete?.(obj.id)}
+        />
+      );
 
     // ── IMAGE (NEW) ──────────────────────────────────────────
     case 'image': {
@@ -384,7 +393,8 @@ function SVGCanvasRenderer({
     updateCanvasObject, 
     deleteCanvasObject,
     editingObjectId,
-    setEditingObjectId
+    setEditingObjectId,
+    isSidebarOpen
   } = useTutorStore();
   
   const showNotes = propShowNotes !== undefined ? propShowNotes : storeShowNotes;
@@ -529,7 +539,7 @@ function SVGCanvasRenderer({
 
           {/* World Elements */}
           <AnimatePresence mode="popLayout">
-            {worldElements.filter(o => o.id !== editingObjectId).map(obj => {
+            {worldElements.filter(o => o.id !== editingObjectId || ['text', 'label', 'annotation', 'caption'].includes(o.type)).map(obj => {
               const isSelected = selectedElementIds?.includes(obj.id);
               
               if (obj.type === 'text' || obj.type === 'label' || obj.type === 'annotation' || obj.type === 'caption') {
@@ -586,7 +596,7 @@ function SVGCanvasRenderer({
         {/* Pinned / HUD Elements (Fixed to Viewport) */}
         <g>
           <AnimatePresence mode="popLayout">
-            {pinnedElements.filter(o => o.id !== editingObjectId).map(obj => {
+            {pinnedElements.filter(o => o.id !== editingObjectId || ['text', 'label', 'annotation', 'caption'].includes(o.type)).map(obj => {
               const isSelected = selectedElementIds?.includes(obj.id);
               return (
                 <ErrorBoundary key={obj.id} onClose={() => {}} reloadOnRetry={true}>

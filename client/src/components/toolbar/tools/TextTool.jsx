@@ -1,13 +1,18 @@
 import React from 'react';
 import {
+  Heading1,
   Type,
-  Terminal,
-  Sigma,
+  ALargeSmall,
   MessageSquare,
   Check,
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignJustify,
+  Bold,
+  Italic,
+  Underline,
+  Plus,
   Pipette,
   RotateCcw,
 } from 'lucide-react';
@@ -15,17 +20,17 @@ import useTutorStore from '../../../store/tutorStore';
 import ToolButtonBase from './ToolButtonBase';
 
 const MODES = [
-  { id: 'standard', icon: Type,          label: 'Label',   desc: 'Clean'       },
-  { id: 'code',     icon: Terminal,      label: 'Code',    desc: 'Monospace'    },
-  { id: 'formula',  icon: Sigma,         label: 'Math',    desc: 'LaTeX'        },
+  { id: 'heading',  icon: Heading1,    label: 'Heading', desc: 'Title'    },
+  { id: 'standard', icon: Type,        label: 'Body',    desc: 'General'  },
+  { id: 'caption',  icon: ALargeSmall, label: 'Caption', desc: 'Note'     },
 ];
 
 const SIZES = [
-  { id: 12, label: 'XS (12px)' },
-  { id: 16, label: 'S (16px)'  },
-  { id: 24, label: 'M (24px)'  },
-  { id: 32, label: 'L (32px)'  },
-  { id: 48, label: 'XL (48px)' },
+  { id: 12, label: 'XS' },
+  { id: 16, label: 'S'  },
+  { id: 24, label: 'M'  },
+  { id: 32, label: 'L'  },
+  { id: 48, label: 'XL' },
 ];
 
 const WEIGHTS = [
@@ -35,9 +40,10 @@ const WEIGHTS = [
 ];
 
 const ALIGNMENTS = [
-  { id: 'left',   icon: AlignLeft   },
-  { id: 'center', icon: AlignCenter },
-  { id: 'right',  icon: AlignRight  },
+  { id: 'left',    icon: AlignLeft    },
+  { id: 'center',  icon: AlignCenter  },
+  { id: 'right',   icon: AlignRight   },
+  { id: 'justify', icon: AlignJustify },
 ];
 
 const SegButton = ({ isActive, onClick, children, style: extraStyle }) => (
@@ -74,6 +80,8 @@ const TextTool = (props) => {
     textType,   setTextType,
     textToolSize,setTextToolSize,
     textWeight, setTextWeight,
+    textItalic, setTextItalic,
+    textUnderline, setTextUnderline,
     textAlign,  setTextAlign,
     textBgColor, setTextBgColor,
     recentColors, addRecentColor,
@@ -82,10 +90,19 @@ const TextTool = (props) => {
     setEditingObjectId
   } = useTutorStore();
 
-  const handleAdd = (type) => {
-    const id = `manual-${type}-${Date.now()}`;
+  const handleAdd = (mode) => {
+    const id = `manual-text-${Date.now()}`;
+    const { canvasTransform, isSidebarOpen } = useTutorStore.getState();
     const { x: tx, y: ty, scale } = canvasTransform;
     
+    // Style Mapping for Presets
+    const presets = {
+      heading:  { size: 32, weight: 700, opacity: 1, w: 0.4 },
+      standard: { size: 24, weight: 400, opacity: 1, w: 0.3 },
+      caption:  { size: 16, weight: 400, opacity: 0.7, w: 0.2 }
+    };
+
+    const preset = presets[mode] || presets.standard;
     const sidebarWidth = isSidebarOpen ? 340 : 0;
     const centerX = (window.innerWidth + sidebarWidth) / 2;
     const centerY = window.innerHeight / 2;
@@ -96,31 +113,29 @@ const TextTool = (props) => {
 
     const newObj = {
       id,
-      type: type === 'formula' ? 'equation' : (type === 'code' ? 'code' : 'label'),
+      type: 'label',
       x: worldX,
       y: worldY,
-      w: type === 'code' ? 0.4 : (type === 'formula' ? 0.35 : 0.25),
-      h: type === 'code' ? 0.3 : (type === 'formula' ? 0.18 : 0.15),
+      w: preset.w,
+      h: preset.size * 2.5 / 600, // Normalized height estimate
       content: '',
       label: '',
       styles: {
-        fontSize: textToolSize || 24,
-        fontWeight: WEIGHTS.find(w => w.id === textWeight)?.style || 700,
-        textAlign: textAlign || 'center',
-        backgroundColor: textBgColor || 'transparent',
-        fontFamily: type === 'code' ? "'Geist Mono', monospace" : "'Inter', sans-serif"
+        fontSize: preset.size,
+        fontWeight: preset.weight,
+        fontStyle: 'normal',
+        textDecoration: 'none',
+        textAlign: 'center',
+        backgroundColor: 'transparent',
+        fontFamily: "'Inter', sans-serif"
       },
       color: useTutorStore.getState().drawColor || 'var(--text-primary)',
       animation: { type: 'drop', duration: 0.5 }
     };
 
     addCanvasObjects([newObj]);
-    setTextType(type); // Update tool mode for icon consistency
-    
-    // Auto-open editor
-    setTimeout(() => {
-      setEditingObjectId(id);
-    }, 100);
+    setTextType(mode);
+    setEditingObjectId(id);
   };
 
   const Submenu = (
@@ -131,27 +146,26 @@ const TextTool = (props) => {
         <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
           Quick add to canvas
         </span>
-        <div className="grid grid-cols-1 gap-1">
-          {MODES.map(({ id, icon: Icon, label, desc }) => (
+        <div className="grid grid-cols-3 gap-2 px-1">
+          {MODES.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => handleAdd(id)}
-              className="flex items-center gap-2.5 p-2 rounded-xl transition-all border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-secondary)] group overflow-hidden relative"
+              className="flex flex-col items-center gap-2 p-2.5 rounded-xl transition-all border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-secondary)] group overflow-hidden relative"
               style={{ background: 'rgba(255,255,255,0.03)' }}
             >
+              {/* Plus Indicator on Hover */}
+              <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-1 group-hover:translate-y-0 -translate-y-1">
+                <Plus size={10} className="text-blue-400" strokeWidth={3} />
+              </div>
+
               <div className="absolute inset-0 bg-blue-500/0 group-active:bg-blue-500/10 transition-colors" />
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)] transition-transform group-hover:scale-105 shadow-sm">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)] transition-transform group-hover:scale-105 shadow-sm">
                 <Icon size={14} className="text-blue-400" />
               </div>
-              <div className="flex flex-col text-left leading-tight py-0.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10.5px] font-bold text-[var(--text-primary)]">Add {label}</span>
-                  {id === 'formula' && (
-                    <span className="text-[7px] font-bold bg-blue-500/10 text-blue-400 px-1 rounded uppercase tracking-tighter">KaTeX</span>
-                  )}
-                </div>
-                <span className="text-[8.5px] text-[var(--text-tertiary)]">{desc}</span>
-              </div>
+              <span className="text-[9px] font-bold text-[var(--text-primary)] uppercase tracking-tight text-center">
+                {label}
+              </span>
             </button>
           ))}
         </div>
@@ -159,57 +173,92 @@ const TextTool = (props) => {
 
       <div className="h-px bg-[var(--border-color)] opacity-40 mx-1" />
 
-      {/* Font scale */}
+      {/* Preview Area */}
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Font scale
+          Live Preview
         </span>
-        <SegBar>
-          {SIZES.map(({ id, label }) => (
-            <SegButton key={id} isActive={textToolSize === id} onClick={() => setTextToolSize(id)}>
-              {label}
-            </SegButton>
-          ))}
-        </SegBar>
+        <div 
+          className="h-12 rounded-xl flex items-center justify-center border border-dashed transition-all"
+          style={{ 
+            background: 'var(--bg-secondary)', 
+            borderColor: 'var(--border-color)',
+            fontFamily: "'Inter', sans-serif"
+          }}
+        >
+          <span 
+            className="transition-all truncate px-4"
+            style={{ 
+              fontSize: textType === 'heading' ? 32 : (textType === 'caption' ? 16 : 24), 
+              fontWeight: textType === 'heading' ? 700 : 400,
+              fontStyle: textItalic ? 'italic' : 'normal',
+              textDecoration: textUnderline ? 'underline' : 'none',
+              color: useTutorStore.getState().drawColor || 'var(--text-primary)',
+              textAlign: textAlign || 'center',
+              opacity: textType === 'caption' ? 0.7 : 1
+            }}
+          >
+            {textType === 'heading' ? 'Main Heading' : (textType === 'caption' ? 'Smaller Note...' : 'Body Text')}
+          </span>
+        </div>
       </div>
 
-      {/* Font weight */}
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Font weight
-        </span>
-        <SegBar>
-          {WEIGHTS.map(({ id, label, style: fw }) => (
-            <SegButton
-              key={id}
-              isActive={(textWeight ?? 'regular') === id}
-              onClick={() => setTextWeight(id)}
-              style={{ fontWeight: fw }}
-            >
-              {label}
-            </SegButton>
-          ))}
-        </SegBar>
-      </div>
       <div className="h-px bg-[var(--border-color)] opacity-40 mx-1" />
 
-      {/* Alignment */}
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Alignment
-        </span>
+      {/* Ultra-Minimalist Formatting Row */}
+      <div className="flex items-center gap-1.5 px-0.5">
+        
+        {/* Font Size Dropdown - Unified Styling */}
         <SegBar>
-          {ALIGNMENTS.map(({ id, icon: Icon }) => (
-            <SegButton
-              key={id}
-              isActive={(textAlign ?? 'left') === id}
-              onClick={() => setTextAlign(id)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          <div className="relative flex-none">
+            <select 
+              value={textToolSize}
+              onChange={(e) => setTextToolSize(Number(e.target.value))}
+              className="appearance-none h-6 bg-transparent text-[10px] font-bold text-[var(--text-primary)] px-2 rounded cursor-pointer outline-none pr-6"
             >
-              <Icon size={13} />
-            </SegButton>
-          ))}
+              {SIZES.map(s => <option key={s.id} value={s.id}>{s.id}px</option>)}
+            </select>
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+              <svg width="7" height="5" viewBox="0 0 8 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1.5L4 4.5L7 1.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
         </SegBar>
+
+        <div className="w-px h-5 bg-[var(--border-color)] opacity-30 flex-none" />
+
+        {/* Style Toggles */}
+        <div className="flex gap-0.5 bg-[var(--bg-secondary)] p-0.5 rounded-lg border border-[var(--border-color)] shadow-sm">
+           {[ 
+             { id: 'bold',      icon: Bold,      active: textWeight === 'bold', onClick: () => setTextWeight(textWeight === 'bold' ? 'regular' : 'bold') },
+             { id: 'italic',    icon: Italic,    active: textItalic,            onClick: () => setTextItalic(!textItalic) },
+             { id: 'underline', icon: Underline, active: textUnderline,         onClick: () => setTextUnderline(!textUnderline) }
+           ].map(btn => (
+             <button
+               key={btn.id}
+               onClick={btn.onClick}
+               className={`w-7 h-7 flex items-center justify-center rounded-md transition-all ${btn.active ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-color)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50'}`}
+             >
+               <btn.icon size={11} strokeWidth={btn.active ? 3 : 2} />
+             </button>
+           ))}
+        </div>
+
+        <div className="w-px h-5 bg-[var(--border-color)] opacity-30 flex-none" />
+
+        {/* Alignment */}
+        <div className="flex gap-0.5 bg-[var(--bg-secondary)] p-0.5 rounded-lg border border-[var(--border-color)] shadow-sm">
+          {ALIGNMENTS.map(({ id, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTextAlign(id)}
+              className={`w-7 h-7 flex items-center justify-center rounded-md transition-all ${textAlign === id ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm ring-1 ring-[var(--border-color)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50'}`}
+            >
+              <Icon size={11} />
+            </button>
+          ))}
+        </div>
       </div>
 
     </div>

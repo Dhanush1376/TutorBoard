@@ -84,6 +84,7 @@ const useTutorStore = create(
       canvasSteps:       [],      // Normalized timeline/steps array
       canvasTransform:   { x: 0, y: 0, scale: 1 },
       isCanvasLocked:    false,   // Disables pan/zoom when a note is active or manually locked
+      isInteracting:     false,   // State-driven lock: true while any element is being created/edited/dragged/resized
       showNotes:         true,    // Global toggle for sticky notes visibility
       chatInputText:     "",      // Pipeline to inject sticky note text to AI Chat
       
@@ -128,6 +129,7 @@ const useTutorStore = create(
       showGrid:            true,
       isSnapToGrid:        true,
       isProfileOpen:       false,
+      isVisualizerOpen:    false, // Modal for code visualization tool
       
       // Drawing Properties
       drawColor:           'var(--text-primary)',
@@ -350,6 +352,7 @@ const useTutorStore = create(
       setChatInputText:   (text) => set({ chatInputText: text }),
       setShowNotes:       (val) => set({ showNotes: val }),
       setCanvasLocked:    (locked) => set({ isCanvasLocked: locked }),
+      setInteracting:     (active) => set({ isInteracting: active }),
 
       mutateCanvasObjects: (mutationsOrPatches) => {
         const { canvasObjects, canvasSteps } = get();
@@ -606,6 +609,7 @@ const useTutorStore = create(
       setGridType:           (type) => set({ gridType: type }),
       setGridSize:           (size) => set({ gridSize: size }),
       toggleProfile:         ()     => set(s => ({ isProfileOpen: !s.isProfileOpen })),
+      setVisualizerOpen:     (open) => set({ isVisualizerOpen: open }),
       
       // Cleanup Actions
       clearAll: () => {
@@ -722,6 +726,13 @@ const useTutorStore = create(
         });
       },
 
+      addCanvasConnections: (connections) => {
+        const { canvasConnections } = get();
+        set({
+          canvasConnections: [...canvasConnections, ...connections]
+        });
+      },
+
       addNoteToCanvas: (worldX, worldY) => {
         const { noteColor, noteSize, notePinned, noteToolSize, addCanvasObjects } = get();
         
@@ -780,9 +791,6 @@ const useTutorStore = create(
           addCanvasObjects([newNote]);
         }
       },
-
-      setCanvasLocked: (isLocked) => set({ isCanvasLocked: isLocked }),
-      setChatInputText: (text) => set({ chatInputText: text }),
 
        updateCanvasObject: (id, updates) => {
         const { canvasObjects, pinnedNotes, setCanvasObjectsWithHistory } = get();
@@ -858,6 +866,37 @@ const useTutorStore = create(
             }
           });
         }
+      },
+      
+      updateCanvasObjectSilently: (id, updates) => {
+        const { canvasObjects, pinnedNotes } = get();
+        
+        const applyUpdates = (obj) => {
+          const next = { ...obj, ...updates };
+          if (updates.styles) next.styles = { ...(obj.styles || {}), ...updates.styles };
+          if (updates.content !== undefined) {
+             if (obj.type === 'code') next.code = updates.content;
+             else next.label = updates.content;
+          }
+          return next;
+        };
+
+        const isPinned = pinnedNotes.some(n => n.id === id);
+        if (isPinned) {
+          set({ pinnedNotes: pinnedNotes.map(obj => obj.id === id ? applyUpdates(obj) : obj) });
+        } else {
+          set({ canvasObjects: canvasObjects.map(obj => obj.id === id ? applyUpdates(obj) : obj) });
+        }
+      },
+
+      commitHistory: () => {
+        const { canvasObjects, history } = get();
+        set({
+          history: {
+            past: [...history.past, canvasObjects].slice(-50),
+            future: [],
+          }
+        });
       },
 
       deleteCanvasObject: (id) => {
@@ -962,24 +1001,7 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       // SYSTEM & REHYDRATION
       // ═══════════════════════════════════════════════════
-      hydrate: () => {
-        if (typeof window === 'undefined') return;
-        set({
-          isSidebarOpen: window.innerWidth >= 1024, // Desktop default
-          selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
-        });
-      },
-
-      // ═══════════════════════════════════════════════════
-      // SYSTEM & REHYDRATION
-      // ═══════════════════════════════════════════════════
-      hydrate: () => {
-        if (typeof window === 'undefined') return;
-        set({
-          isSidebarOpen: window.innerWidth >= 1024, // Desktop default
-          selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
-        });
-      },
+      // (Primary hydrate is defined below in session lifecycle)
 
       // ═══════════════════════════════════════════════════
       // SESSION LIFECYCLE

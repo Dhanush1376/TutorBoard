@@ -1,15 +1,24 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
-import FloatingFormatBar from './FloatingFormatBar.jsx';
 import { CanvasContext } from './InfiniteCanvas.jsx';
-import { RotateCw } from 'lucide-react';
+import { Handle, RotateHandle } from './ElementHandles.jsx';
+import FloatingFormatBar from './FloatingFormatBar.jsx';
 
 const CW = 800;
 const CH = 600;
 
-export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) {
-  const { editingObjectId, setEditingObjectId, setSelectedElements, activeTool } = useTutorStore();
+const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
+  const { 
+    editingObjectId, 
+    setEditingObjectId, 
+    setSelectedElements, 
+    activeTool,
+    selectedElementIds,
+    updateCanvasObjectSilently,
+    commitHistory,
+    setInteracting
+  } = useTutorStore();
   const { transform } = useContext(CanvasContext) || { transform: { scale: 1, x: 0, y: 0 } };
   
   const isEditing = editingObjectId === obj.id;
@@ -37,12 +46,31 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
   }, [content, isEditing]);
 
   useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      // Move cursor to end
-      textareaRef.current.setSelectionRange(localContent.length, localContent.length);
+    if (isEditing) {
+      setInteracting(true);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(localContent.length, localContent.length);
+      }
+    } else {
+      // Small delay to ensure pointer events clear before unlocking
+      setTimeout(() => setInteracting(false), 50);
     }
-  }, [isEditing]);
+  }, [isEditing, setInteracting]);
+
+  // BUG 10 FIX: Escape key to cancel editing
+  useEffect(() => {
+    if (!isEditing) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        commitHistory();
+        setEditingObjectId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEditing, setEditingObjectId]);
 
   // Synchronize local visually if store moves it remotely (except while interacting)
   useEffect(() => {
@@ -64,7 +92,31 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
     e.target.style.height = newHeight + 'px';
     
     setLocalDim(prev => ({ ...prev, h: newHeight }));
-    onUpdate(obj.id, { content: val, h: newHeight / CH });
+    updateCanvasObjectSilently(obj.id, { content: val, h: newHeight / CH });
+  };
+
+  const handleKeyDown = (e) => {
+    // Tab Support
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = e.target.selectionStart;
+      const end = e.target.selectionEnd;
+      const newVal = localContent.substring(0, start) + "    " + localContent.substring(end);
+      setLocalContent(newVal);
+      updateCanvasObjectSilently(obj.id, { content: newVal });
+      // Restore cursor position
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4;
+        }
+      }, 0);
+    }
+    
+    // Smart finish with Ctrl+Enter or Cmd+Enter
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      commitHistory();
+      setEditingObjectId(null);
+    }
   };
 
   const handlePointerDown = (e, actionType) => {
@@ -90,6 +142,7 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
       startRot: localRot
     };
 
+    setInteracting(true);
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
   };
@@ -186,7 +239,10 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
           });
           return prevPos;
         });
+        setInteracting(false);
       }, 10);
+    } else {
+      setInteracting(false);
     }
     
     interactState.current.action = null;
@@ -197,8 +253,12 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
     setEditingObjectId(obj.id);
   };
 
-  const isDragging = interactState.current.action === 'move';
-  const showUIContext = isSelected || isEditing;
+  const isDragging = interactState.current.action === 'move' || interactState.current.action === 'resize';
+  const isPrimarySelection = selectedElementIds?.[0] === obj.id;
+  
+  // Show only on primary selection, hide while actively editing (clearing view) OR when dragging
+  const showUIContext = isSelected && !isEditing && isPrimarySelection && !isDragging;
+  const showRuler = isEditing && !isDragging;
 
   // We must calculate the top-left based on center because canvas x,y is center
   const renderLeft = localPos.x - localDim.w / 2;
@@ -232,6 +292,49 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
             onPointerDown={(e) => handlePointerDown(e, 'move')}
             onDoubleClick={handleDoubleClick}
           >
+            {/* NEW: MS Word Style Ruler Guide (Visible during editing) */}
+            <AnimatePresence>
+              {showRuler && (
+                <motion.div
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  className="absolute -top-6 left-0 right-0 h-5 flex items-end pointer-events-none"
+                >
+                  <div className="w-full h-[1px] bg-slate-400/30 relative">
+                    {/* Ruler Ticks */}
+                    {Array.from({ length: Math.floor(localDim.w / 20) }).map((_, i) => (
+                      <div 
+                        key={i} 
+                        className="absolute h-1 w-[1px] bg-slate-400/20" 
+                        style={{ left: i * 20 }}
+                      />
+                    ))}
+                    {/* Indent Markers */}
+                    <div className="absolute -bottom-1 left-2 w-2 h-2 bg-slate-500 rotate-45 transform -translate-x-1/2" />
+                    <div className="absolute -bottom-1 right-2 w-2 h-2 bg-slate-500 rotate-45 transform translate-x-1/2" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* NEW: Contextual Floating Format Bar */}
+            <AnimatePresence>
+              {(isEditing || showUIContext) && !isDragging && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                  className="absolute -top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+                >
+                  <FloatingFormatBar 
+                    element={obj} 
+                    updateCanvasObject={updateCanvasObjectSilently}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* View Mode */}
             {!isEditing && (
               <div
@@ -258,10 +361,12 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
                 ref={textareaRef}
                 value={localContent}
                 onChange={handleInput}
+                onKeyDown={handleKeyDown}
                 onPointerDown={(e) => e.stopPropagation()} // Let user click inside to move cursor
-                className="w-full bg-transparent outline-none resize-none p-2 rounded-xl"
+                className="w-full bg-transparent outline-none resize-none p-2 rounded-xl transition-all"
                 style={{
-                  height: localDim.h,
+                  height: 'auto',
+                  minHeight: localDim.h,
                   fontFamily: styles.fontFamily || 'var(--font-sans)',
                   fontSize: styles.fontSize || 16,
                   fontWeight: styles.fontWeight || 'normal',
@@ -270,7 +375,10 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
                   textAlign: styles.textAlign || 'left',
                   color: obj.color || 'var(--text-primary)',
                   lineHeight: 1.4,
+                  boxShadow: 'inset 0 0 0 1px rgba(59, 130, 246, 0.2)',
+                  background: 'rgba(255,255,255,0.02)'
                 }}
+                placeholder="Type your content..."
                 spellCheck={false}
               />
             )}
@@ -298,63 +406,10 @@ export default function PremiumTextBox({ obj, isSelected, onUpdate, onDelete }) 
             </AnimatePresence>
             
           </motion.div>
-          
-          {/* Floating Format Bar */}
-          <AnimatePresence>
-            {showUIContext && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute left-1/2 -top-12 -translate-x-1/2 pointer-events-auto"
-                onPointerDown={(e) => e.stopPropagation()} // Keep toolbar clicks from leaking to canvas
-              >
-                <FloatingFormatBar element={obj} updateCanvasObject={onUpdate} inSVG={true} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
         </div>
       </foreignObject>
     </g>
   );
-}
+});
 
-const Handle = ({ pos, onPointerDown }) => {
-  const isTop = pos.includes('top');
-  const isBottom = pos.includes('bottom');
-  const isLeft = pos.includes('left');
-  const isRight = pos.includes('right');
-  
-  let cursor = 'auto';
-  if ((isTop && isLeft) || (isBottom && isRight)) cursor = 'nwse-resize';
-  else if ((isTop && isRight) || (isBottom && isLeft)) cursor = 'nesw-resize';
-  else if (isTop || isBottom) cursor = 'ns-resize';
-  else if (isLeft || isRight) cursor = 'ew-resize';
-  
-  let top = 'auto', bottom = 'auto', left = 'auto', right = 'auto', transform = 'none';
-  if (isTop) top = -4;
-  else if (isBottom) bottom = -4;
-  else { top = '50%'; transform = 'translateY(-50%)'; }
-  
-  if (isLeft) left = -4;
-  else if (isRight) right = -4;
-  else { left = '50%'; transform = transform === 'none' ? 'translateX(-50%)' : 'translate(-50%, -50%)'; }
-
-  return (
-    <div
-      onPointerDown={onPointerDown}
-      className="absolute w-2 h-2 bg-[var(--bg-primary)] border border-[var(--text-primary)] pointer-events-auto shadow-sm hover:bg-[var(--text-primary)] transition-colors"
-      style={{ top, bottom, left, right, transform, cursor }}
-    />
-  );
-};
-
-const RotateHandle = ({ onPointerDown }) => (
-  <div
-    onPointerDown={onPointerDown}
-    className="absolute left-1/2 -top-10 -translate-x-1/2 w-6 h-6 flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--text-primary)] rounded-full pointer-events-auto shadow-sm cursor-grab hover:bg-[var(--bg-secondary)] transition-colors"
-  >
-    <RotateCw size={12} className="text-[var(--text-primary)]" strokeWidth={3} />
-  </div>
-);
+export default PremiumTextBox;

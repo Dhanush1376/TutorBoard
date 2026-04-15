@@ -1,6 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Pin, Trash2, Code2, Sigma } from 'lucide-react';
+import { 
+  Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, 
+  Pin, Trash2, Code2, Sigma, Pipette, List, ListOrdered, 
+  ChevronDown, Type as TypeIcon 
+} from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { PRESET_COLORS } from '../toolbar/tools/ColorPicker';
 
@@ -8,18 +12,19 @@ import { PRESET_COLORS } from '../toolbar/tools/ColorPicker';
 
 const FONTS = [
   { id: "'Inter', sans-serif", label: "Inter" },
-  { id: "system-ui, sans-serif", label: "System UI" },
-  { id: "'Courier New', monospace", label: "Courier" },
-  { id: "Georgia, serif", label: "Georgia" },
-  { id: "'Comic Sans MS', cursive", label: "Comic Sans" },
+  { id: "'Geist Mono', monospace", label: "Mono" },
+  { id: "'Georgia', serif", label: "Georgia" },
+  { id: "'Outfit', sans-serif", label: "Outfit" },
+  { id: "'Playfair Display', serif", label: "Playfair" },
 ];
 
-const SIZES = [12, 14, 16, 20, 24, 32, 48, 64];
+const SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 80, 96];
 
-export default function FloatingFormatBar({ element, updateCanvasObject }) {
+export default function FloatingFormatBar({ element, updateCanvasObject, rotation = 0 }) {
   if (!element) return null;
 
-  const { deleteCanvasObject, toggleNotePin, setEditingObjectId } = useTutorStore();
+  const colorInputRef = React.useRef(null);
+  const { deleteCanvasObject, toggleNotePin, setEditingObjectId, addRecentColor } = useTutorStore();
 
   const handleUpdate = (updates) => {
     updateCanvasObject(element.id, updates);
@@ -41,136 +46,164 @@ export default function FloatingFormatBar({ element, updateCanvasObject }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-      className="absolute z-50 flex items-center gap-2 p-1.5 rounded-lg shadow-2xl pointer-events-auto"
-      style={{
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border-color)',
+      animate={{ 
+        opacity: 1, 
+        y: 0, 
+        scale: 1,
+        rotate: rotation
       }}
-      onPointerDown={(e) => e.stopPropagation()} // Prevent canvas dragging
+      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+      className="flex items-center gap-1 p-0.5 rounded-lg shadow-[0_15px_35px_rgba(0,0,0,0.25)] pointer-events-auto border backdrop-blur-md"
+      style={{
+        background: 'rgba(255, 255, 255, 0.95)',
+        borderColor: 'rgba(0, 0, 0, 0.08)',
+        minWidth: 'max-content',
+        boxShadow: '0 8px 20px -8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.03)',
+      }}
+      onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }} 
     >
-      {/* Font Family Select */}
-      <select 
-        value={styles.fontFamily || element.fontFamily || FONTS[0].id}
-        onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
-        className="bg-transparent text-[var(--text-primary)] text-xs font-semibold outline-none cursor-pointer px-2 py-1 rounded hover:bg-[var(--bg-primary)] transition"
-      >
-        {FONTS.map(f => <option key={f.id} value={f.id} className="bg-[var(--bg-secondary)]">{f.label}</option>)}
-      </select>
-
-      <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
-
-      {/* Font Size */}
-      <select 
-        value={styles.fontSize || element.fontSize || 16}
-        onChange={(e) => handleStyleUpdate({ fontSize: Number(e.target.value) })}
-        className="bg-transparent text-[var(--text-primary)] text-xs font-semibold outline-none cursor-pointer px-1 py-1 rounded hover:bg-[var(--bg-primary)] transition"
-      >
-        {SIZES.map(s => <option key={s} value={s} className="bg-[var(--bg-secondary)]">{s}</option>)}
-      </select>
-
-      <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
-
-      {/* Format Toggles */}
-      <div className="flex gap-0.5">
-        <button 
-          onClick={() => handleStyleUpdate({ fontWeight: isBold ? 'normal' : 'bold' })}
-          className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition"
-          style={{ background: isBold ? 'rgba(255,255,255,0.1)' : 'transparent' }}
-          title="Bold"
-        >
-          <Bold size={14} color="var(--text-primary)" />
-        </button>
-        <button 
-          onClick={() => handleStyleUpdate({ fontStyle: isItalic ? 'normal' : 'italic' })}
-          className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition"
-          style={{ background: isItalic ? 'rgba(255,255,255,0.1)' : 'transparent' }}
-          title="Italic"
-        >
-          <Italic size={14} color="var(--text-primary)" />
-        </button>
-        <button 
-          onClick={() => handleStyleUpdate({ textDecoration: isUnderline ? 'none' : 'underline' })}
-          className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition"
-          style={{ background: isUnderline ? 'rgba(255,255,255,0.1)' : 'transparent' }}
-          title="Underline"
-        >
-          <Underline size={14} color="var(--text-primary)" />
-        </button>
-      </div>
-
-      <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
-
-      {/* Text Alignment */}
-      <div className="flex gap-0.5">
-        {['left', 'center', 'right'].map((align) => {
-          const Icon = align === 'left' ? AlignLeft : align === 'center' ? AlignCenter : AlignRight;
-          const isActive = (styles.textAlign || element.textAlign || 'center') === align;
-          return (
-            <button 
-              key={align}
-              onClick={() => handleStyleUpdate({ textAlign: align })}
-              className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition"
-              style={{ background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent' }}
-              title={`Align ${align}`}
+      <div className="flex items-center gap-1 px-1">
+        
+        {/* Font Selection Section */}
+        <div className="flex items-center gap-1 bg-slate-100/50 p-0.5 rounded-lg border border-slate-200">
+          <div className="relative flex items-center group">
+            <select 
+              value={styles.fontFamily || element.fontFamily || FONTS[0].id}
+              onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
+              className="appearance-none bg-transparent text-[11px] font-semibold text-slate-700 pl-2 pr-6 h-7 cursor-pointer outline-none hover:bg-white/80 rounded-md transition"
             >
-              <Icon size={14} color="var(--text-primary)" />
-            </button>
-          )
-        })}
-      </div>
-
-
-      <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
-
-      {/* Basic Color Palette — synced with shared ColorPicker */}
-      <div className="flex flex-col gap-1 px-1">
-        <div className="flex gap-1 flex-wrap">
-          {PRESET_COLORS.filter(c => c.id !== 'default').slice(0, 6).map(preset => (
-            <button 
-              key={preset.id}
-              onClick={() => handleUpdate({ color: preset.value })}
-              className="w-3.5 h-3.5 rounded-full border border-gray-600 transition hover:scale-110"
-              style={{ 
-                background: preset.value,
-                boxShadow: element.color === preset.value ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${preset.value}` : 'none'
-              }}
-              title={preset.label}
-            />
-          ))}
+              {FONTS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+            <ChevronDown size={10} className="absolute right-1.5 pointer-events-none text-slate-400" />
+          </div>
+          
+          <div className="w-px h-4 bg-slate-300 mx-0.5" />
+          
+          <div className="relative flex items-center">
+            <select 
+              value={styles.fontSize || element.fontSize || 16}
+              onChange={(e) => handleStyleUpdate({ fontSize: Number(e.target.value) })}
+              className="appearance-none bg-transparent text-[11px] font-semibold text-slate-700 pl-2 pr-6 h-7 cursor-pointer outline-none hover:bg-white/80 rounded-md transition"
+            >
+              {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <ChevronDown size={10} className="absolute right-1.5 pointer-events-none text-slate-400" />
+          </div>
         </div>
-      </div>
 
-      <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
+        <div className="w-px h-5 bg-[var(--border-color)] opacity-30 mx-0.5" />
 
-      {/* Actions (Pin/Delete/Special) */}
-      <div className="flex gap-0.5">
-        {isCode && (
-           <button title="Code Settings" className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition">
-             <Code2 size={14} color="#22d3ee" />
-           </button>
-        )}
-        {isMath && (
-           <button title="Math Symbols" className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition">
-             <Sigma size={14} color="#fbbf24" />
-           </button>
-        )}
-        <button 
-          onClick={() => toggleNotePin(element.id)}
-          className="p-1.5 rounded hover:bg-[var(--bg-primary)] transition"
-          style={{ background: isPinned ? 'rgba(251,191,36,0.15)' : 'transparent' }}
-          title={isPinned ? "Unpin" : "Pin"}
-        >
-          <Pin size={14} color={isPinned ? "#fbbf24" : "var(--text-primary)"} />
-        </button>
-        <button 
-          onClick={() => { deleteCanvasObject(element.id); setEditingObjectId(null); }}
-          className="p-1.5 rounded hover:bg-red-950/30 transition group"
-          title="Delete"
-        >
-          <Trash2 size={14} className="text-[var(--text-primary)] group-hover:text-red-400" />
-        </button>
+        {/* Format Toggles */}
+        <div className="flex gap-0.5 bg-[var(--bg-primary)] p-1 rounded-lg border border-[var(--border-color)]">
+          <button 
+            onClick={() => handleStyleUpdate({ fontWeight: isBold ? 'normal' : 'bold' })}
+            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${isBold ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+          >
+            <Bold size={10} strokeWidth={isBold ? 3 : 2} />
+          </button>
+          <button 
+            onClick={() => handleStyleUpdate({ fontStyle: isItalic ? 'normal' : 'italic' })}
+            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${isItalic ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+          >
+            <Italic size={10} strokeWidth={isItalic ? 3 : 2} />
+          </button>
+          <button 
+            onClick={() => handleStyleUpdate({ textDecoration: isUnderline ? 'none' : 'underline' })}
+            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${isUnderline ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+          >
+            <Underline size={10} strokeWidth={isUnderline ? 3 : 2} />
+          </button>
+
+        </div>
+
+        <div className="w-px h-5 bg-[var(--border-color)] opacity-30 mx-0.5" />
+
+        {/* Alignment & Lists */}
+        <div className="flex gap-0.5 bg-slate-100/50 p-0.5 rounded-lg border border-slate-200">
+          <button 
+            onClick={() => handleStyleUpdate({ textAlign: 'left' })}
+            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${(styles.textAlign || 'left') === 'left' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            <AlignLeft size={11} />
+          </button>
+          <button 
+            onClick={() => handleStyleUpdate({ textAlign: 'center' })}
+            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${(styles.textAlign) === 'center' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            <AlignCenter size={11} />
+          </button>
+          <button 
+            onClick={() => handleStyleUpdate({ textAlign: 'right' })}
+            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${(styles.textAlign) === 'right' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            <AlignRight size={11} />
+          </button>
+          
+          <div className="w-px h-4 bg-slate-300 self-center mx-1" />
+
+          {/* List Toggles (Simulated placeholders for now) */}
+          <button className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600">
+            <List size={12} />
+          </button>
+          <button className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600">
+            <ListOrdered size={12} />
+          </button>
+        </div>
+
+        <div className="w-px h-5 bg-[var(--border-color)] opacity-30 mx-0.5" />
+
+        {/* Colors */}
+        <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] p-1.5 rounded-lg border border-[var(--border-color)] overflow-hidden">
+          <div className="flex gap-1">
+            {PRESET_COLORS.filter(c => c.id !== 'default').slice(0, 6).map(preset => (
+              <button 
+                key={preset.id}
+                onClick={() => {
+                  updateCanvasObject(element.id, { color: preset.value });
+                  if (preset.value.startsWith('#')) addRecentColor(preset.value);
+                }}
+                className="w-3.5 h-3.5 rounded-full border border-gray-600 transition hover:scale-110"
+                style={{ 
+                  background: preset.value,
+                  boxShadow: element.color === preset.value ? `0 0 0 1.5px var(--bg-primary), 0 0 0 3px ${preset.value}` : 'none'
+                }}
+              />
+            ))}
+          </div>
+          <button 
+            onClick={() => colorInputRef.current?.click()}
+            className="w-5 h-5 rounded-md flex items-center justify-center hover:bg-[var(--bg-secondary)] transition text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+          >
+            <Pipette size={10} />
+            <input 
+              ref={colorInputRef}
+              type="color"
+              className="sr-only"
+              onChange={(e) => {
+                updateCanvasObject(element.id, { color: e.target.value });
+                addRecentColor(e.target.value);
+              }}
+            />
+          </button>
+        </div>
+
+        <div className="w-px h-5 bg-[var(--border-color)] opacity-30 mx-0.5" />
+
+        {/* Actions */}
+        <div className="flex gap-0.5 bg-[var(--bg-primary)] p-0.5 rounded-lg border border-[var(--border-color)]">
+          <button 
+            onClick={() => toggleNotePin(element.id)}
+            className={`w-6 h-6 flex items-center justify-center rounded-md transition-all ${isPinned ? 'bg-amber-500/10 text-amber-500' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+          >
+            <Pin size={10} />
+          </button>
+          <button 
+            onClick={() => { deleteCanvasObject(element.id); setEditingObjectId(null); }}
+            className="w-6 h-6 flex items-center justify-center rounded-md transition-all text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-400/10"
+          >
+            <Trash2 size={10} />
+          </button>
+        </div>
       </div>
     </motion.div>
   );

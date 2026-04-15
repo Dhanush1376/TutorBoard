@@ -3,6 +3,7 @@ import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import VisaiLogo from '../common/VisaiLogo';
 
 // ── New premium starting interface ──
 const ChatLanding = ({ setActiveMode, activeMode }) => {
@@ -82,9 +83,7 @@ const ThinkingIndicator = () => (
     transition={{ duration: 0.25 }}
     className="flex items-center gap-2 px-4 pt-1 pb-3"
   >
-    <div className="w-5 h-5 rounded-full bg-[var(--text-primary)] flex items-center justify-center flex-shrink-0">
-      <Sparkles size={10} className="text-[var(--bg-primary)]" />
-    </div>
+      <VisaiLogo size="xxs" />
     <div
       className="flex items-center gap-1.5 px-3 py-2 rounded-2xl rounded-tl-md text-[11px]"
       style={{

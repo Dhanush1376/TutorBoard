@@ -1,8 +1,9 @@
-import React, { useRef, useState, useEffect, useMemo, useContext } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './InfiniteCanvas';
 import { getToolCursor } from '../../utils/cursors';
+import { getSvgPath, getStarPoints, getHexagonPoints, getDiamondPoints } from '../../utils/geometryUtils';
 
 /**
  * InteractiveCanvasLayer
@@ -16,66 +17,16 @@ import { getToolCursor } from '../../utils/cursors';
 const V_WIDTH = 800;
 const V_HEIGHT = 600;
 
+
 const generateId = () => `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-// Helper: Convert raw points to a smooth SVG path string (Midpoint averaging)
-const getSvgPath = (points, width, height) => {
-  if (!points || points.length < 2) return '';
-  const pts = points.map(p => [p[0] * width, p[1] * height]);
-  let d = `M ${pts[0][0]},${pts[0][1]}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const xc = (pts[i][0] + pts[i + 1][0]) / 2;
-    const yc = (pts[i][1] + pts[i + 1][1]) / 2;
-    d += ` Q ${pts[i][0]},${pts[i][1]} ${xc},${yc}`;
-  }
-  const last = pts[pts.length - 1];
-  d += ` L ${last[0]},${last[1]}`;
-  return d;
-};
-
-// High-Fidelity Geometry Helpers for Drafting
-const getStarPoints = (x, y, w, h) => {
-  const rOuter = Math.min(w, h) / 2;
-  const rInner = rOuter * 0.4;
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  const points = [];
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? rOuter : rInner;
-    const angle = (Math.PI / 5) * i - Math.PI / 2;
-    points.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
-  }
-  return points.join(' ');
-};
-
-const getHexagonPoints = (x, y, w, h) => {
-  const rw = w / 2;
-  const rh = h / 2;
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  const points = [];
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i;
-    points.push(`${cx + rw * Math.cos(angle)},${cy + rh * Math.sin(angle)}`);
-  }
-  return points.join(' ');
-};
-
-const getDiamondPoints = (x, y, w, h) => {
-  const dw = w / 2;
-  const dh = h / 2;
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  return `${cx},${cy - dh} ${cx + dw},${cy} ${cx},${cy + dh} ${cx - dw},${cy}`;
-};
-
-const InteractiveCanvasLayer = () => {
+const InteractiveCanvasLayer = React.memo(() => {
   const { 
     activeTool: rawActiveTool, canvasObjects, setCanvasObjectsWithHistory,
     selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
     drawColor, drawWidth, laserWidth, gridSize, noteColor, noteSize, shapeFill, 
     shapeStrokeStyle, textType, textToolSize, textWeight, textAlign, textBgColor,
-    addNoteToCanvas, setActiveTool,
+    addNoteToCanvas, setActiveTool, setInteracting, setEditingObjectId,
     showNotes, setShowNotes
   } = useTutorStore();
   
@@ -100,22 +51,37 @@ const InteractiveCanvasLayer = () => {
                             activeTool.startsWith('shape:') || 
                             activeTool === 'text';
 
-  // Keyboard shortcuts (Undo, Redo, Delete) removed per user request
 
-  // Keyboard shortcuts (Undo, Redo, Delete) removed per user request
-
-  if (!isInteractionTool) return null;
-
-  const handlePointerDown = (e) => {
-    e.stopPropagation();
+  const handlePointerDown = useCallback((e) => {
+    // If we're already drawing or typing, don't intercept
+    if (isDrawing.current || draftObject?.isTyping) return;
+    
+    // Only handle primary button
     if (e.button !== 0) return;
 
-    // C1 FIX: Always clear previous selection when starting a new interaction
-    if (selectedElementIds.length > 0) {
-      setSelectedElements([]);
-    }
+    // Boundary check using the layer's rect
+    const layer = layerRef.current;
+    if (!layer) return;
+    const rect = layer.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
 
-    const rect = layerRef.current.getBoundingClientRect();
+    // U3 FIX: Surgical Hit-Testing
+    // We only intercept the click if it's on the "background" (no meaningful elements under cursor)
+    const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
+    const isOverExistingElement = elementsAtPoint.some(el => {
+      // Ignore the grid, background, or the interaction layer itself
+      if (el === layer || el.classList.contains('canvas-grid') || el.id === 'infinite-canvas-container') return false;
+      
+      return el.getAttribute('data-element-id') || 
+             el.classList.contains('selectable-element') ||
+             el.closest('.selectable-element') ||
+             el.closest('foreignObject') ||
+             el.closest('g[data-element-id]');
+    });
+
+    if (isOverExistingElement) return; // Pass through to allow selection/hover/editing of existing content
+
+    setInteracting(true);
     cachedRect.current = rect;
     
     const { scale, x: tx, y: ty } = transform;
@@ -177,10 +143,8 @@ const InteractiveCanvasLayer = () => {
         type,
         x: normalizedX,
         y: normalizedY,
-        w: 0.2, // Default width
-        h: 0.1, // Default height
-        content: '',
-        label: '',
+        w: 0.2, h: 0.1,
+        content: '', label: '',
         styles: {
           fontSize: textToolSize || 24,
           fontWeight: textWeight === 'bold' ? 700 : (textWeight === 'medium' ? 500 : 400),
@@ -194,16 +158,16 @@ const InteractiveCanvasLayer = () => {
 
       setCanvasObjectsWithHistory([...canvasObjects, newObj]);
       setSelectedElements([newId]);
-      
-      // Delay slightly to ensure store update propagates before focusing
+      setActiveTool('select');
       setTimeout(() => {
-        useTutorStore.getState().setEditingObjectId(newId);
+        setEditingObjectId(newId);
+        setInteracting(false);
       }, 50);
-      return;
     }
-  };
+  }, [activeTool, canvasObjects, drawColor, drawWidth, laserWidth, shapeFill, shapeStrokeStyle, textType, textToolSize, textWeight, textAlign, textBgColor, transform, setCanvasObjectsWithHistory, setSelectedElements, setActiveTool, setEditingObjectId, setInteracting]);
 
-  const handlePointerMove = (e) => {
+
+  const handlePointerMove = useCallback((e) => {
     // Eraser works without a draftObject
     if (!isDrawing.current || (!draftObject && activeTool !== 'draw:eraser') || draftObject?.isTyping) return;
     
@@ -217,6 +181,7 @@ const InteractiveCanvasLayer = () => {
     const normalizedY = (isSnapToGrid ? Math.round(worldY / gridSize) * gridSize : worldY) / V_HEIGHT;
 
     if (activeTool.startsWith('shape:')) {
+      if (!draftObject) return; // Guard against stale closures
       const w = normalizedX - startPoint.current.x;
       const h = normalizedY - startPoint.current.y;
       const isLinear = draftObject.type === 'line' || draftObject.type === 'arrow';
@@ -232,55 +197,76 @@ const InteractiveCanvasLayer = () => {
       }));
     } else if (activeTool.startsWith('draw:')) {
       if (activeTool === 'draw:eraser') {
-        // H5 FIX: Only erase while mouse button is held down
         if (!isDrawing.current) return;
+        
+        // E2 OPTIMIZATION: Bounding Box Pre-Check
         const hit = canvasObjects.find(obj => {
-          if (obj.points) {
-            return obj.points.some(p => Math.abs(p[0]-normalizedX) < 0.02 && Math.abs(p[1]-normalizedY) < 0.02);
+          if (obj.x !== undefined && obj.y !== undefined && obj.w !== undefined && obj.h !== undefined) {
+             const buffer = 0.05;
+             if (normalizedX < obj.x - buffer || normalizedX > obj.x + obj.w + buffer ||
+                 normalizedY < obj.y - buffer || normalizedY > obj.y + obj.h + buffer) {
+               return false;
+             }
           }
+
+          if (obj.points) {
+            for (let i = 0; i < obj.points.length; i += 2) {
+              const p = obj.points[i];
+              if (Math.abs(p[0]-normalizedX) < 0.02 && Math.abs(p[1]-normalizedY) < 0.02) return true;
+            }
+            return false;
+          }
+          
           if (obj.x && obj.y) {
              const dx = Math.abs(obj.x - normalizedX);
              const dy = Math.abs(obj.y - normalizedY);
-             return dx < 0.05 && dy < 0.05;
+             return dx < 0.04 && dy < 0.04;
           }
           return false;
         });
+
         if (hit) {
           setCanvasObjectsWithHistory(canvasObjects.filter(o => o.id !== hit.id));
         }
         return;
       }
 
+      if (!draftObject) return;
       const lastPoint = draftObject.points[draftObject.points.length - 1];
       const dist = Math.sqrt(Math.pow(normalizedX - lastPoint[0], 2) + Math.pow(normalizedY - lastPoint[1], 2));
       
-      if (dist > 0.002) {
+      if (dist > 0.0035) {
         setDraftObject(prev => ({
           ...prev,
           points: [...prev.points, [normalizedX, normalizedY]]
         }));
       }
     }
-  };
+  }, [draftObject, activeTool, transform, isSnapToGrid, gridSize, canvasObjects, setCanvasObjectsWithHistory]);
 
-  const handlePointerUp = (force = false) => {
-    if (!force && (!isDrawing.current || !draftObject)) return;
+  const handlePointerUp = useCallback((force = false) => {
+    if (!force && (!isDrawing.current || !draftObject)) {
+      isDrawing.current = false;
+      setInteracting(false);
+      return;
+    }
     isDrawing.current = false;
+    setInteracting(false);
     
     // Tap Detection: Abort shape creation if the drag was practically zero (a click)
     if (activeTool.startsWith('shape:')) {
       const isTiny = Math.abs(draftObject.w * V_WIDTH) < 5 && Math.abs(draftObject.h * V_HEIGHT) < 5;
       if (isTiny) {
         setDraftObject(null);
-        setActiveTool('hand'); // Revert to hand so user can select underneath
+        setActiveTool('hand'); 
         return;
       }
     }
     
     const finalizedObject = { 
       ...draftObject,
-      animation: { type: 'none' }, // Instant appearance for manual drawing
-      fill: activeTool.startsWith('shape:') ? 'none' : draftObject.fill // Default to outline for shapes
+      animation: { type: 'none' }, 
+      fill: activeTool.startsWith('shape:') ? 'none' : draftObject.fill 
     };
     delete finalizedObject.isDraft;
 
@@ -289,17 +275,13 @@ const InteractiveCanvasLayer = () => {
       finalizedObject.animation = { type: 'scale', duration: 0.8 };
     }
     
-    // Formatting & Coordinate Restoration
     const centerOriginTypes = [
       'rect', 'ellipse', 'step_box', 'sticky', 
       'diamond', 'star', 'hexagon', 'callout', 'cloud'
     ];
     if (centerOriginTypes.includes(finalizedObject.type)) {
-      // Keep coordinates normalized (0..1) but finalize center point
       finalizedObject.x = finalizedObject.x + (finalizedObject.w / 2);
       finalizedObject.y = finalizedObject.y + (finalizedObject.h / 2);
-      
-      // Calculate a scale that represents the object's size relative to the standard 160px box.
       finalizedObject.scale = (finalizedObject.w * V_WIDTH) / 160; 
     }
     
@@ -318,30 +300,47 @@ const InteractiveCanvasLayer = () => {
       finalizedObject.x = x + w / 2;
       finalizedObject.y = y + h / 2;
       finalizedObject.points = [
-        [x + w / 2, y],      // Top Middle
-        [x + w,     y + h],  // Bottom Right
-        [x,         y + h]   // Bottom Left
+        [x + w / 2, y],      
+        [x + w,     y + h],  
+        [x,         y + h]   
       ];
     }
 
     setCanvasObjectsWithHistory([...canvasObjects, finalizedObject]);
     setDraftObject(null);
 
-    // Single-Use Tool Logic: Auto-select and revert to hand for continuous flow
     if (activeTool.startsWith('shape:')) {
       setSelectedElements([finalizedObject.id]);
       setActiveTool('hand');
     }
-  };
+  }, [activeTool, draftObject, canvasObjects, setCanvasObjectsWithHistory, setActiveTool, setSelectedElements, setInteracting]);
+
+  // U4: Global Event Management to solve hover-blocking
+  useEffect(() => {
+    if (!isInteractionTool) return;
+
+    const onGlobalDown = (e) => handlePointerDown(e);
+    const onGlobalMove = (e) => handlePointerMove(e);
+    const onGlobalUp = (e) => handlePointerUp();
+
+    window.addEventListener('pointerdown', onGlobalDown);
+    window.addEventListener('pointermove', onGlobalMove);
+    window.addEventListener('pointerup', onGlobalUp);
+
+    return () => {
+      window.removeEventListener('pointerdown', onGlobalDown);
+      window.removeEventListener('pointermove', onGlobalMove);
+      window.removeEventListener('pointerup', onGlobalUp);
+    };
+  }, [isInteractionTool, handlePointerDown, handlePointerMove, handlePointerUp]);
+  
+  if (!isInteractionTool) return null;
 
   return (
     <div 
       ref={layerRef}
-      className="absolute inset-0 z-[100] pointer-events-auto"
-      style={{ cursor: getToolCursor(activeTool) }}
-      onPointerDown={draftObject?.isTyping ? undefined : handlePointerDown}
-      onPointerMove={draftObject?.isTyping ? undefined : handlePointerMove}
-      onPointerUp={draftObject?.isTyping ? undefined : () => handlePointerUp()}
+      className={`absolute inset-0 z-[100] ${isDrawing.current ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      style={{ cursor: activeTool === 'text' ? 'text' : getToolCursor(activeTool) }}
     >
       {draftObject && !draftObject.isTyping && (
         <svg width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
@@ -395,6 +394,6 @@ const InteractiveCanvasLayer = () => {
 
     </div>
   );
-};
+});
 
 export default InteractiveCanvasLayer;

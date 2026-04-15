@@ -2,6 +2,7 @@ import React from 'react';
 
 const VisaiLogo = ({ className = "", size = "md", showLabel = false }) => {
   const dimensions = {
+    xxs: 18,
     xs: 24,
     sm: 28,
     md: 36,

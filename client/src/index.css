@@ -126,7 +126,9 @@
   :root {
     /* Bone Theme (Enhanced Contrast) */
     --bg-primary: #fdfaf3;  /* Warmer, brighter bone */
+    --bg-primary-rgb: 253, 250, 243;
     --bg-secondary: #f6f3e8; 
+    --bg-secondary-rgb: 246, 243, 232;
     --bg-tertiary: #ede9d8;
     --text-primary: #0f0f0e; /* Near black for maximum contrast */
     --text-secondary: #4a483f;
@@ -155,7 +157,9 @@
   @media (prefers-color-scheme: dark) {
     :root {
       --bg-primary: #0b0b0a;
+      --bg-primary-rgb: 11, 11, 10;
       --bg-secondary: #141412;
+      --bg-secondary-rgb: 20, 20, 18;
       --bg-tertiary: #1c1c1a;
       --text-primary: #f9f6e5;
       --text-secondary: #a3a198;

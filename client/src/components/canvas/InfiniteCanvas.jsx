@@ -1,19 +1,8 @@
-/**
- * InfiniteCanvas — Figma/Excalidraw-level canvas with pan, zoom, and interaction
- * 
- * Features:
- *   - Mouse wheel zoom (pointer-anchored)
- *   - Click+drag to pan with momentum/inertia  
- *   - Double-click to center on element
- *   - Keyboard shortcuts (+ / - / 0 / space)
- *   - Touch: pinch-to-zoom, two-finger pan
- *   - Smooth CSS transitions
- *   - Performance: CSS transform only, no re-renders during interaction
- */
-
 import React, { useState, useRef, useCallback, useEffect, memo, useImperativeHandle } from 'react';
 import useTutorStore from '../../store/tutorStore';
 import { getToolCursor } from '../../utils/cursors';
+import CanvasOverlay from './CanvasOverlay';
+import CodeVisualizerModal from './CodeVisualizerModal';
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -46,9 +35,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
   // Transform state
   const [transform, setTransform] = useState(initialTransform || { x: 0, y: 0, scale: 1 });
   const [transitionStyle, setTransitionStyle] = useState('transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)');
-  const isSpacePressed = false; // Shortcuts removed
   const [isDragging, setIsDragging] = useState(false);
   const [isHoveringContent, setIsHoveringContent] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const transformRef = useRef(transform);
 
   const activeTool = useTutorStore(state => state.activeTool);
@@ -56,6 +45,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const gridType   = useTutorStore(state => state.gridType);
   const gridSize   = useTutorStore(state => state.gridSize);
   const isCanvasLocked = useTutorStore(state => state.isCanvasLocked);
+  const isInteracting  = useTutorStore(state => state.isInteracting);
 
   // Refs for performance (no re-renders during interaction)
   const containerRef = useRef(null);
@@ -83,6 +73,24 @@ const InfiniteCanvas = memo(React.forwardRef(({
   useEffect(() => {
     transformRef.current = transform;
   }, [transform]);
+
+  // Handle Spacebar for panning
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        setIsSpacePressed(true);
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') setIsSpacePressed(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   // BUG FIX #55: Clean up inertia animation frame on unmount
   useEffect(() => {
@@ -157,11 +165,11 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE WHEEL ───
   const handleWheel = useCallback((e) => {
-    if (isCanvasLocked) return;
+    if (isCanvasLocked || isInteracting) return;
     e.preventDefault();
     zoomAtPoint(e.deltaY, e.clientX, e.clientY);
     onInteractionStart?.();
-  }, [zoomAtPoint, onInteractionStart, isCanvasLocked]);
+  }, [zoomAtPoint, onInteractionStart, isCanvasLocked, isInteracting, isSpacePressed]);
 
   // ─── INERTIA ───
   const startInertia = useCallback(() => {
@@ -193,7 +201,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE PAN ───
   const handleMouseDown = useCallback((e) => {
-    if (isCanvasLocked) return;
+    if (isCanvasLocked || isInteracting) return;
 
     // BUG 1 FIX: If a drawing/interactive tool is active, yield control to InteractiveCanvasLayer
     const isDrawTool = activeTool.startsWith('draw:') || 
@@ -205,9 +213,11 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const isMiddleButton = e.button === 1;
     const isSpacePan = (isSpacePressed && e.button === 0);
     
-    // STRICT LOCK: Direct panning should ONLY happen if the Hand tool is active 
-    // AND it's a left-click on the background.
-    const isDirectPan = e.button === 0 && activeTool === 'hand' && !isHoveringContent;
+    // SMART PAN: Allow panning if the Hand tool is active OR if the Select tool is active 
+    // AND we are clicking on empty background.
+    const isHandActive = activeTool === 'hand';
+    const isSelectPan = activeTool === 'select' && !isHoveringContent;
+    const isDirectPan = e.button === 0 && (isHandActive || isSelectPan);
     
     if (!isMiddleButton && !isSpacePan && !isDirectPan) return;
 
@@ -224,8 +234,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
     if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
     onInteractionStart?.();
-    // BUG 3 FIX: Added activeTool to dependency array
-  }, [isSpacePressed, isHoveringContent, activeTool, onInteractionStart, isCanvasLocked]);
+  }, [isHoveringContent, activeTool, onInteractionStart, isCanvasLocked, isInteracting, isSpacePressed]);
 
   const handleMouseMove = useCallback((e) => {
     if (!isDraggingRef.current) return;
@@ -254,7 +263,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
     if (gridRef.current) gridRef.current.style.transition = 'none';
 
     if (containerRef.current) {
-      containerRef.current.style.cursor = isSpacePressed ? 'grab' : (isHoveringContent ? 'default' : 'crosshair');
+      containerRef.current.style.cursor = isHoveringContent ? 'default' : 'crosshair';
     }
 
     if (Math.abs(velocity.current.x) > 1 || Math.abs(velocity.current.y) > 1) {
@@ -263,7 +272,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
       commitTransform(transformRef.current);
     }
     onInteractionEnd?.();
-  }, [startInertia, commitTransform, isSpacePressed, isHoveringContent, onInteractionEnd, transitionStyle]);
+  }, [startInertia, commitTransform, isHoveringContent, onInteractionEnd, transitionStyle]);
 
   // ─── DOUBLE-CLICK: Center on point ───
   const handleDoubleClick = useCallback((e) => {
@@ -339,7 +348,6 @@ const InfiniteCanvas = memo(React.forwardRef(({
     onInteractionEnd?.();
   }, [commitTransform, onInteractionEnd]);
 
-  // Keyboard shortcuts removed per user request
 
   // ─── Global mouse events for drag ───
   useEffect(() => {
@@ -465,7 +473,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   }), [zoomIn, zoomOut, resetView, fitToContent, centerOn, applyTransform, commitTransform]);
 
   const getCursor = () => {
-    return getToolCursor(activeTool, isDragging, isSpacePressed);
+    return getToolCursor(activeTool, isDragging, isSpacePressed, isHoveringContent);
   };
 
   return (
@@ -532,6 +540,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
         {/* Overlays (Interaction layers, etc) */}
         {overlay}
+        <CanvasOverlay />
+        <CodeVisualizerModal />
       </CanvasContext.Provider>
     </div>
   );
