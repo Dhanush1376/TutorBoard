@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ChatWindow from '../chat/ChatWindow';
 import InputBar from '../chat/InputBar';
 import ChatHistory from '../sidebar/ChatHistory';
@@ -7,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
-  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown
+  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings
 } from 'lucide-react';
 import VisaiLogo from '../common/VisaiLogo';
 
@@ -26,6 +27,7 @@ const LeftPanel = ({
   // agent selection
   selectedAgent, setSelectedAgent,
 }) => {
+  const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setLayoutView } = useTutorStore();
   const hasStarted = messages.length > 0;
   const [showSettings, setShowSettings] = useState(false);
@@ -170,13 +172,15 @@ const LeftPanel = ({
             </span>
           </div>
 
-          <button 
-            onClick={() => setSidebarOpen(false)} 
-            className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
-            title="Close Sidebar"
-          >
-            <PanelLeftClose size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setSidebarOpen(false)} 
+              className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
+              title="Close Sidebar"
+            >
+              <PanelLeftClose size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
         </div>
 
         {/* Top block visible only on landing/history */}

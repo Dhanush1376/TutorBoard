@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
+import Settings from './pages/Settings';
 import Loader from './components/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import MarketingLayout from './components/layout/MarketingLayout';
@@ -62,6 +63,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
               </ProtectedRoute>
             }
           />

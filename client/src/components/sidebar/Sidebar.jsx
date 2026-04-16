@@ -277,9 +277,6 @@ const Sidebar = ({
                    {selectedAgent || "Gemini 3.1 Pro"} 
                 </button>
              </div>
-             <button className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
-                <Settings size={12} />
-             </button>
           </div>
         </div>
       </div>

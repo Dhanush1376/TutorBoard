@@ -7,6 +7,8 @@ const router = express.Router();
 
 router.get('/exchange', exchangeToken);
 router.get('/me', protect, getMe);
+router.post('/signup', signup);
+router.post('/signin', signin);
 
 // ─── GOOGLE OAUTH ───
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

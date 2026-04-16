@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, memo, useImperativeHan
 import useTutorStore from '../../store/tutorStore';
 import { getToolCursor } from '../../utils/cursors';
 import CanvasOverlay from './CanvasOverlay';
+import { CanvasContext } from './CanvasContext';
 import CodeVisualizerModal from './CodeVisualizerModal';
 
 const MIN_ZOOM = 0.15;
@@ -10,15 +11,6 @@ const ZOOM_SENSITIVITY = 0.002;
 const INERTIA_FRICTION = 0.92;
 const INERTIA_THRESHOLD = 0.5;
 
-// Context for child components to access canvas controls
-export const CanvasContext = React.createContext({
-  transform: { x: 0, y: 0, scale: 1 },
-  zoomIn: () => {},
-  zoomOut: () => {},
-  resetView: () => {},
-  fitToContent: () => {},
-  centerOn: () => {},
-});
 
 const InfiniteCanvas = memo(React.forwardRef(({ 
   children, 

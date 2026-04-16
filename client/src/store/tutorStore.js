@@ -140,6 +140,9 @@ const useTutorStore = create(
       // Grid & Layout Properties
       gridType:            'dots',
       gridSize:            20,
+      snapshots:           {}, // Store for state captures (e.g. for doubt-thread isolation)
+      
+      hasTextSelection:    false, // MS Word style: true only when text is actively highlighted
 
       // Note Properties
       noteColor:           '#fef9c3', // Standard Yellow
@@ -153,6 +156,8 @@ const useTutorStore = create(
       textToolSize:        24, // Optimized default for labels
       noteToolSize:        16, // Optimized default for sticky notes
       textWeight:          'regular',
+      textItalic:          false,
+      textUnderline:       false,
       textAlign:           'center',
       textBgColor:         'transparent',
 
@@ -338,6 +343,7 @@ const useTutorStore = create(
       // UI ACTIONS
       // ═══════════════════════════════════════════════════
       setEditingObjectId: (id) => set({ editingObjectId: id }),
+      setHasTextSelection: (val) => set({ hasTextSelection: val }),
 
       // ═══════════════════════════════════════════════════
       // CANVAS ACTIONS
@@ -476,7 +482,7 @@ const useTutorStore = create(
         const id = `snap-${Date.now()}`;
         set(state => ({
           snapshots: {
-            ...state.snapshots,
+            ...(state.snapshots || {}),
             [id]: {
               objects:     [...canvasObjects],
               connections: [...canvasConnections],
@@ -686,8 +692,6 @@ const useTutorStore = create(
         return { recentColors: [color, ...filtered].slice(0, 8) };
       }),
 
-      setGridType:           (type)  => set({ gridType: type }),
-      setGridSize:           (size)  => set({ gridSize: size }),
 
       setNoteColor:          (color) => set({ noteColor: color }),
       setNoteSize:           (size)  => set({ noteSize: size }),
@@ -696,11 +700,14 @@ const useTutorStore = create(
 
       setShapeStrokeStyle:   (style) => set({ shapeStrokeStyle: style }),
 
-      setTextType:           (type)  => set({ textType: type }),
-      setTextToolSize:       (size)  => set({ textToolSize: size }), // NEW isolated text size
-      setTextWeight:         (weight) => set({ textWeight: weight }),
-      setTextAlign:          (align) => set({ textAlign: align }),
-      setTextBgColor:        (color) => set({ textBgColor: color }),
+      setTextType:      (type)  => set({ textType: type }),
+      setTextToolSize:  (size)  => set({ textToolSize: size }),
+      setNoteToolSize:  (size)  => set({ noteToolSize: size }),
+      setTextWeight:    (weight)=> set({ textWeight: weight }),
+      setTextItalic:    (v)     => set({ textItalic: v }),
+      setTextUnderline: (v)     => set({ textUnderline: v }),
+      setTextAlign:     (align) => set({ textAlign: align }),
+      setTextBgColor:   (color) => set({ textBgColor: color }),
 
       // Advanced addCanvasObjects with Step tracking Support
       addCanvasObjects: (objects) => {

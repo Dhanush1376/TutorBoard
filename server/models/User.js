@@ -41,19 +41,73 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  settings: {
+    general: {
+      nickname: { type: String, default: '' },
+      role: { type: String, default: '' },
+      preferences: { type: String, default: '' },
+      notifCompletion: { type: Boolean, default: true },
+      notifSound: { type: Boolean, default: true }
+    },
+    appearance: {
+      theme: { type: String, default: 'system' },
+      showMinimap: { type: Boolean, default: true },
+      showGrid: { type: Boolean, default: true },
+      layoutView: { type: String, default: 'left' }
+    },
+    canvas: {
+      drawWidth: { type: Number, default: 4 },
+      textToolSize: { type: Number, default: 24 },
+      gridType: { type: String, default: 'dots' },
+      isSnapToGrid: { type: Boolean, default: false },
+      noteColor: { type: String, default: '#fef9c3' },
+      noteSize: { type: String, default: 'M' }
+    },
+    privacy: {
+      cloudSync: { type: Boolean, default: true },
+      localHistory: { type: Boolean, default: true }
+    }
+  },
+  // ── API Key Management ──
+  apiKeys: [{
+    provider: {
+      type: String,
+      enum: ['openai', 'google', 'anthropic', 'custom'],
+      required: true,
+    },
+    encryptedKey: { type: String, required: true },
+    iv: { type: String, required: true },
+    tag: { type: String, required: true },
+    model: { type: String, default: '' },
+    label: { type: String, default: '' },
+    baseUrl: { type: String, default: '' }, // For custom providers
+    isActive: { type: Boolean, default: true },
+    isValid: { type: Boolean, default: false },
+    lastValidated: { type: Date },
+    createdAt: { type: Date, default: Date.now },
+  }],
+  apiPreferences: {
+    useCustomApi: { type: Boolean, default: false },
+    fallbackToDefault: { type: Boolean, default: true },
+    smartRouting: { type: Boolean, default: false },
+    enableRacing: { type: Boolean, default: false },
+    enableAdaptive: { type: Boolean, default: false },
+    routingMode: { type: String, enum: ['auto', 'manual'], default: 'auto' },
+    modelOverride: { type: String, default: '' },
+    costControl: {
+      monthlyLimitCents: { type: Number, default: 0 }, // 0 = unlimited
+      warningThresholdPct: { type: Number, default: 80 },
+      hardStop: { type: Boolean, default: true },
+    },
+  },
 });
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
   
-  try {
-    const salt = await bcrypt.genSalt(12);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (err) {
-    next(err);
-  }
+  const salt = await bcrypt.genSalt(12);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // Compare password method

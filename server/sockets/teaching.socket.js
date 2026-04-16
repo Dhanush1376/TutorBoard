@@ -24,6 +24,11 @@ import { sanitizeInput } from '../utils/sanitize.js';
 import { replanRemainingSteps } from '../engine/core/adaptivePlanner.js';
 import { getOrCreateRequestId, createTrackedSessionId } from '../middleware/requestIdMiddleware.js';
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+import { decrypt } from '../utils/encryption.js';
+import { classifyTask, selectOptimalModel } from '../engine/utils/taskClassifier.js';
+import { getAdaptiveScores } from '../engine/utils/adaptiveScorer.js';
+import { requestCompletionRaced } from '../engine/utils/llmClient.js';
 
 // ─── Rate Limit Helper ────────────────────────────────────────────────────────
 function getRateKey(socket) {
@@ -41,6 +46,95 @@ function withTimeout(promise, ms, fallbackMessage) {
       setTimeout(() => reject(new Error(fallbackMessage || `Request timed out after ${ms}ms`)), ms)
     ),
   ]);
+}
+
+// ─── Resolve User API Config v3 ──────────────────────────────────────────────
+async function resolveUserConfig(socketUser, inputText) {
+  if (!socketUser || socketUser.isGuest) return null;
+
+  try {
+    const user = await User.findById(socketUser.id || socketUser._id);
+    if (!user || !user.apiPreferences?.useCustomApi) return null;
+
+    const prefs = user.apiPreferences;
+    const activeKeys = (user.apiKeys || []).filter(k => k.isActive && k.isValid);
+    if (activeKeys.length === 0) return null;
+
+    let selectedKey;
+    let classification = null;
+    let adaptiveScores = null;
+
+    // Model override — user manually selected a specific model
+    if (prefs.routingMode === 'manual' && prefs.modelOverride) {
+      selectedKey = activeKeys.find(k => k.model === prefs.modelOverride) || activeKeys[0];
+      console.log(`[Router] Manual override: ${selectedKey.model}`);
+    }
+    // Smart routing with adaptive scoring
+    else if (prefs.smartRouting && inputText) {
+      classification = classifyTask(inputText);
+
+      // Fetch adaptive scores if enabled
+      if (prefs.enableAdaptive) {
+        try {
+          adaptiveScores = await getAdaptiveScores(user._id);
+        } catch (e) { /* silent */ }
+      }
+
+      const optimal = selectOptimalModel(
+        classification.taskType,
+        classification.recommendedTier,
+        activeKeys,
+        adaptiveScores
+      );
+
+      if (optimal) {
+        selectedKey = activeKeys.find(k => k._id.toString() === optimal.keyId?.toString()) || activeKeys[0];
+        console.log(`[SmartRouter] Score: ${classification.complexityScore}/100 → ${optimal.provider}/${optimal.model} (${classification.reasoning})`);
+      }
+    }
+
+    // Default: first active key
+    if (!selectedKey) selectedKey = activeKeys[0];
+
+    // Decrypt the key
+    const decryptedKey = decrypt({
+      encrypted: selectedKey.encryptedKey,
+      iv: selectedKey.iv,
+      tag: selectedKey.tag,
+    });
+
+    // Build racing configs if enabled and 2+ providers available
+    let racingConfigs = null;
+    if (prefs.enableRacing && activeKeys.length >= 2 && classification?.complexityScore >= 66) {
+      const secondKey = activeKeys.find(k => k._id.toString() !== selectedKey._id.toString());
+      if (secondKey) {
+        try {
+          const secondDecrypted = decrypt({ encrypted: secondKey.encryptedKey, iv: secondKey.iv, tag: secondKey.tag });
+          racingConfigs = {
+            primary: { provider: selectedKey.provider, model: selectedKey.model, key: decryptedKey, baseUrl: selectedKey.baseUrl },
+            secondary: { provider: secondKey.provider, model: secondKey.model, key: secondDecrypted, baseUrl: secondKey.baseUrl },
+          };
+          console.log(`[Router] Racing enabled: ${selectedKey.provider}/${selectedKey.model} vs ${secondKey.provider}/${secondKey.model}`);
+        } catch (e) { /* silent — racing not critical */ }
+      }
+    }
+
+    return {
+      useCustomApi: true,
+      provider: selectedKey.provider,
+      model: selectedKey.model,
+      decryptedKey,
+      baseUrl: selectedKey.baseUrl || '',
+      fallbackToDefault: prefs.fallbackToDefault !== false,
+      userId: user._id,
+      costControl: prefs.costControl || null,
+      racingConfigs,
+      classification,
+    };
+  } catch (err) {
+    console.warn('[UserConfig] Failed to resolve user API config:', err.message);
+    return null;
+  }
 }
 
 // ─── Guaranteed Timeline Emitter ─────────────────────────────────────────────
@@ -171,10 +265,16 @@ export function setupTeachingSocket(io) {
         const intent = intentResult.intent;
         console.log(`[${requestId}] [WS] Detected Intent: ${intent} (${intentResult.renderer})`);
 
+        // Resolve user's custom API configuration
+        const userConfig = await resolveUserConfig(socket.user, cleanTopic);
+        if (userConfig) {
+          console.log(`[${requestId}] [WS] Using custom API: ${userConfig.provider}/${userConfig.model}`);
+        }
+
         if (intent === 'quick' || intent === 'text_only') {
           console.log(`[${requestId}] [WS] Generating text-only response...`);;
           const response = await withTimeout(
-            generateTextResponse(sessionId, cleanTopic, selectedAgent),
+            generateTextResponse(sessionId, cleanTopic, selectedAgent, userConfig),
             45000,
             'Text response timed out'
           );
@@ -190,7 +290,7 @@ export function setupTeachingSocket(io) {
           generateTimeline(sessionId, cleanTopic, (stage) => {
             console.log(`[WS] Progress: ${stage}`);
             socket.emit('teaching:progress', { message: stage });
-          }, selectedAgent),
+          }, selectedAgent, userConfig),
           120000,
           'Timeline generation timed out'
         );
@@ -284,17 +384,20 @@ export function setupTeachingSocket(io) {
         const intent = intentResult.intent;
         console.log(`[WS] Doubt Detected Intent: ${intent}`);
 
+        // Resolve user's custom API configuration for doubt
+        const userConfig = await resolveUserConfig(socket.user, cleanQuestion);
+
         let response;
         if (intent === 'quick' || intent === 'text_only') {
           const textRes = await withTimeout(
-            generateTextResponse(sessionId, cleanQuestion, selectedAgent),
+            generateTextResponse(sessionId, cleanQuestion, selectedAgent, userConfig),
             45000,
             'Doubt text response timed out'
           );
           response = { answer: textRes.answer, isRelevant: true, hasVisuals: false, visualUpdate: null };
         } else {
           response = await withTimeout(
-            handleDoubt(sessionId, cleanQuestion, selectedAgent),
+            handleDoubt(sessionId, cleanQuestion, selectedAgent, userConfig),
             30000,
             'Doubt visual response timed out'
           );

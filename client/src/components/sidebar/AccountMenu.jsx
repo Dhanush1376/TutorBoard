@@ -66,13 +66,7 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
             </div>
             
             <div className="p-1 space-y-0.5">
-              <button 
-                onClick={() => { setIsOpen(false); onSettingsClick(); }} 
-                className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
-              >
-                <Settings size={15} />
-                Settings
-              </button>
+
               <button className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left">
                 <CreditCard size={15} />
                 Subscription
@@ -113,13 +107,7 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
         className={`absolute bottom-full left-0 w-full pb-2 transition-all duration-300 ease-spring z-[100] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
       >
         <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[18px] p-1.5 shadow-2xl">
-          <button 
-            onClick={() => { setIsOpen(false); onSettingsClick(); }} 
-            className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
-          >
-            <Settings size={15} />
-            Settings
-          </button>
+
           <button className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left">
             <CreditCard size={15} />
             Subscription

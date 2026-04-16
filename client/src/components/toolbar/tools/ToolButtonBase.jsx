@@ -13,13 +13,24 @@ import useTutorStore from '../../../store/tutorStore';
  */
 const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, disabled = false, variants, customSubmenu, forceOpenSubmenu, onClick, onMouseEnter, onMouseLeave, isHoveredExternally }) => {
   const { activeTool, setActiveTool, editingObjectId, layoutView } = useTutorStore();
+  const hasVariants = Array.isArray(variants) && variants.length > 0;
   const isLeftHand = layoutView === 'left';
-  const [isHovered, setIsHovered] = useState(false); // Unconditional hook call!
+  const [isHovered, setIsHovered] = useState(false);
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
+  const [isPinned, setIsPinned] = useState(false); // NEW: Sticky menu state
   const shortcutTimerRef = useRef(null);
   
   // Track this group's "last used" variant, defaulting to the first variant or the group itself.
   const [activeVariantId, setActiveVariantId] = useState(variants ? variants[0].id : id);
+
+  // If the global active tool changes to a tool NOT in this group, reset local pin state
+  useEffect(() => {
+    const isOurTool = hasVariants 
+      ? variants.some(v => v.id === activeTool)
+      : (activeTool === id || (customSubmenu && activeTool.startsWith(`${id}:`)));
+    
+    if (!isOurTool) setIsPinned(false);
+  }, [activeTool]);
 
   // If the global active tool changes to one of our variants (e.g. via keyboard shortcut),
   // update our local active variant pointer.
@@ -29,9 +40,32 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
     }
   }, [activeTool, variants]);
 
-  const hasVariants = Array.isArray(variants) && variants.length > 0;
-  
-  // Determine if this group is currently active
+
+  // Only show tooltip if NOT showing variants menu
+  const showVariantsMenu = (isHovered || forceOpenSubmenu || isShortcutOpen || isPinned) && !disabled && (hasVariants || customSubmenu);
+  const showTooltip = isHovered && !disabled && !hasVariants && !customSubmenu;
+
+  const [menuOffset, setMenuOffset] = useState(0);
+  const menuRef = useRef(null);
+
+  // EDGE-AWARE POSITIONING: Prevent submenus from going off-screen
+  useEffect(() => {
+    if (showVariantsMenu && menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      const padding = 12; // Screen edge padding
+      let offset = 0;
+      
+      if (rect.left < padding) {
+        offset = padding - rect.left;
+      } else if (rect.right > window.innerWidth - padding) {
+        offset = window.innerWidth - padding - rect.right;
+      }
+      
+      if (offset !== 0) setMenuOffset(offset);
+      else setMenuOffset(0);
+    }
+  }, [showVariantsMenu]);
+
   const isGroupActive = hasVariants 
     ? variants.some(v => v.id === activeTool)
     : (activeTool === id || (customSubmenu && activeTool.startsWith(`${id}:`)));
@@ -41,10 +75,14 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   const DisplayIcon = currentVariant ? currentVariant.icon : DefaultIcon;
   const displayLabel = currentVariant ? currentVariant.label : defaultLabel;
 
-  // Keyboard shortcuts removed per user request
-
   const handleMainClick = () => {
     if (disabled) return;
+    
+    // IF already active and has variants/custom menu, toggle persistent "PIN" mode
+    if (isGroupActive && (hasVariants || customSubmenu)) {
+      setIsPinned(!isPinned);
+    }
+
     if (typeof onClick === 'function') {
       onClick();
     } else {
@@ -63,12 +101,9 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
       setActiveVariantId(variant.id);
     }
     
-    setIsHovered(false); // Close menu on click
+    setIsHovered(false);
+    setIsPinned(false); // Close menu on specific selection
   };
-
-  // Only show tooltip if NOT showing variants menu
-  const showTooltip = isHovered && !disabled && !hasVariants && !customSubmenu;
-  const showVariantsMenu = (isHovered || forceOpenSubmenu || isShortcutOpen) && !disabled && (hasVariants || customSubmenu);
 
   return (
     <div
@@ -194,12 +229,21 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
       <AnimatePresence>
         {showVariantsMenu && (
           <motion.div
+            ref={menuRef}
             initial={{ opacity: 0, y: 6, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            animate={{ 
+              opacity: 1, 
+              y: 0, 
+              scale: 1,
+              x: menuOffset
+            }}
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
-            className={`absolute top-full mt-2 z-[9999] ${isLeftHand ? 'left-0' : 'right-0'}`}
+            className={`absolute top-full z-[9999] pt-2 ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
+            {/* Interaction Bridge: Prevents onMouseLeave from firing in the gap between button and panel */}
+            <div className="absolute inset-x-0 -top-2 h-4 pointer-events-auto" />
+            
             <div
               className="flex flex-col p-1 rounded-xl"
               style={{

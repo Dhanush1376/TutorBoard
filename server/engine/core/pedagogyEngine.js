@@ -162,7 +162,7 @@ function postProcessTimeline(raw, topic, planningResult) {
 }
 
 // ─── Main Generation Entry Point ──────────────────────────────────────────────
-export async function generateTimeline(sessionId, topic, onProgress = () => {}, modelId = null) {
+export async function generateTimeline(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null) {
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -196,6 +196,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
       maxSteps: 6,
       planningResult,
       onProgress,
+      userConfig,
     });
 
     if (!rawSceneGraph || (!rawSceneGraph.timeline && !rawSceneGraph.steps)) {
@@ -231,7 +232,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
 }
 
 // ─── Doubt/Text Handlers ──────────────────────────────────────────────────────
-export async function handleDoubt(sessionId, question, modelId = null) {
+export async function handleDoubt(sessionId, question, modelId = null, userConfig = null) {
   const session = sessionStore.get(sessionId);
   const topic = session?.topic || 'General Education';
   const domain = session?.domain || 'general';
@@ -257,6 +258,8 @@ export async function handleDoubt(sessionId, question, modelId = null) {
       temperature: 0.3,
       maxTokens: 1000,
       responseMimeType: 'application/json',
+      userConfig,
+      taskType: 'doubt',
     });
 
     const parsed = safeParse(result.content);
@@ -279,7 +282,7 @@ export async function handleDoubt(sessionId, question, modelId = null) {
   }
 }
 
-export async function generateTextResponse(sessionId, prompt, modelId = null) {
+export async function generateTextResponse(sessionId, prompt, modelId = null, userConfig = null) {
   try {
     const session = sessionStore.get(sessionId);
     const topic = session?.topic || 'General Discussion';
@@ -299,6 +302,8 @@ export async function generateTextResponse(sessionId, prompt, modelId = null) {
       ],
       temperature: 0.7,
       maxTokens: 500,
+      userConfig,
+      taskType: 'simple_qa',
     });
 
     return { answer: response.content || "I'm here to help!", type: 'text' };

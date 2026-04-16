@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import useTutorStore from '../store/tutorStore';
 
 const AuthContext = createContext(null);
 
@@ -19,7 +20,7 @@ export const AuthProvider = ({ children }) => {
       // Check for token in URL (Social Login redirect)
       const urlParams = new URL(window.location.href).searchParams;
       const urlToken = urlParams.get('token');
-      
+
       if (urlToken) {
         localStorage.setItem('tb-token', urlToken);
         // Clean up URL
@@ -48,6 +49,7 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      console.log('[Auth] Verifying session...');
       try {
         const res = await fetch(`${API_URL}/api/auth/me`, {
           headers: { Authorization: `Bearer ${storedToken}` },
@@ -55,20 +57,64 @@ export const AuthProvider = ({ children }) => {
 
         if (res.ok) {
           const data = await res.json();
+          console.log('[Auth] Session verified for:', data.user?.email);
           setUser(data.user);
           setToken(storedToken);
+
+          // Hydrate settings
+          if (data.user?.settings) {
+            console.log('[Auth] Hydrating settings from backend');
+            const { general, appearance, canvas, privacy } = data.user.settings;
+            if (general) {
+              if (general.nickname) localStorage.setItem('tb-nickname', general.nickname);
+              if (general.role) localStorage.setItem('tb-role', general.role);
+              if (general.preferences) localStorage.setItem('tb-ai-preferences', general.preferences);
+              localStorage.setItem('tb-notif-completion', String(general.notifCompletion ?? true));
+              localStorage.setItem('tb-notif-sound', String(general.notifSound ?? true));
+            }
+            if (appearance) {
+              if (appearance.theme) {
+                localStorage.setItem('tb-theme', appearance.theme);
+                const root = document.documentElement;
+                if (appearance.theme === 'dark') root.classList.add('dark');
+                else if (appearance.theme === 'light') root.classList.remove('dark');
+              }
+              try {
+                useTutorStore.setState({
+                  showMinimap: appearance.showMinimap ?? true,
+                  showGrid: appearance.showGrid ?? true,
+                  layoutView: appearance.layoutView || 'left'
+                });
+              } catch (e) { console.warn('[Auth] Store hydration failed (appearance):', e); }
+            }
+            if (canvas) {
+              try {
+                useTutorStore.setState({
+                  drawWidth: canvas.drawWidth || 4,
+                  textToolSize: canvas.textToolSize || 24,
+                  gridType: canvas.gridType || 'dots',
+                  isSnapToGrid: canvas.isSnapToGrid || false,
+                  noteColor: canvas.noteColor || '#fef9c3',
+                  noteSize: canvas.noteSize || 'M'
+                });
+              } catch (e) { console.warn('[Auth] Store hydration failed (canvas):', e); }
+            }
+            if (privacy) {
+              localStorage.setItem('tb-cloud-sync', String(privacy.cloudSync ?? true));
+              localStorage.setItem('tb-local-history', String(privacy.localHistory ?? true));
+            }
+          }
         } else {
-          // Token invalid — clear it
+          console.warn('[Auth] Session invalid, status:', res.status);
           localStorage.removeItem('tb-token');
           setToken(null);
           setUser(null);
         }
       } catch (err) {
-        console.error('Token verification failed:', err);
-        // If it's a 4xx/5xx or CORS, we should stop loading. 
-        // We'll keep the token in localStorage but clear memory state to trigger fallback UI.
+        console.error('[Auth] Token verification failed:', err);
         setUser(null);
       } finally {
+        console.log('[Auth] Verification complete, clearing loader');
         setLoading(false);
       }
     };

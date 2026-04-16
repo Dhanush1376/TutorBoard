@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCw } from 'lucide-react';
+import { RotateCw, Trash2 } from 'lucide-react';
 
 export const Handle = ({ pos, onPointerDown }) => {
   const isTop = pos.includes('top');
@@ -37,5 +37,15 @@ export const RotateHandle = ({ onPointerDown }) => (
     className="absolute left-1/2 -top-10 -translate-x-1/2 w-6 h-6 flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--text-primary)] rounded-full pointer-events-auto shadow-sm cursor-grab hover:bg-[var(--bg-secondary)] transition-colors"
   >
     <RotateCw size={12} className="text-[var(--text-primary)]" strokeWidth={3} />
+  </div>
+);
+
+export const DeleteHandle = ({ onClick }) => (
+  <div
+    onPointerDown={(e) => { e.stopPropagation(); onClick(); }}
+    className="absolute left-1/2 -top-10 translate-x-[24px] w-6 h-6 flex items-center justify-center bg-red-500 border border-red-600 rounded-full pointer-events-auto shadow-sm cursor-pointer hover:bg-red-600 transition-colors group"
+    title="Delete Element"
+  >
+    <Trash2 size={12} className="text-white" strokeWidth={3} />
   </div>
 );

@@ -8,8 +8,8 @@ import './index.css';
 import './styles/animations.css';
 import useTutorStore from './store/tutorStore';
 
-// Safely hydrate browser-only state (isSidebarOpen, selectedAgent)
-useTutorStore.getState().hydrate();
+// Hydration is handled automatically by Zustand persist middleware
+// No manual hydrate call needed anymore
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

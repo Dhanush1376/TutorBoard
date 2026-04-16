@@ -5,6 +5,7 @@ import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, 
 import { useAuth } from '../context/AuthContext';
 import VisaiLogo from '../components/common/VisaiLogo';
 import LoginNavbar from '../components/layout/LoginNavbar';
+import CinematicTransition from '../components/auth/CinematicTransition';
 
 const AuthLanding = () => {
   const navigate = useNavigate();
@@ -14,13 +15,16 @@ const AuthLanding = () => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated, BUT only if they didn't just log in via this form
   useEffect(() => {
-    if (isAuthenticated) {
+    // If they are authenticated but we are currently showing or loading the animation, don't auto-redirect.
+    // The CinematicTransition component will handle the redirect onComplete instead.
+    if (isAuthenticated && !isSuccess && !loading) {
       navigate('/dashboard');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, isSuccess, loading]);
 
   // Advanced Demo State
   const [activeTopicIndex, setActiveTopicIndex] = useState(0);
@@ -99,7 +103,10 @@ const AuthLanding = () => {
       } else {
         await signup(formData.name, formData.email, formData.password, formData.password);
       }
-      navigate('/dashboard');
+      
+      // Trigger cinematic transition instead of immediate navigate
+      setIsSuccess(true);
+      setLoading(false);
     } catch (err) {
       setError(err.message || 'Authentication failed');
       setLoading(false);
@@ -110,6 +117,16 @@ const AuthLanding = () => {
 
   return (
     <div className="lg:h-screen w-full flex flex-col lg:flex-row bg-[var(--bg-primary)] font-sans overflow-hidden selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)] pt-16 lg:pt-0">
+      
+      {/* ── CINEMATIC TRANSITION (replaces entire screen on success) ── */}
+      {isSuccess && (
+        <CinematicTransition
+          userName={formData.name || formData.email?.split('@')[0] || 'Explorer'}
+          isLogin={isLogin}
+          onComplete={() => navigate('/dashboard')}
+        />
+      )}
+
       <div className="lg:hidden relative z-[9999]">
         <LoginNavbar />
       </div>
@@ -117,7 +134,6 @@ const AuthLanding = () => {
       {/* ── LEFT COLUMN: AUTH FORM ────────────────────────────────────────── */}
       <div className="lg:w-[45%] xl:w-[40%] flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12 relative z-10 bg-[var(--bg-primary)]">
         
-
 
         <div className="max-w-[340px] w-full mx-auto lg:mx-0">
           <div className="mb-4">
@@ -162,7 +178,7 @@ const AuthLanding = () => {
                       placeholder="Your full name"
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-medium"
+                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-medium"
                       disabled={loading}
                     />
                   </div>
@@ -261,7 +277,7 @@ const AuthLanding = () => {
               type="button"
               onClick={() => {
                 loginGuest();
-                navigate('/dashboard');
+                setIsSuccess(true);
               }}
               className="text-[12px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic"
             >

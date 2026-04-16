@@ -54,6 +54,37 @@ export function useTeachingMachine() {
     if (connectionError) setConnectionError(connectionError);
   }, [isConnected, connectionError, setConnected, setConnectionError]);
 
+  // ─── Notification Helper ──────────────────────────────────────────────────
+  const notifyUser = useCallback((title, body) => {
+    // Check if notifications are enabled
+    const notifCompletion = localStorage.getItem('tb-notif-completion') !== 'false';
+    const notifSound = localStorage.getItem('tb-notif-sound') !== 'false';
+
+    if (notifCompletion && typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body });
+      }
+    }
+
+    if (notifSound) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      } catch (e) {
+        // audio context failed or not allowed without user gesture
+      }
+    }
+  }, []);
+
   // ─── Socket Event Listeners ───────────────────────────────────────────────
   useEffect(() => {
     const cleanups = [];
@@ -84,6 +115,8 @@ export function useTeachingMachine() {
       // Ensure machine state advances to TEACHING even if the FSM event
       // arrived before or after this timeline payload
       setMachineState(STATES.TEACHING);
+
+      notifyUser("TutorBoard Agent", "Your lesson session is ready!");
     }));
 
     // Step update from server
@@ -121,6 +154,7 @@ export function useTeachingMachine() {
       }
       
       setDoubtProcessing(false); // Bug 54 Fix: Reset spinner when response arrives
+      notifyUser("New Agent Reply", "The AI has responded to your doubt.");
     }));
 
     // Error from server

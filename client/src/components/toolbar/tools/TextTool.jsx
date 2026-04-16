@@ -26,11 +26,11 @@ const MODES = [
 ];
 
 const SIZES = [
-  { id: 12, label: 'XS' },
-  { id: 16, label: 'S'  },
-  { id: 24, label: 'M'  },
-  { id: 32, label: 'L'  },
-  { id: 48, label: 'XL' },
+  { id: 12, label: '12' },
+  { id: 16, label: '16' },
+  { id: 24, label: '24' },
+  { id: 32, label: '32' },
+  { id: 48, label: '48' },
 ];
 
 const WEIGHTS = [
@@ -87,6 +87,7 @@ const TextTool = (props) => {
     recentColors, addRecentColor,
     addCanvasObjects, canvasTransform,
     isSidebarOpen,
+    selectedElementIds,
     setEditingObjectId
   } = useTutorStore();
 
@@ -104,7 +105,9 @@ const TextTool = (props) => {
 
     const preset = presets[mode] || presets.standard;
     const sidebarWidth = isSidebarOpen ? 340 : 0;
-    const centerX = (window.innerWidth + sidebarWidth) / 2;
+    
+    // H3 FIX: Correct centerX = sidebarWidth + (remainingSpace / 2)
+    const centerX = sidebarWidth + (window.innerWidth - sidebarWidth) / 2;
     const centerY = window.innerHeight / 2;
 
     const scatter = (Math.random() - 0.5) * 40;
@@ -121,10 +124,10 @@ const TextTool = (props) => {
       content: '',
       label: '',
       styles: {
-        fontSize: preset.size,
-        fontWeight: preset.weight,
-        fontStyle: 'normal',
-        textDecoration: 'none',
+        fontSize: textToolSize || preset.size,
+        fontWeight: textWeight === 'bold' ? 700 : (textWeight === 'medium' ? 500 : 400),
+        fontStyle: textItalic ? 'italic' : 'normal',
+        textDecoration: textUnderline ? 'underline' : 'none',
         textAlign: 'center',
         backgroundColor: 'transparent',
         fontFamily: "'Inter', sans-serif"
@@ -189,8 +192,8 @@ const TextTool = (props) => {
           <span 
             className="transition-all truncate px-4"
             style={{ 
-              fontSize: textType === 'heading' ? 32 : (textType === 'caption' ? 16 : 24), 
-              fontWeight: textType === 'heading' ? 700 : 400,
+              fontSize: textToolSize || (textType === 'heading' ? 32 : (textType === 'caption' ? 16 : 24)), 
+              fontWeight: textWeight === 'bold' ? 700 : (textWeight === 'medium' ? 500 : 400),
               fontStyle: textItalic ? 'italic' : 'normal',
               textDecoration: textUnderline ? 'underline' : 'none',
               color: useTutorStore.getState().drawColor || 'var(--text-primary)',
@@ -205,8 +208,9 @@ const TextTool = (props) => {
 
       <div className="h-px bg-[var(--border-color)] opacity-40 mx-1" />
 
-      {/* Ultra-Minimalist Formatting Row */}
-      <div className="flex items-center gap-1.5 px-0.5">
+      {/* Ultra-Minimalist Formatting Row - Hidden if an element is selected to avoid duplication with the centralized HUD */}
+      {!selectedElementIds?.length && (
+        <div className="flex items-center gap-1.5 px-0.5 animate-in fade-in slide-in-from-top-2 duration-300">
         
         {/* Font Size Dropdown - Unified Styling */}
         <SegBar>
@@ -259,7 +263,8 @@ const TextTool = (props) => {
             </button>
           ))}
         </div>
-      </div>
+        </div>
+      )}
 
     </div>
   );

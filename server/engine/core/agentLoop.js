@@ -191,7 +191,7 @@ function validateSceneGraph(obj) {
 }
 
 // ─── Single Stage Executor ────────────────────────────────────────────────────
-async function runStage({ stageName, prompt, input, model, onProgress }) {
+async function runStage({ stageName, prompt, input, model, onProgress, userConfig }) {
   onProgress(stageName);
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
@@ -214,7 +214,9 @@ async function runStage({ stageName, prompt, input, model, onProgress }) {
         messages,
         temperature: 0.3,
         maxTokens: 6000,          // FIX 3: was 3000 — too small for 6-agent output
-        responseMimeType: 'application/json'
+        responseMimeType: 'application/json',
+        userConfig,
+        taskType: 'teaching',
       });
 
       if (!response?.content) throw new Error('Empty response');
@@ -232,7 +234,7 @@ async function runStage({ stageName, prompt, input, model, onProgress }) {
 }
 
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
-export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null }) {
+export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null }) {
   console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
 
   try {
@@ -241,7 +243,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: 'Thinking deeply about the topic...',
       prompt: systemPrompt || PLANNER_AGENT_PROMPT,
       input: { topic, domain, maxSteps },
-      model, onProgress
+      model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 1 — ${plannerOutput.flow?.length || 0} steps planned`);
 
@@ -250,7 +252,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: 'Crafting pedagogical explanations...',
       prompt: NARRATOR_AGENT_PROMPT,
       input: { plannerOutput },
-      model, onProgress
+      model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 2 — ${narratorOutput.narrations?.length || 0} narrations`);
 
@@ -259,7 +261,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: 'Designing visual representation...',
       prompt: VISUALIZER_AGENT_PROMPT,
       input: { plannerOutput, narratorOutput },
-      model, onProgress
+      model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 3 — ${visualizerOutput.visual_steps?.length || 0} visual steps`);
 
@@ -268,7 +270,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: 'Choreographing cinematic motion...',
       prompt: ANIMATOR_AGENT_PROMPT,
       input: { plannerOutput, visualizerOutput },
-      model, onProgress
+      model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 4 — ${animatorOutput.animation_steps?.length || 0} animation steps`);
 
@@ -277,7 +279,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: 'Reviewing for consistency & clarity...',
       prompt: CRITIC_AGENT_PROMPT,
       input: { planner: plannerOutput, narrator: narratorOutput, visualizer: visualizerOutput, animator: animatorOutput },
-      model, onProgress
+      model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 5 — approved: ${criticOutput.approved}, score: ${criticOutput.scores?.overall}`);
 
@@ -286,7 +288,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: 'Finalizing high-fidelity plan...',
       prompt: VALIDATOR_AGENT_PROMPT,
       input: { planner: plannerOutput, narrator: narratorOutput, visualizer: visualizerOutput, animator: animatorOutput, critic: criticOutput },
-      model, onProgress
+      model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 6 — status: ${validatorRaw.status}`);
 

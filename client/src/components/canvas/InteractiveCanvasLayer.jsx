@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
-import { CanvasContext } from './InfiniteCanvas';
+import { CanvasContext } from './CanvasContext';
 import { getToolCursor } from '../../utils/cursors';
 import { getSvgPath, getStarPoints, getHexagonPoints, getDiamondPoints } from '../../utils/geometryUtils';
 
@@ -25,7 +25,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     activeTool: rawActiveTool, canvasObjects, setCanvasObjectsWithHistory,
     selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
     drawColor, drawWidth, laserWidth, gridSize, noteColor, noteSize, shapeFill, 
-    shapeStrokeStyle, textType, textToolSize, textWeight, textAlign, textBgColor,
+    shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor,
     addNoteToCanvas, setActiveTool, setInteracting, setEditingObjectId,
     showNotes, setShowNotes
   } = useTutorStore();
@@ -84,6 +84,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     setInteracting(true);
     cachedRect.current = rect;
     
+    if (!transform) return;
     const { scale, x: tx, y: ty } = transform;
     const worldX = (e.clientX - rect.left - tx) / scale;
     const worldY = (e.clientY - rect.top - ty) / scale;
@@ -148,6 +149,8 @@ const InteractiveCanvasLayer = React.memo(() => {
         styles: {
           fontSize: textToolSize || 24,
           fontWeight: textWeight === 'bold' ? 700 : (textWeight === 'medium' ? 500 : 400),
+          fontStyle: textItalic ? 'italic' : 'normal',
+          textDecoration: textUnderline ? 'underline' : 'none',
           textAlign: textAlign || 'center',
           backgroundColor: textBgColor || 'transparent',
           fontFamily: textType === 'code' ? "'Geist Mono', monospace" : "'Inter', sans-serif"

@@ -13,7 +13,7 @@ const CW = 800;
 const CH = 600;
 
 export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
-  const { updateCanvasObjectSilently, commitHistory, setEditingObjectId } = useTutorStore();
+  const { updateCanvasObjectSilently, commitHistory, setEditingObjectId, setHasTextSelection } = useTutorStore();
   const obj = elements.find(e => e.id === editingObjectId);
   
   const [localContent, setLocalContent] = useState('');
@@ -44,6 +44,11 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
   const handleChange = (val) => {
     setLocalContent(val);
     updateCanvasObjectSilently(obj.id, { content: val });
+  };
+
+  const handleSelectionChange = (e) => {
+    const hasSelection = e.target.selectionStart !== e.target.selectionEnd;
+    setHasTextSelection(hasSelection);
   };
 
   const isMath = obj.type === 'equation' || obj.type === 'math' || obj.type === 'formula';
@@ -85,7 +90,13 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
               autoFocus
               value={localContent}
               onChange={(e) => handleChange(e.target.value)}
-              onBlur={() => { commitHistory(); setEditingObjectId(null); }}
+              onSelect={handleSelectionChange}
+              onKeyUp={handleSelectionChange}
+              onBlur={() => {
+                commitHistory();
+                setEditingObjectId(null);
+                setHasTextSelection(false);
+              }}
               className={`w-full h-full bg-transparent outline-none resize-none p-2 rounded-lg shadow-xl transition-all relative z-10
                 ${obj.type === 'code' ? 'font-mono' : 'font-sans'}`}
               style={{
@@ -106,6 +117,7 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
                   e.preventDefault();
                   commitHistory();
                   setEditingObjectId(null);
+                  setHasTextSelection(false);
                 }
               }}
               spellCheck={false}
@@ -114,12 +126,13 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
         )}
       </div>
       
-      {/* Click Away Shield */}
+      {/* Click Away Shield: Fixed layer at top-most z-index ensures closure on any outside click-away */}
       <div 
-        className="absolute inset-0 z-30" 
+        className="fixed inset-0 z-[9999]" 
         onPointerDown={(e) => {
           commitHistory();
           setEditingObjectId(null);
+          setHasTextSelection(false);
         }} 
       />
     </>
@@ -177,11 +190,35 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
 
   const handleRun = () => {
     setShowOutput(true);
-    try {
-      // Simulated output — in real app, this could call an API
-      setOutput(`> Running ${language}...\n> Compiled successfully.\n> Output: (Preview Only — Run locally for full execution)`);
-    } catch (err) {
-      setOutput(`Error: ${err.message}`);
+    setOutput(`> Initializing environment...\n> Running ${language}...\n`);
+    
+    if (language === 'javascript') {
+      try {
+        const logs = [];
+        const customConsole = {
+          log: (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
+          error: (...args) => logs.push(`Error: ${args.join(' ')}`),
+          warn: (...args) => logs.push(`Warn: ${args.join(' ')}`),
+        };
+
+        // Create a basic sandbox
+        const runner = new Function('console', `
+          try {
+            ${value}
+          } catch (e) {
+            console.error(e.message);
+          }
+        `);
+
+        runner(customConsole);
+        
+        setOutput(prev => prev + (logs.length > 0 ? logs.join('\n') : '> Execution finished (no output).'));
+      } catch (err) {
+        setOutput(prev => prev + `> Runtime Error: ${err.message}`);
+      }
+    } else {
+      // Honest preview for other languages
+      setOutput(prev => prev + `> Local compilation not supported for ${activeLang.label}.\n> This text-only preview simulates a successful build.\n> For full execution, please use a dedicated local environment.`);
     }
   };
 
@@ -493,6 +530,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
 
 function MathInsideEditor({ value, onChange, styles, Z, color }) {
   const { setEditingObjectId } = useTutorStore();
+  const textAreaRef = useRef(null);
   const previewRef = useRef(null);
 
   useEffect(() => {
@@ -507,7 +545,24 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
   }, [value]);
 
   const insertMath = (symbol) => {
-    onChange(value + symbol);
+    if (!textAreaRef.current) {
+      onChange(value + symbol);
+      return;
+    }
+
+    const { selectionStart, selectionEnd } = textAreaRef.current;
+    const newValue = value.slice(0, selectionStart) + symbol + value.slice(selectionEnd);
+    
+    onChange(newValue);
+
+    // Reposition cursor after the inserted symbol (with a small timeout because of React state cycle)
+    setTimeout(() => {
+      if (textAreaRef.current) {
+        const newCursorPos = selectionStart + symbol.length;
+        textAreaRef.current.focus();
+        textAreaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 10);
   };
 
   return (
@@ -515,6 +570,7 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
       <div className="flex-1 flex overflow-hidden">
         {/* LaTeX Input */}
         <textarea
+          ref={textAreaRef}
           autoFocus
           value={value}
           onChange={(e) => onChange(e.target.value)}

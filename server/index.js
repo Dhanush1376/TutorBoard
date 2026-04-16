@@ -11,6 +11,9 @@ import helmet from 'helmet';
 import generateRoutes from './routes/generate.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
+import sessionRoutes from './routes/session.js';
+import apikeyRoutes from './routes/apikeys.js';
+import userRoutes from './routes/user.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
@@ -64,14 +67,9 @@ app.use((req, _res, next) => {
 // BUG FIX #60: Request correlation ID for distributed tracing across agent pipeline
 app.use(requestIdMiddleware);
 
-// ─── Database Connection ─────────────────────────────────────────────────────
+// ─── Database Connection Config ──────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tutorboard';
-mongoose.connect(MONGODB_URI, {
-  serverSelectionTimeoutMS: 2000, // Fail fast (2s)
-  connectTimeoutMS: 5000,
-})
-  .then(() => console.log(`[DB] Connected to MongoDB ✅`))
-  .catch(err => console.error(`[DB] Connection Error (Non-fatal): ${err.message}`));
+mongoose.set('bufferCommands', false);
 
 // ─── Environment Variable Validation ─────────────────────────────────────────
 // BUG FIX #47: Added JWT_EXPIRES_IN to required env vars for token expiry validation
@@ -91,8 +89,11 @@ for (const { key, critical, label } of REQUIRED_ENV) {
 console.log("=====================================");
 
 if (!hasAllCritical) {
-  console.error('❌ Missing critical environment variables. Server cannot function. Exiting.');
-  process.exit(1);
+  console.warn('⚠️ Missing critical environment variables. Server will run in DEGRADED MODE.');
+  if (!process.env.JWT_SECRET) {
+    console.warn('⚠️ No JWT_SECRET found. Using developmental fallback. NOT SECURE FOR PRODUCTION.');
+    process.env.JWT_SECRET = 'tutorboard-dev-secret-not-for-production';
+  }
 }
 
 const httpServer = createServer(app);
@@ -158,6 +159,17 @@ app.use(passport.initialize());
 
 // Request logger was moved to top
 
+// ─── Database Reliability Middleware ─────────────────────────────────────────
+const dbCheck = (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ 
+      error: 'Database not available', 
+      details: 'The server is running in Degraded Mode. Please ensure your IP is whitelisted in MongoDB Atlas.' 
+    });
+  }
+  next();
+};
+
 // --------------- Routes ---------------
 
 // Root / Health check
@@ -179,7 +191,10 @@ app.use('/', httpRateLimiter, generateRoutes);
 app.use('/', httpRateLimiter, doubtRoutes);
 
 // Auth routes (rate-limited)
-app.use('/api/auth', httpRateLimiter, authRoutes);
+app.use('/api/auth', httpRateLimiter, dbCheck, authRoutes);
+app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
+app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
+app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes
@@ -190,8 +205,32 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-// --------------- Start ---------------
-httpServer.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-  console.log(`Socket.IO ready on /teaching namespace`);
-});
+// ─── Startup ─────────────────────────────────────────────────────────────────
+const startServer = async () => {
+  try {
+    // BUG FIX: Ensure DB is connected before listening to requests
+    // This combined with 'bufferCommands = false' gives immediate feedback
+    console.log(`[DB] Connecting to MongoDB...`);
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000, 
+      connectTimeoutMS: 10000,
+      family: 4 
+    });
+    console.log(`[DB] Connected to MongoDB ✅`);
+
+    httpServer.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`Socket.IO ready on /teaching namespace`);
+    });
+  } catch (err) {
+    console.error(`[DB] FAILED TO CONNECT AT STARTUP: ${err.message}`);
+    console.error(`[DB] The server will start, but database features will be disabled until whitelisted.`);
+    
+    // Fallback: Start server anyway so health checks pass, but log the failure
+    httpServer.listen(port, () => {
+      console.log(`Server running in DEGARDED MODE (No DB) on port ${port}`);
+    });
+  }
+};
+
+startServer();

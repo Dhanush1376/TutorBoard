@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 import tokenStore from '../utils/tokenStore.js';
 
 // BUG FIX #47: Validate JWT configuration at module load
@@ -24,7 +25,37 @@ const generateToken = (id) => {
  * Register a new user
  */
 export const signup = async (req, res) => {
-  return res.status(501).json({ error: 'Signup is disabled in stateless mode. Please use social login or continue as Guest.' });
+  const { name, email, password } = req.body;
+
+  try {
+    const userExists = await User.findOne({ email });
+
+    if (userExists) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+    });
+
+    if (user) {
+      res.status(201).json({
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+        },
+        token: generateToken(user._id),
+      });
+    } else {
+      res.status(400).json({ error: 'Invalid user data' });
+    }
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
 };
 
 /**
@@ -32,7 +63,27 @@ export const signup = async (req, res) => {
  * Authenticate user
  */
 export const signin = async (req, res) => {
-  return res.status(501).json({ error: 'Signin is disabled in stateless mode. Please use social login or continue as Guest.' });
+  const { email, password } = req.body;
+
+  try {
+    const user = await User.findOne({ email }).select('+password');
+
+    if (user && (await user.comparePassword(password))) {
+      res.json({
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+        },
+        token: generateToken(user._id),
+      });
+    } else {
+      res.status(401).json({ error: 'Invalid email or password' });
+    }
+  } catch (err) {
+    console.error('Signin error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 };
 
 
@@ -48,6 +99,7 @@ export const getMe = async (req, res) => {
         id: req.user.id || 'guest',
         name: req.user.name || 'Guest User',
         email: req.user.email || 'guest@example.com',
+        settings: req.user.settings || {}
       },
     });
   } catch (err) {

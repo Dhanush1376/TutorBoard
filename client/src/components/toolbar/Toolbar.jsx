@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import {
   Share2,
@@ -22,6 +22,74 @@ import VisualizerTool from './tools/VisualizerTool';
 
 import ShareAction from './actions/ShareAction';
 import DeleteAction from './actions/DeleteAction';
+
+const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) => {
+  const [offset, setOffset] = useState(0);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const padding = 12;
+      let off = 0;
+      if (rect.left < padding) off = padding - rect.left;
+      else if (rect.right > window.innerWidth - padding) off = window.innerWidth - padding - rect.right;
+      if (off !== 0) setOffset(off);
+    }
+  }, []);
+
+  return (
+    <motion.div
+      ref={dropdownRef}
+      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1, x: offset }}
+      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+      className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
+    >
+      <div 
+        className="p-1.5 rounded-2xl relative shadow-2xl"
+        style={{
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border-color)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div
+          className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+          style={{
+            background: 'var(--bg-primary)',
+            borderLeft: '1px solid var(--border-color)',
+            borderTop: '1px solid var(--border-color)',
+            zIndex: -1,
+            transform: `translateX(${-offset}px) rotate(45deg)` // Counter-shift the caret
+          }}
+        />
+
+        <div className="rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border-color)] mb-1">
+            <p className="text-[12px] font-bold text-[var(--text-primary)]">{user?.name || (user?.isGuest ? 'Guest' : 'Account')}</p>
+            <p className="text-[10px] text-[var(--text-tertiary)]">{user?.email || 'Not signed in'}</p>
+          </div>
+          
+          {[
+            { label: 'Settings', icon: Settings, onClick: onSettingsClick },
+            { label: 'Log Out', icon: LogOut, destructive: true, onClick: handleLogout },
+          ].map((item, i) => (
+            <button
+              key={i}
+              onClick={item.onClick}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[11px] font-medium transition-colors hover:bg-[var(--bg-secondary)]"
+              style={{ color: item.destructive ? 'rgb(239,68,68)' : 'var(--text-secondary)' }}
+            >
+              <item.icon size={14} />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
 
 const Toolbar = ({ onSettingsClick }) => {
   const [isHovered, setIsHovered] = React.useState(false);
@@ -141,54 +209,12 @@ const Toolbar = ({ onSettingsClick }) => {
           
           <AnimatePresence>
             {isProfileOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
-              >
-                <div 
-                  className="p-1.5 rounded-2xl relative shadow-2xl"
-                  style={{
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    boxShadow: '0 16px 48px rgba(0,0,0,0.25)',
-                  }}
-                >
-                  {/* Dropdown Caret */}
-                  <div
-                    className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
-                    style={{
-                      background: 'var(--bg-primary)',
-                      borderLeft: '1px solid var(--border-color)',
-                      borderTop: '1px solid var(--border-color)',
-                      zIndex: -1
-                    }}
-                  />
-
-                  <div className="rounded-2xl overflow-hidden">
-                  <div className="px-4 py-3 border-b border-[var(--border-color)] mb-1">
-                    <p className="text-[12px] font-bold text-[var(--text-primary)]">{user?.name || (user?.isGuest ? 'Guest' : 'Account')}</p>
-                    <p className="text-[10px] text-[var(--text-tertiary)]">{user?.email || 'Not signed in'}</p>
-                  </div>
-                  
-                  {[
-                    { label: 'Settings', icon: Settings, onClick: onSettingsClick },
-                    { label: 'Log Out', icon: LogOut, destructive: true, onClick: handleLogout },
-                  ].map((item, i) => (
-                    <button
-                      key={i}
-                      onClick={item.onClick}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[11px] font-medium transition-colors hover:bg-[var(--bg-secondary)]"
-                      style={{ color: item.destructive ? 'rgb(239,68,68)' : 'var(--text-secondary)' }}
-                    >
-                      <item.icon size={14} />
-                      {item.label}
-                    </button>
-                  ))}
-                  </div>
-                </div>
-              </motion.div>
+              <ProfileDropdown 
+                isLeftHand={isLeftHand} 
+                user={user} 
+                onSettingsClick={onSettingsClick} 
+                handleLogout={handleLogout} 
+              />
             )}
           </AnimatePresence>
         </div>
@@ -204,5 +230,6 @@ const Toolbar = ({ onSettingsClick }) => {
       </motion.div>
   );
 };
+
 
 export default Toolbar;

@@ -19,7 +19,7 @@ const CanvasMinimap = ({
   transform, 
   containerWidth = 1200,
   containerHeight = 800,
-  onNavigate 
+  onNavigate
 }) => {
   const minimapRef = useRef(null);
   

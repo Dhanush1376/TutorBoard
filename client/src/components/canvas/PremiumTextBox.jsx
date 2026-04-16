@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
-import { CanvasContext } from './InfiniteCanvas.jsx';
-import { Handle, RotateHandle } from './ElementHandles.jsx';
+import { CanvasContext } from './CanvasContext';
+import { Handle, RotateHandle, DeleteHandle } from './ElementHandles.jsx';
 import FloatingFormatBar from './FloatingFormatBar.jsx';
 
 const CW = 800;
@@ -17,7 +17,8 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
     selectedElementIds,
     updateCanvasObjectSilently,
     commitHistory,
-    setInteracting
+    setInteracting,
+    setHasTextSelection
   } = useTutorStore();
   const { transform } = useContext(CanvasContext) || { transform: { scale: 1, x: 0, y: 0 } };
   
@@ -116,7 +117,13 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       commitHistory();
       setEditingObjectId(null);
+      setHasTextSelection(false);
     }
+  };
+
+  const handleSelectionChange = (e) => {
+    const hasSelection = e.target.selectionStart !== e.target.selectionEnd;
+    setHasTextSelection(hasSelection);
   };
 
   const handlePointerDown = (e, actionType) => {
@@ -253,12 +260,10 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
     setEditingObjectId(obj.id);
   };
 
+  // Selection / UI states
   const isDragging = interactState.current.action === 'move' || interactState.current.action === 'resize';
   const isPrimarySelection = selectedElementIds?.[0] === obj.id;
-  
-  // Show only on primary selection, hide while actively editing (clearing view) OR when dragging
   const showUIContext = isSelected && !isEditing && isPrimarySelection && !isDragging;
-  const showRuler = isEditing && !isDragging;
 
   // We must calculate the top-left based on center because canvas x,y is center
   const renderLeft = localPos.x - localDim.w / 2;
@@ -282,7 +287,7 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
               boxShadow: isDragging ? '0 20px 40px rgba(0,0,0,0.2)' : 'none'
             }}
             transition={{ duration: 0.15 }}
-            className={`relative pointer-events-auto flex flex-col ${showUIContext ? 'ring-1 ring-[var(--text-tertiary)] rounded-xl' : 'hover:ring-1 hover:ring-slate-500/30 rounded-xl'}`}
+            className={`relative pointer-events-auto flex flex-col rounded-xl transition-all ${isSelected ? 'border-2 border-dashed border-blue-500/50' : 'hover:ring-1 hover:ring-slate-500/30'}`}
             style={{ 
               width: localDim.w, 
               height: localDim.h,
@@ -291,61 +296,21 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
             }}
             onPointerDown={(e) => handlePointerDown(e, 'move')}
             onDoubleClick={handleDoubleClick}
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* NEW: MS Word Style Ruler Guide (Visible during editing) */}
-            <AnimatePresence>
-              {showRuler && (
-                <motion.div
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  className="absolute -top-6 left-0 right-0 h-5 flex items-end pointer-events-none"
-                >
-                  <div className="w-full h-[1px] bg-slate-400/30 relative">
-                    {/* Ruler Ticks */}
-                    {Array.from({ length: Math.floor(localDim.w / 20) }).map((_, i) => (
-                      <div 
-                        key={i} 
-                        className="absolute h-1 w-[1px] bg-slate-400/20" 
-                        style={{ left: i * 20 }}
-                      />
-                    ))}
-                    {/* Indent Markers */}
-                    <div className="absolute -bottom-1 left-2 w-2 h-2 bg-slate-500 rotate-45 transform -translate-x-1/2" />
-                    <div className="absolute -bottom-1 right-2 w-2 h-2 bg-slate-500 rotate-45 transform translate-x-1/2" />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
-            {/* NEW: Contextual Floating Format Bar */}
-            <AnimatePresence>
-              {(isEditing || showUIContext) && !isDragging && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.9 }}
-                  className="absolute -top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
-                >
-                  <FloatingFormatBar 
-                    element={obj} 
-                    updateCanvasObject={updateCanvasObjectSilently}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* View Mode */}
             {!isEditing && (
               <div
-                className="w-full h-full p-2 whitespace-pre-wrap break-words overflow-hidden"
+                className={`w-full h-full p-2 whitespace-pre-wrap break-words overflow-hidden transition-all ${!localContent ? 'border border-dashed border-[var(--text-tertiary)]/30 rounded-lg bg-[var(--bg-tertiary)]/5 min-h-[40px]' : ''}`}
                 style={{
                   fontFamily: styles.fontFamily || 'var(--font-sans)',
                   fontSize: styles.fontSize || 16,
                   fontWeight: styles.fontWeight || 'normal',
                   fontStyle: styles.fontStyle || 'normal',
                   textDecoration: styles.textDecoration || 'none',
-                  textAlign: styles.textAlign || 'left',
+                  textAlign: styles.textAlign || 'center',
                   color: obj.color || 'var(--text-primary)',
                   lineHeight: 1.4,
                   userSelect: 'none'
@@ -362,6 +327,14 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
                 value={localContent}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
+                onSelect={handleSelectionChange}
+                onKeyUp={handleSelectionChange} // Handle arrow key selection
+                onPointerUp={handleSelectionChange} // Handle mouse/touch selection release
+                onBlur={() => {
+                  commitHistory();
+                  setEditingObjectId(null);
+                  setHasTextSelection(false);
+                }}
                 onPointerDown={(e) => e.stopPropagation()} // Let user click inside to move cursor
                 className="w-full bg-transparent outline-none resize-none p-2 rounded-xl transition-all"
                 style={{
@@ -372,7 +345,7 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
                   fontWeight: styles.fontWeight || 'normal',
                   fontStyle: styles.fontStyle || 'normal',
                   textDecoration: styles.textDecoration || 'none',
-                  textAlign: styles.textAlign || 'left',
+                  textAlign: styles.textAlign || 'center',
                   color: obj.color || 'var(--text-primary)',
                   lineHeight: 1.4,
                   boxShadow: 'inset 0 0 0 1px rgba(59, 130, 246, 0.2)',
@@ -383,15 +356,16 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
               />
             )}
 
-            {/* Handles */}
+          {/* Selection Handles - Restored to match 1st pic (Visible during selection, even if editing) */}
             <AnimatePresence>
-              {showUIContext && (
+              {isSelected && !isDragging && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   className="absolute inset-0 pointer-events-none"
                 >
+                  <div className="absolute inset-0 pointer-events-none" />
                   <Handle pos="top-left" onPointerDown={(e) => handlePointerDown(e, 'resize-tl')} />
                   <Handle pos="top-center" onPointerDown={(e) => handlePointerDown(e, 'resize-t')} />
                   <Handle pos="top-right" onPointerDown={(e) => handlePointerDown(e, 'resize-tr')} />
@@ -401,12 +375,13 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
                   <Handle pos="bottom-center" onPointerDown={(e) => handlePointerDown(e, 'resize-b')} />
                   <Handle pos="bottom-right" onPointerDown={(e) => handlePointerDown(e, 'resize-br')} />
                   <RotateHandle onPointerDown={(e) => handlePointerDown(e, 'rotate')} />
+                  <DeleteHandle onClick={() => onDelete(obj.id)} />
                 </motion.div>
               )}
             </AnimatePresence>
-            
           </motion.div>
         </div>
+
       </foreignObject>
     </g>
   );

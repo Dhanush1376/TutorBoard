@@ -21,6 +21,8 @@ import StepPanel from '../components/teaching/StepPanel';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
+import { useAuth } from '../context/AuthContext';
+import { useSessionSync } from '../hooks/useSessionSync';
 
 import { 
   Volume2, VolumeX, Minimize2, Maximize2, Menu, 
@@ -147,6 +149,7 @@ const DOMAIN_STYLES = {
 const PANEL_VISIBLE_STATES = new Set([STATES.TEACHING, STATES.RESPONDING, STATES.RESUMING]);
 
 const Home = ({ isDark }) => {
+  useSessionSync();
   // ─── Machine & Store ───
   const machine = useTeachingMachine();
   const {
@@ -171,10 +174,43 @@ const Home = ({ isDark }) => {
     chatInputText, setChatInputText, pinnedNotes
   } = useTutorStore();
 
+  const { isAuthenticated, token, user } = useAuth();
+
   const [chatHistory, setChatHistory] = useState(() => {
     const saved = localStorage.getItem('tutorboard-history');
     return saved ? JSON.parse(saved) : [];
   });
+  
+  // Restore Cloud Sessions
+  useEffect(() => {
+    if (!isAuthenticated || user?.isGuest || !token) return;
+
+    const fetchCloudSessions = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/sessions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const sessions = await res.json();
+          const restored = sessions.map(s => ({
+            id: s._id,
+            title: s.title || 'Saved Session',
+            date: new Date(s.lastUpdated || s.createdAt).toLocaleDateString(),
+            agent: 'TutorBoard AI',
+            messages: s.messages || [],
+            canvasState: s.canvasState || []
+          }));
+          if (restored.length > 0) {
+             setChatHistory(restored);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to restore cloud sessions:', err);
+      }
+    };
+    fetchCloudSessions();
+  }, [isAuthenticated, token, user?.isGuest]);
+
   const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore();
   
   // Use machine.sessionId as the single source of truth for the local chat pointer
@@ -392,7 +428,30 @@ const Home = ({ isDark }) => {
   // Sidebar shortcut removed per user request
 
   const handleNewChat = () => { setActiveChatId(null); setPrompt(''); endSession(); };
-  const handleSelectChat = (id) => { setActiveChatId(id); setActiveView('chat'); };
+  const handleSelectChat = (id) => {
+    setActiveChatId(id);
+    setActiveView('chat');
+    
+    // Restore session data (canvas and preferences) to the active store
+    const session = chatHistory.find(s => s.id === id);
+    if (session) {
+      if (session.canvasState) {
+        useTutorStore.getState().setCanvasSnapshot({ canvasObjects: session.canvasState, canvasSteps: [], totalSteps: 0 });
+      }
+      if (session.preferences) {
+        const p = session.preferences;
+        if (p.drawColor) useTutorStore.setState({ drawColor: p.drawColor });
+        if (p.drawWidth) useTutorStore.setState({ drawWidth: p.drawWidth });
+        if (p.textToolSize) useTutorStore.setState({ textToolSize: p.textToolSize });
+        if (p.noteToolSize) useTutorStore.setState({ noteToolSize: p.noteToolSize });
+        if (p.noteColor) useTutorStore.setState({ noteColor: p.noteColor });
+        if (p.noteSize) useTutorStore.setState({ noteSize: p.noteSize });
+        if (p.layoutView) useTutorStore.setState({ layoutView: p.layoutView });
+        if (p.gridType) useTutorStore.setState({ gridType: p.gridType });
+        if (typeof p.showGrid !== 'undefined') useTutorStore.setState({ showGrid: p.showGrid });
+      }
+    }
+  };
   const handleDeleteChat = (id) => { setChatHistory(prev => prev.filter(c => c.id !== id)); if (activeChatId === id) setActiveChatId(null); };
   const handleRenameChat = (id, newTitle) => setChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
 
@@ -451,6 +510,10 @@ const Home = ({ isDark }) => {
     return false;
   }, []);
 
+  // Selection cleanup
+  const setSelectedElements = useTutorStore(state => state.setSelectedElements);
+  const setHasTextSelection = useTutorStore(state => state.setHasTextSelection);
+
   const domain = timeline?.domain?.toLowerCase() || 'general';
   const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
   const showStepPanel = currentStep && PANEL_VISIBLE_STATES.has(machineState);
@@ -481,6 +544,10 @@ const Home = ({ isDark }) => {
           ref={canvasRef}
           onViewportChange={setCanvasTransform}
           onInteractionStart={() => { isAutoFollow.current = false; }}
+          onClick={() => {
+            setSelectedElements([]);
+            setHasTextSelection(false);
+          }}
           overlay={<InteractiveCanvasLayer />}
         >
           <AgentCanvasRenderer
