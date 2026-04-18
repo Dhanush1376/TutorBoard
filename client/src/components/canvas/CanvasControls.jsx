@@ -22,10 +22,10 @@ const CanvasControls = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.9, x: isLeftHand ? -20 : 20 }}
+      initial={{ opacity: 0, y: 20, scale: 0.9, x: isLeftHand ? 20 : -20 }}
       animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
       transition={{ duration: 0.4, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`tb-canvas-controls absolute bottom-6 ${isLeftHand ? 'left-6' : 'right-6'} z-50 flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-lg pointer-events-auto`}
+      className={`tb-canvas-controls absolute bottom-6 ${isLeftHand ? 'right-6' : 'left-6'} z-50 flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-lg pointer-events-auto`}
     >
       {/* Zoom Out */}
       <button

@@ -27,7 +27,7 @@ import { useSessionSync } from '../hooks/useSessionSync';
 import { 
   Volume2, VolumeX, Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
-  Check, WifiOff, Loader
+  Check, Wifi, WifiOff, Loader
 } from 'lucide-react';
 
 // ─── Drawing Overlay ─────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ const DrawingOverlay = ({ isVisible, isRethinking }) => {
             <div className="h-8 flex items-center">
               <AnimatePresence mode="wait">
                 <motion.p
-                  key={phaseIndex}
+                  key={`drawing-phase-${phaseIndex}`}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
@@ -171,10 +171,13 @@ const Home = ({ isDark }) => {
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
     setCanvasSnapshot, greetingMessage, layoutView, addNoteToCanvas,
-    chatInputText, setChatInputText, pinnedNotes
+    chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition
   } = useTutorStore();
 
-  const { isAuthenticated, token, user } = useAuth();
+  const { isAuthenticated, token, user, apiPrefs: globalApiPrefs } = useAuth();
+  
+  // Use global prefs but map to local variable for easier refactor
+  const activeApiPrefs = globalApiPrefs;
 
   const [chatHistory, setChatHistory] = useState(() => {
     const saved = localStorage.getItem('tutorboard-history');
@@ -393,12 +396,18 @@ const Home = ({ isDark }) => {
     const ids = new Set(step.objectIds || []);
     const objs = canvasObjects.filter(o => ids.has(o.id));
     
+    // Canvas dimensions for coordinate conversion (elements use 0-1 normalized coords)
+    const CW = 800, CH = 600;
+    
     if (objs.length > 0) {
-      // Calculate Bounding Box
+      // Calculate Bounding Box — convert normalized (0-1) coords to pixel coords
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       objs.forEach(o => {
-        const x = safeNum(o.x || o.cx || o.x1, 400);
-        const y = safeNum(o.y || o.cy || o.y1, 300);
+        // Elements store x/y as normalized 0-1 values, convert to pixel space
+        const rawX = safeNum(o.x || o.cx || o.x1, 0.5);
+        const rawY = safeNum(o.y || o.cy || o.y1, 0.5);
+        const x = (rawX <= 1 ? rawX * CW : rawX);
+        const y = (rawY <= 1 ? rawY * CH : rawY);
         const w = safeNum(o.w || o.r || (o.x2 ? Math.abs(o.x2 - o.x1) : 0), 100);
         const h = safeNum(o.h || o.r || (o.y2 ? Math.abs(o.y2 - o.y1) : 0), 100);
         
@@ -589,6 +598,21 @@ const Home = ({ isDark }) => {
               <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[200px] truncate">
                 {timeline.title}
               </span>
+
+              {/* API Source Badge */}
+              {activeApiPrefs && (
+                <div 
+                  title={activeApiPrefs.useCustomApi ? `Using your personal ${activeApiPrefs.activeProvider} model` : "Using TutorBoard platform credits"}
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider transition-all cursor-help
+                    ${activeApiPrefs.useCustomApi 
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                      : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}
+                >
+                  <Wifi size={10} />
+                  {activeApiPrefs.useCustomApi ? 'Personal' : 'Universal'}
+                </div>
+              )}
+
               {(() => {
                 const isLive = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
                 return isLive ? (
@@ -603,6 +627,7 @@ const Home = ({ isDark }) => {
                   </span>
                 );
               })()}
+
             </motion.div>
           </div>
         )}
@@ -614,7 +639,7 @@ const Home = ({ isDark }) => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ 
                 opacity: 1, 
-                x: isSidebarOpen ? 340 : 0,
+                x: (layoutView === 'left' && isSidebarOpen) ? 340 : 0,
               }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
@@ -640,7 +665,7 @@ const Home = ({ isDark }) => {
               <div className="flex gap-0.5">
                 {Array.from({ length: Math.min(totalSteps, 50) }).map((_, i) => (
                   <button
-                    key={i}
+                    key={`step-progress-${i}`}
                     onClick={() => goToStep(i)}
                     className={`flex-1 h-1 rounded-full transition-all ${
                       i <= currentStepIndex ? 'bg-[var(--text-primary)]' : 'bg-[var(--border-color)]'

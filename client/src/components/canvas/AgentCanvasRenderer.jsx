@@ -430,8 +430,12 @@ function SVGCanvasRenderer({
   const elements = useMemo(() => {
     // ── DE-DUPLICATION SAFETY ──
     const uniqueMap = new Map();
-    rawElements.forEach(el => {
-      if (el?.id) uniqueMap.set(el.id, el);
+    rawElements.forEach((el, idx) => {
+      if (!el) return;
+      const key = el.id || `el-${idx}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, el);
+      }
     });
     const dedupedRaw = Array.from(uniqueMap.values());
 

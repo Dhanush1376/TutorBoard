@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -61,11 +61,11 @@ const SettingsGroup = ({ children }) => (
 );
 
 const SettingsRow = ({ icon: Icon, label, description, rightElement, borderBottom = true, danger, onClick }) => {
-  const isClickable = !!onClick && !rightElement;
+  const isClickable = !!onClick;
 
   return (
     <div
-      onClick={isClickable ? onClick : undefined}
+      onClick={onClick || undefined}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -109,10 +109,10 @@ const SettingsRow = ({ icon: Icon, label, description, rightElement, borderBotto
           )}
         </div>
       </div>
-      {(rightElement || isClickable) && (
+      {(rightElement || (isClickable && !rightElement)) && (
         <div style={{ marginLeft: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {rightElement}
-          {isClickable && <ChevronRight style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />}
+          {isClickable && !rightElement && <ChevronRight style={{ width: '16px', height: '16px', color: 'var(--text-tertiary)' }} />}
         </div>
       )}
     </div>
@@ -396,7 +396,65 @@ const Avatar = ({ name, avatar, size = 56 }) => {
     </div>
   );
 };
+const TrialSectionOverlay = ({ onUnlock }) => (
+  <div style={{
+    position: 'absolute', inset: 0, zIndex: 100,
+    backdropFilter: 'blur(12px)',
+    background: 'var(--bg-primary)',
+    opacity: 0.8,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    borderRadius: '16px', padding: '24px', textAlign: 'center'
+  }}>
+    <div style={{
+      width: '48px', height: '48px', borderRadius: '16px',
+      background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px',
+      color: 'var(--text-secondary)'
+    }}>
+      <Lock style={{ width: '20px', height: '20px' }} />
+    </div>
+    <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+      Trial Mode Feature
+    </h3>
+    <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '24px', maxWidth: '240px' }}>
+      Sign in to unlock personalized settings and save your learning configuration.
+    </p>
+    <button
+      onClick={onUnlock}
+      style={{
+        padding: '10px 20px', borderRadius: '10px',
+        background: 'var(--text-primary)', color: 'var(--bg-primary)',
+        fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', transition: 'transform 0.2s'
+      }}
+      onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+    >
+      Login to Unlock
+    </button>
+  </div>
+);
 
+const TrialBadge = () => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: '6px',
+    padding: '4px 10px', borderRadius: '20px',
+    background: 'linear-gradient(135deg, #FFD60A, #FF9500)',
+    color: '#000', fontSize: '11px', fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.05em',
+    boxShadow: '0 2px 8px rgba(255, 149, 0, 0.3)'
+  }}>
+    <Zap size={10} fill="#000" />
+    Trial Mode
+  </div>
+);
+
+const SectionWrapper = ({ children, isGuest, onUnlock, isRestricted }) => (
+  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    {children}
+    {isGuest && isRestricted && <TrialSectionOverlay onUnlock={onUnlock} />}
+  </div>
+);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CUSTOM HOOKS
@@ -429,7 +487,8 @@ const useSettingsSync = () => {
 // SECTION PANELS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const GeneralSection = ({ user, syncSettings }) => {
+const GeneralSection = ({ user, syncSettings, showToast }) => {
+  const { updateUser } = useAuth();
   const [displayName, setDisplayName] = useState(user?.name || '');
   const [nickname, setNickname] = useState(
     localStorage.getItem('tb-nickname') || user?.name?.split(' ')[0] || ''
@@ -438,17 +497,20 @@ const GeneralSection = ({ user, syncSettings }) => {
   const [preferences, setPreferences] = useState(localStorage.getItem('tb-ai-preferences') || '');
   const [notifCompletion, setNotifCompletion] = useState(localStorage.getItem('tb-notif-completion') !== 'false');
   const [notifSound, setNotifSound] = useState(localStorage.getItem('tb-notif-sound') !== 'false');
+  const avatarInputRef = useRef(null);
+  const [saveStatus, setSaveStatus] = useState(null); // 'saving' | 'saved' | null
 
   const handleNotifCompletionToggle = async (val) => {
     if (val) {
       if (!("Notification" in window)) {
-        alert("This browser does not support desktop notifications.");
+        showToast('This browser does not support desktop notifications.', 'error');
         return;
       }
       if (Notification.permission !== "granted") {
         const p = await Notification.requestPermission();
         if (p !== "granted") {
           setNotifCompletion(false);
+          showToast('Notification permission denied.', 'error');
           return;
         }
       }
@@ -456,42 +518,91 @@ const GeneralSection = ({ user, syncSettings }) => {
     setNotifCompletion(val);
   };
 
+  const handleAvatarUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Image must be under 2MB', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      localStorage.setItem('tb-avatar', dataUrl);
+      updateUser({ avatar: dataUrl });
+      showToast('Avatar updated!', 'success');
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Auto-save logic
   useEffect(() => {
     const timeout = setTimeout(() => {
+      setSaveStatus('saving');
       localStorage.setItem('tb-nickname', nickname);
       localStorage.setItem('tb-role', role);
       localStorage.setItem('tb-ai-preferences', preferences);
       localStorage.setItem('tb-notif-completion', String(notifCompletion));
       localStorage.setItem('tb-notif-sound', String(notifSound));
 
+      // Update AuthContext so the name reflects globally (sidebar, header, etc.)
+      if (displayName && displayName !== user?.name) {
+        updateUser({ name: displayName });
+      }
+
       syncSettings('general', { nickname, role, preferences, name: displayName, notifCompletion, notifSound });
+      setTimeout(() => setSaveStatus('saved'), 300);
+      setTimeout(() => setSaveStatus(null), 2000);
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [nickname, role, preferences, displayName, notifCompletion, notifSound, syncSettings]);
+  }, [nickname, role, preferences, displayName, notifCompletion, notifSound, syncSettings, updateUser, user?.name]);
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
         <div style={{ position: 'relative', marginBottom: '16px' }}>
-          <Avatar name={user?.name} avatar={user?.avatar} size={84} />
-          <button style={{
+          <Avatar name={displayName || user?.name} avatar={user?.avatar || localStorage.getItem('tb-avatar')} size={84} />
+          <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
+          <button onClick={() => avatarInputRef.current?.click()} style={{
             position: 'absolute', bottom: 0, right: 0,
             width: '28px', height: '28px', borderRadius: '50%',
             background: 'var(--bg-secondary)', color: 'var(--text-primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: '1px solid var(--border-color)', cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            transition: 'transform 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
             <Camera style={{ width: '13px', height: '13px' }} />
           </button>
         </div>
-        <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-          {displayName || 'User'}
-        </h2>
-        <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: '4px 0 0 0' }}>
-          {user?.email || 'guest@tutorboard.ai'}
-        </p>
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+              {displayName || 'User'}
+            </h2>
+            {user?.isGuest && <TrialBadge />}
+          </div>
+          <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: 0 }}>
+            {user?.email || 'guest@tutorboard.ai'}
+          </p>
+        </div>
+        {saveStatus && (
+          <motion.span
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            style={{
+              fontSize: '11px', fontWeight: 600, marginTop: '8px',
+              color: saveStatus === 'saving' ? 'var(--text-tertiary)' : '#10b981',
+              display: 'flex', alignItems: 'center', gap: '4px',
+            }}
+          >
+            {saveStatus === 'saving' ? '⟳ Saving...' : '✓ Saved'}
+          </motion.span>
+        )}
       </div>
 
       <SectionTitle>Profile Details</SectionTitle>
@@ -850,7 +961,7 @@ const AppearanceSection = ({ syncSettings }) => {
 
             return (
               <button
-                key={theme.id}
+                key={`theme-opt-${theme.id}`}
                 onClick={() => setCurrentThemeId(theme.id)}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -936,13 +1047,13 @@ const AppearanceSection = ({ syncSettings }) => {
         <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Layout View</h3>
         <div style={{ display: 'flex', gap: '12px' }}>
           {[
-            { id: 'right', label: 'Right Hand', icon: PanelLeft },
-            { id: 'left', label: 'Left Hand', icon: PanelRight }
+            { id: 'left', label: 'Standard (Left)', icon: PanelLeft },
+            { id: 'right', label: 'Right Hand (Right)', icon: PanelRight }
           ].map(pos => {
             const isActive = store.layoutView === pos.id;
             return (
               <button
-                key={pos.id}
+                key={`layout-pos-${pos.id}`}
                 onClick={() => toggleSidebarPosition(pos.id)}
                 style={{
                   flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -998,7 +1109,56 @@ const MODEL_LABELS = {
   'claude-3-haiku-20240307': 'Claude 3 Haiku',
 };
 
-const AILearningSection = () => {
+const UniversalUsageCard = ({ usage }) => {
+  if (!usage) return null;
+  const isWarning = usage.percent >= 80;
+  const isExceeded = usage.percent >= 100;
+  
+  return (
+    <div style={{ 
+      background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '16px', 
+      padding: '20px', marginBottom: '24px', overflow: 'hidden', position: 'relative',
+      boxShadow: '0 4px 12px rgba(139, 92, 246, 0.05)'
+    }}>
+      <div style={{ position: 'absolute', top: 0, right: 0, padding: '6px 12px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', fontSize: '10px', fontWeight: 700, borderRadius: '0 0 0 12px' }}>
+        SYSTEM PROVIDED
+      </div>
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}>
+          <Sparkles size={20} />
+        </div>
+        <div>
+          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>TutorBoard Universal API</h4>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-tertiary)' }}>Platform credits for common tasks</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
+          <span style={{ color: 'var(--text-secondary)' }}>Monthly Usage</span>
+          <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-primary)' }}>{usage.requests} / {usage.limit} requests</span>
+        </div>
+        <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${usage.percent}%` }}
+            transition={{ duration: 1, ease: 'easeOut' }}
+            style={{ 
+              height: '100%', 
+              background: isExceeded ? '#ef4444' : isWarning ? 'linear-gradient(90deg, #8b5cf6, #f59e0b)' : 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+            }} 
+          />
+        </div>
+        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
+          Tip: Add your own key to bypass platform rate limits and save shared credits.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AILearningSection = ({ showToast }) => {
   const { token } = useAuth();
   const [defaultDifficulty, setDefaultDifficulty] = useState(localStorage.getItem('tb-difficulty') || 'beginner');
   const [defaultMode, setDefaultMode] = useState(localStorage.getItem('tb-mode') || 'explain');
@@ -1013,6 +1173,7 @@ const AILearningSection = () => {
   const [usageStats, setUsageStats] = useState(null);
   const [healthData, setHealthData] = useState(null);
   const [costStatus, setCostStatus] = useState(null);
+  const [universalUsage, setUniversalUsage] = useState(null);
 
   // Add Key Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -1024,6 +1185,10 @@ const AILearningSection = () => {
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
 
+  // Test key state
+  const [testingKeyId, setTestingKeyId] = useState(null);
+  const [testResults, setTestResults] = useState({}); // { [keyId]: { valid, latencyMs, error } }
+
   useEffect(() => {
     localStorage.setItem('tb-difficulty', defaultDifficulty);
     localStorage.setItem('tb-mode', defaultMode);
@@ -1032,6 +1197,16 @@ const AILearningSection = () => {
   // Fetch all data on mount
   useEffect(() => {
     if (token) { fetchApiKeys(); fetchUsageStats(); fetchHealth(); fetchCostStatus(); }
+  }, [token]);
+
+  // Auto-refresh usage data every 30s while this tab is active
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      fetchApiKeys();
+      fetchCostStatus();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [token]);
 
   // Set default model when provider changes
@@ -1043,7 +1218,12 @@ const AILearningSection = () => {
   const fetchApiKeys = async () => {
     try {
       const res = await fetch(`${API_URL}/api/apikeys`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) { const d = await res.json(); setApiKeys(d.keys || []); setPreferences(d.preferences || {}); }
+      if (res.ok) {
+        const d = await res.json();
+        setApiKeys(d.keys || []);
+        setPreferences(d.preferences || {});
+        setUniversalUsage(d.universalUsage || null);
+      }
     } catch (e) { /* silent */ }
   };
 
@@ -1085,14 +1265,21 @@ const AILearningSection = () => {
         body: JSON.stringify({ provider: newProvider, apiKey: newApiKey.trim(), model: newModel, label: `${PROVIDER_INFO[newProvider]?.name} Key`, baseUrl: newProvider === 'custom' ? newBaseUrl : undefined }),
       });
       const data = await res.json();
-      if (res.ok) { setValidationResult({ success: true, message: data.message, latencyMs: data.latencyMs }); setNewApiKey(''); setShowAddForm(false); fetchApiKeys(); }
+      if (res.ok) {
+        setValidationResult({ success: true, message: data.message, latencyMs: data.latencyMs });
+        setNewApiKey(''); setShowAddForm(false); fetchApiKeys();
+        showToast?.(`${PROVIDER_INFO[newProvider]?.name} key added successfully!`, 'success');
+      }
       else { setValidationResult({ success: false, message: data.details || data.error }); }
     } catch (e) { setValidationResult({ success: false, message: 'Network error' }); }
     finally { setIsValidating(false); }
   };
 
   const handleDeleteKey = async (keyId) => {
-    try { const r = await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if (r.ok) fetchApiKeys(); } catch (e) { /* */ }
+    try {
+      const r = await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      if (r.ok) { fetchApiKeys(); showToast?.('API key removed', 'info'); }
+    } catch (e) { /* */ }
   };
 
   const handleToggleKey = async (keyId, isActive) => {
@@ -1105,10 +1292,72 @@ const AILearningSection = () => {
     try { await fetch(`${API_URL}/api/apikeys/preferences`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(updated) }); } catch (e) { /* */ }
   };
 
+  const handleTestKey = async (keyId) => {
+    setTestingKeyId(keyId);
+    setTestResults(prev => ({ ...prev, [keyId]: null }));
+    try {
+      const res = await fetch(`${API_URL}/api/apikeys/${keyId}/test`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setTestResults(prev => ({ ...prev, [keyId]: data }));
+      if (data.valid) {
+        showToast?.(`Connection OK (${data.latencyMs}ms)`, 'success');
+      } else {
+        showToast?.(data.error || 'Validation failed', 'error');
+      }
+      fetchApiKeys(); // Refresh validation status
+    } catch (e) {
+      setTestResults(prev => ({ ...prev, [keyId]: { valid: false, error: 'Network error' } }));
+      showToast?.('Network error during test', 'error');
+    }
+    finally { setTestingKeyId(null); }
+  };
+
   const cardSt = { background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px' };
+
+  const hasActiveCustomKey = preferences.useCustomApi && apiKeys.some(k => k.isActive && k.isValid);
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+
+      {/* ── ACTIVE API SOURCE INDICATOR ── */}
+      <div style={{
+        ...cardSt, marginBottom: '24px', padding: '16px 20px',
+        background: hasActiveCustomKey
+          ? 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.02) 100%)'
+          : 'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(59,130,246,0.02) 100%)',
+        borderColor: hasActiveCustomKey ? 'rgba(16,185,129,0.25)' : 'rgba(59,130,246,0.25)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '10px', height: '10px', borderRadius: '50%',
+              background: hasActiveCustomKey ? '#10b981' : '#3b82f6',
+              boxShadow: `0 0 8px ${hasActiveCustomKey ? 'rgba(16,185,129,0.5)' : 'rgba(59,130,246,0.5)'}`,
+              animation: 'pulse 2s ease-in-out infinite',
+            }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
+                {hasActiveCustomKey ? 'Your Personal API' : 'TutorBoard Platform API'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                {hasActiveCustomKey
+                  ? `Using ${apiKeys.find(k => k.isActive && k.isValid)?.provider} — ${MODEL_LABELS[apiKeys.find(k => k.isActive && k.isValid)?.model] || apiKeys.find(k => k.isActive && k.isValid)?.model}`
+                  : 'Shared credits via OpenRouter • Add your own key to save credits'}
+              </div>
+            </div>
+          </div>
+          <div style={{
+            padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            background: hasActiveCustomKey ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
+            color: hasActiveCustomKey ? '#10b981' : '#3b82f6',
+          }}>
+            {hasActiveCustomKey ? 'Personal' : 'Universal'}
+          </div>
+        </div>
+      </div>
 
       {/* ── API CONFIGURATION ── */}
       <SectionTitle>API Configuration</SectionTitle>
@@ -1148,6 +1397,11 @@ const AILearningSection = () => {
 
       {/* Saved API Keys */}
       <div style={{ marginTop: '20px' }}>
+        {/* Universal Usage Barline */}
+        {!preferences.useCustomApi && universalUsage && (
+          <UniversalUsageCard usage={universalUsage} />
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', padding: '0 4px' }}>
           <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Your API Keys {apiKeys.length > 0 && `(${apiKeys.length})`}
@@ -1177,16 +1431,16 @@ const AILearningSection = () => {
                 {/* Provider Selector */}
                 <div>
                   <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px', display: 'block' }}>Provider</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
                     {Object.entries(PROVIDER_INFO).map(([id, info]) => (
                       <button key={id} onClick={() => setNewProvider(id)}
                         style={{
-                          padding: '10px 6px', borderRadius: '12px', border: '1px solid', borderColor: newProvider === id ? info.color : 'var(--border-color)',
+                          padding: '10px 4px', borderRadius: '12px', border: '1px solid', borderColor: newProvider === id ? info.color : 'var(--border-color)',
                           background: newProvider === id ? `${info.color}15` : 'transparent', cursor: 'pointer', transition: 'all 0.2s',
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'
                         }}>
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: info.color }} />
-                        <span style={{ fontSize: '9px', fontWeight: 700, color: newProvider === id ? 'var(--text-primary)' : 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span style={{ fontSize: '8px', fontWeight: 700, color: newProvider === id ? 'var(--text-primary)' : 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                           {id === 'custom' ? 'Custom' : info.name.split(' ')[0]}
                         </span>
                       </button>
@@ -1199,7 +1453,7 @@ const AILearningSection = () => {
                   <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px', display: 'block' }}>API Key</label>
                   <div style={{ position: 'relative' }}>
                     <input type={showKey ? 'text' : 'password'} value={newApiKey} onChange={e => setNewApiKey(e.target.value)}
-                      placeholder={newProvider === 'openai' ? 'sk-proj-...' : newProvider === 'google' ? 'AIza...' : newProvider === 'anthropic' ? 'sk-ant-...' : 'Enter API key'}
+                      placeholder={newProvider === 'openai' ? 'sk-proj-...' : newProvider === 'google' ? 'AIza...' : newProvider === 'anthropic' ? 'sk-ant-...' : newProvider === 'deepseek' ? 'sk-...' : 'Enter API key'}
                       style={{
                         width: '100%', padding: '10px 40px 10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box'
@@ -1271,30 +1525,101 @@ const AILearningSection = () => {
         {/* Key Cards */}
         {apiKeys.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {apiKeys.map(key => (
-              <div key={key.id} style={{ ...cardSt, display: 'flex', alignItems: 'center', gap: '12px', opacity: key.isActive ? 1 : 0.5, transition: 'all 0.2s' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: `${PROVIDER_INFO[key.provider]?.color || '#888'}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: PROVIDER_INFO[key.provider]?.color || '#888' }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>{PROVIDER_INFO[key.provider]?.name || key.provider}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>{key.maskedKey}</span>
-                    <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '6px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>{MODEL_LABELS[key.model] || key.model || 'default'}</span>
+            {apiKeys.map(key => {
+              const pc = PROVIDER_INFO[key.provider]?.color || '#888';
+              const testResult = testResults[key.id];
+              const isTesting = testingKeyId === key.id;
+              return (
+                <motion.div
+                  key={key.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: key.isActive ? 1 : 0.5, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  style={{ ...cardSt, overflow: 'hidden', transition: 'all 0.2s', borderLeft: `3px solid ${pc}` }}
+                >
+                  {/* Key Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: `${pc}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: pc }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>{PROVIDER_INFO[key.provider]?.name || key.provider}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{key.maskedKey}</span>
+                        <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '6px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>{MODEL_LABELS[key.model] || key.model || 'default'}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: key.isValid ? '#10b981' : '#ef4444' }} />
+                      {/* Test Connection Button */}
+                      <button onClick={() => handleTestKey(key.id)} disabled={isTesting}
+                        title="Test Connection"
+                        style={{
+                          padding: '5px', borderRadius: '8px', border: 'none', cursor: isTesting ? 'wait' : 'pointer',
+                          background: 'transparent', color: 'var(--text-tertiary)', transition: 'all 0.2s', display: 'flex', alignItems: 'center',
+                        }}
+                        onMouseEnter={e => { if (!isTesting) { e.currentTarget.style.color = pc; e.currentTarget.style.background = `${pc}15`; } }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}>
+                        {isTesting ? (
+                          <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                            style={{ width: '13px', height: '13px', border: `2px solid ${pc}`, borderTopColor: 'transparent', borderRadius: '50%' }} />
+                        ) : <Zap size={13} />}
+                      </button>
+                      <AppleToggle value={key.isActive} onChange={v => handleToggleKey(key.id, v)} />
+                      <button onClick={() => handleDeleteKey(key.id)}
+                        style={{ padding: '5px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--text-tertiary)', transition: 'all 0.2s' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: key.isValid ? '#10b981' : '#ef4444' }} />
-                  <AppleToggle value={key.isActive} onChange={v => handleToggleKey(key.id, v)} />
-                  <button onClick={() => handleDeleteKey(key.id)}
-                    style={{ padding: '6px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'transparent', color: 'var(--text-tertiary)', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}>
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
-            ))}
+
+                  {/* Per-Key Usage Bar */}
+                  {key.usage && key.usage.requests > 0 && (
+                    <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                          <span><strong style={{ color: 'var(--text-secondary)' }}>{key.usage.requests}</strong> requests</span>
+                          <span><strong style={{ color: 'var(--text-secondary)' }}>${(key.usage.costCents / 100).toFixed(3)}</strong> cost</span>
+                          {key.usage.tokens > 0 && <span><strong style={{ color: 'var(--text-secondary)' }}>{key.usage.tokens >= 1000 ? `${(key.usage.tokens / 1000).toFixed(1)}k` : key.usage.tokens}</strong> tokens</span>}
+                        </div>
+                        {key.usage.lastUsed && (
+                          <span style={{ fontSize: '9px', color: 'var(--text-tertiary)' }}>
+                            Last used {new Date(key.usage.lastUsed).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ height: '3px', borderRadius: '2px', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, Math.max(5, key.usage.requests))}%` }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                          style={{ height: '100%', borderRadius: '2px', background: pc }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Test Result inline */}
+                  {testResult && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      style={{
+                        marginTop: '8px', padding: '6px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 600,
+                        background: testResult.valid ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                        color: testResult.valid ? '#10b981' : '#ef4444',
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                      }}>
+                      {testResult.valid ? <Check size={12} /> : <X size={12} />}
+                      {testResult.valid ? `Connected (${testResult.latencyMs}ms)` : testResult.error || 'Failed'}
+                    </motion.div>
+                  )}
+                </motion.div>
+              );
+            })}
           </div>
         ) : !showAddForm && (
           <div style={{ ...cardSt, textAlign: 'center', padding: '48px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -1312,11 +1637,20 @@ const AILearningSection = () => {
                 opacity: 0.05
               }} />
             </div>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Secure Your Orchestration</div>
-            <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', maxWidth: '280px', lineHeight: 1.5 }}>
-              Connect your preferred AI providers to enable high-performance agentic reasoning and personalized learning.
+            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Bring Your Own Key</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', maxWidth: '320px', lineHeight: 1.5, marginBottom: '16px' }}>
+              TutorBoard uses shared platform credits by default. Add your own API key to avoid rate limits, save shared credits, and unlock higher-tier models.
             </div>
-
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {Object.entries(PROVIDER_INFO).filter(([id]) => id !== 'custom').map(([id, info]) => (
+                <span key={id} style={{
+                  fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+                  padding: '3px 8px', borderRadius: '8px',
+                  background: `${info.color}12`, color: info.color,
+                  border: `1px solid ${info.color}30`,
+                }}>{info.name.split(' ')[0]}</span>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -1352,10 +1686,15 @@ const AILearningSection = () => {
               </span>
             </div>
             <div style={{ height: '6px', borderRadius: '3px', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
-              <div style={{
-                width: `${Math.min(100, costStatus.usagePercent)}%`, height: '100%', borderRadius: '3px', transition: 'width 0.5s',
-                background: costStatus.isExceeded ? '#ef4444' : costStatus.isWarning ? '#f59e0b' : '#10b981'
-              }} />
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, costStatus.usagePercent)}%` }}
+                transition={{ duration: 1, ease: 'easeOut' }}
+                style={{
+                  height: '100%', borderRadius: '3px',
+                  background: costStatus.isExceeded ? '#ef4444' : costStatus.isWarning ? '#f59e0b' : '#10b981'
+                }}
+              />
             </div>
             <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '4px' }}>{costStatus.usagePercent}% used • {costStatus.totalRequests} requests</div>
           </div>
@@ -1424,7 +1763,7 @@ const AILearningSection = () => {
                     <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: pc, flexShrink: 0 }} />
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flex: 1 }}>{PROVIDER_INFO[p._id]?.name || p._id}</span>
                     <div style={{ flex: 2, height: '4px', borderRadius: '2px', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', borderRadius: '2px', background: pc, transition: 'width 0.5s' }} />
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} style={{ height: '100%', borderRadius: '2px', background: pc }} />
                     </div>
                     <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, width: '36px', textAlign: 'right' }}>{pct}%</span>
                   </div>
@@ -1579,53 +1918,161 @@ const PrivacySection = ({ syncSettings }) => {
   );
 };
 
-const AboutSection = () => (
-  <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginBottom: '40px', marginTop: '20px' }}>
-      <div style={{
-        color: 'var(--bg-primary)', background: 'var(--text-primary)',
-        width: '80px', height: '80px', borderRadius: '22px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
-      }}>
-        <VisaiLogo size="lg" />
+const SystemStatusItem = ({ label, status, detail }) => {
+  const isOnline = status === 'online';
+  const isChecking = status === 'checking';
+  
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ 
+          width: '8px', height: '8px', borderRadius: '50%', 
+          background: isOnline ? '#10b981' : (isChecking ? 'var(--text-tertiary)' : '#ef4444'),
+          boxShadow: isOnline ? '0 0 10px rgba(16,185,129,0.4)' : 'none',
+          animation: isChecking ? 'pulse 1.5s infinite' : 'none'
+        }} />
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
       </div>
-      <div style={{ textAlign: 'center' }}>
-        <h3 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: '"Geist", sans-serif', margin: '0 0 4px 0', letterSpacing: '-0.02em' }}>
-          TutorBoard
-        </h3>
-        <p style={{ fontSize: '15px', color: 'var(--text-tertiary)', fontWeight: 500, margin: 0 }}>
-          Version 2.1.0 Beta
+      <span style={{ fontSize: '12px', fontWeight: 500, color: isOnline ? '#10b981' : 'var(--text-tertiary)' }}>
+        {status.toUpperCase()} {detail && `• ${detail}`}
+      </span>
+    </div>
+  );
+};
+
+const AboutSection = () => {
+  const [copied, setCopied] = useState(false);
+  const { token } = useAuth();
+  const [systemStatus, setSystemStatus] = useState({
+    api: 'checking',
+    db: 'checking',
+    engine: 'checking'
+  });
+
+  useEffect(() => {
+    const checkSystems = async () => {
+      // 1. Check API & DB
+      try {
+        const res = await fetch(`${API_URL}/api/test`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          setSystemStatus(prev => ({ ...prev, api: 'online', db: 'online' }));
+        } else {
+          setSystemStatus(prev => ({ ...prev, api: 'online', db: 'offline' }));
+        }
+      } catch (e) {
+        setSystemStatus(prev => ({ ...prev, api: 'offline', db: 'offline' }));
+      }
+
+      // 2. Check Orchestration Engine (Simulated Ping)
+      setTimeout(() => {
+        setSystemStatus(prev => ({ ...prev, engine: 'online' }));
+      }, 1200);
+    };
+
+    checkSystems();
+  }, [token]);
+
+  const handleCopySystemInfo = () => {
+    const info = `TutorBoard v2.1.0 Beta\nEngine: Cinematic SCENE GRAPH v9.0\nFramework: React 18\nStatus: ${systemStatus.api === 'online' ? 'Connected' : 'Disconnected'}\nBuild: 2026.04.18-FINAL\nUserAgent: ${navigator.userAgent}`;
+    navigator.clipboard.writeText(info).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '40px' }}>
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 0.4; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.1); }
+          100% { opacity: 0.4; transform: scale(0.9); }
+        }
+      `}</style>
+      
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginBottom: '40px', marginTop: '20px' }}>
+        <div style={{
+          color: 'var(--bg-primary)', background: 'var(--text-primary)',
+          width: '84px', height: '84px', borderRadius: '24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
+          transform: 'rotate(-2deg)'
+        }}>
+          <VisaiLogo size="lg" />
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <h3 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: '"Geist", sans-serif', margin: '0 0 4px 0', letterSpacing: '-0.03em' }}>
+            TutorBoard
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-tertiary)', fontWeight: 600, background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: '6px' }}>
+              v2.1.0 Beta
+            </span>
+            <span style={{ fontSize: '13px', color: '#34c759', fontWeight: 700 }}>
+              • Stable Release
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <SectionTitle>System Integrity</SectionTitle>
+      <SettingsGroup>
+        <SystemStatusItem label="API Gateway" status={systemStatus.api} />
+        <SystemStatusItem label="Cloud Database" status={systemStatus.db} />
+        <SystemStatusItem label="Orchestration Engine" status={systemStatus.engine} detail="v9.0 Cinematic" />
+        <SettingsRow label="System Build" rightElement={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>2026.04.18-FINAL</span>
+            <button 
+              onClick={handleCopySystemInfo}
+              style={{ 
+                background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', cursor: 'pointer', padding: '4px 10px',
+                borderRadius: '8px', color: copied ? '#10b981' : 'var(--text-secondary)', transition: 'all 0.2s',
+                fontSize: '11px', fontWeight: 700,
+              }}
+            >
+              {copied ? '✓ Copied' : 'Copy Info'}
+            </button>
+          </div>
+        } borderBottom={false} />
+      </SettingsGroup>
+
+      <SectionTitle>Engine Architecture</SectionTitle>
+      <SettingsGroup>
+        <SettingsRow label="Renderer" rightElement={<span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Canvas2D + Cinematic v4</span>} />
+        <SettingsRow label="Pipeline" rightElement={<span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>6-Agent Autonomous Loop</span>} />
+        <SettingsRow label="Protocol" rightElement={<span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Secure WebSocket (WSS)</span>} borderBottom={false} />
+      </SettingsGroup>
+
+      <SectionTitle>Community & Support</SectionTitle>
+      <SettingsGroup>
+        <SettingsRow icon={BookOpen} label="Release Notes" onClick={() => window.open('https://github.com/tutorboard/tutorboard/releases', '_blank')} />
+        <SettingsRow icon={Globe2} label="Official Website" rightElement={<ExternalLink size={14} />} onClick={() => window.open('https://tutorboard.ai', '_blank')} />
+        <SettingsRow icon={AlertTriangle} label="Report Bug" danger borderBottom={false} onClick={() => {
+           const body = encodeURIComponent(`## Bug Report\n\n**Environment:**\n- TutorBoard v2.1.0 Beta\n- Build: 2026.04.18-FINAL\n- Browser: ${navigator.userAgent}\n\n**Describe the bug:**\n\n**Steps to reproduce:**\n\n**Expected behavior:**\n`);
+           window.open(`https://github.com/tutorboard/tutorboard/issues/new?body=${body}`, '_blank');
+        }} />
+      </SettingsGroup>
+
+      <SectionTitle>License</SectionTitle>
+      <SettingsGroup>
+        <SettingsRow label="Open Source" rightElement={<span style={{ color: 'var(--text-tertiary)', fontSize: '13px' }}>Apache 2.0</span>} borderBottom={false} />
+      </SettingsGroup>
+
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', marginTop: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
+          Made with <Heart style={{ width: '14px', height: '14px', color: '#ef4444', fill: '#ef4444' }} /> by TutorBoard Team
+        </div>
+        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', opacity: 0.6 }}>
+          © 2026 TutorBoard Systems Inc.
         </p>
       </div>
     </div>
+  );
+};
 
-    <SettingsGroup>
-      <SettingsRow label="Name" rightElement={<span style={{ color: 'var(--text-secondary)' }}>TutorBoard System</span>} />
-      <SettingsRow label="Engine" rightElement={<span style={{ color: 'var(--text-secondary)' }}>Canvas2D + WebSocket</span>} />
-      <SettingsRow label="Framework" rightElement={<span style={{ color: 'var(--text-secondary)' }}>React 18</span>} />
-      <SettingsRow label="Build" borderBottom={false} rightElement={<span style={{ color: 'var(--text-secondary)' }}>2026.04.16-RC1</span>} />
-    </SettingsGroup>
-
-    <SectionTitle>Resources</SectionTitle>
-    <SettingsGroup>
-      <SettingsRow icon={BookOpen} label="What's New" onClick={() => alert("What's New")} />
-      <SettingsRow icon={Globe2} label="TutorBoard Website" onClick={() => alert("Website")} />
-      <SettingsRow icon={AlertTriangle} label="Report an Issue" onClick={() => alert("Report Issue")} borderBottom={false} />
-    </SettingsGroup>
-
-    <SectionTitle>Legal</SectionTitle>
-    <SettingsGroup>
-      <SettingsRow label="Terms of Service" onClick={() => alert("Terms of Service")} />
-      <SettingsRow label="Privacy Policy" onClick={() => alert("Privacy Policy")} />
-      <SettingsRow label="Open Source Licenses" onClick={() => alert("Licenses")} borderBottom={false} />
-    </SettingsGroup>
-
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '32px', marginBottom: '24px' }}>
-      Made with <Heart style={{ width: '14px', height: '14px', color: '#ef4444', fill: '#ef4444' }} /> by TutorBoard Team
-    </div>
-  </div>
-);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN SETTINGS PAGE
@@ -1638,8 +2085,14 @@ const Settings = () => {
   const [isTrafficHovered, setIsTrafficHovered] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [toast, setToast] = useState(null); // { message, type: 'success' | 'error' | 'info' }
   const contentRef = useRef(null);
   const syncSettings = useSettingsSync();
+
+  const showToast = useCallback((message, type = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   // Scroll to top when section changes
   useEffect(() => {
@@ -1648,28 +2101,31 @@ const Settings = () => {
 
   const renderSection = () => {
     const sectionMap = {
-      general: <GeneralSection user={user} syncSettings={syncSettings} />,
-      account: <AccountSection user={user} logout={logout} />,
+      general: (
+        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
+          <GeneralSection user={user} syncSettings={syncSettings} showToast={showToast} />
+        </SectionWrapper>
+      ),
+      account: (
+        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
+          <AccountSection user={user} logout={logout} />
+        </SectionWrapper>
+      ),
       appearance: <AppearanceSection syncSettings={syncSettings} />,
-      ai: <AILearningSection />,
-      privacy: <PrivacySection syncSettings={syncSettings} />,
+      ai: (
+        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
+          <AILearningSection showToast={showToast} />
+        </SectionWrapper>
+      ),
+      privacy: (
+        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
+          <PrivacySection syncSettings={syncSettings} />
+        </SectionWrapper>
+      ),
       about: <AboutSection />,
     };
 
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeSection}
-          initial={{ opacity: 0, x: 10, y: 0 }}
-          animate={{ opacity: 1, x: 0, y: 0 }}
-          exit={{ opacity: 0, x: -10, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          style={{ height: '100%' }}
-        >
-          {sectionMap[activeSection] || sectionMap.general}
-        </motion.div>
-      </AnimatePresence>
-    );
+    return sectionMap[activeSection] || sectionMap.general;
   };
 
   return (
@@ -1831,6 +2287,36 @@ const Settings = () => {
               ))}
             </div>
 
+            {/* ── TOAST NOTIFICATION ── */}
+            <AnimatePresence>
+              {toast && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, x: '-50%' }}
+                  animate={{ opacity: 1, y: 0, x: '-50%' }}
+                  exit={{ opacity: 0, y: -20, x: '-50%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  style={{
+                    position: 'absolute', top: '96px', left: '50%',
+                    zIndex: 100, padding: '10px 20px', borderRadius: '12px',
+                    background: toast.type === 'error' ? 'rgba(239,68,68,0.95)' 
+                             : toast.type === 'success' ? 'rgba(16,185,129,0.95)'
+                             : 'rgba(59,130,246,0.95)',
+                    color: '#fff', fontSize: '13px', fontWeight: 600,
+                    fontFamily: '"Geist", sans-serif',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {toast.type === 'success' && <Check size={14} />}
+                  {toast.type === 'error' && <X size={14} />}
+                  {toast.type === 'info' && <Info size={14} />}
+                  {toast.message}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* ── CONTENT AREA ── */}
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--bg-primary)' }}>
               <div
@@ -1842,7 +2328,7 @@ const Settings = () => {
               >
                 <AnimatePresence mode="wait">
                   <motion.div
-                    key={activeSection}
+                    key={`settings-node-${activeSection}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}

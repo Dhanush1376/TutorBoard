@@ -13,17 +13,40 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('tb-token'));
   const [loading, setLoading] = useState(true);
+  const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null });
 
   // Verify token on mount
   useEffect(() => {
     const verifyToken = async () => {
-      // Check for token in URL (Social Login redirect)
+      // Check for token in URL (Legacy Social Login direct)
       const urlParams = new URL(window.location.href).searchParams;
       const urlToken = urlParams.get('token');
+      const exchangeCode = urlParams.get('code');
 
       if (urlToken) {
         localStorage.setItem('tb-token', urlToken);
-        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (exchangeCode) {
+        // Exchange one-time code for real JWT
+        console.log('[Auth] Exchange code detected, trading for session...');
+        try {
+          // Simultaneous exchange and cinematic delay
+          const [res] = await Promise.all([
+            fetch(`${API_URL}/api/auth/exchange?code=${exchangeCode}`),
+            new Promise(resolve => setTimeout(resolve, 1500)) // Guarantee animation visibility
+          ]);
+          
+          if (res.ok) {
+            const data = await res.json();
+            if (data.token) {
+              localStorage.setItem('tb-token', data.token);
+              console.log('[Auth] Exchange successful ✨');
+            }
+          }
+        } catch (e) {
+          console.error('[Auth] Code exchange failed:', e);
+        }
+        // Clean up URL to prevent re-exchange
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
@@ -103,6 +126,21 @@ export const AuthProvider = ({ children }) => {
               localStorage.setItem('tb-cloud-sync', String(privacy.cloudSync ?? true));
               localStorage.setItem('tb-local-history', String(privacy.localHistory ?? true));
             }
+
+            // Centralized API Prefs Fetch
+            if (storedToken !== 'guest') {
+              try {
+                const apiRes = await fetch(`${API_URL}/api/apikeys`, { headers: { Authorization: `Bearer ${storedToken}` } });
+                if (apiRes.ok) {
+                  const apiData = await apiRes.json();
+                  const activeKey = apiData.keys?.find(k => k.isActive && k.isValid);
+                  setApiPrefs({
+                    useCustomApi: apiData.preferences?.useCustomApi && !!activeKey,
+                    activeProvider: activeKey?.provider
+                  });
+                }
+              } catch (e) { console.warn('[Auth] Failed to pre-fetch API prefs'); }
+            }
           }
         } else {
           console.warn('[Auth] Session invalid, status:', res.status);
@@ -121,6 +159,21 @@ export const AuthProvider = ({ children }) => {
 
     verifyToken();
   }, []);
+
+  // Trial Mode Refresh Protection
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (user?.isGuest) {
+        const msg = 'You are in Trial Mode. Your history and settings will not be saved. Are you sure you want to leave?';
+        e.preventDefault();
+        e.returnValue = msg;
+        return msg;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [user]);
 
   const login = useCallback(async (email, password) => {
     const res = await fetch(`${API_URL}/api/auth/signin`, {
@@ -164,6 +217,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('tb-token', 'guest');
     setToken('guest');
     setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
+    // Force default layout to Standard (Left) for guests
+    useTutorStore.getState().setLayoutView('left');
   }, []);
 
   const logout = useCallback(() => {
@@ -171,6 +226,26 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
   }, []);
+
+  // Update user object in-memory (for immediate UI reflection after Settings changes)
+  const updateUser = useCallback((updates) => {
+    setUser(prev => prev ? { ...prev, ...updates } : prev);
+  }, []);
+
+  const refreshApiPrefs = useCallback(async () => {
+    if (!token || token === 'guest') return;
+    try {
+      const res = await fetch(`${API_URL}/api/apikeys`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        const activeKey = data.keys?.find(k => k.isActive && k.isValid);
+        setApiPrefs({
+          useCustomApi: data.preferences?.useCustomApi && !!activeKey,
+          activeProvider: activeKey?.provider
+        });
+      }
+    } catch (e) { /* silent */ }
+  }, [token]);
 
   const isAuthenticated = !!user && !!token;
 
@@ -183,7 +258,10 @@ export const AuthProvider = ({ children }) => {
       signup,
       loginGuest,
       logout,
+      updateUser,
       isAuthenticated,
+      apiPrefs,
+      refreshApiPrefs
     }}>
       {children}
     </AuthContext.Provider>

@@ -98,7 +98,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   };
 
   const agents = [
-    { id: 'OpenRouter', name: 'OpenRouterAI', icon: Zap }
+    { id: 'OpenRouter', name: 'Universal', icon: Zap }
   ];
   const uploadActions = [
     { icon: FileText, label: 'Upload File', type: 'file' },

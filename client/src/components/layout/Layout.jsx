@@ -22,7 +22,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   const { 
     isSidebarOpen, setSidebarOpen, toggleSidebar, layoutView,
   } = useTutorStore();
-  const isLeftHand = layoutView === 'left';
+  const isRightHand = layoutView === 'right';
   const { user } = useAuth();
 
   const sidebarVisible = isSidebarOpen && !forceCollapse;
@@ -36,11 +36,11 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       <AnimatePresence>
         {!isSidebarOpen && !forceCollapse && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, x: isLeftHand ? 20 : -20 }}
+            initial={{ opacity: 0, scale: 0.9, x: isRightHand ? 20 : -20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.9, x: isLeftHand ? 20 : -20 }}
+            exit={{ opacity: 0, scale: 0.9, x: isRightHand ? 20 : -20 }}
             transition={{ duration: 0.2 }}
-            className={`tb-top-left-pill absolute top-6 ${isLeftHand ? 'right-6' : 'left-6'} z-[5000] flex items-center pointer-events-auto transition-all`}
+            className={`tb-top-left-pill absolute top-6 ${isRightHand ? 'right-6' : 'left-6'} z-[5000] flex items-center pointer-events-auto transition-all`}
             style={{ 
               ...miniGlass, 
               borderRadius: 'var(--radius-2xl)', 
@@ -64,7 +64,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       {/* ── FLOATING TOP-RIGHT: Integrated Control Center ── */}
       {!forceCollapse && (
         <div
-          className={`tb-control-center absolute top-6 ${isLeftHand ? 'left-6 flex-row-reverse' : 'right-6'} z-[5000] flex items-center gap-1.5 p-0 pointer-events-auto transition-opacity duration-300 ${
+          className={`tb-control-center absolute top-6 ${isRightHand ? 'left-6 flex-row-reverse' : 'right-6'} z-[5000] flex items-center gap-1.5 p-0 pointer-events-auto transition-opacity duration-300 ${
             isSidebarOpen ? 'max-md:opacity-0 max-md:pointer-events-none' : 'opacity-100'
           }`}
         >
@@ -93,11 +93,11 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         )}
         {sidebarVisible && (
           <motion.aside
-            initial={{ x: isLeftHand ? 350 : -350, opacity: 0 }}
+            initial={{ x: isRightHand ? 350 : -350, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: isLeftHand ? 350 : -350, opacity: 0 }}
+            exit={{ x: isRightHand ? 350 : -350, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`tb-sidebar absolute top-4 ${isLeftHand ? 'right-4' : 'left-4'} z-[5000] flex flex-col overflow-hidden pointer-events-auto`}
+            className={`tb-sidebar absolute top-4 ${isRightHand ? 'right-4' : 'left-4'} z-[5000] flex flex-col overflow-hidden pointer-events-auto`}
           style={{
             width: 320,
             height: 'calc(100vh - 32px)',

@@ -28,11 +28,13 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
   return (
     <div className="space-y-1 pb-2">
       <AnimatePresence initial={false}>
-        {chatHistory.map((chat, index) => (
-          <motion.div 
-            key={`${chat.id}-${chat.updatedAt || index}`} 
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
+        {chatHistory.map((chat, index) => {
+          const sessionKey = `sn-${chat.id || chat._id || 'g'}-${index}`;
+          return (
+            <motion.div 
+              key={sessionKey} 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.2) }}
             className="relative group/item px-0.5"
@@ -106,9 +108,10 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                 </div>
               </div>
             )}
-          </motion.div>
-        ))}
-      </AnimatePresence>
+            </motion.div>
+            );
+          })}
+        </AnimatePresence>
     </div>
   );
 };

@@ -120,7 +120,7 @@ const useTutorStore = create(
       showFloatingSidebar: false,
       showMinimap:         false,
       selectedAgent:       'OpenRouter',
-      layoutView:          'right',
+      layoutView:          'left',
       isSidebarOpen:       true,
       activeTool:          'select',
       editingObjectId:     null,
@@ -702,7 +702,6 @@ const useTutorStore = create(
 
       setTextType:      (type)  => set({ textType: type }),
       setTextToolSize:  (size)  => set({ textToolSize: size }),
-      setNoteToolSize:  (size)  => set({ noteToolSize: size }),
       setTextWeight:    (weight)=> set({ textWeight: weight }),
       setTextItalic:    (v)     => set({ textItalic: v }),
       setTextUnderline: (v)     => set({ textUnderline: v }),

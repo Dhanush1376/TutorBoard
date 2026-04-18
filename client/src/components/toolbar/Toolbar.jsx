@@ -133,7 +133,7 @@ const Toolbar = ({ onSettingsClick }) => {
       initial={{ y: 16, opacity: 0, scale: 0.97 }}
       animate={{ y: 0, opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}
-      className={`flex items-center rounded-2xl relative ${isLeftHand ? 'flex-row-reverse' : 'flex-row'}`}
+      className={`flex items-center rounded-2xl relative ${isLeftHand ? 'flex-row' : 'flex-row-reverse'}`}
       style={{
         gap: 'var(--tool-gap)',
         padding: 'calc(var(--tool-gap) * 1.5) calc(var(--tool-gap) * 2)',
