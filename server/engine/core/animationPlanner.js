@@ -9,8 +9,8 @@
  * Output: { conceptType, renderer, animationStyle, freedomLevel, domainGuide }
  */
 
-import { requestCompletion, getTextModel } from '../utils/llmClient.js';
-import { getAnimationGuide, getDomainMeta } from '../agents/domainConfig.js';
+import { requestCompletion, getTextModel } from '../../utils/ai/llmClient.js';
+import { getAnimationGuide, getDomainMeta } from '../config/domainConfig.js';
 
 // ─── Concept Type Heuristics (fast, zero-LLM fallback) ──────────────────────
 
@@ -105,9 +105,9 @@ export async function planAnimation(topic, domain) {
   // 1. Fast classify
   const fastType = classifyFast(topic);
 
-  // 2. Check confidence — if multiple patterns match, use LLM
+  // 2. Check confidence — if multiple patterns match (high ambiguity), use LLM
   const matchCount = Object.values(CONCEPT_PATTERNS).filter(p => p.test(topic)).length;
-  const conceptType = matchCount > 2
+  const conceptType = matchCount > 3
     ? await classifyDeep(topic, domain)
     : fastType;
 

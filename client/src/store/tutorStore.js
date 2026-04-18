@@ -45,6 +45,24 @@ export const STATES = {
   ERROR:           'ERROR',
 };
 
+const MAX_HISTORY = 50;
+const MAX_PINNED_NOTES = 50;
+const MAX_NOTE_CONTENT = 3000;
+
+/**
+ * Ensures the session manifest doesn't exceed 20 entries (LRU-ish eviction)
+ */
+const capManifest = (manifest, limit = 20) => {
+  const keys = Object.keys(manifest);
+  if (keys.length <= limit) return manifest;
+  
+  // Sort by lastActive (oldest first) and evict the oldest
+  const sorted = keys.sort((a, b) => (manifest[a]?.lastActive || 0) - (manifest[b]?.lastActive || 0));
+  const evictedKey = sorted[0];
+  const { [evictedKey]: _, ...rest } = manifest;
+  return rest;
+};
+
 const useTutorStore = create(
   persist(
     (set, get) => ({
@@ -59,6 +77,7 @@ const useTutorStore = create(
       error:              null,
       greetingMessage:    null,
       generationProgress: null, // Live progress message during GENERATING state
+      isTimelineReady:    false, // NEW: Prevent view hijacking, wait for user "Enter"
 
       // ═══════════════════════════════════════════════════
       // TIMELINE & STEPS
@@ -185,6 +204,7 @@ const useTutorStore = create(
             canvasObjects: [...canvasObjects],
             pinnedNotes:   [...pinnedNotes],
             canvasTransform: { ...canvasTransform },
+            lastActive: Date.now(),
             tools: {
               drawColor, drawWidth, textToolSize, noteToolSize,
               noteColor, noteSize, notePinned
@@ -193,12 +213,14 @@ const useTutorStore = create(
         }
 
         // 2. MIGRATION & MERGE: Moving from temp client ID to stable server ID
-        if (oldId?.startsWith('msg-') && !newId.startsWith('msg-')) {
+        const isTempId = (id) => id?.startsWith('msg-') || id?.startsWith('api-');
+        if (isTempId(oldId) && !isTempId(newId)) {
           const oldData = updatedManifest[oldId];
           if (oldData) {
             updatedManifest[newId] = {
               ...(updatedManifest[newId] || {}),
-              ...oldData
+              ...oldData,
+              lastActive: Date.now()
             };
             // Cleanup temp key to keep manifest lean
             delete updatedManifest[oldId];
@@ -213,9 +235,16 @@ const useTutorStore = create(
           tools: {}
         };
 
+        // Ensure current session is marked as most recently active
+        if (updatedManifest[newId]) {
+          updatedManifest[newId].lastActive = Date.now();
+        }
+
+        const cappedManifest = capManifest(updatedManifest, 20);
+
         set({ 
           sessionId: newId, 
-          sessionManifest: updatedManifest,
+          sessionManifest: cappedManifest,
           canvasObjects:   loadedState.canvasObjects,
           pinnedNotes:     loadedState.pinnedNotes,
           canvasTransform: loadedState.canvasTransform,
@@ -280,9 +309,9 @@ const useTutorStore = create(
           doubtResponse:     null,
           greetingMessage:   null,
           generationProgress: null,
+          isTimelineReady:    true,
 
-          // Open the canvas as soon as the lesson is ready
-          canvasMode:        CANVAS_MODE.FULLSCREEN,
+          // Open the canvas only when user is ready (manual start)
           canvasTransform:   { x: 0, y: 0, scale: 1 },
         });
 
@@ -434,7 +463,7 @@ const useTutorStore = create(
           canvasObjects: newObjects,
           canvasSteps: newSteps,
           history: {
-            past: [...history.past, canvasObjects],
+            past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
             future: [],
           }
         });
@@ -480,19 +509,43 @@ const useTutorStore = create(
       takeSnapshot: () => {
         const { canvasObjects, canvasConnections, currentStepIndex, canvasTransform, canvasSteps } = get();
         const id = `snap-${Date.now()}`;
-        set(state => ({
-          snapshots: {
-            ...(state.snapshots || {}),
-            [id]: {
-              objects:     [...canvasObjects],
-              connections: [...canvasConnections],
-              steps:       [...canvasSteps],
-              stepIndex:   currentStepIndex,
-              transform:   { ...canvasTransform },
-              timestamp:   Date.now(),
+        set(state => {
+          const currentSnaps = state.snapshots || {};
+          const keys = Object.keys(currentSnaps);
+          
+          // Cap at 10 most recent snapshots
+          if (keys.length >= 10) {
+            const oldestKey = keys.sort()[0];
+            const { [oldestKey]: _, ...rest } = currentSnaps;
+            return {
+              snapshots: {
+                ...rest,
+                [id]: {
+                  objects:     [...canvasObjects],
+                  connections: [...canvasConnections],
+                  steps:       [...canvasSteps],
+                  stepIndex:   currentStepIndex,
+                  transform:   { ...canvasTransform },
+                  timestamp:   Date.now(),
+                },
+              },
+            };
+          }
+
+          return {
+            snapshots: {
+              ...currentSnaps,
+              [id]: {
+                objects:     [...canvasObjects],
+                connections: [...canvasConnections],
+                steps:       [...canvasSteps],
+                stepIndex:   currentStepIndex,
+                transform:   { ...canvasTransform },
+                timestamp:   Date.now(),
+              },
             },
-          },
-        }));
+          };
+        });
         return id;
       },
 
@@ -583,12 +636,13 @@ const useTutorStore = create(
       // ═══════════════════════════════════════════════════
       // PLAYBACK ACTIONS
       // ═══════════════════════════════════════════════════
-      setPlaying:     (playing) => set({ isPlaying: playing,  isPaused: !playing }),
+      setPlaying:     (playing) => set({ isPlaying: playing, ...(playing ? { isPaused: false } : {}) }),
       setPaused:      (paused)  => set({ isPaused: paused,    isPlaying: !paused }),
       setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
       toggleVoice:    ()        => set(s => ({ voiceEnabled: !s.voiceEnabled })),
       play:           ()        => set({ isPlaying: true,  isPaused: false }),
       pause:          ()        => set({ isPlaying: false, isPaused: true }),
+      stop:           ()        => set({ isPlaying: false, isPaused: false }),
 
       nextStep: () => {
         const { currentStepIndex, totalSteps } = get();
@@ -619,64 +673,63 @@ const useTutorStore = create(
       
       // Cleanup Actions
       clearAll: () => {
-        const { canvasObjects } = get();
+        const { canvasObjects, history } = get();
         if (canvasObjects.length > 0) {
-          // Push to history for undo!
-          set(state => ({
+          set({
+            canvasObjects: [],
             history: {
-              past: [...state.history.past, state.canvasObjects].slice(-30),
+              past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
               future: []
-            },
-            canvasObjects: []
-          }));
+            }
+          });
         }
       },
       
       clearShapes: () => {
-        const { canvasObjects } = get();
+        const { canvasObjects, history } = get();
         const shapeTypes = ['rect', 'ellipse', 'triangle', 'line', 'arrow', 'diamond', 'star', 'hexagon', 'callout', 'cloud'];
         const remaining = canvasObjects.filter(o => !shapeTypes.includes(o.type));
         
         if (remaining.length !== canvasObjects.length) {
-          set(state => ({
-             history: {
-               past: [...state.history.past, state.canvasObjects].slice(-30),
-               future: []
-             },
-             canvasObjects: remaining
-          }));
+          set({
+            canvasObjects: remaining,
+            history: {
+              past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
+              future: []
+            }
+          });
         }
       },
 
       clearDrawings: () => {
-        const { canvasObjects } = get();
+        const { canvasObjects, history } = get();
         const remaining = canvasObjects.filter(o => o.type !== 'path');
         
         if (remaining.length !== canvasObjects.length) {
-          set(state => ({
-             history: {
-               past: [...state.history.past, state.canvasObjects].slice(-30),
-               future: []
-             },
-             canvasObjects: remaining
-          }));
+          set({
+            canvasObjects: remaining,
+            history: {
+              past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
+              future: []
+            }
+          });
         }
       },
 
       clearNotes: () => {
-        const { canvasObjects } = get();
+        const { canvasObjects, history } = get();
         const remaining = canvasObjects.filter(o => 
           o.type !== 'note' && o.type !== 'sticky' && o.type !== 'step_box' && o.type !== 'doubt_note'
         );
         
         if (remaining.length !== canvasObjects.length) {
-          set(state => ({
-             history: {
-               past: [...state.history.past, state.canvasObjects].slice(-30),
-               future: []
-             },
-             canvasObjects: remaining
-          }));
+          set({
+            canvasObjects: remaining,
+            history: {
+              past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
+              future: []
+            }
+          });
         }
       },
 
@@ -726,7 +779,7 @@ const useTutorStore = create(
           canvasObjects: [...canvasObjects, ...newOnes],
           canvasSteps: newSteps,
           history: {
-            past: [...history.past, canvasObjects],
+            past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
             future: []
           }
         });
@@ -740,8 +793,13 @@ const useTutorStore = create(
       },
 
       addNoteToCanvas: (worldX, worldY) => {
-        const { noteColor, noteSize, notePinned, noteToolSize, addCanvasObjects } = get();
+        const { pinnedNotes, noteColor, noteSize, notePinned, noteToolSize, addCanvasObjects } = get();
         
+        if (notePinned && pinnedNotes.length >= MAX_PINNED_NOTES) {
+          console.warn(`[Store] Pinned note limit reached (${MAX_PINNED_NOTES})`);
+          return;
+        }
+
         // Map logical sizes to world-unit dimensions (approx 160px base)
         const sizeMap = {
           'xs': { w: 120, h: 120 },
@@ -783,15 +841,15 @@ const useTutorStore = create(
           // Sync to manifest immediately
           const { sessionId, sessionManifest } = get();
           if (sessionId) {
-            set({
-              sessionManifest: {
-                ...sessionManifest,
-                [sessionId]: {
-                  ...(sessionManifest[sessionId] || {}),
-                  pinnedNotes: newPinned
-                }
+            const updatedManifest = {
+              ...sessionManifest,
+              [sessionId]: {
+                ...(sessionManifest[sessionId] || {}),
+                pinnedNotes: newPinned,
+                lastActive: Date.now()
               }
-            });
+            };
+            set({ sessionManifest: capManifest(updatedManifest, 20) });
           }
         } else {
           addCanvasObjects([newNote]);
@@ -802,7 +860,11 @@ const useTutorStore = create(
         const { canvasObjects, pinnedNotes, setCanvasObjectsWithHistory } = get();
         
         const applyUpdates = (obj) => {
-          const next = { ...obj, ...updates };
+          let content = updates.content;
+          if (content !== undefined) {
+             content = content.substring(0, MAX_NOTE_CONTENT);
+          }
+          const next = { ...obj, ...updates, content };
           
           // Handle nested styles if provided
           if (updates.styles) {
@@ -860,17 +922,17 @@ const useTutorStore = create(
         // Sync to manifest immediately for persistence
         const { sessionId, sessionManifest, canvasTransform } = get();
         if (sessionId) {
-          set({
-            sessionManifest: {
-              ...sessionManifest,
-              [sessionId]: {
-                ...(sessionManifest[sessionId] || {}),
-                canvasObjects: updatedObjects,
-                pinnedNotes: updatedPinned,
-                canvasTransform
-              }
+          const updatedManifest = {
+            ...sessionManifest,
+            [sessionId]: {
+              ...(sessionManifest[sessionId] || {}),
+              canvasObjects: updatedObjects,
+              pinnedNotes: updatedPinned,
+              canvasTransform,
+              lastActive: Date.now()
             }
-          });
+          };
+          set({ sessionManifest: capManifest(updatedManifest, 20) });
         }
       },
       
@@ -899,7 +961,7 @@ const useTutorStore = create(
         const { canvasObjects, history } = get();
         set({
           history: {
-            past: [...history.past, canvasObjects].slice(-50),
+            past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
             future: [],
           }
         });
@@ -923,16 +985,16 @@ const useTutorStore = create(
         // Sync to manifest immediately
         const { sessionId, sessionManifest } = get();
         if (sessionId) {
-          set({
-            sessionManifest: {
-              ...sessionManifest,
-              [sessionId]: {
-                ...(sessionManifest[sessionId] || {}),
-                canvasObjects: updatedObjects,
-                pinnedNotes: updatedPinned
-              }
+          const updatedManifest = {
+            ...sessionManifest,
+            [sessionId]: {
+              ...(sessionManifest[sessionId] || {}),
+              canvasObjects: updatedObjects,
+              pinnedNotes: updatedPinned,
+              lastActive: Date.now()
             }
-          });
+          };
+          set({ sessionManifest: capManifest(updatedManifest, 20) });
         }
       },
 
@@ -998,7 +1060,7 @@ const useTutorStore = create(
           if (idx !== -1) {
             const [item] = arr.splice(idx, 1);
             arr.push(item);
-            set({ canvasObjects: arr }); // We don't necessarily need full history for just a reorder
+            setCanvasObjectsWithHistory(arr);
           }
         }
       },
@@ -1081,6 +1143,7 @@ const useTutorStore = create(
         topic:              '',
         activeDoubtId:      null,
         showDoubtThread:    false,
+        isTimelineReady:    false,
       }),
 
       resetTeaching: () => set({
@@ -1107,13 +1170,13 @@ const useTutorStore = create(
         playbackSpeed: state.playbackSpeed,
         voiceEnabled:  state.voiceEnabled,
         layoutView:    state.layoutView,
-        pinnedNotes:   state.pinnedNotes,
-        canvasObjects: state.canvasObjects,
-        canvasConnections: state.canvasConnections,
         recentColors:  state.recentColors,
         laserWidth:    state.laserWidth,
         textToolSize:  state.textToolSize, // Persist sizing across sessions
         noteToolSize:  state.noteToolSize,
+        sessionManifest: state.sessionManifest, // Persist cross-session state (capped to 20)
+        // Explicitly exclude history {past, future} and snapshots to save space
+        history: { past: [], future: [] },
       }),
     }
   )

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Board from '../Board';
+import Board from '../canvas/Board';
 import StepController from './StepController';
 import ProgressIndicator from './ProgressIndicator';
-import InlineChat from './InlineChat';
+import InlineChat from '../chat/InlineChat';
 
 // Domain badge styling
 const DOMAIN_STYLES = {

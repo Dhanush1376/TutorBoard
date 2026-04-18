@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 // Update User Settings (merges with existing)
 export const updateSettings = async (req, res) => {
   try {
-    const { settings } = req.body;
+    const { settings = {} } = req.body;
     
     // Perform a deep merge or explicit update
     const user = await User.findById(req.user.id);
@@ -13,14 +13,21 @@ export const updateSettings = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Merge settings
+    // Merge settings only if they are provided in the payload
     if (!user.settings) user.settings = {};
     if (settings.general) user.settings.general = { ...user.settings.general, ...settings.general };
     if (settings.appearance) user.settings.appearance = { ...user.settings.appearance, ...settings.appearance };
     if (settings.canvas) user.settings.canvas = { ...user.settings.canvas, ...settings.canvas };
     if (settings.privacy) user.settings.privacy = { ...user.settings.privacy, ...settings.privacy };
+    
+    // Explicitly update top-level fields
+    // Prize req.body.avatar, then settings.avatar, then keep existing
+    if (req.body.avatar !== undefined) {
+      user.avatar = req.body.avatar;
+    } else if (settings.avatar !== undefined) {
+      user.avatar = settings.avatar;
+    }
 
-    // Update name explicitly if provided in general
     if (settings.general?.name) {
        user.name = settings.general.name;
     }

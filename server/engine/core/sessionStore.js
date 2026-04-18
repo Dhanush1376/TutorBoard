@@ -1,37 +1,38 @@
 /**
- * SessionStore — Simple in-memory session persistence
+ * SessionStore — Distributed session persistence with Redis fallback
  */
 import LearnerProfile from '../../models/LearnerProfile.js';
+import redis from '../../utils/core/redis.js';
 
-const SESSION_TTL_MS = 20 * 60 * 1000; // 20 minutes for active sessions
-const IDLE_TTL_MS = 5 * 60 * 1000;     // 5 minutes for sessions that never started
-const CLEANUP_INTERVAL_MS = 2 * 60 * 1000; // Check every 2 minutes
-const MAX_SESSIONS = 100; // Hard cap on concurrent sessions
+const SESSION_TTL_SEC = 20 * 60; // 20 minutes (Redis uses seconds for EX)
+const IDLE_TTL_SEC = 5 * 60;     // 5 minutes
+const MAX_SESSIONS = 100;
+const KEY_PREFIX = 'sess:';
 
 class SessionStore {
   constructor() {
-    this.sessions = new Map();
+    this.localSessions = new Map(); // Dev fallback
     this.maxSessions = MAX_SESSIONS;
-    this._startCleanup();
   }
 
-  create(id) {
-    if (this.sessions.has(id)) {
-      const session = this.sessions.get(id);
+  async create(id) {
+    let session = await this.get(id);
+    if (session) {
       session.lastActivityAt = Date.now();
+      await this.update(id, session);
       return session;
     }
 
-    if (this.sessions.size >= this.maxSessions) {
-      console.error(`[SessionStore] ❌ Session limit reached (${this.maxSessions}). Denying ${id}`);
+    // Check capacity (local estimate if no Redis)
+    if (!redis.isConnected && this.localSessions.size >= this.maxSessions) {
       throw new Error('SESSION_LIMIT_REACHED');
     }
 
-    const session = {
+    session = {
       id,
       topic: null,
       context: [],
-      teachingMachine: null,
+      teachingMachine: null, // This is usually a class instance, handled via machine.state in sockets
       timeline: null,
       steps: [],
       currentStepIndex: 0,
@@ -41,46 +42,73 @@ class SessionStore {
         level: 'beginner',
         pace: 'normal',
         confusionIndex: 0
-      }
+      },
+      mongoSessionId: null, // Link to ChatSession ObjectId
+      engineSessionId: id,   // String ID for internal tracking
     };
 
-    this.sessions.set(id, session);
-    console.log(`[SessionStore] 👤 Created session: ${id} (Total: ${this.sessions.size}/${this.maxSessions})`);
+    await this.update(id, session);
+    console.log(`[SessionStore] 👤 Created session: ${id}`);
     return session;
   }
 
-  get(id) {
-    const session = this.sessions.get(id);
+  async get(id) {
+    if (redis.isConnected) {
+      const data = await redis.get(`${KEY_PREFIX}${id}`);
+      if (data) {
+        const session = JSON.parse(data);
+        session.lastActivityAt = Date.now();
+        // Sliding window: refresh TTL on get
+        const isIdle = !session.topic && !session.timeline;
+        await redis.set(`${KEY_PREFIX}${id}`, JSON.stringify(session), isIdle ? IDLE_TTL_SEC : SESSION_TTL_SEC);
+        return session;
+      }
+      return null;
+    }
+    
+    // Fallback
+    const session = this.localSessions.get(id);
     if (session) {
       session.lastActivityAt = Date.now();
     }
     return session;
   }
 
-  update(id, data) {
-    const session = this.sessions.get(id);
-    if (!session) return null;
-
-    Object.assign(session, data);
+  async update(id, data) {
+    let session = await this.get(id);
+    if (!session) {
+      // If we are updating a non-existent session, it might be the initial save
+      session = data;
+    } else {
+      Object.assign(session, data);
+    }
+    
     session.lastActivityAt = Date.now();
+
+    if (redis.isConnected) {
+      const isIdle = !session.topic && !session.timeline;
+      await redis.set(`${KEY_PREFIX}${id}`, JSON.stringify(session), isIdle ? IDLE_TTL_SEC : SESSION_TTL_SEC);
+    } else {
+      this.localSessions.set(id, session);
+    }
+    
     return session;
   }
 
-  setTimeline(id, timeline) {
-    const session = this.sessions.get(id);
-    if (!session) return;
-    session.timeline = timeline;
-    session.steps = timeline.steps || timeline.timeline || [];
-    session.currentStepIndex = 0;
-    session.lastActivityAt = Date.now();
+  async setTimeline(id, timeline) {
+    const data = {
+      timeline,
+      steps: timeline.steps || timeline.timeline || [],
+      currentStepIndex: 0,
+    };
+    return await this.update(id, data);
   }
 
-  goToStep(id, index) {
-    const session = this.sessions.get(id);
+  async goToStep(id, index) {
+    const session = await this.get(id);
     if (!session || !session.steps) return;
     if (index >= 0 && index < session.steps.length) {
-      session.currentStepIndex = index;
-      session.lastActivityAt = Date.now();
+      await this.update(id, { currentStepIndex: index });
     }
   }
 
@@ -95,51 +123,57 @@ class SessionStore {
       }
 
       const learnerProfile = {
-        level: 'beginner', // could be derived from mastery
+        level: 'beginner',
         pace: 'normal',
         confusionIndex: 0,
         learningStyle: profile.learningStyle || 'visual',
         topicsMastery: profile.topicsMastery || new Map(),
       };
 
-      this.update(id, { userId, learnerProfile });
-      console.log(`[SessionStore] Profile loaded for ${userId}: style=${learnerProfile.learningStyle}`);
+      await this.update(id, { userId, learnerProfile, mongoSessionId: profile._id });
     } catch (err) {
       console.error(`[SessionStore] Failed to init profile for ${userId}:`, err.message);
-      // Fallback to default guest-like profile already set in create()
     }
   }
 
-  destroy(id) {
-    return this.sessions.delete(id);
+  /**
+   * Restores engine state from a MongoDB ChatSession
+   */
+  async restoreFromMongo(id, mongoSession) {
+    if (!mongoSession) return null;
+    
+    console.log(`[SessionStore] 🔄 Restoring session ${id} from MongoDB ChatSession ${mongoSession._id}`);
+    
+    const session = {
+      id,
+      mongoSessionId: mongoSession._id,
+      engineSessionId: id,
+      topic: mongoSession.topic,
+      steps: mongoSession.steps || [],
+      currentStepIndex: mongoSession.currentStepIndex || 0,
+      createdAt: mongoSession.createdAt || Date.now(),
+      lastActivityAt: Date.now(),
+      // Context can be derived from messages if needed in pedagogyEngine
+    };
+
+    await this.update(id, session);
+    return session;
   }
 
-  getAll() {
-    return Array.from(this.sessions.values());
-  }
-
-  _startCleanup() {
-    setInterval(() => this._cleanup(), CLEANUP_INTERVAL_MS);
-  }
-
-  _cleanup() {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [id, session] of this.sessions) {
-      const inactiveTime = now - session.lastActivityAt;
-      const isIdle = !session.topic && !session.timeline;
-      const ttl = isIdle ? IDLE_TTL_MS : SESSION_TTL_MS;
-
-      if (inactiveTime > ttl) {
-        this.sessions.delete(id);
-        cleaned++;
-      }
+  async destroy(id) {
+    if (redis.isConnected) {
+      return await redis.del(`${KEY_PREFIX}${id}`);
     }
+    return this.localSessions.delete(id);
+  }
 
-    if (cleaned > 0) {
-      console.log(`[SessionStore] 🧹 Cleaned up ${cleaned} stale sessions.`);
+  async getAll() {
+    // This is rarely used in production, mostly for debug
+    if (redis.isConnected) {
+      // Not implemented for Redis to avoid KEYS * (expensive)
+      return [];
     }
+    return Array.from(this.localSessions.values());
   }
 }
 

@@ -9,12 +9,13 @@
  *   - Regenerates REMAINING steps with higher granularity and simpler narration.
  */
 
-import { requestCompletion, getModel } from '../utils/llmClient.js';
+import { requestCompletion, getModel } from '../../utils/ai/llmClient.js';
 import { runAgentLoop } from './agentLoop.js';
-import { getAnimationGuide, getNodeTemplates, getMinSteps } from '../agents/domainConfig.js';
+import { getAnimationGuide, getNodeTemplates, getMinSteps } from '../config/domainConfig.js';
 
-export async function replanRemainingSteps(session, topic) {
-  const { currentStepIndex, steps, domain, complexityPreference, confusionIndex } = session;
+export async function replanRemainingSteps(session, topic, userConfig = null) {
+  const { currentStepIndex, steps, domain, complexityPreference } = session;
+  const confusionIndex = session.learnerProfile?.confusionIndex || 0;
   
   if (currentStepIndex >= steps.length - 1) return null;
 
@@ -45,7 +46,8 @@ INSTRUCTIONS:
       topic: `${topic} (Simplified)`,
       domain,
       systemPrompt,
-      maxSteps: remainingStepsContext.length * 2
+      maxSteps: remainingStepsContext.length * 2,
+      userConfig,
     });
 
     if (data && (Array.isArray(data.steps) || Array.isArray(data.timeline))) {

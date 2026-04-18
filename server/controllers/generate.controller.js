@@ -1,5 +1,5 @@
 import { generateTimeline } from '../engine/core/pedagogyEngine.js';
-import { sanitizeInput } from '../utils/sanitize.js';
+import { sanitizeInput } from '../utils/validation/sanitize.js';
 import sessionStore from '../engine/core/sessionStore.js';
 
 // Redundant safeParse removed. Handled by pedagogyEngine.
@@ -29,6 +29,6 @@ export const generateExplanation = async (req, res) => {
 
   } catch (error) {
     console.error('[Generate] Critical:', error);
-    res.json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error' });
   }
 };

@@ -16,14 +16,15 @@
  *      a friendly explanation even when visuals are minimal.
  */
 
-import { requestCompletion, getModel, getTextModel } from '../utils/llmClient.js';
+import { requestCompletion, getModel, getTextModel } from '../../utils/ai/llmClient.js';
 import { isGreeting, buildDoubtPrompt, classifyDoubt } from '../agents/index.js';
-import { safeParse } from '../utils/parser.js';
+import { safeParse } from '../../utils/core/parser.js';
 import sessionStore from './sessionStore.js';
 import { cache } from './cache.js';
 import { planAnimation } from './animationPlanner.js';
 import { runAgentLoop } from './agentLoop.js';
-import { getPrimaryDomain } from '../agents/domainConfig.js';
+import { getPrimaryDomain } from '../config/domainConfig.js';
+import { calculateMastery, deriveLevel } from '../../utils/core/pedagogyHelper.js';
 
 // ─── Raw Fail-Safe Data ───────────────────────────────────────────────────────
 // NOTE: This is raw data BEFORE postProcessTimeline. It is NEVER returned directly.
@@ -232,9 +233,23 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
   const session = sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
-  const level = session.learnerProfile?.level || 'beginner';
+  // Dynamically derive level from user mastery history
+  const mastery = calculateMastery(session.learnerProfile?.topicsMastery, topic);
+  const level = deriveLevel(mastery);
   const confusion = session.learnerProfile?.confusionIndex || 0;
-  const userProfile = `Target Level = ${level}, Confusion Level = ${confusion}/10`;
+
+  // Resolve learner profile for cross-session "shared memory"
+  const learnerProfile = {
+    level,
+    confusionIndex: confusion,
+    prior_mastery: session.learnerProfile?.topicsMastery || {},
+    learning_style: session.learnerProfile?.learningStyle || 'visual',
+    weak_areas: (session.learnerProfile?.doubtHistory || [])
+      .filter(d => d.confusionScore > 5)
+      .map(d => d.topic)
+  };
+
+  const userProfile = `Target Level = ${level}, Confusion Level = ${confusion}/10 (Mastery Score: ${mastery})`;
 
   console.log(`[CinematicEngine] 🎬 Orchestrating for: "${topic}" (${userProfile})`);
 
@@ -261,6 +276,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
       planningResult,
       onProgress,
       userConfig,
+      learnerProfile,
     });
 
     if (!rawSceneGraph || (!rawSceneGraph.timeline && !rawSceneGraph.steps)) {
@@ -295,6 +311,58 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
   }
 }
 
+export async function generateQuiz(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null) {
+  const session = sessionStore.get(sessionId);
+  if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+  onProgress('Building personalized quiz...');
+
+  try {
+    const prompt = `You are a Quiz Master. Create a 4-question interactive quiz on "${topic}".
+    The output must be a JSON object:
+    {
+      "mode": "quiz",
+      "title": "Quick Quiz: ${topic}",
+      "questions": [
+        {
+          "prompt": "Question text...",
+          "options": ["A", "B", "C", "D"],
+          "answer": "Correct Option",
+          "explanation": "Why it is correct..."
+        }
+      ]
+    }`;
+
+    const result = await requestCompletion({
+      model: modelId || getModel(),
+      messages: [{ role: 'system', content: prompt }],
+      temperature: 0.5,
+      maxTokens: 2000,
+      responseMimeType: 'application/json',
+      userConfig,
+      taskType: 'teaching',
+    });
+
+    const parsed = safeParse(result.content);
+    if (!parsed || !parsed.questions) throw new Error('Invalid quiz format');
+
+    // Attach renderer info so client knows how to handle it
+    parsed.renderer = 'quiz';
+    parsed.type = 'quiz';
+
+    return parsed;
+  } catch (err) {
+    console.error('[PedagogyEngine] Quiz generation failed:', err.message);
+    return {
+      mode: 'quiz',
+      title: `Quiz: ${topic}`,
+      questions: [],
+      chatMessage: "I couldn't build a quiz for you right now, but I can definitely explain the topic! What would you like to know?",
+      renderer: 'quiz'
+    };
+  }
+}
+
 // ─── Doubt/Text Handlers ──────────────────────────────────────────────────────
 export async function handleDoubt(sessionId, question, modelId = null, userConfig = null) {
   const session = sessionStore.get(sessionId);
@@ -306,7 +374,10 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
 
     const currentStepIndex = session?.currentStepIndex || 0;
     const currentStep = session?.steps?.[currentStepIndex] || {};
-    const currentFrames = currentStep.elements || session?.timeline?.elements || [];
+
+    // Steps have objectIds, elements are top-level on timeline
+    const visibleIds = new Set(currentStep.objectIds || []);
+    const currentFrames = session?.timeline?.elements?.filter(e => visibleIds.has(e.id)) || [];
 
     const prompt = buildDoubtPrompt({
       topic,

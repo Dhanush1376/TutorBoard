@@ -17,18 +17,40 @@
 
 import { createTeachingMachine, STATES, EVENTS } from '../engine/core/teachingMachine.js';
 import sessionStore from '../engine/core/sessionStore.js';
-import { generateTimeline, handleDoubt, generateTextResponse } from '../engine/core/pedagogyEngine.js';
+import Doubt from '../models/Doubt.js';
+import { generateTimeline, handleDoubt, generateTextResponse, generateQuiz } from '../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../engine/core/intentEngine.js';
 import { checkSocketRate, cleanupSocket } from '../middleware/rateLimiter.js';
-import { sanitizeInput } from '../utils/sanitize.js';
+import { sanitizeInput } from '../utils/validation/sanitize.js';
 import { replanRemainingSteps } from '../engine/core/adaptivePlanner.js';
+import { isGreeting } from '../engine/agents/agentUtils.js';
 import { getOrCreateRequestId, createTrackedSessionId } from '../middleware/requestIdMiddleware.js';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { decrypt } from '../utils/encryption.js';
-import { classifyTask, selectOptimalModel } from '../engine/utils/taskClassifier.js';
-import { getAdaptiveScores } from '../engine/utils/adaptiveScorer.js';
-import { requestCompletionRaced } from '../engine/utils/llmClient.js';
+import { decrypt } from '../utils/auth/encryption.js';
+import { classifyTask, selectOptimalModel } from '../utils/ai/taskClassifier.js';
+import { getAdaptiveScores } from '../utils/ai/adaptiveScorer.js';
+import { requestCompletionRaced } from '../utils/ai/llmClient.js';
+import ChatSession from '../models/ChatSession.js';
+
+// ─── DB Sync Helper ──────────────────────────────────────────────────────────
+async function syncToDatabase(sessionId) {
+  try {
+    const s = await sessionStore.get(sessionId);
+    if (!s || !s.mongoSessionId) return;
+
+    await ChatSession.findByIdAndUpdate(s.mongoSessionId, {
+      topic: s.topic,
+      steps: s.steps,
+      currentStepIndex: s.currentStepIndex,
+      lastUpdated: Date.now(),
+      engineSessionId: sessionId,
+    });
+    console.log(`[WS:Sync] Synced session ${sessionId} to Mongo ${s.mongoSessionId}`);
+  } catch (err) {
+    console.error(`[WS:Sync] Error syncing to Mongo: ${err.message}`);
+  }
+}
 
 // ─── Rate Limit Helper ────────────────────────────────────────────────────────
 function getRateKey(socket) {
@@ -103,6 +125,10 @@ async function resolveUserConfig(socketUser, inputText) {
       tag: selectedKey.tag,
     });
 
+    // Wrap the key in a closure to prevent accidental logging/serialization
+    const keyBuffer = decryptedKey;
+    const getApiKey = () => keyBuffer;
+
     // Build racing configs if enabled and 2+ providers available
     let racingConfigs = null;
     if (prefs.enableRacing && activeKeys.length >= 2 && classification?.complexityScore >= 66) {
@@ -110,9 +136,10 @@ async function resolveUserConfig(socketUser, inputText) {
       if (secondKey) {
         try {
           const secondDecrypted = decrypt({ encrypted: secondKey.encryptedKey, iv: secondKey.iv, tag: secondKey.tag });
+          const secondKeyBuffer = secondDecrypted;
           racingConfigs = {
-            primary: { provider: selectedKey.provider, model: selectedKey.model, key: decryptedKey, baseUrl: selectedKey.baseUrl },
-            secondary: { provider: secondKey.provider, model: secondKey.model, key: secondDecrypted, baseUrl: secondKey.baseUrl },
+            primary: { provider: selectedKey.provider, model: selectedKey.model, getApiKey, baseUrl: selectedKey.baseUrl },
+            secondary: { provider: secondKey.provider, model: secondKey.model, getApiKey: () => secondKeyBuffer, baseUrl: secondKey.baseUrl },
           };
           console.log(`[Router] Racing enabled: ${selectedKey.provider}/${selectedKey.model} vs ${secondKey.provider}/${secondKey.model}`);
         } catch (e) { /* silent — racing not critical */ }
@@ -123,7 +150,7 @@ async function resolveUserConfig(socketUser, inputText) {
       useCustomApi: true,
       provider: selectedKey.provider,
       model: selectedKey.model,
-      decryptedKey,
+      getApiKey,
       baseUrl: selectedKey.baseUrl || '',
       fallbackToDefault: prefs.fallbackToDefault !== false,
       userId: user._id,
@@ -168,13 +195,20 @@ function buildTimelinePayload(sessionId, timeline) {
 export function setupTeachingSocket(io) {
   const teachingIO = io.of('/teaching');
 
-  // ─── Auth Guard ──────────────────────────────────────────────────────────
+  // ─── Auth Guard & Connection Limiter ────────────────────────────────────
   teachingIO.use((socket, next) => {
     try {
+      const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+      
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('Authentication error: No token provided'));
 
       if (token === 'guest') {
+        // Strict connection rate limit for guests to prevent session storming
+        if (!checkSocketRate(`conn:guest:${ip}`)) {
+          return next(new Error('Too many connection attempts. Please wait a minute.'));
+        }
+
         const guestId = `guest-${socket.id.substring(0, 8)}`;
         socket.user = { id: guestId, name: 'Guest User', email: `${guestId}@tutorboard.ai`, isGuest: true };
         return next();
@@ -189,7 +223,7 @@ export function setupTeachingSocket(io) {
     }
   });
 
-  teachingIO.on('connection', (socket) => {
+  teachingIO.on('connection', async (socket) => {
     // BUG FIX #60: Get or create request ID for correlation tracing
     const requestId = getOrCreateRequestId(socket);
     const sessionId = createTrackedSessionId(socket.id, requestId);
@@ -197,13 +231,14 @@ export function setupTeachingSocket(io) {
 
     let session;
     try {
-      session = sessionStore.create(sessionId, socket.id);
+      session = await sessionStore.create(sessionId, socket.id);
     } catch (err) {
       console.error(`[WS] Failed to create session: ${err.message}`);
       socket.emit('session:error', { error: 'SESSION_LIMIT_REACHED', message: 'The server is at maximum capacity. Please try again later.' });
+      socket.emit('teaching:error', { message: 'The server is busy. Please try again in 5 minutes.' });
       return socket.disconnect();
     }
-    const machine = createTeachingMachine(sessionId, (transition) => {
+    const machine = createTeachingMachine(sessionId, async (transition) => {
       socket.emit('teaching:state', {
         state:     transition.to,
         from:      transition.from,
@@ -211,14 +246,25 @@ export function setupTeachingSocket(io) {
         payload:   transition.payload,
         timestamp: transition.timestamp,
       });
-      sessionStore.update(sessionId, { state: transition.to });
+      await sessionStore.update(sessionId, { state: transition.to });
     });
 
     // ─── START SESSION ──────────────────────────────────────────────────
-    socket.on('session:start', async ({ topic, selectedAgent, activeMode }) => {
-      if (!checkSocketRate(getRateKey(socket))) {
+    socket.on('session:start', async ({ topic, selectedAgent, activeMode, chatId }) => {
+      const rateKey = getRateKey(socket);
+      
+      // Global IP/User rate limit
+      if (!checkSocketRate(rateKey)) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
         return;
+      }
+
+      // Strict session-per-minute throttle for Guest users to protect API costs
+      if (socket.user?.isGuest) {
+        if (!checkSocketRate(`session:guest:${rateKey}`)) {
+          socket.emit('teaching:error', { message: 'Guest limit reached: 1 session per minute. Please sign up for more.' });
+          return;
+        }
       }
 
       const cleanTopic = sanitizeInput(topic, 2000);
@@ -241,14 +287,15 @@ export function setupTeachingSocket(io) {
         return;
       }
 
-      sessionStore.update(sessionId, { topic: cleanTopic });
+      await sessionStore.update(sessionId, { topic: cleanTopic });
 
+      // ─── Profile Initialization ───
       if (socket.user && socket.user.id !== 'guest') {
         console.log(`[WS] Initializing persistent profile for user: ${socket.user.id}`);
         await sessionStore.initProfile(sessionId, socket.user.id);
       } else {
         console.log(`[WS] Initializing default guest profile for session: ${sessionId}`);
-        sessionStore.update(sessionId, {
+        await sessionStore.update(sessionId, {
           learnerProfile: {
             level: 'beginner',
             pace: 'normal',
@@ -260,8 +307,48 @@ export function setupTeachingSocket(io) {
         });
       }
 
+      // ─── RESUMPTION LOGIC ───
+      if (chatId) {
+        try {
+          const chatSession = await ChatSession.findOne({ _id: chatId, userId: socket.user?.id || socket.user?._id });
+          if (chatSession) {
+            const restored = await sessionStore.restoreFromMongo(sessionId, chatSession);
+            if (restored && restored.steps && restored.steps.length > 0) {
+              console.log(`[WS] Resuming session ${sessionId} from ChatSession ${chatId}`);
+              machine.send(EVENTS.TIMELINE_READY, { timeline: { steps: restored.steps, title: restored.topic } });
+              
+              const payload = {
+                sessionId,
+                title: restored.topic,
+                steps: restored.steps,
+                totalSteps: restored.steps.length,
+                currentStep: restored.currentStepIndex,
+                renderer: 'AgentCanvasRenderer', // Default for resumed sessions
+              };
+
+              socket.emit('teaching:timeline', payload);
+              socket.emit('teaching:step', {
+                step:  restored.steps[restored.currentStepIndex],
+                index: restored.currentStepIndex,
+                total: restored.steps.length,
+              });
+              return; // Successfully resumed
+            }
+          }
+        } catch (err) {
+          console.warn(`[WS] Resumption failed for chatId ${chatId}: ${err.message}`);
+        }
+      }
+
       try {
-        const intentResult = await detectIntent(cleanTopic, activeMode, selectedAgent);
+        let intentResult;
+        if (isGreeting(cleanTopic)) {
+          console.log(`[${requestId}] [WS] Fast-pathed greeting detected.`);
+          intentResult = { intent: 'quick', renderer: 'none', confidence: 1.0 };
+        } else {
+          intentResult = await detectIntent(cleanTopic, activeMode, selectedAgent);
+        }
+        
         const intent = intentResult.intent;
         console.log(`[${requestId}] [WS] Detected Intent: ${intent} (${intentResult.renderer})`);
 
@@ -284,16 +371,56 @@ export function setupTeachingSocket(io) {
           return;
         }
 
+        if (intent === 'test_me') {
+          console.log(`[${requestId}] [WS] Generating quiz...`);
+          const quiz = await withTimeout(
+            generateQuiz(sessionId, cleanTopic, (stage) => {
+              socket.emit('teaching:progress', { message: stage });
+            }, selectedAgent, userConfig),
+            60000,
+            'Quiz generation timed out'
+          );
+
+          if (quiz.chatMessage) {
+            socket.emit('teaching:greeting', { message: quiz.chatMessage });
+          }
+
+          socket.emit('teaching:quiz', quiz);
+          machine.send(EVENTS.TIMELINE_READY, { timeline: quiz });
+          return;
+        }
+
         // ─── Generate visual timeline ─────────────────────────────────────
         console.log(`[${requestId}] [WS] Generating visual timeline...`);
-        const timeline = await withTimeout(
-          generateTimeline(sessionId, cleanTopic, (stage) => {
-            console.log(`[WS] Progress: ${stage}`);
-            socket.emit('teaching:progress', { message: stage });
-          }, selectedAgent, userConfig),
-          240000,
-          'Timeline generation timed out'
-        );
+        
+        // Heartbeat logic to keep the client updated during long LLM stalls
+        let lastProgressAt = Date.now();
+        const heartbeat = setInterval(() => {
+          if (Date.now() - lastProgressAt >= 15000) {
+            socket.emit('teaching:progress', { message: 'Still working on your visual lesson...' });
+            // Don't reset lastProgressAt here, so it repeats every 15s if still stalling
+            // actually, resetting it makes it a 15s interval between "Still working" pings
+            lastProgressAt = Date.now(); 
+          }
+        }, 5000);
+
+        try {
+          timeline = await withTimeout(
+            generateTimeline(sessionId, cleanTopic, (stage, chunk) => {
+              lastProgressAt = Date.now();
+              if (chunk) {
+                socket.emit('teaching:progress-tokens', { stage, token: chunk });
+              } else {
+                console.log(`[WS] Progress: ${stage}`);
+                socket.emit('teaching:progress', { message: stage });
+              }
+            }, selectedAgent, userConfig),
+            240000,
+            'Timeline generation timed out'
+          );
+        } finally {
+          clearInterval(heartbeat);
+        }
 
         if (timeline.type === 'greeting') {
           machine.forceReset();
@@ -302,7 +429,7 @@ export function setupTeachingSocket(io) {
         }
 
         // Persist to session store
-        sessionStore.setTimeline(sessionId, timeline);
+        await sessionStore.setTimeline(sessionId, timeline);
 
         // Transition FSM
         machine.send(EVENTS.TIMELINE_READY, { timeline });
@@ -346,18 +473,20 @@ export function setupTeachingSocket(io) {
 
     // ─── ASK DOUBT ─────────────────────────────────────────────────────────
     socket.on('session:doubt', async ({ question, selectedAgent, activeMode }) => {
-      // ─── Per-Session Rate Limiting ────────────────────────────────────────
+      // ─── Sliding Window Rate Limiting (5 doubts / 60s) ────────────────────
       const now = Date.now();
-      if (now - lastDoubtReset > 60000) {
-        doubtCount = 0;
-        lastDoubtReset = now;
-      }
-      if (doubtCount >= 5) {
+      if (!socket._doubtTimestamps) socket._doubtTimestamps = [];
+      
+      // Filter out timestamps older than 60 seconds
+      socket._doubtTimestamps = socket._doubtTimestamps.filter(t => now - t < 60000);
+      
+      if (socket._doubtTimestamps.length >= 5) {
         console.warn(`[WS] Rate limit exceeded: Session ${sessionId} (5 doubts/min)`);
         socket.emit('teaching:error', { message: 'You are asking questions too fast. Please wait a minute.' });
         return;
       }
-      doubtCount++;
+      
+      socket._doubtTimestamps.push(now);
 
       if (!checkSocketRate(getRateKey(socket))) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
@@ -380,7 +509,14 @@ export function setupTeachingSocket(io) {
       socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
       try {
-        const intentResult = await detectIntent(cleanQuestion, activeMode, selectedAgent);
+        let intentResult;
+        if (isGreeting(cleanQuestion)) {
+          console.log(`[WS] Fast-pathed doubt greeting detected.`);
+          intentResult = { intent: 'quick', renderer: 'none', confidence: 1.0 };
+        } else {
+          intentResult = await detectIntent(cleanQuestion, activeMode, selectedAgent);
+        }
+        
         const intent = intentResult.intent;
         console.log(`[WS] Doubt Detected Intent: ${intent}`);
 
@@ -416,27 +552,72 @@ export function setupTeachingSocket(io) {
         });
 
         // ─── Update Session State (Confusion & History) ─────────────────────
-        const s = sessionStore.get(sessionId);
+        const s = await sessionStore.get(sessionId);
         if (s) {
-          // Increment confusionIndex (capped at 10)
+          // BUG FIX #68: Persist doubt to MongoDB for historical tracking
+          if (socket.user && !socket.user.isGuest) {
+            try {
+              await Doubt.create({
+                user: socket.user.id || socket.user._id,
+                question: cleanQuestion,
+                answer: response.answer,
+                stepIndex: s.currentStepIndex || 0,
+                stepDescription: s.topic || 'General Query',
+              });
+              console.log(`[WS] Doubt persisted to MongoDB for user ${socket.user.id}`);
+            } catch (dbErr) {
+              console.error(`[WS] Failed to persist doubt to MongoDB: ${dbErr.message}`);
+            }
+          }
+
           if (!s.learnerProfile) s.learnerProfile = { level: 'beginner', pace: 'normal', confusionIndex: 0 };
-          s.learnerProfile.confusionIndex = Math.min(10, (s.learnerProfile.confusionIndex || 0) + 1);
+
+          // Only increment confusionIndex on genuine confusion signals
+          let classification = null;
+          try {
+            const { classifyDoubt } = await import('../engine/agents/doubtClassifier.js');
+            classification = await classifyDoubt(s.topic || '', cleanQuestion);
+          } catch (e) { /* classification failed, skip increment */ }
+
+          const confusionPathways = ['misconception', 'wants_deeper'];
+          if (classification && confusionPathways.includes(classification.pathway)) {
+            const newConfusion = Math.min(10, (s.learnerProfile.confusionIndex || 0) + 1);
+            await sessionStore.update(sessionId, { 
+              learnerProfile: { ...s.learnerProfile, confusionIndex: newConfusion } 
+            });
+            // Refresh local reference for downstream logic
+            s.learnerProfile.confusionIndex = newConfusion;
+          }
 
           // Append to doubtHistory for contextual coherence
           if (!s.doubtHistory) s.doubtHistory = [];
           s.doubtHistory.push({ question: cleanQuestion, answer: response.answer, timestamp: Date.now() });
           
+          await sessionStore.update(sessionId, { 
+            learnerProfile: s.learnerProfile,
+            doubtHistory: s.doubtHistory 
+          });
+
           console.log(`[WS] Session Updated: Confusion=${s.learnerProfile.confusionIndex}, DoubtHistory=${s.doubtHistory.length}`);
+          
+          await syncToDatabase(sessionId);
         }
 
-        // Adaptive replanning 
-        if (s && s.learnerProfile.confusionIndex >= 5 && s.steps && s.steps.length > 0) {
-          const replan = await replanRemainingSteps(s, s.topic);
+        // Adaptive replanning (with cooldown)
+        const doubtssinceReplan = (s?.doubtHistory?.length || 0) - (s?._lastReplanDoubtCount || 0);
+        if (s && s.learnerProfile.confusionIndex >= 5 && s.steps && s.steps.length > 0 && doubtssinceReplan >= 3) {
+          const replan = await replanRemainingSteps(s, s.topic, userConfig);
           if (replan) {
             console.log(`[WS] Mid-lesson replan triggered! Pushing ${replan.mergedSteps.length} steps.`);
-            sessionStore.update(sessionId, { steps: replan.mergedSteps });
+            await sessionStore.update(sessionId, { steps: replan.mergedSteps });
             socket.emit('teaching:replan', { message: replan.notification, newTotalSteps: replan.mergedSteps.length });
             socket.emit('teaching:timeline-update', { steps: replan.mergedSteps, totalSteps: replan.mergedSteps.length });
+
+            // Reset confusion and record cooldown marker
+            await sessionStore.update(sessionId, { 
+              learnerProfile: { ...s.learnerProfile, confusionIndex: 0 },
+              _lastReplanDoubtCount: s.doubtHistory?.length || 0
+            });
           }
         }
 
@@ -454,8 +635,8 @@ export function setupTeachingSocket(io) {
     });
 
     // ─── NAVIGATE STEPS ────────────────────────────────────────────────────
-    socket.on('session:step', ({ stepIndex }) => {
-      const s = sessionStore.get(sessionId);
+    socket.on('session:step', async ({ stepIndex }) => {
+      const s = await sessionStore.get(sessionId);
 
       if (!s || !s.steps || s.steps.length === 0) {
         console.warn(`[WS] session:step ignored - steps not yet loaded for session: ${sessionId}`);
@@ -467,12 +648,14 @@ export function setupTeachingSocket(io) {
         return;
       }
 
-      sessionStore.goToStep(sessionId, stepIndex);
+      await sessionStore.goToStep(sessionId, stepIndex);
       socket.emit('teaching:step', { step: s.steps[stepIndex], index: stepIndex, total: s.steps.length });
 
       if (machine.state === STATES.COMPLETED || machine.state === STATES.RESPONDING) {
         machine.send(EVENTS.RESUME);
       }
+
+      await syncToDatabase(sessionId);
     });
 
     // ─── FINISH SESSION ────────────────────────────────────────────────────
@@ -482,17 +665,17 @@ export function setupTeachingSocket(io) {
     });
 
     // ─── PAUSE ─────────────────────────────────────────────────────────────
-    socket.on('session:pause', () => { 
+    socket.on('session:pause', async () => { 
       machine.send(EVENTS.PAUSE);
-      sessionStore.update(sessionId, { state: machine.state });
+      await sessionStore.update(sessionId, { state: machine.state });
     });
 
     // ─── RESUME ────────────────────────────────────────────────────────────
-    socket.on('session:resume', () => {
+    socket.on('session:resume', async () => {
       machine.send(EVENTS.RESUME) || machine.send(EVENTS.PLAY);
-      sessionStore.update(sessionId, { state: machine.state });
+      await sessionStore.update(sessionId, { state: machine.state });
 
-      const s = sessionStore.get(sessionId);
+      const s = await sessionStore.get(sessionId);
       if (s && s.steps && s.steps.length > 0) {
         socket.emit('teaching:step', {
           step:  s.steps[s.currentStepIndex],
@@ -503,16 +686,16 @@ export function setupTeachingSocket(io) {
     });
 
     // ─── END SESSION ───────────────────────────────────────────────────────
-    socket.on('session:end', () => {
+    socket.on('session:end', async () => {
       console.log(`[WS] session:end (${sessionId})`);
       machine.forceReset();
-      sessionStore.destroy(sessionId);
+      await sessionStore.destroy(sessionId);
     });
 
     // ─── DISCONNECT ────────────────────────────────────────────────────────
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', async (reason) => {
       console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
-      sessionStore.destroy(sessionId);
+      await sessionStore.destroy(sessionId);
       cleanupSocket(getRateKey(socket));
     });
 

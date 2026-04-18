@@ -27,6 +27,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
   const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
 
   // Animated typing placeholder
@@ -44,33 +45,79 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   useEffect(() => {
     if (!isLanding) { setCurrentPlaceholder("Message TutorBoard..."); return; }
+    
     let timeout;
     const typingSpeed = isDeleting ? 30 : 60;
     const fullText = placeholders[placeholderIndex];
-    if (!isDeleting && currentPlaceholder === fullText) {
-      timeout = setTimeout(() => setIsDeleting(true), 2500);
-    } else if (isDeleting && currentPlaceholder === "") {
-      setIsDeleting(false);
-      setPlaceholderIndex(prev => (prev + 1) % placeholders.length);
-    } else {
-      timeout = setTimeout(() => {
+
+    const runAnimation = () => {
+      if (document.visibilityState === 'hidden') {
+        timeout = setTimeout(runAnimation, 1000); // Check again in 1s
+        return;
+      }
+
+      if (!isDeleting && currentPlaceholder === fullText) {
+        timeout = setTimeout(() => setIsDeleting(true), 2500);
+      } else if (isDeleting && currentPlaceholder === "") {
+        setIsDeleting(false);
+        setPlaceholderIndex(prev => (prev + 1) % placeholders.length);
+      } else {
         setCurrentPlaceholder(isDeleting
           ? fullText.substring(0, currentPlaceholder.length - 1)
           : fullText.substring(0, currentPlaceholder.length + 1));
-      }, typingSpeed);
+      }
+    };
+
+    // Pause animation if tab is hidden to save battery
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        clearTimeout(timeout);
+        runAnimation();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    if (document.visibilityState === 'visible') {
+      timeout = setTimeout(runAnimation, typingSpeed);
+    } else {
+      timeout = setTimeout(runAnimation, 1000);
     }
-    return () => clearTimeout(timeout);
+
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [currentPlaceholder, isDeleting, placeholderIndex, isLanding]);
+
+  // Cleanup recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, []);
 
   const startListening = () => {
     if (!isSpeechSupported) return;
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = 'en-US';
+    recognition.lang = navigator.language || 'en-US';
     recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       onChange(value + (value ? ' ' : '') + transcript);

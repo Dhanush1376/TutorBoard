@@ -29,12 +29,30 @@ const chatSessionSchema = new mongoose.Schema({
   },
   messages: [messageSchema],
   canvasState: {
-    type: Object, // Store the serialized canvas objects
+    type: [mongoose.Schema.Types.Mixed], // Store the serialized canvas objects array
     default: [],
   },
   preferences: {
     type: Object, // Store tool settings (colors, sizes, grid prefs)
     default: {},
+  },
+  // ─── Engine State Persistence ───
+  topic: {
+    type: String,
+    default: null,
+  },
+  steps: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
+  currentStepIndex: {
+    type: Number,
+    default: 0,
+  },
+  engineSessionId: {
+    type: String, // String ID used by sessionStore (socket-abc or api-123)
+    default: null,
+    index: true,
   },
   lastUpdated: {
     type: Date,

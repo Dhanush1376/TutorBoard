@@ -28,3 +28,4 @@ server/scratch/
 server/test_*.js
 server/verify_*.js
 scratch_test_schema.js
+scratch/

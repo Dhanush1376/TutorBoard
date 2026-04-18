@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
 import Settings from './pages/Settings';
-import Loader from './components/Loader';
+import Loader from './components/layout/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import MarketingLayout from './components/layout/MarketingLayout';
 import HowItWorks from './pages/Marketing/HowItWorks';
@@ -13,7 +13,7 @@ import About from './pages/Marketing/About';
 import { useAuth } from './context/AuthContext';
 
 function App() {
-  const { loading: authLoading, apiError } = useAuth();
+  const { loading: authLoading, apiError, connectionStatus } = useAuth();
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     // Check if the welcome animation has already played in this session
     try {
@@ -33,7 +33,7 @@ function App() {
         } catch {
           // Silently ignore if sessionStorage is unavailable
         }
-      }, 2000); // 2 seconds initial loader delay
+      }, 4000); // 4 seconds initial loader delay to match logo animation duration
       return () => clearTimeout(timer);
     }
   }, [welcomeLoading]);
@@ -84,7 +84,9 @@ function App() {
         <Loader fullScreen={true} glass={!welcomeLoading} />
         {showSkip && (
           <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[1000] animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            <p className="text-white/30 text-xs tracking-widest uppercase font-medium">Taking longer than usual...</p>
+            <p className="text-white/30 text-xs tracking-widest uppercase font-medium">
+              {connectionStatus === 'slow' ? 'Connectivity issue: Server is slow to respond...' : 'Taking longer than usual...'}
+            </p>
             <button 
               onClick={() => {
                 console.warn('[App] Manual loader bypass triggered by user');

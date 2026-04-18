@@ -7,6 +7,7 @@
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import GenericShape from './GenericShape';
 
 const CW = 800;
 const CH = 600;
@@ -55,6 +56,11 @@ export default function NarrativeRenderer({ timeline, currentStepIndex, elements
       case 'era_block':
       case 'event':
       default:
+        // Route unknown narrative types to universal fallback
+        if (type !== 'era_block' && type !== 'event' && type !== 'timeline_bar') {
+           return <GenericShape key={obj.id} obj={obj} common={{ ...common, attentionLevel }} CW={CW} CH={CH} />;
+        }
+
         return (
           <motion.div {...common} className={`flex flex-col items-center pointer-events-none ${isHigh ? 'scale-110 z-10' : 'scale-100 z-0'} transition-transform`}>
             <div className="px-4 py-3 rounded-lg shadow-xl border border-white/20 flex flex-col items-center gap-1" style={{ backgroundColor: obj.color || '#475569' }}>

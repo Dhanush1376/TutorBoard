@@ -22,7 +22,7 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
     if (obj) {
       setLocalContent(obj.content || obj.label || obj.code || obj.text || '');
     }
-  }, [editingObjectId]);
+  }, [editingObjectId, obj?.content, obj?.label, obj?.code, obj?.text]);
 
   if (!obj) return null;
 

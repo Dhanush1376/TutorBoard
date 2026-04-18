@@ -8,6 +8,8 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import GenericShape from './GenericShape';
+
 const CW = 800;
 const CH = 600;
 
@@ -86,6 +88,11 @@ export default function PhysicsRenderer({ timeline, currentStepIndex, elements: 
       case 'spring':
       case 'particle':
       default:
+        // If type is not a core physics primitive, route through universal fallback
+        if (type !== 'particle' && type !== 'pendulum' && type !== 'spring') {
+          return <GenericShape key={obj.id} obj={obj} common={common} CW={CW} CH={CH} />;
+        }
+        
         // Generic fallback particle
         return (
           <motion.div {...common} className="flex flex-col items-center justify-center pointer-events-none" style={{ transform: 'translate(-50%, -50%)' }}>

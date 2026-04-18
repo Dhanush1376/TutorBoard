@@ -1,7 +1,7 @@
 import express from 'express';
-import { signup, signin, getMe, socialLoginSuccess, exchangeToken } from '../controllers/auth.controller.js';
+import { signup, signin, logout, getMe, socialLoginSuccess, exchangeToken } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
-import passport from '../utils/passport.js';
+import passport from '../utils/auth/passport.js';
 
 const router = express.Router();
 
@@ -9,6 +9,7 @@ router.get('/exchange', exchangeToken);
 router.get('/me', protect, getMe);
 router.post('/signup', signup);
 router.post('/signin', signin);
+router.post('/logout', protect, logout);
 
 // ─── GOOGLE OAUTH ───
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

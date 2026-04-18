@@ -28,7 +28,8 @@ Return ONLY a JSON object:
 }
 `;
 
-import { requestCompletion, getModel } from '../utils/llmClient.js';
+import { requestCompletion, getModel } from '../../utils/ai/llmClient.js';
+import { safeParse } from '../../utils/core/parser.js';
 
 export async function classifyDoubt(topic, question) {
   const prompt = DOUBT_CLASSIFICATION_PROMPT
@@ -42,7 +43,12 @@ export async function classifyDoubt(topic, question) {
       temperature: 0
     });
 
-    return JSON.parse(res.content || '{}');
+    const parsed = safeParse(res.content);
+    if (!parsed || !parsed.pathway) {
+      console.warn('[DoubtClassifier] safeParse returned null or missing pathway, using fallback.');
+      return { pathway: 'conceptual', confidence: 0.5 };
+    }
+    return parsed;
   } catch (err) {
     console.error('[DoubtClassifier] Error:', err.message);
     return { pathway: 'conceptual', confidence: 0.5 };

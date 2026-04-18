@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import tokenStore from '../utils/tokenStore.js';
+import tokenStore from '../utils/auth/tokenStore.js';
+import crypto from 'crypto';
 
 // BUG FIX #47: Validate JWT configuration at module load
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -12,7 +13,7 @@ if (!VALID_EXPIRY_FORMATS.test(JWT_EXPIRES_IN)) {
 
 // BUG FIX #47: Generate JWT token with ID (jti) for revocation tracking
 const generateToken = (id) => {
-  const jti = `jti_${id}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const jti = crypto.randomUUID();
   return jwt.sign(
     { id, jti },
     process.env.JWT_SECRET,
@@ -54,7 +55,8 @@ export const signup = async (req, res) => {
     }
   } catch (err) {
     console.error('Signup error:', err);
-    res.status(500).json({ error: 'Server error: ' + err.message });
+    // Generic error message to prevent leaking schema details
+    res.status(500).json({ error: 'Registration failed. Please try again later.' });
   }
 };
 
@@ -142,12 +144,46 @@ export const exchangeToken = async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    if (tokenStore.isTokenRevoked(decoded.jti)) {
+    if (await tokenStore.isTokenRevoked(decoded.jti)) {
       return res.status(401).json({ error: 'Token has been revoked' });
     }
   } catch (err) {
-    return res.status(400).json({ error: 'Invalid token', details: err.message });
+    console.error('Exchange error:', err);
+    return res.status(400).json({ error: 'Invalid or expired token' });
   }
 
   res.json({ token });
+};
+
+/**
+ * POST /api/auth/logout
+ * Revoke the current token
+ */
+export const logout = async (req, res) => {
+  try {
+    const { tokenJti } = req;
+    
+    if (tokenJti) {
+      // Tokens usually have an 'exp' field (seconds since epoch)
+      // Extract it from req if possible, or use default
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.split(' ')[1];
+      let exp;
+      
+      if (token) {
+        try {
+          const decoded = jwt.decode(token);
+          exp = decoded.exp;
+        } catch (e) { /* ignore */ }
+      }
+
+      await tokenStore.revokeToken(tokenJti, exp);
+      console.log(`[Auth] User ${req.user?._id} logged out, token ${tokenJti} revoked`);
+    }
+
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ error: 'Server error during logout' });
+  }
 };

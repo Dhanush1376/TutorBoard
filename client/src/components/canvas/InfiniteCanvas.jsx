@@ -69,7 +69,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
   // Handle Spacebar for panning
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+      if (e.code === 'Space' && 
+          !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) && 
+          !document.activeElement.isContentEditable) {
         setIsSpacePressed(true);
       }
     };

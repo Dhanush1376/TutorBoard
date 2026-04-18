@@ -35,7 +35,7 @@ TOPIC TYPES and their optimal flow strategies:
 PHASE 2 — DESIGN THE STEP-BY-STEP PLAN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULES:
-1. MINIMUM 8 STEPS. MAXIMUM 16. No padding, no skipping.
+1. MINIMUM {{MIN_STEPS}} STEPS. MAXIMUM {{MAX_STEPS}} STEPS. No padding, no skipping.
 2. Start with intuition — hook the learner immediately.
 3. Move to formal logic — build understanding progressively.
 4. End with application or execution — synthesize the full picture.

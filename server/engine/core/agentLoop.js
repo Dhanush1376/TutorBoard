@@ -17,15 +17,8 @@
  *   [FIX 4] model param now correctly forwarded to every runStage call.
  */
 
-import { requestCompletion, getModel } from '../utils/llmClient.js';
-import {
-  PLANNER_AGENT_PROMPT,
-  NARRATOR_AGENT_PROMPT,
-  VISUALIZER_AGENT_PROMPT,
-  ANIMATOR_AGENT_PROMPT,
-  CRITIC_AGENT_PROMPT,
-  VALIDATOR_AGENT_PROMPT
-} from '../agents/index.js';
+import { requestCompletion, getModel } from '../../utils/ai/llmClient.js';
+import { getPrompt } from '../config/promptRegistry.js';
 import { SceneGraphSchema } from '../validators/timelineSchema.js';
 
 // ─── Robust JSON Extractor ────────────────────────────────────────────────────
@@ -99,12 +92,12 @@ function unwrapValidatorOutput(raw) {
   }
   
   const meta        = inner.meta || {};
-  const narrations  = inner.narrations    || inner.explanation_steps || inner.steps || [];
-  const visualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || [];
-  const animSteps   = inner.animation_steps || inner.animations || inner.transitions || [];
+  const narrations  = inner.narrations    || inner.explanation_steps || inner.narration_steps || inner.narrative_steps || inner.steps || inner.sequence || inner.roadmap || [];
+  const visualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || inner.visual_timeline || inner.visualization || inner.frames || [];
+  const animSteps   = inner.animation_steps || inner.animations || inner.transitions || inner.motion_steps || inner.animation_timeline || [];
 
-  if (visualSteps.length === 0 && narrations.length === 0) {
-    console.warn('[AgentLoop] ⚠️ No visual_steps or narrations found. Unwrap failed.');
+  if (visualSteps.length === 0 && narrations.length === 0 && animSteps.length === 0) {
+    console.warn('[AgentLoop] ⚠️ Checked all aliases (visual_steps, narrations, animation_steps, etc.) and found 0 content. Unwrap failed.');
     return null;
   }
 
@@ -188,7 +181,7 @@ function fixObjectIds(obj) {
     if (!step) return;
     const raw      = step.objectIds || step.elements || [];
     const filtered = raw.filter(id => validIds.has(id));
-    step.objectIds = filtered.length > 0 ? filtered : [...validIds];
+    step.objectIds = filtered.length > 0 ? filtered : [];
     if (step.highlightIds) step.highlightIds = step.highlightIds.filter(id => validIds.has(id));
     if (step.mutations)    step.mutations    = step.mutations.filter(m => validIds.has(m?.id));
   });
@@ -223,7 +216,7 @@ function validateSceneGraph(obj) {
 }
 
 // ─── Single Stage Executor ────────────────────────────────────────────────────
-async function runStage({ stageName, prompt, input, model, onProgress, userConfig }) {
+async function runStage({ stageName, prompt, input, model, onProgress, userConfig, onStream }) {
   onProgress(stageName);
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
@@ -237,8 +230,14 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
     try {
       if (attempt > 1) {
         const delay = Math.pow(2, attempt - 1) * 1000;
-        console.log(`[AgentLoop] ⏳ Retrying Stage "${stageName}" in ${delay}ms...`);
+        console.log(`[AgentLoop] ⏳ Retrying Stage "${stageName}" (Attempt ${attempt}) in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
+        
+        // Inject a correction prompt on retries to guide the LLM back to valid JSON
+        messages.push({ 
+          role: 'user', 
+          content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation, no conversational text, and no markdown code fences.' 
+        });
       }
 
       const response = await requestCompletion({
@@ -249,6 +248,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         responseMimeType: 'application/json',
         userConfig,
         taskType: 'teaching',
+        onStream: attempt === 1 ? onStream : undefined, // Only stream on the first attempt to avoid UI duplication
       });
 
       if (!response?.content) throw new Error('Empty response');
@@ -266,15 +266,21 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
 }
 
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
-export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null }) {
+export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null }) {
   console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
 
   try {
-    // Stage 1: PLANNING
+    // Stage 1: PLANNING (Inject dynamic step limits)
+    const minSteps = Math.max(4, Math.floor((maxSteps || 16) / 2));
+    const targetMax = maxSteps || 16;
+    const plannerPrompt = (systemPrompt || getPrompt('planner'))
+      .replace('{{MIN_STEPS}}', minSteps.toString())
+      .replace('{{MAX_STEPS}}', targetMax.toString());
+
     const plannerOutput = planningResult || await runStage({
       stageName: 'Thinking deeply about the topic...',
-      prompt: systemPrompt || PLANNER_AGENT_PROMPT,
-      input: { topic, domain, maxSteps },
+      prompt: plannerPrompt,
+      input: { topic, domain, maxSteps: targetMax, learnerProfile },
       model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 1 — ${plannerOutput.flow?.length || 0} steps planned`);
@@ -282,16 +288,17 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     // Stage 2: NARRATION
     const narratorOutput = await runStage({
       stageName: 'Crafting pedagogical explanations...',
-      prompt: NARRATOR_AGENT_PROMPT,
+      prompt: getPrompt('narrator'),
       input: { plannerOutput },
-      model, onProgress, userConfig
+      model, onProgress, userConfig,
+      onStream: (chunk) => onProgress('narration_stream', chunk)
     });
     console.log(`[AgentLoop] ✅ Stage 2 — ${narratorOutput.narrations?.length || 0} narrations`);
 
     // Stage 3: VISUALIZATION
     const visualizerOutput = await runStage({
       stageName: 'Designing visual representation...',
-      prompt: VISUALIZER_AGENT_PROMPT,
+      prompt: getPrompt('visualizer'),
       input: { plannerOutput, narratorOutput },
       model, onProgress, userConfig
     });
@@ -300,26 +307,67 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     // Stage 4: ANIMATION
     const animatorOutput = await runStage({
       stageName: 'Choreographing cinematic motion...',
-      prompt: ANIMATOR_AGENT_PROMPT,
+      prompt: getPrompt('animator'),
       input: { plannerOutput, visualizerOutput },
       model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 4 — ${animatorOutput.animation_steps?.length || 0} animation steps`);
 
-    // Stage 5: CRITIQUE
+    // Stage 5: CRITIQUE — Trimmed context to prevent context window explosion
+    const criticInput = {
+      narrations:      narratorOutput.narrations || [],
+      visual_steps:    visualizerOutput.visual_steps || [],
+      animation_steps: animatorOutput.animation_steps || [],
+      topic,
+      stepCount:       plannerOutput.flow?.length || 0,
+    };
     const criticOutput = await runStage({
       stageName: 'Reviewing for consistency & clarity...',
-      prompt: CRITIC_AGENT_PROMPT,
-      input: { planner: plannerOutput, narrator: narratorOutput, visualizer: visualizerOutput, animator: animatorOutput },
+      prompt: getPrompt('critic'),
+      input: criticInput,
       model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 5 — approved: ${criticOutput.approved}, score: ${criticOutput.scores?.overall}`);
 
-    // Stage 6: VALIDATION
+    // APPLY PATCHES: Merge critic's patch_suggestions into prior outputs before validation
+    if (criticOutput.patch_suggestions) {
+      const patches = criticOutput.patch_suggestions;
+      if (patches.narrations) {
+        console.log(`[AgentLoop] 🩹 Patching narrations (${narratorOutput.narrations?.length} -> ${patches.narrations.length} items)`);
+        narratorOutput.narrations = patches.narrations;
+      }
+      if (patches.visual_steps) {
+        console.log(`[AgentLoop] 🩹 Patching visual_steps (${visualizerOutput.visual_steps?.length} -> ${patches.visual_steps.length} items)`);
+        visualizerOutput.visual_steps = patches.visual_steps;
+      }
+      if (patches.animation_steps) {
+        console.log(`[AgentLoop] 🩹 Patching animation_steps (${animatorOutput.animation_steps?.length} -> ${patches.animation_steps.length} items)`);
+        animatorOutput.animation_steps = patches.animation_steps;
+      }
+    }
+
+    // CRITIC GATING
+    const overallScore = criticOutput.scores?.overall || 10;
+    if (criticOutput.approved === false) {
+      if (overallScore < 3) {
+         console.warn(`[AgentLoop] ❌ CRITICAL: Critic rejected pipeline with score ${overallScore}. Triggering failsafe.`);
+         throw new Error(`Critic rejection (score ${overallScore})`);
+      } else if (overallScore < 5) {
+         console.warn(`[AgentLoop] ⚠️ WARNING: Critic scored ${overallScore}. Proceeding with patches but quality may be low.`);
+      }
+    }
+
+    // Stage 6: VALIDATION — Only critic feedback + patched essential outputs
+    const validatorInput = {
+      critic:          { approved: criticOutput.approved, scores: criticOutput.scores, issues: criticOutput.issues },
+      narrations:      narratorOutput.narrations || [],
+      visual_steps:    visualizerOutput.visual_steps || [],
+      animation_steps: animatorOutput.animation_steps || [],
+    };
     const validatorRaw = await runStage({
       stageName: 'Finalizing high-fidelity plan...',
-      prompt: VALIDATOR_AGENT_PROMPT,
-      input: { planner: plannerOutput, narrator: narratorOutput, visualizer: visualizerOutput, animator: animatorOutput, critic: criticOutput },
+      prompt: getPrompt('validator'),
+      input: validatorInput,
       model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 6 — status: ${validatorRaw.status}`);

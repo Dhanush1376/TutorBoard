@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import VisaiLogo from '../common/VisaiLogo';
+import VisaiLogo from '../layout/VisaiLogo';
 
 const CinematicTransition = ({ userName, isLogin, onComplete }) => {
   const [phase, setPhase] = useState('focus'); // focus -> welcome -> ascension

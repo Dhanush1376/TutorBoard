@@ -6,6 +6,7 @@ import {
   Image as ImageIcon,
   Settings,
   LogOut,
+  User,
 } from 'lucide-react';
 
 import ToolButtonBase from './tools/ToolButtonBase';
@@ -103,7 +104,6 @@ const Toolbar = ({ onSettingsClick }) => {
   const { user, logout } = useAuth();
   
   const isLeftHand = layoutView === 'left';
-  const userInitial = user?.name ? user.name[0].toUpperCase() : (user?.isGuest ? 'G' : '?');
 
   const handleLogout = () => {
     logout();
@@ -183,28 +183,12 @@ const Toolbar = ({ onSettingsClick }) => {
               setHoveredId(null);
             }}
             className="relative w-[32px] h-[32px] rounded-full flex items-center justify-center font-bold text-[11px] overflow-visible"
-            style={{
-              background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
-              color: '#fff',
-              boxShadow: isProfileOpen ? '0 0 0 2px var(--text-primary)' : '0 4px 12px rgba(79, 70, 229, 0.3)',
-              border: '1px solid rgba(255,255,255,0.25)',
-              cursor: 'pointer'
-            }}
           >
-            {/* Profile Avatar with Liquid Hover logic */}
-            {isHovered && !isProfileOpen && (
-              <motion.div
-                layoutId="liquid-hover-pill"
-                className="absolute inset-0 rounded-full z-[-1]"
-                style={{ 
-                  background: 'rgba(99, 102, 241, 0.15)',
-                  border: '1px solid rgba(99, 102, 241, 0.2)',
-                  scale: 1.2
-                }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
-              />
-            )}
-            <span className="relative z-10">{userInitial}</span>
+            <User 
+              size={18} 
+              strokeWidth={2.5}
+              className={`transition-colors ${isProfileOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+            />
           </motion.button>
           
           <AnimatePresence>

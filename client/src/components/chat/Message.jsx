@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Copy, Edit2, Trash2, Check, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import VisaiLogo from '../common/VisaiLogo';
+import VisaiLogo from '../layout/VisaiLogo';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { ArrowRight, User, Menu, X, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import VisaiLogo from '../common/VisaiLogo';
+import VisaiLogo from './VisaiLogo';
 import LoginNavbar from './LoginNavbar';
 
 const MarketingLayout = () => {

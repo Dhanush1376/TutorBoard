@@ -53,8 +53,16 @@ const usageLogSchema = new mongoose.Schema({
     default: 'none',
   },
   costEstimate: {
-    type: Number, // USD cents
+    type: Number, // USD cents (normalized)
     default: 0,
+  },
+  currency: {
+    type: String,
+    default: 'USD',
+  },
+  unit: {
+    type: String,
+    default: 'cents',
   },
   isCustomKey: {
     type: Boolean,

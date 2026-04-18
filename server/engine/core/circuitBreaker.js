@@ -8,14 +8,50 @@
  * Cooldown: 60 seconds before HALF_OPEN probe
  */
 
+import redis from '../../utils/core/redis.js';
+
 const COOLDOWN_MS = 60_000;
 const TRIP_THRESHOLD = 3;
+const REDIS_KEY_PREFIX = 'cb:provider:';
 
 class CircuitBreaker {
   constructor() {
     this.providers = {};
-    for (const id of ['openrouter', 'openai', 'google', 'anthropic', 'custom']) {
+    const ids = ['openrouter', 'openai', 'google', 'anthropic', 'custom'];
+    for (const id of ids) {
       this.providers[id] = this._newProviderState();
+    }
+    
+    // Attempt local state hydration from Redis if possible
+    this._syncFromRedis();
+  }
+
+  async _syncFromRedis() {
+    if (!redis.isConnected) return;
+    try {
+      for (const id of Object.keys(this.providers)) {
+        const data = await redis.get(`${REDIS_KEY_PREFIX}${id}`);
+        if (data) {
+          const remote = JSON.parse(data);
+          // Only sync if remote state is more "critical" (OPEN) or newer
+          this.providers[id] = { ...this.providers[id], ...remote };
+        }
+      }
+    } catch (err) {
+      console.error(`[CircuitBreaker] Failed to sync from Redis: ${err.message}`);
+    }
+  }
+
+  async _persistToRedis(provider) {
+    if (!redis.isConnected) return;
+    try {
+      await redis.set(
+        `${REDIS_KEY_PREFIX}${provider}`, 
+        JSON.stringify(this.providers[provider]),
+        3600 // 1 hour TTL for health stickiness
+      );
+    } catch (err) {
+      // Ignore persistence errors to keep circuit logic fast
     }
   }
 
@@ -50,6 +86,7 @@ class CircuitBreaker {
     if (p.state === 'OPEN' && Date.now() >= p.nextRetryAt) {
       p.state = 'HALF_OPEN';
       console.log(`[CircuitBreaker] ${provider}: OPEN → HALF_OPEN (cooldown elapsed, allowing probe)`);
+      this._persistToRedis(provider);
       return true;
     }
 
@@ -73,6 +110,7 @@ class CircuitBreaker {
       console.log(`[CircuitBreaker] ✅ ${provider}: HALF_OPEN → CLOSED (probe succeeded)`);
     }
     p.state = 'CLOSED';
+    this._persistToRedis(provider);
   }
 
   /**
@@ -93,6 +131,7 @@ class CircuitBreaker {
       p.state = 'OPEN';
       p.nextRetryAt = Date.now() + COOLDOWN_MS;
       console.warn(`[CircuitBreaker] ⚠️ ${provider}: HALF_OPEN → OPEN (probe failed, cooldown ${COOLDOWN_MS / 1000}s)`);
+      this._persistToRedis(provider);
       return;
     }
 
@@ -104,6 +143,10 @@ class CircuitBreaker {
       p.nextRetryAt = Date.now() + COOLDOWN_MS;
       const reason = instantTrip ? `HTTP ${statusCode}` : `${p.consecutiveFailures} consecutive failures`;
       console.warn(`[CircuitBreaker] ⚠️ ${provider}: CLOSED → OPEN (${reason}, cooldown ${COOLDOWN_MS / 1000}s)`);
+      this._persistToRedis(provider);
+    } else {
+      // Just normal failure increment, still persist
+      this._persistToRedis(provider);
     }
   }
 
@@ -114,6 +157,7 @@ class CircuitBreaker {
     if (this.providers[provider]) {
       this.providers[provider] = this._newProviderState();
       console.log(`[CircuitBreaker] 🔄 ${provider}: Force reset to CLOSED`);
+      this._persistToRedis(provider);
     }
   }
 

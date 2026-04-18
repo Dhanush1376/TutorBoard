@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import tokenStore from '../utils/tokenStore.js';
+import tokenStore from '../utils/auth/tokenStore.js';
 
 /**
  * Middleware to protect routes that require authentication.
@@ -32,7 +32,7 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // BUG FIX #47: Check if token has been revoked
-    if (decoded.jti && tokenStore.isTokenRevoked(decoded.jti)) {
+    if (decoded.jti && await tokenStore.isTokenRevoked(decoded.jti)) {
       console.warn(`[Auth] Attempt to use revoked token: ${decoded.jti}`);
       return res.status(401).json({
         error: 'Not authorized — token has been revoked',

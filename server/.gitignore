@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.log
+*.txt
+db_status.log
+debug_latency.log
+error.log
+error.txt
+server_log.txt
+server_output.log
+test_*.log

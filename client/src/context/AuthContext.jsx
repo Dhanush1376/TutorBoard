@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import useTutorStore from '../store/tutorStore';
+import { useTheme } from './ThemeContext';
 
 const AuthContext = createContext(null);
 
@@ -60,33 +61,43 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_URL_MISSING' : null);
   const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null });
+  const [connectionStatus, setConnectionStatus] = useState('stable'); // stable, slow, timeout
+  const { setMode, setCurrentThemeId } = useTheme();
 
   // Verify token on mount
   useEffect(() => {
     console.log('[Auth] Starting verification effect...');
     
-    // Safety Net: Force clear loader after 8 seconds no matter what happens in verifyToken
-    const forcedClearId = setTimeout(() => {
-      setLoading(prev => {
-        if (prev) {
-          console.warn('[Auth] Forced loading clearance triggered after 8s hang.');
-          return false;
+    // Stage 1: Mark as slow after 8s
+    const slowTimer = setTimeout(() => {
+      setLoading(loading => {
+        if (loading) {
+          console.warn('[Auth] Connectivity warning: Server is slow to respond.');
+          setConnectionStatus('slow');
         }
-        return prev;
+        return loading;
       });
     }, 8000);
+
+    // Stage 2: Hard fail after 20s
+    const failTimer = setTimeout(() => {
+      setLoading(loading => {
+        if (loading) {
+          console.error('[Auth] Hard timeout: Server failed to respond in 20s.');
+          setConnectionStatus('timeout');
+          return false;
+        }
+        return loading;
+      });
+    }, 20000);
 
     const verifyToken = async () => {
       try {
         // Check for token in URL (Legacy Social Login direct)
         const urlParams = new URL(window.location.href).searchParams;
-        const urlToken = urlParams.get('token');
         const exchangeCode = urlParams.get('code');
 
-        if (urlToken) {
-          safeStorage.setItem('tb-token', urlToken);
-          window.history.replaceState({}, document.title, window.location.pathname);
-        } else if (exchangeCode) {
+        if (exchangeCode) {
           // Exchange one-time code for real JWT
           console.log('[Auth] Exchange code detected, trading for session...');
           try {
@@ -111,24 +122,27 @@ export const AuthProvider = ({ children }) => {
         }
 
         const storedToken = safeStorage.getItem('tb-token');
+        const wasPreviouslyLoggedIn = !!storedToken;
+
         if (!storedToken) {
           // AI Automation: If there's a prompt in the URL, auto-login as guest
           const prompt = urlParams.get('prompt');
           if (prompt) {
             console.log('[Auth] Prompt detected in URL, auto-logging in as Guest...');
-            safeStorage.setItem('tb-token', 'guest');
+            safeStorage.setItem('tb-is-guest', 'true');
             setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
-            setToken('guest');
+            setToken(null);
           }
           setLoading(false);
           return;
         }
 
-        // Guest flow bypass
-        if (storedToken === 'guest') {
+        // Guest flow restoration
+        const isGuest = safeStorage.getItem('tb-is-guest') === 'true';
+        if (isGuest && !storedToken) {
           console.log('[Auth] Restoring Guest session');
           setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
-          setToken('guest');
+          setToken(null);
           setLoading(false);
           return;
         }
@@ -146,9 +160,9 @@ export const AuthProvider = ({ children }) => {
             setUser(data.user);
             setToken(storedToken);
 
-            // Hydrate settings
-            if (data.user?.settings) {
-              console.log('[Auth] Hydrating settings from backend');
+            // Hydrate settings ONLY on fresh login to prevent overwriting in-flight client state on refresh
+            if (data.user?.settings && !wasPreviouslyLoggedIn) {
+              console.log('[Auth] Fresh login detected: Hydrating settings from backend');
               const { general, appearance, canvas, privacy } = data.user.settings;
               if (general) {
                 if (general.nickname) safeStorage.setItem('tb-nickname', general.nickname);
@@ -159,10 +173,10 @@ export const AuthProvider = ({ children }) => {
               }
               if (appearance) {
                 if (appearance.theme) {
-                  safeStorage.setItem('tb-theme', appearance.theme);
-                  const root = document.documentElement;
-                  if (appearance.theme === 'dark') root.classList.add('dark');
-                  else if (appearance.theme === 'light') root.classList.remove('dark');
+                  setMode(appearance.theme);
+                }
+                if (appearance.themeId) {
+                  setCurrentThemeId(appearance.themeId);
                 }
                 try {
                   useTutorStore.setState({
@@ -227,7 +241,10 @@ export const AuthProvider = ({ children }) => {
     };
 
     verifyToken();
-    return () => clearTimeout(forcedClearId);
+    return () => {
+      clearTimeout(slowTimer);
+      clearTimeout(failTimer);
+    };
   }, []);
 
   // Trial Mode Refresh Protection
@@ -284,8 +301,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const loginGuest = useCallback(() => {
-    localStorage.setItem('tb-token', 'guest');
-    setToken('guest');
+    safeStorage.removeItem('tb-token');
+    safeStorage.setItem('tb-is-guest', 'true');
+    setToken(null);
     setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
     // Force default layout to Standard (Left) for guests
     useTutorStore.getState().setLayoutView('left');
@@ -301,9 +319,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('tutorboard-agent');
     
     // 3. Clear Zustand Persisted State to prevent canvas leak
-    localStorage.removeItem('zustand-tutor-store');
+    localStorage.removeItem('tutorboard-session');
 
     // 4. Update memory state
+    safeStorage.removeItem('tb-is-guest');
     setToken(null);
     setUser(null);
 
@@ -317,7 +336,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const refreshApiPrefs = useCallback(async () => {
-    if (!token || token === 'guest') return;
+    if (!token || user?.isGuest) return;
     try {
       const res = await fetch(`${API_URL}/api/apikeys`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
@@ -331,7 +350,7 @@ export const AuthProvider = ({ children }) => {
     } catch (e) { /* silent */ }
   }, [token]);
 
-  const isAuthenticated = !!user && !!token;
+  const isAuthenticated = !!user;
 
   return (
     <AuthContext.Provider value={{
@@ -346,7 +365,8 @@ export const AuthProvider = ({ children }) => {
       updateUser,
       isAuthenticated,
       apiPrefs,
-      refreshApiPrefs
+      refreshApiPrefs,
+      connectionStatus
     }}>
       {children}
     </AuthContext.Provider>

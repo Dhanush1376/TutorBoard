@@ -6,6 +6,7 @@ import {
   deleteApiKey,
   testApiKey,
   updatePreferences,
+  getApiKeyDashboard,
   getUsageStats,
   getModels,
   getHealthStatus,
@@ -22,6 +23,7 @@ router.use(protect);
 router.get('/models', getModels);
 
 // Usage analytics & monitoring
+router.get('/dashboard', getApiKeyDashboard);
 router.get('/usage', getUsageStats);
 router.get('/health', getHealthStatus);
 router.get('/cost-status', getCostStatus);

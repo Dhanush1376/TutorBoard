@@ -36,14 +36,5 @@ const LearnerProfileSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Helper to get mastery for a specific topic
-LearnerProfileSchema.methods.getMastery = function(topic) {
-  const t = (topic || '').toLowerCase();
-  for (let [key, val] of this.topicsMastery) {
-    if (t.includes(key.toLowerCase())) return val;
-  }
-  return 0.5; // Default middle ground
-};
-
 const LearnerProfile = mongoose.model('LearnerProfile', LearnerProfileSchema);
 export default LearnerProfile;

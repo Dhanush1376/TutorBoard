@@ -151,4 +151,16 @@ export function useSocket() {
   };
 }
 
+/**
+ * disconnectSocket — Static utility to destroy the global socket instance.
+ * Call this during logout to prevent session bleed between users.
+ */
+export function disconnectSocket() {
+  if (globalSocket) {
+    console.log('[Socket] Disconnecting and destroying global instance...');
+    globalSocket.disconnect();
+    globalSocket = null;
+  }
+}
+
 export default useSocket;

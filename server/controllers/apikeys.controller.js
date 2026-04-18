@@ -7,9 +7,9 @@
 
 import User from '../models/User.js';
 import UsageLog from '../models/UsageLog.js';
-import { encrypt, decrypt, maskApiKey } from '../utils/encryption.js';
-import { validateApiKey, PROVIDER_MODELS } from '../utils/apiValidator.js';
-import { validateApiKeyInput, validateProviderInput, validateModelInput, validateBaseUrlInput, sanitizeForLog } from '../utils/logSanitizer.js';
+import { encrypt, decrypt, maskApiKey } from '../utils/auth/encryption.js';
+import { validateApiKey, PROVIDER_MODELS } from '../utils/validation/apiValidator.js';
+import { validateApiKeyInput, validateProviderInput, validateModelInput, validateBaseUrlInput, sanitizeForLog } from '../utils/validation/logSanitizer.js';
 import { circuitBreaker } from '../engine/core/circuitBreaker.js';
 
 /**
@@ -195,6 +195,70 @@ export const addApiKey = async (req, res) => {
   } catch (err) {
     console.error('[ApiKeys] POST error:', err.message);
     res.status(500).json({ error: 'Failed to save API key' });
+  }
+};
+
+export const getApiKeyDashboard = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [keysData, usageStats, healthReport, costStatus] = await Promise.all([
+      // 1. Keys & Preferences
+      User.findById(userId),
+      // 2. Usage Summary
+      UsageLog.aggregate([
+        { $match: { userId: req.user._id, timestamp: { $gte: thirtyDaysAgo } } },
+        { $group: {
+          _id: null,
+          totalRequests: { $sum: 1 },
+          totalTokens: { $sum: '$tokensUsed' },
+          totalCost: { $sum: '$costEstimate' },
+          avgResponseTime: { $avg: '$responseTimeMs' },
+          failedRequests: { $sum: { $cond: ['$success', 0, 1] } },
+        }},
+      ]),
+      // 3. Health status (Circuit Breaker)
+      Promise.resolve(circuitBreaker.getHealthReport()),
+      // 4. Current Month Detail for Universal
+      UsageLog.aggregate([
+        { $match: { userId: req.user._id, isCustomKey: true, timestamp: { $gte: startOfMonth } } },
+        { $group: { _id: null, totalSpend: { $sum: '$costEstimate' }, totalRequests: { $sum: 1 } } },
+      ]),
+    ]);
+
+    if (!keysData) return res.status(404).json({ error: 'User not found' });
+
+    const preferences = keysData.apiPreferences || {
+      useCustomApi: false, fallbackToDefault: true, smartRouting: false,
+      enableRacing: false, enableAdaptive: false, routingMode: 'auto',
+      modelOverride: '', costControl: { monthlyLimitCents: 0, warningThresholdPct: 80, hardStop: true },
+    };
+
+    const keys = (keysData.apiKeys || []).map(k => ({
+      id: k._id, provider: k.provider, model: k.model, label: k.label,
+      baseUrl: k.baseUrl, isActive: k.isActive, isValid: k.isValid,
+      lastValidated: k.lastValidated, createdAt: k.createdAt,
+      maskedKey: maskApiKey(decrypt({ encrypted: k.encryptedKey, iv: k.iv, tag: k.tag })),
+    }));
+
+    res.json({
+      keys,
+      preferences,
+      usage: usageStats[0] || { totalRequests: 0, totalTokens: 0, totalCost: 0, avgResponseTime: 0 },
+      health: healthReport,
+      cost: {
+        currentSpendCents: costStatus[0]?.totalSpend || 0,
+        monthlyLimitCents: preferences.costControl?.monthlyLimitCents || 0,
+        totalRequests: costStatus[0]?.totalRequests || 0
+      }
+    });
+  } catch (err) {
+    console.error('[ApiKeys] Dashboard error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch dashboard summary' });
   }
 };
 

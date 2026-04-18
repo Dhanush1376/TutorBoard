@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
+import crypto from 'crypto';
 
 process.stdout.setEncoding('utf8');
 
@@ -18,17 +19,24 @@ import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
 import mongoose from 'mongoose';
+import passport from './utils/auth/passport.js';
 
 const app = express();
-app.set('trust proxy', true); // Trust reverse proxies (Vercel, Cloudflare, etc.) for rate limiting
+app.set('trust proxy', 1); // Trust only the immediate reverse proxy (Vercel, Cloudflare, etc.)
 
-// BUG FIX #57: Enhanced CSP header to prevent SVG/script injection from LLM-generated content
+// Middleware to generate a unique nonce for each request to support CSP without 'unsafe-inline'
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
+// BUG FIX #57: Enhanced CSP header with nonces to prevent SVG/script injection from LLM-generated content
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],  // React requires unsafe-inline
-      styleSrc: ["'self'", "'unsafe-inline'"],    // Tailwind CSS dynamic styles
+      scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+      styleSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
       imgSrc: ["'self'", 'data:', 'https:'],      // Allow data: URLs for canvas exports
       svgSrc: ["'self'"],                         // SVG content only from self
       objectSrc: ["'none'"],                      // Prevent plugin injection
@@ -96,10 +104,16 @@ for (const { key, critical, label } of REQUIRED_ENV) {
 console.log("=====================================");
 
 if (!hasAllCritical) {
-  console.warn('⚠️ Missing critical environment variables. Server will run in DEGRADED MODE.');
-  if (!process.env.JWT_SECRET) {
-    console.warn('⚠️ No JWT_SECRET found. Using developmental fallback. NOT SECURE FOR PRODUCTION.');
-    process.env.JWT_SECRET = 'tutorboard-dev-secret-not-for-production';
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ CRITICAL ERROR: Missing required environment variables in PRODUCTION.');
+    console.error('The server cannot start securely. Please check your .env or platform secrets.');
+    process.exit(1);
+  } else {
+    console.warn('⚠️ Missing critical environment variables. Server will run in DEGRADED MODE.');
+    if (!process.env.JWT_SECRET) {
+      console.warn('⚠️ No JWT_SECRET found. Using developmental fallback. NOT SECURE FOR PRODUCTION.');
+      process.env.JWT_SECRET = 'tutorboard-dev-secret-not-for-production';
+    }
   }
 }
 
@@ -147,7 +161,6 @@ setupTeachingSocket(io);
 // CORS and JSON parsing were moved to top
 
 // Initialize Passport for Social Auth
-import passport from 'passport';
 app.use(passport.initialize());
 
 // Request logger was moved to top

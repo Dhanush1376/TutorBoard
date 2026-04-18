@@ -733,7 +733,7 @@ option {
 
 .loader-svg .wire {
   stroke: var(--text-primary, #1c1711);
-  opacity: 0.0;
+  opacity: 0;
 }
 
 .loader-svg .plate-top {
@@ -954,7 +954,7 @@ option {
 }
 
 .loader-fade {
-  animation: fadeOut 0.5s var(--ease-smooth) 3.5s forwards;
+  animation: fadeOut 0.5s var(--ease-smooth) 4.5s forwards;
 }
 
 @keyframes fadeOut {

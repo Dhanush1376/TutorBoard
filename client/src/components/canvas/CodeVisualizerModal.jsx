@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Square, ChevronRight, ChevronDown, Globe, Circle, Minus, AlertCircle, CheckCircle2, Copy, Trash2, Layout } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { useTheme } from '../../context/ThemeContext';
-import VisaiLogo from '../common/VisaiLogo';
+import VisaiLogo from '../layout/VisaiLogo';
 
 // ─── Token Highlighter ───────────────────────────────────────────────────────
 const LANGUAGES = {

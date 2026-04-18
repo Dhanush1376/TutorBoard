@@ -1,20 +1,5 @@
-/**
- * useTeachingMachine v2.0 — WebSocket-driven hook that syncs server state with Zustand store
- *
- * WHAT CHANGED FROM v1:
- *   1. playIntervalRef is now properly cleared in the socket disconnect cleanup effect.
- *      Previously the setInterval/setTimeout ghost-fired after session end, emitting
- *      session:step events into a dead socket.
- *   2. safetyTimeoutRef cleanup on unmount is now consistent.
- *   3. Teaching:timeline listener now also explicitly sets machineState to TEACHING
- *      when timeline is received — ensures the canvas opens even if the TEACHING
- *      state transition event arrives out-of-order or is missed.
- *   4. The 'resume' action now correctly clears doubtResponse so the doubt panel
- *      closes on resume.
- *   5. Added 'teaching:progress' listener to surface generation progress in the UI.
- */
-
 import { useCallback, useRef, useEffect } from 'react';
+import { useShallow } from 'zustand/shallow';
 import useSocket from './useSocket';
 import useTutorStore, { STATES } from '../store/tutorStore';
 
@@ -26,7 +11,6 @@ export function useTeachingMachine() {
   const safetyTimeoutRef  = useRef(null);
 
   // ─── Pull store state & actions ──────────────────────────────────────────
-  const store = useTutorStore();
   const {
     machineState, sessionId, topic,
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
@@ -46,7 +30,54 @@ export function useTeachingMachine() {
     goToStep: storeGoToStep,
     setPlaybackSpeed,
     selectedAgent,
-  } = store;
+  } = useTutorStore(useShallow(s => ({
+    machineState: s.machineState,
+    sessionId: s.sessionId,
+    topic: s.topic,
+    timeline: s.timeline,
+    learningNodes: s.learningNodes,
+    mode: s.mode,
+    difficulty: s.difficulty,
+    professorNote: s.professorNote,
+    memoryAnchor: s.memoryAnchor,
+    keyFormula: s.keyFormula,
+    currentStepIndex: s.currentStepIndex,
+    totalSteps: s.totalSteps,
+    canvasObjects: s.canvasObjects,
+    canvasConnections: s.canvasConnections,
+    canvasSteps: s.canvasSteps,
+    doubtResponse: s.doubtResponse,
+    isDoubtProcessing: s.isDoubtProcessing,
+    doubtHistory: s.doubtHistory,
+    activeDoubtId: s.activeDoubtId,
+    error: s.error,
+    greetingMessage: s.greetingMessage,
+    isPlaying: s.isPlaying,
+    isPaused: s.isPaused,
+    playbackSpeed: s.playbackSpeed,
+    setMachineState: s.setMachineState,
+    setSessionId: s.setSessionId,
+    setConnected: s.setConnected,
+    setConnectionError: s.setConnectionError,
+    setTimeline: s.setTimeline,
+    setCurrentStep: s.setCurrentStep,
+    setError: s.setError,
+    setGreeting: s.setGreeting,
+    setDoubtProcessing: s.setDoubtProcessing,
+    addDoubt: s.addDoubt,
+    setDoubtResponse: s.setDoubtResponse,
+    mutateCanvasObjects: s.mutateCanvasObjects,
+    addCanvasObjects: s.addCanvasObjects,
+    startSession: s.startSession,
+    endSession: s.endSession,
+    play: s.play,
+    pause: s.pause,
+    nextStep: s.nextStep,
+    prevStep: s.prevStep,
+    goToStep: s.goToStep,
+    setPlaybackSpeed: s.setPlaybackSpeed,
+    selectedAgent: s.selectedAgent,
+  })));
 
   // ─── Sync connection state ────────────────────────────────────────────────
   useEffect(() => {
@@ -169,12 +200,33 @@ export function useTeachingMachine() {
       setGreeting(data.message);
     }));
 
+    // ─── Adaptive Replanning Events ─────────────────────────────────────────
+    // Server emits these when confusionIndex triggers a mid-lesson replan
+    cleanups.push(on('teaching:replan', (data) => {
+      console.log(`[Machine] 🔄 Adaptive replan: "${data.message}" (${data.newTotalSteps} steps)`);
+      notifyUser('Lesson Adapted', data.message || 'Steps have been simplified for you.');
+    }));
+
+    cleanups.push(on('teaching:timeline-update', (data) => {
+      console.log(`[Machine] 🔄 Timeline update received: ${data.totalSteps} steps`);
+      setTimeline({
+        steps:      data.steps,
+        timeline:   data.steps,
+        totalSteps: data.totalSteps,
+        // Preserve existing elements/connections — only steps changed
+        elements:    useTutorStore.getState().canvasObjects,
+        objects:     useTutorStore.getState().canvasObjects,
+        connections: useTutorStore.getState().canvasConnections,
+        renderer:    useTutorStore.getState().renderer || 'cinematic',
+      });
+    }));
+
     return () => cleanups.forEach(cleanup => cleanup());
   }, [
     on, isConnected,
     setMachineState, setSessionId, setTimeline, setCurrentStep,
     setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects,
-    setError, setGreeting,
+    setError, setGreeting, notifyUser,
   ]);
 
   // ─── Auto-play logic ──────────────────────────────────────────────────────

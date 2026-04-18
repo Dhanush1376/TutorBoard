@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import VisaiLogo from '../components/common/VisaiLogo';
+import VisaiLogo from '../components/layout/VisaiLogo';
 import LoginNavbar from '../components/layout/LoginNavbar';
 import CinematicTransition from '../components/auth/CinematicTransition';
 
@@ -17,14 +17,19 @@ const AuthLanding = () => {
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Redirect if already authenticated, BUT only if they didn't just log in via this form
+  // Redirect if already authenticated — trigger transition if on root
   useEffect(() => {
-    // If they are authenticated but we are currently showing or loading the animation, don't auto-redirect.
-    // The CinematicTransition component will handle the redirect onComplete instead.
     if (isAuthenticated && !isSuccess && !loading) {
-      navigate('/dashboard');
+      // If we just landed on Auth and are authenticated, show the cinematic transition first
+      // instead of a jump-cut to the dashboard.
+      setIsSuccess(true);
+      // We also mark this as a "login" phase transition in the props
+      setIsLogin(true);
+      try {
+        sessionStorage.setItem('tb-welcome-played', 'true');
+      } catch (e) { /* ignore */ }
     }
-  }, [isAuthenticated, navigate, isSuccess, loading]);
+  }, [isAuthenticated, isSuccess, loading]);
 
   // Advanced Demo State
   const [activeTopicIndex, setActiveTopicIndex] = useState(0);
@@ -107,6 +112,9 @@ const AuthLanding = () => {
       // Trigger cinematic transition instead of immediate navigate
       setIsSuccess(true);
       setLoading(false);
+      try {
+        sessionStorage.setItem('tb-welcome-played', 'true');
+      } catch (e) { /* ignore */ }
     } catch (err) {
       setError(err.message || 'Authentication failed');
       setLoading(false);
@@ -118,21 +126,28 @@ const AuthLanding = () => {
   return (
     <div className="lg:h-screen w-full flex flex-col lg:flex-row bg-[var(--bg-primary)] font-sans overflow-hidden selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)] pt-16 lg:pt-0">
       
-      {/* ── CINEMATIC TRANSITION (replaces entire screen on success) ── */}
-      {isSuccess && (
-        <CinematicTransition
-          userName={formData.name || formData.email?.split('@')[0] || 'Explorer'}
-          isLogin={isLogin}
-          onComplete={() => navigate('/dashboard')}
-        />
-      )}
-
-      <div className="lg:hidden relative z-[9999]">
-        <LoginNavbar />
-      </div>
-      
-      {/* ── LEFT COLUMN: AUTH FORM ────────────────────────────────────────── */}
-      <div className="lg:w-[45%] xl:w-[40%] flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12 relative z-10 bg-[var(--bg-primary)]">
+      <AnimatePresence mode="wait">
+        {isSuccess ? (
+          <CinematicTransition
+            key="cinematic"
+            userName={user?.name || formData.name || formData.email?.split('@')[0] || 'Explorer'}
+            isLogin={isLogin}
+            onComplete={() => navigate('/dashboard')}
+          />
+        ) : (
+          <motion.div 
+            key="auth-ui"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+            transition={{ duration: 0.8 }}
+            className="flex flex-col lg:flex-row w-full lg:h-screen overflow-hidden"
+          >
+            <div className="lg:hidden relative z-[9999]">
+              <LoginNavbar />
+            </div>
+            
+            {/* ── LEFT COLUMN: AUTH FORM ────────────────────────────────────────── */}
+            <div className="lg:w-[45%] xl:w-[40%] flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12 relative z-10 bg-[var(--bg-primary)]">
         
 
         <div className="max-w-[340px] w-full mx-auto lg:mx-0">
@@ -278,6 +293,9 @@ const AuthLanding = () => {
               onClick={() => {
                 loginGuest();
                 setIsSuccess(true);
+                try {
+                  sessionStorage.setItem('tb-welcome-played', 'true');
+                } catch (e) { /* ignore */ }
               }}
               className="text-[12px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic"
             >
@@ -508,10 +526,13 @@ const AuthLanding = () => {
           </AnimatePresence>
         </div>
 
-        <div className="p-8 mt-auto text-[var(--text-primary)] opacity-20 text-[9px] uppercase font-bold tracking-[0.4em] shrink-0 text-center">
-          Across every subject · Experience the Future
-        </div>
-      </div>
+            <div className="p-8 mt-auto text-[var(--text-primary)] opacity-20 text-[9px] uppercase font-bold tracking-[0.4em] shrink-0 text-center">
+              Across every subject · Experience the Future
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     </div>
   );
 };

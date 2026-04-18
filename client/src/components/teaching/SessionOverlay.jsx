@@ -29,6 +29,7 @@ const SessionOverlay = ({
   pause
 }) => {
   const [showActions, setShowActions] = useState(true);
+  const store = useTutorStore();
 
   return (
     <AnimatePresence>
@@ -102,6 +103,52 @@ const SessionOverlay = ({
         </motion.div>
       )}
 
+      {/* PREPARED / READY TO START */}
+      {machineState === 'TEACHING' && store.isTimelineReady && store.canvasMode !== 'FULLSCREEN' && (
+        <motion.div
+          key="prepared"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--bg-primary)]/95 backdrop-blur-md"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="flex flex-col items-center gap-6 max-w-md text-center px-8"
+          >
+            <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+              <Sparkles size={32} className="text-emerald-400" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">Lesson Prepared!</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-1">
+                A visual timeline for <strong>"{topic}"</strong> is now ready for exploration.
+              </p>
+              <p className="text-[11px] text-[var(--text-tertiary)] italic">
+                {totalSteps} interactive steps generated
+              </p>
+            </div>
+
+            <button
+              onClick={() => store.setCanvasMode('FULLSCREEN')}
+              className="group flex items-center gap-3 px-8 py-4 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-2xl text-[14px] font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-2xl"
+            >
+              Start Discovery
+              <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+            </button>
+
+            <button
+              onClick={onClose}
+              className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              Back to Chat
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+
       {/* ERROR */}
       {machineState === 'ERROR' && (
         <motion.div
@@ -116,11 +163,23 @@ const SessionOverlay = ({
             animate={{ opacity: 1, scale: 1 }}
             className="flex flex-col items-center gap-5 max-w-sm text-center px-8"
           >
-            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <AlertTriangle size={28} className="text-red-400" />
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
+              error?.toLowerCase().includes('busy') || error?.toLowerCase().includes('capacity')
+                ? 'bg-amber-500/10 border border-amber-500/20'
+                : 'bg-red-500/10 border border-red-500/20'
+            }`}>
+              <AlertTriangle size={28} className={
+                error?.toLowerCase().includes('busy') || error?.toLowerCase().includes('capacity')
+                  ? 'text-amber-400'
+                  : 'text-red-400'
+              } />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">Something went wrong</h3>
+              <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">
+                {error?.toLowerCase().includes('busy') || error?.toLowerCase().includes('capacity')
+                  ? 'Server Capacity Reached'
+                  : 'Something went wrong'}
+              </h3>
               <p className="text-sm text-[var(--text-secondary)]">
                 {error || 'Failed to generate the lesson. Please try again.'}
               </p>

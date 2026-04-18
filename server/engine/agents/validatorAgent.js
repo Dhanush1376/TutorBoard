@@ -59,8 +59,7 @@ AUTO-REPAIR (Apply silently, log in "repairs")
 - Clamp zoom to [0.5, 2.5]
 - Clamp duration to [0.1, 3.0]
 - Remove animation references to non-existent IDs
-- If objectIds becomes empty after removal → replace with ALL active element IDs
-- If step count < 3 → inject fail-safe steps
+- If step count < 6 → inject fail-safe steps
 - Renumber steps if gaps found
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

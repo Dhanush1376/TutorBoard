@@ -1,0 +1,15 @@
+# Force LF line endings for all JS and JSX files
+*.js text eol=lf
+*.jsx text eol=lf
+# Handle other text files
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

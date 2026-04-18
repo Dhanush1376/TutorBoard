@@ -2,15 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ChatWindow from '../chat/ChatWindow';
 import InputBar from '../chat/InputBar';
-import ChatHistory from '../sidebar/ChatHistory';
-import ThemeSelector from '../ThemeSelector';
+import ChatHistory from '../chat/ChatHistory';
+import ThemeSelector from './ThemeSelector';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
   ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings
 } from 'lucide-react';
-import VisaiLogo from '../common/VisaiLogo';
+import VisaiLogo from './VisaiLogo';
 
 
 const LeftPanel = ({

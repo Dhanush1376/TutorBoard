@@ -3,19 +3,19 @@ import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import VisaiLogo from '../common/VisaiLogo';
+import VisaiLogo from '../layout/VisaiLogo';
 
 // ── New premium starting interface ──
 const ChatLanding = ({ setActiveMode, activeMode }) => {
   const { user } = useAuth();
   
-  const getTimeGreeting = () => {
+  const greeting = React.useMemo(() => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return "Welcome, Early Bird,";
     if (hour >= 12 && hour < 17) return "Welcome, Day Dreamer,";
     if (hour >= 17 && hour < 21) return "Welcome, Calm Creator,";
     return "Welcome, Night Owl,";
-  };
+  }, []);
 
   const modes = [
     { id: 'quick', label: 'Quick Answer', icon: BookOpen, color: '#60a5fa' },
@@ -37,7 +37,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
         className="mb-8"
       >
         <p className="!text-[11px] lg:!text-[12px] font-medium text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
-          {getTimeGreeting()}
+          {greeting}
         </p>
         <h1 className="!text-[22px] lg:!text-[30px] font-medium text-[var(--text-primary)] leading-[1.2] tracking-tight">
           Where should <br /> we start?

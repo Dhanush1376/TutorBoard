@@ -10,9 +10,9 @@ import {
   Volume2, VolumeX, Zap, Gauge, BookOpen, GraduationCap,
   Globe2, Unlink, Download, Upload, RotateCcw,
   AlertTriangle, ExternalLink, Heart, TableProperties, PanelLeft, PanelRight,
-  Activity, DollarSign, Wifi, WifiOff, GitBranch, Key
+  Activity, DollarSign, Wifi, WifiOff, GitBranch, Key, Sparkles
 } from 'lucide-react';
-import VisaiLogo from '../components/common/VisaiLogo';
+import VisaiLogo from '../components/layout/VisaiLogo';
 import { useTheme } from '../context/ThemeContext';
 import { themes } from '../lib/themes';
 
@@ -381,21 +381,6 @@ const ContextButton = ({ children, onClick, danger, icon: Icon }) => (
   </button>
 );
 
-const Avatar = ({ name, avatar, size = 56 }) => {
-  const initials = (name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: avatar ? `url(${avatar}) center/cover` : 'var(--text-primary)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: 'var(--bg-primary)', fontSize: size * 0.35, fontWeight: 700,
-      fontFamily: '"Geist", sans-serif', flexShrink: 0,
-      border: '2px solid var(--border-color)',
-    }}>
-      {!avatar && initials}
-    </div>
-  );
-};
 const TrialSectionOverlay = ({ onUnlock }) => (
   <div style={{
     position: 'absolute', inset: 0, zIndex: 100,
@@ -464,7 +449,7 @@ const useSettingsSync = () => {
   const { token, user } = useAuth();
   const timeoutRef = useRef(null);
 
-  const syncSettings = useCallback((category, newValues) => {
+  const syncSettings = useCallback((category, newValues, topLevel = {}) => {
     if (!user || user.isGuest) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(async () => {
@@ -472,7 +457,10 @@ const useSettingsSync = () => {
         await fetch(`${API_URL}/api/user/settings`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ settings: { [category]: newValues } })
+          body: JSON.stringify({ 
+            settings: { [category]: newValues },
+            ...topLevel
+          })
         });
       } catch (err) {
         console.error('Settings sync failed:', err);
@@ -497,7 +485,6 @@ const GeneralSection = ({ user, syncSettings, showToast }) => {
   const [preferences, setPreferences] = useState(localStorage.getItem('tb-ai-preferences') || '');
   const [notifCompletion, setNotifCompletion] = useState(localStorage.getItem('tb-notif-completion') !== 'false');
   const [notifSound, setNotifSound] = useState(localStorage.getItem('tb-notif-sound') !== 'false');
-  const avatarInputRef = useRef(null);
   const [saveStatus, setSaveStatus] = useState(null); // 'saving' | 'saved' | null
 
   const handleNotifCompletionToggle = async (val) => {
@@ -518,66 +505,44 @@ const GeneralSection = ({ user, syncSettings, showToast }) => {
     setNotifCompletion(val);
   };
 
-  const handleAvatarUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('Image must be under 2MB', 'error');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      localStorage.setItem('tb-avatar', dataUrl);
-      updateUser({ avatar: dataUrl });
-      showToast('Avatar updated!', 'success');
-    };
-    reader.readAsDataURL(file);
-  };
+  const lastSavedName = useRef(user?.name);
 
   // Auto-save logic
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setSaveStatus('saving');
+      // 1. Local Storage Sync
       localStorage.setItem('tb-nickname', nickname);
       localStorage.setItem('tb-role', role);
       localStorage.setItem('tb-ai-preferences', preferences);
       localStorage.setItem('tb-notif-completion', String(notifCompletion));
       localStorage.setItem('tb-notif-sound', String(notifSound));
 
-      // Update AuthContext so the name reflects globally (sidebar, header, etc.)
-      if (displayName && displayName !== user?.name) {
+      // 2. Global State Sync (Name only)
+      if (displayName && displayName !== lastSavedName.current) {
+        setSaveStatus('saving');
         updateUser({ name: displayName });
+        lastSavedName.current = displayName;
+        
+        syncSettings('general', { nickname, role, preferences, name: displayName, notifCompletion, notifSound });
+        setTimeout(() => setSaveStatus('saved'), 300);
+        setTimeout(() => setSaveStatus(null), 2000);
+      } else {
+        // Just sync other settings if they changed (debounced)
+        setSaveStatus('saving');
+        syncSettings('general', { nickname, role, preferences, name: displayName, notifCompletion, notifSound });
+        setTimeout(() => setSaveStatus('saved'), 300);
+        setTimeout(() => setSaveStatus(null), 2000);
       }
 
-      syncSettings('general', { nickname, role, preferences, name: displayName, notifCompletion, notifSound });
-      setTimeout(() => setSaveStatus('saved'), 300);
-      setTimeout(() => setSaveStatus(null), 2000);
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [nickname, role, preferences, displayName, notifCompletion, notifSound, syncSettings, updateUser, user?.name]);
+    // Remove syncSettings/updateUser from deps or ensure they are ignored for loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nickname, role, preferences, displayName, notifCompletion, notifSound]);
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
-        <div style={{ position: 'relative', marginBottom: '16px' }}>
-          <Avatar name={displayName || user?.name} avatar={user?.avatar || localStorage.getItem('tb-avatar')} size={84} />
-          <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
-          <button onClick={() => avatarInputRef.current?.click()} style={{
-            position: 'absolute', bottom: 0, right: 0,
-            width: '28px', height: '28px', borderRadius: '50%',
-            background: 'var(--bg-secondary)', color: 'var(--text-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '1px solid var(--border-color)', cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            transition: 'transform 0.15s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            <Camera style={{ width: '13px', height: '13px' }} />
-          </button>
-        </div>
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
@@ -1089,7 +1054,7 @@ const AppearanceSection = ({ syncSettings }) => {
 const PROVIDER_INFO = {
   openai: { name: 'OpenAI', color: '#10a37f', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o3-mini'] },
   deepseek: { name: 'DeepSeek', color: '#4d6cfa', models: ['deepseek-chat', 'deepseek-reasoner'] },
-  google: { name: 'Google Gemini', color: '#4285f4', models: ['gemini-2.5-pro-preview-05-06', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'] },
+  google: { name: 'Google Gemini', color: '#4285f4', models: ['gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'] },
   anthropic: { name: 'Anthropic', color: '#d97757', models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'] },
   custom: { name: 'Custom API', color: '#8b5cf6', models: [] },
 };
@@ -1101,7 +1066,7 @@ const MODEL_LABELS = {
   'o3-mini': 'o3-mini (Reasoning)',
   'deepseek-chat': 'DeepSeek V3',
   'deepseek-reasoner': 'DeepSeek R1 (Reasoning)',
-  'gemini-2.5-pro-preview-05-06': 'Gemini 2.5 Pro',
+  'gemini-1.5-pro': 'Gemini 1.5 Pro',
   'gemini-2.0-flash': 'Gemini 2.0 Flash',
   'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite',
   'claude-sonnet-4-20250514': 'Claude Sonnet 4',
@@ -1196,16 +1161,13 @@ const AILearningSection = ({ showToast }) => {
 
   // Fetch all data on mount
   useEffect(() => {
-    if (token) { fetchApiKeys(); fetchUsageStats(); fetchHealth(); fetchCostStatus(); }
+    if (token) fetchDashboardData();
   }, [token]);
 
   // Auto-refresh usage data every 30s while this tab is active
   useEffect(() => {
     if (!token) return;
-    const interval = setInterval(() => {
-      fetchApiKeys();
-      fetchCostStatus();
-    }, 30000);
+    const interval = setInterval(fetchDashboardData, 30000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -1215,43 +1177,26 @@ const AILearningSection = ({ showToast }) => {
     setNewModel(models[0] || '');
   }, [newProvider]);
 
-  const fetchApiKeys = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/apikeys`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/apikeys/dashboard`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) {
         const d = await res.json();
         setApiKeys(d.keys || []);
         setPreferences(d.preferences || {});
-        setUniversalUsage(d.universalUsage || null);
+        setUsageStats(d.usage || null);
+        setHealthData(d.health || null);
+        setCostStatus(d.cost || null);
+        // Universal usage is now part of the keys' response or separate?
+        // Let's assume dashboard returns everything needed.
       }
-    } catch (e) { /* silent */ }
-  };
-
-  const fetchUsageStats = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/apikeys/usage`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) setUsageStats(await res.json());
-    } catch (e) { /* silent */ }
-  };
-
-  const fetchHealth = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/apikeys/health`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) setHealthData(await res.json());
-    } catch (e) { /* silent */ }
-  };
-
-  const fetchCostStatus = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/apikeys/cost-status`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) setCostStatus(await res.json());
     } catch (e) { /* silent */ }
   };
 
   const handleUpdateCostControl = async (field, value) => {
     const updated = { ...preferences, costControl: { ...(preferences.costControl || {}), [field]: value } };
     setPreferences(updated);
-    try { await fetch(`${API_URL}/api/apikeys/preferences`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(updated) }); fetchCostStatus(); } catch (e) { /* */ }
+    try { await fetch(`${API_URL}/api/apikeys/preferences`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(updated) }); fetchDashboardData(); } catch (e) { /* */ }
   };
 
   const handleAddKey = async () => {
@@ -1267,7 +1212,7 @@ const AILearningSection = ({ showToast }) => {
       const data = await res.json();
       if (res.ok) {
         setValidationResult({ success: true, message: data.message, latencyMs: data.latencyMs });
-        setNewApiKey(''); setShowAddForm(false); fetchApiKeys();
+        setNewApiKey(''); setShowAddForm(false); fetchDashboardData();
         showToast?.(`${PROVIDER_INFO[newProvider]?.name} key added successfully!`, 'success');
       }
       else { setValidationResult({ success: false, message: data.details || data.error }); }
@@ -1278,12 +1223,12 @@ const AILearningSection = ({ showToast }) => {
   const handleDeleteKey = async (keyId) => {
     try {
       const r = await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (r.ok) { fetchApiKeys(); showToast?.('API key removed', 'info'); }
+      if (r.ok) { fetchDashboardData(); showToast?.('API key removed', 'info'); }
     } catch (e) { /* */ }
   };
 
   const handleToggleKey = async (keyId, isActive) => {
-    try { await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ isActive }) }); fetchApiKeys(); } catch (e) { /* */ }
+    try { await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ isActive }) }); fetchDashboardData(); } catch (e) { /* */ }
   };
 
   const handleUpdatePref = async (key, value) => {
@@ -1306,7 +1251,7 @@ const AILearningSection = ({ showToast }) => {
       } else {
         showToast?.(data.error || 'Validation failed', 'error');
       }
-      fetchApiKeys(); // Refresh validation status
+      fetchDashboardData(); // Refresh validation status
     } catch (e) {
       setTestResults(prev => ({ ...prev, [keyId]: { valid: false, error: 'Network error' } }));
       showToast?.('Network error during test', 'error');
@@ -2080,7 +2025,7 @@ const AboutSection = () => {
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [activeSection, setActiveSection] = useState('general');
   const [isTrafficHovered, setIsTrafficHovered] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -2111,7 +2056,11 @@ const Settings = () => {
           <AccountSection user={user} logout={logout} />
         </SectionWrapper>
       ),
-      appearance: <AppearanceSection syncSettings={syncSettings} />,
+      appearance: (
+        <SectionWrapper isGuest={user?.isGuest} isRestricted={false}>
+          <AppearanceSection syncSettings={syncSettings} />
+        </SectionWrapper>
+      ),
       ai: (
         <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
           <AILearningSection showToast={showToast} />
@@ -2122,11 +2071,24 @@ const Settings = () => {
           <PrivacySection syncSettings={syncSettings} />
         </SectionWrapper>
       ),
-      about: <AboutSection />,
+      about: (
+        <SectionWrapper isGuest={user?.isGuest} isRestricted={false}>
+          <AboutSection />
+        </SectionWrapper>
+      ),
     };
 
     return sectionMap[activeSection] || sectionMap.general;
   };
+
+  if (loading && !user) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          style={{ width: '40px', height: '40px', border: '3px solid var(--text-primary)', borderTopColor: 'transparent', borderRadius: '50%' }} />
+      </div>
+    );
+  }
 
   return (
     <div style={{

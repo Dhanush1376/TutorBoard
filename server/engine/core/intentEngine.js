@@ -7,8 +7,8 @@
  * BUG FIX #56: Now validates topics for prompt injection attempts
  */
 
-import { requestCompletion, getTextModel, getModelForAgent } from '../utils/llmClient.js';
-import { sanitizeTopicForPrompt } from '../../utils/topicValidator.js';
+import { requestCompletion, getTextModel, getModelForAgent } from '../../utils/ai/llmClient.js';
+import { sanitizeTopicForPrompt } from '../../utils/validation/topicValidator.js';
 
 /**
  * Detects user intent and preferred renderer using a cheap, fast LLM call.

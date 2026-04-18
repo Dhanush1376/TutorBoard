@@ -1,3 +1,4 @@
+import Doubt from '../models/Doubt.js';
 import { handleDoubt } from '../engine/core/pedagogyEngine.js';
 import sessionStore from '../engine/core/sessionStore.js';
 
@@ -11,7 +12,7 @@ export const answerDoubt = async (req, res) => {
     if (!question) return res.status(400).json({ error: 'Question is required' });
 
     const sessionId = `api-doubt-${Date.now()}`;
-    sessionStore.create(sessionId, 'api-request');
+    await sessionStore.create(sessionId, 'api-request');
 
     console.log(`[Doubt] Processing orchestrated query: "${question}"`);
     const data = await handleDoubt(sessionId, question);
@@ -25,11 +26,15 @@ export const answerDoubt = async (req, res) => {
 
 /**
  * GET /api/doubts/history
+ * Fetches historical doubts for the current user from MongoDB.
  */
 export const getDoubtHistory = async (req, res) => {
   try {
-    // MongoDB removed — returning empty history for now
-    res.json({ history: [] });
+    const history = await Doubt.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+      
+    res.json({ history });
   } catch (error) {
     console.error('Fetch history error:', error);
     res.status(500).json({ error: 'Failed to fetch chat history' });
