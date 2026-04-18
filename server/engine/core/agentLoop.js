@@ -34,27 +34,41 @@ import { SceneGraphSchema } from '../validators/timelineSchema.js';
 function extractJSON(text) {
   if (!text || typeof text !== 'string') return null;
 
-  let cleaned = text.trim();
-  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  // 1. Precise Markdown Block Extraction
+  const jsonBlocks = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)];
+  for (const match of jsonBlocks) {
+    try {
+      const cleaned = match[1].trim();
+      return JSON.parse(cleaned);
+    } catch (_) { /* continue */ }
+  }
 
-  // Attempt 1: Direct parse
-  try { return JSON.parse(cleaned); } catch (_) { /* fall through */ }
-
-  // Attempt 2: Brace-balanced extraction (handles trailing text/newlines after JSON)
-  let depth = 0, start = -1;
-  for (let i = 0; i < cleaned.length; i++) {
-    if (cleaned[i] === '{') {
-      if (depth === 0) start = i;
-      depth++;
-    } else if (cleaned[i] === '}') {
-      depth--;
-      if (depth === 0 && start !== -1) {
-        try { return JSON.parse(cleaned.substring(start, i + 1)); } catch (_) { start = -1; }
+  // 2. Loose Brace Extraction (handles leading/trailing chatter)
+  const stack = [];
+  let start = -1;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (stack.length === 0) start = i;
+      stack.push('{');
+    } else if (text[i] === '}') {
+      if (stack.length > 0) {
+        stack.pop();
+        if (stack.length === 0 && start !== -1) {
+          try {
+            const candidate = text.substring(start, i + 1);
+            return JSON.parse(candidate);
+          } catch (_) { /* continue search */ }
+        }
       }
     }
   }
 
-  return null;
+  // 3. Last Resort: Trimmed direct parse
+  try {
+    return JSON.parse(text.trim());
+  } catch (_) {
+    return null;
+  }
 }
 
 // ─── FIX 2: Bridge new agent schema → legacy renderer schema ─────────────────
@@ -72,28 +86,36 @@ function unwrapValidatorOutput(raw) {
   if (!raw) return null;
 
   // Case A: Already legacy format
-  if (raw.elements || raw.objects) {
+  if (raw.elements || raw.objects || raw.timeline || raw.steps) {
     console.log('[AgentLoop] Output already in legacy format — passing through.');
     return raw;
   }
 
   // Case B: New format — unwrap final_output
-  const inner = raw.final_output;
-  if (!inner) {
-    console.warn('[AgentLoop] ⚠️ No "final_output" and no "elements". Cannot unwrap.');
+  const inner = raw.final_output || raw; 
+  if (typeof inner !== 'object' || inner === null) {
+    console.warn('[AgentLoop] ⚠️ inner final_output is not an object. Unwrap failed.');
     return null;
   }
-
+  
   const meta        = inner.meta || {};
-  const narrations  = inner.narrations    || [];
-  const visualSteps = inner.visual_steps  || [];
-  const animSteps   = inner.animation_steps || [];
+  const narrations  = inner.narrations    || inner.explanation_steps || inner.steps || [];
+  const visualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || [];
+  const animSteps   = inner.animation_steps || inner.animations || inner.transitions || [];
+
+  if (visualSteps.length === 0 && narrations.length === 0) {
+    console.warn('[AgentLoop] ⚠️ No visual_steps or narrations found. Unwrap failed.');
+    return null;
+  }
 
   // Collect all elements declared across all steps (deduplicated by id)
   const elementMap = new Map();
   for (const vs of visualSteps) {
-    for (const el of (vs.elements || [])) {
+    for (const el of (vs.elements || vs.objects || vs.shapes || [])) {
       if (el?.id && !elementMap.has(el.id)) {
+        // Ensure every element has a type fallback
+        if (!el.type && el.shape) el.type = el.shape;
+        if (!el.type) el.type = 'orb';
         elementMap.set(el.id, el);
       }
     }
@@ -112,20 +134,30 @@ function unwrapValidatorOutput(raw) {
     const narration = narrations.find(n => n.step === stepNum) || narrations[idx] || {};
     const firstAnim = (anim.animations || [])[0] || {};
     const exitIds   = new Set(vs.exits || []);
-    const allIds    = [...elementMap.keys()].filter(id => !exitIds.has(id));
+    const mutations = (vs.mutations || []).map(m => ({ id: m.id, props: m.props || m.values || {} }));
+    
+    // Determine which elements are visible in this specific step
+    // Strategy: current step's elements PLUS inherited elements UNLESS they exit
+    const stepLocalIds = (vs.elements || vs.objects || vs.shapes || []).map(e => e.id).filter(Boolean);
+    const allKnownIds = [...elementMap.keys()];
+    const visibleIds = allKnownIds.filter(id => {
+      if (exitIds.has(id)) return false;
+      // If the element is newly introduced in this step OR was in a previous step, it's visible
+      return true; // Simple "additive" visibility for now
+    });
 
     return {
-      title:           narration.title || `Step ${stepNum}`,
-      explanation:     narration.text  || `Step ${stepNum}.`,
-      narration:       narration.text  || '',
+      title:           narration.title || vs.title || `Step ${stepNum}`,
+      explanation:     narration.text  || narration.explanation || narration.narration || vs.description || `Step ${stepNum}.`,
+      narration:       narration.text  || narration.explanation || '',
       callout:         narration.callout || null,
-      highlight_terms: narration.highlight_terms || [],
-      objectIds:       allIds.length > 0 ? allIds : elements.map(e => e.id),
-      highlightIds:    (vs.elements || []).map(e => e.id).filter(Boolean),
-      mutations:       (vs.mutations || []).map(m => ({ id: m.id, props: m.props || {} })),
+      highlight_terms: narration.highlight_terms || narration.keywords || [],
+      objectIds:       visibleIds,
+      highlightIds:    stepLocalIds,
+      mutations:       mutations,
       camera:          vs.camera || anim.camera || { x: 0.5, y: 0.5, zoom: 1.0 },
       animation: {
-        type:     animTypeAliases[anim.global_transition || firstAnim.action] || 'fade',
+        type:     animTypeAliases[anim.global_transition || vs.transition || firstAnim.action] || 'fade',
         duration: firstAnim.duration || 0.6,
         easing:   firstAnim.easing   || 'ease_out',
         actions:  anim.animations    || [],
@@ -137,7 +169,7 @@ function unwrapValidatorOutput(raw) {
     scene:       { title: meta.topic || 'Learning Session', type: 'linear' },
     meta:        { topic: meta.topic, concept_type: meta.concept_type, level: meta.level, core_insight: meta.core_insight },
     elements,
-    connections: [],
+    connections: inner.connections || [],
     timeline,
     _raw: { narrations, visual_steps: visualSteps, animation_steps: animSteps },
   };
@@ -213,7 +245,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         model: model || getModel(),
         messages,
         temperature: 0.3,
-        maxTokens: 6000,          // FIX 3: was 3000 — too small for 6-agent output
+        maxTokens: stageName.includes('Finalizing') ? 8000 : 4000, 
         responseMimeType: 'application/json',
         userConfig,
         taskType: 'teaching',

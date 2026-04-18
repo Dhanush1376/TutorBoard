@@ -18,7 +18,6 @@
 
 import { requestCompletion, getModel, getTextModel } from '../utils/llmClient.js';
 import { isGreeting, buildDoubtPrompt, classifyDoubt } from '../agents/index.js';
-import { buildUnifiedPrompt } from '../agents/unifiedPrompt.js';
 import { safeParse } from '../utils/parser.js';
 import sessionStore from './sessionStore.js';
 import { cache } from './cache.js';
@@ -97,6 +96,13 @@ function postProcessTimeline(raw, topic, planningResult) {
 
     return {
       ...el,
+      // Extract values from nested props (Visualizer outputs { props: { values: [...] } })
+      values: el.values || el.props?.values || undefined,
+      leftVal: el.leftVal || el.props?.leftVal || undefined,
+      rightVal: el.rightVal || el.props?.rightVal || undefined,
+      operator: el.operator || el.props?.operator || undefined,
+      result: el.result ?? el.props?.result ?? undefined,
+      code: el.code || el.props?.code || undefined,
       id: el.id || `el_${Math.random().toString(36).slice(2)}`,
       x: Math.max(0.05, Math.min(0.95, x)),
       y: Math.max(0.05, Math.min(0.95, y)),
@@ -107,15 +113,75 @@ function postProcessTimeline(raw, topic, planningResult) {
     };
   });
 
+  // ─── Spatial Declutter ──────────────────────────────────────────────────────
+  // If elements are clustered (bounding box < 30% of canvas), redistribute them
+  // using type-aware layout rules.
+  const xs = elements.map(e => e.x);
+  const ys = elements.map(e => e.y);
+  const xSpread = Math.max(...xs) - Math.min(...xs);
+  const ySpread = Math.max(...ys) - Math.min(...ys);
+  const isClustered = elements.length > 2 && (xSpread < 0.3 && ySpread < 0.3);
+
+  if (isClustered) {
+    console.log(`[PostProcess] ⚠️ Spatial declutter: elements clustered in ${(xSpread * 100).toFixed(0)}% × ${(ySpread * 100).toFixed(0)}% area. Redistributing.`);
+    
+    // Type-based Y-position assignments (top to bottom)
+    const typeYMap = {
+      'orb':        0.12,
+      'badge':      0.12,
+      'equation':   0.30,
+      'array':      0.35,
+      'data_block': 0.35,
+      'datablock':  0.35,
+      'list':       0.35,
+      'pointer':    0.52,
+      'cursor':     0.52,
+      'index':      0.52,
+      'comparator': 0.65,
+      'compare':    0.65,
+      'swapbridge': 0.55,
+      'swap':       0.55,
+      'block':      0.50,
+      'codeline':   0.82,
+      'code':       0.82,
+    };
+
+    // Group elements by their assigned Y level
+    const levels = {};
+    elements.forEach(el => {
+      const yTarget = typeYMap[el.type] || 0.45;
+      const key = yTarget.toFixed(2);
+      if (!levels[key]) levels[key] = [];
+      levels[key].push(el);
+    });
+
+    // Distribute each level horizontally
+    Object.entries(levels).forEach(([yStr, group]) => {
+      const y = parseFloat(yStr);
+      const totalWidth = 0.80; // Use 80% of canvas width
+      const startX = 0.10;
+      const spacing = group.length > 1 ? totalWidth / (group.length - 1) : 0;
+      
+      group.forEach((el, i) => {
+        el.y = y;
+        el.x = group.length === 1 ? 0.50 : startX + (i * spacing);
+        el.x = Math.max(0.08, Math.min(0.92, el.x));
+      });
+    });
+  }
+
   const elementIds = new Set(elements.map(e => e.id));
 
   const timeline = rawTimeline.map((t, idx) => {
     if (!t) return { index: idx, title: `Step ${idx + 1}`, narration: '...', objectIds: [...elementIds] };
 
     // Cross-reference objectIds against real element ids
-    const rawIds = t.objectIds || t.elements || [];
+    const rawIds = t.objectIds || t.elements || t.objects || [];
     const validIds = rawIds.filter(id => elementIds.has(id));
-    const finalIds = validIds.length > 0 ? validIds : [...elementIds];
+    
+    // If AI explicitly provided IDs, use them. If not, fallback to ALL only if it's the first step or explicitly requested.
+    // This prevents "cluttering" the canvas when the AI intended a blank or specific view.
+    const finalIds = validIds.length > 0 ? validIds : (idx === 0 ? [...elementIds] : []);
 
     // Clean highlightIds too
     const rawHighlight = t.highlightIds || t.highlight || [];
@@ -186,12 +252,10 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
 
     // Stage 2: Execute Agent Loop
     onProgress('Running autonomous visual planning loop...');
-    const systemPrompt = buildUnifiedPrompt(planningResult);
 
     const rawSceneGraph = await runAgentLoop({
       topic,
       domain,
-      systemPrompt,
       model: modelId,
       maxSteps: 6,
       planningResult,

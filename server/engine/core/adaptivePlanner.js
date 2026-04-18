@@ -11,7 +11,6 @@
 
 import { requestCompletion, getModel } from '../utils/llmClient.js';
 import { runAgentLoop } from './agentLoop.js';
-import { buildTimelinePrompt } from '../agents/timelinePrompt.js';
 import { getAnimationGuide, getNodeTemplates, getMinSteps } from '../agents/domainConfig.js';
 
 export async function replanRemainingSteps(session, topic) {

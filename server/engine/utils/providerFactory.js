@@ -25,6 +25,11 @@ const PROVIDER_CONFIG = {
     headerPrefix: '',
     extraHeaders: { 'anthropic-version': '2023-06-01' },
   },
+  deepseek: {
+    baseURL: 'https://api.deepseek.com',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
   openrouter: {
     baseURL: 'https://openrouter.ai/api/v1',
     headerKey: 'Authorization',
@@ -52,6 +57,10 @@ const PRICING_CONFIG = {
     'gemini-2.5-pro-preview-05-06': { input: 1.25, output: 10.00, provider: 'google' },
     'gemini-2.0-flash':             { input: 0.10, output: 0.40,  provider: 'google' },
     'gemini-2.0-flash-lite':        { input: 0.02, output: 0.05,  provider: 'google' },
+
+    // DeepSeek
+    'deepseek-chat':              { input: 0.27,  output: 1.10,  provider: 'deepseek' },
+    'deepseek-reasoner':          { input: 0.55,  output: 2.19,  provider: 'deepseek' },
 
     // Anthropic
     'claude-sonnet-4-20250514':   { input: 3.00,  output: 15.00, provider: 'anthropic' },

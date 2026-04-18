@@ -40,19 +40,26 @@ app.use(helmet({
   },
 }));
 
+// --------------- CORS Origins ---------------
+// Read from env var, or fall back to defaults. Comma-separated.
+const DEFAULT_ORIGINS = [
+  'https://tutor-board-mocha.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+];
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : DEFAULT_ORIGINS;
+
 // ─── Core Middleware ─────────────────────────────────────────────────────────
 // Parse JSON bodies first
 app.use(express.json({ limit: '1mb' }));
 // CORS must be early
 app.use(cors({
-  origin: (origin, callback) => {
-    if (isOriginAllowed(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -98,20 +105,6 @@ if (!hasAllCritical) {
 
 const httpServer = createServer(app);
 const port = process.env.PORT || 3001;
-
-// --------------- CORS Origins ---------------
-// Read from env var, or fall back to defaults. Comma-separated.
-const DEFAULT_ORIGINS = [
-  'https://tutor-board-mocha.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-];
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
-  : DEFAULT_ORIGINS;
 
 // Check if an origin matches — supports wildcard Vercel preview subdomains
 function isOriginAllowed(origin) {

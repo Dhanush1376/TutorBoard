@@ -72,7 +72,7 @@ const userSchema = new mongoose.Schema({
   apiKeys: [{
     provider: {
       type: String,
-      enum: ['openai', 'google', 'anthropic', 'custom'],
+      enum: ['openai', 'deepseek', 'google', 'anthropic', 'custom'],
       required: true,
     },
     encryptedKey: { type: String, required: true },

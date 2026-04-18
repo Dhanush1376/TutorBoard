@@ -21,25 +21,71 @@ export const getApiKeys = async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const keys = (user.apiKeys || []).map(k => ({
-      id: k._id,
-      provider: k.provider,
-      model: k.model,
-      label: k.label || `${k.provider} key`,
-      baseUrl: k.baseUrl || '',
-      isActive: k.isActive,
-      isValid: k.isValid,
-      lastValidated: k.lastValidated,
-      createdAt: k.createdAt,
-      maskedKey: (() => {
-        try {
-          const raw = decrypt({ encrypted: k.encryptedKey, iv: k.iv, tag: k.tag });
-          return maskApiKey(raw);
-        } catch {
-          return '****';
-        }
-      })(),
-    }));
+    // Fetch per-provider usage for this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [perProviderUsage, universalUsageRaw] = await Promise.all([
+      UsageLog.aggregate([
+        { $match: { userId: req.user._id, isCustomKey: true, timestamp: { $gte: startOfMonth } } },
+        { $group: {
+          _id: { provider: '$provider', model: '$model' },
+          requests: { $sum: 1 },
+          tokens: { $sum: '$tokensUsed' },
+          cost: { $sum: '$costEstimate' },
+          lastUsed: { $max: '$timestamp' },
+          failures: { $sum: { $cond: ['$success', 0, 1] } },
+        }},
+      ]),
+      UsageLog.aggregate([
+        { $match: { userId: req.user._id, isCustomKey: false, timestamp: { $gte: startOfMonth } } },
+        { $group: {
+          _id: null,
+          requests: { $sum: 1 },
+          tokens: { $sum: '$tokensUsed' },
+          cost: { $sum: '$costEstimate' },
+        }}
+      ])
+    ]);
+
+    const universal = universalUsageRaw[0] || { requests: 0, tokens: 0, cost: 0 };
+    const UNIVERSAL_LIMIT = 500; // Proposed monthly limit for universal credits
+
+    const keys = (user.apiKeys || []).map(k => {
+      // Match usage data to this key
+      const usage = perProviderUsage.find(
+        u => u._id.provider === k.provider && u._id.model === k.model
+      ) || { requests: 0, tokens: 0, cost: 0, lastUsed: null, failures: 0 };
+
+      return {
+        id: k._id,
+        provider: k.provider,
+        model: k.model,
+        label: k.label || `${k.provider} key`,
+        baseUrl: k.baseUrl || '',
+        isActive: k.isActive,
+        isValid: k.isValid,
+        lastValidated: k.lastValidated,
+        createdAt: k.createdAt,
+        maskedKey: (() => {
+          try {
+            const raw = decrypt({ encrypted: k.encryptedKey, iv: k.iv, tag: k.tag });
+            return maskApiKey(raw);
+          } catch {
+            return '****';
+          }
+        })(),
+        // Per-key usage stats for this month
+        usage: {
+          requests: usage.requests,
+          tokens: usage.tokens,
+          costCents: usage.cost,
+          lastUsed: usage.lastUsed,
+          failures: usage.failures,
+        },
+      };
+    });
 
     const preferences = user.apiPreferences || {
       useCustomApi: false, fallbackToDefault: true, smartRouting: false,
@@ -47,7 +93,17 @@ export const getApiKeys = async (req, res) => {
       modelOverride: '', costControl: { monthlyLimitCents: 0, warningThresholdPct: 80, hardStop: true },
     };
 
-    res.json({ keys, preferences });
+    res.json({ 
+      keys, 
+      preferences,
+      universalUsage: {
+        requests: universal.requests,
+        tokens: universal.tokens,
+        costCents: universal.cost,
+        limit: UNIVERSAL_LIMIT,
+        percent: Math.min(100, Math.round((universal.requests / UNIVERSAL_LIMIT) * 100))
+      }
+    });
   } catch (err) {
     console.error('[ApiKeys] GET error:', err.message);
     res.status(500).json({ error: 'Failed to fetch API keys' });
@@ -384,4 +440,36 @@ export const getCostStatus = async (req, res) => {
  */
 export const getModels = async (_req, res) => {
   res.json(PROVIDER_MODELS);
+};
+
+/**
+ * POST /api/apikeys/:id/test
+ * Re-validate an existing API key without deleting it
+ */
+export const testApiKey = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const key = user.apiKeys.id(req.params.id);
+    if (!key) return res.status(404).json({ error: 'API key not found' });
+
+    // Decrypt and validate
+    const rawKey = decrypt({ encrypted: key.encryptedKey, iv: key.iv, tag: key.tag });
+    const validation = await validateApiKey(key.provider, rawKey, key.model, key.baseUrl);
+
+    // Update validation status
+    key.isValid = validation.valid;
+    key.lastValidated = new Date();
+    await user.save();
+
+    res.json({
+      valid: validation.valid,
+      latencyMs: validation.latencyMs,
+      error: validation.error || null,
+    });
+  } catch (err) {
+    console.error('[ApiKeys] Test error:', err.message);
+    res.status(500).json({ error: 'Failed to test API key' });
+  }
 };

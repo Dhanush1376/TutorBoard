@@ -195,6 +195,7 @@ const Home = ({ isDark }) => {
         });
         if (res.ok) {
           const sessions = await res.json();
+          // Map to local session format
           const restored = sessions.map(s => ({
             id: s._id,
             title: s.title || 'Saved Session',
@@ -203,9 +204,10 @@ const Home = ({ isDark }) => {
             messages: s.messages || [],
             canvasState: s.canvasState || []
           }));
-          if (restored.length > 0) {
-             setChatHistory(restored);
-          }
+          
+          // CRITICAL: Always update history, even if empty, to ensure new accounts 
+          // clear any stale Guest history from localStorage.
+          setChatHistory(restored);
         }
       } catch (err) {
         console.error('Failed to restore cloud sessions:', err);

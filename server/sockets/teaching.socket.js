@@ -291,7 +291,7 @@ export function setupTeachingSocket(io) {
             console.log(`[WS] Progress: ${stage}`);
             socket.emit('teaching:progress', { message: stage });
           }, selectedAgent, userConfig),
-          120000,
+          240000,
           'Timeline generation timed out'
         );
 

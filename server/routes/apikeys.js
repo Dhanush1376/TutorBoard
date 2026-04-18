@@ -4,6 +4,7 @@ import {
   addApiKey,
   updateApiKey,
   deleteApiKey,
+  testApiKey,
   updatePreferences,
   getUsageStats,
   getModels,
@@ -33,5 +34,6 @@ router.get('/', getApiKeys);
 router.post('/', addApiKey);
 router.put('/:id', updateApiKey);
 router.delete('/:id', deleteApiKey);
+router.post('/:id/test', testApiKey);
 
 export default router;
