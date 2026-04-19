@@ -169,6 +169,11 @@ class SessionStore {
           confusionScore: s.learnerProfile.confusionIndex,
           timestamp: new Date()
         });
+        
+        // BUG-10: Cap doubt history to prevent document bloat (max 50 entries)
+        if (profile.doubtHistory.length > 50) {
+          profile.doubtHistory = profile.doubtHistory.slice(-50);
+        }
       }
 
       profile.lastSessionDate = new Date();

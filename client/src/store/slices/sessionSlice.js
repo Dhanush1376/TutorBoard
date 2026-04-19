@@ -37,7 +37,11 @@ export const createSessionSlice = (set, get) => ({
   setConnectionError: (err)     => set({ connectionError: err, isConnected: false }),
   setError:         (err)       => set({ error: err }),
   setGreeting:      (msg)       => set({ greetingMessage: msg, machineState: STATES.IDLE }),
-  setGenerationProgress: (msg)  => set({ generationProgress: msg }),
+  setGenerationProgress: (progress)  => set({ 
+    generationProgress: typeof progress === 'string' 
+      ? { label: progress, stage: 0, totalStages: 6 } 
+      : progress 
+  }),
 
   setSessionId: (newId) => {
     const { sessionId: oldId, canvasObjects, pinnedNotes, canvasTransform, sessionManifest } = get();

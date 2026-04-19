@@ -81,6 +81,7 @@ const usageLogSchema = new mongoose.Schema({
 
 // Compound index for efficient per-user queries
 usageLogSchema.index({ userId: 1, timestamp: -1 });
+usageLogSchema.index({ userId: 1, isCustomKey: 1, timestamp: -1 });
 usageLogSchema.index({ userId: 1, provider: 1, timestamp: -1 });
 
 // TTL index: automatically delete logs older than 90 days
