@@ -234,6 +234,9 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         await new Promise(r => setTimeout(r, delay));
         
         // Inject a correction prompt on retries to guide the LLM back to valid JSON
+        if (messages[messages.length - 1].role === 'user' && messages[messages.length - 1].content.includes('valid JSON')) {
+          messages.pop(); // Remove previous correction if it exists to avoid stacking
+        }
         messages.push({ 
           role: 'user', 
           content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation, no conversational text, and no markdown code fences.' 
@@ -278,37 +281,41 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       .replace('{{MAX_STEPS}}', targetMax.toString());
 
     const plannerOutput = planningResult || await runStage({
-      stageName: 'Thinking deeply about the topic...',
+      stageName: '💡 Thinking deeply about the topic...',
       prompt: plannerPrompt,
       input: { topic, domain, maxSteps: targetMax, learnerProfile },
       model, onProgress, userConfig
     });
-    console.log(`[AgentLoop] ✅ Stage 1 — ${plannerOutput.flow?.length || 0} steps planned`);
+    console.log(`[AgentLoop] ✅ Stage 1 (Planner) COMPLETE — ${plannerOutput.flow?.length || 0} steps planned`);
 
-    // Stage 2: NARRATION
-    const narratorOutput = await runStage({
-      stageName: 'Crafting pedagogical explanations...',
-      prompt: getPrompt('narrator'),
-      input: { plannerOutput },
-      model, onProgress, userConfig,
-      onStream: (chunk) => onProgress('narration_stream', chunk)
-    });
-    console.log(`[AgentLoop] ✅ Stage 2 — ${narratorOutput.narrations?.length || 0} narrations`);
+    // Stages 2 & 3: PARALLEL EXECUTION (Narration & Visualization)
+    console.log('[AgentLoop] ⚡ Starting Stages 2 (Narrator) & 3 (Visualizer) in PARALLEL...');
+    
+    const [narratorOutput, visualizerOutput] = await Promise.all([
+      // Stage 2: NARRATION (Streaming)
+      runStage({
+        stageName: '🎙️ Crafting pedagogical explanations...',
+        prompt: getPrompt('narrator'),
+        input: { plannerOutput, learnerProfile },
+        model, onProgress, userConfig,
+        onStream: (chunk) => onProgress('narration_chunk', chunk)
+      }),
+      // Stage 3: VISUALIZATION (Now independent of Narrator)
+      runStage({
+        stageName: '🎨 Designing visual representation...',
+        prompt: getPrompt('visualizer'),
+        input: { plannerOutput, learnerProfile }, // Decoupled: only needs the plan
+        model, onProgress, userConfig
+      })
+    ]);
 
-    // Stage 3: VISUALIZATION
-    const visualizerOutput = await runStage({
-      stageName: 'Designing visual representation...',
-      prompt: getPrompt('visualizer'),
-      input: { plannerOutput, narratorOutput },
-      model, onProgress, userConfig
-    });
-    console.log(`[AgentLoop] ✅ Stage 3 — ${visualizerOutput.visual_steps?.length || 0} visual steps`);
+    console.log(`[AgentLoop] ✅ Stages 2 & 3 COMPLETE — ${narratorOutput.narrations?.length || 0} narrations, ${visualizerOutput.visual_steps?.length || 0} visual steps`);
 
     // Stage 4: ANIMATION
     const animatorOutput = await runStage({
       stageName: 'Choreographing cinematic motion...',
       prompt: getPrompt('animator'),
-      input: { plannerOutput, visualizerOutput },
+      input: { plannerOutput, visualizerOutput, learnerProfile },
       model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 4 — ${animatorOutput.animation_steps?.length || 0} animation steps`);
@@ -319,10 +326,12 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       visual_steps:    visualizerOutput.visual_steps || [],
       animation_steps: animatorOutput.animation_steps || [],
       topic,
+      domain,
+      learnerProfile,
       stepCount:       plannerOutput.flow?.length || 0,
     };
     const criticOutput = await runStage({
-      stageName: 'Reviewing for consistency & clarity...',
+      stageName: '⚖️ Reviewing for consistency & clarity...',
       prompt: getPrompt('critic'),
       input: criticInput,
       model, onProgress, userConfig
@@ -363,9 +372,10 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       narrations:      narratorOutput.narrations || [],
       visual_steps:    visualizerOutput.visual_steps || [],
       animation_steps: animatorOutput.animation_steps || [],
+      learnerProfile,
     };
     const validatorRaw = await runStage({
-      stageName: 'Finalizing high-fidelity plan...',
+      stageName: '✨ Finalizing high-fidelity plan...',
       prompt: getPrompt('validator'),
       input: validatorInput,
       model, onProgress, userConfig

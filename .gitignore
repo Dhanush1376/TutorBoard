@@ -29,3 +29,6 @@ server/test_*.js
 server/verify_*.js
 scratch_test_schema.js
 scratch/
+eslint-result.json
+client/eslint-result.json
+server/eslint-result.json

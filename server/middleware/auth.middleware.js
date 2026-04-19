@@ -31,8 +31,16 @@ export const protect = async (req, res, next) => {
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // SEC-09: Strict JTI Validation
+    if (!decoded.jti) {
+      console.warn(`[Auth] Token missing JTI: ${decoded.id}`);
+      return res.status(401).json({
+        error: 'Not authorized — invalid token signature (missing JTI)',
+      });
+    }
+
     // BUG FIX #47: Check if token has been revoked
-    if (decoded.jti && await tokenStore.isTokenRevoked(decoded.jti)) {
+    if (await tokenStore.isTokenRevoked(decoded.jti)) {
       console.warn(`[Auth] Attempt to use revoked token: ${decoded.jti}`);
       return res.status(401).json({
         error: 'Not authorized — token has been revoked',

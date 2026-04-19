@@ -23,7 +23,7 @@ import sessionStore from './sessionStore.js';
 import { cache } from './cache.js';
 import { planAnimation } from './animationPlanner.js';
 import { runAgentLoop } from './agentLoop.js';
-import { getPrimaryDomain } from '../config/domainConfig.js';
+import { getPrimaryDomain, DOMAIN_MIN_STEPS } from '../config/domainConfig.js';
 import { calculateMastery, deriveLevel } from '../../utils/core/pedagogyHelper.js';
 
 // ─── Raw Fail-Safe Data ───────────────────────────────────────────────────────
@@ -268,11 +268,13 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
     // Stage 2: Execute Agent Loop
     onProgress('Running autonomous visual planning loop...');
 
+    const targetSteps = DOMAIN_MIN_STEPS[domain]?.default || 10;
+
     const rawSceneGraph = await runAgentLoop({
       topic,
       domain,
       model: modelId,
-      maxSteps: 6,
+      maxSteps: targetSteps,
       planningResult,
       onProgress,
       userConfig,

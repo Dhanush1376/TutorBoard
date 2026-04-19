@@ -68,14 +68,7 @@ export const getApiKeys = async (req, res) => {
         isValid: k.isValid,
         lastValidated: k.lastValidated,
         createdAt: k.createdAt,
-        maskedKey: (() => {
-          try {
-            const raw = decrypt({ encrypted: k.encryptedKey, iv: k.iv, tag: k.tag });
-            return maskApiKey(raw);
-          } catch {
-            return '****';
-          }
-        })(),
+        maskedKey: k.maskedKey || '****', // SEC-03: Use stored mask instead of decrypting in loop
         // Per-key usage stats for this month
         usage: {
           requests: usage.requests,
@@ -161,6 +154,7 @@ export const addApiKey = async (req, res) => {
       tag: encrypted.tag,
       model: model || '',
       label: label || `${provider} Key`,
+      maskedKey: maskApiKey(apiKey), // SEC-03: Store mask at rest
       baseUrl: baseUrl || '',
       isActive: true,
       isValid: true,
@@ -242,7 +236,7 @@ export const getApiKeyDashboard = async (req, res) => {
       id: k._id, provider: k.provider, model: k.model, label: k.label,
       baseUrl: k.baseUrl, isActive: k.isActive, isValid: k.isValid,
       lastValidated: k.lastValidated, createdAt: k.createdAt,
-      maskedKey: maskApiKey(decrypt({ encrypted: k.encryptedKey, iv: k.iv, tag: k.tag })),
+      maskedKey: k.maskedKey || '****', // SEC-03: No decryption in loop
     }));
 
     res.json({

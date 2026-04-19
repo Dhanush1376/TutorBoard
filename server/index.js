@@ -38,7 +38,6 @@ app.use(helmet({
       scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
       styleSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
       imgSrc: ["'self'", 'data:', 'https:'],      // Allow data: URLs for canvas exports
-      svgSrc: ["'self'"],                         // SVG content only from self
       objectSrc: ["'none'"],                      // Prevent plugin injection
       baseUri: ["'self'"],                        // Restrict base tag
       formAction: ["'self'"],                     // Forms must target same origin
@@ -91,6 +90,8 @@ mongoose.set('bufferCommands', false);
 const REQUIRED_ENV = [
   { key: 'OPENROUTER_API_KEY', critical: true,  label: 'OpenRouter API Key' },
   { key: 'JWT_SECRET',         critical: true,  label: 'JWT Secret' },
+  { key: 'ENCRYPTION_KEY',     critical: true,  label: 'AES-256 Encryption Key' },
+  { key: 'FRONTEND_URL',       critical: true,  label: 'Frontend Redirect URL' },
   { key: 'JWT_EXPIRES_IN',     critical: false, label: 'JWT Expiry Time (default: 7d)' },
 ];
 
@@ -234,7 +235,7 @@ const startServer = async () => {
     
     // Fallback: Start server anyway so health checks pass, but log the failure
     httpServer.listen(port, () => {
-      console.log(`Server running in DEGARDED MODE (No DB) on port ${port}`);
+      console.log(`\x1b[33m[Startup] Redis connection failed. Running in DEGRADED mode (Limited caching/rate-limiting).\x1b[0m`);
     });
   }
 };

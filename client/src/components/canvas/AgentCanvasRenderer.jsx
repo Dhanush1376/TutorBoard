@@ -12,6 +12,7 @@
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import DOMPurify from 'dompurify';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
 import {
   GlowOrb, GlassRect, GlassEllipse, FlowArrow, DataBlock,
@@ -79,6 +80,9 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
 
   const x = (obj.x ?? 0.5) * CW;
   const y = (obj.y ?? 0.5) * CH;
+  const label = obj.label ? DOMPurify.sanitize(obj.label) : null;
+  const content = obj.content ? DOMPurify.sanitize(obj.content) : null;
+  
   // Both `type` and `shape` are set by postProcessTimeline — prefer type
   const shape = (obj.type || obj.shape || 'orb').toLowerCase();
 
@@ -92,7 +96,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       // Respect explicit world-unit radius if provided, else fallback to scale-based sizing
       const r = obj.r ? obj.r * CW : (obj.scale || 1) * 38;
       return <GlowOrb key={obj.id} {...common} cx={x} cy={y}
-        r={r} color={obj.color} label={obj.label}
+        r={r} color={obj.color} label={label}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
     }
 
@@ -106,7 +110,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 58;
       return <GlassRect key={obj.id} {...common} x={x - w / 2} y={y - h / 2} w={w} h={h}
-        color={obj.color} label={obj.label} dashed={obj.dashed} fill={obj.fill}
+        color={obj.color} label={label} dashed={obj.dashed} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
 
     case 'ellipse':
@@ -114,7 +118,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       const rx = obj.w ? (obj.w <= 1 ? (obj.w * CW) / 2 : obj.w / 2) : (obj.scale || 1) * 40;
       const ry = obj.h ? (obj.h <= 1 ? (obj.h * CH) / 2 : obj.h / 2) : (obj.scale || 1) * 40;
       return <EllipseShape key={obj.id} {...common} x={x} y={y} w={rx * 2} h={ry * 2}
-        color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
+        color={obj.color} label={label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
 
     case 'note':
@@ -127,7 +131,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
           key={obj.id}
           {...common} 
           x={x} y={y} w={w} h={h}
-          color={obj.color} label={obj.label || obj.text} 
+          color={obj.color} label={label || content} 
           rotation={obj.rotation}
           isSelected={isSelected}
           onUpdate={(props) => onUpdate && onUpdate(obj.id, props)}
@@ -140,7 +144,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'pointer':
     case 'cursor':
     case 'index':
-      return <FlowPointer key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label}
+      return <FlowPointer key={obj.id} {...common} x={x} y={y} color={obj.color} label={label}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Array / Data Block ──────────────────────────────────
@@ -149,21 +153,21 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'datablock':
     case 'list':
       return <DataBlock key={obj.id} {...common} x={x} y={y}
-        values={obj.values || []} label={obj.label} color={obj.color}
+        values={obj.values || []} label={label} color={obj.color}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Badge / Pill ─────────────────────────────────────────
     case 'badge':
     case 'tag':
     case 'chip':
-      return <FloatingBadge key={obj.id} {...common} x={x} y={y} text={obj.label || ''} color={obj.color}
+      return <FloatingBadge key={obj.id} {...common} x={x} y={y} text={label || ''} color={obj.color}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Code Line ────────────────────────────────────────────
     case 'codeline':
     case 'code':
     case 'code_line':
-      return <CodePanel key={obj.id} {...common} x={x} y={y} code={obj.code || obj.label || ''}
+      return <CodePanel key={obj.id} {...common} x={x} y={y} code={obj.code || label || ''}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Comparator ───────────────────────────────────────────
@@ -186,7 +190,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'point':
     case 'data_dot':
     case 'scatter_point':
-      return <DataDot key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label}
+      return <DataDot key={obj.id} {...common} x={x} y={y} color={obj.color} label={label}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
 
     // ── Cartesian Axes ───────────────────────────────────────
@@ -195,7 +199,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'cartesian':
     case 'graph_axes':
     case 'coordinate_system':
-      return <CartesianAxes key={obj.id} {...common} x={x} y={y} color={obj.color} label={obj.label}
+      return <CartesianAxes key={obj.id} {...common} x={x} y={y} color={obj.color} label={label}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
     
     // ── LINE & ARROW ──────────────────────────────────────────
@@ -206,7 +210,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       // Default to a 10% offset if coordinates are missing or identical
       const x2 = (obj.x2 ?? (obj.x1 ?? 0.5) + 0.1) * CW;
       const y2 = (obj.y2 ?? (obj.y1 ?? 0.5) + 0.1) * CH;
-      const props = { ...common, x1, y1, x2, y2, color: obj.color, label: obj.label, strokeStyle: obj.strokeStyle, isSelected, onUpdate: (p) => onUpdate?.(obj.id, p), onDelete: () => onDelete?.(obj.id) };
+      const props = { ...common, x1, y1, x2, y2, color: obj.color, label: label, strokeStyle: obj.strokeStyle, isSelected, onUpdate: (p) => onUpdate?.(obj.id, p), onDelete: () => onDelete?.(obj.id) };
       return shape === 'line' ? <RawLine key={obj.id} {...props} /> : <FlowArrow key={obj.id} {...props} />;
     }
 
@@ -246,28 +250,28 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       ]);
       return <GeometryPolygon key={obj.id} {...common} x={x} y={y}
         points={pts.length > 2 ? pts : [[-60, 80], [60, 80], [0, -80]]}
-        color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle}
+        color={obj.color} label={label} strokeStyle={obj.strokeStyle}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'diamond': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <DiamondShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
+      return <DiamondShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'star': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <StarShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
+      return <StarShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'hexagon': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 160;
-      return <HexagonShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
+      return <HexagonShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
@@ -275,14 +279,14 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'speech': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 180;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 120;
-      return <CalloutShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
+      return <CalloutShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
     case 'cloud': {
       const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 200;
       const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 140;
-      return <CloudShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={obj.label} strokeStyle={obj.strokeStyle} fill={obj.fill}
+      return <CloudShape key={obj.id} {...common} x={x} y={y} w={w} h={h} color={obj.color} label={label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;
     }
 
@@ -292,7 +296,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'math':
     case 'expression':
     case 'term':
-      return <EquationBlock key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <EquationBlock key={obj.id} {...common} x={x} y={y} label={label} color={obj.color} />;
 
     // ── TREE NODE (NEW) ──────────────────────────────────────
     case 'tree_node':
@@ -300,7 +304,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'graph_node':
     case 'vertex':
     case 'bst_node':
-      return <TreeNode key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <TreeNode key={obj.id} {...common} x={x} y={y} label={label} color={obj.color} />;
 
     // ── BAR (NEW) ────────────────────────────────────────────
     case 'bar':
@@ -308,7 +312,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'histogram_bar':
     case 'bar_element':
       return <BarShape key={obj.id} {...common} x={x} y={y}
-        label={obj.label} color={obj.color} scale={obj.scale || 1} />;
+        label={label} color={obj.color} scale={obj.scale || 1} />;
 
     // ── VENN CIRCLE (NEW) ────────────────────────────────────
     case 'venn':
@@ -316,7 +320,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'set_circle':
     case 'set':
       return <VennCircle key={obj.id} {...common} x={x} y={y}
-        label={obj.label} color={obj.color} scale={obj.scale || 1} />;
+        label={label} color={obj.color} scale={obj.scale || 1} />;
 
     // ── FLOW STEP (NEW) ──────────────────────────────────────
     case 'flowstep':
@@ -324,7 +328,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'process_step':
     case 'pipeline_step':
     case 'stage':
-      return <FlowStep key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} fontSize={obj.fontSize} />;
+      return <FlowStep key={obj.id} {...common} x={x} y={y} label={label} color={obj.color} fontSize={obj.fontSize} />;
 
     // ── MOLECULE (NEW) ───────────────────────────────────────
     case 'molecule':
@@ -332,7 +336,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'chemical':
     case 'compound':
     case 'ion':
-      return <MoleculeNode key={obj.id} {...common} x={x} y={y} label={obj.label} color={obj.color} />;
+      return <MoleculeNode key={obj.id} {...common} x={x} y={y} label={label} color={obj.color} />;
 
     case 'label':
     case 'text':
@@ -374,7 +378,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     // ── DEFAULT FALLBACK ─────────────────────────────────────
     default:
       return <FreeformShape key={obj.id} {...common} x={x} y={y}
-        color={obj.color} label={obj.label} type={shape} />;
+        color={obj.color} label={label} type={shape} />;
   }
 }
 
@@ -469,8 +473,8 @@ function SVGCanvasRenderer({
   const tx = CW / 2 - camera.x * Z;
   const ty = CH / 2 - camera.y * Z;
 
-  const stepNarration = currentStep.narration || currentStep.explanation || '';
-  const stepTitle     = currentStep.title || '';
+  const stepNarration = DOMPurify.sanitize(currentStep.narration || currentStep.explanation || '');
+  const stepTitle     = DOMPurify.sanitize(currentStep.title || '');
   const stepNumber    = currentStepIndex + 1;
   const totalSteps    = timelineSteps.length;
 

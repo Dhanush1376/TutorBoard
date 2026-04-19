@@ -1,0 +1,174 @@
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+import ChatSession from '../models/ChatSession.js';
+import sessionStore from '../engine/core/sessionStore.js';
+import { decrypt } from '../utils/auth/encryption.js';
+import { classifyTask, selectOptimalModel } from '../utils/ai/taskClassifier.js';
+import { getAdaptiveScores } from '../utils/ai/adaptiveScorer.js';
+import redisClient from '../utils/core/redis.js';
+
+/**
+ * DB Sync Helper — Persists transient engine state to MongoDB ChatSession
+ */
+export async function syncToDatabase(sessionId) {
+  try {
+    const s = await sessionStore.get(sessionId);
+    if (!s || !s.chatSessionId) return;
+
+    await ChatSession.findByIdAndUpdate(s.chatSessionId, {
+      topic: s.topic,
+      steps: s.steps,
+      currentStepIndex: s.currentStepIndex,
+      lastUpdated: Date.now(),
+      engineSessionId: sessionId,
+    });
+    console.log(`[WS:Sync] Synced session ${sessionId} to Mongo ${s.chatSessionId}`);
+  } catch (err) {
+    console.error(`[WS:Sync] Error syncing to Mongo: ${err.message}`);
+  }
+}
+
+/**
+ * Rate Limit Helper — Differentiates between Auth users and Guests
+ */
+export function getRateKey(socket) {
+  const user = socket.user;
+  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+  if (user && !user.isGuest && user.id !== 'guest') return `auth:${user.id}`;
+  return `guest:${ip}`;
+}
+
+/**
+ * Timeout wrapper for long-running AI operations
+ */
+export function withTimeout(promise, ms, fallbackMessage) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(fallbackMessage || `Request timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+/**
+ * Guaranteed Timeline Emitter Payload Builder
+ */
+export function buildTimelinePayload(sessionId, timeline) {
+  const elements    = timeline.elements    || timeline.objects || [];
+  const connections = timeline.connections || [];
+  const steps       = timeline.steps       || timeline.timeline || [];
+  const totalSteps  = steps.length;
+
+  return {
+    sessionId,
+    title:      timeline.title || timeline.scene?.title || 'Lesson',
+    domain:     timeline.domain || 'general',
+    renderer:   timeline.renderer || 'cinematic',
+    scene:      timeline.scene  || { title: timeline.title || 'Lesson', type: 'linear' },
+    elements,
+    connections,
+    timeline:   steps,
+    objects:    elements, // Legacy
+    steps:      steps,    // Legacy
+    totalSteps,
+  };
+}
+
+/**
+ * Resolve User API Config — Logic for smart routing and custom keys
+ */
+export async function resolveUserConfig(socket, socketUser, inputText) {
+  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+
+  if (!socketUser || socketUser.isGuest || socketUser.id === 'guest') {
+    if (redisClient.isConnected) {
+      const monthKey = new Date().toISOString().substring(0, 7);
+      const usageKey = `usage:guest:ip:${ip}:${monthKey}`;
+      const limit = 50;
+      
+      try {
+        const current = await redisClient.client.incr(usageKey);
+        if (current === 1) await redisClient.client.expire(usageKey, 32 * 24 * 3600);
+        if (current > limit) {
+          throw new Error('Guest limit exceeded. Please sign in to continue learning.');
+        }
+      } catch (err) {
+        if (err.message.includes('limit exceeded')) throw err;
+        console.error('[SEC-05] Guest tracking error:', err.message);
+      }
+    }
+    return null;
+  }
+
+  try {
+    const user = await User.findById(socketUser.id || socketUser._id);
+    if (!user || !user.apiPreferences?.useCustomApi) return null;
+
+    const prefs = user.apiPreferences;
+    const activeKeys = (user.apiKeys || []).filter(k => k.isActive && k.isValid);
+    if (activeKeys.length === 0) return null;
+
+    let selectedKey;
+    let classification = null;
+    let adaptiveScores = null;
+
+    if (prefs.routingMode === 'manual' && prefs.modelOverride) {
+      selectedKey = activeKeys.find(k => k.model === prefs.modelOverride) || activeKeys[0];
+    }
+    else if (prefs.smartRouting && inputText) {
+      classification = classifyTask(inputText);
+      if (prefs.enableAdaptive) {
+        try { adaptiveScores = await getAdaptiveScores(user._id); } catch (e) {}
+      }
+      const optimal = selectOptimalModel(
+        classification.taskType,
+        classification.recommendedTier,
+        activeKeys,
+        adaptiveScores
+      );
+      if (optimal) {
+        selectedKey = activeKeys.find(k => k._id.toString() === optimal.keyId?.toString()) || activeKeys[0];
+      }
+    }
+
+    if (!selectedKey) selectedKey = activeKeys[0];
+
+    const decryptedKey = decrypt({
+      encrypted: selectedKey.encryptedKey,
+      iv: selectedKey.iv,
+      tag: selectedKey.tag,
+    });
+
+    const getApiKey = () => decryptedKey;
+
+    let racingConfigs = null;
+    if (prefs.enableRacing && activeKeys.length >= 2 && classification?.complexityScore >= 66) {
+      const secondKey = activeKeys.find(k => k._id.toString() !== selectedKey._id.toString());
+      if (secondKey) {
+        try {
+          const secondDecrypted = decrypt({ encrypted: secondKey.encryptedKey, iv: secondKey.iv, tag: secondKey.tag });
+          racingConfigs = {
+            primary: { provider: selectedKey.provider, model: selectedKey.model, getApiKey, baseUrl: selectedKey.baseUrl },
+            secondary: { provider: secondKey.provider, model: secondKey.model, getApiKey: () => secondDecrypted, baseUrl: secondKey.baseUrl },
+          };
+        } catch (e) {}
+      }
+    }
+
+    return {
+      useCustomApi: true,
+      provider: selectedKey.provider,
+      model: selectedKey.model,
+      getApiKey,
+      baseUrl: selectedKey.baseUrl || '',
+      fallbackToDefault: prefs.fallbackToDefault !== false,
+      userId: user._id,
+      costControl: prefs.costControl || null,
+      racingConfigs,
+      classification,
+    };
+  } catch (err) {
+    console.warn('[UserConfig] Failed to resolve user API config:', err.message);
+    return null;
+  }
+}

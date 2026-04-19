@@ -10,7 +10,7 @@
  */
 
 import { requestCompletion, getTextModel } from '../../utils/ai/llmClient.js';
-import { getAnimationGuide, getDomainMeta } from '../config/domainConfig.js';
+import { getAnimationGuide, getDomainMeta, DOMAIN_SCENE_SCAFFOLDS } from '../config/domainConfig.js';
 
 // ─── Concept Type Heuristics (fast, zero-LLM fallback) ──────────────────────
 
@@ -130,6 +130,7 @@ export async function planAnimation(topic, domain) {
     domain,
     domainGuide,
     domainMeta,
+    scaffolds: DOMAIN_SCENE_SCAFFOLDS[domain] || [],
     topic,
   };
 

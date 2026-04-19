@@ -172,7 +172,27 @@ export async function executeProviderRequest(client, provider, { model, messages
         temperature: temperature ?? 0.1,
         max_tokens: maxTokens ?? 1000,
         response_format,
+        stream: !!onStream,
       }, signal ? { signal } : undefined);
+
+      if (onStream) {
+        let finalContent = '';
+        let finishReason = 'stop';
+        let usage = null;
+
+        for await (const chunk of completion) {
+          const token = chunk.choices?.[0]?.delta?.content || "";
+          if (token) {
+            finalContent += token;
+            onStream(token);
+          }
+          if (chunk.choices?.[0]?.finish_reason) {
+            finishReason = chunk.choices[0].finish_reason;
+          }
+          if (chunk.usage) usage = chunk.usage;
+        }
+        return { content: finalContent, finishReason, provider, usage };
+      }
 
       const msg = completion.choices?.[0]?.message;
       return {
@@ -183,7 +203,7 @@ export async function executeProviderRequest(client, provider, { model, messages
       };
     } catch (err) {
       if (err.name === 'AbortError') throw err;
-      // Anthropic fallback to direct fetch
+      // Anthropic fallback to direct fetch - Streaming implementation for fetch is omitted for brevity as SDK is primary
       const controller = signal ? undefined : new AbortController();
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -201,6 +221,7 @@ export async function executeProviderRequest(client, provider, { model, messages
           system: messages.find(m => m.role === 'system')?.content || '',
           max_tokens: maxTokens ?? 1000,
           temperature: temperature ?? 0.1,
+          stream: !!onStream,
         }),
         signal: signal || controller?.signal,
       });
@@ -208,6 +229,13 @@ export async function executeProviderRequest(client, provider, { model, messages
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
         throw new Error(error?.error?.message || `Anthropic API error: ${res.status}`);
+      }
+
+      // Handle streaming for direct fetch if needed, but SDK usually works
+      if (onStream) {
+        // Simple non-streaming fallback for fetch if onStream is provided (rare case)
+        const data = await res.json();
+        return { content: data.content?.[0]?.text || '', finishReason: data.stop_reason || 'stop', provider, usage: null };
       }
 
       const data = await res.json();

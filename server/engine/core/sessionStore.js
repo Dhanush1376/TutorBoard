@@ -41,10 +41,12 @@ class SessionStore {
       learnerProfile: {
         level: 'beginner',
         pace: 'normal',
-        confusionIndex: 0
+        confusionIndex: 0,
+        topicsMastery: {},
       },
-      mongoSessionId: null, // Link to ChatSession ObjectId
-      engineSessionId: id,   // String ID for internal tracking
+      chatSessionId: null,   // Link to ChatSession ObjectId
+      learnerProfileId: null, // Link to LearnerProfile ObjectId
+      engineSessionId: id,    // String ID for internal tracking
     };
 
     await this.update(id, session);
@@ -80,6 +82,10 @@ class SessionStore {
       // If we are updating a non-existent session, it might be the initial save
       session = data;
     } else {
+      // Deep merge for learnerProfile if needed, or just regular assign
+      if (data.learnerProfile && session.learnerProfile) {
+        data.learnerProfile = { ...session.learnerProfile, ...data.learnerProfile };
+      }
       Object.assign(session, data);
     }
     
@@ -123,16 +129,59 @@ class SessionStore {
       }
 
       const learnerProfile = {
-        level: 'beginner',
-        pace: 'normal',
+        level: profile.level || 'beginner',
+        pace: profile.pace || 'normal',
         confusionIndex: 0,
         learningStyle: profile.learningStyle || 'visual',
-        topicsMastery: profile.topicsMastery || new Map(),
+        topicsMastery: profile.topicsMastery instanceof Map ? Object.fromEntries(profile.topicsMastery) : (profile.topicsMastery || {}),
       };
 
-      await this.update(id, { userId, learnerProfile, mongoSessionId: profile._id });
+      await this.update(id, { userId, learnerProfile, learnerProfileId: profile._id });
     } catch (err) {
       console.error(`[SessionStore] Failed to init profile for ${userId}:`, err.message);
+    }
+  }
+
+  /**
+   * Persists the leaners progress back to MongoDB
+   */
+  async persistProfile(id, interaction = null) {
+    try {
+      const s = await this.get(id);
+      if (!s || !s.userId || !s.learnerProfileId) return;
+
+      const profile = await LearnerProfile.findById(s.learnerProfileId);
+      if (!profile) return;
+
+      // Update Mastery if topic exists
+      if (s.topic) {
+        const currentMastery = profile.topicsMastery.get(s.topic) || 0;
+        // Simple increment for now: +0.05 per interaction, max 1.0
+        profile.topicsMastery.set(s.topic, Math.min(1.0, currentMastery + 0.05));
+      }
+
+      // Append interaction history if provided (Doubt handling)
+      if (interaction && interaction.question) {
+        profile.doubtHistory.push({
+          topic: s.topic,
+          question: interaction.question,
+          resolved: true,
+          confusionScore: s.learnerProfile.confusionIndex,
+          timestamp: new Date()
+        });
+      }
+
+      profile.lastSessionDate = new Date();
+      // Ensure we don't increment totalSessions multiple times per "active" session
+      if (!s._sessionCounted) {
+        profile.totalSessions = (profile.totalSessions || 0) + 1;
+        await this.update(id, { _sessionCounted: true });
+      }
+
+      await profile.save();
+      console.log(`[SessionStore:Persist] Profile updated for user ${s.userId} (Confusion: ${s.learnerProfile.confusionIndex})`);
+    } catch (err) {
+      console.error(`[SessionStore:Persist] Failed to persist profile:`, err.message);
     }
   }
 
@@ -146,14 +195,13 @@ class SessionStore {
     
     const session = {
       id,
-      mongoSessionId: mongoSession._id,
+      chatSessionId: mongoSession._id,
       engineSessionId: id,
       topic: mongoSession.topic,
       steps: mongoSession.steps || [],
       currentStepIndex: mongoSession.currentStepIndex || 0,
       createdAt: mongoSession.createdAt || Date.now(),
       lastActivityAt: Date.now(),
-      // Context can be derived from messages if needed in pedagogyEngine
     };
 
     await this.update(id, session);

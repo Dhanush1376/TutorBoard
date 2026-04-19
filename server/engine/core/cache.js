@@ -1,14 +1,15 @@
 import { getEmbeddings } from '../../utils/ai/llmClient.js';
-import sessionStore from './sessionStore.js';
+import redis from '../../utils/core/redis.js';
 
 /**
  * Pedagogy & Timeline Cache
- * Persists successful generations in-memory to safely bypass AI calls.
+ * Persists successful generations in Redis (backdoor) and in-memory (hot).
  * v2: Semantic embeddings for fuzzy matching.
  */
-const MAX_CACHE_BYTES = 5 * 1024 * 1024; // 5MB Budget
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_CACHE_BYTES = 5 * 1024 * 1024; // 5MB In-memory Budget
+const CACHE_TTL_SEC = 24 * 60 * 60;   // 24 hours in Redis
 const SIMILARITY_THRESHOLD = 0.9;    // Cosine distance < 0.1
+const REDIS_PREFIX = 'cache:topic:';
 
 let hasWarnedEmbeddings = false;
 
@@ -27,7 +28,7 @@ function cosineSimilarity(vecA, vecB) {
 
 class TopicCache {
   constructor() {
-    this.cache = new Map();
+    this.localCache = new Map();
     this.currentSizeBytes = 0;
   }
 
@@ -40,47 +41,51 @@ class TopicCache {
       .replace(/\s+/g, ' ');
   }
 
-  /**
-   * Estimates byte size of UTF-16 string
-   */
   _estimateSize(data) {
     return JSON.stringify(data).length * 2;
   }
 
   async get(topic, userProfile) {
     const normalized = this._normalize(topic);
-    // Mask confusionIndex in the profile to ensure stability in hits
     const stableProfile = (userProfile || '').replace(/Confusion Level = \d+\/10/g, 'Confusion Level = *');
     const entryKey = `${normalized}:::${stableProfile}`;
     
-    // 1. Direct Hit
-    const directEntry = this.cache.get(entryKey);
-    if (directEntry && Date.now() < directEntry.expiry) {
-      console.log(`[Cache] ⚡ DIRECT HIT! Bypassed LLM for: ${topic}`);
-      return JSON.parse(JSON.stringify(directEntry.data));
+    // 1. Hot Direct Hit (In-memory)
+    const hotEntry = this.localCache.get(entryKey);
+    if (hotEntry && Date.now() < hotEntry.expiry) {
+      console.log(`[Cache] ⚡ HOT HIT (Direct) for: ${topic}`);
+      return JSON.parse(JSON.stringify(hotEntry.data));
     }
 
-    // 2. Semantic Hit (Cosine Similarity)
+    // 2. Cold Direct Hit (Redis)
+    if (redis.isConnected) {
+      try {
+        const cached = await redis.get(`${REDIS_PREFIX}${entryKey}`);
+        if (cached) {
+          const entry = JSON.parse(cached);
+          console.log(`[Cache] ❄️ COLD HIT (Redis) for: ${topic}`);
+          // Hydrate local cache
+          this.localCache.set(entryKey, { ...entry, expiry: Date.now() + 60 * 60 * 1000 });
+          return entry.data;
+        }
+      } catch (e) {
+        console.error('[Cache] Redis get error:', e.message);
+      }
+    }
+
+    // 3. Semantic Hit (Local memory only for performance)
     if (process.env.ENABLE_SEMANTIC_CACHE === 'false') return null;
 
-    console.log(`[Cache] 🔍 Checking semantic similarity for: "${topic}"`);
     const queryVector = await getEmbeddings(normalized);
-    if (!queryVector) {
-      if (!hasWarnedEmbeddings) {
-        console.warn('[Cache] ⚠️ Semantic embeddings unavailable. Degrading to exact matching only.');
-        hasWarnedEmbeddings = true;
-      }
-      return null;
-    }
+    if (!queryVector) return null;
 
-    for (const [key, entry] of this.cache) {
+    for (const [key, entry] of this.localCache) {
       if (Date.now() > entry.expiry) {
-        this.cache.delete(key);
+        this.localCache.delete(key);
         this.currentSizeBytes -= entry.size;
         continue;
       }
       
-      // Only compare topics with the same stable user profile
       const [entryTopic, entryProfile] = key.split(':::');
       if (entryProfile !== stableProfile) continue;
 
@@ -101,39 +106,40 @@ class TopicCache {
 
     const size = this._estimateSize(data) + this._estimateSize(normalized) * 2; 
 
-    // Eviction: Keep total size under 5MB
-    while (this.currentSizeBytes + size > MAX_CACHE_BYTES && this.cache.size > 0) {
-      const oldestKey = this.cache.keys().next().value;
-      const oldestEntry = this.cache.get(oldestKey);
+    // Eviction: Keep total size under 5MB in memory
+    while (this.currentSizeBytes + size > MAX_CACHE_BYTES && this.localCache.size > 0) {
+      const oldestKey = this.localCache.keys().next().value;
+      const oldestEntry = this.localCache.get(oldestKey);
       this.currentSizeBytes -= oldestEntry.size;
-      this.cache.delete(oldestKey);
-      console.log(`[Cache] ♻️ Evicted entry to maintain 5MB budget (Current: ${(this.currentSizeBytes / 1024 / 1024).toFixed(2)}MB)`);
+      this.localCache.delete(oldestKey);
     }
-
-    if (process.env.ENABLE_SEMANTIC_CACHE === 'false') return;
 
     const embedding = await getEmbeddings(normalized);
-    if (!embedding) {
-      if (!hasWarnedEmbeddings) {
-        console.warn('[Cache] ⚠️ Failed to store semantic embedding. Future hits will rely on exact match.');
-        hasWarnedEmbeddings = true;
-      }
-      return;
-    }
-
-    this.cache.set(key, {
+    
+    const entry = {
       data: JSON.parse(JSON.stringify(data)),
-      embedding,
+      embedding: embedding || [],
       size,
-      expiry: Date.now() + CACHE_TTL_MS
-    });
+      expiry: Date.now() + (60 * 60 * 1000) // 1h in memory
+    };
+
+    this.localCache.set(key, entry);
     this.currentSizeBytes += size;
 
-    console.log(`[Cache] 📦 STORED entry for: ${topic} (${(size / 1024).toFixed(1)}KB). Total Cache: ${(this.currentSizeBytes / 1024 / 1024).toFixed(2)}MB`);
+    // Persist to Redis if connected
+    if (redis.isConnected) {
+      try {
+        await redis.set(`${REDIS_PREFIX}${key}`, JSON.stringify(entry), CACHE_TTL_SEC);
+      } catch (e) {
+        console.error('[Cache] Redis set error:', e.message);
+      }
+    }
+
+    console.log(`[Cache] 📦 STORED entry for: ${topic} (Redis: ${redis.isConnected})`);
   }
   
   clear() {
-    this.cache.clear();
+    this.localCache.clear();
     this.currentSizeBytes = 0;
   }
 }

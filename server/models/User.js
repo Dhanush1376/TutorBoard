@@ -80,6 +80,7 @@ const userSchema = new mongoose.Schema({
     tag: { type: String, required: true },
     model: { type: String, default: '' },
     label: { type: String, default: '' },
+    maskedKey: { type: String, default: '' }, // BUG FIX: Safe masking stored at rest
     baseUrl: { type: String, default: '' }, // For custom providers
     isActive: { type: Boolean, default: true },
     isValid: { type: Boolean, default: false },
