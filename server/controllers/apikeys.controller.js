@@ -66,6 +66,8 @@ export const getApiKeys = async (req, res) => {
         baseUrl: k.baseUrl || '',
         isActive: k.isActive,
         isValid: k.isValid,
+        isLowCredits: k.isLowCredits,
+        isExpired: k.isExpired,
         lastValidated: k.lastValidated,
         createdAt: k.createdAt,
         maskedKey: k.maskedKey || '****', // SEC-03: Use stored mask instead of decrypting in loop
@@ -154,7 +156,7 @@ export const addApiKey = async (req, res) => {
       tag: encrypted.tag,
       model: model || '',
       label: label || `${provider} Key`,
-      maskedKey: maskApiKey(apiKey), // SEC-03: Store mask at rest
+      maskedKey: maskApiKey(apiKey),
       baseUrl: baseUrl || '',
       isActive: true,
       isValid: true,
@@ -162,8 +164,15 @@ export const addApiKey = async (req, res) => {
       createdAt: new Date(),
     };
 
+    // Exclusive activation: Deactivate all other keys if this one is active
+    if (keyData.isActive) {
+      user.apiKeys.forEach(k => {
+        k.isActive = false;
+      });
+    }
+
     if (existingIdx >= 0) {
-      user.apiKeys[existingIdx] = { ...user.apiKeys[existingIdx], ...keyData };
+      user.apiKeys[existingIdx] = { ...user.apiKeys[existingIdx].toObject(), ...keyData };
     } else {
       user.apiKeys.push(keyData);
     }
@@ -270,7 +279,15 @@ export const updateApiKey = async (req, res) => {
 
     if (model !== undefined) key.model = model;
     if (label !== undefined) key.label = label;
-    if (isActive !== undefined) key.isActive = isActive;
+    if (isActive === true) {
+      // Exclusive activation: Deactivate all other keys
+      user.apiKeys.forEach(k => {
+        if (k.id !== req.params.id) k.isActive = false;
+      });
+      key.isActive = true;
+    } else if (isActive === false) {
+      key.isActive = false;
+    }
     if (baseUrl !== undefined) key.baseUrl = baseUrl;
 
     await user.save();
@@ -518,6 +535,12 @@ export const testApiKey = async (req, res) => {
 
     // Update validation status
     key.isValid = validation.valid;
+    if (!validation.valid && (validation.error?.toLowerCase().includes('expired') || validation.error?.toLowerCase().includes('balance'))) {
+      key.isExpired = true;
+    } else if (validation.valid) {
+      key.isExpired = false;
+    }
+    
     key.lastValidated = new Date();
     await user.save();
 

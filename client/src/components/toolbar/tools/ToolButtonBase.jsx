@@ -19,16 +19,16 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false); // NEW: Sticky menu state
   const shortcutTimerRef = useRef(null);
-  
+
   // Track this group's "last used" variant, defaulting to the first variant or the group itself.
   const [activeVariantId, setActiveVariantId] = useState(variants ? variants[0].id : id);
 
   // If the global active tool changes to a tool NOT in this group, reset local pin state
   useEffect(() => {
-    const isOurTool = hasVariants 
+    const isOurTool = hasVariants
       ? variants.some(v => v.id === activeTool)
       : (activeTool === id || (customSubmenu && activeTool.startsWith(`${id}:`)));
-    
+
     if (!isOurTool) setIsPinned(false);
   }, [activeTool]);
 
@@ -54,19 +54,19 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
       const rect = menuRef.current.getBoundingClientRect();
       const padding = 12; // Screen edge padding
       let offset = 0;
-      
+
       if (rect.left < padding) {
         offset = padding - rect.left;
       } else if (rect.right > window.innerWidth - padding) {
         offset = window.innerWidth - padding - rect.right;
       }
-      
+
       if (offset !== 0) setMenuOffset(offset);
       else setMenuOffset(0);
     }
   }, [showVariantsMenu]);
 
-  const isGroupActive = hasVariants 
+  const isGroupActive = hasVariants
     ? variants.some(v => v.id === activeTool)
     : (activeTool === id || (customSubmenu && activeTool.startsWith(`${id}:`)));
 
@@ -77,7 +77,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
 
   const handleMainClick = () => {
     if (disabled) return;
-    
+
     // IF already active and has variants/custom menu, toggle persistent "PIN" mode
     if (isGroupActive && (hasVariants || customSubmenu)) {
       setIsPinned(!isPinned);
@@ -93,14 +93,14 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   const handleVariantClick = (e, variant) => {
     e.stopPropagation();
     if (disabled) return;
-    
+
     if (typeof variant.onSelect === 'function') {
       variant.onSelect();
     } else {
       setActiveTool(variant.id);
       setActiveVariantId(variant.id);
     }
-    
+
     setIsHovered(false);
     setIsPinned(false); // Close menu on specific selection
   };
@@ -137,10 +137,11 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         {(isHovered || isHoveredExternally) && !disabled && (
           <motion.div
             layoutId="liquid-hover-pill"
-            className="absolute inset-0 rounded-full z-0"
-            style={{ 
-              background: 'rgba(255, 255, 255, 0.08)',
-              boxShadow: '0 0 15px rgba(255,255,255,0.02)'
+            className="absolute inset-y-0 left-1 right-1 rounded-full z-0"
+            style={{
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
             }}
             transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
           />
@@ -162,26 +163,26 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
             color: isGroupActive
               ? 'var(--bg-primary)'
               : (isHovered || isHoveredExternally)
-              ? 'var(--text-primary)'
-              : 'var(--text-tertiary)',
+                ? 'var(--text-primary)'
+                : 'var(--text-tertiary)',
             transition: 'color 0.15s ease',
           }}
         >
           <DisplayIcon size={17} strokeWidth={isGroupActive ? 2.2 : 1.9} />
         </span>
-        
+
         {/* Tiny dropdown indicator if variants or custom submenu exist */}
         {(hasVariants || customSubmenu) && (
-           <div 
-             className="absolute bottom-1 right-1 w-0 h-0" 
-             style={{
-               borderLeft: '3px solid transparent',
-               borderRight: '3px solid transparent',
-               borderBottom: `3px solid ${isGroupActive ? 'var(--bg-primary)' : 'var(--text-tertiary)'}`,
-               opacity: 0.6,
-               transform: 'rotate(135deg)'
-             }}
-           />
+          <div
+            className="absolute bottom-1 right-1 w-0 h-0"
+            style={{
+              borderLeft: '3px solid transparent',
+              borderRight: '3px solid transparent',
+              borderBottom: `3px solid ${isGroupActive ? 'var(--bg-primary)' : 'var(--text-tertiary)'}`,
+              opacity: 0.6,
+              transform: 'rotate(135deg)'
+            }}
+          />
         )}
       </motion.button>
 
@@ -231,9 +232,9 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
           <motion.div
             ref={menuRef}
             initial={{ opacity: 0, y: 6, scale: 0.96 }}
-            animate={{ 
-              opacity: 1, 
-              y: 0, 
+            animate={{
+              opacity: 1,
+              y: 0,
               scale: 1,
               x: menuOffset
             }}
@@ -243,7 +244,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
           >
             {/* Interaction Bridge: Prevents onMouseLeave from firing in the gap between button and panel */}
             <div className="absolute inset-x-0 -top-2 h-4 pointer-events-auto" />
-            
+
             <div
               className="flex flex-col p-1 rounded-xl"
               style={{
@@ -254,13 +255,13 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
               }}
             >
               {customSubmenu ? (
-                React.isValidElement(customSubmenu) 
+                React.isValidElement(customSubmenu)
                   ? React.cloneElement(customSubmenu, { closeMenu: () => setIsHovered(false) })
                   : customSubmenu
               ) : (
                 variants.map((variant) => {
-                  const isVariantActive = variant.activeState !== undefined 
-                    ? variant.activeState 
+                  const isVariantActive = variant.activeState !== undefined
+                    ? variant.activeState
                     : activeTool === variant.id;
 
                   return (
@@ -268,14 +269,14 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                       key={variant.id}
                       onClick={(e) => handleVariantClick(e, variant)}
                       className="flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-all relative outline-none group/item"
-                      style={{ 
+                      style={{
                         minWidth: 160,
                         background: isVariantActive ? 'rgba(var(--text-primary-rgb, 255,255,255), 0.05)' : 'transparent'
                       }}
                     >
-                      <span 
+                      <span
                         className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition-colors"
-                        style={{ 
+                        style={{
                           color: isVariantActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
                           background: isVariantActive ? 'var(--bg-secondary)' : 'transparent',
                           boxShadow: isVariantActive ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
@@ -283,16 +284,16 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                       >
                         <variant.icon size={14} strokeWidth={isVariantActive ? 2.5 : 2} />
                       </span>
-                      
-                      <span 
+
+                      <span
                         className="flex-1 text-[12px] font-medium transition-colors"
                         style={{ color: isVariantActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}
                       >
                         {variant.label}
                       </span>
-                      
+
                       {isVariantActive && (
-                        <motion.div 
+                        <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)]"
@@ -305,7 +306,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                 })
               )}
             </div>
-            
+
             {/* Submenu Caret - Shifted to stay above the button center */}
             <div
               className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}

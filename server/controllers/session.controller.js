@@ -39,14 +39,21 @@ export const saveSession = async (req, res) => {
   const { sessionId, title, messages, canvasState, preferences } = req.body;
   
   try {
-    // If sessionId is provided and looks like a MongoDB ID, try to update
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
 
     if (sessionId && isMongoId) {
+      // Build update object — ONLY include fields that were explicitly sent
+      // This prevents REST sync from wiping socket-persisted messages
+      const updateFields = { lastUpdated: Date.now() };
+      if (title !== undefined) updateFields.title = title;
+      if (messages !== undefined) updateFields.messages = messages;
+      if (canvasState !== undefined) updateFields.canvasState = canvasState;
+      if (preferences !== undefined) updateFields.preferences = preferences;
+
       session = await ChatSession.findOneAndUpdate(
         { _id: sessionId, userId: req.user._id },
-        { title, messages, canvasState, preferences, lastUpdated: Date.now() },
+        updateFields,
         { new: true }
       );
     }
@@ -68,6 +75,7 @@ export const saveSession = async (req, res) => {
     res.status(500).json({ error: 'Failed to save session' });
   }
 };
+
 
 /**
  * DELETE /api/sessions/:id

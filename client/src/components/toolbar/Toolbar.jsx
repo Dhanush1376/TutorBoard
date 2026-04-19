@@ -169,7 +169,7 @@ const Toolbar = ({ onSettingsClick }) => {
         
         <div className="relative">
           <motion.button
-            whileHover={{ scale: 1.05 }}
+            whileHover={!isProfileOpen ? { y: -1 } : {}}
             whileTap={{ scale: 0.95 }}
             onClick={toggleProfile}
             onMouseEnter={() => {
@@ -182,12 +182,27 @@ const Toolbar = ({ onSettingsClick }) => {
               setIsHovered(false);
               setHoveredId(null);
             }}
-            className="relative w-[32px] h-[32px] rounded-full flex items-center justify-center font-bold text-[11px] overflow-visible"
+            className="relative w-[32px] h-[32px] rounded-full flex items-center justify-center font-bold text-[11px] outline-none"
           >
+            {(isHovered) && !isProfileOpen && (
+              <motion.div
+                layoutId="liquid-hover-pill"
+                className="absolute inset-y-0 left-1 right-1 rounded-full z-0"
+                style={{ 
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              />
+            )}
             <User 
               size={18} 
               strokeWidth={2.5}
-              className={`transition-colors ${isProfileOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+              className="relative z-10 transition-colors"
+              style={{
+                color: (isProfileOpen || isHovered) ? 'var(--text-primary)' : 'var(--text-tertiary)'
+              }}
             />
           </motion.button>
           

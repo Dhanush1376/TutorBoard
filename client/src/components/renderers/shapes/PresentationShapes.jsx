@@ -1,6 +1,7 @@
 import React, { useId } from "react";
 import { motion } from "framer-motion";
-import { resolve, getStrokeDash, AW } from "./ShapeUtils";
+import { resolve, getStrokeDash } from "./ShapeUtils";
+import { AW } from "./AnimatedWrapper";
 
 export const CodePanel = ({
   x, y, code, content, attentionLevel, layoutId, animation, styles = {},

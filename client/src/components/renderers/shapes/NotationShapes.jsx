@@ -1,6 +1,7 @@
 import React, { useId } from "react";
 import { motion } from "framer-motion";
-import { resolve, getStrokeDash, AW } from "./ShapeUtils";
+import { resolve, getStrokeDash } from "./ShapeUtils";
+import { AW } from "./AnimatedWrapper";
 
 export const FlowArrow = ({
   x1, y1, x2, y2, color, label, attentionLevel, layoutId, strokeStyle = "solid", animation, isSelected, onUpdate, onDelete,

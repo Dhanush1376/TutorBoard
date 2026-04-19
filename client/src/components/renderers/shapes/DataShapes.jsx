@@ -1,6 +1,7 @@
 import React, { useId } from "react";
 import { motion } from "framer-motion";
-import { resolve, AW } from "./ShapeUtils";
+import { resolve, getStrokeDash } from "./ShapeUtils";
+import { AW } from "./AnimatedWrapper";
 
 export const DataBlock = ({
   x, y, values = [], label, color, attentionLevel, layoutId, animation, fontFamily, fontWeight, fontStyle, textDecoration,

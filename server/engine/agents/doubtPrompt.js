@@ -135,12 +135,19 @@ Return ONLY valid JSON matching this schema exactly. No markdown, no explanation
  * @returns {string}
  */
 export function buildDoubtPrompt(ctx) {
-  return DOUBT_RESPONSE_PROMPT
-    .replaceAll('{{TOPIC}}',          ctx.topic)
-    .replaceAll('{{DOMAIN}}',         ctx.domain)
+  const prompt = DOUBT_RESPONSE_PROMPT
+    .replaceAll('{{TOPIC}}',          ctx.topic || 'the current lesson')
+    .replaceAll('{{DOMAIN}}',         ctx.domain || 'general')
     .replaceAll('{{CLASSIFICATION}}', JSON.stringify(ctx.classification || { pathway: 'conceptual' }, null, 2))
-    .replaceAll('{{CURRENT_FRAMES}}', JSON.stringify(ctx.currentFrames, null, 2))
-    .replaceAll('{{PRIOR_DOUBTS}}',   JSON.stringify(ctx.priorDoubts,   null, 2));
+    .replaceAll('{{CURRENT_FRAMES}}', JSON.stringify(ctx.currentFrames || [], null, 2))
+    .replaceAll('{{PRIOR_DOUBTS}}',   JSON.stringify(ctx.priorDoubts || [],   null, 2));
+
+  if (prompt.includes('{{TOPIC}}') || prompt.includes('{{DOMAIN}}')) {
+    console.error('[DoubtPrompt] CRITICAL: Logic error — placeholders still present after replacement.');
+    throw new Error('Placeholder replacement failed in doubtPrompt');
+  }
+
+  return prompt;
 }
 
 // ─── Response type ────────────────────────────────────────────────────────────

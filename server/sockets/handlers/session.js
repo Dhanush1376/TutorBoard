@@ -85,6 +85,9 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
               index: restored.currentStepIndex,
               total: restored.steps.length,
             });
+
+            // CRITICAL: Tell the client the real MongoDB _id so REST sync targets the right document
+            socket.emit('session:db-id', { chatSessionId: chatSession._id.toString() });
             return;
           }
         }
@@ -92,7 +95,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         console.warn(`[WS] Resumption failed for chatId ${chatId}: ${err.message}`);
       }
     } else if (socket.user && !socket.user.isGuest) {
-      // Create new ChatSession
+      // Create new ChatSession in MongoDB
       try {
         const newMongoSession = await ChatSession.create({
           userId: socket.user.id || socket.user._id,
@@ -101,7 +104,15 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           engineSessionId: sessionId,
         });
         await sessionStore.update(sessionId, { chatSessionId: newMongoSession._id });
-      } catch (err) {}
+        await sessionStore.addMessage(sessionId, 'user', cleanTopic);
+        await syncToDatabase(sessionId);
+
+        // CRITICAL: Tell the client the real MongoDB _id so REST sync targets the right document
+        socket.emit('session:db-id', { chatSessionId: newMongoSession._id.toString() });
+      } catch (err) {
+        console.error('[WS] Failed to create ChatSession:', err.message);
+      }
+
     }
 
     // Generation Logic
@@ -121,9 +132,13 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           45000
         );
         machine.forceReset();
+        await sessionStore.addMessage(sessionId, 'assistant', response.answer);
+        await syncToDatabase(sessionId);
         socket.emit('teaching:greeting', { message: response.answer });
         return;
       }
+
+
 
       if (intentResult.intent === 'test_me') {
         const quiz = await withTimeout(
@@ -156,9 +171,15 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
 
         if (timeline.type === 'greeting') {
           machine.forceReset();
+          await sessionStore.addMessage(sessionId, 'assistant', timeline.answer);
+          await syncToDatabase(sessionId);
           socket.emit('teaching:greeting', { message: timeline.answer });
           return;
         }
+
+        const introMsg = `I've prepared a visual learning canvas for you on **${timeline.title}**. Dive in whenever you're ready!`;
+        await sessionStore.addMessage(sessionId, 'assistant', introMsg);
+
 
         await sessionStore.setTimeline(sessionId, timeline);
         machine.send(EVENTS.TIMELINE_READY, { timeline });
@@ -168,9 +189,13 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         if (payload.timeline.length > 0) {
           socket.emit('teaching:step', { step: payload.timeline[0], index: 0, total: payload.timeline.length });
         }
+
+        // Persist full state (intro message + timeline) to MongoDB
+        await syncToDatabase(sessionId);
       } finally {
         clearInterval(heartbeat);
       }
+
 
     } catch (err) {
       console.error('[WS] session:start error:', err.message);
@@ -193,4 +218,14 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     machine.forceReset();
     await sessionStore.destroy(sessionId);
   });
+
+  // ─── CANVAS SYNC ──────────────────────────────────────────────────────
+  socket.on('canvas:sync', async ({ objects }) => {
+    if (!Array.isArray(objects)) return;
+    await sessionStore.updateCanvasState(sessionId, objects);
+    // Debounced sync to DB is usually handled by the caller or periodic sync, 
+    // but we'll do an immediate sync for manual interactions
+    await syncToDatabase(sessionId);
+  });
 }
+

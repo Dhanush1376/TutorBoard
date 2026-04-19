@@ -21,7 +21,7 @@ export function useSocket() {
   useEffect(() => {
     if (!globalSocket) {
       console.log('[Socket] Initializing singleton connection...');
-      const token = localStorage.getItem('tb-token');
+      const token = localStorage.getItem('tb-token') || 'guest';
       globalSocket = io(`${SOCKET_URL}/teaching`, {
         transports: ['websocket', 'polling'],
         reconnection: true,
@@ -35,17 +35,28 @@ export function useSocket() {
     }
 
     const socket = globalSocket;
-
-    // Handle Auth Refresh (Bug 37 Fix)
+    
+    // BUG FIX #37 & Persistence Hardening:
+    // Handle Auth Refresh immediately on login/logout
     const checkToken = () => {
-      const currentToken = localStorage.getItem('tb-token');
-      // If socket initialized with no token but we have one now, or vice versa
+      const currentToken = localStorage.getItem('tb-token') || 'guest';
       if (socket.auth?.token !== currentToken) {
-        console.log('[Socket] Auth token mismatch. Reconnecting with fresh credentials...');
+        console.log(`[Socket] Auth transition detected (${socket.auth?.token || 'none'} -> ${currentToken}). Reconnecting...`);
         socket.auth = { token: currentToken };
-        socket.disconnect().connect();
+        // Clean disconnect/connect cycle to ensure fresh session
+        if (socket.connected) {
+          socket.disconnect().connect();
+        } else {
+          socket.connect();
+        }
       }
     };
+
+    // Immediate check on hook mount
+    checkToken();
+
+    // Listen for storage changes (e.g., login in another tab or same tab state update)
+    window.addEventListener('storage', checkToken);
 
     const onConnect = () => {
       console.log('[Socket] Connected:', socket.id);
@@ -66,7 +77,7 @@ export function useSocket() {
 
     const onRetry = () => {
       console.log('[Socket] Refreshing auth token for reconnect attempt...');
-      const freshToken = localStorage.getItem('tb-token');
+      const freshToken = localStorage.getItem('tb-token') || 'guest';
       socket.auth = { token: freshToken };
     };
 
@@ -89,6 +100,7 @@ export function useSocket() {
     return () => {
       // BUG FIX #38: Clean up listeners and interval on unmount
       clearInterval(tokenCheckInterval);
+      window.removeEventListener('storage', checkToken);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onError);
@@ -153,13 +165,30 @@ export function useSocket() {
 
 /**
  * disconnectSocket — Static utility to destroy the global socket instance.
- * Call this during logout to prevent session bleed between users.
  */
 export function disconnectSocket() {
   if (globalSocket) {
     console.log('[Socket] Disconnecting and destroying global instance...');
     globalSocket.disconnect();
     globalSocket = null;
+  }
+}
+
+/**
+ * syncSocketAuth — Explicitly updates the global socket token and reconnects.
+ * Call this immediately after login/logout to ensure zero-delay auth transition.
+ */
+export function syncSocketAuth(newToken = 'guest') {
+  if (globalSocket) {
+    if (globalSocket.auth?.token !== newToken) {
+      console.log(`[Socket] Explicit auth sync: Updating token...`);
+      globalSocket.auth = { token: newToken };
+      if (globalSocket.connected) {
+        globalSocket.disconnect().connect();
+      } else {
+        globalSocket.connect();
+      }
+    }
   }
 }
 

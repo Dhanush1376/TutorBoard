@@ -22,6 +22,7 @@ const capManifest = (manifest, limit = 20) => {
 export const createSessionSlice = (set, get) => ({
   machineState:       STATES.IDLE,
   sessionId:          null,
+  chatSessionId:      null,  // MongoDB ObjectId for REST sync
   topic:              '',
   isConnected:        false,
   connectionError:    null,
@@ -31,13 +32,16 @@ export const createSessionSlice = (set, get) => ({
   isTimelineReady:    false,
   sessionManifest:    {},
 
+
   setMachineState:  (state) => set({ machineState: state, error: null }),
   setTopic:         (topic) => set({ topic }),
   setConnected:     (connected) => set({ isConnected: connected, connectionError: null }),
   setConnectionError: (err)     => set({ connectionError: err, isConnected: false }),
   setError:         (err)       => set({ error: err }),
   setGreeting:      (msg)       => set({ greetingMessage: msg, machineState: STATES.IDLE }),
+  setChatSessionId: (id)        => set({ chatSessionId: id }),
   setGenerationProgress: (progress)  => set({ 
+
     generationProgress: typeof progress === 'string' 
       ? { label: progress, stage: 0, totalStages: 6 } 
       : progress 
@@ -138,7 +142,9 @@ export const createSessionSlice = (set, get) => ({
     generationProgress: null,
     machineState:       STATES.IDLE,
     sessionId:          null,
+    chatSessionId:      null,
     topic:              '',
+
     activeDoubtId:      null,
     showDoubtThread:    false,
     isTimelineReady:    false,

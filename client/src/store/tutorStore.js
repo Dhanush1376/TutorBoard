@@ -28,7 +28,7 @@ const useTutorStore = create(
         if (typeof window === 'undefined') return;
         set({
           isSidebarOpen: window.innerWidth >= 768,
-          selectedAgent: localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+          selectedAgent: localStorage.getItem('tutorboard-agent') || 'Universal',
         });
       },
     }),

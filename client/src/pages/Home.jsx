@@ -27,7 +27,7 @@ import { useSessionSync } from '../hooks/useSessionSync';
 import { 
   Volume2, VolumeX, Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
-  Check, Wifi, WifiOff, Loader
+  Check, Wifi, WifiOff, Loader, Key, Zap
 } from 'lucide-react';
 
 // ─── Drawing Overlay ─────────────────────────────────────────────────────────
@@ -149,7 +149,6 @@ const DOMAIN_STYLES = {
 const PANEL_VISIBLE_STATES = new Set([STATES.TEACHING, STATES.RESPONDING, STATES.RESUMING]);
 
 const Home = ({ isDark }) => {
-  useSessionSync();
   // ─── Machine & Store ───
   const machine = useTeachingMachine();
   const {
@@ -174,7 +173,7 @@ const Home = ({ isDark }) => {
     chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition
   } = useTutorStore();
 
-  const { isAuthenticated, token, user, apiPrefs: globalApiPrefs } = useAuth();
+  const { isAuthenticated, token, user, loading: authLoading, apiPrefs: globalApiPrefs } = useAuth();
   
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
@@ -184,7 +183,7 @@ const Home = ({ isDark }) => {
     return saved ? JSON.parse(saved) : [];
   });
   
-  // Restore Cloud Sessions
+  // Restore Cloud Sessions (MERGE with local history, don't replace)
   useEffect(() => {
     if (!isAuthenticated || user?.isGuest || !token) return;
 
@@ -195,8 +194,10 @@ const Home = ({ isDark }) => {
         });
         if (res.ok) {
           const sessions = await res.json();
-          // Map to local session format
-          const restored = sessions.map(s => ({
+          if (!sessions || sessions.length === 0) return; // Don't wipe local if cloud is empty
+
+          // Map cloud sessions to local format
+          const cloudSessions = sessions.map(s => ({
             id: s._id,
             title: s.title || 'Saved Session',
             date: new Date(s.lastUpdated || s.createdAt).toLocaleDateString(),
@@ -204,10 +205,24 @@ const Home = ({ isDark }) => {
             messages: s.messages || [],
             canvasState: s.canvasState || []
           }));
-          
-          // CRITICAL: Always update history, even if empty, to ensure new accounts 
-          // clear any stale Guest history from localStorage.
-          setChatHistory(restored);
+
+          setChatHistory(prev => {
+            // Build a map of existing local sessions by id
+            const localMap = new Map(prev.map(s => [s.id, s]));
+            const merged = [...prev]; // Start with local data
+
+            for (const cloud of cloudSessions) {
+              const local = localMap.get(cloud.id);
+              if (!local) {
+                // New session from another device — append it
+                merged.unshift(cloud);
+              }
+              // If local version exists, KEEP it (it has richer client-side messages)
+            }
+
+            console.log(`[Home] Merged ${cloudSessions.length} cloud sessions with ${prev.length} local sessions → ${merged.length} total`);
+            return merged;
+          });
         }
       } catch (err) {
         console.error('Failed to restore cloud sessions:', err);
@@ -223,15 +238,47 @@ const Home = ({ isDark }) => {
   const setActiveChatId = storeSetSessionId;
   
   useEffect(() => {
-    localStorage.setItem('tutorboard-history', JSON.stringify(chatHistory));
-  }, [chatHistory]);
+    // Only persist history for real users (make Guest accounts ephemeral as requested)
+    if (isAuthenticated && !user?.isGuest) {
+      localStorage.setItem('tutorboard-history', JSON.stringify(chatHistory));
+    }
+  }, [chatHistory, isAuthenticated, user]);
 
   // Persist active chat ID
   useEffect(() => {
-    if (activeChatId) {
+    if (activeChatId && isAuthenticated && !user?.isGuest) {
       localStorage.setItem('tutorboard-active-chat', activeChatId);
     }
-  }, [activeChatId]);
+  }, [activeChatId, isAuthenticated, user]);
+
+  // Restore Active Chat on Mount (fixes "chat disappearing on refresh")
+  const hasHydratedActive = useRef(false);
+  useEffect(() => {
+    // Wait for auth to finish deciding if we are guest or user
+    if (authLoading) return;
+    if (hasHydratedActive.current) return;
+    
+    const savedActiveId = localStorage.getItem('tutorboard-active-chat');
+    
+    // Only attempt hydration if we actually have history loaded (from local or cloud)
+    if (!activeChatId && savedActiveId && chatHistory.length > 0) {
+      const session = chatHistory.find(s => s.id === savedActiveId);
+      if (session) {
+        console.log('[Home] Hydrating active chat:', savedActiveId);
+        hasHydratedActive.current = true;
+        setActiveChatId(savedActiveId);
+        
+        // Restore canvas snapshot if we have one
+        if (session.canvasState && session.canvasState.length > 0) {
+          useTutorStore.getState().setCanvasSnapshot({ 
+            canvasObjects: session.canvasState, 
+            canvasSteps: [], 
+            totalSteps: 0 
+          });
+        }
+      }
+    }
+  }, [activeChatId, chatHistory, setActiveChatId, authLoading]);
 
   // ── Sync Doubt Responses to Chat ──
   const lastDoubtId = useRef(null);
@@ -380,6 +427,9 @@ const Home = ({ isDark }) => {
 
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
   const messages = activeSession?.messages || [];
+
+  // ── Persistent Cloud Sync ──
+  useSessionSync(messages);
 
   // ─── Logic ───
   const { toggleSidebar } = useTutorStore();
@@ -610,7 +660,7 @@ const Home = ({ isDark }) => {
                       ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
                       : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}
                 >
-                  <Wifi size={10} />
+                  {activeApiPrefs.useCustomApi ? <Key size={10} /> : <Zap size={10} />}
                   {activeApiPrefs.useCustomApi ? 'Personal' : 'Universal'}
                 </div>
               )}

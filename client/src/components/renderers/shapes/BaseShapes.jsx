@@ -1,6 +1,7 @@
 import React, { useId } from "react";
 import { motion } from "framer-motion";
-import { resolve, getStrokeDash, AW } from "./ShapeUtils";
+import { resolve, getStrokeDash } from "./ShapeUtils";
+import { AW } from "./AnimatedWrapper";
 
 export const GlowOrb = ({
   cx, cy, r, color, label, attentionLevel, layoutId, animation, isSelected, onUpdate, onDelete,

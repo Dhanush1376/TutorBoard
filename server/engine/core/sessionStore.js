@@ -32,7 +32,9 @@ class SessionStore {
       id,
       topic: null,
       context: [],
-      teachingMachine: null, // This is usually a class instance, handled via machine.state in sockets
+      messages: [],
+      canvasState: [],
+      teachingMachine: null,
       timeline: null,
       steps: [],
       currentStepIndex: 0,
@@ -44,15 +46,41 @@ class SessionStore {
         confusionIndex: 0,
         topicsMastery: {},
       },
-      chatSessionId: null,   // Link to ChatSession ObjectId
-      learnerProfileId: null, // Link to LearnerProfile ObjectId
-      engineSessionId: id,    // String ID for internal tracking
+      chatSessionId: null,
+      learnerProfileId: null,
+      engineSessionId: id,
     };
+
 
     await this.update(id, session);
     console.log(`[SessionStore] 👤 Created session: ${id}`);
     return session;
   }
+
+  /**
+   * Appends a message to the persistent chat history
+   */
+  async addMessage(id, role, content) {
+    const session = await this.get(id);
+    if (!session) return;
+    
+    const messages = Array.isArray(session.messages) ? session.messages : [];
+    const newMessage = { role, content, timestamp: new Date() };
+    
+    // Prevent document bloat: keep last 100 messages in active session
+    const updatedMessages = [...messages, newMessage].slice(-100);
+    
+    return await this.update(id, { messages: updatedMessages });
+  }
+
+  /**
+   * Updates the manual canvas objects state
+   */
+  async updateCanvasState(id, objects) {
+    if (!Array.isArray(objects)) return;
+    return await this.update(id, { canvasState: objects });
+  }
+
 
   async get(id) {
     if (redis.isConnected) {

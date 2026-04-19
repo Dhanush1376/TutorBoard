@@ -18,10 +18,12 @@ export async function syncToDatabase(sessionId) {
     await ChatSession.findByIdAndUpdate(s.chatSessionId, {
       topic: s.topic,
       steps: s.steps,
+      canvasState: s.canvasState || [],
       currentStepIndex: s.currentStepIndex,
       lastUpdated: Date.now(),
       engineSessionId: sessionId,
     });
+
     console.log(`[WS:Sync] Synced session ${sessionId} to Mongo ${s.chatSessionId}`);
   } catch (err) {
     console.error(`[WS:Sync] Error syncing to Mongo: ${err.message}`);

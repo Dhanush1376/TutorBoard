@@ -94,49 +94,57 @@ const DeleteAction = (props) => {
   };
 
   const Submenu = (
-    <div className="flex flex-col gap-4 p-4" style={{ minWidth: 240 }}>
+    <div className="flex flex-col gap-4 p-4" style={{ minWidth: 260 }}>
       {/* Quick Purge */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">Quick Purge</span>
+        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] px-1 opacity-70">Quick Purge</span>
         <div className="flex flex-col gap-1">
           <button
             onClick={() => {
               clearDrawings();
               triggerFeedback('drawings');
             }}
-            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group w-full"
+            className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[var(--bg-secondary)] transition-all group w-full border border-transparent hover:border-[var(--border-color)]"
           >
-            <div className="flex items-center gap-2.5">
-              <Pencil size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
-              <span className="text-xs font-medium text-[var(--text-primary)]">Clean Drawings</span>
+            <div className="flex items-center gap-3">
+              <Pencil size={15} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+              <span className="text-xs font-semibold text-[var(--text-primary)]">Clean Drawings</span>
             </div>
-            {successId === 'drawings' && <div className="text-[9px] font-bold text-green-500 uppercase">Cleared</div>}
+            {successId === 'drawings' && (
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-black text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
+            )}
           </button>
+          
           <button
             onClick={() => {
               clearNotes();
               triggerFeedback('notes');
             }}
-            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group w-full"
+            className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[var(--bg-secondary)] transition-all group w-full border border-transparent hover:border-[var(--border-color)]"
           >
-            <div className="flex items-center gap-2.5">
-              <StickyNote size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
-              <span className="text-xs font-medium text-[var(--text-primary)]">Clear All Notes</span>
+            <div className="flex items-center gap-3">
+              <StickyNote size={15} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+              <span className="text-xs font-semibold text-[var(--text-primary)]">Clear All Notes</span>
             </div>
-            {successId === 'notes' && <div className="text-[9px] font-bold text-green-500 uppercase">Cleared</div>}
+            {successId === 'notes' && (
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-black text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
+            )}
           </button>
+
           <button
             onClick={() => {
               clearShapes();
               triggerFeedback('shapes');
             }}
-            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-all group w-full"
+            className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[var(--bg-secondary)] transition-all group w-full border border-transparent hover:border-[var(--border-color)]"
           >
-            <div className="flex items-center gap-2.5">
-              <Square size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />
-              <span className="text-xs font-medium text-[var(--text-primary)]">Clean Geometry</span>
+            <div className="flex items-center gap-3">
+              <Square size={15} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+              <span className="text-xs font-semibold text-[var(--text-primary)]">Clean Geometry</span>
             </div>
-            {successId === 'shapes' && <div className="text-[9px] font-bold text-green-500 uppercase">Cleared</div>}
+            {successId === 'shapes' && (
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-black text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
+            )}
           </button>
         </div>
       </div>
@@ -145,7 +153,7 @@ const DeleteAction = (props) => {
 
       {/* Full Reset with Hold-to-Confirm */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1 text-red-400">Danger Zone</span>
+        <span className="text-[10px] font-bold text-red-500/60 uppercase tracking-[0.1em] px-1">Danger Zone</span>
         
         <div className="relative group">
           <HoldToConfirmButton onConfirm={() => {

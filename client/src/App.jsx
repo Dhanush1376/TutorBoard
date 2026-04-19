@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
@@ -11,9 +12,14 @@ import Features from './pages/Marketing/Features';
 import Solutions from './pages/Marketing/Solutions';
 import About from './pages/Marketing/About';
 import { useAuth } from './context/AuthContext';
+import GlobalStatusOverlay from './components/layout/GlobalStatusOverlay';
+import useTutorStore from './store/tutorStore';
+
 
 function App() {
-  const { loading: authLoading, apiError, connectionStatus } = useAuth();
+  const { loading: authLoading, apiError, connectionStatus, forceStopLoading } = useAuth();
+  const { setGlobalOverlay, globalOverlay } = useTutorStore();
+
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     // Check if the welcome animation has already played in this session
     try {
@@ -47,6 +53,37 @@ function App() {
       setShowSkip(false);
     }
   }, [welcomeLoading, authLoading]);
+
+  // Network Connectivity Listeners
+  useEffect(() => {
+    const handleOffline = () => {
+      setGlobalOverlay({ isActive: true, type: 'network', message: "You're currently offline. Please check your internet connection to continue using TutorBoard." });
+    };
+    const handleOnline = () => {
+      if (globalOverlay.type === 'network') {
+        setGlobalOverlay({ isActive: false });
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    // Initial check
+    if (!navigator.onLine) handleOffline();
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [setGlobalOverlay, globalOverlay.type]);
+
+  // Handle server timeout from AuthContext
+  useEffect(() => {
+    if (connectionStatus === 'timeout') {
+      setGlobalOverlay({ isActive: true, type: 'error', message: "The TutorBoard engine is taking too long to respond. This might be a temporary server issue." });
+    }
+  }, [connectionStatus, setGlobalOverlay]);
+
 
   if (apiError === 'VITE_API_URL_MISSING') {
     return (
@@ -91,8 +128,7 @@ function App() {
               onClick={() => {
                 console.warn('[App] Manual loader bypass triggered by user');
                 setWelcomeLoading(false);
-                // We don't force authLoading here as it's owned by context, 
-                // but setting welcomeLoading false might be enough if auth finish is close.
+                forceStopLoading(); // Force-clear the auth loader too
               }}
               className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-full text-white/50 hover:text-white/80 text-sm font-medium transition-all shadow-2xl"
             >
@@ -106,7 +142,10 @@ function App() {
 
   return (
     <div className="app-root">
+      <GlobalStatusOverlay />
       <main className="app-main">
+
+
         <Routes>
           <Route path="/" element={<AuthLanding />} />
           <Route path="/auth" element={<Navigate to="/" replace />} />

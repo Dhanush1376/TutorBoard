@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Palette, Pin, Copy, ArrowUp } from "lucide-react";
 import useTutorStore from "../../../store/tutorStore";
-import { resolveNoteColors, AW, CW, CH } from "./ShapeUtils";
+import { resolveNoteColors, CW, CH } from "./ShapeUtils";
+import { AW } from "./AnimatedWrapper";
 
 export const StickyNoteShape = ({
   x, y, w, h, label, color, rotation = 0, attentionLevel, layoutId, animation, isSelected, onUpdate, onDelete, fontFamily, fontWeight, fontStyle, textDecoration,

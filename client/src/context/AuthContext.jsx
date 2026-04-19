@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import useTutorStore from '../store/tutorStore';
 import { useTheme } from './ThemeContext';
+import { syncSocketAuth, disconnectSocket } from '../hooks/useSocket';
 
 const AuthContext = createContext(null);
 
@@ -60,7 +61,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => safeStorage.getItem('tb-token'));
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_URL_MISSING' : null);
-  const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null });
+  const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null, activeLabel: null, activeId: null, allKeys: [], status: 'stable' });
   const [connectionStatus, setConnectionStatus] = useState('stable'); // stable, slow, timeout
   const { setMode, setCurrentThemeId } = useTheme();
 
@@ -100,12 +101,8 @@ export const AuthProvider = ({ children }) => {
         if (exchangeCode) {
           // Exchange one-time code for real JWT
           console.log('[Auth] Exchange code detected, trading for session...');
-          try {
-            // Simultaneous exchange and cinematic delay
-            const [res] = await Promise.all([
-              fetchWithTimeout(`${API_URL}/api/auth/exchange?code=${exchangeCode}`, { timeout: 5000 }),
-              new Promise(resolve => setTimeout(resolve, 1500)) // Guarantee animation visibility
-            ]);
+            // Simultaneous exchange
+            const res = await fetchWithTimeout(`${API_URL}/api/auth/exchange?code=${exchangeCode}`, { timeout: 5000 });
             
             if (res.ok) {
               const data = await res.json();
@@ -114,15 +111,22 @@ export const AuthProvider = ({ children }) => {
                 console.log('[Auth] Exchange successful ✨');
               }
             }
-          } catch (e) {
-            console.error('[Auth] Code exchange failed:', e);
-          }
           // Clean up URL to prevent re-exchange
           window.history.replaceState({}, document.title, window.location.pathname);
         }
 
         const storedToken = safeStorage.getItem('tb-token');
         const wasPreviouslyLoggedIn = !!storedToken;
+
+        // Guest flow restoration (Must check before the storedToken early return)
+        const isGuest = safeStorage.getItem('tb-is-guest') === 'true';
+        if (isGuest && !storedToken) {
+          console.log('[Auth] Restoring Guest session');
+          setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
+          setToken(null);
+          setLoading(false);
+          return;
+        }
 
         if (!storedToken) {
           // AI Automation: If there's a prompt in the URL, auto-login as guest
@@ -137,30 +141,30 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
-        // Guest flow restoration
-        const isGuest = safeStorage.getItem('tb-is-guest') === 'true';
-        if (isGuest && !storedToken) {
-          console.log('[Auth] Restoring Guest session');
-          setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
-          setToken(null);
-          setLoading(false);
-          return;
-        }
-
         console.log('[Auth] Verifying session with backend...');
         try {
-          const res = await fetchWithTimeout(`${API_URL}/api/auth/me`, {
-            headers: { Authorization: `Bearer ${storedToken}` },
-            timeout: 5000
-          });
+          // Parallelize profile and API prefs fetch for high performance
+          const [meRes, apiRes] = await Promise.all([
+            fetchWithTimeout(`${API_URL}/api/auth/me`, {
+              headers: { Authorization: `Bearer ${storedToken}` },
+              timeout: 5000
+            }),
+            storedToken !== 'guest' ? fetchWithTimeout(`${API_URL}/api/apikeys`, { 
+              headers: { Authorization: `Bearer ${storedToken}` },
+              timeout: 3000
+            }).catch(() => null) : Promise.resolve(null)
+          ]);
 
-          if (res.ok) {
-            const data = await res.json();
+          if (meRes && meRes.ok) {
+            const data = await meRes.json();
             console.log('[Auth] Session verified for:', data.user?.email);
             setUser(data.user);
             setToken(storedToken);
+            
+            // BUG FIX: Immediately sync socket auth with verified token
+            syncSocketAuth(storedToken);
 
-            // Hydrate settings ONLY on fresh login to prevent overwriting in-flight client state on refresh
+            // Hydrate settings ONLY on fresh login 
             if (data.user?.settings && !wasPreviouslyLoggedIn) {
               console.log('[Auth] Fresh login detected: Hydrating settings from backend');
               const { general, appearance, canvas, privacy } = data.user.settings;
@@ -172,10 +176,10 @@ export const AuthProvider = ({ children }) => {
                 safeStorage.setItem('tb-notif-sound', String(general.notifSound ?? true));
               }
               if (appearance) {
-                if (appearance.theme) {
+                if (appearance.theme && typeof setMode === 'function') {
                   setMode(appearance.theme);
                 }
-                if (appearance.themeId) {
+                if (appearance.themeId && typeof setCurrentThemeId === 'function') {
                   setCurrentThemeId(appearance.themeId);
                 }
                 try {
@@ -202,34 +206,34 @@ export const AuthProvider = ({ children }) => {
                 safeStorage.setItem('tb-cloud-sync', String(privacy.cloudSync ?? true));
                 safeStorage.setItem('tb-local-history', String(privacy.localHistory ?? true));
               }
-
-              // Centralized API Prefs Fetch
-              if (storedToken !== 'guest') {
-                try {
-                  const apiRes = await fetchWithTimeout(`${API_URL}/api/apikeys`, { 
-                    headers: { Authorization: `Bearer ${storedToken}` },
-                    timeout: 3000
-                  });
-                  if (apiRes.ok) {
-                    const apiData = await apiRes.json();
-                    const activeKey = apiData.keys?.find(k => k.isActive && k.isValid);
-                    setApiPrefs({
-                      useCustomApi: apiData.preferences?.useCustomApi && !!activeKey,
-                      activeProvider: activeKey?.provider
-                    });
-                  }
-                } catch (e) { console.warn('[Auth] Failed to pre-fetch API prefs'); }
-              }
             }
-          } else {
-            console.warn('[Auth] Session invalid, status:', res.status);
+
+            // Hydrate API Prefs from parallel fetch
+            if (apiRes && apiRes.ok) {
+              const apiData = await apiRes.json();
+              const activeKey = apiData.keys?.find(k => k.isActive && k.isValid);
+              const status = activeKey?.isExpired ? 'expired' : (activeKey?.isLowCredits ? 'low' : (activeKey?.isValid ? 'active' : 'stable'));
+              setApiPrefs({
+                useCustomApi: apiData.preferences?.useCustomApi && !!activeKey,
+                activeProvider: activeKey?.provider,
+                activeLabel: activeKey?.label,
+                activeId: activeKey?.id || activeKey?._id || null,
+                allKeys: apiData.keys || [],
+                status
+              });
+            }
+          } else if (meRes && (meRes.status === 401 || meRes.status === 403)) {
+            console.warn('[Auth] Session invalidated by server:', meRes.status);
             safeStorage.removeItem('tb-token');
             setToken(null);
             setUser(null);
+          } else {
+            console.error('[Auth] Server error during verification');
+            setUser(null);
           }
         } catch (err) {
-          console.error('[Auth] Token verification fetch failed:', err);
-          setUser(null);
+          console.error('[Auth] Network error or timeout during verification:', err.name || err);
+          setUser(null); 
         } finally {
           console.log('[Auth] Verification logic finished, clearing loader');
           setLoading(false);
@@ -278,6 +282,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('tb-token', data.token);
     setToken(data.token);
     setUser(data.user);
+
+    // BUG FIX: Immediate socket sync after login
+    try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after login'); }
+
     return data;
   }, []);
 
@@ -297,6 +305,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('tb-token', data.token);
     setToken(data.token);
     setUser(data.user);
+
+    // BUG FIX: Immediate socket sync after signup
+    try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after signup'); }
+
     return data;
   }, []);
 
@@ -305,6 +317,10 @@ export const AuthProvider = ({ children }) => {
     safeStorage.setItem('tb-is-guest', 'true');
     setToken(null);
     setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
+
+    // BUG FIX: Sync socket to Guest mode
+    syncSocketAuth('guest');
+
     // Force default layout to Standard (Left) for guests
     useTutorStore.getState().setLayoutView('left');
   }, []);
@@ -326,7 +342,10 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
 
-    // 5. Force navigation to landing to ensure clean state
+    // 5. Cleanup Socket (Destroy singleton on logout for security)
+    try { disconnectSocket(); } catch (e) { console.warn('[Auth] Socket disconnect failed'); }
+
+    // 6. Force navigation to landing to ensure clean state
     window.location.href = '/';
   }, []);
 
@@ -342,15 +361,56 @@ export const AuthProvider = ({ children }) => {
       if (res.ok) {
         const data = await res.json();
         const activeKey = data.keys?.find(k => k.isActive && k.isValid);
+        const status = activeKey?.isExpired ? 'expired' : (activeKey?.isLowCredits ? 'low' : (activeKey?.isValid ? 'active' : 'stable'));
         setApiPrefs({
           useCustomApi: data.preferences?.useCustomApi && !!activeKey,
-          activeProvider: activeKey?.provider
+          activeProvider: activeKey?.provider,
+          activeLabel: activeKey?.label,
+          activeId: activeKey?.id || activeKey?._id || null,
+          allKeys: data.keys || [],
+          status
         });
       }
     } catch (e) { /* silent */ }
-  }, [token]);
+  }, [token, user]);
+
+  const switchApi = useCallback(async (keyId) => {
+    if (!token || user?.isGuest) return;
+    try {
+      if (keyId === 'Universal') {
+        const res = await fetch(`${API_URL}/api/apikeys/preferences`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ useCustomApi: false })
+        });
+        if (res.ok) refreshApiPrefs();
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/apikeys/${keyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isActive: true })
+      });
+      
+      if (res.ok) {
+        await fetch(`${API_URL}/api/apikeys/preferences`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ useCustomApi: true })
+        });
+        refreshApiPrefs();
+      }
+    } catch (e) { /* silent */ }
+  }, [token, user, refreshApiPrefs]);
 
   const isAuthenticated = !!user;
+
+  const forceStopLoading = useCallback(() => {
+    console.warn('[Auth] Manual loading bypass triggered');
+    setLoading(false);
+    setConnectionStatus('stable');
+  }, []);
 
   return (
     <AuthContext.Provider value={{
@@ -366,7 +426,9 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated,
       apiPrefs,
       refreshApiPrefs,
-      connectionStatus
+      switchApi,
+      connectionStatus,
+      forceStopLoading
     }}>
       {children}
     </AuthContext.Provider>

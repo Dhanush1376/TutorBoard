@@ -23,16 +23,19 @@ export function setupTeachingSocket(io) {
       const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
       const token = socket.handshake.auth?.token;
       
-      if (!token || token === 'guest') {
-        return next(new Error('Authentication error: Invalid or missing token'));
+      // Allow guests to connect for Trial Mode
+      if (token === 'guest' || !token) {
+        console.log(`[WS] Guest connection accepted from ${ip}`);
+        socket.user = { id: 'guest', isGuest: true };
+        return next();
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.user = decoded;
       next();
     } catch (err) {
-      console.error('[WS] Auth Error:', err.message);
-      next(new Error('Authentication error: Invalid token'));
+      console.error(`[WS] Auth Error for token [${socket.handshake.auth?.token?.substring(0, 10)}...]:`, err.message);
+      next(new Error(`Authentication error: ${err.message === 'jwt must be provided' ? 'Missing token' : 'Invalid token'}`));
     }
   });
 

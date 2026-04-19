@@ -45,6 +45,27 @@ const ActionButtonBase = ({
   const showSuccess = didAction && !isDestructive;
   const showMenu = isMenuOpen && customSubmenu;
 
+  const [menuOffset, setMenuOffset] = useState(0);
+  const menuRef = React.useRef(null);
+
+  // EDGE-AWARE POSITIONING: Prevent submenus from going off-screen
+  React.useEffect(() => {
+    if (showMenu && menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      const padding = 12; // Screen edge padding
+      let offset = 0;
+
+      if (rect.left < padding) {
+        offset = padding - rect.left;
+      } else if (rect.right > window.innerWidth - padding) {
+        offset = window.innerWidth - padding - rect.right;
+      }
+
+      if (offset !== 0) setMenuOffset(offset);
+      else setMenuOffset(0);
+    }
+  }, [showMenu]);
+
   return (
     <div
       className="relative flex-shrink-0"
@@ -82,10 +103,11 @@ const ActionButtonBase = ({
         {(isHovered || isHoveredExternally) && !disabled && !showSuccess && !showMenu && (
           <motion.div
             layoutId="liquid-hover-pill"
-            className="absolute inset-0 rounded-full z-0"
+            className="absolute inset-y-0 left-1 right-1 rounded-full z-0"
             style={{
-              background: isDestructive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.08)',
-              boxShadow: '0 0 15px rgba(255,255,255,0.02)'
+              background: isDestructive ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-tertiary)',
+              border: isDestructive ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--border-color)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
             }}
             transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
           />
@@ -146,39 +168,53 @@ const ActionButtonBase = ({
       </motion.button>
 
       {/* Action Submenu */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {showMenu && (
           <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -3, scale: 0.98 }}
+            ref={menuRef}
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              x: menuOffset
+            }}
+            exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
             className={`absolute top-full mt-3 z-[9999] ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
             <div
               className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl relative"
-              style={{ boxShadow: '0 12px 48px rgba(0,0,0,0.3)' }}
+              style={{
+                boxShadow: '0 20px 50px -12px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.1) inset',
+                backdropFilter: 'blur(12px)',
+              }}
               onMouseEnter={() => setIsMenuOpen(true)}
             >
-              {/* Submenu Caret */}
+              {/* Interaction Bridge: Prevents closure in the gap */}
+              <div className="absolute inset-x-0 -top-3 h-3 pointer-events-auto" />
+
+              {/* Submenu Caret - Tracks the button center even if menu slides */}
               <div
                 className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
                 style={{
                   background: 'var(--bg-primary)',
                   borderLeft: '1px solid var(--border-color)',
                   borderTop: '1px solid var(--border-color)',
-                  zIndex: -1
+                  zIndex: -1,
+                  transformOrigin: 'center center',
+                  transform: `translateX(${-menuOffset}px) rotate(45deg)`
                 }}
               />
-              
+
               <div className="rounded-2xl overflow-hidden">
-                {React.isValidElement(customSubmenu) 
+                {React.isValidElement(customSubmenu)
                   ? React.cloneElement(customSubmenu, {
-                      onMouseLeave: () => {
-                        setIsHovered(false);
-                        setIsMenuOpen(false);
-                      }
-                    })
+                    onMouseLeave: () => {
+                      setIsHovered(false);
+                      setIsMenuOpen(false);
+                    }
+                  })
                   : customSubmenu
                 }
               </div>
@@ -207,10 +243,10 @@ const ActionButtonBase = ({
                     ? 'rgba(22,163,74,0.92)'
                     : 'var(--bg-primary)',
                 border: `1px solid ${isDestructive
-                    ? 'rgba(239,68,68,0.25)'
-                    : showSuccess
-                      ? 'rgba(34,197,94,0.25)'
-                      : 'var(--border-color)'
+                  ? 'rgba(239,68,68,0.25)'
+                  : showSuccess
+                    ? 'rgba(34,197,94,0.25)'
+                    : 'var(--border-color)'
                   }`,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
               }}

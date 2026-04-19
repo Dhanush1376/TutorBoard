@@ -33,8 +33,13 @@ import { safeParse } from '../../utils/core/parser.js';
 
 export async function classifyDoubt(topic, question) {
   const prompt = DOUBT_CLASSIFICATION_PROMPT
-    .replace('{{TOPIC}}', topic)
-    .replace('{{QUESTION}}', question);
+    .replaceAll('{{TOPIC}}', topic || 'General Education')
+    .replaceAll('{{QUESTION}}', question || '');
+
+  if (prompt.includes('{{TOPIC}}') || prompt.includes('{{QUESTION}}')) {
+    console.error('[DoubtClassifier] CRITICAL: Placeholders not fully replaced!');
+    throw new Error('Placeholder replacement failed in doubtClassifier');
+  }
 
   try {
     const res = await requestCompletion({

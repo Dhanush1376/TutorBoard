@@ -1,7 +1,7 @@
 export const createUiSlice = (set, get) => ({
   showFloatingSidebar: false,
   showMinimap:         false,
-  selectedAgent:       localStorage.getItem('tutorboard-agent') || 'OpenRouter',
+  selectedAgent:       localStorage.getItem('tutorboard-agent') || 'Universal',
   layoutView:          'left',
   isSidebarOpen:       true,
   activeTool:          'select',
@@ -36,8 +36,12 @@ export const createUiSlice = (set, get) => ({
   textUnderline:       false,
   textAlign:           'center',
   textBgColor:         'transparent',
+  globalOverlay:       { isActive: false, message: '', type: 'sync' }, // sync | network | error
+
 
   setLayoutView:    (view) => set({ layoutView: view }),
+  setGlobalOverlay: (overlay) => set({ globalOverlay: { ...get().globalOverlay, ...overlay } }),
+
   setSidebarOpen:   (open)  => set({ isSidebarOpen: open }),
   toggleSidebar:    ()      => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
   setSelectedAgent: (agent) => {

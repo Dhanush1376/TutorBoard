@@ -1,6 +1,7 @@
 import React, { useId, useRef, useEffect } from "react";
 import katex from "katex";
-import { resolve, AW } from "./ShapeUtils";
+import { resolve } from "./ShapeUtils";
+import { AW } from "./AnimatedWrapper";
 
 export const EquationBlock = ({
   x, y, label, content, color, attentionLevel, layoutId, animation, styles = {},

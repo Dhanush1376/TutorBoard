@@ -84,6 +84,8 @@ const userSchema = new mongoose.Schema({
     baseUrl: { type: String, default: '' }, // For custom providers
     isActive: { type: Boolean, default: true },
     isValid: { type: Boolean, default: false },
+    isLowCredits: { type: Boolean, default: false }, // NEW: Status tracking
+    isExpired: { type: Boolean, default: false },     // NEW: Status tracking
     lastValidated: { type: Date },
     createdAt: { type: Date, default: Date.now },
   }],

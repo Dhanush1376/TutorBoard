@@ -257,7 +257,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
     if (gridRef.current) gridRef.current.style.transition = 'none';
 
     if (containerRef.current) {
-      containerRef.current.style.cursor = isHoveringContent ? 'default' : 'crosshair';
+      containerRef.current.style.cursor = getCursor();
     }
 
     if (Math.abs(velocity.current.x) > 1 || Math.abs(velocity.current.y) > 1) {

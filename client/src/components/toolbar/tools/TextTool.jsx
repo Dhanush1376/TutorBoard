@@ -142,20 +142,17 @@ const TextTool = (props) => {
   };
 
   const Submenu = (
-    <div className="flex flex-col gap-4 p-4" style={{ minWidth: 240 }}>
+    <div className="flex flex-col gap-3 p-3" style={{ minWidth: 225 }}>
 
       {/* Instant Add Actions */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Quick add to canvas
-        </span>
         <div className="grid grid-cols-3 gap-2 px-1">
           {MODES.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => handleAdd(id)}
-              className="flex flex-col items-center gap-2 p-2.5 rounded-xl transition-all border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-secondary)] group overflow-hidden relative"
-              style={{ background: 'rgba(255,255,255,0.03)' }}
+              className="flex flex-col items-center gap-1 p-1.5 rounded-xl transition-all border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-secondary)] group overflow-hidden relative"
+              style={{ background: 'rgba(255,255,255,0.02)' }}
             >
               {/* Plus Indicator on Hover */}
               <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-1 group-hover:translate-y-0 -translate-y-1">
@@ -178,11 +175,8 @@ const TextTool = (props) => {
 
       {/* Preview Area */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
-          Live Preview
-        </span>
         <div 
-          className="h-12 rounded-xl flex items-center justify-center border border-dashed transition-all"
+          className="h-10 rounded-xl flex items-center justify-center border border-dashed transition-all"
           style={{ 
             background: 'var(--bg-secondary)', 
             borderColor: 'var(--border-color)',
@@ -206,12 +200,11 @@ const TextTool = (props) => {
         </div>
       </div>
 
-      <div className="h-px bg-[var(--border-color)] opacity-40 mx-1" />
+      <div className="h-px bg-[var(--border-color)] opacity-20 mx-1" />
 
-      {/* Ultra-Minimalist Formatting Row - Hidden if an element is selected to avoid duplication with the centralized HUD */}
-      {!selectedElementIds?.length && (
-        <div className="flex items-center gap-1.5 px-0.5 animate-in fade-in slide-in-from-top-2 duration-300">
-        
+      {/* Formatting Row - Always visible for a stable "medium" size */}
+      <div className="flex items-center gap-1.5 px-0.5">
+      
         {/* Font Size Dropdown - Unified Styling */}
         <SegBar>
           <div className="relative flex-none">
@@ -263,9 +256,7 @@ const TextTool = (props) => {
             </button>
           ))}
         </div>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 

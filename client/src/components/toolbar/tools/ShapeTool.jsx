@@ -41,7 +41,7 @@ const STROKE_STYLES = [
 const SegButton = ({ isActive, onClick, children, style: extraStyle, className = "" }) => (
   <button
     onClick={onClick}
-    className={`flex-1 py-1.5 rounded-lg transition-all text-center ${className}`}
+    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-lg transition-all text-center ${className}`}
     style={{
       background:  isActive ? 'var(--bg-primary)' : 'transparent',
       color:       isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
@@ -51,6 +51,7 @@ const SegButton = ({ isActive, onClick, children, style: extraStyle, className =
       fontWeight: 700,
       textTransform: 'uppercase',
       letterSpacing: '.04em',
+      minHeight: '40px',
       ...extraStyle,
     }}
   >
@@ -68,19 +69,17 @@ const SegBar = ({ children, className = "" }) => (
 );
 
 const StrokePreview = ({ style }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0', width: 44 }}>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '2px 0' }}>
     <div
       style={{
-        flex: 1,
-        height: 4,
-        borderRadius: 2,
+        width: '24px',
+        height: '0px',
         borderTop:
           style === 'solid'
-            ? '4px solid currentColor'
+            ? '2.5px solid currentColor'
             : style === 'dashed'
-            ? '4px dashed currentColor'
-            : '4px dotted currentColor',
-        background: 'transparent',
+            ? '2.5px dashed currentColor'
+            : '2.5px dotted currentColor',
       }}
     />
   </div>
@@ -145,10 +144,10 @@ const ShapeTool = (props) => {
                 key={id}
                 isActive={isActive}
                 onClick={() => setShapeStrokeStyle(id)}
-                className="flex-col gap-1"
+                className="gap-0.5"
               >
                 <StrokePreview style={id} />
-                <span className="opacity-80">{label}</span>
+                <span className="opacity-80" style={{ marginTop: '-2px' }}>{label}</span>
               </SegButton>
             );
           })}

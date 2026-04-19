@@ -77,6 +77,12 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         followUp:     response.followUp,
       });
 
+      // Persist interactions to conversation history
+      await sessionStore.addMessage(sessionId, 'user', cleanQuestion);
+      await sessionStore.addMessage(sessionId, 'assistant', response.answer);
+      await syncToDatabase(sessionId);  // CRITICAL: Flush to MongoDB
+
+
       // Update Session State
       const s = await sessionStore.get(sessionId);
       if (s) {

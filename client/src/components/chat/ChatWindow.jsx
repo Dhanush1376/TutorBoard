@@ -125,9 +125,12 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
             animate={{ opacity: 1 }}
             className="flex flex-col py-2"
           >
-            {messages.map((msg, index) => (
-              <Message
-                key={msg.id || index}
+            {messages.map((msg, index) => {
+              // Ensure we have a bulletproof unique key, even on remounts
+              const msgKey = msg.id || `msg-idx-${index}-${msg.role}`;
+              return (
+                <Message
+                  key={msgKey}
                 role={msg.role}
                 content={msg.content}
                 steps={msg.steps}
@@ -143,9 +146,9 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
                 connections={msg.connections}
                 sequence={msg.sequence}
                 objects={msg.objects}
-                hasCanvas={msg.hasCanvas}
-              />
-            ))}
+                />
+              );
+            })}
 
             {/* Typing indicator */}
             <AnimatePresence>

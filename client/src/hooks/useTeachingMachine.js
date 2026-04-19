@@ -20,7 +20,7 @@ export function useTeachingMachine() {
     error, greetingMessage,
     isPlaying, isPaused, playbackSpeed,
     setMachineState, setSessionId, setConnected, setConnectionError,
-    setTimeline, setCurrentStep, setError, setGreeting,
+    setTimeline, setCurrentStep, setError, setGreeting, setChatSessionId,
     setDoubtProcessing, addDoubt, setDoubtResponse,
     mutateCanvasObjects, addCanvasObjects,
     startSession: storeStartSession,
@@ -63,6 +63,7 @@ export function useTeachingMachine() {
     setCurrentStep: s.setCurrentStep,
     setError: s.setError,
     setGreeting: s.setGreeting,
+    setChatSessionId: s.setChatSessionId,
     setDoubtProcessing: s.setDoubtProcessing,
     addDoubt: s.addDoubt,
     setDoubtResponse: s.setDoubtResponse,
@@ -221,10 +222,18 @@ export function useTeachingMachine() {
       });
     }));
 
+    // MongoDB session ID feedback
+    cleanups.push(on('session:db-id', (data) => {
+      if (data.chatSessionId) {
+        console.log(`[Machine] Received MongoDB chatSessionId: ${data.chatSessionId}`);
+        setChatSessionId(data.chatSessionId);
+      }
+    }));
+
     return () => cleanups.forEach(cleanup => cleanup());
   }, [
     on, isConnected,
-    setMachineState, setSessionId, setTimeline, setCurrentStep,
+    setMachineState, setSessionId, setChatSessionId, setTimeline, setCurrentStep,
     setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects,
     setError, setGreeting, notifyUser,
   ]);
@@ -305,6 +314,27 @@ export function useTeachingMachine() {
       if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     };
   }, []);
+
+  // ─── Real-time Canvas Sync (Manual edits) ─────────────────────────────────
+  const lastSyncRef = useRef('');
+  useEffect(() => {
+    if (!isConnected || !sessionId || !canvasObjects || canvasObjects.length === 0) return;
+
+    // Check if objects are actually different (shallow check on serializable string)
+    const currentSig = JSON.stringify(canvasObjects);
+    if (currentSig === lastSyncRef.current) return;
+
+    const autoSaveMs = (parseInt(localStorage.getItem('tb-auto-save')) || 5) * 1000;
+    
+    const timer = setTimeout(() => {
+      console.log('[Machine] 🔄 Syncing board state to server...');
+      emit('canvas:sync', { objects: canvasObjects });
+      lastSyncRef.current = currentSig;
+    }, autoSaveMs);
+
+    return () => clearTimeout(timer);
+  }, [canvasObjects, isConnected, sessionId, emit]);
+
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   const startSession = useCallback((topicStr, initialQuestion, activeMode) => {

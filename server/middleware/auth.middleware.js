@@ -51,11 +51,13 @@ export const protect = async (req, res, next) => {
     const user = await User.findById(decoded.id);
     
     if (!user) {
-      console.warn(`[Auth] User ${decoded.id} not found in database`);
+      console.warn(`[Auth] User ${decoded.id} not found in database for token ${decoded.jti}`);
       return res.status(401).json({
         error: 'Not authorized — user not found',
       });
     }
+
+    console.log(`[Auth] User ${user.email} authenticated successfully for ${req.path}`);
 
     // Attach actual user from DB (not mocked)
     req.user = user;

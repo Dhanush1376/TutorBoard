@@ -187,11 +187,11 @@ const LeftPanel = ({
         {activeView !== 'chat' && (
           <div className="px-4 mb-6">
             {/* Professional Action Console (Redesigned like InputBar) */}
-            <div className="bg-[var(--bg-secondary)] rounded-[24px] border border-[var(--border-color)] overflow-hidden shadow-sm flex flex-col p-1.5 gap-1.5 transition-all duration-300">
+            <div className="bg-[var(--bg-secondary)] rounded-[24px] border border-[var(--border-color)] overflow-hidden flex flex-col p-1.5 gap-1.5 transition-all duration-300">
               {/* 1. New Chat (Primary Action) */}
               <button
                 onClick={() => { onNewChat(); setActiveView('chat'); }}
-                className="flex items-center gap-3 w-full px-4 py-3 text-[16px] font-semibold bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-[20px] shadow-sm hover:opacity-95 active:scale-[0.97] transition-all group"
+                className="flex items-center gap-3 w-full px-4 py-3 text-[16px] font-semibold bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-[20px] hover:opacity-95 active:scale-[0.97] transition-all group"
               >
                 <div className="p-1.5 bg-[var(--bg-primary)]/15 rounded-xl border border-transparent group-hover:border-[var(--bg-primary)]/20 transition-all">
                   <Plus size={16} strokeWidth={3.5} />
@@ -202,7 +202,7 @@ const LeftPanel = ({
               {/* 2. Search (Secondary Input-like Action) */}
               <button
                 onClick={() => { setIsSearchOpen(v => !v); setSearchQuery(''); }}
-                className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13px] font-medium rounded-[18px] transition-all active:scale-[0.98] group/search ${isSearchOpen ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
+                className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13px] font-medium rounded-[18px] transition-all active:scale-[0.98] group/search ${isSearchOpen ? 'bg-[var(--bg-primary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
               >
                 <div className="p-1.5 text-[var(--text-tertiary)] group-hover/search:text-[var(--text-primary)] transition-colors">
                   <Search size={16} strokeWidth={2.5} className="group-hover/search:scale-110 transition-transform" />

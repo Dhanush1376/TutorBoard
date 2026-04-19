@@ -17,11 +17,17 @@ import {
   X,
   Sparkles,
   Zap,
-  ClipboardCheck
+  ClipboardCheck,
+  Cpu,
+  Bot,
+  Key,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 
 const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent }) => {
+  const { apiPrefs, switchApi } = useAuth();
   const textareaRef = useRef(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
@@ -145,8 +151,21 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   };
 
   const agents = [
-    { id: 'OpenRouter', name: 'Universal', icon: Zap }
+    { id: 'Universal', name: 'TutorBoard', icon: Zap, status: 'active' },
+    ...(apiPrefs?.allKeys || []).map(k => ({
+      id: k._id || k.id,
+      name: k.label || k.provider,
+      icon: Key,
+      status: k.isExpired ? 'expired' : (k.isLowCredits ? 'low' : (k.isActive ? 'active' : 'stable'))
+    }))
   ];
+
+  // Logic to determine if an agent is truly active based on global preferences
+  const isAgentActive = (agentId) => {
+    if (agentId === 'Universal') return !apiPrefs?.useCustomApi;
+    return apiPrefs?.useCustomApi && agentId === apiPrefs?.activeId;
+  };
+
   const uploadActions = [
     { icon: FileText, label: 'Upload File', type: 'file' },
     { icon: Image, label: 'Upload Photo', type: 'photo' },
@@ -248,7 +267,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className="absolute bottom-full left-0 mb-3 w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden z-[100]"
+                    className="absolute bottom-full left-0 mb-3 w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100]"
                   >
                     <div className="p-2 flex flex-col gap-0.5">
                       {uploadActions.map((action) => (
@@ -281,7 +300,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className="absolute bottom-full left-0 mb-3 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden z-[100]"
+                    className="absolute bottom-full left-0 mb-3 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100]"
                   >
                     <div className="p-2 flex flex-col gap-0.5">
                       {quickActions.map((action) => (
@@ -299,22 +318,25 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 )}
               </AnimatePresence>
             </div>
-          </div>
 
-          <div className="flex items-center gap-1.5">
-            {/* 3. Agent Selector (Now on left) */}
+            {/* 3. Agent Selector (Compact) */}
             <div className="relative">
               <button
                 onClick={() => setIsAgentMenuOpen(!isAgentMenuOpen)}
-                className="flex items-center gap-1 px-2 py-1 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] opacity-60 hover:opacity-100 hover:text-[var(--text-primary)] transition-all"
+                className={`p-1.5 rounded-full transition-all hover:bg-[var(--bg-tertiary)] ${isAgentMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-tertiary)]'}`}
+                title="Change AI Agent"
               >
                 {(() => {
-                  const agent = agents.find(a => a.id === selectedAgent);
-                  if (!agent) return null;
+                  // Find the active agent to display its icon
+                  const activeAgentId = apiPrefs?.useCustomApi ? apiPrefs?.activeId : 'Universal';
+                  const agent = agents.find(a => a.id === activeAgentId) || agents[0];
                   const Icon = agent.icon;
-                  return <Icon size={12} strokeWidth={2.5} className="opacity-90" />;
+                  return (
+                    <div className="relative">
+                      <Icon size={17} strokeWidth={2.5} />
+                    </div>
+                  );
                 })()}
-                <ChevronDown size={8} strokeWidth={3} className={`ml-0.5 transition-transform duration-200 ${isAgentMenuOpen ? 'rotate-180 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`} />
               </button>
               <AnimatePresence>
                 {isAgentMenuOpen && (
@@ -322,21 +344,44 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className="absolute bottom-full left-0 mb-3 w-40 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden z-[100] p-1.5 flex flex-col gap-0.5"
+                    className="absolute bottom-full left-0 mb-3 w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] p-1.5 flex flex-col gap-0.5 shadow-xl"
                   >
-                    {agents.map(agent => (
-                      <button
-                        key={agent.id}
-                        onClick={() => { setSelectedAgent(agent.id); setIsAgentMenuOpen(false); }}
-                        className={`flex items-center justify-start w-full px-3 py-2 text-[12px] rounded-xl transition-all font-semibold ${
-                          selectedAgent === agent.id
-                            ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
-                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
-                        }`}
-                      >
-                        {agent.name}
-                      </button>
-                    ))}
+                    {agents.map(agent => {
+                      const Icon = agent.icon;
+                      const isActive = isAgentActive(agent.id);
+                      return (
+                        <button
+                          key={agent.id}
+                          onClick={() => { 
+                            setSelectedAgent(agent.id); 
+                            switchApi(agent.id);
+                            setIsAgentMenuOpen(false); 
+                          }}
+                          className={`flex items-center justify-between w-full px-3 py-2.5 text-[12px] rounded-xl transition-all font-semibold ${
+                            isActive
+                              ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+                              : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Icon size={15} />
+                            <span className="truncate max-w-[100px]">{agent.name}</span>
+                          </div>
+                          
+                          {/* Active Status Dot next to name */}
+                          {isActive && (
+                            <div className="flex items-center">
+                               <motion.div 
+                                 initial={{ scale: 0.8 }}
+                                 animate={{ scale: [1, 1.2, 1] }}
+                                 transition={{ duration: 2, repeat: Infinity }}
+                                 className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_6px_rgba(16,185,129,0.5)]" 
+                               />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
