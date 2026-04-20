@@ -27,10 +27,24 @@ const chatSessionSchema = new mongoose.Schema({
     type: String,
     default: 'Untitled Session',
   },
-  messages: [messageSchema],
+  messages: {
+    type: [messageSchema],
+    validate: [
+      (val) => val.length <= 200,
+      '{PATH} exceeds the limit of 200 messages to prevent document bloat'
+    ]
+  },
   canvasState: {
     type: [mongoose.Schema.Types.Mixed], // Store the serialized canvas objects array
     default: [],
+  },
+  canvasSteps: {
+    type: [mongoose.Schema.Types.Mixed], // Store pedagogical timeline steps
+    default: [],
+  },
+  canvasVersion: {
+    type: Number,
+    default: 0,
   },
   preferences: {
     type: Object, // Store tool settings (colors, sizes, grid prefs)
@@ -44,6 +58,10 @@ const chatSessionSchema = new mongoose.Schema({
   steps: {
     type: [mongoose.Schema.Types.Mixed],
     default: [],
+    validate: [
+      (val) => val.length <= 50,
+      '{PATH} exceeds the limit of 50 steps'
+    ]
   },
   currentStepIndex: {
     type: Number,
@@ -57,6 +75,11 @@ const chatSessionSchema = new mongoose.Schema({
   lastUpdated: {
     type: Date,
     default: Date.now,
+    index: { expireAfterSeconds: 90 * 24 * 3600 }
+  },
+  snapshots: {
+    type: [mongoose.Schema.Types.Mixed], // Serialized canvas versions
+    default: [],
   },
 }, { timestamps: true });
 

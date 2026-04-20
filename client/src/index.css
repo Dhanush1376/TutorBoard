@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Geist&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Geist&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Fira+Code&display=swap");
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
@@ -205,7 +205,7 @@
     transition: background 250ms ease, color 250ms ease, border-color 250ms ease;
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    font-family: "Geist", sans-serif;
+    font-family: var(--global-font, "Geist", sans-serif);
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -233,6 +233,7 @@
     /* Fade elegantly toward bottom for focus */
     mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
     -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+    filter: var(--canvas-filter, none);
   }
 
   #root {
@@ -495,14 +496,19 @@ option {
 
 /* Glass morphism */
 @utility glass {
-  background-color: var(--bg-secondary);
+  background-color: rgba(var(--bg-secondary-rgb, 240, 237, 224), var(--glass-opacity, 0.88));
+  backdrop-filter: blur(var(--glass-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 12px));
   border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
 }
 
 @utility glass-strong {
-  background-color: var(--bg-secondary);
+  background-color: rgba(var(--bg-primary-rgb, 253, 250, 243), var(--glass-opacity, 0.94));
+  backdrop-filter: blur(var(--glass-blur, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 16px));
   border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
 }
 
 /* Text utilities */

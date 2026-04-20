@@ -4,6 +4,8 @@ import { getToolCursor } from '../../utils/cursors';
 import CanvasOverlay from './CanvasOverlay';
 import { CanvasContext } from './CanvasContext';
 import CodeVisualizerModal from './CodeVisualizerModal';
+import { useAuth } from '../../context/AuthContext';
+import { ShieldAlert } from 'lucide-react';
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -38,6 +40,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const gridSize   = useTutorStore(state => state.gridSize);
   const isCanvasLocked = useTutorStore(state => state.isCanvasLocked);
   const isInteracting  = useTutorStore(state => state.isInteracting);
+  const { user } = useAuth();
 
   // Refs for performance (no re-renders during interaction)
   const containerRef = useRef(null);
@@ -76,7 +79,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
       }
     };
     const handleKeyUp = (e) => {
-      if (e.code === 'Space') setIsSpacePressed(false);
+      if (e.code === 'Space' && !document.activeElement.isContentEditable) setIsSpacePressed(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -536,6 +539,27 @@ const InfiniteCanvas = memo(React.forwardRef(({
         {overlay}
         <CanvasOverlay />
         <CodeVisualizerModal />
+
+        {/* ── Guest Mode Watermark ── */}
+        {user?.isGuest && (
+          <div style={{
+            position: 'absolute', top: '24px', right: '24px',
+            background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
+            padding: '8px 14px', borderRadius: '12px',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            zIndex: 50, pointerEvents: 'none',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+            opacity: 0.8
+          }}>
+            <div style={{ 
+              width: '20px', height: '20px', borderRadius: '6px', background: 'var(--text-primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--bg-primary)'
+            }}>
+              <ShieldAlert size={12} />
+            </div>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.03em' }}>Guest Session</span>
+          </div>
+        )}
       </CanvasContext.Provider>
     </div>
   );

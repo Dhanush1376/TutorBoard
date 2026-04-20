@@ -23,6 +23,7 @@ export const createSessionSlice = (set, get) => ({
   machineState:       STATES.IDLE,
   sessionId:          null,
   chatSessionId:      null,  // MongoDB ObjectId for REST sync
+  syncTrigger:        0,     // Timestamp to force immediate cloud sync
   topic:              '',
   isConnected:        false,
   connectionError:    null,
@@ -31,6 +32,7 @@ export const createSessionSlice = (set, get) => ({
   generationProgress: null,
   isTimelineReady:    false,
   sessionManifest:    {},
+  guestTrialStatus:   { count: 0, limit: 50, warning: false },
 
 
   setMachineState:  (state) => set({ machineState: state, error: null }),
@@ -40,6 +42,8 @@ export const createSessionSlice = (set, get) => ({
   setError:         (err)       => set({ error: err }),
   setGreeting:      (msg)       => set({ greetingMessage: msg, machineState: STATES.IDLE }),
   setChatSessionId: (id)        => set({ chatSessionId: id }),
+  triggerSync:      ()          => set({ syncTrigger: Date.now() }),
+  setGuestTrialStatus: (status) => set({ guestTrialStatus: { ...get().guestTrialStatus, ...status } }),
   setGenerationProgress: (progress)  => set({ 
 
     generationProgress: typeof progress === 'string' 
@@ -54,9 +58,25 @@ export const createSessionSlice = (set, get) => ({
     const updatedManifest = { ...sessionManifest };
     if (oldId) {
       const state = get();
+      
+      // PERSISTENCE HARDENING (SEC-21): Capture the MongoDB ID in the manifest
+      const currentChatSessionId = state.chatSessionId;
+      
+      // HIGH: Prune canvasObjects to avoid localStorage quota issues
+      // Only keep essential layout fields, discard heavy SVG/path/logic data
+      const prunedObjects = (state.canvasObjects || []).map(obj => ({
+        id: obj.id,
+        type: obj.type,
+        x: obj.x,
+        y: obj.y,
+        scale: obj.scale,
+        color: obj.color || obj.styles?.stroke || obj.styles?.color || '#000000',
+        label: obj.label || obj.text?.substring(0, 20) || ''
+      }));
+
       updatedManifest[oldId] = {
-        canvasObjects: [...(state.canvasObjects || [])],
-        pinnedNotes:   [...(state.pinnedNotes || [])],
+        canvasObjects: prunedObjects,
+        pinnedNotes:   [...(state.pinnedNotes || [])].slice(0, 10), // Limit pinned notes context
         canvasTransform: { ...(state.canvasTransform || { x: 0, y: 0, scale: 1 }) },
         lastActive: Date.now(),
         tools: {
@@ -67,7 +87,8 @@ export const createSessionSlice = (set, get) => ({
           noteColor: state.noteColor,
           noteSize: state.noteSize,
           notePinned: state.notePinned
-        }
+        },
+        chatSessionId: currentChatSessionId // NEW: Persist cloud mapping
       };
     }
 
@@ -88,7 +109,8 @@ export const createSessionSlice = (set, get) => ({
       canvasObjects:   [],
       pinnedNotes:     [],
       canvasTransform: { x: 0, y: 0, scale: 1 },
-      tools: {}
+      tools: {},
+      chatSessionId: null
     };
 
     if (updatedManifest[newId]) {
@@ -99,6 +121,7 @@ export const createSessionSlice = (set, get) => ({
 
     set({ 
       sessionId: newId, 
+      chatSessionId: loadedState.chatSessionId || null, // Restore cloud link
       sessionManifest: cappedManifest,
       canvasObjects:   loadedState.canvasObjects,
       pinnedNotes:     loadedState.pinnedNotes,

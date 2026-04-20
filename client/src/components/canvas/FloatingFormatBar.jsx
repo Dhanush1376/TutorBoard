@@ -31,7 +31,8 @@ export default function FloatingFormatBar({ element, updateCanvasObject, rotatio
   };
 
   const handleStyleUpdate = (styleUpdates) => {
-    updateCanvasObject(element.id, { styles: styleUpdates });
+    // Explicitly spread existing styles to guarantee a deep merge and prevent state loss
+    updateCanvasObject(element.id, { styles: { ...styles, ...styleUpdates } });
   };
 
   const styles = element.styles || {};

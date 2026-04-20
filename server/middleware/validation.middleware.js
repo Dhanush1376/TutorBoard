@@ -30,3 +30,18 @@ export const GenerateSchema = z.object({
 export const DoubtSchema = z.object({
   question: z.string().min(2, 'Question must be at least 2 characters').max(1000, 'Question too long')
 });
+
+export const SignupSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(50, 'Name must not exceed 50 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(100, 'Password too long'),
+  confirmPassword: z.string().min(1, 'Please confirm your password')
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"]
+});
+
+export const SigninSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});

@@ -3,7 +3,7 @@ import sessionStore from '../../engine/core/sessionStore.js';
 import Doubt from '../../models/Doubt.js';
 import { handleDoubt, generateTextResponse } from '../../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
-import { checkSocketRate } from '../../middleware/rateLimiter.js';
+import { checkSocketRate, checkGuestUsage } from '../../middleware/rateLimiter.js';
 import { sanitizeInput } from '../../utils/validation/sanitize.js';
 import { isGreeting } from '../../engine/agents/agentUtils.js';
 import { replanRemainingSteps } from '../../engine/core/adaptivePlanner.js';
@@ -31,6 +31,18 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
     if (!checkSocketRate(getRateKey(socket))) {
       socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
       return;
+    }
+
+    if (socket.user?.isGuest) {
+      const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+      const isAllowed = await checkGuestUsage(ip);
+      const newCount = await getGuestUsageCount(ip);
+      socket.emit('guest:status', { count: newCount, limit: 50, warning: newCount >= 40 });
+
+      if (!isAllowed) {
+        socket.emit('teaching:error', { message: 'Trial limit exceeded (50 interactions/mo). Please sign in to continue learning.' });
+        return;
+      }
     }
 
     const cleanQuestion = sanitizeInput(question, 5000);

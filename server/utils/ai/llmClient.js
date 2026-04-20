@@ -43,8 +43,8 @@ const CACHE_MAX = 50;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const responseCache = new Map();
 
-function getCacheKey(messages, model) {
-  const raw = JSON.stringify(messages) + '|' + model;
+function getCacheKey(messages, model, userId, isCustomKey) {
+  const raw = JSON.stringify(messages) + '|' + model + '|' + (userId || 'anon') + '|' + (!!isCustomKey);
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
@@ -239,7 +239,8 @@ export async function requestCompletion({ model, messages, temperature, maxToken
   }
 
   // ── Cache check ──
-  const cacheKey = getCacheKey(messages, model);
+  const isCustomKey = !!userConfig?.useCustomApi;
+  const cacheKey = getCacheKey(messages, model, userId, isCustomKey);
   const cached = getCachedResponse(cacheKey);
   if (cached) {
     console.log('[AI:Cache] Cache hit — returning cached response');

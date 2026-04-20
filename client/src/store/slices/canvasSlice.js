@@ -24,6 +24,7 @@ export const createCanvasSlice = (set, get) => ({
   canvasConnections: [],
   canvasSteps:       [],
   canvasTransform:   { x: 0, y: 0, scale: 1 },
+  canvasVersion:     0,
   isCanvasLocked:    false,
   isInteracting:     false,
   
@@ -50,6 +51,13 @@ export const createCanvasSlice = (set, get) => ({
     const currentObjects = get().canvasObjects || [];
     const manualObjects = currentObjects.filter(obj => obj.id?.startsWith('manual-'));
     const canvasObjects = [...manualObjects, ...serverObjects];
+
+    const { sessionId, sessionManifest, pinnedNotes, timeline: oldTimeline, canvasTransform: currentTransform } = get();
+    
+    // BUG FIX: Only reset transform if it's a DIFFERENT lesson title.
+    // This preserves zoom/pan during doubt-triggered regens of the same lesson.
+    const isNewTopic = !oldTimeline || oldTimeline.title !== data.title;
+    const finalTransform = isNewTopic ? { x: 0, y: 0, scale: 1 } : currentTransform;
 
     set({
       timeline: {
@@ -80,10 +88,9 @@ export const createCanvasSlice = (set, get) => ({
       greetingMessage:   null,
       generationProgress: null,
       isTimelineReady:    true,
-      canvasTransform:   { x: 0, y: 0, scale: 1 },
+      canvasTransform:   finalTransform,
     });
 
-    const { sessionId, sessionManifest, pinnedNotes } = get();
     if (sessionId) {
       const existing = sessionManifest[sessionId] || {};
       set({
@@ -94,7 +101,7 @@ export const createCanvasSlice = (set, get) => ({
             canvasObjects,
             canvasConnections,
             canvasSteps,
-            canvasTransform: { x: 0, y: 0, scale: 1 },
+            canvasTransform: finalTransform,
             pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
           }
         },
@@ -151,7 +158,8 @@ export const createCanvasSlice = (set, get) => ({
       history: {
         past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
         future: [],
-      }
+      },
+      canvasVersion: get().canvasVersion + 1,
     });
   },
 
@@ -204,7 +212,8 @@ export const createCanvasSlice = (set, get) => ({
       history: {
         past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
         future: []
-      }
+      },
+      canvasVersion: get().canvasVersion + 1,
     });
   },
 
@@ -261,6 +270,7 @@ export const createCanvasSlice = (set, get) => ({
       canvasSteps:   newSteps,
       totalSteps:    newSteps.length,
       ...(lastAddedIndex !== -1 ? { currentStepIndex: lastAddedIndex, canvasMode: CANVAS_MODE.FULLSCREEN } : {}),
+      canvasVersion: get().canvasVersion + 1,
     });
 
     return lastAddedIndex;

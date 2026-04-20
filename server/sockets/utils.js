@@ -18,6 +18,7 @@ export async function syncToDatabase(sessionId) {
     await ChatSession.findByIdAndUpdate(s.chatSessionId, {
       topic: s.topic,
       steps: s.steps,
+      messages: Array.isArray(s.messages) ? s.messages.slice(-100) : [],
       canvasState: s.canvasState || [],
       currentStepIndex: s.currentStepIndex,
       lastUpdated: Date.now(),
@@ -83,22 +84,6 @@ export async function resolveUserConfig(socket, socketUser, inputText) {
   const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
 
   if (!socketUser || socketUser.isGuest || socketUser.id === 'guest') {
-    if (redisClient.isConnected) {
-      const monthKey = new Date().toISOString().substring(0, 7);
-      const usageKey = `usage:guest:ip:${ip}:${monthKey}`;
-      const limit = 50;
-      
-      try {
-        const current = await redisClient.client.incr(usageKey);
-        if (current === 1) await redisClient.client.expire(usageKey, 32 * 24 * 3600);
-        if (current > limit) {
-          throw new Error('Guest limit exceeded. Please sign in to continue learning.');
-        }
-      } catch (err) {
-        if (err.message.includes('limit exceeded')) throw err;
-        console.error('[SEC-05] Guest tracking error:', err.message);
-      }
-    }
     return null;
   }
 

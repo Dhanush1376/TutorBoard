@@ -15,11 +15,11 @@ class SessionStore {
     this.maxSessions = MAX_SESSIONS;
   }
 
-  async create(id) {
+  async create(id, metadata = {}) {
     let session = await this.get(id);
     if (session) {
       session.lastActivityAt = Date.now();
-      await this.update(id, session);
+      await this.update(id, session, session);
       return session;
     }
 
@@ -52,7 +52,7 @@ class SessionStore {
     };
 
 
-    await this.update(id, session);
+    await this.update(id, session, session);
     console.log(`[SessionStore] 👤 Created session: ${id}`);
     return session;
   }
@@ -70,7 +70,7 @@ class SessionStore {
     // Prevent document bloat: keep last 100 messages in active session
     const updatedMessages = [...messages, newMessage].slice(-100);
     
-    return await this.update(id, { messages: updatedMessages });
+    return await this.update(id, { messages: updatedMessages }, session);
   }
 
   /**
@@ -78,7 +78,7 @@ class SessionStore {
    */
   async updateCanvasState(id, objects) {
     if (!Array.isArray(objects)) return;
-    return await this.update(id, { canvasState: objects });
+    return await this.update(id, { canvasState: objects }); // update() will do the get internally since we don't have it
   }
 
 
@@ -104,8 +104,8 @@ class SessionStore {
     return session;
   }
 
-  async update(id, data) {
-    let session = await this.get(id);
+  async update(id, data, existingSession = null) {
+    let session = existingSession || await this.get(id);
     if (!session) {
       // If we are updating a non-existent session, it might be the initial save
       session = data;
@@ -142,7 +142,7 @@ class SessionStore {
     const session = await this.get(id);
     if (!session || !session.steps) return;
     if (index >= 0 && index < session.steps.length) {
-      await this.update(id, { currentStepIndex: index });
+      await this.update(id, { currentStepIndex: index }, session);
     }
   }
 
@@ -164,7 +164,12 @@ class SessionStore {
         topicsMastery: profile.topicsMastery instanceof Map ? Object.fromEntries(profile.topicsMastery) : (profile.topicsMastery || {}),
       };
 
-      await this.update(id, { userId, learnerProfile, learnerProfileId: profile._id });
+      // We update the local object directly first, then persist
+      const updateData = { userId, learnerProfile, learnerProfileId: profile._id };
+      const currentSession = await this.get(id);
+      if (currentSession) {
+        await this.update(id, updateData, currentSession);
+      }
     } catch (err) {
       console.error(`[SessionStore] Failed to init profile for ${userId}:`, err.message);
     }
@@ -184,8 +189,15 @@ class SessionStore {
       // Update Mastery if topic exists
       if (s.topic) {
         const currentMastery = profile.topicsMastery.get(s.topic) || 0;
-        // Simple increment for now: +0.05 per interaction, max 1.0
-        profile.topicsMastery.set(s.topic, Math.min(1.0, currentMastery + 0.05));
+        
+        // Refined Mastery: +0.1 * progress * (1 - confusion), min 0.01 per interaction
+        const totalSteps = s.steps?.length || 5; // Default to 5 if unknown
+        const progressRatio = totalSteps > 0 ? (s.currentStepIndex + 1) / totalSteps : 0.5;
+        const confusionFactor = 1 - (s.learnerProfile.confusionIndex || 0); // confusionIndex is 0..1
+        
+        const increment = Math.max(0.01, 0.1 * progressRatio * confusionFactor);
+        
+        profile.topicsMastery.set(s.topic, Math.min(1.0, currentMastery + increment));
       }
 
       // Append interaction history if provided (Doubt handling)
@@ -208,7 +220,7 @@ class SessionStore {
       // Ensure we don't increment totalSessions multiple times per "active" session
       if (!s._sessionCounted) {
         profile.totalSessions = (profile.totalSessions || 0) + 1;
-        await this.update(id, { _sessionCounted: true });
+        await this.update(id, { _sessionCounted: true }, s);
       }
 
       await profile.save();
@@ -231,13 +243,17 @@ class SessionStore {
       chatSessionId: mongoSession._id,
       engineSessionId: id,
       topic: mongoSession.topic,
+      messages: mongoSession.messages || [],
       steps: mongoSession.steps || [],
       currentStepIndex: mongoSession.currentStepIndex || 0,
+      canvasState: mongoSession.canvasState || [],
+      canvasVersion: mongoSession.canvasVersion || 0,
+      preferences: mongoSession.preferences || {},
       createdAt: mongoSession.createdAt || Date.now(),
       lastActivityAt: Date.now(),
     };
 
-    await this.update(id, session);
+    await this.update(id, session, session);
     return session;
   }
 

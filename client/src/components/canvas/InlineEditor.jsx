@@ -7,16 +7,24 @@ import {
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import FloatingFormatBar from './FloatingFormatBar.jsx';
+import useClickOutside from '../../hooks/useClickOutside.js';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 
-// Scale factor helper
-const CW = 800;
-const CH = 600;
 
 export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
   const { updateCanvasObjectSilently, commitHistory, setEditingObjectId, setHasTextSelection } = useTutorStore();
   const obj = elements.find(e => e.id === editingObjectId);
   
   const [localContent, setLocalContent] = useState('');
+  const editorRef = useRef(null);
+
+  const handleClose = () => {
+    commitHistory();
+    setEditingObjectId(null);
+    setHasTextSelection(false);
+  };
+
+  useClickOutside(editorRef, handleClose);
   
   useEffect(() => {
     if (obj) {
@@ -31,10 +39,10 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
 
 
   // Compute scaled coordinate metrics
-  const cx = (obj.x ?? 0.5) * CW;
-  const cy = (obj.y ?? 0.5) * CH;
-  const baseW = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 200;
-  const baseH = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 120;
+  const cx = (obj.x ?? 0.5) * CANVAS_WIDTH;
+  const cy = (obj.y ?? 0.5) * CANVAS_HEIGHT;
+  const baseW = obj.w ? (obj.w <= 1 ? obj.w * CANVAS_WIDTH : obj.w) : (obj.scale || 1) * 200;
+  const baseH = obj.h ? (obj.h <= 1 ? obj.h * CANVAS_HEIGHT : obj.h) : (obj.scale || 1) * 120;
   
   const left = (cx - baseW/2) * Z + tx;
   const top = (cy - baseH/2) * Z + ty;
@@ -71,6 +79,7 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
       {/* Format Bar removed here - now handled by selection-only logic in individual components or top-level overlay if needed */}
       
       <div 
+        ref={editorRef}
         className="absolute z-40 bg-transparent flex flex-col"
         style={{ left, top, width, height }}
       >
@@ -126,15 +135,6 @@ export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
         )}
       </div>
       
-      {/* Click Away Shield: Fixed layer at top-most z-index ensures closure on any outside click-away */}
-      <div 
-        className="fixed inset-0 z-[9999]" 
-        onPointerDown={(e) => {
-          commitHistory();
-          setEditingObjectId(null);
-          setHasTextSelection(false);
-        }} 
-      />
     </>
   );
 }

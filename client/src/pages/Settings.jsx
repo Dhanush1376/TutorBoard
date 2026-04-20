@@ -159,7 +159,7 @@ const GridPreview = ({ type, isActive }) => {
       {isDots ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', opacity: 0.6 }}>
           {[...Array(16)].map((_, i) => (
-            <div key={i} style={{
+            <div key={`grid-item-${type}-${i}`} style={{
               width: '2px', height: '2px', borderRadius: '50%',
               background: i === 10 ? 'var(--text-primary)' : 'var(--text-tertiary)',
               transform: i === 10 ? 'scale(1.5)' : 'none',
@@ -186,19 +186,21 @@ const GridPreview = ({ type, isActive }) => {
   );
 };
 
-const RightInlineInput = ({ value, onChange, placeholder, type = 'text', width = '200px' }) => (
+const RightInlineInput = ({ value, onChange, placeholder, type = 'text', width = '200px', disabled = false }) => (
   <input
     type={type}
     value={value}
     onChange={onChange}
     placeholder={placeholder}
+    disabled={disabled}
     style={{
       width, padding: '6px 12px',
       background: 'transparent',
       border: 'none',
-      color: 'var(--text-secondary)',
+      color: disabled ? 'var(--text-tertiary)' : 'var(--text-secondary)',
       fontSize: '15px', fontWeight: 500, fontFamily: '"Geist", sans-serif',
       outline: 'none', textAlign: 'right',
+      cursor: disabled ? 'not-allowed' : 'text',
     }}
   />
 );
@@ -277,11 +279,11 @@ const PremiumDropdown = ({ value, onChange, options, align = 'right', styleConte
               maxHeight: '260px', overflowY: 'auto'
             }}
           >
-            {options.map(opt => {
+            {options.map((opt, idx) => {
               const isSelected = value === opt.value;
               return (
                 <button
-                  key={opt.value}
+                  key={`dropdown-opt-${opt.value}-${idx}`}
                   onClick={() => { onChange(opt.value); setIsOpen(false); }}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
@@ -550,6 +552,25 @@ const GeneralSection = ({ user, syncSettings, showToast }) => {
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+      {user?.isGuest && (
+        <div style={{ 
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(59,130,246,0.05) 100%)',
+          border: '1px solid rgba(59,130,246,0.2)',
+          borderRadius: '16px', padding: '16px', marginBottom: '24px',
+          display: 'flex', alignItems: 'center', gap: '16px'
+        }}>
+          <div style={{ 
+            width: '40px', height: '40px', borderRadius: '10px', background: '#3b82f6',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff'
+          }}>
+            <ShieldAlert size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px 0' }}>Guest Mode Active</h4>
+            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0 }}>You're using a temporary account. Profile changes are locked. <span style={{ color: '#3b82f6', fontWeight: 600, cursor: 'pointer' }} onClick={() => window.location.href = '/'}>Sign up</span> to save data.</p>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -582,12 +603,12 @@ const GeneralSection = ({ user, syncSettings, showToast }) => {
       <SettingsGroup>
         <SettingsRow
           label="Full Name"
-          rightElement={<RightInlineInput value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Full Name" />}
+          rightElement={<RightInlineInput value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Full Name" disabled={user?.isGuest} />}
         />
         <SettingsRow
           label="Preferred Name"
           description="What TutorBoard should call you"
-          rightElement={<RightInlineInput value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Nickname" />}
+          rightElement={<RightInlineInput value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Nickname" disabled={user?.isGuest} />}
         />
         <SettingsRow
           label="Role"
@@ -595,6 +616,7 @@ const GeneralSection = ({ user, syncSettings, showToast }) => {
           rightElement={
             <RightInlineSelect
               value={role} onChange={setRole}
+              disabled={user?.isGuest}
               options={[
                 { value: '', label: 'Select role...' },
                 { value: 'student-high-school', label: 'High School Student' },
@@ -617,12 +639,15 @@ const GeneralSection = ({ user, syncSettings, showToast }) => {
           <textarea
             value={preferences}
             onChange={e => setPreferences(e.target.value)}
-            placeholder="e.g. explain concepts with visual analogies, use simple language..."
+            disabled={user?.isGuest}
+            placeholder={user?.isGuest ? "Sign in to add custom instructions..." : "e.g. explain concepts with visual analogies, use simple language..."}
             style={{
               width: '100%', padding: '12px', resize: 'vertical', minHeight: '80px',
               background: 'transparent', border: '1px solid var(--border-color)',
               borderRadius: '8px', color: 'var(--text-secondary)',
-              fontSize: '14px', fontFamily: '"Geist", sans-serif', outline: 'none'
+              fontSize: '14px', fontFamily: '"Geist", sans-serif', outline: 'none',
+              cursor: user?.isGuest ? 'not-allowed' : 'text',
+              opacity: user?.isGuest ? 0.6 : 1
             }}
           />
         </div>
@@ -652,37 +677,51 @@ const DialogModal = ({ title, description, children, primaryAction, primaryLabel
     }}>
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} 
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)' }} 
         onClick={!loading ? onClose : undefined} 
       />
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ duration: 0.2 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         style={{
           background: 'var(--bg-primary)',
-          borderRadius: '24px',
+          borderRadius: '32px',
           width: '100%', maxWidth: '400px',
           position: 'relative', zIndex: 1001,
-          boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
-          border: '1px solid var(--border-color)'
+          boxShadow: '0 32px 80px -16px rgba(0,0,0,0.3)',
+          border: '1px solid var(--border-color)',
+          overflow: 'hidden'
         }}
       >
-        <div style={{ padding: '24px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>{title}</h3>
-          {description && <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: '0 0 20px 0', lineHeight: 1.5 }}>{description}</p>}
+        <div style={{ padding: '32px' }}>
+          <h3 style={{ 
+            fontSize: '20px', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 12px 0',
+            fontFamily: '"Syne", sans-serif', letterSpacing: '-0.02em', textAlign: 'center'
+          }}>{title}</h3>
+          
+          {description && (
+            <p style={{ 
+              fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 24px 0', 
+              lineHeight: 1.6, textAlign: 'center', fontWeight: 500
+            }}>
+              {description}
+            </p>
+          )}
           
           {children && <div style={{ marginBottom: '24px' }}>{children}</div>}
 
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: children ? 0 : '24px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={onClose}
               disabled={loading}
               style={{
-                padding: '10px 16px', borderRadius: '10px',
-                background: 'var(--bg-secondary)', color: 'var(--text-primary)',
-                border: 'none', fontSize: '14px', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer'
+                flex: 1, padding: '14px', borderRadius: '16px',
+                background: 'var(--bg-tertiary)', border: 'none',
+                color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
               }}
             >
               Cancel
@@ -691,12 +730,14 @@ const DialogModal = ({ title, description, children, primaryAction, primaryLabel
               onClick={primaryAction}
               disabled={loading}
               style={{
-                padding: '10px 16px', borderRadius: '10px',
-                background: primaryDanger ? '#ef4444' : 'var(--text-primary)', 
+                flex: 1, padding: '14px', borderRadius: '16px',
+                background: primaryDanger ? '#ef4444' : 'var(--text-primary)',
                 color: primaryDanger ? '#fff' : 'var(--bg-primary)',
-                border: 'none', fontSize: '14px', fontWeight: 500, 
+                fontSize: '12px', fontWeight: 900, border: 'none',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: '8px'
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+                transition: 'all 0.2s',
+                boxShadow: primaryDanger ? '0 4px 12px rgba(239, 68, 68, 0.2)' : 'none'
               }}
             >
               {loading ? 'Processing...' : primaryLabel}
@@ -966,11 +1007,15 @@ const AppearanceSection = ({ syncSettings }) => {
         showMinimap: store.showMinimap,
         showGrid: store.showGrid,
         layoutView: store.layoutView,
-        gridType: store.gridType
+        gridType: store.gridType,
+        globalFont: store.globalFont,
+        glassIntensity: store.glassIntensity,
+        canvasTone: store.canvasTone,
+        motionMode: store.motionMode
       });
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [currentThemeId, mode, store.showMinimap, store.showGrid, store.layoutView, store.gridType, syncSettings]);
+  }, [currentThemeId, mode, store.showMinimap, store.showGrid, store.layoutView, store.gridType, store.globalFont, store.glassIntensity, store.canvasTone, store.motionMode, syncSettings]);
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '40px' }}>
@@ -1104,9 +1149,95 @@ const AppearanceSection = ({ syncSettings }) => {
               icon={Grid3X3} label="Enable Snap-to-Grid" 
               description="Align elements perfectly to the grid lines."
               borderBottom={false}
-              rightElement={<AppleToggle value={store.showGrid} onChange={store.setShowGrid} />}
+              rightElement={<AppleToggle value={store.isSnapToGrid} onChange={store.toggleSnap} />}
             />
           </SettingsGroup>
+
+          {/* ── NEW: TYPOGRAPHY ── */}
+          <div style={{ padding: '0 0 12px 0' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Typography System</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+              {[
+                { id: 'geist', label: 'Modern Sans', desc: 'Geist - Optimal for AI interactions', font: '"Geist", sans-serif' },
+                { id: 'inter', label: 'Professional', desc: 'Inter - Standard academic clarity', font: '"Inter", sans-serif' },
+                { id: 'outfit', label: 'Geometric', desc: 'Outfit - Friendly & Premium', font: '"Outfit", sans-serif' },
+                { id: 'mono', label: 'Engineering', desc: 'Fira Code - Logic & Calculations', font: '"Fira Code", monospace' },
+              ].map(f => (
+                <VisualOption
+                  key={f.id} id={f.id} label={f.label} icon={PenTool}
+                  isActive={store.globalFont === f.id}
+                  onClick={store.setGlobalFont}
+                  preview={
+                    <div style={{ 
+                      fontSize: '14px', fontWeight: 600, fontFamily: f.font,
+                      color: store.globalFont === f.id ? 'var(--text-primary)' : 'var(--text-tertiary)' 
+                    }}>The quick brown fox</div>
+                  }
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── NEW: VISUAL EFFECTS ── */}
+          <div style={{ height: '1px', background: 'var(--border-color)', opacity: 0.5, margin: '8px 0' }} />
+          <div>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Visual Effects</span>
+            <SettingsGroup>
+              <SettingsRow 
+                icon={Layers} label="Glassmorphism Intensity" 
+                description="Adjust depth and blur of background panels."
+                rightElement={
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input 
+                      type="range" min="0" max="100" value={store.glassIntensity} 
+                      onChange={e => store.setGlassIntensity(parseInt(e.target.value))}
+                      style={{ width: '120px', accentColor: 'var(--text-primary)' }}
+                    />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', minWidth: '35px' }}>{store.glassIntensity}%</span>
+                  </div>
+                }
+              />
+              <SettingsRow 
+                icon={LayoutGrid} label="Interface Tone" 
+                description="Shift the color profile of the canvas environment."
+                borderBottom={false}
+                rightElement={
+                  <RightInlineSelect 
+                    value={store.canvasTone} onChange={store.setCanvasTone}
+                    options={[
+                      { value: 'neutral', label: 'Neutral (Raw)' },
+                      { value: 'warm', label: 'Warm (Reading)' },
+                      { value: 'cool', label: 'Cool (Focused)' }
+                    ]}
+                  />
+                }
+              />
+            </SettingsGroup>
+          </div>
+
+          {/* ── NEW: MOTION ── */}
+          <div style={{ height: '1px', background: 'var(--border-color)', opacity: 0.5, margin: '8px 0' }} />
+          <div>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '12px' }}>Motion & Feedback</span>
+            <SettingsGroup>
+              <SettingsRow 
+                icon={Zap} label="Animation Profile" 
+                description="Choose how snappy or fluid transitions feel."
+                borderBottom={false}
+                rightElement={
+                  <RightInlineSelect 
+                    value={store.motionMode} onChange={store.setMotionMode}
+                    options={[
+                      { value: 'fluid', label: 'Fluid (Bouncy)' },
+                      { value: 'snappy', label: 'Snappy (Fast)' },
+                      { value: 'minimal', label: 'Minimal (Stealth)' }
+                    ]}
+                  />
+                }
+              />
+            </SettingsGroup>
+          </div>
+
         </div>
       </div>
     </div>
@@ -1579,13 +1710,13 @@ const AILearningSection = ({ showToast }) => {
         {/* Key Cards */}
         {apiKeys.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {apiKeys.map(key => {
+            {apiKeys.map((key, idx) => {
               const pc = PROVIDER_INFO[key.provider]?.color || '#888';
               const testResult = testResults[key.id];
               const isTesting = testingKeyId === key.id;
               return (
                 <motion.div
-                  key={key.id}
+                  key={`api-key-card-${key.id || idx}`}
                   layout
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: key.isActive ? 1 : 0.5, y: 0 }}
@@ -1863,6 +1994,7 @@ const AILearningSection = ({ showToast }) => {
 
 const PrivacySection = ({ syncSettings }) => {
   const { token } = useAuth();
+  const { showAlert } = useTutorStore();
   const [cloudSync, setCloudSync] = useState(localStorage.getItem('tb-cloud-sync') !== 'false');
   const [localHistory, setLocalHistory] = useState(localStorage.getItem('tb-local-history') !== 'false');
   const [autoSaveFreq, setAutoSaveFreq] = useState(localStorage.getItem('tb-auto-save') || '5');
@@ -1874,17 +2006,29 @@ const PrivacySection = ({ syncSettings }) => {
 
   // Calculate local storage usage (approximate)
   useEffect(() => {
-    let totalBytes = 0;
-    for(let i in window.localStorage) {
-      if(window.localStorage.hasOwnProperty(i)) {
-        totalBytes += ((window.localStorage[i].length + i.length) * 2);
+    try {
+      let totalBytes = 0;
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        const value = window.localStorage.getItem(key);
+        if (key && value) {
+          totalBytes += (key.length + value.length) * 2;
+        }
       }
+      
+      const usedKB = (totalBytes / 1024);
+      const quotaMB = 5;
+      const percent = Math.min(100, Math.max(0, Math.round((usedKB / (quotaMB * 1024)) * 100))) || 0;
+      
+      // Ensure we never pass NaN to state
+      setStorageUsage({ 
+        used: isNaN(usedKB) ? 0 : usedKB, 
+        percent: isNaN(percent) ? 0 : percent 
+      });
+    } catch (err) {
+      console.warn("Could not calculate storage quota", err);
+      setStorageUsage({ used: 0, percent: 0 });
     }
-    // Assume 5MB is typical quota
-    const usedKB = (totalBytes / 1024);
-    const quotaMB = 5;
-    const percent = Math.min(100, Math.round((usedKB / (quotaMB * 1024)) * 100));
-    setStorageUsage({ used: usedKB, percent });
   }, []);
 
   useEffect(() => {
@@ -1930,7 +2074,11 @@ const PrivacySection = ({ syncSettings }) => {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
-      alert("Failed to export data to Excel");
+      showAlert({
+        type: 'error',
+        title: 'Export Failed',
+        message: 'The system encountered an error while generating your data archive. Please check your connection or try again later.'
+      });
     }
   };
 
@@ -1959,32 +2107,7 @@ const PrivacySection = ({ syncSettings }) => {
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-      <AnimatePresence>
-        {modalType === 'clear-local' && (
-          <DialogModal
-            title="Clear Local Data"
-            description="Are you sure you want to clear all locally cached data? This includes offline sessions and UI state. The application will immediately reload."
-            primaryAction={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }}
-            primaryLabel="Clear Cache & Reload"
-            primaryDanger={true}
-            onClose={closeModals}
-          />
-        )}
-        
-        {modalType === 'wipe-cloud' && (
-          <DialogModal
-            title="Wipe Cloud Data"
-            description="Are you absolutely sure you want to permanently delete all your cloud sessions and data backups? This action cannot be undone."
-            primaryAction={handleWipeCloud}
-            primaryLabel="Yes, Wipe Cloud Data"
-            primaryDanger={true}
-            loading={loading}
-            onClose={closeModals}
-          >
-            {errorMsg && <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 500 }}>{errorMsg}</div>}
-          </DialogModal>
-        )}
-      </AnimatePresence>
+      {/* Modals integrated into Global Alert System */}
 
       <div style={{
         background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '16px',
@@ -2054,7 +2177,13 @@ const PrivacySection = ({ syncSettings }) => {
         <ContextButton icon={TableProperties} onClick={handleExport}>
           Export Data to Excel (CSV)
         </ContextButton>
-        <ContextButton icon={Layers} borderBottom={false} onClick={() => setModalType('clear-local')}>
+        <ContextButton icon={Layers} borderBottom={false} onClick={() => showAlert({
+          type: 'warning',
+          title: 'Clear Local Cache',
+          message: 'Are you sure you want to clear all locally cached data? This includes offline sessions and UI state. The application will immediately reload.',
+          confirmLabel: 'Clear Cache & Reload',
+          onConfirm: () => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }
+        })}>
           Clear Offline Cache
         </ContextButton>
       </SettingsGroup>
@@ -2074,7 +2203,13 @@ const PrivacySection = ({ syncSettings }) => {
 
       <SectionTitle>Danger Zone</SectionTitle>
       <SettingsGroup>
-        <ContextButton icon={Trash2} danger borderBottom={false} onClick={() => setModalType('wipe-cloud')}>
+        <ContextButton icon={Trash2} danger borderBottom={false} onClick={() => showAlert({
+          type: 'error',
+          title: 'Wipe Cloud Data',
+          message: 'Are you absolutely sure you want to permanently delete all your cloud sessions and data backups? This action cannot be undone.',
+          confirmLabel: 'Yes, Wipe Everything',
+          onConfirm: handleWipeCloud
+        })}>
           Wipe All Cloud Sessions
         </ContextButton>
       </SettingsGroup>
@@ -2265,36 +2400,12 @@ const Settings = () => {
 
   const renderSection = () => {
     const sectionMap = {
-      general: (
-        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
-          <GeneralSection user={user} syncSettings={syncSettings} showToast={showToast} />
-        </SectionWrapper>
-      ),
-      account: (
-        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
-          <AccountSection user={user} logout={logout} />
-        </SectionWrapper>
-      ),
-      appearance: (
-        <SectionWrapper isGuest={user?.isGuest} isRestricted={false}>
-          <AppearanceSection syncSettings={syncSettings} />
-        </SectionWrapper>
-      ),
-      ai: (
-        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
-          <AILearningSection showToast={showToast} />
-        </SectionWrapper>
-      ),
-      privacy: (
-        <SectionWrapper isGuest={user?.isGuest} isRestricted={true} onUnlock={() => { logout(); navigate('/login'); }}>
-          <PrivacySection syncSettings={syncSettings} />
-        </SectionWrapper>
-      ),
-      about: (
-        <SectionWrapper isGuest={user?.isGuest} isRestricted={false}>
-          <AboutSection />
-        </SectionWrapper>
-      ),
+      general: <GeneralSection user={user} syncSettings={syncSettings} showToast={showToast} />,
+      account: <AccountSection user={user} logout={logout} />,
+      appearance: <AppearanceSection syncSettings={syncSettings} />,
+      ai: <AILearningSection showToast={showToast} />,
+      privacy: <PrivacySection syncSettings={syncSettings} />,
+      about: <AboutSection />,
     };
 
     return sectionMap[activeSection] || sectionMap.general;
@@ -2444,28 +2555,31 @@ const Settings = () => {
               overflowX: 'auto', scrollbarWidth: 'none',
               msOverflowStyle: 'none',
             }}>
-              {SECTIONS.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveSection(tab.id)}
-                  style={{
-                    padding: '0 16px',
-                    background: activeSection === tab.id ? 'var(--bg-primary)' : 'transparent',
-                    border: 'none',
-                    borderTop: activeSection === tab.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
-                    borderLeft: activeSection === tab.id ? '1px solid var(--border-color)' : '1px solid transparent',
-                    borderRight: activeSection === tab.id ? '1px solid var(--border-color)' : '1px solid transparent',
-                    color: activeSection === tab.id ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                    fontSize: 12, cursor: 'pointer',
-                    letterSpacing: '0.03em', transition: 'all 0.15s',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    marginBottom: -1, whiteSpace: 'nowrap',
-                  }}
-                >
-                  <tab.icon style={{ width: '12px', height: '12px', opacity: activeSection === tab.id ? 1 : 0.6 }} />
-                  {tab.label}
-                </button>
-              ))}
+              {SECTIONS.filter(tab => !user?.isGuest || ['appearance', 'about'].includes(tab.id)).map(tab => {
+                const isTabActive = activeSection === tab.id;
+                return (
+                  <button
+                    key={`settings-tab-${tab.id}`}
+                    onClick={() => setActiveSection(tab.id)}
+                    style={{
+                      padding: '0 16px',
+                      background: isTabActive ? 'var(--bg-primary)' : 'transparent',
+                      border: 'none',
+                      borderTop: isTabActive ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                      borderLeft: isTabActive ? '1px solid var(--border-color)' : '1px solid transparent',
+                      borderRight: isTabActive ? '1px solid var(--border-color)' : '1px solid transparent',
+                      color: isTabActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      fontSize: 12, cursor: 'pointer',
+                      letterSpacing: '0.03em', transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      marginBottom: -1, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <tab.icon style={{ width: '12px', height: '12px', opacity: isTabActive ? 1 : 0.6 }} />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* ── TOAST NOTIFICATION ── */}
@@ -2509,14 +2623,22 @@ const Settings = () => {
               >
                 <AnimatePresence mode="wait">
                   <motion.div
-                    key={`settings-node-${activeSection}`}
+                    key={`settings-view-${activeSection}-${Date.now().toString().slice(-4)}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    style={{ maxWidth: '800px', margin: '0 auto' }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    style={{ maxWidth: '800px', margin: '0 auto', height: '100%' }}
                   >
-                    {renderSection()}
+                    <SectionWrapper 
+                      isGuest={user?.isGuest} 
+                      isRestricted={!['appearance', 'about'].includes(activeSection)}
+                      onUnlock={() => { logout(); navigate('/'); }}
+                    >
+                      <div key={`section-container-${activeSection}`}>
+                        {renderSection()}
+                      </div>
+                    </SectionWrapper>
                   </motion.div>
                 </AnimatePresence>
               </div>

@@ -13,20 +13,45 @@ class TokenStore {
     this.TTL_MS = 60 * 1000;
   }
 
-  createCode(token) {
+  async createCode(token) {
     const code = crypto.randomBytes(32).toString('hex');
-    this.codes.set(code, {
+    const data = {
       token,
       expiresAt: Date.now() + this.TTL_MS,
-    });
-    setTimeout(() => { this.codes.delete(code); }, this.TTL_MS + 100);
+    };
+
+    // SEC-04: Primary store in Redis for persistence across restarts/multi-instance
+    const savedInRedis = await redisClient.set(`auth:code:${code}`, JSON.stringify(data), 60);
+    
+    if (!savedInRedis) {
+      // SEC-04: Fallback to local memory if Redis is disconnected
+      console.warn('[TokenStore] Redis unavailable, using volatile memory for OAuth code');
+      this.codes.set(code, data);
+      setTimeout(() => { this.codes.delete(code); }, this.TTL_MS + 100);
+    }
+    
     return code;
   }
 
-  exchange(code) {
+  async exchange(code) {
     if (!code) return null;
+
+    // 1. Primary: Check Redis
+    const cached = await redisClient.get(`auth:code:${code}`);
+    if (cached) {
+      try {
+        const data = JSON.parse(cached);
+        await redisClient.del(`auth:code:${code}`);
+        return data.token;
+      } catch (e) {
+        console.error('[TokenStore] Failed to parse cached code data:', e.message);
+      }
+    }
+
+    // 2. Fallback: Check local memory (handles codes created during Redis outages)
     const data = this.codes.get(code);
     if (!data) return null;
+    
     if (Date.now() > data.expiresAt) {
       this.codes.delete(code);
       return null;
@@ -89,8 +114,8 @@ class TokenStore {
 
       return false;
     } catch (err) {
-      console.error(`[TokenStore] Revocation check error:`, err.message);
-      // SEC-04: Fail-open. If both stores are down, allow the token to prevent total lockout.
+      // SEC-04: Fail-open for availability, but log a high-severity alert for visibility
+      console.error(`[SECURITY] Revocation check BYPASSED — both stores unreachable: ${err.message}`);
       return false; 
     }
   }

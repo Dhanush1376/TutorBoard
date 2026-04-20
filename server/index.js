@@ -15,6 +15,7 @@ import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/session.js';
 import apikeyRoutes from './routes/apikeys.js';
 import userRoutes from './routes/user.js';
+import chatRoutes from './routes/chat.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
@@ -84,6 +85,8 @@ app.use(requestIdMiddleware);
 // ─── Database Connection Config ──────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tutorboard';
 mongoose.set('bufferCommands', false);
+mongoose.set('debug', true);
+console.log('[DB] Mongoose Debug Mode: ENABLED');
 
 // ─── Environment Variable Validation ─────────────────────────────────────────
 // BUG FIX #47: Added JWT_EXPIRES_IN to required env vars for token expiry validation
@@ -93,6 +96,8 @@ const REQUIRED_ENV = [
   { key: 'ENCRYPTION_KEY',     critical: true,  label: 'AES-256 Encryption Key' },
   { key: 'FRONTEND_URL',       critical: true,  label: 'Frontend Redirect URL' },
   { key: 'JWT_EXPIRES_IN',     critical: false, label: 'JWT Expiry Time (default: 7d)' },
+  { key: 'GITHUB_CLIENT_ID',   critical: false, label: 'GitHub Client ID' },
+  { key: 'GITHUB_CLIENT_SECRET', critical: false, label: 'GitHub Client Secret' },
 ];
 
 console.log("=====================================");
@@ -168,9 +173,15 @@ app.use(passport.initialize());
 
 // ─── Database Reliability Middleware ─────────────────────────────────────────
 const dbCheck = (req, res, next) => {
-  if (mongoose.connection.readyState !== 1) {
+  const state = mongoose.connection.readyState;
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  console.log(`[DB Check] State: ${states[state] || state} (Targeting: /api/chat/save)`);
+  
+  if (state !== 1) {
+    console.error(`[DB Check] 🚨 REJECTED: Database is ${states[state] || 'offline'}. Request path: ${req.path}`);
     return res.status(503).json({ 
       error: 'Database not available', 
+      code: 'DB_OFFLINE',
       details: 'The server is running in Degraded Mode. Please ensure your IP is whitelisted in MongoDB Atlas.' 
     });
   }
@@ -202,6 +213,7 @@ app.use('/api/auth', httpRateLimiter, dbCheck, authRoutes);
 app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
+app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

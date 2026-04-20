@@ -1,14 +1,15 @@
 import express from 'express';
 import { signup, signin, logout, getMe, socialLoginSuccess, exchangeToken } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
+import { validateBody, SignupSchema, SigninSchema } from '../middleware/validation.middleware.js';
 import passport from '../utils/auth/passport.js';
 
 const router = express.Router();
 
 router.get('/exchange', exchangeToken);
 router.get('/me', protect, getMe);
-router.post('/signup', signup);
-router.post('/signin', signin);
+router.post('/signup', validateBody(SignupSchema), signup);
+router.post('/signin', validateBody(SigninSchema), signin);
 router.post('/logout', protect, logout);
 
 // ─── GOOGLE OAUTH ───

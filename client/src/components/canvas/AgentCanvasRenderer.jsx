@@ -24,15 +24,12 @@ import {
   FlowStep, MoleculeNode, LabelText, StickyNoteShape,
   EllipseShape, DiamondShape, StarShape, HexagonShape, CalloutShape, CloudShape
 } from '../renderers/CinematicShapes.jsx';
-import PhysicsRenderer from '../renderers/PhysicsRenderer.jsx';
-import NarrativeRenderer from '../renderers/NarrativeRenderer.jsx';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 import FloatingFormatBar from './FloatingFormatBar.jsx';
 import InlineEditor from './InlineEditor.jsx';
 import PremiumTextBox from './PremiumTextBox.jsx';
 import useTutorStore from '../../store/tutorStore.js';
 
-const CW = 800;
-const CH = 600;
 const EASE = [0.16, 1, 0.3, 1];
 
 // ─── Camera Director ──────────────────────────────────────────────────────────
@@ -43,7 +40,7 @@ function useStepDirector(elements, timelineSteps, currentStepIndex) {
       return {
         highlightIds: new Set(),
         fadeIds: new Set(),
-        camera: { x: CW / 2, y: CH / 2, zoom: 1 },
+        camera: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2, zoom: 1 },
       };
     }
 
@@ -51,8 +48,8 @@ function useStepDirector(elements, timelineSteps, currentStepIndex) {
     const fadeIds      = new Set(step.fade || step.fadeIds || []);
     const cf           = step.cameraFocus;
     const camera = {
-      x:    (cf?.x    ?? 0.5) * CW,
-      y:    (cf?.y    ?? 0.5) * CH,
+      x:    (cf?.x    ?? 0.5) * CANVAS_WIDTH,
+      y:    (cf?.y    ?? 0.5) * CANVAS_HEIGHT,
       zoom: Math.min(1.8, Math.max(0.6, cf?.zoom ?? 1)),
     };
 
@@ -78,8 +75,10 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     textDecoration: obj.styles?.textDecoration || obj.textDecoration,
   };
 
-  const x = (obj.x ?? 0.5) * CW;
-  const y = (obj.y ?? 0.5) * CH;
+  const x = (obj.x ?? 0.5) * CANVAS_WIDTH;
+  const y = (obj.y ?? 0.5) * CANVAS_HEIGHT;
+  const w = (obj.w ?? 0.2) * CANVAS_WIDTH;
+  const h = (obj.h ?? 0.1) * CANVAS_HEIGHT;
   const label = obj.label ? DOMPurify.sanitize(obj.label) : null;
   const content = obj.content ? DOMPurify.sanitize(obj.content) : null;
   
@@ -94,7 +93,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'node':
     case 'planet': {
       // Respect explicit world-unit radius if provided, else fallback to scale-based sizing
-      const r = obj.r ? obj.r * CW : (obj.scale || 1) * 38;
+      const r = obj.r ? obj.r * CANVAS_WIDTH : (obj.scale || 1) * 38;
       return <GlowOrb key={obj.id} {...common} cx={x} cy={y}
         r={r} color={obj.color} label={label}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} />;
@@ -107,16 +106,16 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'box':
     case 'step_box':
     case 'flowstep_rect': {
-      const w = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 160;
-      const h = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 58;
-      return <GlassRect key={obj.id} {...common} x={x - w / 2} y={y - h / 2} w={w} h={h}
+      const rw = obj.w ? (obj.w <= 1 ? obj.w * CANVAS_WIDTH : obj.w) : (obj.scale || 1) * 160;
+      const rh = obj.h ? (obj.h <= 1 ? obj.h * CANVAS_HEIGHT : obj.h) : (obj.scale || 1) * 58;
+      return <GlassRect key={obj.id} {...common} x={x - rw / 2} y={y - rh / 2} w={rw} h={rh}
         color={obj.color} label={label} dashed={obj.dashed} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
 
     case 'ellipse':
     case 'oval': {
-      const rx = obj.w ? (obj.w <= 1 ? (obj.w * CW) / 2 : obj.w / 2) : (obj.scale || 1) * 40;
-      const ry = obj.h ? (obj.h <= 1 ? (obj.h * CH) / 2 : obj.h / 2) : (obj.scale || 1) * 40;
+      const rx = obj.w ? (obj.w <= 1 ? (obj.w * CANVAS_WIDTH) / 2 : obj.w / 2) : (obj.scale || 1) * 40;
+      const ry = obj.h ? (obj.h <= 1 ? (obj.h * CANVAS_HEIGHT) / 2 : obj.h / 2) : (obj.scale || 1) * 40;
       return <EllipseShape key={obj.id} {...common} x={x} y={y} w={rx * 2} h={ry * 2}
         color={obj.color} label={label} strokeStyle={obj.strokeStyle} fill={obj.fill}
         isSelected={isSelected} onUpdate={(p) => onUpdate?.(obj.id, p)} onDelete={() => onDelete?.(obj.id)} rotation={obj.rotation} />;}
@@ -124,13 +123,13 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'note':
     case 'sticky':
     case 'sticky_note': {
-      const w = obj.w || (obj.scale || 1) * 180;
-      const h = obj.h || (obj.scale || 1) * 180;
+      const nw = obj.w || (obj.scale || 1) * 180;
+      const nh = obj.h || (obj.scale || 1) * 180;
       return (
         <StickyNoteShape 
           key={obj.id}
           {...common} 
-          x={x} y={y} w={w} h={h}
+          x={x} y={y} w={nw} h={nh}
           color={obj.color} label={label || content} 
           rotation={obj.rotation}
           isSelected={isSelected}
@@ -502,7 +501,7 @@ function SVGCanvasRenderer({
       {/* Main SVG canvas */}
       <svg
         width="100%" height="100%"
-        viewBox={`0 0 ${CW} ${CH}`}
+        viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
         preserveAspectRatio="xMidYMid meet"
         className="block overflow-visible pointer-events-none"
       >
@@ -529,10 +528,10 @@ function SVGCanvasRenderer({
               const connProps = {
                 key:          `c-${conn.from}-${conn.to}-${idx}`,
                 layoutId:     `c-${conn.from}-${conn.to}`,
-                x1:           (fromEl.x ?? 0.5) * CW,
-                y1:           (fromEl.y ?? 0.5) * CH,
-                x2:           (toEl.x   ?? 0.5) * CW,
-                y2:           (toEl.y   ?? 0.5) * CH,
+                x1:           (fromEl.x ?? 0.5) * CANVAS_WIDTH,
+                y1:           (fromEl.y ?? 0.5) * CANVAS_HEIGHT,
+                x2:           (toEl.x   ?? 0.5) * CANVAS_WIDTH,
+                y2:           (toEl.y   ?? 0.5) * CANVAS_HEIGHT,
                 attentionLevel: isHigh ? 2 : isFaded ? 0 : 1,
                 label:        conn.label,
                 color:        conn.color || fromEl.color,
@@ -685,13 +684,6 @@ export default function AgentCanvasRenderer({
     timeline:    extSteps || timeline?.timeline || timeline?.steps || [],
   };
 
-  if (renderer === 'physics') {
-    return <PhysicsRenderer timeline={normalizedTimeline} currentStepIndex={currentStepIndex} />;
-  }
-
-  if (renderer === 'narrative') {
-    return <NarrativeRenderer timeline={normalizedTimeline} currentStepIndex={currentStepIndex} />;
-  }
 
   return (
     <ErrorBoundary key={`canvas-${currentStepIndex}`} onClose={() => {}} reloadOnRetry={true}>

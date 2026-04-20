@@ -4,6 +4,7 @@ import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './CanvasContext';
 import { getToolCursor } from '../../utils/cursors';
 import { getSvgPath, getStarPoints, getHexagonPoints, getDiamondPoints } from '../../utils/geometryUtils';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 
 /**
  * InteractiveCanvasLayer
@@ -13,9 +14,6 @@ import { getSvgPath, getStarPoints, getHexagonPoints, getDiamondPoints } from '.
  * Pushes finalized elements to the global `tutorStore`.
  */
 
-// Virtual Space Constants for coordinate normalization
-const V_WIDTH = 800;
-const V_HEIGHT = 600;
 
 
 const generateId = () => `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -65,18 +63,24 @@ const InteractiveCanvasLayer = React.memo(() => {
     const rect = layer.getBoundingClientRect();
     if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
 
-    // U3 FIX: Surgical Hit-Testing
-    // We only intercept the click if it's on the "background" (no meaningful elements under cursor)
-    const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
-    const isOverExistingElement = elementsAtPoint.some(el => {
-      // Ignore the grid, background, or the interaction layer itself
-      if (el === layer || el.classList.contains('canvas-grid') || el.id === 'infinite-canvas-container') return false;
-      
-      return el.getAttribute('data-element-id') || 
-             el.classList.contains('selectable-element') ||
-             el.closest('.selectable-element') ||
-             el.closest('foreignObject') ||
-             el.closest('g[data-element-id]');
+    // HIGH-PERFORMANCE Hit-Testing (Bug Fix: Avoid expensive document.elementsFromPoint layout recalc)
+    if (!transform) return;
+    const { scale, x: tx, y: ty } = transform;
+    const worldX = (e.clientX - rect.left - tx) / scale;
+    const worldY = (e.clientY - rect.top - ty) / scale;
+    const normalizedX = worldX / CANVAS_WIDTH; 
+    const normalizedY = worldY / CANVAS_HEIGHT;
+
+    const isOverExistingElement = canvasObjects.some(obj => {
+      // Use bounding box for fast intersection check
+      const bw = obj.w || (obj.scale || 1) * (200 / CANVAS_WIDTH);
+      const bh = obj.h || (obj.scale || 1) * (120 / CANVAS_HEIGHT);
+      return (
+        normalizedX >= obj.x - bw/2 &&
+        normalizedX <= obj.x + bw/2 &&
+        normalizedY >= obj.y - bh/2 &&
+        normalizedY <= obj.y + bh/2
+      );
     });
 
     if (isOverExistingElement) return; // Pass through to allow selection/hover/editing of existing content
@@ -84,14 +88,6 @@ const InteractiveCanvasLayer = React.memo(() => {
     setInteracting(true);
     cachedRect.current = rect;
     
-    if (!transform) return;
-    const { scale, x: tx, y: ty } = transform;
-    const worldX = (e.clientX - rect.left - tx) / scale;
-    const worldY = (e.clientY - rect.top - ty) / scale;
-    
-    const normalizedX = (worldX) / V_WIDTH; 
-    const normalizedY = (worldY) / V_HEIGHT;
-
     isDrawing.current = true;
     startPoint.current = { x: normalizedX, y: normalizedY };
 
@@ -180,8 +176,8 @@ const InteractiveCanvasLayer = React.memo(() => {
     const worldX = (e.clientX - rect.left - tx) / scale;
     const worldY = (e.clientY - rect.top - ty) / scale;
 
-    const normalizedX = (isSnapToGrid ? Math.round(worldX / gridSize) * gridSize : worldX) / V_WIDTH;
-    const normalizedY = (isSnapToGrid ? Math.round(worldY / gridSize) * gridSize : worldY) / V_HEIGHT;
+    const normalizedX = (isSnapToGrid ? Math.round(worldX / gridSize) * gridSize : worldX) / CANVAS_WIDTH;
+    const normalizedY = (isSnapToGrid ? Math.round(worldY / gridSize) * gridSize : worldY) / CANVAS_HEIGHT;
 
     if (activeTool.startsWith('shape:')) {
       if (!draftObject) return; // Guard against stale closures
@@ -258,7 +254,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     
     // Tap Detection: Abort shape creation if the drag was practically zero (a click)
     if (activeTool.startsWith('shape:')) {
-      const isTiny = Math.abs(draftObject.w * V_WIDTH) < 5 && Math.abs(draftObject.h * V_HEIGHT) < 5;
+      const isTiny = Math.abs(draftObject.w * CANVAS_WIDTH) < 5 && Math.abs(draftObject.h * CANVAS_HEIGHT) < 5;
       if (isTiny) {
         setDraftObject(null);
         setActiveTool('hand'); 
@@ -285,7 +281,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     if (centerOriginTypes.includes(finalizedObject.type)) {
       finalizedObject.x = finalizedObject.x + (finalizedObject.w / 2);
       finalizedObject.y = finalizedObject.y + (finalizedObject.h / 2);
-      finalizedObject.scale = (finalizedObject.w * V_WIDTH) / 160; 
+      finalizedObject.scale = (finalizedObject.w * CANVAS_WIDTH) / 160; 
     }
     
     if (finalizedObject.text !== undefined) {
@@ -295,7 +291,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     }
     
     if (finalizedObject.type === 'path') {
-      finalizedObject.path = getSvgPath(finalizedObject.points, V_WIDTH, V_HEIGHT);
+      finalizedObject.path = getSvgPath(finalizedObject.points, CANVAS_WIDTH, CANVAS_HEIGHT);
     }
 
     if (finalizedObject.type === 'triangle') {
@@ -349,10 +345,10 @@ const InteractiveCanvasLayer = React.memo(() => {
         <svg width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
           <motion.g animate={{ x: transform.x, y: transform.y, scale: transform.scale }}>
             {(() => {
-              const dx = draftObject.x * V_WIDTH;
-              const dy = draftObject.y * V_HEIGHT;
-              const dw = draftObject.w * V_WIDTH;
-              const dh = draftObject.h * V_HEIGHT;
+              const dx = draftObject.x * CANVAS_WIDTH;
+              const dy = draftObject.y * CANVAS_HEIGHT;
+              const dw = draftObject.w * CANVAS_WIDTH;
+              const dh = draftObject.h * CANVAS_HEIGHT;
               const strokeProps = {
                 fill: "transparent",
                 stroke: draftObject.color,
@@ -375,9 +371,9 @@ const InteractiveCanvasLayer = React.memo(() => {
                   return <ellipse cx={dx + dw/2} cy={dy + dh/2} rx={dw/2} ry={dh / 2} {...strokeProps} />;
                 case 'line':
                 case 'arrow':
-                   return <line x1={draftObject.x1 * V_WIDTH} y1={draftObject.y1 * V_HEIGHT} x2={draftObject.x2 * V_WIDTH} y2={draftObject.y2 * V_HEIGHT} {...strokeProps} />;
+                   return <line x1={draftObject.x1 * CANVAS_WIDTH} y1={draftObject.y1 * CANVAS_HEIGHT} x2={draftObject.x2 * CANVAS_WIDTH} y2={draftObject.y2 * CANVAS_HEIGHT} {...strokeProps} />;
                 case 'path':
-                  return <path d={getSvgPath(draftObject.points, V_WIDTH, V_HEIGHT)} fill="none" stroke={draftObject.color} strokeWidth={draftObject.strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={strokeProps.strokeDasharray} />;
+                  return <path d={getSvgPath(draftObject.points, CANVAS_WIDTH, CANVAS_HEIGHT)} fill="none" stroke={draftObject.color} strokeWidth={draftObject.strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={strokeProps.strokeDasharray} />;
                 case 'callout':
                 case 'speech': {
                   const rw = dw / 2; const rh = dh / 2; const cx = dx + rw; const cy = dy + rh;

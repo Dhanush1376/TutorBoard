@@ -5,7 +5,8 @@
 import jwt from 'jsonwebtoken';
 import { createTeachingMachine, STATES, EVENTS } from '../engine/core/teachingMachine.js';
 import sessionStore from '../engine/core/sessionStore.js';
-import { checkSocketRate, cleanupSocket } from '../middleware/rateLimiter.js';
+import tokenStore from '../utils/auth/tokenStore.js';
+import { checkSocketRate, cleanupSocket, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../middleware/rateLimiter.js';
 import { getOrCreateRequestId, createTrackedSessionId } from '../middleware/requestIdMiddleware.js';
 import { getRateKey } from './utils.js';
 
@@ -18,7 +19,7 @@ export function setupTeachingSocket(io) {
   const teachingIO = io.of('/teaching');
 
   // ─── Auth Guard & Connection Limiter ────────────────────────────────────
-  teachingIO.use((socket, next) => {
+  teachingIO.use(async (socket, next) => {
     try {
       const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
       const token = socket.handshake.auth?.token;
@@ -31,11 +32,33 @@ export function setupTeachingSocket(io) {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.user = decoded;
+      
+      // DIAGNOSTIC: Log successful decode and payload structure
+      console.log(`[WS:Auth] ✅ Token verified. Payload:`, { 
+        id: decoded.id, 
+        email: decoded.email, 
+        jti: decoded.jti,
+        hasId: !!decoded.id,
+        hasUnderlineId: !!decoded._id 
+      });
+
+      // CRITICAL: Check if token has been revoked (e.g., after logout)
+      if (await tokenStore.isTokenRevoked(decoded.jti)) {
+        console.warn(`[WS:Auth] 🚨 Token REVOKED for ${ip}: ${decoded.jti}`);
+        return next(new Error('Authentication error: Token has been revoked'));
+      }
+
+      // Standardize identity for the session
+      socket.user = {
+        ...decoded,
+        id: decoded.id || decoded._id // Ensure fallback compatibility
+      };
+      
+      console.log(`[WS:Auth] User assigned to socket: ${socket.user.id}`);
       next();
     } catch (err) {
-      console.error(`[WS] Auth Error for token [${socket.handshake.auth?.token?.substring(0, 10)}...]:`, err.message);
-      next(new Error(`Authentication error: ${err.message === 'jwt must be provided' ? 'Missing token' : 'Invalid token'}`));
+      console.error(`[WS:Auth] ❌ Failure [Token: ${socket.handshake.auth?.token?.substring(0, 15)}...]:`, err.message);
+      next(new Error(`Authentication error: ${err.message}`));
     }
   });
 
@@ -47,6 +70,13 @@ export function setupTeachingSocket(io) {
     // Initialize Session
     try {
       await sessionStore.create(sessionId, socket.id);
+      
+      // Emit Guest Trial Status
+      if (socket.user?.isGuest) {
+        const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+        const count = await getGuestUsageCount(ip);
+        socket.emit('guest:status', { count, limit: GUEST_MONTHLY_LIMIT, warning: count >= 40 });
+      }
     } catch (err) {
       console.error(`[WS] Failed to create session: ${err.message}`);
       socket.emit('session:error', { error: 'SESSION_LIMIT_REACHED' });

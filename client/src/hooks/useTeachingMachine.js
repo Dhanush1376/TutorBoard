@@ -5,8 +5,8 @@ import useTutorStore, { STATES } from '../store/tutorStore';
 
 export { STATES };
 
-export function useTeachingMachine() {
-  const { emit, on, isConnected, connectionError } = useSocket();
+export function useTeachingMachine(isAuthReady = true) {
+  const { emit, on, isConnected, connectionError } = useSocket(isAuthReady);
   const playIntervalRef   = useRef(null);
   const safetyTimeoutRef  = useRef(null);
 
@@ -30,6 +30,7 @@ export function useTeachingMachine() {
     goToStep: storeGoToStep,
     setPlaybackSpeed,
     selectedAgent,
+    setGuestTrialStatus,
   } = useTutorStore(useShallow(s => ({
     machineState: s.machineState,
     sessionId: s.sessionId,
@@ -78,6 +79,7 @@ export function useTeachingMachine() {
     goToStep: s.goToStep,
     setPlaybackSpeed: s.setPlaybackSpeed,
     selectedAgent: s.selectedAgent,
+    setGuestTrialStatus: s.setGuestTrialStatus,
   })));
 
   // ─── Sync connection state ────────────────────────────────────────────────
@@ -228,6 +230,12 @@ export function useTeachingMachine() {
         console.log(`[Machine] Received MongoDB chatSessionId: ${data.chatSessionId}`);
         setChatSessionId(data.chatSessionId);
       }
+    }));
+
+    // Guest Trial Status
+    cleanups.push(on('guest:status', (data) => {
+      console.log(`[Machine] Guest Usage: ${data.count} / ${data.limit} (Warning: ${data.warning})`);
+      setGuestTrialStatus(data);
     }));
 
     return () => cleanups.forEach(cleanup => cleanup());

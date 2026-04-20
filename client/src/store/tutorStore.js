@@ -13,6 +13,26 @@ import { createChatSlice } from './slices/chatSlice.js';
 import { createUiSlice } from './slices/uiSlice.js';
 import { createControlSlice } from './slices/controlSlice.js';
 
+const safeStorage = {
+  getItem: (name) => {
+    try { return localStorage.getItem(name); } catch (e) { return null; }
+  },
+  setItem: (name, value) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (e) {
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        console.warn('[Storage] Local storage limit reached. Pruning session manifest.');
+        // If manifest is the problem, clear it (worst case) or just ignore the save
+        // In a real app we might try to evict more aggressively here
+      }
+    }
+  },
+  removeItem: (name) => {
+    try { localStorage.removeItem(name); } catch (e) {}
+  }
+};
+
 const useTutorStore = create(
   persist(
     (set, get) => ({
@@ -34,6 +54,7 @@ const useTutorStore = create(
     }),
     {
       name: 'tutorboard-session',
+      storage: safeStorage,
       // Only persist UI preferences and global context — never large session data (objects, steps, history)
       partialize: (state) => ({
         playbackSpeed: state.playbackSpeed,
@@ -44,6 +65,8 @@ const useTutorStore = create(
         textToolSize:  state.textToolSize,
         noteToolSize:  state.noteToolSize,
         sessionManifest: state.sessionManifest,
+        chatSessionId:   state.chatSessionId,
+        sessionId:       state.sessionId,
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
       }),

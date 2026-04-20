@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { themes } from '../lib/themes';
+import useTutorStore from '../store/tutorStore';
 
 const ThemeContext = createContext();
 
@@ -14,10 +15,17 @@ export const ThemeProvider = ({ children }) => {
   });
 
   const currentTheme = themes.find(t => t.id === currentThemeId) || themes[0];
+  const { globalFont, glassIntensity, canvasTone } = useTutorStore();
 
   useEffect(() => {
     const root = document.documentElement;
-    const tokens = currentTheme.colors[mode];
+    const tokens = currentTheme.colors[mode] || currentTheme.colors['light'] || currentTheme.colors['dark'] || {};
+    
+    // Safety check for tokens object
+    if (!tokens.bg) {
+      console.warn('[ThemeContext] Theme tokens are malformed or missing for mode:', mode);
+      return; 
+    }
 
     // Inject CSS variables into :root
     const mapping = {
@@ -28,15 +36,28 @@ export const ThemeProvider = ({ children }) => {
       '--text-secondary': tokens.textSub,
       '--text-tertiary': tokens.textMuted,
       '--border-color': tokens.border,
-      '--user-bubble-bg': tokens.userBubble,
       '--user-bubble-text': tokens.userBubbleText,
       '--ai-bubble-bg': tokens.aiBubble,
       '--ai-bubble-text': tokens.aiBubbleText,
+      
+      // Dynamic Appearance
+      '--global-font': globalFont === 'geist' ? '"Geist", sans-serif' : 
+                       globalFont === 'inter' ? '"Inter", sans-serif' :
+                       globalFont === 'outfit' ? '"Outfit", sans-serif' : '"Fira Code", monospace',
+      '--glass-blur': `${(glassIntensity / 100) * 25}px`,
+      '--glass-opacity': `${(glassIntensity / 100) * 0.95}`,
+      '--canvas-filter': canvasTone === 'neutral' ? 'none' : 
+                         canvasTone === 'warm' ? 'sepia(0.15) saturate(1.1) brightness(1.02)' : 
+                         'hue-rotate(200deg) saturate(0.2) brightness(1.05)', // Cool/Frosty
     };
 
-    Object.entries(mapping).forEach(([key, value]) => {
-      root.style.setProperty(key, value);
-    });
+    try {
+      Object.entries(mapping).forEach(([key, value]) => {
+        if (value !== undefined) root.style.setProperty(key, value);
+      });
+    } catch (e) {
+      console.error('[ThemeContext] Failed to apply CSS variables:', e);
+    }
 
     // Handle dark mode class for tailwind
     if (mode === 'dark') {
@@ -48,7 +69,7 @@ export const ThemeProvider = ({ children }) => {
     localStorage.setItem('tb-theme', currentThemeId);
     localStorage.setItem('tb-mode', mode);
 
-  }, [currentThemeId, mode, currentTheme]);
+  }, [currentThemeId, mode, currentTheme, globalFont, glassIntensity, canvasTone]);
 
   const toggleMode = () => setMode(prev => prev === 'light' ? 'dark' : 'light');
 

@@ -10,11 +10,13 @@ const RevokedTokenSchema = new mongoose.Schema({
   expiresAt: {
     type: Date,
     required: true,
-    index: { expires: 0 } // TTL Index: MongoDB automatically deletes when current date >= expiresAt
   }
 }, {
   timestamps: true
 });
+
+// TTL Index: MongoDB automatically deletes document when current date >= expiresAt
+RevokedTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const RevokedToken = mongoose.model('RevokedToken', RevokedTokenSchema);
 

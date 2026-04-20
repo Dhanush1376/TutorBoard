@@ -26,6 +26,8 @@ const LeftPanel = ({
   prompt, setPrompt, onSubmit, activeMode, setActiveMode, isDark,
   // agent selection
   selectedAgent, setSelectedAgent,
+  isLoadingHistory,
+  hasMore, isLoadingMore, onLoadMore
 }) => {
   const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setLayoutView } = useTutorStore();
@@ -75,17 +77,43 @@ const LeftPanel = ({
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">Recents</p>
         </div>
         <div className="flex flex-col w-full">
-          <ChatHistory
-            chatHistory={filteredHistory}
-            activeChatId={activeChatId}
-            onSelectChat={(id) => { onSelectChat(id); setActiveView('chat'); }}
-            onDeleteChat={onDeleteChat}
-            onRenameChat={onRenameChat}
-          />
+          {isLoadingHistory ? (
+            <div className="space-y-3 px-1 py-2">
+              <div className="h-10 bg-[var(--bg-tertiary)] rounded-xl animate-pulse opacity-40" />
+              <div className="h-10 bg-[var(--bg-tertiary)] rounded-xl animate-pulse opacity-20" />
+              <div className="h-10 bg-[var(--bg-tertiary)] rounded-xl animate-pulse opacity-10" />
+            </div>
+          ) : (
+            <ChatHistory
+              chatHistory={filteredHistory}
+              activeChatId={activeChatId}
+              onSelectChat={(id) => { onSelectChat(id); setActiveView('chat'); }}
+              onDeleteChat={onDeleteChat}
+              onRenameChat={onRenameChat}
+            />
+          )}
+
+          {/* Pagination Trigger */}
+          {hasMore && !searchQuery.trim() && (
+            <div className="px-1 py-4">
+              <button
+                onClick={onLoadMore}
+                disabled={isLoadingMore}
+                className="w-full py-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[11px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+              >
+                {isLoadingMore ? (
+                  <Loader size={14} className="animate-spin" />
+                ) : (
+                  <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
+                )}
+                {isLoadingMore ? 'Loading...' : 'Load older sessions'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Empty State & Suggestions (shown only on landing if no history) */}
-        {chatHistory.length === 0 && (
+        {!isLoadingHistory && chatHistory.length === 0 && (
           <div className="flex flex-col items-center justify-center py-6 px-0.5 select-none animate-fade-in opacity-60 hover:opacity-100 transition-opacity duration-500">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}

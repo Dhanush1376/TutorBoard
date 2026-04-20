@@ -3,7 +3,7 @@ import sessionStore from '../../engine/core/sessionStore.js';
 import ChatSession from '../../models/ChatSession.js';
 import { generateTimeline, generateTextResponse, generateQuiz } from '../../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
-import { checkSocketRate } from '../../middleware/rateLimiter.js';
+import { checkSocketRate, checkGuestUsage } from '../../middleware/rateLimiter.js';
 import { sanitizeInput } from '../../utils/validation/sanitize.js';
 import { isGreeting } from '../../engine/agents/agentUtils.js';
 import { 
@@ -13,6 +13,7 @@ import {
   resolveUserConfig, 
   buildTimelinePayload 
 } from '../utils.js';
+import { logActivity } from '../../controllers/session.controller.js';
 
 export function registerSessionHandlers(socket, machine, sessionId, requestId) {
   
@@ -28,6 +29,17 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     if (socket.user?.isGuest) {
       if (!checkSocketRate(`session:guest:${rateKey}`)) {
         socket.emit('teaching:error', { message: 'Guest limit reached: 1 session per minute. Please sign up for more.' });
+        return;
+      }
+
+      // monthly limit check
+      const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+      const isAllowed = await checkGuestUsage(ip);
+      const newCount = await getGuestUsageCount(ip);
+      socket.emit('guest:status', { count: newCount, limit: GUEST_MONTHLY_LIMIT, warning: newCount >= 40 });
+
+      if (!isAllowed) {
+        socket.emit('teaching:error', { message: 'Trial limit exceeded (50 interactions/mo). Please sign in to continue learning.' });
         return;
       }
     }
@@ -104,6 +116,15 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           engineSessionId: sessionId,
         });
         await sessionStore.update(sessionId, { chatSessionId: newMongoSession._id });
+        
+        // LOG ACTIVITY: Session Start
+        logActivity({
+          userId: socket.user.id || socket.user._id,
+          sessionId: newMongoSession._id.toString(),
+          eventType: 'session_start',
+          eventData: { topic: cleanTopic, agent: selectedAgent, mode: activeMode }
+        });
+
         await sessionStore.addMessage(sessionId, 'user', cleanTopic);
         await syncToDatabase(sessionId);
 
@@ -226,6 +247,25 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     // Debounced sync to DB is usually handled by the caller or periodic sync, 
     // but we'll do an immediate sync for manual interactions
     await syncToDatabase(sessionId);
+
+    // LOG ACTIVITY: Canvas Action
+    const s = await sessionStore.get(sessionId);
+    if (s && s.chatSessionId) {
+      logActivity({
+        userId: socket.user?.id || socket.user?._id,
+        sessionId: s.chatSessionId.toString(),
+        eventType: 'canvas_action',
+        eventData: { objectCount: objects.length }
+      });
+    }
+  });
+
+  // ─── DB ID RECOVERY ──────────────────────────────────────────────────
+  socket.on('session:request-db-id', async () => {
+    const s = await sessionStore.get(sessionId);
+    if (s && s.chatSessionId) {
+      socket.emit('session:db-id', { chatSessionId: s.chatSessionId.toString() });
+    }
   });
 }
 

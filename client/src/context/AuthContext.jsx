@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import useTutorStore from '../store/tutorStore';
 import { useTheme } from './ThemeContext';
 import { syncSocketAuth, disconnectSocket } from '../hooks/useSocket';
@@ -63,34 +64,43 @@ export const AuthProvider = ({ children }) => {
   const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_URL_MISSING' : null);
   const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null, activeLabel: null, activeId: null, allKeys: [], status: 'stable' });
   const [connectionStatus, setConnectionStatus] = useState('stable'); // stable, slow, timeout
+  const [isExiting, setIsExiting] = useState(false);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const navigate = useNavigate();
   const { setMode, setCurrentThemeId } = useTheme();
 
   // Verify token on mount
   useEffect(() => {
     console.log('[Auth] Starting verification effect...');
     
-    // Stage 1: Mark as slow after 8s
+    // SEC-13: Migration/Cleanup — Ensure old guest flag is purged from localStorage
+    if (localStorage.getItem('tb-is-guest')) {
+      console.log('[Auth] Legacy guest flag detected in localStorage, purging for session-only mode.');
+      localStorage.removeItem('tb-is-guest');
+    }
+
+    // Stage 1: Mark as slow after 12s (Account for local MongoDB cold starts)
     const slowTimer = setTimeout(() => {
       setLoading(loading => {
         if (loading) {
-          console.warn('[Auth] Connectivity warning: Server is slow to respond.');
+          console.warn('[Auth] Connectivity warning: Server is taking longer than 12s to respond.');
           setConnectionStatus('slow');
         }
         return loading;
       });
-    }, 8000);
+    }, 12000);
 
-    // Stage 2: Hard fail after 20s
+    // Stage 2: Hard fail after 30s
     const failTimer = setTimeout(() => {
       setLoading(loading => {
         if (loading) {
-          console.error('[Auth] Hard timeout: Server failed to respond in 20s.');
+          console.error('[Auth] Hard timeout: High latency detected (30s). Force-resolving to prevent hang.');
           setConnectionStatus('timeout');
           return false;
         }
         return loading;
       });
-    }, 20000);
+    }, 30000);
 
     const verifyToken = async () => {
       try {
@@ -116,10 +126,10 @@ export const AuthProvider = ({ children }) => {
         }
 
         const storedToken = safeStorage.getItem('tb-token');
-        const wasPreviouslyLoggedIn = !!storedToken;
+        const isHydrated = sessionStorage.getItem('tb-settings-hydrated') === 'true';
 
         // Guest flow restoration (Must check before the storedToken early return)
-        const isGuest = safeStorage.getItem('tb-is-guest') === 'true';
+        const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
         if (isGuest && !storedToken) {
           console.log('[Auth] Restoring Guest session');
           setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
@@ -133,9 +143,13 @@ export const AuthProvider = ({ children }) => {
           const prompt = urlParams.get('prompt');
           if (prompt) {
             console.log('[Auth] Prompt detected in URL, auto-logging in as Guest...');
-            safeStorage.setItem('tb-is-guest', 'true');
+            sessionStorage.setItem('tb-is-guest', 'true');
             setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
             setToken(null);
+            syncSocketAuth('guest'); // Ensure socket connects as guest
+          } else {
+            // No token and no prompt - stay in unauthenticated state but ensure socket is ready as guest
+            syncSocketAuth('guest');
           }
           setLoading(false);
           return;
@@ -158,15 +172,16 @@ export const AuthProvider = ({ children }) => {
           if (meRes && meRes.ok) {
             const data = await meRes.json();
             console.log('[Auth] Session verified for:', data.user?.email);
+            sessionStorage.removeItem('tb-is-guest'); // Clear guest flag if real token verified
             setUser(data.user);
             setToken(storedToken);
             
             // BUG FIX: Immediately sync socket auth with verified token
             syncSocketAuth(storedToken);
 
-            // Hydrate settings ONLY on fresh login 
-            if (data.user?.settings && !wasPreviouslyLoggedIn) {
-              console.log('[Auth] Fresh login detected: Hydrating settings from backend');
+            // Hydrate settings ONLY on fresh browser session/tab open
+            if (data.user?.settings && !isHydrated) {
+              console.log('[Auth] New session/tab detected: Hydrating settings from backend');
               const { general, appearance, canvas, privacy } = data.user.settings;
               if (general) {
                 if (general.nickname) safeStorage.setItem('tb-nickname', general.nickname);
@@ -206,6 +221,9 @@ export const AuthProvider = ({ children }) => {
                 safeStorage.setItem('tb-cloud-sync', String(privacy.cloudSync ?? true));
                 safeStorage.setItem('tb-local-history', String(privacy.localHistory ?? true));
               }
+
+              // SEC-16: Mark session as hydrated so we don't spam the API on internal re-renders
+              sessionStorage.setItem('tb-settings-hydrated', 'true');
             }
 
             // Hydrate API Prefs from parallel fetch
@@ -222,21 +240,28 @@ export const AuthProvider = ({ children }) => {
                 status
               });
             }
-          } else if (meRes && (meRes.status === 401 || meRes.status === 403)) {
-            console.warn('[Auth] Session invalidated by server:', meRes.status);
+          } else {
+            // BUG FIX: Handle 429 Too Many Requests gracefully
+            if (meRes?.status === 429) {
+              console.warn('[Auth] Rate limit reached. Retaining current session state to prevent lock-out.');
+              setLoading(false);
+              return;
+            }
+
+            console.warn('[Auth] Session invalid or expired.');
             safeStorage.removeItem('tb-token');
             setToken(null);
             setUser(null);
-          } else {
-            console.error('[Auth] Server error during verification');
-            setUser(null);
+            setApiPrefs({ useCustomApi: false, activeProvider: null, activeLabel: null, activeId: null, allKeys: [], status: 'stable' });
           }
         } catch (err) {
           console.error('[Auth] Network error or timeout during verification:', err.name || err);
+          syncSocketAuth('guest');
           setUser(null); 
         } finally {
-          console.log('[Auth] Verification logic finished, clearing loader');
+          console.log('[Auth] Verification logic finished');
           setLoading(false);
+          setIsAuthResolved(true);
         }
       } catch (globalErr) {
         console.error('[Auth] CRITICAL Error in verifyToken:', globalErr);
@@ -244,16 +269,31 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
+    // Fallback: If verification hangs for > 7s, resolve auth anyway to unblock socket (Guest mode)
+    const fallbackTimer = setTimeout(() => {
+      setIsAuthResolved(prev => {
+        if (!prev) {
+          console.warn('[Auth] Verification timed out after 7s, forcing socket unblock');
+          syncSocketAuth(safeStorage.getItem('tb-token') || 'guest');
+        }
+        return true;
+      });
+    }, 7000);
+
     verifyToken();
     return () => {
       clearTimeout(slowTimer);
       clearTimeout(failTimer);
+      clearTimeout(fallbackTimer);
     };
   }, []);
 
   // Trial Mode Refresh Protection
   useEffect(() => {
     const handleBeforeUnload = (e) => {
+      // SEC-14: If we are intentionally navigating away via internal 'logout', skip the dialog
+      if (isExiting) return;
+
       if (user?.isGuest) {
         const msg = 'You are in Trial Mode. Your history and settings will not be saved. Are you sure you want to leave?';
         e.preventDefault();
@@ -264,7 +304,7 @@ export const AuthProvider = ({ children }) => {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user]);
+  }, [user, isExiting]);
 
   const login = useCallback(async (email, password) => {
     const res = await fetch(`${API_URL}/api/auth/signin`, {
@@ -279,7 +319,8 @@ export const AuthProvider = ({ children }) => {
       throw new Error(data.error || 'Login failed');
     }
 
-    localStorage.setItem('tb-token', data.token);
+    sessionStorage.removeItem('tb-is-guest'); // Promote to real user
+    safeStorage.setItem('tb-token', data.token);
     setToken(data.token);
     setUser(data.user);
 
@@ -302,7 +343,8 @@ export const AuthProvider = ({ children }) => {
       throw new Error(data.error || 'Signup failed');
     }
 
-    localStorage.setItem('tb-token', data.token);
+    sessionStorage.removeItem('tb-is-guest'); // Promote to real user
+    safeStorage.setItem('tb-token', data.token);
     setToken(data.token);
     setUser(data.user);
 
@@ -314,7 +356,7 @@ export const AuthProvider = ({ children }) => {
 
   const loginGuest = useCallback(() => {
     safeStorage.removeItem('tb-token');
-    safeStorage.setItem('tb-is-guest', 'true');
+    sessionStorage.setItem('tb-is-guest', 'true');
     setToken(null);
     setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
 
@@ -326,28 +368,52 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(() => {
-    // 1. Clear Auth Tokens
-    localStorage.removeItem('tb-token');
-    
-    // 2. Clear Session History & Cache
-    localStorage.removeItem('tutorboard-history');
-    localStorage.removeItem('tutorboard-active-chat');
-    localStorage.removeItem('tutorboard-agent');
-    
-    // 3. Clear Zustand Persisted State to prevent canvas leak
-    localStorage.removeItem('tutorboard-session');
+    const performLogout = async () => {
+      // SEC-15: Trigger an immediate cloud sync before clearing state to prevent data loss
+      if (user && !user.isGuest) {
+        useTutorStore.getState().triggerSync();
+        // Brief grace period to allow the immediate sync fetch to initiate
+        await new Promise(resolve => setTimeout(resolve, 600));
+      }
 
-    // 4. Update memory state
-    safeStorage.removeItem('tb-is-guest');
-    setToken(null);
-    setUser(null);
+      setIsExiting(true);
+      // 1. Clear Auth Tokens
+      safeStorage.removeItem('tb-token');
+      
+      // 2. Clear Session History & Cache
+      localStorage.removeItem('tutorboard-history');
+      localStorage.removeItem('tutorboard-active-chat');
+      localStorage.removeItem('tutorboard-agent');
+      
+      // 3. Clear Zustand Persisted State to prevent canvas leak
+      localStorage.removeItem('tutorboard-session');
 
-    // 5. Cleanup Socket (Destroy singleton on logout for security)
-    try { disconnectSocket(); } catch (e) { console.warn('[Auth] Socket disconnect failed'); }
+      // 4. Update memory state
+      sessionStorage.removeItem('tb-is-guest');
+      sessionStorage.removeItem('tb-settings-hydrated');
+      setToken(null);
+      setUser(null);
 
-    // 6. Force navigation to landing to ensure clean state
-    window.location.href = '/';
-  }, []);
+      // 5. Cleanup Socket 
+      try { disconnectSocket(); } catch (e) { console.warn('[Auth] Socket disconnect failed'); }
+
+      // 6. Navigate away
+      navigate('/');
+    };
+
+    if (user?.isGuest) {
+      // Use the global showAlert for a premium experience
+      useTutorStore.getState().showAlert({
+        type: 'warning',
+        title: 'End Trial Session',
+        message: 'Your progress in this guest session will be permanently deleted. Are you sure you want to end your trial?',
+        confirmLabel: 'End Trial',
+        onConfirm: performLogout
+      });
+    } else {
+      performLogout();
+    }
+  }, [user, navigate]);
 
   // Update user object in-memory (for immediate UI reflection after Settings changes)
   const updateUser = useCallback((updates) => {
@@ -373,6 +439,17 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (e) { /* silent */ }
   }, [token, user]);
+
+  // SEC-18: Cross-device preference bridge — Listen for socket connect events to refresh keys
+  useEffect(() => {
+    const handleRefreshRequest = () => {
+      console.log('[Auth] External refresh request detected (Socket Connect), refreshing API Prefs...');
+      refreshApiPrefs();
+    };
+
+    window.addEventListener('tb-refresh-api-prefs', handleRefreshRequest);
+    return () => window.removeEventListener('tb-refresh-api-prefs', handleRefreshRequest);
+  }, [refreshApiPrefs]);
 
   const switchApi = useCallback(async (keyId) => {
     if (!token || user?.isGuest) return;
@@ -428,7 +505,8 @@ export const AuthProvider = ({ children }) => {
       refreshApiPrefs,
       switchApi,
       connectionStatus,
-      forceStopLoading
+      forceStopLoading,
+      isAuthResolved
     }}>
       {children}
     </AuthContext.Provider>

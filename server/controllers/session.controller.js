@@ -1,4 +1,43 @@
+import { z } from 'zod';
 import ChatSession from '../models/ChatSession.js';
+import ActivityLog from '../models/ActivityLog.js';
+
+// Schema for request body validation — PERMISSIVE for client payloads
+// The client sends messages with `id`, `role`, `content` and other metadata.
+// canvasSteps, canvasVersion, and token (for beacon) must all be accepted.
+const saveSessionSchema = z.object({
+  sessionId: z.string().optional().nullable(),
+  title: z.string().max(200).optional(),
+  messages: z.array(z.object({
+    id: z.string().optional(),
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string().max(50000),
+    timestamp: z.any().optional(),
+    canvasSnapshot: z.any().optional(),
+  }).passthrough()).max(200).optional(),
+  canvasState: z.array(z.any()).max(500).optional(),
+  canvasSteps: z.array(z.any()).max(100).optional(),
+  canvasVersion: z.number().optional(),
+  preferences: z.record(z.any()).optional(),
+  token: z.string().optional(), // Beacon requests include token in body
+}).passthrough(); // Allow extra fields we don't know about yet
+
+/**
+ * Helper: Log UX activity to MongoDB
+ */
+export const logActivity = async ({ userId, sessionId, eventType, eventData, metadata }) => {
+  try {
+    await ActivityLog.create({
+      userId,
+      sessionId,
+      eventType,
+      eventData,
+      metadata
+    });
+  } catch (err) {
+    console.error('[ActivityLog] Failed to log event:', err.message);
+  }
+};
 
 /**
  * GET /api/sessions
@@ -6,9 +45,30 @@ import ChatSession from '../models/ChatSession.js';
  */
 export const getSessions = async (req, res) => {
   try {
-    const sessions = await ChatSession.find({ userId: req.user._id }).sort({ lastUpdated: -1 });
-    res.json(sessions);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const [sessions, total] = await Promise.all([
+      ChatSession.find({ userId: req.user._id })
+        .sort({ lastUpdated: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ChatSession.countDocuments({ userId: req.user._id })
+    ]);
+
+    res.json({
+      sessions,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        hasMore: skip + sessions.length < total
+      }
+    });
   } catch (err) {
+    console.error('[Session] Fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 };
@@ -36,36 +96,74 @@ export const getSession = async (req, res) => {
  * Create or Update a session
  */
 export const saveSession = async (req, res) => {
-  const { sessionId, title, messages, canvasState, preferences } = req.body;
-  
   try {
+    const validation = saveSessionSchema.safeParse(req.body);
+    if (!validation.success) {
+      console.error('[Session] Validation failed:', JSON.stringify(validation.error.format(), null, 2));
+      return res.status(400).json({ 
+        error: 'Invalid request body', 
+        details: validation.error.format() 
+      });
+    }
+
+    const { sessionId, title, messages, canvasState, canvasSteps, canvasVersion, preferences } = validation.data;
+    
+    console.log(`[DB] Save Request: User=${req.user._id}, Session=${sessionId || 'NEW'}`);
+
     let session;
-    const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
 
     if (sessionId && isMongoId) {
-      // Build update object — ONLY include fields that were explicitly sent
-      // This prevents REST sync from wiping socket-persisted messages
+      // Build update object — only include fields that were actually sent
       const updateFields = { lastUpdated: Date.now() };
       if (title !== undefined) updateFields.title = title;
       if (messages !== undefined) updateFields.messages = messages;
       if (canvasState !== undefined) updateFields.canvasState = canvasState;
+      if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
+      if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
       if (preferences !== undefined) updateFields.preferences = preferences;
 
       session = await ChatSession.findOneAndUpdate(
         { _id: sessionId, userId: req.user._id },
-        updateFields,
-        { new: true }
+        { $set: updateFields },
+        { new: true, runValidators: true }
       );
+      
+      if (session) {
+        console.log(`[DB] ✅ Updated existing session: ${session._id}`);
+      }
     }
 
     if (!session) {
-      // Create new session
+      // Create new session if document not found or if sessionId is a local UUID
+      // This handles the "Initial Save" from the client before a MongoDB ID is assigned.
       session = await ChatSession.create({
         userId: req.user._id,
         title: title || 'New Session',
         messages: messages || [],
         canvasState: canvasState || [],
+        canvasSteps: canvasSteps || [],
+        canvasVersion: canvasVersion || 0,
         preferences: preferences || {},
+        engineSessionId: sessionId // Store the client's local ID for audit/linking
+      });
+      console.log(`[DB] ✨ Created new session: ${session._id} (Client UUID: ${sessionId})`);
+      
+      // LOG ACTIVITY: Session Start
+      logActivity({
+        userId: req.user._id,
+        sessionId: session._id.toString(),
+        eventType: 'session_start',
+        eventData: { title: session.title }
+      });
+    }
+ else {
+      // LOG ACTIVITY: Session Update (e.g. canvas action)
+      logActivity({
+        userId: req.user._id,
+        sessionId: session._id.toString(),
+        eventType: 'canvas_action',
+        eventData: { version: canvasVersion }
       });
     }
 
@@ -73,6 +171,55 @@ export const saveSession = async (req, res) => {
   } catch (err) {
     console.error('Save session error:', err);
     res.status(500).json({ error: 'Failed to save session' });
+  }
+};
+
+/**
+ * POST /api/sessions/beacon
+ * Emergency flush via Beacon API (no auth header — token is in body)
+ */
+export const beaconSave = async (req, res) => {
+  try {
+    const bodyToken = req.body && req.body.token;
+    const queryToken = req.query && req.query._auth;
+    const token = bodyToken || queryToken;
+    const { sessionId, ...data } = req.body;
+    
+    // Beacon requests include the token in the body since Beacon API doesn't support headers
+    // The `protect` middleware won't have run, so we need to verify inline
+    if (!token || !sessionId) {
+      return res.status(400).json({ error: 'Missing token or sessionId' });
+    }
+
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
+    if (!isMongoId) {
+      return res.status(400).json({ error: 'Invalid session ID for beacon' });
+    }
+
+    // Verify token manually
+    const jwt = await import('jsonwebtoken');
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+    if (!decoded?.id) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const updateFields = { lastUpdated: Date.now() };
+    if (data.title) updateFields.title = data.title;
+    if (data.messages) updateFields.messages = data.messages;
+    if (data.canvasState) updateFields.canvasState = data.canvasState;
+    if (data.canvasSteps) updateFields.canvasSteps = data.canvasSteps;
+    if (data.canvasVersion !== undefined) updateFields.canvasVersion = data.canvasVersion;
+    if (data.preferences) updateFields.preferences = data.preferences;
+
+    await ChatSession.findOneAndUpdate(
+      { _id: sessionId, userId: decoded.id },
+      updateFields
+    );
+
+    res.status(204).end();
+  } catch (err) {
+    console.error('[Beacon] Save failed:', err.message);
+    res.status(500).json({ error: 'Beacon save failed' });
   }
 };
 

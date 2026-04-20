@@ -17,7 +17,7 @@
  */
 
 import { requestCompletion, getModel, getTextModel } from '../../utils/ai/llmClient.js';
-import { isGreeting, buildDoubtPrompt, classifyDoubt } from '../agents/index.js';
+import { isGreeting, buildDoubtPrompt } from '../agents/index.js';
 import { safeParse } from '../../utils/core/parser.js';
 import sessionStore from './sessionStore.js';
 import { cache } from './cache.js';
@@ -372,8 +372,6 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
   const domain = session?.domain || 'general';
 
   try {
-    const classification = await classifyDoubt(topic, question);
-
     const currentStepIndex = session?.currentStepIndex || 0;
     const currentStep = session?.steps?.[currentStepIndex] || {};
 

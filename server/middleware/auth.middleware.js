@@ -6,16 +6,16 @@ import tokenStore from '../utils/auth/tokenStore.js';
  * Middleware to protect routes that require authentication.
  * Expects: Authorization: Bearer <token>
  * 
- * BUG FIX #46: Now queries User from DB instead of mocking as "Guest User"
- * BUG FIX #47: Now checks token revocation list
  */
 export const protect = async (req, res, next) => {
   try {
     let token;
 
-    // Extract token from Authorization header
+    // Extract token from Authorization header or Query Param (_auth)
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
+    } else if (req.query._auth) {
+      token = req.query._auth;
     }
 
     if (!token) {
@@ -57,7 +57,7 @@ export const protect = async (req, res, next) => {
       });
     }
 
-    console.log(`[Auth] User ${user.email} authenticated successfully for ${req.path}`);
+    console.log(`[Auth] User ${user._id} authenticated successfully for ${req.path}`);
 
     // Attach actual user from DB (not mocked)
     req.user = user;
@@ -68,5 +68,36 @@ export const protect = async (req, res, next) => {
     return res.status(401).json({
       error: 'Not authorized — invalid token',
     });
+  }
+};
+
+/**
+ * Middleware that attempts to identify the user but does not block guests.
+ * Used for routes that have different behavior or rate limits for guests vs users.
+ */
+export const optionalProtect = async (req, res, next) => {
+  try {
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) return next(); // Continue as guest
+
+    if (!process.env.JWT_SECRET) return next();
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded.jti) return next();
+
+    if (await tokenStore.isTokenRevoked(decoded.jti)) return next();
+
+    const user = await User.findById(decoded.id);
+    if (!user) return next();
+
+    req.user = user;
+    req.tokenJti = decoded.jti;
+    next();
+  } catch (err) {
+    next(); // Invalid token, still continue as guest
   }
 };

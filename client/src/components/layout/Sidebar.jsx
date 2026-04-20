@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ChatHistory from '../chat/ChatHistory';
 import { Plus, Search, MessageSquare, PanelLeftClose, Settings, Send, BookOpen, Lightbulb, HelpCircle, Activity, Layers, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ 
   chatHistory, 
@@ -20,6 +21,9 @@ const Sidebar = ({
   isGenerating,
   selectedAgent,
 }) => {
+  const { user, logout } = useAuth();
+  const isGuest = !!user?.isGuest;
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -251,6 +255,25 @@ const Sidebar = ({
 
       {/* ─── 3. FIXED BOTTOM SECTION ─── */}
       <div className="flex-shrink-0 bg-[var(--bg-primary)] border-t border-[var(--border-color)] p-3">
+        {isGuest && (
+          <div className="mb-3 p-3 bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10 rounded-2xl relative overflow-hidden group/trial">
+            <div className="absolute top-0 right-0 p-1">
+              <Sparkles size={10} className="text-[var(--text-primary)] opacity-20 group-hover/trial:opacity-100 transition-opacity" />
+            </div>
+            <p className="text-[10px] font-bold text-[var(--text-primary)] mb-1 uppercase tracking-widest flex items-center gap-1.5">
+              Trial Mode
+            </p>
+            <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] mb-2.5">
+              Your history won't be saved on refresh. <span className="text-[var(--text-primary)] font-semibold">Sign up free</span> to unlock unlimited sessions and cloud sync.
+            </p>
+            <button 
+              onClick={logout}
+              className="w-full py-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-[11px] font-black uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              Create Free Account
+            </button>
+          </div>
+        )}
         <div className="relative flex flex-col gap-2">
           <div className="relative flex items-center bg-[var(--bg-tertiary)] border border-transparent rounded-2xl shadow-sm focus-within:border-[var(--border-strong)] transition-all pr-2 pl-1 group/input">
             <textarea 

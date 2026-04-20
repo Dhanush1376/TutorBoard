@@ -149,8 +149,8 @@ const DOMAIN_STYLES = {
 const PANEL_VISIBLE_STATES = new Set([STATES.TEACHING, STATES.RESPONDING, STATES.RESUMING]);
 
 const Home = ({ isDark }) => {
-  // ─── Machine & Store ───
-  const machine = useTeachingMachine();
+  const { isAuthenticated, token, user, loading: authLoading, apiPrefs: globalApiPrefs, logout, isAuthResolved } = useAuth();
+  const machine = useTeachingMachine(isAuthResolved);
   const {
     machineState, isConnected,
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
@@ -170,66 +170,135 @@ const Home = ({ isDark }) => {
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
     setCanvasSnapshot, greetingMessage, layoutView, addNoteToCanvas,
-    chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition
+    chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition, showAlert
   } = useTutorStore();
 
-  const { isAuthenticated, token, user, loading: authLoading, apiPrefs: globalApiPrefs } = useAuth();
+
+  const isGuest = !!user?.isGuest;
+  console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
   
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
 
-  const [chatHistory, setChatHistory] = useState(() => {
-    const saved = localStorage.getItem('tutorboard-history');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [chatHistory, setChatHistory] = useState([]);
+  const [historyFetched, setHistoryFetched] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, hasMore: false, loading: false });
+  const [isDbOffline, setIsDbOffline] = useState(false);
   
-  // Restore Cloud Sessions (MERGE with local history, don't replace)
-  useEffect(() => {
+  const fetchCloudSessions = useCallback(async (pageNum = 1) => {
     if (!isAuthenticated || user?.isGuest || !token) return;
+    
+    setPagination(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch(`${API_URL}/api/sessions?page=${pageNum}&limit=15`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        const { sessions, pagination: pg } = data;
+        
+        if (!sessions) return;
 
-    const fetchCloudSessions = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/sessions`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const sessions = await res.json();
-          if (!sessions || sessions.length === 0) return; // Don't wipe local if cloud is empty
+        const cloudSessions = sessions.map(s => ({
+          id: s._id,
+          title: s.title || 'Saved Session',
+          date: new Date(s.updatedAt || s.lastUpdated || s.createdAt).toLocaleDateString(),
+          updatedAt: new Date(s.updatedAt || s.lastUpdated || s.createdAt).getTime(),
+          agent: 'TutorBoard AI',
+          messages: s.messages || [],
+          canvasState: s.canvasState || [],
+          preferences: s.preferences || {},
+          chatSessionId: s._id
+        }));
 
-          // Map cloud sessions to local format
-          const cloudSessions = sessions.map(s => ({
-            id: s._id,
-            title: s.title || 'Saved Session',
-            date: new Date(s.lastUpdated || s.createdAt).toLocaleDateString(),
-            agent: 'TutorBoard AI',
-            messages: s.messages || [],
-            canvasState: s.canvasState || []
-          }));
+        const store = useTutorStore.getState();
+        const updatedManifest = { ...store.sessionManifest };
+        let manifestChanged = false;
 
-          setChatHistory(prev => {
-            // Build a map of existing local sessions by id
-            const localMap = new Map(prev.map(s => [s.id, s]));
-            const merged = [...prev]; // Start with local data
+        setChatHistory(prev => {
+          // If fetching first page, replace. Otherwise append.
+          const base = pageNum === 1 ? [] : prev;
+          const localMap = new Map(base.map(s => [s.id, s]));
+          const merged = [...base];
 
-            for (const cloud of cloudSessions) {
-              const local = localMap.get(cloud.id);
-              if (!local) {
-                // New session from another device — append it
-                merged.unshift(cloud);
+          for (const cloud of cloudSessions) {
+            const localInManifest = updatedManifest[cloud.id] || Object.values(updatedManifest).find(m => m.chatSessionId === cloud.id);
+            if (localInManifest) {
+              const localKey = Object.keys(updatedManifest).find(k => updatedManifest[k] === localInManifest);
+              if (!updatedManifest[localKey].chatSessionId) {
+                updatedManifest[localKey].chatSessionId = cloud.id;
+                manifestChanged = true;
               }
-              // If local version exists, KEEP it (it has richer client-side messages)
             }
 
-            console.log(`[Home] Merged ${cloudSessions.length} cloud sessions with ${prev.length} local sessions → ${merged.length} total`);
-            return merged;
-          });
+            if (!localMap.has(cloud.id)) {
+              merged.push(cloud);
+            }
+          }
+          return merged;
+        });
+
+        if (manifestChanged) {
+          useTutorStore.setState({ sessionManifest: updatedManifest });
         }
-      } catch (err) {
-        console.error('Failed to restore cloud sessions:', err);
+
+        setPagination({
+          page: pg.page,
+          hasMore: pg.hasMore,
+          loading: false
+        });
       }
-    };
-    fetchCloudSessions();
+    } catch (err) {
+      console.error('Failed to restore cloud sessions:', err);
+      setPagination(prev => ({ ...prev, loading: false }));
+    } finally {
+      setHistoryFetched(true);
+    }
   }, [isAuthenticated, token, user?.isGuest]);
+
+  // Initial load
+  useEffect(() => {
+    fetchCloudSessions(1);
+    
+    // EXTREME DIAGNOSTIC (REQUIRED)
+    const userId = user?._id || user?.id;
+    console.log(">>> [STRICT CHAT] 🔍 MOUNT AUDIT <<<");
+    console.log(">>> Resolved ID (virtual):", user?.id);
+    console.log(">>> Resolved _ID (primary):", user?._id);
+    console.log(">>> Target Global ID:", userId);
+    console.log(">>> Is Authenticated:", isAuthenticated);
+    console.log(">>> Is Guest Group:", user?.isGuest);
+    console.log(">>> API Base URL:", API_URL);
+
+    // STRICT HYDRATION (REQUIRED)
+    if (isAuthenticated && !user?.isGuest && userId) {
+       async function loadStrictHistory() {
+         console.log(`>>> [STRICT CHAT] 🌐 Fetching history from: ${API_URL}/api/chat/${userId}`);
+         try {
+           const res = await fetch(`${API_URL}/api/chat/${userId}`);
+           const data = await res.json();
+           
+           if (data.code === 'DB_OFFLINE') {
+             console.error(">>> [STRICT CHAT] 🚨 Connectivity Alert: Database is offline (IP Whitelisting?)");
+             setIsDbOffline(true);
+             return;
+           }
+
+           if (data.messages && data.messages.length > 0) {
+             console.log(`>>> [STRICT CHAT] ✨ SUCCESS: Restored ${data.messages.length} messages.`);
+             setIsDbOffline(false);
+           } else {
+             console.log(`>>> [STRICT CHAT] ℹ️ No history document exists yet for this user.`);
+             setIsDbOffline(false);
+           }
+         } catch (err) {
+           console.error('>>> [STRICT CHAT] ❌ Hydration Fetch Error:', err.message);
+         }
+       }
+       loadStrictHistory();
+    }
+  }, [fetchCloudSessions, isAuthenticated, user]);
 
   const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore();
   
@@ -237,12 +306,8 @@ const Home = ({ isDark }) => {
   const activeChatId = machineSessionId;
   const setActiveChatId = storeSetSessionId;
   
-  useEffect(() => {
-    // Only persist history for real users (make Guest accounts ephemeral as requested)
-    if (isAuthenticated && !user?.isGuest) {
-      localStorage.setItem('tutorboard-history', JSON.stringify(chatHistory));
-    }
-  }, [chatHistory, isAuthenticated, user]);
+  // Session persistence hardening: Remove local history mirror
+  // We now rely strictly on cloud fetch and sync.
 
   // Persist active chat ID
   useEffect(() => {
@@ -305,6 +370,13 @@ const Home = ({ isDark }) => {
         // Avoid duplicates if somehow triggered twice
         if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
         next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        
+        // ── PERSISTENCE: Save AI response IMMEDIATELY ──
+        saveCurrentSession(next[idx].messages);
+        
+        // STRICT PERSISTENCE CALL (REQUIRED)
+        saveToStrictChat({ role: 'assistant', content: latest.answer });
+        
         return next;
       });
     }
@@ -332,6 +404,10 @@ const Home = ({ isDark }) => {
         // Only append if it doesn't already exist
         if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
         next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        
+        // ── PERSISTENCE: Save AI timeline response IMMEDIATELY ──
+        saveCurrentSession(next[idx].messages);
+        
         return next;
       });
     }
@@ -356,6 +432,10 @@ const Home = ({ isDark }) => {
         const next = [...prev];
         if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
         next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        
+        // ── PERSISTENCE: Save greeting persistence IMMEDIATELY ──
+        saveCurrentSession(next[idx].messages);
+
         return next;
       });
 
@@ -428,7 +508,91 @@ const Home = ({ isDark }) => {
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
   const messages = activeSession?.messages || [];
 
-  // ── Persistent Cloud Sync ──
+  // STRICT PERSISTENCE HELPER (REQUIRED)
+  const saveToStrictChat = useCallback(async (msg) => {
+    const userId = user?._id || user?.id;
+    
+    // Detailed pre-flight reasoning
+    if (!isAuthenticated) return console.log(">>> [STRICT CHAT] ⏭️ Abort: User not authenticated.");
+    if (user?.isGuest) return console.log(">>> [STRICT CHAT] ⏭️ Abort: Skipping persistence for Guest session.");
+    if (!userId) return console.error(">>> [STRICT CHAT] ❌ CRITICAL: userId could not be resolved from AuthContext.");
+    
+    // Smart URL detection for local development parity
+    const targetUrl = `${API_URL}/api/chat/save`;
+    console.log(`>>> [STRICT CHAT] 🚀 SENDING: ${msg.role} to ${targetUrl}`);
+    
+    try {
+      const res = await fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, message: msg })
+      });
+      
+      const responseData = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        console.log(`>>> [STRICT CHAT] ✅ CLOUD SAVE VERIFIED:`, responseData);
+        setIsDbOffline(false);
+      } else {
+        console.error(`>>> [STRICT CHAT] ❌ SERVER REJECTED SAVE:`, res.status, responseData);
+        if (responseData.code === 'DB_OFFLINE') {
+          console.error(">>> [STRICT CHAT] 🚨 Root Cause Identified: Backend DB Connection is Offline (IP Whitelisting Issue).");
+          setIsDbOffline(true);
+        }
+      }
+    } catch (err) {
+      console.error('>>> [STRICT CHAT] ❌ NETWORK ERROR: Fetch failed to reach server.', err.message);
+    }
+  }, [isAuthenticated, user]);
+
+  // ── Persistent Cloud Sync (Immediate Actions) ──
+  const saveCurrentSession = useCallback(async (updatedMessages = messages) => {
+    if (!isAuthenticated || user?.isGuest || !token) return;
+    
+    // We target by activeChatId (local UUID or Mongo ID)
+    const payload = {
+      sessionId: activeChatId,
+      title: activeSession?.title || timeline?.title || 'New Session',
+      messages: updatedMessages,
+      canvasState: canvasObjects || [],
+      canvasSteps: canvasSteps || [],
+      preferences: {
+        drawColor, drawWidth,
+        textToolSize, noteToolSize,
+        noteColor, noteSize,
+        layoutView, gridType, gridSize, showGrid
+      }
+    };
+
+    console.log(`[Persistence] 💾 Immediate save triggered for session: ${activeChatId}`);
+    
+    try {
+      const res = await fetch(`${API_URL}/api/sessions`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        const saved = await res.json();
+        // If we were using a local UUID, swap it for the permanent Mongo ID
+        if (saved._id && saved._id !== activeChatId) {
+          console.log(`[Persistence] 🔗 Adopting permanent Mongo ID: ${saved._id}`);
+          setActiveChatId(saved._id);
+          // Update history entry with the new ID
+          setChatHistory(prev => prev.map(s => s.id === activeChatId ? { ...s, id: saved._id, chatSessionId: saved._id } : s));
+        }
+      }
+    } catch (err) {
+      console.error('[Persistence] ❌ Immediate save failed:', err);
+    }
+  }, [activeChatId, activeSession, timeline, canvasObjects, canvasSteps, isAuthenticated, user, token, messages]);
+
+
+  // ── Passive Sync (Canvas/Prefs Debounce) ──
   useSessionSync(messages);
 
   // ─── Logic ───
@@ -489,32 +653,146 @@ const Home = ({ isDark }) => {
   // Sidebar shortcut removed per user request
 
   const handleNewChat = () => { setActiveChatId(null); setPrompt(''); endSession(); };
-  const handleSelectChat = (id) => {
+  const handleSelectChat = async (id) => {
     setActiveChatId(id);
     setActiveView('chat');
     
-    // Restore session data (canvas and preferences) to the active store
-    const session = chatHistory.find(s => s.id === id);
-    if (session) {
-      if (session.canvasState) {
-        useTutorStore.getState().setCanvasSnapshot({ canvasObjects: session.canvasState, canvasSteps: [], totalSteps: 0 });
+    // 1. Immediate local restore (minimal snapshot)
+    const localSession = chatHistory.find(s => s.id === id);
+    if (localSession) {
+      if (localSession.canvasState) {
+        useTutorStore.getState().setCanvasSnapshot({ 
+          canvasObjects: localSession.canvasState, 
+          canvasSteps: localSession.steps || [], 
+          totalSteps: localSession.steps?.length || 0 
+        });
       }
-      if (session.preferences) {
-        const p = session.preferences;
-        if (p.drawColor) useTutorStore.setState({ drawColor: p.drawColor });
-        if (p.drawWidth) useTutorStore.setState({ drawWidth: p.drawWidth });
-        if (p.textToolSize) useTutorStore.setState({ textToolSize: p.textToolSize });
-        if (p.noteToolSize) useTutorStore.setState({ noteToolSize: p.noteToolSize });
-        if (p.noteColor) useTutorStore.setState({ noteColor: p.noteColor });
-        if (p.noteSize) useTutorStore.setState({ noteSize: p.noteSize });
-        if (p.layoutView) useTutorStore.setState({ layoutView: p.layoutView });
-        if (p.gridType) useTutorStore.setState({ gridType: p.gridType });
-        if (typeof p.showGrid !== 'undefined') useTutorStore.setState({ showGrid: p.showGrid });
+      if (localSession.messages) {
+        useTutorStore.setState({ doubtHistory: localSession.messages });
+      }
+    }
+
+    // 2. Full pedagogical restoration from Cloud (SEC-20)
+    if (isAuthenticated && !user?.isGuest && id && !id.startsWith('msg-')) {
+      try {
+        console.log(`[Home] 🔄 Fetching full pedagogical state for session ${id}...`);
+        const res = await fetch(`${API_URL}/api/sessions/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const fullData = await res.json();
+          if (fullData) {
+            console.log(`[Home] ✅ Full state fetched. Restoring timeline (${fullData.steps?.length || 0} steps)...`);
+            
+            // Restore actual pedagogical timeline
+            if (fullData.steps?.length > 0) {
+              useTutorStore.getState().setTimeline({
+                ...fullData,
+                title: fullData.title || localSession?.title || 'Saved Session',
+                timeline: fullData.steps,
+                objects: fullData.canvasState
+              });
+            }
+
+            // Restore complete chat history
+            if (fullData.messages) {
+              useTutorStore.setState({ doubtHistory: fullData.messages });
+            }
+
+            // Sync with local history so the sidebar/main preview is also updated
+            setChatHistory(prev => prev.map(s => s.id === id ? {
+              ...s,
+              title: fullData.title,
+              messages: fullData.messages,
+              canvasState: fullData.canvasState,
+              steps: fullData.steps,
+              chatSessionId: fullData._id,
+              updatedAt: new Date(fullData.updatedAt || fullData.lastUpdated || Date.now()).getTime()
+            } : s));
+            
+            // Also ensure the manifest has the link
+            const currentManifest = useTutorStore.getState().sessionManifest;
+            if (currentManifest[id] && !currentManifest[id].chatSessionId) {
+              useTutorStore.setState({
+                 sessionManifest: {
+                   ...currentManifest,
+                   [id]: { ...currentManifest[id], chatSessionId: fullData._id }
+                 }
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Home] Failed to fetch full session details:', err);
+      }
+    }
+    
+    // Restore preferences from local regardless
+    if (localSession?.preferences) {
+      const p = localSession.preferences;
+      if (p.drawColor) useTutorStore.setState({ drawColor: p.drawColor });
+      if (p.drawWidth) useTutorStore.setState({ drawWidth: p.drawWidth });
+      if (p.textToolSize) useTutorStore.setState({ textToolSize: p.textToolSize });
+      if (p.noteToolSize) useTutorStore.setState({ noteToolSize: p.noteToolSize });
+      if (p.noteColor) useTutorStore.setState({ noteColor: p.noteColor });
+      if (p.noteSize) useTutorStore.setState({ noteSize: p.noteSize });
+      if (p.layoutView) useTutorStore.setState({ layoutView: p.layoutView });
+      if (p.gridType) useTutorStore.setState({ gridType: p.gridType });
+      if (typeof p.showGrid !== 'undefined') useTutorStore.setState({ showGrid: p.showGrid });
+    }
+  };
+  const handleDeleteChat = (id) => {
+    showAlert({
+      type: 'warning',
+      title: 'Delete Session',
+      message: 'Are you sure you want to permanently delete this learning session? This action cannot be undone.',
+      confirmLabel: 'Delete Permanently',
+      onConfirm: async () => {
+        // Optimistic local update
+        setChatHistory(prev => prev.filter(c => c.id !== id));
+        if (activeChatId === id) {
+          setActiveChatId(null);
+          // Reset store if we delete the active chat
+          useTutorStore.getState().resetSession?.();
+        }
+
+        // Persistent cloud update
+        if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
+          try {
+            await fetch(`${API_URL}/api/sessions/${id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            console.log(`[Home] ✅ Session ${id} deleted from cloud.`);
+          } catch (err) {
+            console.error('[Home] Failed to delete session from cloud:', err);
+          }
+        }
+      }
+    });
+  };
+  const handleRenameChat = async (id, newTitle) => {
+    // Optimistic local update
+    setChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
+    
+    // Persistent cloud update
+    if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
+      try {
+        await fetch(`${API_URL}/api/sessions`, {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ sessionId: id, title: newTitle })
+        });
+        console.log(`[Home] ✅ Session ${id} renamed to "${newTitle}" in cloud.`);
+      } catch (err) {
+        console.error('[Home] Failed to rename session in cloud:', err);
       }
     }
   };
-  const handleDeleteChat = (id) => { setChatHistory(prev => prev.filter(c => c.id !== id)); if (activeChatId === id) setActiveChatId(null); };
-  const handleRenameChat = (id, newTitle) => setChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
 
   const handleOpenCanvas = (messageId) => {
     const session = chatHistory.find(s => s.id === activeChatId);
@@ -551,12 +829,20 @@ const Home = ({ isDark }) => {
     // Trim and capitalize session title
     const sessionTitle = userPrompt.substring(0, 40).trim().replace(/^(.)/, (m) => m.toUpperCase());
 
+    const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
     setChatHistory(prev => {
       const idx = prev.findIndex(s => s.id === workingSessionId);
-      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
       if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
       const next = [...prev]; next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; return next;
     });
+
+    // ── PRO-ACTIVE PERSISTENCE: Save user message IMMEDIATELY ──
+    const targetSession = chatHistory.find(s => s.id === workingSessionId);
+    const updatedMessages = targetSession ? [...targetSession.messages, userMessage] : [userMessage];
+    saveCurrentSession(updatedMessages);
+
+    // STRICT PERSISTENCE CALL (REQUIRED)
+    saveToStrictChat({ role: 'user', content: userPrompt });
 
     // ── Enforce fully visual answers for EVERY question ──
     startSession(userPrompt, userPrompt, activeMode);
@@ -575,8 +861,8 @@ const Home = ({ isDark }) => {
   const setSelectedElements = useTutorStore(state => state.setSelectedElements);
   const setHasTextSelection = useTutorStore(state => state.setHasTextSelection);
 
-  const domain = timeline?.domain?.toLowerCase() || 'general';
-  const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
+  const domain = (timeline?.domain || 'general').toLowerCase();
+  const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general || DOMAIN_STYLES.dsa;
   const showStepPanel = currentStep && PANEL_VISIBLE_STATES.has(machineState);
 
   const leftPanel = (
@@ -593,6 +879,10 @@ const Home = ({ isDark }) => {
       activeMode={activeMode} setActiveMode={setActiveMode}
       selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent}
       isDark={isDark}
+      isLoadingHistory={isAuthenticated && !isGuest && pagination.loading && chatHistory.length === 0}
+      hasMore={pagination.hasMore}
+      isLoadingMore={pagination.loading && chatHistory.length > 0}
+      onLoadMore={() => fetchCloudSessions(pagination.page + 1)}
     />
     </ErrorBoundary>
   );
@@ -626,6 +916,34 @@ const Home = ({ isDark }) => {
         onBack={handleNewChat}
         sidebar={leftPanel}
       >
+        {/* Connection Alert Banner */}
+        <AnimatePresence>
+          {isDbOffline && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="absolute top-0 left-0 right-0 z-[60] overflow-hidden"
+            >
+              <div className="bg-red-500 text-white px-6 py-2.5 flex items-center justify-between shadow-2xl">
+                <div className="flex items-center gap-3">
+                  <WifiOff size={16} className="animate-pulse" />
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold uppercase tracking-wider">Database Connection Failed</span>
+                    <span className="text-[10px] opacity-90 leading-tight">Your backend is unable to talk to MongoDB Atlas. Please ensure your IP is whitelisted in your Atlas Dashboard.</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsDbOffline(false)}
+                  className="p-1 hover:bg-white/20 rounded transition-colors"
+                >
+                  <SkipBack size={14} className="rotate-90" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* All teaching controls are now floating overlays here */}
         
         {/* A. Top Bar Overlay (Domain + Title) */}
@@ -798,6 +1116,52 @@ const Home = ({ isDark }) => {
             </motion.div>
           )}
         </AnimatePresence>
+        {/* F. Trial Watermark (Guests Only) */}
+        {isGuest && (
+          <div className="absolute bottom-10 left-10 z-[100] pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="flex flex-col gap-4 p-6 bg-[rgba(var(--bg-secondary-rgb),0.85)] backdrop-blur-2xl border-2 border-amber-500/30 rounded-[32px] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] pointer-events-auto max-w-[280px] relative overflow-hidden"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '2px solid rgba(245, 158, 11, 0.4)',
+              }}
+            >
+              {/* Amber Glow Line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
+              
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center">
+                  <div className="w-3 h-3 rounded-full bg-amber-500 animate-ping absolute" />
+                  <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.6)]" />
+                </div>
+                <span className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-500">
+                  Trial Mode
+                </span>
+              </div>
+              
+              <div className="space-y-1.5">
+                <h3 className="text-[15px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+                  Not an original account
+                </h3>
+                <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)] font-medium">
+                  Your work is <span className="text-[var(--text-primary)] font-bold">strictly temporary</span>. Refreshing the browser will <span className="text-amber-500 font-bold underline underline-offset-2 italic">delete all data</span>.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <button 
+                  onClick={logout}
+                  className="w-full py-3.5 bg-amber-500 text-black rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] shadow-[0_8px_20px_-4px_rgba(245,158,11,0.4)] hover:bg-amber-400 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300"
+                >
+                  Create Official Account
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
       </Layout>
     </div>
   );

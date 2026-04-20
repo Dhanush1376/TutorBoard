@@ -15,6 +15,7 @@ server_log.txt
 server_output.log
 db_status.log
 debug_latency.log
+build_error.txt
 
 # Test output logs
 test_*.log

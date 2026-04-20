@@ -13,6 +13,7 @@ import Solutions from './pages/Marketing/Solutions';
 import About from './pages/Marketing/About';
 import { useAuth } from './context/AuthContext';
 import GlobalStatusOverlay from './components/layout/GlobalStatusOverlay';
+import ThemedPopup from './components/layout/ThemedPopup';
 import useTutorStore from './store/tutorStore';
 
 
@@ -23,6 +24,9 @@ function App() {
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     // Check if the welcome animation has already played in this session
     try {
+      const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
+      console.log('[App] Initializing welcomeLoading... isGuest:', isGuest);
+      if (isGuest) return false; // SEC-12: Skip cinematic intro for guests
       return !sessionStorage.getItem('tb-welcome-played');
     } catch {
       return false; // Skip loader if sessionStorage is unavailable (private browsing, SSR)
@@ -60,7 +64,9 @@ function App() {
       setGlobalOverlay({ isActive: true, type: 'network', message: "You're currently offline. Please check your internet connection to continue using TutorBoard." });
     };
     const handleOnline = () => {
-      if (globalOverlay.type === 'network') {
+      // Use getState() to avoid stale closure and prevent unnecessary listener re-registration
+      const currentOverlayType = useTutorStore.getState().globalOverlay.type;
+      if (currentOverlayType === 'network') {
         setGlobalOverlay({ isActive: false });
       }
     };
@@ -75,7 +81,7 @@ function App() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [setGlobalOverlay, globalOverlay.type]);
+  }, [setGlobalOverlay]);
 
   // Handle server timeout from AuthContext
   useEffect(() => {
@@ -116,9 +122,10 @@ function App() {
   const isAppLoading = welcomeLoading || authLoading;
 
   if (isAppLoading) {
+    const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
     return (
       <div className="relative h-screen w-full">
-        <Loader fullScreen={true} glass={!welcomeLoading} />
+        <Loader fullScreen={true} glass={!welcomeLoading} simple={isGuest} />
         {showSkip && (
           <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[1000] animate-in fade-in slide-in-from-bottom-4 duration-1000">
             <p className="text-white/30 text-xs tracking-widest uppercase font-medium">
@@ -143,6 +150,7 @@ function App() {
   return (
     <div className="app-root">
       <GlobalStatusOverlay />
+      <ThemedPopup />
       <main className="app-main">
 
 
@@ -168,7 +176,7 @@ function App() {
           <Route
             path="/settings"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute guestAllowed={true}>
                 <Settings />
               </ProtectedRoute>
             }

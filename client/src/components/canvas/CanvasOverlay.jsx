@@ -4,9 +4,8 @@ import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './CanvasContext';
 import FloatingFormatBar from './FloatingFormatBar.jsx';
 import { Handle, RotateHandle } from './ElementHandles.jsx';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 
-const CW = 800;
-const CH = 600;
 
 /**
  * CanvasOverlay
@@ -29,8 +28,8 @@ export default function CanvasOverlay() {
 
   // Identify the single selected element for formatting
   const selectedElement = useMemo(() => {
-    // MS WORD STYLE: Only show formatting bar if text is actively selected
-    if (!hasTextSelection) return null;
+    // Show formatting bar if text is selected OR if we are in active edit mode (even without selection)
+    if (!hasTextSelection && !editingObjectId) return null;
 
     // We allow the bar during editing (isInteracting is true during edit)
     // but we might want to hide it if we are strictly dragging the element
@@ -54,10 +53,10 @@ export default function CanvasOverlay() {
     if (!selectedElement || !transform) return null;
 
     const { x: tx, y: ty, scale } = transform;
-    const worldX = (selectedElement.x ?? 0.5) * CW;
-    const worldY = (selectedElement.y ?? 0.5) * CH;
-    const worldW = (selectedElement.w ?? 0.2) * CW;
-    const worldH = (selectedElement.h ?? 0.1) * CH;
+    const worldX = (selectedElement.x ?? 0.5) * CANVAS_WIDTH;
+    const worldY = (selectedElement.y ?? 0.5) * CANVAS_HEIGHT;
+    const worldW = (selectedElement.w ?? 0.2) * CANVAS_WIDTH;
+    const worldH = (selectedElement.h ?? 0.1) * CANVAS_HEIGHT;
 
     const isFlipped = selectedElement.y < 0.15;
 
@@ -124,10 +123,10 @@ export default function CanvasOverlay() {
             exit={{ opacity: 0 }}
             className="absolute pointer-events-none"
             style={{
-              left: (selectedElement.x ?? 0.5) * CW * transform.scale + transform.x,
-              top: (selectedElement.y ?? 0.5) * CH * transform.scale + transform.y,
-              width: (selectedElement.w ?? 0.2) * CW * transform.scale,
-              height: (selectedElement.h ?? 0.1) * CH * transform.scale,
+              left: (selectedElement.x ?? 0.5) * CANVAS_WIDTH * transform.scale + transform.x,
+              top: (selectedElement.y ?? 0.5) * CANVAS_HEIGHT * transform.scale + transform.y,
+              width: (selectedElement.w ?? 0.2) * CANVAS_WIDTH * transform.scale,
+              height: (selectedElement.h ?? 0.1) * CANVAS_HEIGHT * transform.scale,
               transform: `translate(-50%, -50%) rotate(${selectedElement.rotation || 0}deg)`,
               zIndex: 999
             }}

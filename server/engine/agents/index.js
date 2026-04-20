@@ -16,8 +16,7 @@ export { CRITIC_AGENT_PROMPT } from './criticAgent.js';
 export { VALIDATOR_AGENT_PROMPT } from './validatorAgent.js';
 
 export { 
-  isGreeting, 
-  buildTeachingPrompt 
+  isGreeting
 } from './agentUtils.js';
 
 export {

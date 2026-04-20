@@ -157,7 +157,7 @@ const SigilCanvas = ({ cfg }) => {
 };
 
 /* ─── Main component ─────────────────────────────────────────────────────── */
-const Loader = ({ fullScreen = true, glass = false }) => {
+const Loader = ({ fullScreen = true, glass = false, simple = false }) => {
   const { mode } = useTheme();
   const isDark = mode === 'dark';
   const accentColor = isDark ? '#fdfaf3' : '#1c1711';
@@ -173,6 +173,7 @@ const Loader = ({ fullScreen = true, glass = false }) => {
       className={`flex flex-col items-center justify-center 
         ${fullScreen ? "h-screen w-full" : "w-full py-8"} 
         ${glass ? "fixed inset-0 z-[1000] backdrop-blur-3xl bg-[rgba(var(--bg-primary-rgb, 255,255,255), 0.7)]" : "bg-[var(--bg-primary)]"}
+        ${simple ? "!bg-[var(--bg-primary)]" : ""}
       `}
       style={{
         backgroundColor: isDark ? '#0b0b0a' : '#fdfaf3',
@@ -194,7 +195,7 @@ const Loader = ({ fullScreen = true, glass = false }) => {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
 
-        <BgCanvas accent={cfg.accent} isDark={isDark} />
+        {!simple && <BgCanvas accent={cfg.accent} isDark={isDark} />}
 
         <div style={{
           position: 'relative', zIndex: 2,

@@ -3,8 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Loader from '../layout/Loader';
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute = ({ children, guestAllowed = true }) => {
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -16,6 +16,12 @@ const ProtectedRoute = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Handle guest restriction for sensitive routes (e.g. settings)
+  if (user?.isGuest && !guestAllowed) {
+    console.warn('[ProtectedRoute] Guest tried to access restricted route, redirecting to dashboard');
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

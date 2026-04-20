@@ -26,7 +26,11 @@ const generateToken = (id) => {
  * Register a new user
  */
 export const signup = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, confirmPassword } = req.body;
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({ error: "Passwords don't match" });
+  }
 
   try {
     const userExists = await User.findOne({ email });
@@ -114,11 +118,11 @@ export const getMe = async (req, res) => {
  * Social Auth Success Handler
  * Generates token and redirects to frontend
  */
-export const socialLoginSuccess = (req, res) => {
+export const socialLoginSuccess = async (req, res) => {
   console.log('[Auth] Social Login Success for:', req.user?.email);
   if (req.user) {
     const token = generateToken(req.user.id);
-    const code = tokenStore.createCode(token);
+    const code = await tokenStore.createCode(token);
     const frontendUrl = process.env.FRONTEND_URL;
     res.redirect(`${frontendUrl}/login?code=${code}`);
   } else {
@@ -134,7 +138,7 @@ export const socialLoginSuccess = (req, res) => {
  */
 export const exchangeToken = async (req, res) => {
   const { code } = req.query;
-  const token = tokenStore.exchange(code);
+  const token = await tokenStore.exchange(code);
 
   if (!token) {
     return res.status(400).json({ error: 'Invalid or expired exchange code' });

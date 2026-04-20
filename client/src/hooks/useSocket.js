@@ -12,27 +12,18 @@ const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 // Socket Singleton instance
 let globalSocket = null;
 
-export function useSocket() {
+export function useSocket(isAuthReady = true) {
   const [isConnected, setIsConnected] = useState(globalSocket?.connected || false);
   const [connectionError, setConnectionError] = useState(null);
   const listenersRef = useRef(new Map());
 
   // Handle global connection state
   useEffect(() => {
-    if (!globalSocket) {
-      console.log('[Socket] Initializing singleton connection...');
-      const token = localStorage.getItem('tb-token') || 'guest';
-      globalSocket = io(`${SOCKET_URL}/teaching`, {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 10,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 20000,
-        autoConnect: true,
-        auth: { token },
-      });
-    }
+    if (!isAuthReady) return;
+
+    // Socket initialization is now handled exclusively by syncSocketAuth() 
+    // to ensure the connection always starts with the correct authentication state.
+    if (!globalSocket) return;
 
     const socket = globalSocket;
     
@@ -62,6 +53,9 @@ export function useSocket() {
       console.log('[Socket] Connected:', socket.id);
       setIsConnected(true);
       setConnectionError(null);
+
+      // SEC-18: Broadcast connection event to AuthContext to refresh API keys/prefs
+      window.dispatchEvent(new CustomEvent('tb-refresh-api-prefs'));
     };
 
     const onDisconnect = (reason) => {
@@ -106,7 +100,7 @@ export function useSocket() {
       socket.off('connect_error', onError);
       socket.off('reconnect_attempt', onRetry);
     };
-  }, []);
+  }, [isAuthReady]);
 
   // Emit an event (relies on socket.io's native offline buffering)
   const emit = useCallback((event, data) => {
@@ -179,15 +173,28 @@ export function disconnectSocket() {
  * Call this immediately after login/logout to ensure zero-delay auth transition.
  */
 export function syncSocketAuth(newToken = 'guest') {
-  if (globalSocket) {
-    if (globalSocket.auth?.token !== newToken) {
-      console.log(`[Socket] Explicit auth sync: Updating token...`);
-      globalSocket.auth = { token: newToken };
-      if (globalSocket.connected) {
-        globalSocket.disconnect().connect();
-      } else {
-        globalSocket.connect();
-      }
+  if (!globalSocket) {
+    console.log(`[Socket] Initializing explicitly via syncSocketAuth...`);
+    globalSocket = io(`${SOCKET_URL}/teaching`, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      autoConnect: true,
+      auth: { token: newToken },
+    });
+    return;
+  }
+
+  if (globalSocket.auth?.token !== newToken) {
+    console.log(`[Socket] Explicit auth sync: Updating token...`);
+    globalSocket.auth = { token: newToken };
+    if (globalSocket.connected) {
+      globalSocket.disconnect().connect();
+    } else {
+      globalSocket.connect();
     }
   }
 }

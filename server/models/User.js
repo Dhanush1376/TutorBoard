@@ -103,6 +103,10 @@ const userSchema = new mongoose.Schema({
       hardStop: { type: Boolean, default: true },
     },
   },
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Hash password before saving

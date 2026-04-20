@@ -1,7 +1,7 @@
 export const createUiSlice = (set, get) => ({
   showFloatingSidebar: false,
   showMinimap:         false,
-  selectedAgent:       localStorage.getItem('tutorboard-agent') || 'Universal',
+  selectedAgent:       'Universal',
   layoutView:          'left',
   isSidebarOpen:       true,
   activeTool:          'select',
@@ -37,10 +37,43 @@ export const createUiSlice = (set, get) => ({
   textAlign:           'center',
   textBgColor:         'transparent',
   globalOverlay:       { isActive: false, message: '', type: 'sync' }, // sync | network | error
+  
+  // Appearance Expansion
+  globalFont:          'geist',
+  glassIntensity:      80,
+  canvasTone:          'neutral',
+  motionMode:          'fluid',
+
+  globalAlert: { 
+    isActive: false, 
+    type: 'info', 
+    title: '', 
+    message: '', 
+    confirmLabel: 'OK', 
+    cancelLabel: 'Cancel',
+    onConfirm: null,
+    onCancel: null
+  },
 
 
   setLayoutView:    (view) => set({ layoutView: view }),
   setGlobalOverlay: (overlay) => set({ globalOverlay: { ...get().globalOverlay, ...overlay } }),
+  
+  showAlert: (config) => set({ 
+    globalAlert: { 
+      isActive: true, 
+      type: 'info', 
+      confirmLabel: 'OK', 
+      cancelLabel: 'Cancel', 
+      onConfirm: null, 
+      onCancel: null, 
+      ...config 
+    } 
+  }),
+  
+  closeAlert: () => set(s => ({ 
+    globalAlert: { ...s.globalAlert, isActive: false } 
+  })),
 
   setSidebarOpen:   (open)  => set({ isSidebarOpen: open }),
   toggleSidebar:    ()      => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
@@ -86,6 +119,11 @@ export const createUiSlice = (set, get) => ({
   setTextUnderline: (v)     => set({ textUnderline: v }),
   setTextAlign:     (align) => set({ textAlign: align }),
   setTextBgColor:   (color) => set({ textBgColor: color }),
+
+  setGlobalFont:    (font) => set({ globalFont: font }),
+  setGlassIntensity:(val)  => set({ glassIntensity: val }),
+  setCanvasTone:    (tone) => set({ canvasTone: tone }),
+  setMotionMode:    (mode) => set({ motionMode: mode }),
 
   takeSnapshot: () => {
     const { canvasObjects, canvasConnections, currentStepIndex, canvasTransform, canvasSteps } = get();

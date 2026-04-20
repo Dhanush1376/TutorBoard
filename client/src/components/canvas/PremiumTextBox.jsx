@@ -4,9 +4,8 @@ import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './CanvasContext';
 import { Handle, RotateHandle, DeleteHandle } from './ElementHandles.jsx';
 import FloatingFormatBar from './FloatingFormatBar.jsx';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 
-const CW = 800;
-const CH = 600;
 
 const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
   const { 
@@ -27,10 +26,10 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
   const styles = obj.styles || {};
   
   // Normalized stored bounds
-  const px = (obj.x ?? 0.5) * CW;
-  const py = (obj.y ?? 0.5) * CH;
-  const pbw = obj.w ? (obj.w <= 1 ? obj.w * CW : obj.w) : (obj.scale || 1) * 200;
-  const pbh = obj.h ? (obj.h <= 1 ? obj.h * CH : obj.h) : (obj.scale || 1) * 60;
+  const px = (obj.x ?? 0.5) * CANVAS_WIDTH;
+  const py = (obj.y ?? 0.5) * CANVAS_HEIGHT;
+  const pbw = obj.w ? (obj.w <= 1 ? obj.w * CANVAS_WIDTH : obj.w) : (obj.scale || 1) * 200;
+  const pbh = obj.h ? (obj.h <= 1 ? obj.h * CANVAS_HEIGHT : obj.h) : (obj.scale || 1) * 60;
   
   // Local state for dragging and immediate input response
   const [localContent, setLocalContent] = useState(content);
@@ -54,8 +53,9 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
         textareaRef.current.setSelectionRange(localContent.length, localContent.length);
       }
     } else {
-      // Small delay to ensure pointer events clear before unlocking
-      setTimeout(() => setInteracting(false), 50);
+      // Use rAF to ensure pointer events clear at the end of the frame before unlocking.
+      // This prevents the 50ms race condition where rapid clicking is blocked.
+      requestAnimationFrame(() => setInteracting(false));
     }
   }, [isEditing, setInteracting]);
 
@@ -234,10 +234,10 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
           setLocalDim(prevDim => {
             setLocalRot(prevRot => {
               onUpdate(obj.id, { 
-                x: prevPos.x / CW, 
-                y: prevPos.y / CH, 
-                w: prevDim.w / CW, 
-                h: prevDim.h / CH,
+                x: prevPos.x / CANVAS_WIDTH, 
+                y: prevPos.y / CANVAS_HEIGHT, 
+                w: prevDim.w / CANVAS_WIDTH, 
+                h: prevDim.h / CANVAS_HEIGHT,
                 rotation: prevRot
               });
               return prevRot;
