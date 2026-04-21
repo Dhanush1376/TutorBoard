@@ -130,6 +130,26 @@ export const createSessionSlice = (set, get) => ({
     });
   },
 
+  startSession: (topic) => set({
+    topic,
+    machineState:       STATES.GENERATING,
+    timeline:           null,
+    canvasObjects:      [],
+    canvasConnections:  [],
+    canvasSteps:        [],
+    currentStepIndex:   0,
+    totalSteps:         0,
+    isPlaying:          false,
+    isPaused:           false,
+    doubtResponse:      null,
+    doubtHistory:       [],
+    snapshots:          {},
+    error:              null,
+    greetingMessage:    null,
+    generationProgress: null,
+    isTimelineReady:    false,
+  }),
+
   resetTeaching: () => set({
     machineState:       STATES.IDLE,
     timeline:           null,
@@ -165,7 +185,6 @@ export const createSessionSlice = (set, get) => ({
     generationProgress: null,
     machineState:       STATES.IDLE,
     sessionId:          null,
-    chatSessionId:      null,
     topic:              '',
 
     activeDoubtId:      null,

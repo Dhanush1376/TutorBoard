@@ -46,9 +46,14 @@ const RETHINK_PHASES = [
   'Finalizing clarification',
 ];
 
-const DrawingOverlay = ({ isVisible, isRethinking }) => {
+const DrawingOverlay = ({ isVisible, isRethinking, isSidebarOpen, layoutView }) => {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const phases = isRethinking ? RETHINK_PHASES : DRAWING_PHASES;
+  
+  // Calculate padding to center the overlay over the active canvas area
+  // Assuming sidebar is roughly 340px wide when open
+  const isRightHand = layoutView === 'right';
+  const paddingStyle = isSidebarOpen ? (isRightHand ? { paddingRight: 340 } : { paddingLeft: 340 }) : {};
 
   useEffect(() => {
     if (!isVisible) { setPhaseIndex(0); return; }
@@ -67,6 +72,7 @@ const DrawingOverlay = ({ isVisible, isRethinking }) => {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4 }}
           className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+          style={paddingStyle}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -102,32 +108,22 @@ const DrawingOverlay = ({ isVisible, isRethinking }) => {
               </svg>
             </div>
 
-            {/* Phase text */}
-            <div className="h-8 flex items-center">
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={`drawing-phase-${phaseIndex}`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-sm font-medium text-[var(--text-secondary)] tracking-wide"
-                >
-                  {phases[phaseIndex]}
-                </motion.p>
-              </AnimatePresence>
-            </div>
-
-            {/* Animated dots */}
-            <div className="flex gap-1.5">
-              {[0, 1, 2].map(i => (
-                <motion.div
-                  key={i}
-                  className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)]"
-                  animate={{ opacity: [0.2, 1, 0.2] }}
-                  transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
-                />
-              ))}
+            <motion.span 
+              key={phaseIndex}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="text-sm font-medium text-[var(--text-secondary)]"
+            >
+              {phases[phaseIndex]}
+            </motion.span>
+            
+            <div className="w-48 h-1 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-[var(--accent-primary)]"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              />
             </div>
           </motion.div>
         </motion.div>
@@ -208,40 +204,26 @@ const Home = ({ isDark }) => {
           agent: 'TutorBoard AI',
           messages: s.messages || [],
           canvasState: s.canvasState || [],
+          canvasSteps: s.canvasSteps || [],
+          pinnedNotes: s.pinnedNotes || [],
           preferences: s.preferences || {},
           chatSessionId: s._id
         }));
 
-        const store = useTutorStore.getState();
-        const updatedManifest = { ...store.sessionManifest };
-        let manifestChanged = false;
-
         setChatHistory(prev => {
-          // If fetching first page, replace. Otherwise append.
-          const base = pageNum === 1 ? [] : prev;
-          const localMap = new Map(base.map(s => [s.id, s]));
-          const merged = [...base];
-
-          for (const cloud of cloudSessions) {
-            const localInManifest = updatedManifest[cloud.id] || Object.values(updatedManifest).find(m => m.chatSessionId === cloud.id);
-            if (localInManifest) {
-              const localKey = Object.keys(updatedManifest).find(k => updatedManifest[k] === localInManifest);
-              if (!updatedManifest[localKey].chatSessionId) {
-                updatedManifest[localKey].chatSessionId = cloud.id;
-                manifestChanged = true;
-              }
-            }
-
-            if (!localMap.has(cloud.id)) {
-              merged.push(cloud);
-            }
+          if (pageNum === 1) {
+            // MongoDB is the source of truth on fresh login/refresh.
+            // Only preserve truly local in-progress sessions that have not yet been persisted.
+            const cloudIds = new Set(cloudSessions.map(s => s.id));
+            const localOnlySessions = prev.filter(
+              s => s.id && s.id.startsWith('session-') && !cloudIds.has(s.id)
+            );
+            return [...localOnlySessions, ...cloudSessions];
           }
-          return merged;
+          // For subsequent pages, append without duplicates.
+          const existingIds = new Set(prev.map(s => s.id));
+          return [...prev, ...cloudSessions.filter(s => !existingIds.has(s.id))];
         });
-
-        if (manifestChanged) {
-          useTutorStore.setState({ sessionManifest: updatedManifest });
-        }
 
         setPagination({
           page: pg.page,
@@ -257,47 +239,9 @@ const Home = ({ isDark }) => {
     }
   }, [isAuthenticated, token, user?.isGuest]);
 
-  // Initial load
+  // Initial load — fetch all sessions from MongoDB (source of truth)
   useEffect(() => {
     fetchCloudSessions(1);
-    
-    // EXTREME DIAGNOSTIC (REQUIRED)
-    const userId = user?._id || user?.id;
-    console.log(">>> [STRICT CHAT] 🔍 MOUNT AUDIT <<<");
-    console.log(">>> Resolved ID (virtual):", user?.id);
-    console.log(">>> Resolved _ID (primary):", user?._id);
-    console.log(">>> Target Global ID:", userId);
-    console.log(">>> Is Authenticated:", isAuthenticated);
-    console.log(">>> Is Guest Group:", user?.isGuest);
-    console.log(">>> API Base URL:", API_URL);
-
-    // STRICT HYDRATION (REQUIRED)
-    if (isAuthenticated && !user?.isGuest && userId) {
-       async function loadStrictHistory() {
-         console.log(`>>> [STRICT CHAT] 🌐 Fetching history from: ${API_URL}/api/chat/${userId}`);
-         try {
-           const res = await fetch(`${API_URL}/api/chat/${userId}`);
-           const data = await res.json();
-           
-           if (data.code === 'DB_OFFLINE') {
-             console.error(">>> [STRICT CHAT] 🚨 Connectivity Alert: Database is offline (IP Whitelisting?)");
-             setIsDbOffline(true);
-             return;
-           }
-
-           if (data.messages && data.messages.length > 0) {
-             console.log(`>>> [STRICT CHAT] ✨ SUCCESS: Restored ${data.messages.length} messages.`);
-             setIsDbOffline(false);
-           } else {
-             console.log(`>>> [STRICT CHAT] ℹ️ No history document exists yet for this user.`);
-             setIsDbOffline(false);
-           }
-         } catch (err) {
-           console.error('>>> [STRICT CHAT] ❌ Hydration Fetch Error:', err.message);
-         }
-       }
-       loadStrictHistory();
-    }
   }, [fetchCloudSessions, isAuthenticated, user]);
 
   const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore();
@@ -373,9 +317,6 @@ const Home = ({ isDark }) => {
         
         // ── PERSISTENCE: Save AI response IMMEDIATELY ──
         saveCurrentSession(next[idx].messages);
-        
-        // STRICT PERSISTENCE CALL (REQUIRED)
-        saveToStrictChat({ role: 'assistant', content: latest.answer });
         
         return next;
       });
@@ -508,54 +449,19 @@ const Home = ({ isDark }) => {
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
   const messages = activeSession?.messages || [];
 
-  // STRICT PERSISTENCE HELPER (REQUIRED)
-  const saveToStrictChat = useCallback(async (msg) => {
-    const userId = user?._id || user?.id;
-    
-    // Detailed pre-flight reasoning
-    if (!isAuthenticated) return console.log(">>> [STRICT CHAT] ⏭️ Abort: User not authenticated.");
-    if (user?.isGuest) return console.log(">>> [STRICT CHAT] ⏭️ Abort: Skipping persistence for Guest session.");
-    if (!userId) return console.error(">>> [STRICT CHAT] ❌ CRITICAL: userId could not be resolved from AuthContext.");
-    
-    // Smart URL detection for local development parity
-    const targetUrl = `${API_URL}/api/chat/save`;
-    console.log(`>>> [STRICT CHAT] 🚀 SENDING: ${msg.role} to ${targetUrl}`);
-    
-    try {
-      const res = await fetch(targetUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, message: msg })
-      });
-      
-      const responseData = await res.json().catch(() => ({}));
-
-      if (res.ok) {
-        console.log(`>>> [STRICT CHAT] ✅ CLOUD SAVE VERIFIED:`, responseData);
-        setIsDbOffline(false);
-      } else {
-        console.error(`>>> [STRICT CHAT] ❌ SERVER REJECTED SAVE:`, res.status, responseData);
-        if (responseData.code === 'DB_OFFLINE') {
-          console.error(">>> [STRICT CHAT] 🚨 Root Cause Identified: Backend DB Connection is Offline (IP Whitelisting Issue).");
-          setIsDbOffline(true);
-        }
-      }
-    } catch (err) {
-      console.error('>>> [STRICT CHAT] ❌ NETWORK ERROR: Fetch failed to reach server.', err.message);
-    }
-  }, [isAuthenticated, user]);
-
   // ── Persistent Cloud Sync (Immediate Actions) ──
-  const saveCurrentSession = useCallback(async (updatedMessages = messages) => {
-    if (!isAuthenticated || user?.isGuest || !token) return;
+  // Returns the canonical MongoDB session ID after save (may differ from activeChatId if it was a local temp ID).
+  const saveCurrentSession = useCallback(async (updatedMessages = messages, overrideSessionId = null) => {
+    if (!isAuthenticated || user?.isGuest || !token) return null;
     
-    // We target by activeChatId (local UUID or Mongo ID)
+    const targetSessionId = overrideSessionId || activeChatId;
     const payload = {
-      sessionId: activeChatId,
+      sessionId: targetSessionId,
       title: activeSession?.title || timeline?.title || 'New Session',
       messages: updatedMessages,
       canvasState: canvasObjects || [],
       canvasSteps: canvasSteps || [],
+      pinnedNotes: pinnedNotes || [],
       preferences: {
         drawColor, drawWidth,
         textToolSize, noteToolSize,
@@ -564,7 +470,7 @@ const Home = ({ isDark }) => {
       }
     };
 
-    console.log(`[Persistence] 💾 Immediate save triggered for session: ${activeChatId}`);
+    console.log(`[Persistence] 💾 Saving session: ${targetSessionId}`);
     
     try {
       const res = await fetch(`${API_URL}/api/sessions`, {
@@ -578,17 +484,28 @@ const Home = ({ isDark }) => {
       
       if (res.ok) {
         const saved = await res.json();
-        // If we were using a local UUID, swap it for the permanent Mongo ID
-        if (saved._id && saved._id !== activeChatId) {
+        setIsDbOffline(false);
+        // Always keep the store's chatSessionId in sync with the real Mongo ID.
+        // This is the key link that lets useSessionSync and startSession target
+        // the correct document on subsequent saves and socket events.
+        if (saved._id) {
+          useTutorStore.getState().setChatSessionId(saved._id);
+        }
+        // If we were using a local UUID, swap it for the permanent Mongo ID everywhere.
+        if (saved._id && saved._id !== targetSessionId) {
           console.log(`[Persistence] 🔗 Adopting permanent Mongo ID: ${saved._id}`);
           setActiveChatId(saved._id);
-          // Update history entry with the new ID
-          setChatHistory(prev => prev.map(s => s.id === activeChatId ? { ...s, id: saved._id, chatSessionId: saved._id } : s));
+          setChatHistory(prev => prev.map(s => 
+            s.id === targetSessionId ? { ...s, id: saved._id, chatSessionId: saved._id } : s
+          ));
+          return saved._id;
         }
+        return saved._id || targetSessionId;
       }
     } catch (err) {
       console.error('[Persistence] ❌ Immediate save failed:', err);
     }
+    return null;
   }, [activeChatId, activeSession, timeline, canvasObjects, canvasSteps, isAuthenticated, user, token, messages]);
 
 
@@ -652,7 +569,16 @@ const Home = ({ isDark }) => {
 
   // Sidebar shortcut removed per user request
 
-  const handleNewChat = () => { setActiveChatId(null); setPrompt(''); endSession(); };
+  const handleNewChat = () => { 
+    useTutorStore.getState().triggerSync();
+    // Allow the sync effect a tick to read the current session ID before clearing it
+    setTimeout(() => {
+      useTutorStore.getState().setChatSessionId(null);
+      setActiveChatId(null);
+      setPrompt(''); 
+      endSession(); 
+    }, 50);
+  };
   const handleSelectChat = async (id) => {
     setActiveChatId(id);
     setActiveView('chat');
@@ -660,20 +586,28 @@ const Home = ({ isDark }) => {
     // 1. Immediate local restore (minimal snapshot)
     const localSession = chatHistory.find(s => s.id === id);
     if (localSession) {
+      console.log(`[Home] Restoring local session: ${id} (${localSession.messages?.length || 0} messages)`);
       if (localSession.canvasState) {
         useTutorStore.getState().setCanvasSnapshot({ 
           canvasObjects: localSession.canvasState, 
           canvasSteps: localSession.steps || [], 
           totalSteps: localSession.steps?.length || 0 
         });
+        useTutorStore.setState({ pinnedNotes: localSession.pinnedNotes || [] });
       }
       if (localSession.messages) {
+        // Sync the store's doubtHistory so AI context is restored for sequels
         useTutorStore.setState({ doubtHistory: localSession.messages });
+      }
+      
+      // Update store's session mapping
+      if (localSession.chatSessionId) {
+        useTutorStore.getState().setChatSessionId(localSession.chatSessionId);
       }
     }
 
     // 2. Full pedagogical restoration from Cloud (SEC-20)
-    if (isAuthenticated && !user?.isGuest && id && !id.startsWith('msg-')) {
+    if (isAuthenticated && !user?.isGuest && id && !id.startsWith('session-')) {
       try {
         console.log(`[Home] 🔄 Fetching full pedagogical state for session ${id}...`);
         const res = await fetch(`${API_URL}/api/sessions/${id}`, {
@@ -822,30 +756,50 @@ const Home = ({ isDark }) => {
     const userPrompt = prompt.trim();
     setPrompt('');  // Clear input immediately
     setActiveView('chat');
+    isSubmittingRef.current = true;
 
-    const workingSessionId = activeChatId || `session-${Date.now()}`;
-    if (!activeChatId) setActiveChatId(workingSessionId);
+    try {
+      const workingSessionId = activeChatId || `session-${Date.now()}`;
+      if (!activeChatId) setActiveChatId(workingSessionId);
 
-    // Trim and capitalize session title
-    const sessionTitle = userPrompt.substring(0, 40).trim().replace(/^(.)/, (m) => m.toUpperCase());
+      // Trim and capitalize session title
+      const sessionTitle = userPrompt.substring(0, 40).trim().replace(/^(.)/, (m) => m.toUpperCase());
 
-    const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
-    setChatHistory(prev => {
-      const idx = prev.findIndex(s => s.id === workingSessionId);
-      if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
-      const next = [...prev]; next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; return next;
-    });
+      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
+      
+      // Update local history immediately for UI responsiveness
+      setChatHistory(prev => {
+        const idx = prev.findIndex(s => s.id === workingSessionId);
+        if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
+        const next = [...prev]; 
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; 
+        return next;
+      });
 
-    // ── PRO-ACTIVE PERSISTENCE: Save user message IMMEDIATELY ──
-    const targetSession = chatHistory.find(s => s.id === workingSessionId);
-    const updatedMessages = targetSession ? [...targetSession.messages, userMessage] : [userMessage];
-    saveCurrentSession(updatedMessages);
+      // ── PERSISTENCE (Backgrounded): Save to MongoDB ──
+      // We do NOT 'await' this so that the AI response can start immediately.
+      // This solves the 'ignored AI' issue when DB latency is high.
+      if (isAuthenticated && !user?.isGuest && token) {
+        saveCurrentSession([userMessage], workingSessionId)
+          .catch(err => console.error('[Home] Background persistence failed:', err));
+      }
 
-    // STRICT PERSISTENCE CALL (REQUIRED)
-    saveToStrictChat({ role: 'user', content: userPrompt });
-
-    // ── Enforce fully visual answers for EVERY question ──
-    startSession(userPrompt, userPrompt, activeMode);
+      // ── AI ENGINE: Trigger immediately ──
+      const history = chatHistory.find(s => s.id === workingSessionId)?.messages || [];
+      const isFollowUp = activeChatId && history.length > 0;
+      
+      if (isFollowUp) {
+        askDoubt(userPrompt, activeMode);
+      } else {
+        startSession(userPrompt, userPrompt, activeMode);
+      }
+    } catch (err) {
+      console.error('[Home] handleSubmit failed:', err);
+      showAlert?.('Something went wrong. Please try again.');
+    } finally {
+      // Small delay to prevent double-submission if the user clicks rapidly
+      setTimeout(() => { isSubmittingRef.current = false; }, 500);
+    }
   };
 
   // ── Manual Note Creation ──
@@ -1095,6 +1049,8 @@ const Home = ({ isDark }) => {
         <DrawingOverlay 
           isVisible={machineState === STATES.GENERATING || isDoubtProcessing} 
           isRethinking={isDoubtProcessing}
+          isSidebarOpen={isSidebarOpen}
+          layoutView={layoutView}
         />
 
         {/* ── G. Doubt Resume Pill (Contextual) ── */}

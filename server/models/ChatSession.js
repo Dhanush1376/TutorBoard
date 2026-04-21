@@ -14,6 +14,14 @@ const messageSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  hasCanvas: {
+    type: Boolean,
+    default: false,
+  },
+  canvasSnapshot: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
 });
 
 const chatSessionSchema = new mongoose.Schema({
@@ -49,6 +57,10 @@ const chatSessionSchema = new mongoose.Schema({
   preferences: {
     type: Object, // Store tool settings (colors, sizes, grid prefs)
     default: {},
+  },
+  pinnedNotes: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
   },
   // ─── Engine State Persistence ───
   topic: {

@@ -130,7 +130,7 @@ const AuthLanding = () => {
         {isSuccess ? (
           <CinematicTransition
             key="cinematic"
-            userName={user?.name || formData.name || formData.email?.split('@')[0] || 'Explorer'}
+            userName={user?.name || formData.name || (formData.email ? formData.email.split('@')[0] : 'Explorer')}
             isLogin={isLogin}
             onComplete={() => navigate('/dashboard')}
           />

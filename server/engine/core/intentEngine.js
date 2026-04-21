@@ -16,7 +16,7 @@ import { sanitizeTopicForPrompt } from '../../utils/validation/topicValidator.js
  * BUG FIX #50: Now accepts selectedAgent parameter and uses appropriate model
  * BUG FIX #56: Sanitizes prompt to prevent injection attacks
  */
-export async function detectIntent(prompt, explicitMode, selectedAgent) {
+export async function detectIntent(prompt, explicitMode, selectedAgent, userConfig) {
   // 1. Explicit UI Mode always wins (for manual triggers)
   if (explicitMode && ['quick', 'deep', 'test_me'].includes(explicitMode)) {
     return {
@@ -43,6 +43,7 @@ export async function detectIntent(prompt, explicitMode, selectedAgent) {
 
     const res = await requestCompletion({
       model: modelToUse,
+      userConfig,
       messages: [
         {
           role: 'system',

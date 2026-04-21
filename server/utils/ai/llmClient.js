@@ -72,15 +72,29 @@ function setCachedResponse(key, response) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function resolveModelId(modelId) {
-  if (!modelId || modelId === 'OpenRouter' || modelId === 'OpenRouterAI') {
-    return getModel();
+export function resolveModelId(modelId) {
+  const normalizedId = (modelId || '').trim();
+  
+  if (!normalizedId || 
+      normalizedId === 'OpenRouter' || 
+      normalizedId === 'OpenRouterAI' || 
+      normalizedId === 'Universal' ||
+      normalizedId.includes('Universal')) {
+    
+    // Default to the performant Claude 3.5 Sonnet if no specific model is resolved
+    const defaultModel = getModel();
+    if (defaultModel === 'Universal' || !defaultModel) {
+      return 'anthropic/claude-3-5-sonnet-20241022';
+    }
+    return defaultModel;
   }
+
   const mapping = {
     'Bytez': 'anthropic/claude-opus-4-5',
-    'Bytez (Opus)': 'anthropic/claude-opus-4-5'
+    'Bytez (Opus)': 'anthropic/claude-opus-4-5',
+    'Tutubot': 'openai/gpt-4o'
   };
-  return mapping[modelId] || modelId;
+  return mapping[normalizedId] || normalizedId;
 }
 
 function classifyError(err) {
@@ -168,11 +182,11 @@ function createTimeoutController(timeoutMs = DEFAULT_TIMEOUT_MS) {
 }
 
 // ── Execute with retry ────────────────────────────────────────────────────────
-async function executeWithRetry(client, provider, params, maxRetries = 2, signal) {
+async function executeWithRetry(client, provider, params, maxRetries = 2, signal, customBaseUrl) {
   let lastError;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await executeProviderRequest(client, provider, params, signal);
+      return await executeProviderRequest(client, provider, params, signal, customBaseUrl);
     } catch (err) {
       lastError = err;
       if (err.name === 'AbortError') throw err;
@@ -250,7 +264,7 @@ export async function requestCompletion({ model, messages, temperature, maxToken
   // ── Strategy 1: User's Custom API Key ──
   if (userConfig?.useCustomApi && userConfig?.getApiKey && userConfig?.provider) {
     const provider = userConfig.provider;
-    const userModel = userConfig.model || model;
+    const userModel = resolveModelId(userConfig.model || model);
 
     if (circuitBreaker.isAvailable(provider)) {
       const timeout = createTimeoutController(DEFAULT_TIMEOUT_MS);
@@ -261,7 +275,7 @@ export async function requestCompletion({ model, messages, temperature, maxToken
         const client = createProviderClient(provider, userConfig.getApiKey(), userConfig.baseUrl);
         const result = await executeWithRetry(client, provider, {
           model: userModel, messages, temperature, maxTokens, tools, response_format, onStream
-        }, 2, timeout.signal);
+        }, 2, timeout.signal, userConfig.baseUrl);
 
         timeout.cleanup();
         const responseTimeMs = Date.now() - startTime;
@@ -305,6 +319,13 @@ export async function requestCompletion({ model, messages, temperature, maxToken
         logUsage({ userId, provider, model: userModel, responseTimeMs: Date.now() - startTime, taskType, success: false, errorType, isCustomKey: true });
 
         if (!userConfig.fallbackToDefault) throw err;
+        
+        // Log fallback event for diagnostics
+        const fallbackReason = `${err.message} (${errorType})`;
+        import('fs').then(fs => {
+          fs.appendFileSync('DEBUG_ERRORS.log', `[AI:Fallback] ${new Date().toISOString()} | User: ${userId} | Reason: ${fallbackReason} | Switching to OpenRouter\n`);
+        }).catch(() => {});
+        
         console.log('[AI] Falling back to platform default (OpenRouter)...');
       }
     } else {
@@ -445,7 +466,7 @@ export async function requestCompletionRaced(params, primaryConfig, secondaryCon
       const client = createProviderClient(config.provider, config.getApiKey(), config.baseUrl);
       const result = await executeProviderRequest(client, config.provider, {
         model: config.model, messages, temperature, maxTokens, tools, response_format,
-      }, controller.signal);
+      }, controller.signal, config.baseUrl);
 
       clearTimeout(timer);
       const responseTimeMs = Date.now() - startTime;
@@ -509,6 +530,7 @@ export const getModelForAgent = (agent) => {
     'Bytez (Opus)': 'anthropic/claude-opus-4-5',
     'OpenRouter': getModel(),
     'OpenRouterAI': getModel(),
+    'Universal': getModel(),
   };
   return mapping[agent] || null;
 };

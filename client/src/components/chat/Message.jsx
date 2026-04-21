@@ -181,7 +181,7 @@ const Message = ({
                   className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-xl transition-all shadow-sm active:scale-95 group font-semibold tracking-wide text-[11px] uppercase"
                 >
                   <Sparkles size={12} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
-                  Open Canvas
+                  Deep Visual Dive
                 </button>
               )}
             </>

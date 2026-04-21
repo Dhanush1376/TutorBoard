@@ -69,6 +69,57 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
   const { setMode, setCurrentThemeId } = useTheme();
 
+  const hydrateSettings = useCallback((userData, isHydratedFlag) => {
+    try {
+      if (userData?.settings && !isHydratedFlag) {
+        console.log('[Auth] Hydrating settings for user:', userData.email);
+        const { general, appearance, canvas, privacy } = userData.settings;
+        
+        if (general) {
+          if (general.nickname) safeStorage.setItem('tb-nickname', general.nickname);
+          if (general.role) safeStorage.setItem('tb-role', general.role);
+          if (general.preferences) safeStorage.setItem('tb-ai-preferences', general.preferences);
+          safeStorage.setItem('tb-notif-completion', String(general.notifCompletion ?? true));
+          safeStorage.setItem('tb-notif-sound', String(general.notifSound ?? true));
+        }
+        
+        if (appearance) {
+          if (appearance.theme && typeof setMode === 'function') {
+            setMode(appearance.theme);
+          }
+          if (appearance.themeId && typeof setCurrentThemeId === 'function') {
+            setCurrentThemeId(appearance.themeId);
+          }
+          useTutorStore.setState({
+            showMinimap: appearance.showMinimap ?? true,
+            showGrid: appearance.showGrid ?? true,
+            layoutView: appearance.layoutView || 'left'
+          });
+        }
+        
+        if (canvas) {
+          useTutorStore.setState({
+            drawWidth: canvas.drawWidth || 4,
+            textToolSize: canvas.textToolSize || 24,
+            gridType: canvas.gridType || 'dots',
+            isSnapToGrid: canvas.isSnapToGrid || false,
+            noteColor: canvas.noteColor || '#fef9c3',
+            noteSize: canvas.noteSize || 'M'
+          });
+        }
+        
+        if (privacy) {
+          safeStorage.setItem('tb-cloud-sync', String(privacy.cloudSync ?? true));
+          safeStorage.setItem('tb-local-history', String(privacy.localHistory ?? true));
+        }
+
+        sessionStorage.setItem('tb-settings-hydrated', 'true');
+      }
+    } catch (err) {
+      console.warn('[Auth] Hydration failed:', err);
+    }
+  }, [setMode, setCurrentThemeId]);
+
   // Verify token on mount
   useEffect(() => {
     console.log('[Auth] Starting verification effect...');
@@ -179,52 +230,7 @@ export const AuthProvider = ({ children }) => {
             // BUG FIX: Immediately sync socket auth with verified token
             syncSocketAuth(storedToken);
 
-            // Hydrate settings ONLY on fresh browser session/tab open
-            if (data.user?.settings && !isHydrated) {
-              console.log('[Auth] New session/tab detected: Hydrating settings from backend');
-              const { general, appearance, canvas, privacy } = data.user.settings;
-              if (general) {
-                if (general.nickname) safeStorage.setItem('tb-nickname', general.nickname);
-                if (general.role) safeStorage.setItem('tb-role', general.role);
-                if (general.preferences) safeStorage.setItem('tb-ai-preferences', general.preferences);
-                safeStorage.setItem('tb-notif-completion', String(general.notifCompletion ?? true));
-                safeStorage.setItem('tb-notif-sound', String(general.notifSound ?? true));
-              }
-              if (appearance) {
-                if (appearance.theme && typeof setMode === 'function') {
-                  setMode(appearance.theme);
-                }
-                if (appearance.themeId && typeof setCurrentThemeId === 'function') {
-                  setCurrentThemeId(appearance.themeId);
-                }
-                try {
-                  useTutorStore.setState({
-                    showMinimap: appearance.showMinimap ?? true,
-                    showGrid: appearance.showGrid ?? true,
-                    layoutView: appearance.layoutView || 'left'
-                  });
-                } catch (e) { console.warn('[Auth] Store hydration failed (appearance):', e); }
-              }
-              if (canvas) {
-                try {
-                  useTutorStore.setState({
-                    drawWidth: canvas.drawWidth || 4,
-                    textToolSize: canvas.textToolSize || 24,
-                    gridType: canvas.gridType || 'dots',
-                    isSnapToGrid: canvas.isSnapToGrid || false,
-                    noteColor: canvas.noteColor || '#fef9c3',
-                    noteSize: canvas.noteSize || 'M'
-                  });
-                } catch (e) { console.warn('[Auth] Store hydration failed (canvas):', e); }
-              }
-              if (privacy) {
-                safeStorage.setItem('tb-cloud-sync', String(privacy.cloudSync ?? true));
-                safeStorage.setItem('tb-local-history', String(privacy.localHistory ?? true));
-              }
-
-              // SEC-16: Mark session as hydrated so we don't spam the API on internal re-renders
-              sessionStorage.setItem('tb-settings-hydrated', 'true');
-            }
+            hydrateSettings(data.user, isHydrated);
 
             // Hydrate API Prefs from parallel fetch
             if (apiRes && apiRes.ok) {
@@ -323,6 +329,9 @@ export const AuthProvider = ({ children }) => {
     safeStorage.setItem('tb-token', data.token);
     setToken(data.token);
     setUser(data.user);
+    
+    // Immediate hydration after login
+    hydrateSettings(data.user, false);
 
     // BUG FIX: Immediate socket sync after login
     try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after login'); }
@@ -347,6 +356,9 @@ export const AuthProvider = ({ children }) => {
     safeStorage.setItem('tb-token', data.token);
     setToken(data.token);
     setUser(data.user);
+    
+    // Immediate hydration after signup
+    hydrateSettings(data.user, false);
 
     // BUG FIX: Immediate socket sync after signup
     try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after signup'); }

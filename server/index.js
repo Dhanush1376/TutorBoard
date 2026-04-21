@@ -15,7 +15,6 @@ import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/session.js';
 import apikeyRoutes from './routes/apikeys.js';
 import userRoutes from './routes/user.js';
-import chatRoutes from './routes/chat.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
@@ -213,7 +212,6 @@ app.use('/api/auth', httpRateLimiter, dbCheck, authRoutes);
 app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
-app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

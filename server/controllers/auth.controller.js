@@ -75,11 +75,17 @@ export const signin = async (req, res) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.comparePassword(password))) {
+      // Return full user object for immediate hydration
+      const userObj = user.toObject();
+      delete userObj.password;
+      
       res.json({
         user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
+          id: userObj._id,
+          name: userObj.name,
+          email: userObj.email,
+          settings: userObj.settings || {},
+          apiPreferences: userObj.apiPreferences || {}
         },
         token: generateToken(user._id),
       });

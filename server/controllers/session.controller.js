@@ -204,16 +204,16 @@ export const beaconSave = async (req, res) => {
     }
 
     const updateFields = { lastUpdated: Date.now() };
-    if (data.title) updateFields.title = data.title;
-    if (data.messages) updateFields.messages = data.messages;
-    if (data.canvasState) updateFields.canvasState = data.canvasState;
-    if (data.canvasSteps) updateFields.canvasSteps = data.canvasSteps;
+    if (data.title !== undefined) updateFields.title = data.title;
+    if (data.messages !== undefined) updateFields.messages = data.messages;
+    if (data.canvasState !== undefined) updateFields.canvasState = data.canvasState;
+    if (data.canvasSteps !== undefined) updateFields.canvasSteps = data.canvasSteps;
     if (data.canvasVersion !== undefined) updateFields.canvasVersion = data.canvasVersion;
-    if (data.preferences) updateFields.preferences = data.preferences;
+    if (data.preferences !== undefined) updateFields.preferences = data.preferences;
 
     await ChatSession.findOneAndUpdate(
       { _id: sessionId, userId: decoded.id },
-      updateFields
+      { $set: updateFields }
     );
 
     res.status(204).end();

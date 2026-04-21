@@ -3,15 +3,16 @@ import sessionStore from '../../engine/core/sessionStore.js';
 import ChatSession from '../../models/ChatSession.js';
 import { generateTimeline, generateTextResponse, generateQuiz } from '../../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
-import { checkSocketRate, checkGuestUsage } from '../../middleware/rateLimiter.js';
+import { checkSocketRate, checkGuestUsage, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../../middleware/rateLimiter.js';
 import { sanitizeInput } from '../../utils/validation/sanitize.js';
 import { isGreeting } from '../../engine/agents/agentUtils.js';
 import { 
   syncToDatabase, 
   getRateKey, 
   withTimeout, 
-  resolveUserConfig, 
-  buildTimelinePayload 
+  resolveUserConfig,
+  buildTimelinePayload,
+  resolveModelId 
 } from '../utils.js';
 import { logActivity } from '../../controllers/session.controller.js';
 
@@ -75,11 +76,14 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       });
     }
 
-    // Resumption Logic
+    // Resumption / Linking Logic
     if (chatId) {
       try {
         const chatSession = await ChatSession.findOne({ _id: chatId, userId: socket.user?.id || socket.user?._id });
         if (chatSession) {
+          // Always link the engine session to this MongoDB document
+          await sessionStore.update(sessionId, { chatSessionId: chatSession._id });
+
           const restored = await sessionStore.restoreFromMongo(sessionId, chatSession);
           if (restored && restored.steps && restored.steps.length > 0) {
             console.log(`[WS] Resuming session ${sessionId} from ChatSession ${chatId}`);
@@ -102,12 +106,17 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
             socket.emit('session:db-id', { chatSessionId: chatSession._id.toString() });
             return;
           }
+
+          // chatId exists but no steps to resume — still confirm the link to client
+          socket.emit('session:db-id', { chatSessionId: chatSession._id.toString() });
+          await sessionStore.addMessage(sessionId, 'user', cleanTopic);
+          // Fall through to generation logic below
         }
       } catch (err) {
-        console.warn(`[WS] Resumption failed for chatId ${chatId}: ${err.message}`);
+        console.warn(`[WS] Resumption/linking failed for chatId ${chatId}: ${err.message}`);
       }
     } else if (socket.user && !socket.user.isGuest) {
-      // Create new ChatSession in MongoDB
+      // No chatId passed — create a new ChatSession in MongoDB
       try {
         const newMongoSession = await ChatSession.create({
           userId: socket.user.id || socket.user._id,
@@ -134,22 +143,28 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         console.error('[WS] Failed to create ChatSession:', err.message);
       }
 
+    } else {
+      console.log(`[${requestId}] [WS] Continuing as Guest session: ${sessionId}`);
     }
 
     // Generation Logic
     try {
+      if (!socket.user) {
+        console.warn(`[${requestId}] [WS] socket.user missing! Defaulting to guest context.`);
+        socket.user = { id: 'guest', isGuest: true };
+      }
+      const userConfig = await resolveUserConfig(socket, socket.user, cleanTopic);
+      
       let intentResult;
       if (isGreeting(cleanTopic)) {
         intentResult = { intent: 'quick', renderer: 'none', confidence: 1.0 };
       } else {
-        intentResult = await detectIntent(cleanTopic, activeMode, selectedAgent);
+        intentResult = await detectIntent(cleanTopic, activeMode, selectedAgent, userConfig);
       }
-      
-      const userConfig = await resolveUserConfig(socket, socket.user, cleanTopic);
 
       if (intentResult.intent === 'quick' || intentResult.intent === 'text_only') {
         const response = await withTimeout(
-          generateTextResponse(sessionId, cleanTopic, selectedAgent, userConfig),
+          generateTextResponse(sessionId, cleanTopic, resolveModelId(selectedAgent), userConfig),
           45000
         );
         machine.forceReset();
@@ -163,7 +178,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
 
       if (intentResult.intent === 'test_me') {
         const quiz = await withTimeout(
-          generateQuiz(sessionId, cleanTopic, (stage) => socket.emit('teaching:progress', { message: stage }), selectedAgent, userConfig),
+          generateQuiz(sessionId, cleanTopic, (stage) => socket.emit('teaching:progress', { message: stage }), resolveModelId(selectedAgent), userConfig),
           60000
         );
         socket.emit('teaching:quiz', quiz);
@@ -186,7 +201,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
             lastProgressAt = Date.now();
             if (chunk) socket.emit('teaching:progress-tokens', { stage, token: chunk });
             else socket.emit('teaching:progress', { message: stage });
-          }, selectedAgent, userConfig),
+          }, resolveModelId(selectedAgent), userConfig),
           240000
         );
 
@@ -199,7 +214,14 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         }
 
         const introMsg = `I've prepared a visual learning canvas for you on **${timeline.title}**. Dive in whenever you're ready!`;
-        await sessionStore.addMessage(sessionId, 'assistant', introMsg);
+        await sessionStore.addMessage(sessionId, 'assistant', introMsg, {
+          hasCanvas: true,
+          canvasSnapshot: {
+            canvasObjects: timeline.elements || timeline.objects || [],
+            canvasSteps: timeline.steps || timeline.timeline || [],
+            totalSteps: (timeline.steps || timeline.timeline || []).length
+          }
+        });
 
 
         await sessionStore.setTimeline(sessionId, timeline);
@@ -268,4 +290,3 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     }
   });
 }
-

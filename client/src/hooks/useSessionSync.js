@@ -31,43 +31,56 @@ export const useSessionSync = (chatMessages) => {
     layoutView, gridType, gridSize, showGrid,
     canvasVersion,
     syncTrigger,
-    setChatSessionId
+    setChatSessionId,
+    pinnedNotes,
   } = useTutorStore();
 
   const syncTimerRef = useRef(null);
   const lastSyncedRef = useRef(0);
   const fallbackTimerRef = useRef(null);
 
+  const latestRef = useRef({});
+  useEffect(() => {
+    latestRef.current = {
+      user, token, chatSessionId, topic, chatMessages,
+      canvasObjects, canvasSteps, canvasVersion,
+      drawColor, drawWidth, textToolSize, noteToolSize,
+      noteColor, noteSize, layoutView, gridType, gridSize, showGrid,
+      setChatSessionId, 
+      pinnedNotes
+    };
+  });
+
   const performSync = async (isBeacon = false) => {
+    const state = latestRef.current;
+    
     // ONLY sync for real users, skipping guests
-    if (!user || user.isGuest || !token || !chatSessionId) {
+    if (!state.user || state.user.isGuest || !state.token || !state.chatSessionId) {
       if (isBeacon) console.log('[Sync] Beacon skipped: Guest or No ID');
       return;
     }
 
     const payload = {
-      sessionId: chatSessionId,
-      title: topic || 'New Learning Session',
-      canvasState: canvasObjects || [],
-      canvasSteps: canvasSteps || [],
-      canvasVersion: canvasVersion || 0,
+      sessionId: state.chatSessionId,
+      title: state.topic || 'New Learning Session',
+      messages: state.chatMessages || [],
+      canvasState: state.canvasObjects || [],
+      canvasSteps: state.canvasSteps || [],
+      canvasVersion: state.canvasVersion || 0,
       preferences: {
-        drawColor, drawWidth,
-        textToolSize, noteToolSize,
-        noteColor, noteSize,
-        layoutView, gridType, gridSize, showGrid
-      }
+        drawColor: state.drawColor, drawWidth: state.drawWidth,
+        textToolSize: state.textToolSize, noteToolSize: state.noteToolSize,
+        noteColor: state.noteColor, noteSize: state.noteSize,
+        layoutView: state.layoutView, gridType: state.gridType, gridSize: state.gridSize, showGrid: state.showGrid
+      },
+      pinnedNotes: state.pinnedNotes || []
     };
-
-    if (chatMessages && chatMessages.length > 0) {
-      payload.messages = chatMessages;
-    }
 
     // Use Beacon for unload if supported
     if (isBeacon && typeof navigator !== 'undefined' && navigator.sendBeacon) {
       // Beacon doesn't support headers, so we append the token as a query param
       // The server's 'protect' middleware will be updated to handle this.
-      const url = `${API_URL}/api/sessions/beacon?_auth=${encodeURIComponent(token)}`;
+      const url = `${API_URL}/api/sessions/beacon?_auth=${encodeURIComponent(state.token)}`;
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
       const success = navigator.sendBeacon(url, blob);
       console.log(`[Sync] Beacon flush ${success ? 'queued' : 'failed'}`);
@@ -79,7 +92,7 @@ export const useSessionSync = (chatMessages) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${state.token}`
         },
         body: JSON.stringify(payload)
       });
@@ -89,9 +102,9 @@ export const useSessionSync = (chatMessages) => {
         
         // CRITICAL FOR SYNC: If we sent a local UUID and MongoDB created a real _id,
         // we MUST update our local tracking ID so future saves update the same document!
-        if (savedSession._id && savedSession._id !== chatSessionId) {
+        if (savedSession._id && savedSession._id !== state.chatSessionId) {
           console.log(`[Sync] Adopted MongoDB ID: ${savedSession._id}`);
-          setChatSessionId(savedSession._id);
+          state.setChatSessionId(savedSession._id);
         }
 
         console.log('[Sync] Session flushed to cloud successfully.');
@@ -119,11 +132,14 @@ export const useSessionSync = (chatMessages) => {
   }, [
     chatSessionId, topic, 
     canvasObjects?.length, 
-    getCanvasFingerprint(canvasObjects), // NEW: catch moves/color changes
+    getCanvasFingerprint(canvasObjects),
+    pinnedNotes?.length,
     canvasVersion, 
     doubtHistory?.length, 
     chatMessages?.length, 
-    user, token
+    user, token,
+    drawColor, drawWidth, textToolSize, noteToolSize, noteColor, noteSize,  // Toolbar prefs
+    layoutView, gridType, gridSize, showGrid                // UI prefs
   ]);
 
   // 2. Immediate Flush Trigger (e.g. on Logout)
@@ -162,5 +178,5 @@ export const useSessionSync = (chatMessages) => {
     };
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [chatSessionId, canvasObjects, chatMessages, token]);
+  }, []);
 };

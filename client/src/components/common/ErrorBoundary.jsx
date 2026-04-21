@@ -27,9 +27,9 @@ class ErrorBoundary extends Component {
     if (this.state.hasError) {
       // You can render any custom fallback UI
       return (
-        <div className="absolute inset-0 z-[2147483647] bg-[var(--bg-primary)] flex flex-col items-center justify-center">
-          <div className="bg-[var(--bg-secondary)] border border-red-500/20 rounded-3xl p-8 max-w-md w-full mx-6 shadow-2xl flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 mb-6">
+        <div className="fixed inset-0 z-[2147483647] bg-[var(--bg-primary)]/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
+          <div className="bg-[var(--bg-secondary)] border border-red-500/20 rounded-[32px] p-8 w-full max-w-lg shadow-[0_32px_64px_-16px_rgba(239,68,68,0.2)] flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 mb-6 border border-red-500/20">
               <AlertTriangle size={32} />
             </div>
             
@@ -58,10 +58,10 @@ class ErrorBoundary extends Component {
               )}
               <button
                 onClick={this.handleRetry}
-                className="flex-1 py-3 px-4 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 text-sm font-bold transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-red-500/20 to-red-600/20 text-red-100 hover:scale-[1.02] active:scale-[0.98] text-sm font-bold transition-all border border-red-500/30 flex items-center justify-center gap-2 shadow-lg shadow-red-500/10"
               >
                 <RotateCcw size={16} />
-                Retry
+                Restore Engine
               </button>
             </div>
           </div>

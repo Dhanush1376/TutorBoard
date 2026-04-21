@@ -347,7 +347,10 @@ export function useTeachingMachine(isAuthReady = true) {
   // ─── Actions ──────────────────────────────────────────────────────────────
   const startSession = useCallback((topicStr, initialQuestion, activeMode) => {
     storeStartSession(topicStr, initialQuestion);
-    emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode });
+    // Pass the existing chatSessionId (if any) so the server can resume/link
+    // the correct MongoDB document instead of creating a duplicate.
+    const existingChatId = useTutorStore.getState().chatSessionId;
+    emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode, chatId: existingChatId || undefined });
   }, [emit, storeStartSession, selectedAgent]);
 
   const askDoubt = useCallback((question, activeMode) => {

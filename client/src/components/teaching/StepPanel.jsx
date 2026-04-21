@@ -417,7 +417,7 @@ const MistakeFlow = ({ content, cfg }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 10 }}>
       {wrongMatch && (
-        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 11, color: '#fca5a5', lineHeight: 1.5 }}>
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 11, color: '#ef4444', lineHeight: 1.5 }}>
           <span style={{ fontWeight: 800, marginRight: 6, opacity: 0.7 }}>✗ WRONG</span>
           {wrongMatch[1]}
         </div>
@@ -425,7 +425,7 @@ const MistakeFlow = ({ content, cfg }) => {
       {rightMatch && (
         <motion.div
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
-          style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.22)', fontSize: 11, color: '#86efac', lineHeight: 1.5 }}
+          style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.22)', fontSize: 11, color: '#22c55e', lineHeight: 1.5 }}
         >
           <span style={{ fontWeight: 800, marginRight: 6, opacity: 0.7 }}>✓ RIGHT</span>
           {rightMatch[2]}
@@ -447,7 +447,7 @@ const MicroSteps = ({ steps: ms, cfg }) => (
         <span style={{ fontSize: 9, fontWeight: 800, width: 18, height: 18, borderRadius: '50%', background: cfg.accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
           {i + 1}
         </span>
-        <span style={{ fontSize: 11, color: '#cbd5e1', lineHeight: 1.5 }}>{s}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{s}</span>
       </motion.div>
     ))}
   </div>
@@ -461,13 +461,13 @@ const SocraticGate = ({ content, cfg }) => {
   const answer   = dot > 0 ? content.slice(dot + 2) : '';
   return (
     <div>
-      <p style={{ fontSize: 12, color: '#e2e8f0', lineHeight: 1.6, margin: '0 0 10px', fontStyle: 'italic' }}>{question}</p>
+      <p style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6, margin: '0 0 10px', fontStyle: 'italic' }}>{question}</p>
       {answer && (
         <AnimatePresence>
           {revealed ? (
             <motion.div key="answer"
               initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-              style={{ padding: '10px 13px', borderRadius: 10, background: cfg.bg, border: `1px solid ${cfg.border}`, fontSize: 11.5, color: '#e2e8f0', lineHeight: 1.6 }}
+              style={{ padding: '10px 13px', borderRadius: 10, background: cfg.bg, border: `1px solid ${cfg.border}`, fontSize: 11.5, color: 'var(--text-primary)', lineHeight: 1.6 }}
             >
               {answer}
             </motion.div>
@@ -567,7 +567,7 @@ const StepPanel = ({
                 marginBottom: 14,
                 padding: '10px 12px',
                 borderRadius: 12,
-                background: 'rgba(15, 23, 42, 0.3)',
+                background: 'var(--bg-tertiary)',
                 border: `1px solid ${cfg.border}`,
                 borderLeftWidth: 3,
                 borderLeftColor: cfg.accent,
@@ -579,10 +579,10 @@ const StepPanel = ({
                 </span>
                 <span style={{ fontSize: 9, opacity: 0.5 }}>{cfg.icon}</span>
               </div>
-              <h5 style={{ fontSize: 11, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px', letterSpacing: '0.01em' }}>
+              <h5 style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px', letterSpacing: '0.01em' }}>
                 {node.title}
               </h5>
-              <p style={{ fontSize: 10, color: 'rgba(148, 163, 184, 0.8)', lineHeight: 1.5, margin: 0 }}>
+              <p style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
                 {node.content}
               </p>
             </motion.div>
@@ -591,7 +591,7 @@ const StepPanel = ({
 
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, marginTop: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: 'rgba(100,116,139,0.73)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
+          <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
             Step {currentStepIndex + 1} / {totalSteps}
           </span>
 
@@ -620,7 +620,7 @@ const StepPanel = ({
         )}
 
         {/* Step title */}
-        <h4 style={{ fontSize: 13.5, fontWeight: 700, color: '#e2e8f0', margin: '0 0 11px', lineHeight: 1.4 }}>
+        <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 11px', lineHeight: 1.4 }}>
           {stepTitle}
         </h4>
 
@@ -629,7 +629,7 @@ const StepPanel = ({
           <SocraticGate content={narrationText} cfg={cfg} />
         ) : isMistake ? (
           <>
-            <p style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.65, margin: '0 0 2px' }}>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65, margin: '0 0 2px' }}>
               {displayedText}{!done && <Cursor accent={cfg.accent} />}
             </p>
             <MistakeFlow content={narrationText} cfg={cfg} />
@@ -637,7 +637,7 @@ const StepPanel = ({
         ) : isMicroStep && microSteps ? (
           <MicroSteps steps={microSteps} cfg={cfg} />
         ) : (
-          <p style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.65, margin: 0, minHeight: 46 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0, minHeight: 46 }}>
             {displayedText}{!done && <Cursor accent={cfg.accent} />}
           </p>
         )}
@@ -650,10 +650,10 @@ const StepPanel = ({
               transition={{ delay: done ? 0.05 : 0.55 }}
               style={{
                 marginTop: 12, padding: '9px 14px',
-                background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.22)',
+                background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
                 borderRadius: 10, fontSize: 12.5,
                 fontFamily: "'JetBrains Mono','Fira Code',monospace",
-                color: '#a5b4fc', textAlign: 'center', letterSpacing: '0.02em', wordBreak: 'break-all',
+                color: 'var(--text-secondary)', textAlign: 'center', letterSpacing: '0.02em', wordBreak: 'break-all',
               }}
             >
               {currentStep?.keyFormula || keyFormula}

@@ -25,6 +25,8 @@ import {
   EllipseShape, DiamondShape, StarShape, HexagonShape, CalloutShape, CloudShape
 } from '../renderers/CinematicShapes.jsx';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
+const CW = CANVAS_WIDTH;
+const CH = CANVAS_HEIGHT;
 import FloatingFormatBar from './FloatingFormatBar.jsx';
 import InlineEditor from './InlineEditor.jsx';
 import PremiumTextBox from './PremiumTextBox.jsx';
@@ -489,10 +491,10 @@ function SVGCanvasRenderer({
           transition={{ duration: 0.35 }}
           className="absolute top-4 left-0 right-0 flex items-center justify-center gap-3 pointer-events-none z-10"
         >
-          <span className="text-xs font-mono text-slate-500 tabular-nums">
+          <span className="text-xs font-mono text-[var(--text-tertiary)] tabular-nums">
             {totalSteps > 0 ? `${stepNumber}/${totalSteps}` : ''}
           </span>
-          <span className="text-sm font-semibold text-slate-300 max-w-[540px] truncate">
+          <span className="text-sm font-semibold text-[var(--text-secondary)] max-w-[540px] truncate">
             {stepTitle}
           </span>
         </motion.div>
@@ -643,26 +645,6 @@ function SVGCanvasRenderer({
           Z={Z} tx={tx} ty={ty}
         />
       )}
-
-      {/* Step narration bar */}
-      <AnimatePresence mode="wait">
-        {stepNarration && (
-          <motion.div
-            key={`narr-${currentStepIndex}`}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.4, delay: 0.15 }}
-            className="absolute bottom-6 left-8 right-8 pointer-events-none"
-          >
-            <div className="bg-slate-900 border border-slate-700/60 rounded-xl px-5 py-3 text-center">
-              <p className="text-sm text-slate-200 leading-relaxed font-medium">
-                {stepNarration}
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

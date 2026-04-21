@@ -16,7 +16,7 @@
  *      a friendly explanation even when visuals are minimal.
  */
 
-import { requestCompletion, getModel, getTextModel } from '../../utils/ai/llmClient.js';
+import { requestCompletion, getModel, getTextModel, resolveModelId } from '../../utils/ai/llmClient.js';
 import { isGreeting, buildDoubtPrompt } from '../agents/index.js';
 import { safeParse } from '../../utils/core/parser.js';
 import sessionStore from './sessionStore.js';
@@ -230,7 +230,7 @@ function postProcessTimeline(raw, topic, planningResult) {
 
 // ─── Main Generation Entry Point ──────────────────────────────────────────────
 export async function generateTimeline(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null) {
-  const session = sessionStore.get(sessionId);
+  const session = await sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
   // Dynamically derive level from user mastery history
@@ -314,7 +314,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
 }
 
 export async function generateQuiz(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null) {
-  const session = sessionStore.get(sessionId);
+  const session = await sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
   onProgress('Building personalized quiz...');
@@ -367,7 +367,7 @@ export async function generateQuiz(sessionId, topic, onProgress = () => {}, mode
 
 // ─── Doubt/Text Handlers ──────────────────────────────────────────────────────
 export async function handleDoubt(sessionId, question, modelId = null, userConfig = null) {
-  const session = sessionStore.get(sessionId);
+  const session = await sessionStore.get(sessionId);
   const topic = session?.topic || 'General Education';
   const domain = session?.domain || 'general';
 
@@ -384,12 +384,14 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
       domain,
       currentFrames,
       priorDoubts: session?.doubtHistory || [],
-      classification,
     });
 
     const result = await requestCompletion({
       model: modelId || getModel(),
-      messages: [{ role: 'system', content: prompt }],
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: question }
+      ],
       temperature: 0.3,
       maxTokens: 1000,
       responseMimeType: 'application/json',
@@ -407,6 +409,7 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
       followUp: parsed?.followUp || null,
     };
   } catch (err) {
+    import('fs').then(fs => fs.appendFileSync('DEBUG_ERRORS.log', `[handleDoubt] ${err.stack}\n`)).catch(()=>{});
     console.error('[PedagogyEngine] Doubt handling failed:', err.message);
     return {
       answer: 'I encountered a minor glitch while analyzing that. Could you rephrase your question?',
@@ -419,13 +422,13 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
 
 export async function generateTextResponse(sessionId, prompt, modelId = null, userConfig = null) {
   try {
-    const session = sessionStore.get(sessionId);
+    const session = await sessionStore.get(sessionId);
     const topic = session?.topic || 'General Discussion';
 
     console.log(`[PedagogyEngine] 💬 Generating text response for: "${prompt.substring(0, 30)}..."`);
 
     const response = await requestCompletion({
-      model: modelId || getTextModel(),
+      model: resolveModelId(modelId || getTextModel()),
       messages: [
         {
           role: 'system',
@@ -443,6 +446,7 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
 
     return { answer: response.content || "I'm here to help!", type: 'text' };
   } catch (err) {
+    import('fs').then(fs => fs.appendFileSync('DEBUG_ERRORS.log', `[generateTextResponse] ${err.stack}\n`)).catch(()=>{});
     console.error('[PedagogyEngine] Text response failed:', err.message);
     return {
       answer: "I'm having a bit of trouble connecting. Could you try asking that again?",

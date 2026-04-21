@@ -60,12 +60,17 @@ class SessionStore {
   /**
    * Appends a message to the persistent chat history
    */
-  async addMessage(id, role, content) {
+  async addMessage(id, role, content, metadata = {}) {
     const session = await this.get(id);
     if (!session) return;
     
     const messages = Array.isArray(session.messages) ? session.messages : [];
-    const newMessage = { role, content, timestamp: new Date() };
+    const newMessage = { 
+      role, 
+      content, 
+      timestamp: new Date(),
+      ...metadata 
+    };
     
     // Prevent document bloat: keep last 100 messages in active session
     const updatedMessages = [...messages, newMessage].slice(-100);

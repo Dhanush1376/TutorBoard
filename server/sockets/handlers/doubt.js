@@ -3,7 +3,7 @@ import sessionStore from '../../engine/core/sessionStore.js';
 import Doubt from '../../models/Doubt.js';
 import { handleDoubt, generateTextResponse } from '../../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
-import { checkSocketRate, checkGuestUsage } from '../../middleware/rateLimiter.js';
+import { checkSocketRate, checkGuestUsage, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../../middleware/rateLimiter.js';
 import { sanitizeInput } from '../../utils/validation/sanitize.js';
 import { isGreeting } from '../../engine/agents/agentUtils.js';
 import { replanRemainingSteps } from '../../engine/core/adaptivePlanner.js';
@@ -11,7 +11,8 @@ import {
   syncToDatabase, 
   getRateKey, 
   withTimeout, 
-  resolveUserConfig 
+  resolveUserConfig,
+  resolveModelId 
 } from '../utils.js';
 
 export function registerDoubtHandlers(socket, machine, sessionId) {
@@ -55,25 +56,25 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
     socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
     try {
+      const userConfig = await resolveUserConfig(socket, socket.user, cleanQuestion);
+      
       let intentResult;
       if (isGreeting(cleanQuestion)) {
         intentResult = { intent: 'quick', renderer: 'none', confidence: 1.0 };
       } else {
-        intentResult = await detectIntent(cleanQuestion, activeMode, selectedAgent);
+        intentResult = await detectIntent(cleanQuestion, activeMode, selectedAgent, userConfig);
       }
-      
-      const userConfig = await resolveUserConfig(socket, socket.user, cleanQuestion);
 
       let response;
       if (intentResult.intent === 'quick' || intentResult.intent === 'text_only') {
         const textRes = await withTimeout(
-          generateTextResponse(sessionId, cleanQuestion, selectedAgent, userConfig),
+          generateTextResponse(sessionId, cleanQuestion, resolveModelId(selectedAgent), userConfig),
           45000
         );
         response = { answer: textRes.answer, isRelevant: true, hasVisuals: false, visualUpdate: null };
       } else {
         response = await withTimeout(
-          handleDoubt(sessionId, cleanQuestion, selectedAgent, userConfig),
+          handleDoubt(sessionId, cleanQuestion, resolveModelId(selectedAgent), userConfig),
           30000
         );
       }
@@ -91,7 +92,16 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
 
       // Persist interactions to conversation history
       await sessionStore.addMessage(sessionId, 'user', cleanQuestion);
-      await sessionStore.addMessage(sessionId, 'assistant', response.answer);
+      
+      const sessionAfterDoubt = await sessionStore.get(sessionId);
+      await sessionStore.addMessage(sessionId, 'assistant', response.answer, {
+        hasCanvas: !!response.hasVisuals,
+        canvasSnapshot: response.hasVisuals ? {
+          canvasObjects: sessionAfterDoubt?.canvasState || [],
+          canvasSteps: sessionAfterDoubt?.canvasSteps   || [],
+          totalSteps: sessionAfterDoubt?.canvasSteps?.length || 0
+        } : null
+      });
       await syncToDatabase(sessionId);  // CRITICAL: Flush to MongoDB
 
 
