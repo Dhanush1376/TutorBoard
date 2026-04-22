@@ -41,7 +41,7 @@ export const createCanvasSlice = (set, get) => ({
   setCanvasLocked:    (locked) => set({ isCanvasLocked: locked }),
   setInteracting:     (active) => set({ isInteracting: active }),
   setSelectedElements: (ids)   => set({ selectedElementIds: ids }),
-  setCurrentStep: (index)      => set({ currentStepIndex: index }),
+  setCurrentStep: (index)      => set({ currentStepIndex: index, deltaState: null }),
   setDeltaState:  (delta)      => set({ deltaState: delta }),
 
   setTimeline: (data) => {

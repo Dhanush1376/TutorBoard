@@ -43,6 +43,19 @@ jobs:
         cd client
         npm ci
         
+    - name: Security Audit (Server)
+      run: |
+        cd server
+        npm audit --audit-level=high
+        
+    - name: Security Audit (Client)
+      run: |
+        cd client
+        npm audit --audit-level=high
+
+    - name: Secret Scanning (Gitleaks)
+      run: npx gitleaks detect --source . --verbose --no-git
+
     - name: Run Server Tests
       run: |
         cd server

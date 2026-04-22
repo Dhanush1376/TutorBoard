@@ -18,8 +18,10 @@ const NarrationBar = ({ text, isGenerating }) => {
 
   useEffect(() => {
     if (isGenerating) {
-      // In generation mode, we show the tokens directly
-      // But for a cinematic feel, we might want to still animate them
+      // In generation mode, we use the streaming tokens from the store
+      const allWords = narrationTokens.split(' ');
+      setWords(allWords);
+      setVisibleCount(allWords.length);
       return;
     }
 
@@ -50,7 +52,7 @@ const NarrationBar = ({ text, isGenerating }) => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [text, isGenerating]);
+  }, [text, isGenerating, narrationTokens]);
 
   const renderWord = (word, index) => {
     // Basic highlight logic: **word** or important-looking terms

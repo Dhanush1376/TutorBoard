@@ -1,8 +1,12 @@
 /**
- * MatterRenderer v4.0 — High-Performance Physics Visualization Engine
+ * MatterRenderer v5.0 — Premium Physics Visualization Engine
  * 
- * Replaces the stub PhysicsRenderer with a real Matter.js engine.
- * Handles gravity, collisions, and constrained motion for educational visuals.
+ * High-fidelity Matter.js implementation with:
+ * - Real-time physics simulation (gravity, friction, restitution)
+ * - Interactive Mouse Constraints (drag and toss objects)
+ * - Link/Spring rendering for connections
+ * - Aesthetic Glow Orbs and Glass Blocks
+ * - Bounded World (Invisible walls)
  */
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
@@ -18,184 +22,219 @@ export default function MatterRenderer({
   connections: extConnections, 
   steps: extSteps 
 }) {
-  const elements = extElements || timeline?.elements || [];
+  const elements = extElements || timeline?.elements || timeline?.objects || [];
+  const connections = extConnections || timeline?.connections || [];
   const steps = extSteps || timeline?.timeline || timeline?.steps || [];
   const currentStep = steps[currentStepIndex] || {};
 
   const sceneRef = useRef(null);
   const engineRef = useRef(Matter.Engine.create());
-  const renderRef = useRef(null);
   const runnerRef = useRef(null);
-  const [bodies, setBodies] = useState([]);
+  const [renderState, setRenderState] = useState({ bodies: [], constraints: [] });
 
-  // 1. Initialize Engine
+  // 1. Initialize Engine & World Bounds
   useEffect(() => {
     const engine = engineRef.current;
-    engine.gravity.y = 0; // Default to zero-G for most educational diagrams
+    const world = engine.world;
+    engine.gravity.y = (currentStep.gravity !== undefined) ? currentStep.gravity : 1; 
 
     const runner = Matter.Runner.create();
     runnerRef.current = runner;
     Matter.Runner.run(runner, engine);
 
+    // Create World Bounds
+    const wallOptions = { isStatic: true, render: { visible: false }, friction: 0.5, restitution: 0.5 };
+    const ground = Matter.Bodies.rectangle(CW / 2, CH + 25, CW, 50, wallOptions);
+    const ceiling = Matter.Bodies.rectangle(CW / 2, -25, CW, 50, wallOptions);
+    const leftWall = Matter.Bodies.rectangle(-25, CH / 2, 50, CH, wallOptions);
+    const rightWall = Matter.Bodies.rectangle(CW + 25, CH / 2, 50, CH, wallOptions);
+    
+    Matter.World.add(world, [ground, ceiling, leftWall, rightWall]);
+
+    // Add Mouse Control
+    if (sceneRef.current) {
+      const mouse = Matter.Mouse.create(sceneRef.current);
+      const mouseConstraint = Matter.MouseConstraint.create(engine, {
+        mouse: mouse,
+        constraint: {
+          stiffness: 0.2,
+          render: { visible: false }
+        }
+      });
+      Matter.World.add(world, mouseConstraint);
+    }
+
     return () => {
       Matter.Runner.stop(runner);
       Matter.Engine.clear(engine);
+      Matter.World.clear(world);
     };
   }, []);
 
-  // 2. Synchronize Elements to Matter Bodies
+  // 2. Sync Elements to Matter Bodies
   useEffect(() => {
     const engine = engineRef.current;
     const world = engine.world;
 
-    // Clear existing bodies
-    Matter.World.clear(world);
+    // Remove old non-wall bodies
+    const oldBodies = world.bodies.filter(b => b.label !== 'Rectangle Body' && !b.isStatic);
+    const oldConstraints = world.constraints.filter(c => c.label !== 'Mouse Constraint');
+    Matter.World.remove(world, [...oldBodies, ...oldConstraints]);
 
-    const newBodies = elements.map(el => {
+    const newBodiesMap = new Map();
+
+    const bodies = elements.map(el => {
       const x = (el.x ?? 0.5) * CW;
       const y = (el.y ?? 0.5) * CH;
       const scale = el.scale || 1;
+      const type = (el.type || el.shape || 'circle').toLowerCase();
       
       let body;
-      const type = (el.type || el.shape || 'circle').toLowerCase();
+      const commonOptions = {
+        label: el.id,
+        id: el.id,
+        isStatic: el.isStatic || false,
+        friction: el.friction ?? 0.1,
+        restitution: el.restitution ?? 0.8,
+        density: el.density ?? 0.001
+      };
 
-      if (type.includes('rect') || type.includes('block') || type.includes('box')) {
-        const w = (el.w || 0.2) * CW * scale;
+      if (type.includes('rect') || type.includes('box') || type.includes('block')) {
+        const w = (el.w || 0.15) * CW * scale;
         const h = (el.h || 0.1) * CH * scale;
-        body = Matter.Bodies.rectangle(x, y, w, h, {
-          label: el.id,
-          id: el.id, // String ID as extra prop
-          isStatic: el.isStatic || false,
-          friction: 0.1,
-          restitution: 0.8
-        });
+        body = Matter.Bodies.rectangle(x, y, w, h, commonOptions);
       } else {
-        const r = (el.r || 0.05) * CW * scale;
-        body = Matter.Bodies.circle(x, y, r, {
-          label: el.id,
-          id: el.id,
-          isStatic: el.isStatic || false,
-          friction: 0.1,
-          restitution: 0.8
-        });
+        const r = (el.r || 0.04) * CW * scale;
+        body = Matter.Bodies.circle(x, y, r, commonOptions);
       }
 
-      // Physics logic for specific types
-      if (type === 'planet' || type === 'orbit') {
-        body.isStatic = false;
-        // Gravity logic handled in tick
-      }
-
+      newBodiesMap.set(el.id, body);
       return body;
     });
 
-    Matter.World.add(world, newBodies);
-    
-    // Add ground if needed
-    const ground = Matter.Bodies.rectangle(CW / 2, CH + 50, CW, 100, { isStatic: true });
-    Matter.World.add(world, ground);
+    Matter.World.add(world, bodies);
 
-    setBodies(newBodies);
-  }, [elements]);
+    // Sync Connections to Constraints
+    const constraints = connections.map(conn => {
+      const bodyA = newBodiesMap.get(conn.from);
+      const bodyB = newBodiesMap.get(conn.to);
+      if (!bodyA || !bodyB) return null;
 
-  // 3. Animation Loop Sync
-  const [renderState, setRenderState] = useState([]);
+      return Matter.Constraint.create({
+        bodyA,
+        bodyB,
+        stiffness: conn.stiffness || 0.1,
+        damping: conn.damping || 0.05,
+        length: conn.length ? conn.length * CW : Matter.Vector.magnitude(Matter.Vector.sub(bodyA.position, bodyB.position)),
+        label: `${conn.from}-${conn.to}`
+      });
+    }).filter(Boolean);
+
+    Matter.World.add(world, constraints);
+
+  }, [elements, connections]);
+
+  // 3. Render Loop
   useEffect(() => {
     let frameId;
     const update = () => {
-      const engine = engineRef.current;
+      const world = engineRef.current.world;
       
-      // Apply custom forces for orbits/waves
-      bodies.forEach(body => {
-        const el = elements.find(e => e.id === body.id || e.id === body.label);
-        if (!el) return;
-
-        const type = (el.type || el.shape || '').toLowerCase();
-        
-        if (type === 'planet' || type === 'orbit') {
-          const sunPos = { x: CW / 2, y: CH / 2 };
-          const dist = Matter.Vector.magnitude(Matter.Vector.sub(sunPos, body.position));
-          const force = Matter.Vector.mult(Matter.Vector.normalise(Matter.Vector.sub(sunPos, body.position)), 0.0005 * body.mass);
-          Matter.Body.applyForce(body, body.position, force);
-        }
-
-        if (type === 'wave') {
-          const t = performance.now() / 1000;
-          const yOffset = Math.sin(t * 5 + body.position.x * 0.05) * 2;
-          Matter.Body.translate(body, { x: 0, y: yOffset });
-        }
+      setRenderState({
+        bodies: world.bodies.filter(b => b.id !== undefined && !b.isStatic).map(b => ({
+          id: b.label,
+          x: b.position.x,
+          y: b.position.y,
+          angle: b.angle,
+          type: elements.find(e => e.id === b.label)?.type || 'circle'
+        })),
+        constraints: world.constraints.filter(c => c.label !== 'Mouse Constraint').map(c => ({
+          id: c.label,
+          x1: c.bodyA.position.x + (c.pointA?.x || 0),
+          y1: c.bodyA.position.y + (c.pointA?.y || 0),
+          x2: c.bodyB.position.x + (c.pointB?.x || 0),
+          y2: c.bodyB.position.y + (c.pointB?.y || 0)
+        }))
       });
-
-      setRenderState(bodies.map(b => ({
-        id: b.id || b.label,
-        x: b.position.x,
-        y: b.position.y,
-        angle: b.angle
-      })));
 
       frameId = requestAnimationFrame(update);
     };
-
     update();
     return () => cancelAnimationFrame(frameId);
-  }, [bodies, elements]);
-
-  // 4. Viewport Logic
-  const { camera } = useMemo(() => {
-    const cam = currentStep.cameraFocus || { x: 0.5, y: 0.5, zoom: 1 };
-    return { camera: cam };
-  }, [currentStep]);
-
-  const Z = Math.min(2.0, Math.max(0.5, camera.zoom || 1));
-  const tx = CW / 2 - (camera.x || 0.5) * CW * Z;
-  const ty = CH / 2 - (camera.y || 0.5) * CH * Z;
+  }, [elements]);
 
   return (
-    <div className="relative w-[800px] h-[600px] overflow-hidden bg-[var(--bg-primary)] rounded-xl border border-[var(--border-color)]">
-      <motion.div 
-        className="absolute inset-0 origin-top-left"
-        animate={{ x: tx, y: ty, scale: Z }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-      >
-        {renderState.map(rs => {
-          const el = elements.find(e => e.id === rs.id);
-          if (!el) return null;
+    <div 
+      ref={sceneRef}
+      className="relative w-[800px] h-[600px] overflow-hidden bg-[var(--bg-primary)] rounded-3xl border border-white/10 shadow-2xl"
+      style={{ cursor: 'crosshair' }}
+    >
+      {/* Background Grid */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+        style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-          const type = (el.type || el.shape || 'circle').toLowerCase();
-          const isBlock = type.includes('rect') || type.includes('block') || type.includes('box');
-          const scale = el.scale || 1;
-          const w = (el.w || 0.2) * CW * scale;
-          const h = (el.h || 0.1) * CH * scale;
-          const r = (el.r || 0.05) * CW * scale;
+      <svg className="absolute inset-0 pointer-events-none" width={CW} height={CH}>
+        {renderState.constraints.map(c => (
+          <line 
+            key={c.id} 
+            x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2} 
+            stroke="rgba(255,255,255,0.2)" 
+            strokeWidth="2" 
+            strokeDasharray="4 4"
+          />
+        ))}
+      </svg>
 
-          return (
-            <div 
-              key={rs.id}
-              style={{
-                position: 'absolute',
-                left: rs.x,
-                top: rs.y,
-                transform: `translate(-50%, -50%) rotate(${rs.angle}rad)`,
-                width: isBlock ? w : r * 2,
-                height: isBlock ? h : r * 2,
-                backgroundColor: el.color || '#3b82f6',
-                borderRadius: isBlock ? '8px' : '50%',
-                boxShadow: `0 0 20px ${el.color || '#3b82f6'}44`,
-                border: '2px solid rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                textAlign: 'center'
-              }}
-            >
-              {el.label}
-            </div>
-          );
-        })}
-      </motion.div>
+      {renderState.bodies.map(b => {
+        const el = elements.find(e => e.id === b.id);
+        if (!el) return null;
+        const color = el.color || '#3b82f6';
+        const isRect = (el.type || '').includes('rect') || (el.type || '').includes('box');
+        const scale = el.scale || 1;
+        const w = (el.w || 0.15) * CW * scale;
+        const h = (el.h || 0.1) * CH * scale;
+        const r = (el.r || 0.04) * CW * scale;
+
+        return (
+          <div 
+            key={b.id}
+            style={{
+              position: 'absolute',
+              left: b.x,
+              top: b.y,
+              transform: `translate(-50%, -50%) rotate(${b.angle}rad)`,
+              width: isRect ? w : r * 2,
+              height: isRect ? h : r * 2,
+              backgroundColor: `${color}33`,
+              borderRadius: isRect ? '8px' : '50%',
+              border: `2px solid ${color}`,
+              boxShadow: `0 0 15px ${color}44`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: 600,
+              userSelect: 'none'
+            }}
+          >
+            {el.label}
+          </div>
+        );
+      })}
+
+      {/* Narrative Overlay */}
+      <AnimatePresence>
+        {currentStep.narration && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-6 left-6 right-6 p-4 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10"
+          >
+            <p className="text-sm text-white/90 italic text-center">"{currentStep.narration}"</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -70,11 +70,13 @@ const NoteTool = (props) => {
     const offsetY = (Math.random() * 60) - 30;
     
     const sidebarWidth = isSidebarOpen ? 340 : 0;
-    const centerX = (window.innerWidth + sidebarWidth) / 2;
-    const centerY = window.innerHeight / 2;
+    const canvasWidthPx = window.innerWidth - sidebarWidth;
+    const canvasHeightPx = window.innerHeight;
 
-    const worldX = (centerX - x) / scale + offsetX;
-    const worldY = (centerY - y) / scale + offsetY;
+    // Normalize screen center to 0-1 virtual space
+    // Adding a small scatter offset (in pixels) then dividing by virtual dimensions
+    const worldX = 0.5 + (offsetX / 800);
+    const worldY = 0.5 + (offsetY / 600);
 
     addNoteToCanvas(worldX, worldY);
   };

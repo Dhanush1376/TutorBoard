@@ -185,8 +185,12 @@ export function useTeachingMachine(isAuthReady = true) {
     // Generation progress message
     cleanups.push(on('teaching:progress', (data) => {
       console.log(`[Machine] Progress: ${data.message}`);
-      // Optionally expose this to a progress indicator in the UI via a store action
-      // For now logging is sufficient — the GENERATING state is already shown
+      setNarrationTokens(''); // Clear previous tokens when stage changes
+    }));
+
+    // Streaming tokens for narration (Phase 1/2)
+    cleanups.push(on('teaching:progress-tokens', (data) => {
+      setNarrationTokens(data.text || '');
     }));
 
     // Doubt acknowledged by server
@@ -218,10 +222,8 @@ export function useTeachingMachine(isAuthReady = true) {
     // Doubt Delta received (Phase 3)
     cleanups.push(on('teaching:doubt-delta', (data) => {
       console.log(`[Machine] Doubt Delta: ${data.actions?.length} actions`);
+      if (data.actions) mutateCanvasObjects(data.actions);
       addDoubt(data._question, data.answer, true, { actions: data.actions, isDelta: true });
-      
-      // The VisualScriptInterpreter in the renderer will pick up these actions
-      // via the deltaState or currentStep update
       setDoubtProcessing(false);
     }));
 

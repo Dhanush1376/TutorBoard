@@ -37,23 +37,9 @@ export const AW = ({
   const dur = animation?.duration || 0.5;
   const delay = animation?.delay || 0;
 
-  const initial =
-    props.initial ||
-    (aType === "slide"
-      ? { x: cx - 60, opacity: 0 }
-      : aType === "scale"
-        ? { scale: 0.1, opacity: 0 }
-        : aType === "draw"
-          ? { opacity: 0 }
-          : aType === "drop"
-            ? { scale: 0.2, rotate: -3, opacity: 0 }
-            : aType === "bounce"
-              ? { scale: 0.5, opacity: 0 }
-              : { opacity: 0, y: 8 });
-
   const animate = props.animate || {
-    x: cx,
-    y: cy,
+    x: cx * CW,
+    y: cy * CH,
     opacity,
     scale,
     rotate: rotation,
@@ -63,6 +49,20 @@ export const AW = ({
         ? { type: "spring", stiffness: 500, damping: 15, delay }
         : { duration: dur, delay, ease: EASE_CINEMATIC },
   };
+
+  const initial =
+    props.initial ||
+    (aType === "slide"
+      ? { x: cx * CW - 60, opacity: 0 }
+      : aType === "scale"
+        ? { scale: 0.1, opacity: 0 }
+        : aType === "draw"
+          ? { opacity: 0 }
+          : aType === "drop"
+            ? { scale: 0.2, rotate: -3, opacity: 0 }
+            : aType === "bounce"
+              ? { scale: 0.5, opacity: 0 }
+              : { opacity: 0, y: (cy * CH) + 8 });
 
   const handleRotatePointerDown = (e) => {
     e.stopPropagation();

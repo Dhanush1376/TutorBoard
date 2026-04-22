@@ -98,10 +98,15 @@ export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, ty
   
   // High-fidelity fix for freehand paths
   if (type === 'path' && path) {
+    // High-fidelity fix: Convert points array to SVG path string if it's not already serialized
+    const pathData = Array.isArray(path) 
+      ? (path.length < 2 ? '' : `M ${path[0].x},${path[0].y} ` + path.slice(1).map(p => `L ${p.x},${p.y}`).join(' '))
+      : path;
+
     return (
       <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={0} cy={0}>
         <motion.path 
-          d={path} 
+          d={pathData} 
           fill="none" 
           stroke={c.stroke} 
           strokeWidth={strokeWidth || 2} 
@@ -114,6 +119,8 @@ export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, ty
       </AW>
     );
   }
+
+  if (type === 'path' && !path) return null;
 
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y}>

@@ -111,8 +111,8 @@ const TextTool = (props) => {
     const centerY = window.innerHeight / 2;
 
     const scatter = (Math.random() - 0.5) * 40;
-    const worldX = (centerX - tx + scatter) / scale / 800;
-    const worldY = (centerY - ty + scatter) / scale / 600;
+    const worldX = 0.5 + (scatter / 800);
+    const worldY = 0.5 + (scatter / 600);
 
     const newObj = {
       id,
@@ -263,9 +263,12 @@ const TextTool = (props) => {
       icon={CurrentIcon}
       label="Text"
       onClick={() => {
-        // H1 FIX: Only activate the tool — don't create elements from toolbar click.
-        // Elements are created via submenu "Quick Add" buttons or via canvas click.
-        useTutorStore.getState().setActiveTool('text');
+        const { activeTool, setActiveTool } = useTutorStore.getState();
+        if (activeTool === 'text') {
+          setActiveTool('select');
+        } else {
+          setActiveTool('text');
+        }
       }}
       customSubmenu={Submenu}
     />

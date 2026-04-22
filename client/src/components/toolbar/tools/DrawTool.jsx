@@ -50,7 +50,14 @@ const DrawTool = (props) => {
   // Keyboard shortcuts ([ / ]) removed per user request
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleMainClick = () => setActiveTool(lastActiveDrawMode.current);
+  const handleMainClick = () => {
+    const { activeTool, setActiveTool } = useTutorStore.getState();
+    if (activeTool.startsWith('draw:')) {
+      setActiveTool('select');
+    } else {
+      setActiveTool(lastActiveDrawMode.current);
+    }
+  };
 
   const handleColorPick = (value) => {
     setDrawColor(value);

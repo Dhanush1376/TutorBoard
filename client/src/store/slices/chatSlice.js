@@ -13,7 +13,7 @@ export const createChatSlice = (set, get) => ({
   closeDoubtThread:  () => set({ showDoubtThread: false }),
 
   addDoubt: (question, answer, hasVisuals = false, visualUpdate = null, followUp = null) => {
-    const { takeSnapshot } = get();
+    const { takeSnapshot, setDeltaState } = get();
     const snapshotId = takeSnapshot();
 
     const doubtNode = {
@@ -26,6 +26,14 @@ export const createChatSlice = (set, get) => ({
       snapshotId,
       timestamp:   Date.now(),
     };
+
+    // ─── Phase 3 Bridge: Delta Wiring ───
+    if (visualUpdate?.isDelta && visualUpdate?.actions) {
+      setDeltaState({
+        actions:   visualUpdate.actions,
+        timestamp: Date.now()
+      });
+    }
 
     set(state => ({
       doubtHistory:      [...state.doubtHistory, doubtNode],

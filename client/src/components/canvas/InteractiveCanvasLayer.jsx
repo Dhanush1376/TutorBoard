@@ -44,26 +44,25 @@ const InteractiveCanvasLayer = React.memo(() => {
   const startPoint = useRef(null);
   const cachedRect = useRef(null);
 
-  const isInteractionTool = activeTool.startsWith('draw:') || 
-                            activeTool === 'shape' ||
-                            activeTool.startsWith('shape:') || 
-                            activeTool === 'text';
+  const isInteractionTool = activeTool && String(activeTool).startsWith('draw:') || 
+                             activeTool === 'shape' ||
+                             activeTool && String(activeTool).startsWith('shape:') || 
+                             activeTool === 'text' ||
+                             activeTool === 'note';
 
+
+  const pointsRef = useRef([]);
+  const draftStateRef = useRef(null);
 
   const handlePointerDown = useCallback((e) => {
-    // If we're already drawing or typing, don't intercept
-    if (isDrawing.current || draftObject?.isTyping) return;
-    
-    // Only handle primary button
+    if (isDrawing.current || draftStateRef.current?.isTyping) return;
     if (e.button !== 0) return;
 
-    // Boundary check using the layer's rect
     const layer = layerRef.current;
     if (!layer) return;
     const rect = layer.getBoundingClientRect();
     if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
 
-    // HIGH-PERFORMANCE Hit-Testing (Bug Fix: Avoid expensive document.elementsFromPoint layout recalc)
     if (!transform) return;
     const { scale, x: tx, y: ty } = transform;
     const worldX = (e.clientX - rect.left - tx) / scale;
@@ -72,56 +71,40 @@ const InteractiveCanvasLayer = React.memo(() => {
     const normalizedY = worldY / CANVAS_HEIGHT;
 
     const isOverExistingElement = canvasObjects.some(obj => {
-      // Use bounding box for fast intersection check
       const bw = obj.w || (obj.scale || 1) * (200 / CANVAS_WIDTH);
       const bh = obj.h || (obj.scale || 1) * (120 / CANVAS_HEIGHT);
       return (
-        normalizedX >= obj.x - bw/2 &&
-        normalizedX <= obj.x + bw/2 &&
-        normalizedY >= obj.y - bh/2 &&
-        normalizedY <= obj.y + bh/2
+        normalizedX >= obj.x - bw/2 && normalizedX <= obj.x + bw/2 &&
+        normalizedY >= obj.y - bh/2 && normalizedY <= obj.y + bh/2
       );
     });
 
-    if (isOverExistingElement) return; // Pass through to allow selection/hover/editing of existing content
+    if (isOverExistingElement) return;
 
     setInteracting(true);
     cachedRect.current = rect;
-    
     isDrawing.current = true;
     startPoint.current = { x: normalizedX, y: normalizedY };
+    pointsRef.current = [[normalizedX, normalizedY]];
 
+    let newDraft = null;
     if (activeTool.startsWith('shape:')) {
       const shapeType = activeTool.split(':')[1];
       const isLinear = shapeType === 'line' || shapeType === 'arrow';
-      
-      setDraftObject({
+      newDraft = {
         id: generateId(),
         type: shapeType,
-        x: normalizedX,
-        y: normalizedY,
-        x1: isLinear ? normalizedX : undefined,
-        y1: isLinear ? normalizedY : undefined,
-        x2: isLinear ? normalizedX : undefined,
-        y2: isLinear ? normalizedY : undefined,
-        w: 0,
-        h: 0,
-        color: drawColor,
-        strokeWidth: drawWidth,
-        fill: shapeFill,
-        strokeStyle: shapeStrokeStyle,
-        dashed: shapeStrokeStyle === 'dashed',
-        isDraft: true,
+        x: normalizedX, y: normalizedY,
+        x1: isLinear ? normalizedX : undefined, y1: isLinear ? normalizedY : undefined,
+        x2: isLinear ? normalizedX : undefined, y2: isLinear ? normalizedY : undefined,
+        w: 0, h: 0,
+        color: drawColor, strokeWidth: drawWidth, fill: shapeFill, strokeStyle: shapeStrokeStyle,
+        dashed: shapeStrokeStyle === 'dashed', isDraft: true,
         animation: { type: 'bounce', duration: 0.3 }
-      });
+      };
     } else if (activeTool.startsWith('draw:')) {
-      if (activeTool === 'draw:eraser') {
-        // H5 FIX: Set isDrawing flag so eraser only works while mouse is held down
-        isDrawing.current = true;
-        return;
-      }
-      
-      setDraftObject({
+      if (activeTool === 'draw:eraser') return;
+      newDraft = {
         id: generateId(),
         type: 'path',
         points: [[normalizedX, normalizedY]],
@@ -130,20 +113,15 @@ const InteractiveCanvasLayer = React.memo(() => {
           : (activeTool === 'draw:laser' ? '#fde047' : drawColor),
         strokeWidth: activeTool === 'draw:highlighter' ? 12 : (activeTool === 'draw:laser' ? laserWidth : drawWidth),
         isDraft: true,
-      });
+      };
     } else if (activeTool === 'text') {
       const newId = generateId();
       const type = textType === 'formula' ? 'equation' : (textType === 'code' ? 'code' : 'label');
-      const w = 0.2;
-      const h = 0.08;
-      
+      const w = 0.2; const h = 0.08;
       const newObj = {
-        id: newId,
-        type,
-        x: normalizedX + (w / 2),
-        y: normalizedY + (h / 2),
-        w, h,
-        content: '', label: '',
+        id: newId, type,
+        x: normalizedX + (w / 2), y: normalizedY + (h / 2),
+        w, h, content: '', label: '',
         styles: {
           fontSize: textToolSize || 24,
           fontWeight: textWeight === 'bold' ? 700 : (textWeight === 'medium' ? 500 : 400),
@@ -156,7 +134,6 @@ const InteractiveCanvasLayer = React.memo(() => {
         color: drawColor || 'var(--text-primary)',
         animation: { type: 'scale', duration: 0.4 }
       };
-
       setCanvasObjectsWithHistory([...canvasObjects, newObj]);
       setSelectedElements([newId]);
       setActiveTool('select');
@@ -164,111 +141,100 @@ const InteractiveCanvasLayer = React.memo(() => {
         setEditingObjectId(newId);
         setInteracting(false);
       }, 50);
+    } else if (activeTool === 'note') {
+      addNoteToCanvas(normalizedX, normalizedY);
+      setActiveTool('select');
+      setInteracting(false);
+      return;
     }
-  }, [activeTool, canvasObjects, drawColor, drawWidth, laserWidth, shapeFill, shapeStrokeStyle, textType, textToolSize, textWeight, textAlign, textBgColor, transform, setCanvasObjectsWithHistory, setSelectedElements, setActiveTool, setEditingObjectId, setInteracting]);
-
+    
+    draftStateRef.current = newDraft;
+    setDraftObject(newDraft);
+  }, [activeTool, transform, setInteracting, canvasObjects, drawColor, drawWidth, shapeFill, shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor, setSelectedElements, setCanvasObjectsWithHistory, setActiveTool]);
 
   const handlePointerMove = useCallback((e) => {
-    // Eraser works without a draftObject
-    if (!isDrawing.current || (!draftObject && activeTool !== 'draw:eraser') || draftObject?.isTyping) return;
+    if (!isDrawing.current || (!draftStateRef.current && activeTool !== 'draw:eraser')) return;
     
-    const { scale, x: tx, y: ty } = transform;
+    const state = useTutorStore.getState();
+    const { scale, x: tx, y: ty } = transform || state.canvasTransform;
     const rect = cachedRect.current || layerRef.current.getBoundingClientRect();
-
     const worldX = (e.clientX - rect.left - tx) / scale;
     const worldY = (e.clientY - rect.top - ty) / scale;
-
+    const { isSnapToGrid, gridSize } = state;
     const normalizedX = (isSnapToGrid ? Math.round(worldX / gridSize) * gridSize : worldX) / CANVAS_WIDTH;
     const normalizedY = (isSnapToGrid ? Math.round(worldY / gridSize) * gridSize : worldY) / CANVAS_HEIGHT;
 
     if (activeTool.startsWith('shape:')) {
-      if (!draftObject) return; // Guard against stale closures
+      const draft = draftStateRef.current;
+      if (!draft) return;
       const w = normalizedX - startPoint.current.x;
       const h = normalizedY - startPoint.current.y;
-      const isLinear = draftObject.type === 'line' || draftObject.type === 'arrow';
+      const isLinear = draft.type === 'line' || draft.type === 'arrow';
       
-      setDraftObject(prev => ({
-        ...prev,
-        w: Math.abs(w),
-        h: Math.abs(h),
+      const updated = {
+        ...draft, w: Math.abs(w), h: Math.abs(h),
         x: w < 0 ? normalizedX : startPoint.current.x,
         y: h < 0 ? normalizedY : startPoint.current.y,
-        x2: isLinear ? normalizedX : undefined,
-        y2: isLinear ? normalizedY : undefined,
-      }));
+        x2: isLinear ? normalizedX : undefined, y2: isLinear ? normalizedY : undefined,
+      };
+      draftStateRef.current = updated;
+      setDraftObject(updated);
     } else if (activeTool.startsWith('draw:')) {
       if (activeTool === 'draw:eraser') {
-        if (!isDrawing.current) return;
-        
-        // E2 OPTIMIZATION: Bounding Box Pre-Check
-        const hit = canvasObjects.find(obj => {
-          if (obj.x !== undefined && obj.y !== undefined && obj.w !== undefined && obj.h !== undefined) {
-             const buffer = 0.05;
-             if (normalizedX < obj.x - buffer || normalizedX > obj.x + obj.w + buffer ||
-                 normalizedY < obj.y - buffer || normalizedY > obj.y + obj.h + buffer) {
-               return false;
-             }
-          }
-
+        const currentObjects = useTutorStore.getState().canvasObjects;
+        const hit = currentObjects.find(obj => {
           if (obj.points) {
             for (let i = 0; i < obj.points.length; i += 2) {
               const p = obj.points[i];
               if (Math.abs(p[0]-normalizedX) < 0.02 && Math.abs(p[1]-normalizedY) < 0.02) return true;
             }
-            return false;
-          }
-          
-          if (obj.x && obj.y) {
+          } else if (obj.x && obj.y) {
              const dx = Math.abs(obj.x - normalizedX);
              const dy = Math.abs(obj.y - normalizedY);
-             return dx < 0.04 && dy < 0.04;
+             if (dx < 0.04 && dy < 0.04) return true;
           }
           return false;
         });
-
-        if (hit) {
-          setCanvasObjectsWithHistory(canvasObjects.filter(o => o.id !== hit.id));
-        }
+        if (hit) state.setCanvasObjectsWithHistory(currentObjects.filter(o => o.id !== hit.id));
         return;
       }
 
-      if (!draftObject) return;
-      const lastPoint = draftObject.points[draftObject.points.length - 1];
+      const points = pointsRef.current;
+      const lastPoint = points[points.length - 1];
       const dist = Math.sqrt(Math.pow(normalizedX - lastPoint[0], 2) + Math.pow(normalizedY - lastPoint[1], 2));
       
-      if (dist > 0.0035) {
-        setDraftObject(prev => ({
-          ...prev,
-          points: [...prev.points, [normalizedX, normalizedY]]
-        }));
+      if (dist > 0.003) {
+        points.push([normalizedX, normalizedY]);
+        const updated = { ...draftStateRef.current, points: [...points] };
+        draftStateRef.current = updated;
+        setDraftObject(updated);
       }
     }
-  }, [draftObject, activeTool, transform, isSnapToGrid, gridSize, canvasObjects, setCanvasObjectsWithHistory]);
+  }, [activeTool, transform]);
 
-  const handlePointerUp = useCallback((force = false) => {
-    if (!force && (!isDrawing.current || !draftObject)) {
-      isDrawing.current = false;
-      setInteracting(false);
-      return;
-    }
+  const handlePointerUp = useCallback(() => {
+    const draft = draftStateRef.current;
     isDrawing.current = false;
     setInteracting(false);
+    draftStateRef.current = null;
     
-    // Tap Detection: Abort shape creation if the drag was practically zero (a click)
+    if (!draft) {
+      setDraftObject(null);
+      return;
+    }
+    
+    const state = useTutorStore.getState();
+
     if (activeTool.startsWith('shape:')) {
-      const isTiny = Math.abs(draftObject.w * CANVAS_WIDTH) < 5 && Math.abs(draftObject.h * CANVAS_HEIGHT) < 5;
+      const isTiny = Math.abs(draft.w * CANVAS_WIDTH) < 5 && Math.abs(draft.h * CANVAS_HEIGHT) < 5;
       if (isTiny) {
         setDraftObject(null);
-        setActiveTool('hand'); 
+        state.setActiveTool('hand'); 
         return;
       }
     }
     
-    const finalizedObject = { 
-      ...draftObject,
-      animation: { type: 'none' }, 
-      fill: activeTool.startsWith('shape:') ? 'none' : draftObject.fill 
-    };
+    const finalizedObject = { ...draft, animation: { type: 'none' } };
     delete finalizedObject.isDraft;
 
     if (activeTool === 'draw:laser') {
@@ -276,72 +242,59 @@ const InteractiveCanvasLayer = React.memo(() => {
       finalizedObject.animation = { type: 'scale', duration: 0.8 };
     }
     
-    const centerOriginTypes = [
-      'rect', 'ellipse', 'step_box', 'sticky', 
-      'diamond', 'star', 'hexagon', 'callout', 'cloud'
-    ];
+    const centerOriginTypes = ['rect', 'ellipse', 'step_box', 'sticky', 'diamond', 'star', 'hexagon', 'callout', 'cloud'];
     if (centerOriginTypes.includes(finalizedObject.type)) {
       finalizedObject.x = finalizedObject.x + (finalizedObject.w / 2);
       finalizedObject.y = finalizedObject.y + (finalizedObject.h / 2);
       finalizedObject.scale = (finalizedObject.w * CANVAS_WIDTH) / 160; 
     }
     
-    if (finalizedObject.text !== undefined) {
-      finalizedObject.label = finalizedObject.text;
-      delete finalizedObject.text;
-      delete finalizedObject.isTyping;
-    }
-    
     if (finalizedObject.type === 'path') {
-      finalizedObject.path = getSvgPath(finalizedObject.points, CANVAS_WIDTH, CANVAS_HEIGHT);
+      finalizedObject.path = getSvgPath(pointsRef.current, CANVAS_WIDTH, CANVAS_HEIGHT);
+      if (!finalizedObject.path) {
+        setDraftObject(null);
+        return;
+      }
+      finalizedObject.points = [...pointsRef.current];
     }
 
-    if (finalizedObject.type === 'triangle') {
-      const { x, y, w, h } = finalizedObject;
-      finalizedObject.x = x + w / 2;
-      finalizedObject.y = y + h / 2;
-      finalizedObject.points = [
-        [x + w / 2, y],      
-        [x + w,     y + h],  
-        [x,         y + h]   
-      ];
-    }
-
-    setCanvasObjectsWithHistory([...canvasObjects, finalizedObject]);
+    state.addCanvasObjects([finalizedObject]);
     setDraftObject(null);
 
     if (activeTool.startsWith('shape:')) {
-      setSelectedElements([finalizedObject.id]);
-      setActiveTool('hand');
+      state.setSelectedElements([finalizedObject.id]);
+      state.setActiveTool('hand');
     }
-  }, [activeTool, draftObject, canvasObjects, setCanvasObjectsWithHistory, setActiveTool, setSelectedElements, setInteracting]);
+  }, [activeTool, setInteracting]);
 
-  // U4: Global Event Management to solve hover-blocking
   useEffect(() => {
     if (!isInteractionTool) return;
-
-    const onGlobalDown = (e) => handlePointerDown(e);
-    const onGlobalMove = (e) => handlePointerMove(e);
-    const onGlobalUp = (e) => handlePointerUp();
-
-    window.addEventListener('pointerdown', onGlobalDown);
-    window.addEventListener('pointermove', onGlobalMove);
-    window.addEventListener('pointerup', onGlobalUp);
-
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
     return () => {
-      window.removeEventListener('pointerdown', onGlobalDown);
-      window.removeEventListener('pointermove', onGlobalMove);
-      window.removeEventListener('pointerup', onGlobalUp);
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
   }, [isInteractionTool, handlePointerDown, handlePointerMove, handlePointerUp]);
   
+  // U5: Dynamic Body Cursor Management
+  useEffect(() => {
+    if (isInteractionTool) {
+      document.body.style.cursor = activeTool === 'text' ? 'text' : getToolCursor(activeTool);
+    } else {
+      document.body.style.cursor = 'default';
+    }
+    return () => { document.body.style.cursor = 'default'; };
+  }, [isInteractionTool, activeTool]);
+
   if (!isInteractionTool) return null;
 
   return (
     <div 
       ref={layerRef}
-      className={`absolute inset-0 z-[100] ${isDrawing.current ? 'pointer-events-auto' : 'pointer-events-none'}`}
-      style={{ cursor: activeTool === 'text' ? 'text' : getToolCursor(activeTool) }}
+      className="absolute inset-0 z-10 pointer-events-none"
     >
       {draftObject && !draftObject.isTyping && (
         <svg width="100%" height="100%" className="border-none pointer-events-none overflow-visible">

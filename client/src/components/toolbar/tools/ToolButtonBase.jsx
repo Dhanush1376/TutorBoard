@@ -12,7 +12,7 @@ import useTutorStore from '../../../store/tutorStore';
  * - Hover submenu for tool variants (Shape, Draw)
  */
 const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, disabled = false, variants, customSubmenu, forceOpenSubmenu, onClick, onMouseEnter, onMouseLeave, isHoveredExternally }) => {
-  const { activeTool, setActiveTool, editingObjectId, layoutView } = useTutorStore();
+  const { activeTool, setActiveTool, editingObjectId, layoutView, isInteracting } = useTutorStore();
   const hasVariants = Array.isArray(variants) && variants.length > 0;
   const isLeftHand = layoutView === 'left';
   const [isHovered, setIsHovered] = useState(false);
@@ -41,8 +41,8 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   }, [activeTool, variants]);
 
 
-  // Only show tooltip if NOT showing variants menu
-  const showVariantsMenu = (isHovered || forceOpenSubmenu || isShortcutOpen || isPinned) && !disabled && (hasVariants || customSubmenu);
+  // Only show menu if pinned (clicked), forced, or via shortcut
+  const showVariantsMenu = (isPinned || forceOpenSubmenu || isShortcutOpen) && !disabled && (hasVariants || customSubmenu);
   const showTooltip = isHovered && !disabled && !hasVariants && !customSubmenu;
 
   const [menuOffset, setMenuOffset] = useState(0);
@@ -78,15 +78,20 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   const handleMainClick = () => {
     if (disabled) return;
 
-    // IF already active and has variants/custom menu, toggle persistent "PIN" mode
-    if (isGroupActive && (hasVariants || customSubmenu)) {
+    // Toggle menu visibility on click for tools with sub-variants
+    if (hasVariants || customSubmenu) {
       setIsPinned(!isPinned);
     }
 
     if (typeof onClick === 'function') {
       onClick();
     } else {
-      setActiveTool(activeVariantId);
+      // DESELECT LOGIC: Toggle off if already active
+      if (activeTool === activeVariantId) {
+        setActiveTool('select');
+      } else {
+        setActiveTool(activeVariantId);
+      }
     }
   };
 
@@ -134,7 +139,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
           opacity: disabled ? 0.35 : 1,
         }}
       >
-        {(isHovered || isHoveredExternally) && !disabled && (
+        {(isHovered || isHoveredExternally) && !isGroupActive && !isInteracting && !disabled && (
           <motion.div
             layoutId="liquid-hover-pill"
             className="absolute inset-0.9 rounded-full z-0"

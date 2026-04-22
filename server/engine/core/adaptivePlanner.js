@@ -2,7 +2,7 @@
  * AdaptiveReplanner — Real-time Pedagogical Bridge Generator
  * 
  * TRIGGERS: 
- *   - confusionIndex >= 5
+ *   - confusionIndex >= 0.5
  *   - repeated doubts on same step
  * 
  * ACTION:
@@ -19,7 +19,7 @@ export async function replanRemainingSteps(session, topic, userConfig = null) {
   
   if (currentStepIndex >= steps.length - 1) return null;
 
-  console.log(`[Replanner] 🧠 Confusion spike (${confusionIndex}/10). Replanning remaining ${steps.length - currentStepIndex - 1} steps...`);
+  console.log(`[Replanner] 🧠 Confusion spike (${confusionIndex.toFixed(2)}/1.0). Replanning remaining ${steps.length - currentStepIndex - 1} steps...`);
 
   const remainingStepsContext = steps.slice(currentStepIndex + 1);
   const animationGuide = getAnimationGuide(domain);
@@ -28,7 +28,7 @@ export async function replanRemainingSteps(session, topic, userConfig = null) {
   // Build a specific "Simplification" prompt
   const systemPrompt = `You are a Remedial Teaching Specialist.
 Current Lesson: "${topic}"
-Learner Status: CONFUSED (Level ${confusionIndex}/10).
+Learner Status: CONFUSED (Level ${confusionIndex.toFixed(2)}/1.0).
 Goal: Take the upcoming planned steps and break them down into much smaller, simpler parts.
 
 UPCOMING PLANNED STEPS:

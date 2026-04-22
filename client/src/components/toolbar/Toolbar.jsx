@@ -24,6 +24,13 @@ import VisualizerTool from './tools/VisualizerTool';
 import ShareAction from './actions/ShareAction';
 import DeleteAction from './actions/DeleteAction';
 
+const ToolbarDivider = () => (
+  <div 
+    className="w-[1px] h-[18px] opacity-20" 
+    style={{ background: 'var(--text-tertiary)' }} 
+  />
+);
+
 const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) => {
   const [offset, setOffset] = useState(0);
   const dropdownRef = useRef(null);
@@ -117,8 +124,24 @@ const Toolbar = ({ onSettingsClick }) => {
         toggleProfile();
       }
     };
+    
+    const handleKeyDown = (event) => {
+      const state = useTutorStore.getState();
+      if (event.key === 'Escape') {
+        state.setActiveTool('select');
+        state.setInteracting(false);
+        state.setEditingObjectId(null);
+      } else if (event.key.toLowerCase() === 'v' && !state.editingObjectId) {
+        state.setActiveTool('select');
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isProfileOpen, toggleProfile]);
 
   const commonToolProps = {
@@ -127,45 +150,72 @@ const Toolbar = ({ onSettingsClick }) => {
     hoveredId,
   };
 
+  const isInteracting = useTutorStore(state => state.isInteracting);
+  const isHidden = isInteracting && !isHovered;
+
   return (
     <motion.div
       ref={toolbarRef}
       initial={{ y: 16, opacity: 0, scale: 0.97 }}
-      animate={{ y: 0, opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 480, damping: 36, mass: 0.7 }}
-      className={`flex items-center rounded-2xl relative ${isLeftHand ? 'flex-row' : 'flex-row-reverse'}`}
+      animate={{ 
+        y: isHidden ? 20 : 0, 
+        opacity: isHidden ? 0.2 : 1, 
+        scale: isHidden ? 0.95 : 1,
+        filter: isHidden ? 'blur(2px)' : 'blur(0px)'
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        // Ensure body cursor is restored if we leave the toolbar area
+        if (!isInteracting) document.body.style.cursor = 'default';
+      }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
+      className={`flex items-center rounded-2xl relative transition-all duration-500 ${isLeftHand ? 'flex-row' : 'flex-row-reverse'} ${isInteracting ? 'scale-[0.98]' : ''}`}
       style={{
         gap: 'var(--tool-gap)',
         padding: 'calc(var(--tool-gap) * 1.5) calc(var(--tool-gap) * 2)',
-        background: 'var(--bg-primary)',
-        border: '1px solid var(--border-color)',
-        boxShadow:
-          '0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.06)',
+        background: isInteracting 
+          ? 'rgba(var(--bg-primary-rgb), 0.25)' 
+          : 'var(--bg-primary)',
+        backdropFilter: isInteracting ? 'blur(24px) saturate(160%)' : 'blur(0px)',
+        border: isInteracting 
+          ? '1px solid rgba(var(--bg-primary-rgb), 0.15)' 
+          : '1px solid var(--border-color)',
+        boxShadow: isInteracting
+          ? '0 12px 40px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05)'
+          : '0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.06)',
         userSelect: 'none',
+        pointerEvents: 'auto',
       }}
     >
       <LayoutGroup id="main-toolbar">
-      <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
-      <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
-      <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
-      <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
-      <VisualizerTool 
-        {...commonToolProps} 
-        id="visualizer"
-        isHoveredExternally={hoveredId === 'visualizer'} 
-      />
-      
-      <ShareAction 
-        {...commonToolProps} 
-        id="action:share"
-        isHoveredExternally={hoveredId === 'action:share'} 
-      />
+        {/* Group 1: Drawing & Pedagogical Tools */}
+        <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
+        <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
+        <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
+        <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
+        <VisualizerTool 
+          {...commonToolProps} 
+          id="visualizer"
+          isHoveredExternally={hoveredId === 'visualizer'} 
+        />
+        
+        <ToolbarDivider />
 
-      <DeleteAction 
-        {...commonToolProps} 
-        id="action:delete"
-        isHoveredExternally={hoveredId === 'action:delete'} 
-      />
+        {/* Group 2: Session Actions */}
+        <ShareAction 
+          {...commonToolProps} 
+          id="action:share"
+          isHoveredExternally={hoveredId === 'action:share'} 
+        />
+
+        <DeleteAction 
+          {...commonToolProps} 
+          id="action:delete"
+          isHoveredExternally={hoveredId === 'action:delete'} 
+        />
+
+        <ToolbarDivider />
         
         <div className="relative">
           <motion.button
@@ -186,7 +236,7 @@ const Toolbar = ({ onSettingsClick }) => {
           >
             {(isHovered) && !isProfileOpen && (
               <motion.div
-                layoutId="liquid-hover-pill"
+                layoutId="profile-liquid-hover"
                 className="absolute inset-0.5 rounded-full z-0"
                 style={{ 
                   background: 'var(--bg-tertiary)',

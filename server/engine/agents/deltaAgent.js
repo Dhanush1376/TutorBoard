@@ -30,7 +30,15 @@ export async function runDeltaAgent(question, currentState, context) {
       responseMimeType: 'application/json'
     });
 
-    return JSON.parse(res.content || '{}');
+    const parsed = JSON.parse(res.content || '{}');
+    
+    // ─── Phase 2 Fix: Validate VisualScript actions ───
+    if (parsed.delta_actions) {
+      const { validateVisualScript } = await import('../core/visualScriptValidator.js');
+      parsed.delta_actions = validateVisualScript(parsed.delta_actions);
+    }
+
+    return parsed;
   } catch (err) {
     console.error(`[DeltaAgent] ❌ Execution failed:`, err);
     return {

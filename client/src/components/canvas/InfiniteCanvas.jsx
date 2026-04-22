@@ -198,13 +198,11 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE PAN ───
   const handleMouseDown = useCallback((e) => {
+    // Force lock if the store says we are interacting or if a global lock is active
     if (isCanvasLocked || isInteracting) return;
 
-    // BUG 1 FIX: If a drawing/interactive tool is active, yield control to InteractiveCanvasLayer
-    const isDrawTool = activeTool.startsWith('draw:') || 
-                       activeTool.startsWith('shape:') || 
-                       activeTool === 'text' || 
-                       activeTool === 'note';
+    const safeTool = String(activeTool || 'select');
+    const isInteractiveTool = safeTool !== 'select' && safeTool !== 'hand';
     
     // Middle button and Space-panning are always allowed
     const isMiddleButton = e.button === 1;
@@ -212,10 +210,13 @@ const InfiniteCanvas = memo(React.forwardRef(({
     
     // SMART PAN: Allow panning if the Hand tool is active OR if the Select tool is active 
     // AND we are clicking on empty background.
-    const isHandActive = activeTool === 'hand';
-    const isSelectPan = activeTool === 'select' && !isHoveringContent;
+    const isHandActive = safeTool === 'hand';
+    const isSelectPan = safeTool === 'select' && !isHoveringContent;
     const isDirectPan = e.button === 0 && (isHandActive || isSelectPan);
     
+    // If we are using an interactive tool (draw, shape, note, text), do NOT pan
+    if (isInteractiveTool && !isMiddleButton && !isSpacePan) return;
+
     if (!isMiddleButton && !isSpacePan && !isDirectPan) return;
 
     if (contentRef.current) contentRef.current.style.transition = 'none';
@@ -273,6 +274,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── DOUBLE-CLICK: Center on point ───
   const handleDoubleClick = useCallback((e) => {
+    const safeTool = String(activeTool || 'select');
+    if (isCanvasLocked || isInteracting || safeTool !== 'hand') return;
     // If a custom handler is provided and it returns true, we skip the default zoom behavior
     if (onDoubleClick?.(e)) return;
 
@@ -291,10 +294,15 @@ const InfiniteCanvas = memo(React.forwardRef(({
       scale: Math.min(MAX_ZOOM, t.scale * 1.5),
     };
     commitTransform(newTransform);
-  }, [commitTransform]);
+  }, [commitTransform, isCanvasLocked, isInteracting, activeTool, onDoubleClick]);
 
   // ─── TOUCH ───
   const handleTouchStart = useCallback((e) => {
+    const safeTool = String(activeTool || 'select');
+    const isInteractiveTool = safeTool !== 'select' && safeTool !== 'hand';
+
+    if (isCanvasLocked || isInteracting || isInteractiveTool) return;
+    
     if (e.touches.length === 2) {
       isPinching.current = true;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -312,10 +320,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
         y: e.touches[0].clientY - transformRef.current.y,
       };
     }
-  }, []);
+  }, [activeTool, isCanvasLocked, isInteracting]);
 
   const handleTouchMove = useCallback((e) => {
-    e.preventDefault();
     if (isPinching.current && e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;

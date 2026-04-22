@@ -2,9 +2,10 @@
  * SVGCanvasRenderer v5.0 — High-Fidelity SVG Orchestration
  * Extracted from AgentCanvasRenderer for Phase 2 Modularization.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
+import { CanvasContext } from './CanvasContext';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
 import {
   GlowOrb, GlassRect, GlassEllipse, FlowArrow, DataBlock,
@@ -64,12 +65,21 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     styles:       obj.styles || {},
   };
 
-  const x = (obj.x ?? 0.5) * CANVAS_WIDTH;
-  const y = (obj.y ?? 0.5) * CANVAS_HEIGHT;
+  const isManual = (obj.id && String(obj.id).startsWith('manual-')) || obj.isPinned;
+  
+  // ALL objects in TutorBoard store normalized (0.0-1.0) x,y coordinates
+  // and normalized (0.0-1.0) w,h dimensions.
+  // We pass normalized x,y to the AW component (which handles viewport scaling internally)
+  // and absolute pixel w,h to the shape components themselves.
+  const x = obj.x ?? 0.5;
+  const y = obj.y ?? 0.5;
+  const w = (obj.w ?? 0.1) * CANVAS_WIDTH;
+  const h = (obj.h ?? 0.1) * CANVAS_HEIGHT;
+
   const label = obj.label ? DOMPurify.sanitize(obj.label) : null;
   const shape = (obj.type || obj.shape || 'orb').toLowerCase();
 
-  const props = { ...common, x, y, color: obj.color, label };
+  const props = { ...common, x, y, color: obj.color, label, w, h };
 
   switch (shape) {
     case 'orb':
@@ -77,22 +87,22 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       return <GlowOrb key={obj.id} {...props} />;
     case 'rect':
     case 'box':
-      return <GlassRect key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 120} h={obj.h * CANVAS_HEIGHT || 80} />;
+      return <GlassRect key={obj.id} {...props} />;
     case 'ellipse':
-      return <EllipseShape key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 120} h={obj.h * CANVAS_HEIGHT || 80} />;
+      return <EllipseShape key={obj.id} {...props} />;
     case 'diamond':
-      return <DiamondShape key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 100} h={obj.h * CANVAS_HEIGHT || 100} />;
+      return <DiamondShape key={obj.id} {...props} />;
     case 'star':
-      return <StarShape key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 100} h={obj.h * CANVAS_HEIGHT || 100} />;
+      return <StarShape key={obj.id} {...props} />;
     case 'hexagon':
-      return <HexagonShape key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 100} h={obj.h * CANVAS_HEIGHT || 100} />;
+      return <HexagonShape key={obj.id} {...props} />;
     case 'callout':
     case 'speech':
-      return <CalloutShape key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 160} h={obj.h * CANVAS_HEIGHT || 100} />;
+      return <CalloutShape key={obj.id} {...props} />;
     case 'cloud':
-      return <CloudShape key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 180} h={obj.h * CANVAS_HEIGHT || 120} />;
+      return <CloudShape key={obj.id} {...props} />;
     case 'sticky':
-      return <StickyNoteShape key={obj.id} {...props} w={obj.w * CANVAS_WIDTH || 120} h={obj.h * CANVAS_HEIGHT || 120} onUpdate={onUpdate} onDelete={onDelete} isSelected={isSelected} />;
+      return <StickyNoteShape key={obj.id} {...props} onUpdate={onUpdate} onDelete={onDelete} isSelected={isSelected} />;
     case 'path':
       return <FreeformShape key={obj.id} {...props} type="path" path={obj.path} strokeWidth={obj.strokeWidth} />;
     case 'label':
@@ -109,13 +119,15 @@ export default function SVGCanvasRenderer({
   timeline, currentStepIndex, 
   elements: extElements, objects: extObjects, 
   connections: extConnections, steps: extSteps,
-  showNotes: propShowNotes 
+  showNotes: propShowNotes,
+  forceManualOnly = false
 }) {
   const { 
     showNotes: storeShowNotes = true, 
     selectedElementIds, setSelectedElements, 
     updateCanvasObject, deleteCanvasObject,
-    editingObjectId, setEditingObjectId, activeTool
+    editingObjectId, setEditingObjectId, activeTool,
+    deltaState
   } = useTutorStore();
   
   const showNotes = propShowNotes !== undefined ? propShowNotes : storeShowNotes;
@@ -140,7 +152,12 @@ export default function SVGCanvasRenderer({
 
   const elements = useMemo(() => {
     return rawElements
-      .filter(el => el?.id && (el.id.startsWith('manual-') || stepObjectIds.has(el.id)))
+      .filter(el => {
+        if (!el?.id) return false;
+        const isManual = el.id.startsWith('manual-') || el.isPinned || el.doubtDriven;
+        if (forceManualOnly && !isManual) return false;
+        return isManual || stepObjectIds.has(el.id);
+      })
       .map(el => {
         const mutation = (currentStep.mutations || []).find(m => m.id === el.id);
         return mutation ? { ...el, ...mutation.props } : el;
@@ -152,9 +169,17 @@ export default function SVGCanvasRenderer({
 
   const { highlightIds, fadeIds, camera } = useStepDirector(worldElements, timelineSteps, currentStepIndex);
   
-  const Z  = camera.zoom;
-  const tx = CW / 2 - camera.x * Z;
-  const ty = CH / 2 - camera.y * Z;
+  const { transform: manualTransform } = useContext(CanvasContext) || {};
+  const isUserControlled = !!manualTransform;
+
+  const Z  = isUserControlled ? 1 : camera.zoom;
+  const tx = isUserControlled ? 0 : (CANVAS_WIDTH / 2 - camera.x * CANVAS_WIDTH * Z);
+  const ty = isUserControlled ? 0 : (CANVAS_HEIGHT / 2 - camera.y * CANVAS_HEIGHT * Z);
+
+  const combinedActions = useMemo(() => [
+    ...(currentStep.animation?.actions || []),
+    ...(deltaState?.actions || [])
+  ], [currentStep.animation?.actions, deltaState?.actions]);
 
   return (
     <div className="relative w-full h-full overflow-hidden select-none">
@@ -164,8 +189,11 @@ export default function SVGCanvasRenderer({
         className="block overflow-visible pointer-events-none"
       >
         <CinematicFilters />
-        <motion.g animate={{ x: tx, y: ty, scale: Z }} transition={{ duration: 0.75, ease: EASE }}>
-          <VisualScriptInterpreter actions={currentStep.animation?.actions} currentStepIndex={currentStepIndex}>
+        <motion.g 
+          animate={{ x: tx, y: ty, scale: Z }} 
+          transition={isUserControlled ? { duration: 0 } : { duration: 0.75, ease: EASE }}
+        >
+          <VisualScriptInterpreter actions={combinedActions} currentStepIndex={currentStepIndex}>
             <AnimatePresence mode="popLayout">
               {worldElements.map(obj => (
                 <g key={obj.id} data-element-id={obj.id} onPointerDown={() => setSelectedElements([obj.id])}>

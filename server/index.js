@@ -21,6 +21,17 @@ import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
 import mongoose from 'mongoose';
 import passport from './utils/auth/passport.js';
 
+import * as Sentry from "@sentry/node";
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: 1.0,
+  });
+  console.log('[Sentry] Backend monitoring: ACTIVE ✅');
+}
+
 const app = express();
 app.set('trust proxy', 1); // Trust only the immediate reverse proxy (Vercel, Cloudflare, etc.)
 
@@ -97,6 +108,7 @@ const REQUIRED_ENV = [
   { key: 'JWT_EXPIRES_IN',     critical: false, label: 'JWT Expiry Time (default: 7d)' },
   { key: 'GITHUB_CLIENT_ID',   critical: false, label: 'GitHub Client ID' },
   { key: 'GITHUB_CLIENT_SECRET', critical: false, label: 'GitHub Client Secret' },
+  { key: 'SENTRY_DSN',           critical: false, label: 'Sentry DSN' },
 ];
 
 console.log("=====================================");
@@ -123,7 +135,7 @@ if (!hasAllCritical) {
 }
 
 const httpServer = createServer(app);
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 5000;
 
 // Check if an origin matches — supports wildcard Vercel preview subdomains
 function isOriginAllowed(origin) {
@@ -225,8 +237,11 @@ app.use((err, _req, res, _next) => {
 // ─── Startup ─────────────────────────────────────────────────────────────────
 const startServer = async () => {
   try {
-    // BUG FIX: Ensure DB is connected before listening to requests
-    // This combined with 'bufferCommands = false' gives immediate feedback
+    httpServer.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`Socket.IO ready on /teaching namespace`);
+    });
+
     console.log(`[DB] Connecting to MongoDB...`);
     await mongoose.connect(MONGODB_URI, {
       serverSelectionTimeoutMS: 5000, 
@@ -234,19 +249,9 @@ const startServer = async () => {
       family: 4 
     });
     console.log(`[DB] Connected to MongoDB ✅`);
-
-    httpServer.listen(port, () => {
-      console.log(`Server running on port ${port}`);
-      console.log(`Socket.IO ready on /teaching namespace`);
-    });
   } catch (err) {
     console.error(`[DB] FAILED TO CONNECT AT STARTUP: ${err.message}`);
-    console.error(`[DB] The server will start, but database features will be disabled until whitelisted.`);
-    
-    // Fallback: Start server anyway so health checks pass, but log the failure
-    httpServer.listen(port, () => {
-      console.log(`\x1b[33m[Startup] Redis connection failed. Running in DEGRADED mode (Limited caching/rate-limiting).\x1b[0m`);
-    });
+    console.error(`[DB] The server will continue running in offline mode.`);
   }
 };
 

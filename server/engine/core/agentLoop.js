@@ -21,6 +21,7 @@ import { requestCompletion, getModel } from '../../utils/ai/llmClient.js';
 import { getPrompt } from '../config/promptRegistry.js';
 import { SceneGraphSchema } from '../validators/timelineSchema.js';
 import VectorStoreService from './vectorStore.js';
+import { validateVisualScript } from './visualScriptValidator.js';
 
 // ─── Robust JSON Extractor ────────────────────────────────────────────────────
 // FIX 1: Old code had a regex that only matched JSON with "elements"/"timeline" 
@@ -154,7 +155,7 @@ function unwrapValidatorOutput(raw) {
         type:     animTypeAliases[anim.global_transition || vs.transition || firstAnim.action] || 'fade',
         duration: firstAnim.duration || 0.6,
         easing:   firstAnim.easing   || 'ease_out',
-        actions:  anim.animations    || [],
+        actions:  anim.animations ? validateVisualScript(anim.animations) : [],
       },
     };
   });

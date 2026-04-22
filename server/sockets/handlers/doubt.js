@@ -203,7 +203,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
 
         // Mid-lesson Replan
         const doubtsSinceReplan = (s.doubtHistory.length) - (s._lastReplanDoubtCount || 0);
-        if (s.learnerProfile.confusionIndex >= 5 && s.steps?.length > 0 && doubtsSinceReplan >= 3) {
+        if (s.learnerProfile.confusionIndex >= 0.5 && s.steps?.length > 0 && doubtsSinceReplan >= 3) {
           const replan = await replanRemainingSteps(s, s.topic, userConfig);
           if (replan) {
             await sessionStore.update(sessionId, { steps: replan.mergedSteps });

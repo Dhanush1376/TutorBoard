@@ -11,7 +11,15 @@ const MasteryHUD = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { learnerProfile, topic, doubtHistory } = useTutorStore();
 
-  const mastery = (learnerProfile?.topicsMastery?.[topic] || 0) * 100;
+  const safeTopic = (topic || '').toLowerCase().trim();
+  const topicsMap = learnerProfile?.topicsMastery || {};
+  
+  // Key access hardening: try exact match then normalized match
+  const masteryValue = topicsMap[topic] ?? 
+                       topicsMap[safeTopic] ?? 
+                       Object.entries(topicsMap).find(([k]) => k.toLowerCase().trim() === safeTopic)?.[1] ?? 
+                       0;
+  const mastery = (masteryValue || 0) * 100;
   const confusion = learnerProfile?.confusionIndex || 0;
   const doubtsCount = doubtHistory?.length || 0;
   

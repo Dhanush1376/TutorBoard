@@ -13,8 +13,8 @@ const ShortcutsHUD = () => {
     { key: '→', label: 'Next step', icon: <ArrowRight size={12} /> },
     { key: '←', label: 'Previous step', icon: <ArrowLeft size={12} /> },
     { key: 'Space', label: 'Pause / Play', icon: <Keyboard size={12} /> },
-    { key: 'D', label: 'Ask Doubt', icon: <MessageSquare size={12} /> },
-    { key: 'Esc', label: 'Exit Lesson', icon: <LogOut size={12} /> },
+    { key: 'Esc', label: 'Deselect / Exit', icon: <LogOut size={12} /> },
+    { key: 'V', label: 'Select Tool', icon: <ArrowLeft size={12} className="-rotate-45" /> },
   ];
 
   return (

@@ -1,10 +1,11 @@
 /**
- * RendererRouter (Server-side) v1.0
+ * RendererRouter (Server-side) v2.0
  * 
  * Determines the optimal renderer based on concept classification.
+ * Aligned with animationPlanner.js RENDERER_MAP.
  */
 export const RENDERER_MAP = {
-  FLOW:       'cinematic',
+  FLOW:       'd3',
   PHYSICS:    'matter',
   DATA:       'd3',
   NARRATIVE:  'narrative',

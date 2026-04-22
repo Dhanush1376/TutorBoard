@@ -23,6 +23,7 @@ export const createSessionSlice = (set, get) => ({
   machineState:       STATES.IDLE,
   sessionId:          null,
   chatSessionId:      null,  // MongoDB ObjectId for REST sync
+  narrationTokens:    '',    // Real-time streaming tokens for the generation phase
   syncTrigger:        0,     // Timestamp to force immediate cloud sync
   topic:              '',
   isConnected:        false,
@@ -49,6 +50,7 @@ export const createSessionSlice = (set, get) => ({
   setError:         (err)       => set({ error: err }),
   setGreeting:      (msg)       => set({ greetingMessage: msg, machineState: STATES.IDLE }),
   setChatSessionId: (id)        => set({ chatSessionId: id }),
+  setNarrationTokens: (tokens)  => set({ narrationTokens: tokens }),
   triggerSync:      ()          => set({ syncTrigger: Date.now() }),
   setGuestTrialStatus: (status) => set({ guestTrialStatus: { ...get().guestTrialStatus, ...status } }),
 

@@ -57,8 +57,14 @@ export const useSessionSync = (chatMessages) => {
     const state = latestRef.current;
     
     // ONLY sync for real users, skipping guests
-    if (!state.user || state.user.isGuest || !state.token || !state.chatSessionId) {
-      if (isBeacon) console.log('[Sync] Beacon skipped: Guest or No ID');
+    if (!state.user || state.user.isGuest || !state.token) {
+      if (isBeacon) console.log('[Sync] Beacon skipped: Guest or No Token');
+      return;
+    }
+
+    // Guard: Don't sync if no ID AND no content (avoid empty session spam)
+    const hasContent = (state.canvasObjects && state.canvasObjects.length > 0) || (state.chatMessages && state.chatMessages.length > 0);
+    if (!state.chatSessionId && !hasContent) {
       return;
     }
 
@@ -120,14 +126,16 @@ export const useSessionSync = (chatMessages) => {
 
   // 1. Debounced Auto-Sync
   useEffect(() => {
-    if (!user || user.isGuest || !token || !chatSessionId) return;
-
-    // Throttle saves
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    if (!user || user.isGuest || !token) return;
 
     const hasMessages = (doubtHistory && doubtHistory.length > 0) || (chatMessages && chatMessages.length > 0);
     const hasCanvas = canvasObjects && canvasObjects.length > 0;
-    if (!hasMessages && !hasCanvas) return;
+
+    // Guard: Only auto-sync if we have an ID OR if we have actual content to create an ID for
+    if (!chatSessionId && !hasCanvas && !hasMessages) return;
+
+    // Throttle saves
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
 
     syncTimerRef.current = setTimeout(performSync, (parseInt(localStorage.getItem('tb-auto-save')) || 5) * 1000);
 
