@@ -134,13 +134,15 @@ const InteractiveCanvasLayer = React.memo(() => {
     } else if (activeTool === 'text') {
       const newId = generateId();
       const type = textType === 'formula' ? 'equation' : (textType === 'code' ? 'code' : 'label');
+      const w = 0.2;
+      const h = 0.08;
       
       const newObj = {
         id: newId,
         type,
-        x: normalizedX,
-        y: normalizedY,
-        w: 0.2, h: 0.1,
+        x: normalizedX + (w / 2),
+        y: normalizedY + (h / 2),
+        w, h,
         content: '', label: '',
         styles: {
           fontSize: textToolSize || 24,

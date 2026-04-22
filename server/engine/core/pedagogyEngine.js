@@ -25,6 +25,7 @@ import { planAnimation } from './animationPlanner.js';
 import { runAgentLoop } from './agentLoop.js';
 import { getPrimaryDomain, DOMAIN_MIN_STEPS } from '../config/domainConfig.js';
 import { calculateMastery, deriveLevel } from '../../utils/core/pedagogyHelper.js';
+import { generateDelta } from '../agents/deltaAgent.js';
 
 // ─── Raw Fail-Safe Data ───────────────────────────────────────────────────────
 // NOTE: This is raw data BEFORE postProcessTimeline. It is NEVER returned directly.
@@ -375,38 +376,33 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
     const currentStepIndex = session?.currentStepIndex || 0;
     const currentStep = session?.steps?.[currentStepIndex] || {};
 
-    // Steps have objectIds, elements are top-level on timeline
+    // 1. Gather current visible state
     const visibleIds = new Set(currentStep.objectIds || []);
-    const currentFrames = session?.timeline?.elements?.filter(e => visibleIds.has(e.id)) || [];
+    const canvasState = session?.canvasState || []; // Manual drawings/shapes
+    const timelineElements = session?.timeline?.elements || [];
+    const currentFrames = timelineElements.filter(e => visibleIds.has(e.id));
+    
+    // Combine for DeltaAgent context
+    const fullState = [...canvasState, ...currentFrames];
 
-    const prompt = buildDoubtPrompt({
+    // 2. Call specialized DeltaAgent
+    const delta = await generateDelta({
       topic,
-      domain,
-      currentFrames,
-      priorDoubts: session?.doubtHistory || [],
+      canvasState: fullState,
+      question,
+      modelId,
+      userConfig
     });
-
-    const result = await requestCompletion({
-      model: modelId || getModel(),
-      messages: [
-        { role: 'system', content: prompt },
-        { role: 'user', content: question }
-      ],
-      temperature: 0.3,
-      maxTokens: 1000,
-      responseMimeType: 'application/json',
-      userConfig,
-      taskType: 'doubt',
-    });
-
-    const parsed = safeParse(result.content);
 
     return {
-      answer: parsed?.answer || result.content || "That's a great question.",
-      isRelevant: parsed?.isRelevant ?? true,
-      hasVisuals: parsed?.hasVisuals || (parsed?.framePatches && parsed.framePatches.length > 0),
-      visualUpdate: { mutations: parsed?.framePatches || [] },
-      followUp: parsed?.followUp || null,
+      answer: delta.answer,
+      isRelevant: true,
+      hasVisuals: delta.commands && delta.commands.length > 0,
+      visualUpdate: { 
+        mutations: delta.commands,
+        isDelta: true // Mark as delta to prevent canvas wipe
+      },
+      followUp: delta.followUp,
     };
   } catch (err) {
     import('fs').then(fs => fs.appendFileSync('DEBUG_ERRORS.log', `[handleDoubt] ${err.stack}\n`)).catch(()=>{});
@@ -452,5 +448,36 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
       answer: "I'm having a bit of trouble connecting. Could you try asking that again?",
       type: 'text',
     };
+  }
+}
+
+export async function generateSessionSummary(sessionId, modelId = null, userConfig = null) {
+  try {
+    const session = await sessionStore.get(sessionId);
+    if (!session || !session.topic) return null;
+
+    const messages = session.messages || [];
+    const dialogue = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+    const topic = session.topic;
+
+    const prompt = `Synthesize a brief (2-sentence) pedagogical summary for a learning session on "${topic}". 
+    Focus on what the student learned or struggled with based on this dialogue:
+    
+    ${dialogue.slice(-2000)}
+    
+    Format: "Learner explored [X]. They showed mastery in [Y] but required delta-clarification on [Z]."`;
+
+    const result = await requestCompletion({
+      model: modelId || getModel(),
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      maxTokens: 300,
+      userConfig,
+    });
+
+    return result.content || `Completed a session on ${topic}.`;
+  } catch (err) {
+    console.error('[PedagogyEngine] Summary generation failed:', err.message);
+    return null;
   }
 }

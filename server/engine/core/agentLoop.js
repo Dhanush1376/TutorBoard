@@ -20,6 +20,7 @@
 import { requestCompletion, getModel } from '../../utils/ai/llmClient.js';
 import { getPrompt } from '../config/promptRegistry.js';
 import { SceneGraphSchema } from '../validators/timelineSchema.js';
+import VectorStoreService from './vectorStore.js';
 
 // ─── Robust JSON Extractor ────────────────────────────────────────────────────
 // FIX 1: Old code had a regex that only matched JSON with "elements"/"timeline" 
@@ -220,32 +221,27 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
   onProgress(stageName);
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
-  const messages = [
-    { role: 'system', content: prompt },
-    { role: 'user',   content: `INPUT CONTEXT:\n${JSON.stringify(input, null, 2)}\n\nGenerate your output now.` }
-  ];
-
+  const originalMessages = [...messages];
   let lastError = null;
+
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
+      const currentMessages = attempt === 1
+        ? originalMessages
+        : [...originalMessages, { 
+            role: 'user', 
+            content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation, no conversational text, and no markdown code fences.' 
+          }];
+
       if (attempt > 1) {
         const delay = Math.pow(2, attempt - 1) * 1000;
         console.log(`[AgentLoop] ⏳ Retrying Stage "${stageName}" (Attempt ${attempt}) in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
-        
-        // Inject a correction prompt on retries to guide the LLM back to valid JSON
-        if (messages[messages.length - 1].role === 'user' && messages[messages.length - 1].content.includes('valid JSON')) {
-          messages.pop(); // Remove previous correction if it exists to avoid stacking
-        }
-        messages.push({ 
-          role: 'user', 
-          content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation, no conversational text, and no markdown code fences.' 
-        });
       }
 
       const response = await requestCompletion({
         model: model || getModel(),
-        messages,
+        messages: currentMessages,
         temperature: 0.3,
         maxTokens: stageName.includes('Finalizing') ? 8000 : 4000, 
         responseMimeType: 'application/json',
@@ -276,9 +272,14 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     // Stage 1: PLANNING (Inject dynamic step limits)
     const minSteps = Math.max(4, Math.floor((maxSteps || 16) / 2));
     const targetMax = maxSteps || 16;
+    
+    // Phase 5: Semantic Retrieval
+    const pastContext = await VectorStoreService.getContextForTopic(topic);
+    
     const plannerPrompt = (systemPrompt || getPrompt('planner'))
       .replace('{{MIN_STEPS}}', minSteps.toString())
-      .replace('{{MAX_STEPS}}', targetMax.toString());
+      .replace('{{MAX_STEPS}}', targetMax.toString())
+      .replace('{{PAST_CONTEXT}}', pastContext || "No prior sessions found for this topic.");
 
     const plannerOutput = planningResult || await runStage({
       stageName: '💡 Thinking deeply about the topic...',

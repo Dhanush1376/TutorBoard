@@ -122,6 +122,14 @@ const Sidebar = ({
               )}
             </AnimatePresence>
           </div>
+          
+          <button 
+            onClick={() => { setActiveView('mastery'); window.location.href='/mastery'; }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:bg-[var(--bg-tertiary)] transition-all group"
+          >
+            <Activity size={16} className="text-blue-500" />
+            <span className="text-[13px] font-bold">Mastery Dashboard</span>
+          </button>
 
           {/* Integrated Search Input */}
           <div className="relative group">

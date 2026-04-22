@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
 import Settings from './pages/Settings';
+import MasteryDashboard from './components/dashboard/MasteryDashboard';
 import Loader from './components/layout/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import MarketingLayout from './components/layout/MarketingLayout';
@@ -178,6 +179,14 @@ function App() {
             element={
               <ProtectedRoute guestAllowed={true}>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mastery"
+            element={
+              <ProtectedRoute>
+                <MasteryDashboard />
               </ProtectedRoute>
             }
           />

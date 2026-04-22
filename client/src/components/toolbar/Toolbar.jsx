@@ -187,7 +187,7 @@ const Toolbar = ({ onSettingsClick }) => {
             {(isHovered) && !isProfileOpen && (
               <motion.div
                 layoutId="liquid-hover-pill"
-                className="absolute inset-y-0 left-1 right-1 rounded-full z-0"
+                className="absolute inset-0.5 rounded-full z-0"
                 style={{ 
                   background: 'var(--bg-tertiary)',
                   border: '1px solid var(--border-color)',

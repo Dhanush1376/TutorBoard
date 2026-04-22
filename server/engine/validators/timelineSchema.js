@@ -35,15 +35,29 @@ export const AnimationHintSchema = z.object({
   duration: z.number().optional().describe("Animation duration in seconds")
 }).passthrough();
 
-const AnimationSchema = z.object({
-  type: z.enum(['fade', 'draw', 'slide', 'scale', 'none']).default('fade'),
-  duration: z.number().optional().default(0.5),
-  delay: z.number().optional().default(0)
-}).passthrough();
-
 const MutationSchema = z.object({
   id: z.string(),
   props: z.record(z.any())
+}).passthrough();
+
+export const VisualScriptCommandSchema = z.object({
+  id: z.string().describe("ID of target element"),
+  action: z.enum([
+    'fade_in', 'fade_out', 'scale_in', 'scale_out', 
+    'move', 'highlight', 'shake', 'glow_pulse',
+    'draw', 'array_push', 'array_pop', 'array_swap',
+    'pointer_move', 'label_show'
+  ]),
+  duration: z.number().optional().default(0.4),
+  delay: z.number().optional().default(0),
+  easing: z.string().optional().default('ease_out'),
+  props: z.record(z.any()).optional().describe("Command-specific parameters (e.g. {x, y} for move)")
+}).passthrough();
+
+const AnimationSchema = z.object({
+  type: z.string().optional().default('fade'),
+  duration: z.number().optional().default(0.5),
+  actions: z.array(VisualScriptCommandSchema).optional().describe("Per-element choreography")
 }).passthrough();
 
 export const TimelineStepSchema = z.object({

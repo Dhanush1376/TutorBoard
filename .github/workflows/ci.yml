@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7.0
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies (Server)
+      run: |
+        cd server
+        npm ci
+        
+    - name: Install dependencies (Client)
+      run: |
+        cd client
+        npm ci
+        
+    - name: Run Server Tests
+      run: |
+        cd server
+        npm test
+      env:
+        MONGODB_URI: mongodb://localhost:27017/tutorboard_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test_secret
+        NODE_ENV: test
+        
+    - name: Build Client
+      run: |
+        cd client
+        npm run build
+      env:
+        VITE_API_URL: http://localhost:3001

@@ -118,7 +118,17 @@ OUTPUT SCHEMA
     },
     "narrations": [...],
     "visual_steps": [...],
-    "animation_steps": [...]
+    "animation_steps": [
+      {
+        "step": 1,
+        "animation": {
+          "type": "fade",
+          "actions": [
+            { "id": "hero", "action": "highlight", "duration": 0.5 }
+          ]
+        }
+      }
+    ]
   }
 }
 

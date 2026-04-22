@@ -78,6 +78,44 @@ class RedisClient {
     }
   }
 
+  async zadd(key, score, member) {
+    if (!this.isConnected) return false;
+    try {
+      await this.client.zadd(key, score, member);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  async zremrangebyscore(key, min, max) {
+    if (!this.isConnected) return 0;
+    try {
+      return await this.client.zremrangebyscore(key, min, max);
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  async zcard(key) {
+    if (!this.isConnected) return 0;
+    try {
+      return await this.client.zcard(key);
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  async expire(key, seconds) {
+    if (!this.isConnected) return false;
+    try {
+      await this.client.expire(key, seconds);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
   async hset(key, field, value) {
     if (!this.isConnected) return false;
     try {

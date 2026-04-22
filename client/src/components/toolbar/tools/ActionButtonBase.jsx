@@ -103,7 +103,7 @@ const ActionButtonBase = ({
         {(isHovered || isHoveredExternally) && !disabled && !showSuccess && !showMenu && (
           <motion.div
             layoutId="liquid-hover-pill"
-            className="absolute inset-y-0 left-1 right-1 rounded-full z-0"
+            className="absolute inset-0.5 rounded-full z-0"
             style={{
               background: isDestructive ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-tertiary)',
               border: isDestructive ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--border-color)',

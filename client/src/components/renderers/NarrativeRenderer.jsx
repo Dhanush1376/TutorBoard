@@ -1,114 +1,200 @@
 /**
- * NarrativeRenderer v1.0 — Timelines, Histories & Cycles
+ * NarrativeRenderer v5.0 — High-Fidelity D3 Storytelling
  * 
- * Target concepts: History, Flowcharts, Cycles, Causation
- * Emphasizes sequential connections and narrative flow.
+ * Implements a "Path of Mastery" timeline.
+ * Features:
+ * - Curved path interpolation
+ * - Dynamic camera following
+ * - Status-aware node styling
+ * - Narrative context integration
  */
 
-import React, { useMemo } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
+import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
-import GenericShape from './GenericShape';
 
 const CW = 800;
 const CH = 600;
 
-export default function NarrativeRenderer({ timeline, currentStepIndex, elements: extElements, connections: extConnections, steps: extSteps }) {
-  const elements = extElements || timeline?.elements || [];
-  const connections = extConnections || timeline?.connections || [];
+export default function NarrativeRenderer({ 
+  timeline, currentStepIndex, 
+  elements: extElements, 
+  steps: extSteps 
+}) {
   const steps = extSteps || timeline?.timeline || timeline?.steps || [];
   const currentStep = steps[currentStepIndex] || {};
+  const svgRef = useRef(null);
 
-  const { highlightIds, fadeIds, camera } = useMemo(() => {
-    const hl = new Set(currentStep.highlight || []);
-    const fd = new Set(currentStep.fade || []);
-    const cam = currentStep.cameraFocus || { x: 0.5, y: 0.5, zoom: 1 };
-    return { highlightIds: hl, fadeIds: fd, camera: cam };
-  }, [currentStep]);
+  // 1. Compute Node Positions (mastery path)
+  const nodes = useMemo(() => {
+    return steps.map((s, i) => ({
+      ...s,
+      x: 150 + i * 300, // Wide spacing for storytelling
+      y: CH / 2 + (i % 2 === 0 ? -60 : 60), // Sinusoidal flow
+      id: s.id || `step-${i}`,
+      index: i
+    }));
+  }, [steps]);
 
-  const Z = Math.min(1.8, Math.max(0.5, camera.zoom || 1));
-  const tx = CW / 2 - (camera.x || 0.5) * CW * Z;
-  const ty = CH / 2 - (camera.y || 0.5) * CH * Z;
-
-  const renderElement = (obj) => {
-    const isHigh = highlightIds.has(obj.id);
-    const isFade = fadeIds.has(obj.id);
-    const opacity = isFade ? 0.3 : isHigh ? 1 : 0.8;
-    const x = (obj.x ?? 0.5) * CW;
-    const y = (obj.y ?? 0.5) * CH;
-    const type = obj.type?.toLowerCase() || 'era_block';
-
-    const common = {
-      key: obj.id,
-      layoutId: obj.id,
-      initial: { opacity: 0, y: 20 },
-      animate: { opacity, x, y },
-      transition: { type: 'spring', bounce: 0.2 },
-      style: { position: 'absolute', transform: 'translate(-50%, -50%)' }
-    };
-
-    switch(type) {
-      case 'timeline_bar':
-        return (
-          <motion.div {...common} className="flex flex-col items-center pointer-events-none">
-            <div className="w-1 h-32 bg-gradient-to-b from-transparent via-white/40 to-transparent" />
-          </motion.div>
-        );
-      case 'era_block':
-      case 'event':
-      default:
-        // Route unknown narrative types to universal fallback
-        if (type !== 'era_block' && type !== 'event' && type !== 'timeline_bar') {
-           return <GenericShape key={obj.id} obj={obj} common={{ ...common, attentionLevel }} CW={CW} CH={CH} />;
-        }
-
-        return (
-          <motion.div {...common} className={`flex flex-col items-center pointer-events-none ${isHigh ? 'scale-110 z-10' : 'scale-100 z-0'} transition-transform`}>
-            <div className="px-4 py-3 rounded-lg shadow-xl border border-white/20 flex flex-col items-center gap-1" style={{ backgroundColor: obj.color || '#475569' }}>
-              <span className="text-xs font-bold text-white tracking-widest uppercase">{obj.label}</span>
-            </div>
-          </motion.div>
-        );
+  // 2. Compute Path Links
+  const links = useMemo(() => {
+    const l = [];
+    for (let i = 0; i < nodes.length - 1; i++) {
+      l.push({ source: nodes[i], target: nodes[i+1] });
     }
-  };
+    return l;
+  }, [nodes]);
+
+  // 3. D3 Life Cycle
+  useEffect(() => {
+    if (!svgRef.current || nodes.length === 0) return;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    const g = svg.append('g').attr('class', 'mastery-path');
+
+    // Create Gradient for the path
+    const defs = svg.append('defs');
+    const gradient = defs.append('linearGradient')
+      .attr('id', 'path-gradient')
+      .attr('x1', '0%').attr('y1', '0%')
+      .attr('x2', '100%').attr('y2', '0%');
+    
+    gradient.append('stop').attr('offset', '0%').attr('stop-color', '#3b82f6');
+    gradient.append('stop').attr('offset', '100%').attr('stop-color', '#8b5cf6');
+
+    // Draw the Main Path (Background)
+    const lineGenerator = d3.line()
+      .x(d => d.x)
+      .y(d => d.y)
+      .curve(d3.curveCardinal.tension(0.2));
+
+    g.append('path')
+      .datum(nodes)
+      .attr('d', lineGenerator)
+      .attr('fill', 'none')
+      .attr('stroke', 'rgba(255,255,255,0.05)')
+      .attr('stroke-width', 4);
+
+    // Draw the Progress Path (Animated)
+    const progressNodes = nodes.slice(0, currentStepIndex + 1);
+    if (progressNodes.length > 1) {
+      const progressPath = g.append('path')
+        .datum(progressNodes)
+        .attr('d', lineGenerator)
+        .attr('fill', 'none')
+        .attr('stroke', 'url(#path-gradient)')
+        .attr('stroke-width', 4)
+        .attr('stroke-linecap', 'round');
+
+      const totalLength = progressPath.node().getTotalLength();
+      progressPath
+        .attr('stroke-dasharray', `${totalLength} ${totalLength}`)
+        .attr('stroke-dashoffset', totalLength)
+        .transition()
+        .duration(1500)
+        .ease(d3.easeCubicOut)
+        .attr('stroke-dashoffset', 0);
+    }
+
+    // Draw Glow Points
+    const nodeGroups = g.selectAll('.node-group')
+      .data(nodes)
+      .enter()
+      .append('g')
+      .attr('class', 'node-group')
+      .attr('transform', d => `translate(${d.x},${d.y})`);
+
+    // Ambient Glow
+    nodeGroups.append('circle')
+      .attr('r', d => d.index === currentStepIndex ? 25 : 15)
+      .attr('fill', d => d.index <= currentStepIndex ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)')
+      .attr('filter', 'blur(8px)');
+
+    // Inner Point
+    nodeGroups.append('circle')
+      .attr('r', d => d.index === currentStepIndex ? 10 : 6)
+      .attr('fill', d => d.index < currentStepIndex ? '#3b82f6' : d.index === currentStepIndex ? '#fff' : 'rgba(255,255,255,0.2)')
+      .attr('stroke', d => d.index === currentStepIndex ? '#3b82f6' : 'none')
+      .attr('stroke-width', 4);
+
+    // Labels
+    nodeGroups.append('text')
+      .attr('dy', d => d.index % 2 === 0 ? -40 : 50)
+      .attr('text-anchor', 'middle')
+      .attr('fill', d => d.index === currentStepIndex ? '#fff' : 'rgba(255,255,255,0.4)')
+      .style('font-size', d => d.index === currentStepIndex ? '14px' : '11px')
+      .style('font-weight', d => d.index === currentStepIndex ? 'bold' : 'normal')
+      .style('letter-spacing', '1px')
+      .text(d => d.title || `Phase ${d.index + 1}`);
+
+    // Camera Focus & Zoom
+    const target = nodes[currentStepIndex];
+    if (target) {
+      const zoom = d3.zoom().on('zoom', (event) => {
+        g.attr('transform', event.transform);
+      });
+
+      const transform = d3.zoomIdentity
+        .translate(CW / 2 - target.x, CH / 2 - target.y)
+        .scale(1.1);
+
+      svg.transition()
+        .duration(1200)
+        .ease(d3.easePolyInOut)
+        .call(zoom.transform, transform);
+    }
+
+  }, [nodes, currentStepIndex]);
 
   return (
-    <div className="relative w-[800px] h-[600px] overflow-visible bg-gradient-to-b from-slate-900 to-black">
-      <svg width="100%" height="100%" className="absolute inset-0 pointer-events-none overflow-visible">
-        <motion.g animate={{ x: tx, y: ty, scale: Z }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}>
-          {/* Draw sequential paths between highlighted elements if requested, or just use connections */}
-          {connections.map((conn, idx) => {
-            const fromEl = elements.find(e => e.id === conn.from);
-            const toEl = elements.find(e => e.id === conn.to);
-            if (!fromEl || !toEl) return null;
-            
-            const x1 = (fromEl.x ?? 0.5) * CW;
-            const y1 = (fromEl.y ?? 0.5) * CH;
-            const x2 = (toEl.x ?? 0.5) * CW;
-            const y2 = (toEl.y ?? 0.5) * CH;
+    <div className="relative w-[800px] h-[600px] overflow-hidden bg-[var(--bg-primary, #0f172a)] rounded-3xl border border-white/10 shadow-2xl">
+      {/* Background Ambience */}
+      <div className="absolute inset-0 opacity-20 pointer-events-none">
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,#1e293b,transparent)]" />
+      </div>
 
-            const isHigh = highlightIds.has(fromEl.id) || highlightIds.has(toEl.id);
+      <svg 
+        ref={svgRef}
+        width="100%" 
+        height="100%" 
+        viewBox={`0 0 ${CW} ${CH}`}
+        className="relative block cursor-grab active:cursor-grabbing"
+      />
 
-            return (
-              <motion.path
-                key={idx}
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                d={`M ${x1},${y1} L ${x2},${y2}`}
-                fill="none"
-                stroke={fromEl.color || '#fff'}
-                strokeWidth={isHigh ? 3 : 1}
-                strokeOpacity={isHigh ? 0.8 : 0.2}
-                strokeDasharray={isHigh ? "none" : "4 4"}
-              />
-            );
-          })}
-        </motion.g>
-      </svg>
-      <motion.div className="absolute inset-0 origin-top-left" animate={{ x: tx, y: ty, scale: Z }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}>
-        <AnimatePresence mode="popLayout">
-          {elements.map(renderElement)}
-        </AnimatePresence>
-      </motion.div>
+      {/* Cinematic HUD Overlay */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentStepIndex}
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 30 }}
+          className="absolute top-10 left-10 p-6 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl max-w-sm pointer-events-none"
+        >
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em]">Narrative Thread</span>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2 leading-tight">
+            {currentStep.title || "The Journey Continues"}
+          </h2>
+          <p className="text-sm text-white/70 leading-relaxed italic">
+            "{currentStep.narration || currentStep.explanation || "Observing the flow of logic..."}"
+          </p>
+        </motion.div>
+      </AnimatePresence>
+
+      <div className="absolute bottom-10 right-10 flex items-center space-x-4 opacity-50">
+        <span className="text-[10px] font-mono text-white/40">STEP {currentStepIndex + 1} OF {steps.length}</span>
+        <div className="w-32 h-[2px] bg-white/10 rounded-full overflow-hidden">
+          <motion.div 
+            className="h-full bg-blue-500" 
+            initial={{ width: 0 }}
+            animate={{ width: `${((currentStepIndex + 1) / steps.length) * 100}%` }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

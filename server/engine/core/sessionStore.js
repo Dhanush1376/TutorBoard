@@ -3,6 +3,7 @@
  */
 import LearnerProfile from '../../models/LearnerProfile.js';
 import redis from '../../utils/core/redis.js';
+import VectorStoreService from './vectorStore.js';
 
 const SESSION_TTL_SEC = 20 * 60; // 20 minutes (Redis uses seconds for EX)
 const IDLE_TTL_SEC = 5 * 60;     // 5 minutes
@@ -232,6 +233,24 @@ class SessionStore {
       console.log(`[SessionStore:Persist] Profile updated for user ${s.userId} (Confusion: ${s.learnerProfile.confusionIndex})`);
     } catch (err) {
       console.error(`[SessionStore:Persist] Failed to persist profile:`, err.message);
+    }
+  }
+
+  async finalizeSessionMemory(id, summary) {
+    try {
+      const s = await this.get(id);
+      if (!s || !s.topic) return;
+
+      const metadata = {
+        userId: s.userId,
+        topic: s.topic,
+        mastery: s.learnerProfile?.topicsMastery?.[s.topic] || 0,
+        confusionIndex: s.learnerProfile?.confusionIndex || 0
+      };
+
+      await VectorStoreService.addSession(id, summary, metadata);
+    } catch (err) {
+      console.error(`[SessionStore:Memory] Failed to finalize memory:`, err.message);
     }
   }
 

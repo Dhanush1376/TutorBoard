@@ -15,9 +15,17 @@ export function registerNavigationHandlers(socket, machine, sessionId) {
 
     // BUG-08: Decrement confusion index on forward progress
     if (s.learnerProfile && s.learnerProfile.confusionIndex > 0) {
-      const newerConfusion = Math.max(0, s.learnerProfile.confusionIndex - 0.5);
+      const newerConfusion = Math.max(0, s.learnerProfile.confusionIndex - 0.05);
+      
+      const safeLearnerProfile = {
+        ...s.learnerProfile,
+        topicsMastery: s.learnerProfile.topicsMastery instanceof Map
+          ? Object.fromEntries(s.learnerProfile.topicsMastery)
+          : (s.learnerProfile.topicsMastery || {})
+      };
+
       await sessionStore.update(sessionId, { 
-        learnerProfile: { ...s.learnerProfile, confusionIndex: newerConfusion } 
+        learnerProfile: { ...safeLearnerProfile, confusionIndex: newerConfusion } 
       });
     }
 

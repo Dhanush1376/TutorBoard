@@ -24,12 +24,12 @@ const CONCEPT_PATTERNS = {
 };
 
 const RENDERER_MAP = {
-  FLOW:       'cinematic',
-  PHYSICS:    'physics',
-  DATA:       'cinematic',
+  FLOW:       'd3',
+  PHYSICS:    'matter',
+  DATA:       'd3',
   NARRATIVE:  'narrative',
   COMPARISON: 'cinematic',
-  ABSTRACT:   'cinematic',
+  ABSTRACT:   'katex',
 };
 
 const STYLE_MAP = {

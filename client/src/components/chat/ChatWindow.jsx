@@ -131,21 +131,22 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
               return (
                 <Message
                   key={msgKey}
-                role={msg.role}
-                content={msg.content}
-                steps={msg.steps}
-                stepTitle={msg.stepTitle}
-                domain={msg.domain}
-                visualizationType={msg.visualizationType}
-                onOpenCanvas={onOpenCanvas}
-                onDeleteMessage={onDeleteMessage}
-                onEditMessage={onEditMessage}
-                messageId={msg.id}
-                elements={msg.elements}
-                motion={msg.motion}
-                connections={msg.connections}
-                sequence={msg.sequence}
-                objects={msg.objects}
+                  role={msg.role}
+                  content={msg.content}
+                  steps={msg.steps}
+                  stepTitle={msg.stepTitle}
+                  domain={msg.domain}
+                  visualizationType={msg.visualizationType}
+                  onOpenCanvas={onOpenCanvas}
+                  onDeleteMessage={onDeleteMessage}
+                  onEditMessage={onEditMessage}
+                  messageId={msg.id}
+                  elements={msg.elements || msg.objects}
+                  motion={msg.motion}
+                  connections={msg.connections}
+                  sequence={msg.sequence}
+                  objects={msg.objects || msg.elements}
+                  hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
                 />
               );
             })}

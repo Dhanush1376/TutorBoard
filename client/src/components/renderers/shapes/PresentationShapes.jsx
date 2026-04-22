@@ -93,8 +93,28 @@ export const CloudShape = ({ x, y, w, h, color, attentionLevel, layoutId, animat
   );
 };
 
-export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, type, animation }) => {
+export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, type, animation, path, strokeWidth }) => {
   const c = resolve(color);
+  
+  // High-fidelity fix for freehand paths
+  if (type === 'path' && path) {
+    return (
+      <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={0} cy={0}>
+        <motion.path 
+          d={path} 
+          fill="none" 
+          stroke={c.stroke} 
+          strokeWidth={strokeWidth || 2} 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          initial={animation?.type === "draw" ? { pathLength: 0 } : {}}
+          animate={animation?.type === "draw" ? { pathLength: 1 } : {}}
+          transition={{ duration: animation?.duration || 0.5 }}
+        />
+      </AW>
+    );
+  }
+
   return (
     <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={x} cy={y}>
       <rect x={-65} y={-32} width={130} height={64} rx={12} fill={c.glass} stroke={c.stroke} strokeWidth={2} />

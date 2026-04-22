@@ -19,6 +19,7 @@ const saveSessionSchema = z.object({
   canvasSteps: z.array(z.any()).max(100).optional(),
   canvasVersion: z.number().optional(),
   preferences: z.record(z.any()).optional(),
+  activeSnapshotId: z.string().optional().nullable(),
   token: z.string().optional(), // Beacon requests include token in body
 }).passthrough(); // Allow extra fields we don't know about yet
 
@@ -106,7 +107,10 @@ export const saveSession = async (req, res) => {
       });
     }
 
-    const { sessionId, title, messages, canvasState, canvasSteps, canvasVersion, preferences } = validation.data;
+    const { 
+      sessionId, title, messages, canvasState, canvasSteps, 
+      canvasVersion, preferences, activeSnapshotId 
+    } = validation.data;
     
     console.log(`[DB] Save Request: User=${req.user._id}, Session=${sessionId || 'NEW'}`);
 
@@ -117,10 +121,29 @@ export const saveSession = async (req, res) => {
       // Build update object — only include fields that were actually sent
       const updateFields = { lastUpdated: Date.now() };
       if (title !== undefined) updateFields.title = title;
-      if (messages !== undefined) updateFields.messages = messages;
-      if (canvasState !== undefined) updateFields.canvasState = canvasState;
-      if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
-      if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
+      
+      // If we're editing a specific message's snapshot, inject the state there
+      if (activeSnapshotId && messages) {
+        const msgIndex = messages.findIndex(m => m.id === activeSnapshotId);
+        if (msgIndex !== -1) {
+          messages[msgIndex].canvasSnapshot = {
+            canvasObjects: canvasState,
+            canvasSteps,
+            canvasVersion,
+            totalSteps: canvasSteps?.length || 0,
+            currentStepIndex: req.body.currentStepIndex || 0,
+          };
+          messages[msgIndex].hasCanvas = true;
+        }
+        updateFields.messages = messages;
+      } else {
+        // Normal session-wide update
+        if (messages !== undefined) updateFields.messages = messages;
+        if (canvasState !== undefined) updateFields.canvasState = canvasState;
+        if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
+        if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
+      }
+
       if (preferences !== undefined) updateFields.preferences = preferences;
 
       session = await ChatSession.findOneAndUpdate(

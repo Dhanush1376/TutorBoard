@@ -166,7 +166,8 @@ const Home = ({ isDark }) => {
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
     setCanvasSnapshot, greetingMessage, layoutView, addNoteToCanvas,
-    chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition, showAlert
+    chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition, showAlert,
+    activeSnapshotId, setActiveSnapshotId, setTimeline
   } = useTutorStore();
 
 
@@ -180,7 +181,7 @@ const Home = ({ isDark }) => {
   const [historyFetched, setHistoryFetched] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, hasMore: false, loading: false });
   const [isDbOffline, setIsDbOffline] = useState(false);
-  
+
   const fetchCloudSessions = useCallback(async (pageNum = 1) => {
     if (!isAuthenticated || user?.isGuest || !token) return;
     
@@ -249,6 +250,26 @@ const Home = ({ isDark }) => {
   // Use machine.sessionId as the single source of truth for the local chat pointer
   const activeChatId = machineSessionId;
   const setActiveChatId = storeSetSessionId;
+
+  // ─── Leave Chat / Close Snapshot Logic ───
+  useEffect(() => {
+    // If sidebar is closed and we were viewing a snapshot, return to main lesson
+    if (!isSidebarOpen && activeSnapshotId) {
+      console.log('[Home] Leaving chat, closing snapshot animation...');
+      setActiveSnapshotId(null);
+      
+      // Restore main lesson state from history if available
+      const session = chatHistory.find(s => s.id === activeChatId);
+      if (session && session.canvasState) {
+        setCanvasSnapshot({
+          canvasObjects: session.canvasState,
+          canvasSteps: session.canvasSteps || [],
+          totalSteps: session.canvasSteps?.length || 0,
+          currentStepIndex: session.currentStepIndex || 0
+        });
+      }
+    }
+  }, [isSidebarOpen, activeSnapshotId, chatHistory, activeChatId, setActiveSnapshotId, setCanvasSnapshot]);
   
   // Session persistence hardening: Remove local history mirror
   // We now rely strictly on cloud fetch and sync.
@@ -734,6 +755,7 @@ const Home = ({ isDark }) => {
       const msg = session.messages.find(m => m.id === messageId);
       if (msg && msg.canvasSnapshot) {
         setCanvasSnapshot(msg.canvasSnapshot);
+        useTutorStore.getState().setActiveSnapshotId(messageId);
       }
     }
     // Reveal the canvas by collapsing the sidebar

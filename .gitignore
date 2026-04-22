@@ -31,5 +31,15 @@ server/verify_*.js
 scratch_test_schema.js
 scratch/
 eslint-result.json
+*-eslint-output.json
+*.eslint.json
 client/eslint-result.json
 server/eslint-result.json
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local

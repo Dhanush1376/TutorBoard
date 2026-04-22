@@ -17,7 +17,9 @@ if (process.env.REDIS_URL) {
       // @ts-ignore
       sendCommand: (...args) => client.call(...args),
     });
-  } catch (e) { /* fallback to memory */ }
+  } catch (e) { 
+    console.error('[RateLimit] CRITICAL: Redis unavailable. Rate limiting degraded to in-memory (insecure in multi-instance).');
+  }
 }
 
 export const httpRateLimiter = rateLimit({

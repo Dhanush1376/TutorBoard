@@ -53,7 +53,7 @@ export const GlassRect = ({
   return (
     <AW
       attentionLevel={attentionLevel} layoutId={layoutId} animation={animation}
-      cx={x + w / 2} cy={y + h / 2} w={w} h={h}
+      cx={x} cy={y} w={w} h={h}
       isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} rotation={rotation}
     >
       <rect
@@ -108,7 +108,7 @@ export const EllipseShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
         fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
         strokeDasharray={getStrokeDash(strokeStyle)}
       />
-      {label && <text y={h/2 + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
+      {label && <text y={h/2 + 22} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
   );
 };
@@ -125,7 +125,7 @@ export const DiamondShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
         points={pts} fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
         strokeDasharray={getStrokeDash(strokeStyle)}
       />
-      {label && <text y={dh + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
+      {label && <text y={dh + 22} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
   );
 };
@@ -147,7 +147,7 @@ export const StarShape = ({ x, y, w, h, color, attentionLevel, layoutId, animati
         points={points.join(" ")} fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
         strokeDasharray={getStrokeDash(strokeStyle)}
       />
-      {label && <text y={rOuter + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
+      {label && <text y={rOuter + 22} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
   );
 };
@@ -168,7 +168,7 @@ export const HexagonShape = ({ x, y, w, h, color, attentionLevel, layoutId, anim
         points={points.join(" ")} fill={fill === "none" ? "none" : c.glass} stroke={c.stroke} strokeWidth={2} 
         strokeDasharray={getStrokeDash(strokeStyle)}
       />
-      {label && <text y={rh + 15} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
+      {label && <text y={rh + 22} textAnchor="middle" fill={c.text} fontSize={12} fontWeight="bold">{label}</text>}
     </AW>
   );
 };

@@ -101,28 +101,20 @@ ID CONTINUITY (CRITICAL)
 OUTPUT SCHEMA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
+  "meta": {
+    "topic": "Bubble Sort",
+    "renderer": "cinematic | d3 | matter | narrative | katex",
+    "concept_type": "FLOW | PHYSICS | DATA | NARRATIVE | ABSTRACT"
+  },
   "visual_steps": [
     {
       "step": 1,
       "camera": { "x": 0.5, "y": 0.5, "zoom": 1.0 },
       "elements": [
-        { "id": "title", "type": "orb", "x": 0.5, "y": 0.12, "color": "blue", "label": "Bubble Sort" },
-        { "id": "hook_text", "type": "block", "x": 0.5, "y": 0.40, "color": "gray", "label": "Imagine sorting a deck of cards by only comparing neighbors..." },
-        { "id": "analogy_icon", "type": "orb", "x": 0.5, "y": 0.65, "color": "purple", "label": "🃏 Card Sorting" }
+        { "id": "title", "type": "orb", "x": 0.5, "y": 0.12, "color": "blue", "label": "Bubble Sort" }
       ],
       "mutations": [],
       "exits": []
-    },
-    {
-      "step": 2,
-      "camera": { "x": 0.5, "y": 0.45, "zoom": 1.1 },
-      "elements": [
-        { "id": "arr_main", "type": "array", "x": 0.5, "y": 0.35, "props": { "values": [64, 34, 25, 12] }, "label": "Unsorted Array", "color": "blue" },
-        { "id": "ptr_i", "type": "pointer", "x": 0.22, "y": 0.50, "color": "cyan", "label": "i = 0" },
-        { "id": "ptr_j", "type": "pointer", "x": 0.78, "y": 0.50, "color": "yellow", "label": "j = 3" }
-      ],
-      "mutations": [],
-      "exits": ["hook_text", "analogy_icon"]
     }
   ]
 }

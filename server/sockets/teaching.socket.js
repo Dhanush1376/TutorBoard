@@ -62,6 +62,27 @@ export function setupTeachingSocket(io) {
     }
   });
 
+  // ─── Global Rate Limiter Middleware ─────────────────────────────────────
+  teachingIO.use(async (socket, next) => {
+    socket.use(async ([event, ...args], nextEvent) => {
+      // Internal events like disconnect are skipped
+      if (['disconnect', 'error'].includes(event)) return nextEvent();
+      
+      const isAllowed = await checkSocketRate(getRateKey(socket));
+      if (!isAllowed) {
+        console.warn(`[WS:RateLimit] 🚨 ABUSER BLOCKED: ${getRateKey(socket)} on event: ${event}`);
+        socket.emit('error:ratelimit', { 
+          message: 'Too many requests. Please slow down.',
+          event 
+        });
+        // Block the event by NOT calling nextEvent()
+        return;
+      }
+      nextEvent();
+    });
+    next();
+  });
+
   teachingIO.on('connection', async (socket) => {
     const requestId = getOrCreateRequestId(socket);
     const sessionId = createTrackedSessionId(socket.id, requestId);
@@ -103,6 +124,16 @@ export function setupTeachingSocket(io) {
     // ─── Cleanup on Disconnect ───────────────────────────────────────────────
     socket.on('disconnect', async (reason) => {
       console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
+      
+      // BUG-02: Ensure profile is persisted even if student just closes the tab
+      if (socket.user && !socket.user.isGuest) {
+        try {
+          await sessionStore.persistProfile(sessionId);
+        } catch (err) {
+          console.error(`[WS] Persistence failed on disconnect for ${socket.user.id}:`, err.message);
+        }
+      }
+
       await sessionStore.destroy(sessionId);
       cleanupSocket(getRateKey(socket));
     });

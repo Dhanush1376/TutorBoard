@@ -32,7 +32,14 @@ export const createSessionSlice = (set, get) => ({
   generationProgress: null,
   isTimelineReady:    false,
   sessionManifest:    {},
+  learnerProfile:     { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} },
   guestTrialStatus:   { count: 0, limit: 50, warning: false },
+  resumeContext:      null, // { topic, stepIndex }
+  activeSnapshotId:   null, // ID of message whose snapshot we are currently viewing/editing
+
+  setLearnerProfile: (profile) => set({ learnerProfile: { ...get().learnerProfile, ...profile } }),
+  setResumeContext: (ctx) => set({ resumeContext: ctx }),
+  setActiveSnapshotId: (id) => set({ activeSnapshotId: id }),
 
 
   setMachineState:  (state) => set({ machineState: state, error: null }),
@@ -44,6 +51,31 @@ export const createSessionSlice = (set, get) => ({
   setChatSessionId: (id)        => set({ chatSessionId: id }),
   triggerSync:      ()          => set({ syncTrigger: Date.now() }),
   setGuestTrialStatus: (status) => set({ guestTrialStatus: { ...get().guestTrialStatus, ...status } }),
+
+  takeSnapshot: () => {
+    const { canvasObjects, canvasTransform, currentStepIndex, snapshots } = get();
+    const id = `snap-${Date.now()}`;
+    set({
+      snapshots: {
+        ...snapshots,
+        [id]: { canvasObjects: [...canvasObjects], canvasTransform, currentStepIndex }
+      }
+    });
+    return id;
+  },
+
+  restoreSnapshot: (id) => {
+    const { snapshots } = get();
+    const snap = snapshots[id];
+    if (snap) {
+      set({
+        canvasObjects: snap.canvasObjects,
+        canvasTransform: snap.canvasTransform,
+        currentStepIndex: snap.currentStepIndex
+      });
+    }
+  },
+
   setGenerationProgress: (progress)  => set({ 
 
     generationProgress: typeof progress === 'string' 

@@ -78,8 +78,8 @@ export function useSocket(isAuthReady = true) {
     // BUG FIX #37: Check token immediately and on every mount
     checkToken();
 
-    // BUG FIX #37: Set up periodic token refresh (every 30 seconds) to catch auth changes
-    const tokenCheckInterval = setInterval(checkToken, 30000);
+    // BUG FIX #37: Periodic interval removed to reduce network load (BUG-25).
+    // Token refresh is now handled on reconnection events.
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -92,8 +92,7 @@ export function useSocket(isAuthReady = true) {
     }
 
     return () => {
-      // BUG FIX #38: Clean up listeners and interval on unmount
-      clearInterval(tokenCheckInterval);
+      // BUG FIX #38: Clean up listeners on unmount
       window.removeEventListener('storage', checkToken);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);

@@ -24,6 +24,7 @@ export const createCanvasSlice = (set, get) => ({
   canvasConnections: [],
   canvasSteps:       [],
   canvasTransform:   { x: 0, y: 0, scale: 1 },
+  deltaState:        null, // Stores temporary doubt-driven visual interventions
   canvasVersion:     0,
   isCanvasLocked:    false,
   isInteracting:     false,
@@ -41,6 +42,7 @@ export const createCanvasSlice = (set, get) => ({
   setInteracting:     (active) => set({ isInteracting: active }),
   setSelectedElements: (ids)   => set({ selectedElementIds: ids }),
   setCurrentStep: (index)      => set({ currentStepIndex: index }),
+  setDeltaState:  (delta)      => set({ deltaState: delta }),
 
   setTimeline: (data) => {
     const serverObjects     = data.elements     || data.objects      || [];
@@ -83,7 +85,9 @@ export const createCanvasSlice = (set, get) => ({
       canvasSteps,
       totalSteps,
 
-      currentStepIndex:  0,
+      currentStepIndex:  typeof data.currentStepIndex === 'number' 
+        ? data.currentStepIndex 
+        : (isNewTopic ? 0 : get().currentStepIndex),
       doubtResponse:     null,
       greetingMessage:   null,
       generationProgress: null,
@@ -110,7 +114,7 @@ export const createCanvasSlice = (set, get) => ({
     }
   },
 
-  setCanvasSnapshot: ({ canvasObjects, canvasSteps, totalSteps }) => {
+  setCanvasSnapshot: ({ canvasObjects, canvasSteps, totalSteps, currentStepIndex }) => {
     const steps = canvasSteps || [];
     const count = totalSteps  || steps.length;
 
@@ -118,8 +122,10 @@ export const createCanvasSlice = (set, get) => ({
       canvasObjects: canvasObjects || [],
       canvasSteps:   steps,
       totalSteps:    count,
-      currentStepIndex: Math.max(0, steps.length - 1),
-      canvasMode: CANVAS_MODE.FULLSCREEN,
+      currentStepIndex: typeof currentStepIndex === 'number'
+        ? Math.min(currentStepIndex, steps.length - 1)
+        : 0,
+      canvasMode: get().canvasMode === CANVAS_MODE.CLOSED ? CANVAS_MODE.FULLSCREEN : get().canvasMode,
       timeline: {
         title:       'Lesson Snapshot',
         domain:      'general',
@@ -269,7 +275,10 @@ export const createCanvasSlice = (set, get) => ({
       canvasObjects: newObjects,
       canvasSteps:   newSteps,
       totalSteps:    newSteps.length,
-      ...(lastAddedIndex !== -1 ? { currentStepIndex: lastAddedIndex, canvasMode: CANVAS_MODE.FULLSCREEN } : {}),
+      ...(lastAddedIndex !== -1 ? { 
+        currentStepIndex: lastAddedIndex, 
+        canvasMode: get().canvasMode === CANVAS_MODE.CLOSED ? CANVAS_MODE.FULLSCREEN : get().canvasMode 
+      } : {}),
       canvasVersion: get().canvasVersion + 1,
     });
 

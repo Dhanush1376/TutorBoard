@@ -7,6 +7,10 @@ import { AuthProvider } from './context/AuthContext';
 import './index.css';
 import './styles/animations.css';
 import useTutorStore from './store/tutorStore';
+import { initPostHog } from './utils/analytics';
+
+// Initialize Analytics
+initPostHog();
 
 
 // Hydration is handled automatically by Zustand persist middleware

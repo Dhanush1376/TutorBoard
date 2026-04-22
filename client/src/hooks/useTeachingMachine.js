@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect } from 'react';
 import { useShallow } from 'zustand/shallow';
 import useSocket from './useSocket';
 import useTutorStore, { STATES } from '../store/tutorStore';
+import { trackEvent, identifyUser } from '../utils/analytics';
 
 export { STATES };
 
@@ -80,6 +81,8 @@ export function useTeachingMachine(isAuthReady = true) {
     setPlaybackSpeed: s.setPlaybackSpeed,
     selectedAgent: s.selectedAgent,
     setGuestTrialStatus: s.setGuestTrialStatus,
+    setLearnerProfile: s.setLearnerProfile,
+    setResumeContext: s.setResumeContext,
   })));
 
   // ─── Sync connection state ────────────────────────────────────────────────
@@ -123,6 +126,16 @@ export function useTeachingMachine(isAuthReady = true) {
   useEffect(() => {
     const cleanups = [];
 
+    // ─── Phase 2 Fix: Snapshot-Aware Sync ───
+    // Only apply remote session sync if we aren't actively interacting AND not in snapshot mode.
+    // This prevents "disappearing items" when editing a message snapshot.
+    cleanups.push(on('canvas:sync', (data) => {
+      const state = useTutorStore.getState();
+      if (!state.isInteracting && !state.activeSnapshotId) {
+        setCanvasObjects(data.objects);
+      }
+    }));
+
     // State changes from server FSM
     cleanups.push(on('teaching:state', (data) => {
       console.log(`[Machine] State: ${data.from} → ${data.state} (${data.event})`);
@@ -144,6 +157,17 @@ export function useTeachingMachine(isAuthReady = true) {
         objects:     data.objects     || data.elements || [],
         renderer:    data.renderer    || 'cinematic',
         totalSteps:  data.totalSteps  || (data.steps || data.timeline || []).length || 0,
+      });
+
+      if (data.isResume) {
+        setResumeContext({ topic: data.title, stepIndex: data.currentStepIndex || 0 });
+      }
+      
+      trackEvent('session_timeline_received', { 
+        sessionId: data.sessionId, 
+        topic: data.title, 
+        steps: data.totalSteps,
+        renderer: data.renderer
       });
 
       // Ensure machine state advances to TEACHING even if the FSM event
@@ -189,6 +213,16 @@ export function useTeachingMachine(isAuthReady = true) {
       
       setDoubtProcessing(false); // Bug 54 Fix: Reset spinner when response arrives
       notifyUser("New Agent Reply", "The AI has responded to your doubt.");
+    }));
+ 
+    // Doubt Delta received (Phase 3)
+    cleanups.push(on('teaching:doubt-delta', (data) => {
+      console.log(`[Machine] Doubt Delta: ${data.actions?.length} actions`);
+      addDoubt(data._question, data.answer, true, { actions: data.actions, isDelta: true });
+      
+      // The VisualScriptInterpreter in the renderer will pick up these actions
+      // via the deltaState or currentStep update
+      setDoubtProcessing(false);
     }));
 
     // Error from server
@@ -236,6 +270,12 @@ export function useTeachingMachine(isAuthReady = true) {
     cleanups.push(on('guest:status', (data) => {
       console.log(`[Machine] Guest Usage: ${data.count} / ${data.limit} (Warning: ${data.warning})`);
       setGuestTrialStatus(data);
+    }));
+
+    // Learner Profile update
+    cleanups.push(on('teaching:profile', (data) => {
+      console.log(`[Machine] Learner Profile sync:`, data);
+      setLearnerProfile(data);
     }));
 
     return () => cleanups.forEach(cleanup => cleanup());
@@ -350,12 +390,17 @@ export function useTeachingMachine(isAuthReady = true) {
     // Pass the existing chatSessionId (if any) so the server can resume/link
     // the correct MongoDB document instead of creating a duplicate.
     const existingChatId = useTutorStore.getState().chatSessionId;
+    
+    identifyUser(topicStr, { last_topic: topicStr });
+    trackEvent('session_started', { topic: topicStr, mode: activeMode, agent: selectedAgent });
+    
     emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode, chatId: existingChatId || undefined });
   }, [emit, storeStartSession, selectedAgent]);
 
   const askDoubt = useCallback((question, activeMode) => {
     storePause();
     setDoubtProcessing(true);
+    trackEvent('doubt_asked', { question, agent: selectedAgent });
     emit('session:doubt', { question, selectedAgent, activeMode });
   }, [emit, storePause, setDoubtProcessing, selectedAgent]);
 

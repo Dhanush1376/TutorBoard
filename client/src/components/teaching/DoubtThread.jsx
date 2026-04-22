@@ -7,7 +7,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageCircleQuestion, ArrowUpRight, Eye, FlaskConical, Binary, Sigma, Zap, Leaf, Stethoscope, Briefcase, Scale, History, Settings, Brain, TrendingUp, Palette, Plane, BookOpen } from 'lucide-react';
+import { X, MessageCircleQuestion, ArrowUpRight, Eye, FlaskConical, Binary, Sigma, Zap, Leaf, Stethoscope, Briefcase, Scale, History, Settings, Brain, TrendingUp, Palette, Plane, BookOpen, ChevronLeft } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import TeachingGuide from './TeachingGuide';
 
@@ -40,14 +40,14 @@ const DoubtThread = () => {
   const domainStyle = DOMAIN_STYLES[timeline?.domain] || { color: '#94a3b8' };
 
   const [showGuide, setShowGuide] = React.useState(false);
-  const [revealedFollowups, setRevealedFollowups] = React.useState(new Set());
+  const [expandedIds, setExpandedIds] = React.useState(new Set());
   const scrollRef = useRef(null);
 
-  const toggleFollowup = (id) => {
-    const next = new Set(revealedFollowups);
+  const toggleExpand = (id) => {
+    const next = new Set(expandedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    setRevealedFollowups(next);
+    setExpandedIds(next);
   };
 
   // Auto-scroll to latest doubt
@@ -134,17 +134,25 @@ const DoubtThread = () => {
                         </div>
 
                         {/* Doubt card */}
-                        <div className={`rounded-2xl border transition-all ${
+                        <div className={`rounded-2xl border transition-all cursor-pointer ${
                           isActive
                             ? 'bg-[var(--bg-secondary)] border-[var(--border-strong)] shadow-lg'
                             : 'bg-[var(--bg-tertiary)]/30 border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]/50'
-                        }`}>
+                        }`}
+                        onClick={() => toggleExpand(doubt.id)}>
                           {/* Question */}
                           <div className="p-3 pb-2">
                             <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
-                                Question
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
+                                  Question
+                                </span>
+                                {expandedIds.has(doubt.id) ? (
+                                  <motion.div initial={{ rotate: 0 }} animate={{ rotate: 180 }}><ChevronLeft size={10} className="rotate-90 text-[var(--text-tertiary)]" /></motion.div>
+                                ) : (
+                                  <motion.div initial={{ rotate: 180 }} animate={{ rotate: 0 }}><ChevronLeft size={10} className="-rotate-90 text-[var(--text-tertiary)]" /></motion.div>
+                                )}
+                              </div>
                               <span className="text-[9px] text-[var(--text-tertiary)] opacity-60">
                                 {formatTime(doubt.timestamp)}
                               </span>
@@ -154,61 +162,59 @@ const DoubtThread = () => {
                             </p>
                           </div>
 
-                          {/* Answer */}
-                          {doubt.answer && (
-                            <div className="px-3 pb-2 space-y-2">
-                              <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                                {doubt.answer}
-                              </p>
-                              {doubt.followUp && (
-                                <div 
-                                  onClick={() => toggleFollowup(doubt.id)}
-                                  className={`p-2 rounded-xl border transition-all cursor-pointer group ${
-                                    revealedFollowups.has(doubt.id)
-                                      ? 'bg-blue-500/5 border-blue-500/20 text-[10px] text-blue-400 italic'
-                                      : 'bg-white/5 border-white/5 text-[9px] text-[var(--text-tertiary)] hover:bg-white/10'
-                                  }`}
-                                >
-                                  {!revealedFollowups.has(doubt.id) ? (
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-bold uppercase tracking-wider text-[8px] opacity-70">Think About It...</span>
-                                      <span className="text-[7px] border border-white/20 px-1 rounded uppercase group-hover:bg-white/10 transition-colors">Tap to Reveal</span>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <span className="not-italic font-extrabold text-[8px] uppercase tracking-tighter opacity-50 mr-1.5">Guiding Question:</span>
-                                      {doubt.followUp}
-                                    </>
+                          {/* Answer (Collapsible) */}
+                          <AnimatePresence>
+                            {expandedIds.has(doubt.id) && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                {doubt.answer && (
+                                  <div className="px-3 pb-2 space-y-2">
+                                    <div className="h-px bg-[var(--border-color)] opacity-20 mb-2" />
+                                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                                      {doubt.answer}
+                                    </p>
+                                    {doubt.followUp && (
+                                      <div 
+                                        className="p-2 rounded-xl border bg-blue-500/5 border-blue-500/10 text-[10px] text-blue-400 italic"
+                                      >
+                                        <span className="not-italic font-extrabold text-[8px] uppercase tracking-tighter opacity-50 mr-1.5">Guiding Question:</span>
+                                        {doubt.followUp}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-1.5 px-3 pb-2.5" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => jumpToDoubt(doubt.id)}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all"
+                                  >
+                                    <Eye size={10} />
+                                    View State
+                                  </button>
+                                  {doubt.answer && (
+                                    <button
+                                      onClick={() => pinDoubtToCanvas(doubt.id)}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
+                                    >
+                                      <Zap size={10} />
+                                      Pin to Canvas
+                                    </button>
+                                  )}
+                                  {doubt.hasVisuals && (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                      Visuals
+                                    </span>
                                   )}
                                 </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-1.5 px-3 pb-2.5">
-                            <button
-                              onClick={() => jumpToDoubt(doubt.id)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all"
-                            >
-                              <Eye size={10} />
-                              View State
-                            </button>
-                            {doubt.answer && (
-                              <button
-                                onClick={() => pinDoubtToCanvas(doubt.id)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
-                              >
-                                <Zap size={10} />
-                                Pin to Canvas
-                              </button>
+                              </motion.div>
                             )}
-                            {doubt.hasVisuals && (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                                Visuals
-                              </span>
-                            )}
-                          </div>
+                          </AnimatePresence>
                         </div>
                       </motion.div>
                     );

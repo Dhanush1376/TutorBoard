@@ -33,6 +33,7 @@ export const useSessionSync = (chatMessages) => {
     syncTrigger,
     setChatSessionId,
     pinnedNotes,
+    activeSnapshotId,
   } = useTutorStore();
 
   const syncTimerRef = useRef(null);
@@ -47,7 +48,8 @@ export const useSessionSync = (chatMessages) => {
       drawColor, drawWidth, textToolSize, noteToolSize,
       noteColor, noteSize, layoutView, gridType, gridSize, showGrid,
       setChatSessionId, 
-      pinnedNotes
+      pinnedNotes,
+      activeSnapshotId
     };
   });
 
@@ -62,6 +64,7 @@ export const useSessionSync = (chatMessages) => {
 
     const payload = {
       sessionId: state.chatSessionId,
+      activeSnapshotId: state.activeSnapshotId,
       title: state.topic || 'New Learning Session',
       messages: state.chatMessages || [],
       canvasState: state.canvasObjects || [],

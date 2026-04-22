@@ -14,6 +14,7 @@ import {
   buildTimelinePayload,
   resolveModelId 
 } from '../utils.js';
+import { generateSessionSummary } from '../../engine/core/pedagogyEngine.js';
 import { logActivity } from '../../controllers/session.controller.js';
 
 export function registerSessionHandlers(socket, machine, sessionId, requestId) {
@@ -70,10 +71,16 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     // Profile Initialization
     if (socket.user && socket.user.id !== 'guest') {
       await sessionStore.initProfile(sessionId, socket.user.id);
+      const s = await sessionStore.get(sessionId);
+      if (s && s.learnerProfile) {
+        socket.emit('teaching:profile', s.learnerProfile);
+      }
     } else {
+      const guestProfile = { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} };
       await sessionStore.update(sessionId, {
-        learnerProfile: { level: 'beginner', pace: 'normal', confusionIndex: 0 },
+        learnerProfile: guestProfile,
       });
+      socket.emit('teaching:profile', guestProfile);
     }
 
     // Resumption / Linking Logic
@@ -95,7 +102,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
               renderer: 'AgentCanvasRenderer' 
             });
 
-            socket.emit('teaching:timeline', payload);
+            socket.emit('teaching:timeline', { ...payload, isResume: true, currentStepIndex: restored.currentStepIndex });
             socket.emit('teaching:step', {
               step:  restored.steps[restored.currentStepIndex],
               index: restored.currentStepIndex,
@@ -253,11 +260,26 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     machine.send(EVENTS.FINISH);
     if (socket.user && !socket.user.isGuest) {
       await sessionStore.persistProfile(sessionId);
+      
+      // Phase 5: Semantic Finalization
+      const summary = await generateSessionSummary(sessionId);
+      if (summary) {
+        await sessionStore.finalizeSessionMemory(sessionId, summary);
+      }
     }
   });
 
   // ─── END SESSION ─────────────────────────────────────────────────────
   socket.on('session:end', async () => {
+    if (socket.user && !socket.user.isGuest) {
+      await sessionStore.persistProfile(sessionId);
+
+      // Phase 5: Semantic Finalization (last chance)
+      const summary = await generateSessionSummary(sessionId);
+      if (summary) {
+        await sessionStore.finalizeSessionMemory(sessionId, summary);
+      }
+    }
     machine.forceReset();
     await sessionStore.destroy(sessionId);
   });

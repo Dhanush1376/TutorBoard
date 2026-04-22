@@ -99,27 +99,20 @@ OUTPUT SCHEMA
   "animation_steps": [
     {
       "step": 1,
-      "global_transition": "fade | slide_left | slide_right | scale | none",
-      "camera": {
-        "action": "pan | zoom_in | zoom_out | reset | none",
-        "x": 0.5,
-        "y": 0.5,
-        "zoom": 1.0,
+      "animation": {
+        "type": "fade | scale | slide | draw",
         "duration": 0.8,
-        "easing": "ease_in_out",
-        "delay": 0.4
-      },
-      "animations": [
-        {
-          "id": "element_id",
-          "action": "fade_in | scale_in | move | highlight | ...",
-          "duration": 0.4,
-          "delay": 0.0,
-          "easing": "ease_out | spring | ...",
-          "props": {}
-        }
-      ],
-      "blueprint_used": "swap | comparison | reveal | trace | build | custom"
+        "actions": [
+          {
+            "id": "element_id",
+            "action": "fade_in | fade_out | scale_in | scale_out | move | highlight | shake | glow_pulse | draw | pointer_move | label_show",
+            "duration": 0.4,
+            "delay": 0.0,
+            "easing": "ease_out | spring | bounce | ease_in_out",
+            "props": { "x": 0.5, "y": 0.5 }
+          }
+        ]
+      }
     }
   ]
 }

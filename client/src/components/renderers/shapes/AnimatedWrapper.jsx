@@ -49,7 +49,7 @@ export const AW = ({
             ? { scale: 0.2, rotate: -3, opacity: 0 }
             : aType === "bounce"
               ? { scale: 0.5, opacity: 0 }
-              : { opacity: 0 });
+              : { opacity: 0, y: 8 });
 
   const animate = props.animate || {
     x: cx,
@@ -206,7 +206,7 @@ export const AW = ({
         ...animate,
         scale: isDragging ? scale * 1.05 : scale,
       }}
-      exit={{ scale: 0.8, opacity: 0 }}
+      exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}
       onPointerDown={handleMovePointerDown}
       onMouseDown={(e) => e.stopPropagation()}
       style={{ 

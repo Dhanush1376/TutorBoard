@@ -27,6 +27,12 @@ import DoubtThread from './DoubtThread';
 import DoubtTimeline from './DoubtTimeline';
 import SessionOverlay from './SessionOverlay';
 import StepPanel from './StepPanel';
+import NarrationBar from './NarrationBar';
+import StepFilmstrip from './StepFilmstrip';
+import MasteryHUD from './MasteryHUD';
+import ShortcutsHUD from './ShortcutsHUD';
+import ProgressArc from './ProgressArc';
+import SessionResumeOverlay from './SessionResumeOverlay';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
 
@@ -300,6 +306,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
           style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 1000 }}
           className="flex flex-col bg-[var(--bg-primary)] overflow-hidden"
         >
+          <SessionResumeOverlay />
           {/* ─── STATE OVERLAYS ─── */}
           <SessionOverlay
             machineState={machineState}
@@ -485,72 +492,29 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
             </div>
           </motion.div>
 
-          {/* ─── STEP EXPLANATION PANEL (visible in TEACHING + RESPONDING + RESUMING) ─── */}
-          <AnimatePresence>
-            {showStepPanel && (
-              <motion.div
-                key={`panel-${machineState}`}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="relative z-10 ml-5 mt-5 max-w-sm"
-              >
-                <StepPanel
-                  currentStep={currentStep}
-                  currentStepIndex={currentStepIndex}
-                  totalSteps={totalSteps}
-                  learningNodes={learningNodes}
-                  memoryAnchor={memoryAnchor}
-                  keyFormula={keyFormula}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* ─── LESSON STEP FILMSTRIP (Fixed at top below top bar) ─── */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative z-10 w-full flex justify-center"
+          >
+            <StepFilmstrip 
+              steps={canvasSteps} 
+              currentStepIndex={currentStepIndex} 
+              goToStep={goToStep} 
+            />
+          </motion.div>
 
-          {/* ─── Doubt Processing Indicator ─── */}
-          <AnimatePresence>
-            {machineState === STATES.DOUBT_TRIGGERED && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30"
-              >
-                <div className="flex items-center gap-3 px-6 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-2xl">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    className="w-5 h-5 border-2 border-[var(--text-tertiary)] border-t-[var(--text-primary)] rounded-full"
-                  />
-                  <span className="text-xs font-semibold text-[var(--text-primary)]">
-                    Professor is thinking...
-                  </span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* ─── NARATION BAR ─── */}
+          <NarrationBar 
+            text={currentStep?.narration || currentStep?.explanation} 
+            isGenerating={machineState === STATES.GENERATING}
+          />
 
-          {/* ─── Doubt Response Toast ─── */}
-          <AnimatePresence>
-            {doubtResponse?.answer && machineState === STATES.RESPONDING && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="absolute top-24 left-1/2 -translate-x-1/2 z-30 max-w-md"
-              >
-                <div className="px-5 py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-2xl">
-                  <p className="text-xs text-[var(--text-primary)] leading-relaxed">{doubtResponse.answer}</p>
-                  {doubtResponse.hasVisuals && (
-                    <span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400">
-                      ✨ Canvas updated
-                    </span>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* ─── HUDs & Overlays ─── */}
+          <MasteryHUD />
+          <ShortcutsHUD />
+          <ProgressArc />
 
           {/* ─── SIDEBAR + THREAD + TIMELINE ─── */}
           <FloatingSidebar />
@@ -588,49 +552,6 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
               </div>
             </div>
 
-            {/* Progress Bar — Normalized scaling for short vs long timelines */}
-            {timeline && totalSteps > 0 && (
-              <div className="w-full max-w-xl px-6">
-                <div className="relative group/track flex items-center justify-center gap-1 h-3 px-2 rounded-full bg-[var(--bg-secondary)]/30 border border-[var(--border-color)]/20">
-                  {Array.from({ length: progressSegments }).map((_, i) => {
-                    const isActive = i === progressStep;
-                    const isPast = i < progressStep;
-
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          const targetStep = totalSteps > 50
-                            ? Math.round((i / (progressSegments - 1)) * (totalSteps - 1))
-                            : i;
-                          goToStep(targetStep);
-                        }}
-                        className={`
-                          h-1.5 rounded-full transition-all duration-300 relative
-                          ${isActive ? 'w-8 bg-[var(--text-primary)] shadow-[0_0_12px_rgba(255,255,255,0.3)] z-10' : 
-                            isPast ? 'w-4 bg-[var(--text-secondary)] opacity-80' : 
-                            'w-4 bg-[var(--border-color)] opacity-40 hover:opacity-100'}
-                          hover:h-2
-                        `}
-                        style={{
-                          maxWidth: '40px',
-                          minWidth: '6px',
-                          flexShrink: 1,
-                        }}
-                        title={`Step ${i + 1}${canvasSteps[i]?.title ? ': ' + canvasSteps[i].title : ''}`}
-                      >
-                        {isActive && (
-                          <motion.div
-                            layoutId="active-progress-glow"
-                            className="absolute inset-0 bg-white/20 blur-sm rounded-full"
-                          />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Playback Controls */}
             {timeline && (
