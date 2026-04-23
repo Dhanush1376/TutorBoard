@@ -80,8 +80,10 @@ const CanvasMinimap = ({
               
               {/* Objects as dots/shapes */}
               {objects.map((obj, i) => {
-                const x = obj.x || obj.cx || obj.x1 || 400;
-                const y = obj.y || obj.cy || obj.y1 || 300;
+                const rawX = obj.x || obj.cx || obj.x1 || 400;
+                const rawY = obj.y || obj.cy || obj.y1 || 300;
+                const x = rawX <= 1 ? rawX * CANVAS_WIDTH : rawX;
+                const y = rawY <= 1 ? rawY * CANVAS_HEIGHT : rawY;
                 const color = obj.color || 'gray';
                 const PALETTE = {
                   blue: '#3b82f6', red: '#ef4444', green: '#22c55e', yellow: '#eab308',

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
-import Settings from './pages/Settings';
 import MasteryDashboard from './components/dashboard/MasteryDashboard';
 import Loader from './components/layout/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -16,22 +14,20 @@ import { useAuth } from './context/AuthContext';
 import GlobalStatusOverlay from './components/layout/GlobalStatusOverlay';
 import ThemedPopup from './components/layout/ThemedPopup';
 import IntroAnimation from './components/layout/IntroAnimation';
-import ToastContainer from './components/layout/ToastContainer';
 import useTutorStore from './store/tutorStore';
+import GlobalOverlayManager from './components/common/GlobalOverlayManager';
 
 function App() {
-  const { loading: authLoading, apiError, connectionStatus, forceStopLoading, isAuthenticated } = useAuth();
-  const { setGlobalOverlay, globalOverlay } = useTutorStore();
+  const { loading: authLoading, apiError, connectionStatus, forceStopLoading } = useAuth();
+  const { setGlobalOverlay } = useTutorStore();
 
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
-    // Check if the welcome animation has already played in this session
     try {
       const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-      console.log('[App] Initializing welcomeLoading... isGuest:', isGuest);
-      if (isGuest) return false; // SEC-12: Skip cinematic intro for guests
+      if (isGuest) return false;
       return !sessionStorage.getItem('tb-welcome-played');
     } catch {
-      return false; // Skip loader if sessionStorage is unavailable (private browsing, SSR)
+      return false;
     }
   });
   const [showSkip, setShowSkip] = useState(false);
@@ -42,15 +38,12 @@ function App() {
         setWelcomeLoading(false);
         try {
           sessionStorage.setItem('tb-welcome-played', 'true');
-        } catch {
-          // Silently ignore if sessionStorage is unavailable
-        }
-      }, 5000); // 5 seconds to allow for 4s animation + 0.5s pause + 0.5s fadeOut
+        } catch {}
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [welcomeLoading]);
 
-  // Show skip button after 6 seconds of total loading
   useEffect(() => {
     if (welcomeLoading || authLoading) {
       const timer = setTimeout(() => setShowSkip(true), 6000);
@@ -60,70 +53,42 @@ function App() {
     }
   }, [welcomeLoading, authLoading]);
 
-  // Network Connectivity Listeners
   useEffect(() => {
     const handleOffline = () => {
-      setGlobalOverlay({ isActive: true, type: 'network', message: "You're currently offline. Please check your internet connection to continue using TutorBoard." });
+      setGlobalOverlay({ isActive: true, type: 'network', message: "You're currently offline. Please check your internet connection." });
     };
     const handleOnline = () => {
-      // Use getState() to avoid stale closure and prevent unnecessary listener re-registration
       const currentOverlayType = useTutorStore.getState().globalOverlay.type;
       if (currentOverlayType === 'network') {
         setGlobalOverlay({ isActive: false });
       }
     };
-
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
-
-    // Initial check
     if (!navigator.onLine) handleOffline();
-
     return () => {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
   }, [setGlobalOverlay]);
 
-  // Handle server timeout from AuthContext
   useEffect(() => {
     if (connectionStatus === 'timeout') {
-      setGlobalOverlay({ isActive: true, type: 'error', message: "The TutorBoard engine is taking too long to respond. This might be a temporary server issue." });
+      setGlobalOverlay({ isActive: true, type: 'error', message: "The TutorBoard engine is taking too long to respond." });
     }
   }, [connectionStatus, setGlobalOverlay]);
 
-
   if (apiError === 'VITE_API_URL_MISSING') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[var(--bg-primary)] p-8 text-center">
-        <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center mb-6 border border-red-500/30">
-          <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <h1 className="text-2xl font-normal mb-4 text-[var(--text-primary)] tracking-tight">Configuration Required</h1>
-        <p className="max-w-md mb-8 text-[var(--text-tertiary)] leading-relaxed">
-          The <span className="px-1.5 py-0.5 bg-[var(--bg-secondary)] rounded font-mono text-sm">VITE_API_URL</span> environment variable is missing. 
-          Authentication and AI features will not function until this is set.
-        </p>
-        <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] p-5 rounded-xl shadow-sm max-w-sm mb-8">
-          <p className="text-xs uppercase tracking-widest text-[var(--text-tertiary)] mb-2 font-normal">Solution</p>
-          <p className="text-sm text-[var(--text-secondary)]">Set the variable in Vercel settings and trigger a new deployment.</p>
-        </div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full font-normal hover:scale-[1.02] active:scale-100 transition-all shadow-lg"
-        >
-          Check Again
-        </button>
+      <div className="flex flex-col items-center justify-center h-screen bg-[var(--bg-primary)] p-8 text-center text-[var(--text-primary)]">
+        <h1 className="text-2xl font-normal mb-4 tracking-tight">Configuration Required</h1>
+        <p className="max-w-md mb-8 text-[var(--text-tertiary)]">The VITE_API_URL environment variable is missing.</p>
+        <button onClick={() => window.location.reload()} className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full font-normal shadow-lg">Check Again</button>
       </div>
     );
   }
 
-  // Total application loading state
-  if (welcomeLoading) {
-    return <IntroAnimation />;
-  }
+  if (welcomeLoading) return <IntroAnimation />;
 
   if (authLoading) {
     const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
@@ -131,19 +96,8 @@ function App() {
       <div className="relative h-screen w-full">
         <Loader fullScreen={true} glass={true} simple={isGuest} />
         {showSkip && (
-          <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[1000] animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            <p className="text-white/30 text-xs tracking-widest uppercase font-normal">
-              {connectionStatus === 'slow' ? 'Connectivity issue: Server is slow to respond...' : 'Taking longer than usual...'}
-            </p>
-            <button 
-              onClick={() => {
-                console.warn('[App] Manual loader bypass triggered by user');
-                forceStopLoading(); // Force-clear the auth loader
-              }}
-              className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-full text-white/50 hover:text-white/80 text-sm font-normal transition-all shadow-2xl"
-            >
-              Enter Dashboard Anyway →
-            </button>
+          <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[1000]">
+            <button onClick={() => forceStopLoading()} className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-full text-white/50 text-sm font-normal transition-all shadow-2xl">Enter Dashboard Anyway →</button>
           </div>
         )}
       </div>
@@ -152,11 +106,10 @@ function App() {
 
   return (
     <div className="app-root">
+      <GlobalOverlayManager />
       <GlobalStatusOverlay />
       <ThemedPopup />
       <main className="app-main">
-
-
         <Routes>
           <Route path="/" element={<AuthLanding />} />
           <Route path="/auth" element={<Navigate to="/" replace />} />
@@ -168,30 +121,8 @@ function App() {
             <Route path="/about" element={<About />} />
           </Route>
 
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute guestAllowed={true}>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/mastery"
-            element={
-              <ProtectedRoute>
-                <MasteryDashboard />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/dashboard" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/mastery" element={<ProtectedRoute><MasteryDashboard /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

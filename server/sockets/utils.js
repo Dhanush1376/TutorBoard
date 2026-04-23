@@ -42,11 +42,19 @@ export async function syncToDatabase(sessionId) {
     await ChatSession.findByIdAndUpdate(s.chatSessionId, update);
 
     console.log(`[WS:Sync] Synced engine state for session ${sessionId} to Mongo ${s.chatSessionId}`);
-
-    console.log(`[WS:Sync] Synced session ${sessionId} to Mongo ${s.chatSessionId}`);
   } catch (err) {
     console.error(`[WS:Sync] Error syncing to Mongo: ${err.message}`);
   }
+}
+
+/**
+ * Extract normalized IP address from socket or request
+ */
+export function getIp(socketOrReq) {
+  const rawIp = socketOrReq?.handshake 
+    ? (socketOrReq.handshake.headers['x-forwarded-for'] || socketOrReq.handshake.address || 'unknown')
+    : (socketOrReq?.ip || 'unknown');
+  return rawIp.split(',')[0].trim();
 }
 
 /**
@@ -54,7 +62,7 @@ export async function syncToDatabase(sessionId) {
  */
 export function getRateKey(socket) {
   const user = socket.user;
-  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+  const ip = getIp(socket);
   if (user && !user.isGuest && user.id !== 'guest') return `auth:${user.id}`;
   return `guest:${ip}`;
 }
@@ -98,44 +106,51 @@ export function buildTimelinePayload(sessionId, timeline) {
 /**
  * Resolve User API Config — Logic for smart routing and custom keys
  */
-export async function resolveUserConfig(socket, socketUser, inputText, selectedAgentId = null) {
-  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+export async function resolveUserConfig(socketOrReq, socketUser, inputText, selectedAgentId = null) {
+  const ip = getIp(socketOrReq);
 
   if (!socketUser || socketUser.isGuest || socketUser.id === 'guest') {
-    return null;
+    return {
+      useCustomApi: false,
+      mode: 'system',
+      userId: `guest_${ip}`,
+      provider: 'openrouter'
+    };
   }
 
   try {
     const user = await User.findById(socketUser.id || socketUser._id);
-    if (!user || !user.apiPreferences?.useCustomApi) return null;
+    if (!user) return null;
 
-    const prefs = user.apiPreferences;
+    const prefs = user.apiPreferences || {};
     const activeKeys = (user.apiKeys || []).filter(k => k.isActive && k.isValid);
+    
+    console.log(`[UserConfig] Resolving config for user ${user._id}. Active keys: ${activeKeys.length}, Global Toggle: ${prefs.useCustomApi}, SelectedAgent: ${selectedAgentId}`);
 
     // MASTER OVERRIDE: If the user explicitly selects "Universal", always return null
     // so the engine uses the platform's OpenRouter default.
     if (selectedAgentId === 'Universal') {
-      console.log(`[UserConfig] User explicitly selected Universal API for session.`);
+      console.log(`[UserConfig] User explicitly selected Universal API. Using platform default.`);
       return null;
     }
 
+    // PRIORITY 0: If an explicit agent is selected, we ALWAYS try to use it 
+    // even if the global useCustomApi toggle is OFF. This allows per-session overrides.
     let selectedKey = null;
-    let classification = null;
-    let adaptiveScores = null;
-
-    // PRIORITY 1: Explicit match from frontend selection
     if (selectedAgentId) {
       const target = selectedAgentId.toString().toLowerCase();
-      
-      // Match by ID first
       selectedKey = activeKeys.find(k => k._id.toString() === target);
-      
-      // Match by Provider if ID match fails (e.g. user selected 'OpenRouter' in UI)
-      if (!selectedKey) {
-        selectedKey = activeKeys.find(k => k.provider.toLowerCase() === target);
-      }
 
-      // Match by Brand/Agent Name (e.g. 'Bytez' -> Anthropic/Claude)
+      if (selectedKey) {
+        console.log(`[UserConfig] Found explicit agent match for ID ${target}: ${selectedKey.label}`);
+      }
+    }
+
+    // PRIORITY 0.5: If no ID match but we have a selectedAgentId, try provider/brand matching
+    if (!selectedKey && selectedAgentId && selectedAgentId !== 'Universal') {
+      const target = selectedAgentId.toString().toLowerCase();
+      selectedKey = activeKeys.find(k => k.provider.toLowerCase() === target);
+      
       if (!selectedKey) {
         if (target.includes('bytez')) {
           selectedKey = activeKeys.find(k => k.provider === 'anthropic' || k.provider === 'openrouter');
@@ -143,7 +158,19 @@ export async function resolveUserConfig(socket, socketUser, inputText, selectedA
           selectedKey = activeKeys.find(k => k.provider === 'openai');
         }
       }
+
+      if (selectedKey) {
+        console.log(`[UserConfig] Found explicit agent match via provider/brand for "${selectedAgentId}": ${selectedKey.label}`);
+      }
     }
+
+    // If no explicit selection was made (or it failed), check the global toggle
+    if (!selectedKey && !prefs.useCustomApi) {
+      return null;
+    }
+
+    let classification = null;
+    let adaptiveScores = null;
 
     // PRIORITY 2: If no explicit selection but global toggle is ON, follow prefs
     if (!selectedKey && prefs?.useCustomApi) {
@@ -182,23 +209,25 @@ export async function resolveUserConfig(socket, socketUser, inputText, selectedA
 
     console.log(`[UserConfig] Resolved custom key for user ${user._id}: ${selectedKey.provider}/${selectedKey.model} (Routing: ${prefs.routingMode})`);
 
-    const decryptedKey = decrypt({
+    const getApiKey = () => decrypt({
       encrypted: selectedKey.encryptedKey,
       iv: selectedKey.iv,
       tag: selectedKey.tag,
     });
-
-    const getApiKey = () => decryptedKey;
 
     let racingConfigs = null;
     if (prefs.enableRacing && activeKeys.length >= 2 && classification?.complexityScore >= 66) {
       const secondKey = activeKeys.find(k => k._id.toString() !== selectedKey._id.toString());
       if (secondKey) {
         try {
-          const secondDecrypted = decrypt({ encrypted: secondKey.encryptedKey, iv: secondKey.iv, tag: secondKey.tag });
           racingConfigs = {
             primary: { provider: selectedKey.provider, model: selectedKey.model, getApiKey, baseUrl: selectedKey.baseUrl },
-            secondary: { provider: secondKey.provider, model: secondKey.model, getApiKey: () => secondDecrypted, baseUrl: secondKey.baseUrl },
+            secondary: { 
+              provider: secondKey.provider, 
+              model: secondKey.model, 
+              getApiKey: () => decrypt({ encrypted: secondKey.encryptedKey, iv: secondKey.iv, tag: secondKey.tag }), 
+              baseUrl: secondKey.baseUrl 
+            },
           };
         } catch (e) {}
       }
@@ -206,11 +235,12 @@ export async function resolveUserConfig(socket, socketUser, inputText, selectedA
 
     return {
       useCustomApi: true,
+      mode: 'custom',
       provider: selectedKey.provider,
       model: selectedKey.model || (selectedKey.provider === 'openai' ? 'gpt-4o' : 'anthropic/claude-3-5-sonnet-20241022'),
       getApiKey,
       baseUrl: selectedKey.baseUrl || '',
-      fallbackToDefault: prefs.fallbackToDefault !== false,
+      // ⛔ No fallbackToDefault — Custom mode is fully isolated from system APIs
       userId: user._id,
       costControl: prefs.costControl || null,
       racingConfigs,

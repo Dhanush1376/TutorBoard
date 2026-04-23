@@ -7,7 +7,27 @@ export const createControlSlice = (set, get) => ({
   setPlaying:     (playing) => set({ isPlaying: playing, ...(playing ? { isPaused: false } : {}) }),
   setPaused:      (paused)  => set({ isPaused: paused,    isPlaying: !paused }),
   setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
-  toggleVoice:    ()        => set(s => ({ voiceEnabled: !s.voiceEnabled })),
+  toggleVoice:    ()        => {
+    const newVal = !get().voiceEnabled;
+    set({ voiceEnabled: newVal });
+    
+    // SEC-16: Provide immediate audible feedback and trigger toast
+    if (newVal && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance("Voice narration enabled");
+      u.rate = 1.2;
+      window.speechSynthesis.speak(u);
+    }
+    
+    // Trigger toast via the other slice (Zustand lets us call methods across slices if they are in the same store)
+    if (get().showToast) {
+      get().showToast({
+        message: newVal ? 'Voice Narration: ON' : 'Voice Narration: OFF',
+        type: newVal ? 'success' : 'info',
+        duration: 2000
+      });
+    }
+  },
   play:           ()        => set({ isPlaying: true,  isPaused: false }),
   pause:          ()        => set({ isPlaying: false, isPaused: true }),
   stop:           ()        => set({ isPlaying: false, isPaused: false }),

@@ -22,6 +22,8 @@ export const PROVIDER_INFO = {
   deepseek: { name: 'DeepSeek', color: '#4d6cfa', models: ['deepseek-chat', 'deepseek-reasoner'] },
   google: { name: 'Google Gemini', color: '#4285f4', models: ['gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'] },
   anthropic: { name: 'Anthropic', color: '#d97757', models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'] },
+  groq: { name: 'Groq', color: '#f55036', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'] },
+  openrouter: { name: 'OpenRouter', color: '#6d28d9', models: ['anthropic/claude-3.5-sonnet', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-r1'] },
   custom: { name: 'Custom API', color: '#8b5cf6', models: [] },
 };
 
@@ -38,6 +40,12 @@ export const MODEL_LABELS = {
   'claude-sonnet-4-20250514': 'Claude Sonnet 4',
   'claude-3-5-haiku-20241022': 'Claude 3.5 Haiku',
   'claude-3-haiku-20240307': 'Claude 3 Haiku',
+  'anthropic/claude-3.5-sonnet': 'Claude 3.5 Sonnet (OR)',
+  'google/gemini-2.0-flash-001': 'Gemini 2.0 Flash (OR)',
+  'deepseek/deepseek-r1': 'DeepSeek R1 (OR)',
+  'llama-3.3-70b-versatile': 'Llama 3.3 70B (Groq)',
+  'llama-3.1-8b-instant': 'Llama 3.1 8B (Groq)',
+  'mixtral-8x7b-32768': 'Mixtral 8x7B (Groq)',
 };
 
 export const SectionTitle = ({ children }) => (

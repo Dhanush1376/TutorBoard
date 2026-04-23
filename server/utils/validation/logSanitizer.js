@@ -96,7 +96,7 @@ export function validateApiKeyInput(apiKey) {
  * Validate provider input
  */
 export function validateProviderInput(provider) {
-  const allowed = ['openai', 'google', 'anthropic', 'deepseek', 'custom'];
+  const allowed = ['openai', 'google', 'anthropic', 'deepseek', 'groq', 'openrouter', 'custom'];
   if (!provider || !allowed.includes(provider)) {
     return { valid: false, error: `Invalid provider. Must be one of: ${allowed.join(', ')}` };
   }

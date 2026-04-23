@@ -21,6 +21,7 @@ import StepPanel from '../components/teaching/StepPanel';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
+import QuickAskOverlay from '../components/chat/QuickAskOverlay';
 import { useAuth } from '../context/AuthContext';
 import { useSessionSync } from '../hooks/useSessionSync';
 
@@ -186,6 +187,7 @@ const Home = ({ isDark }) => {
   const [historyFetched, setHistoryFetched] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, hasMore: false, loading: false });
   const [isDbOffline, setIsDbOffline] = useState(false);
+  const [isQuickAskOpen, setIsQuickAskOpen] = useState(false);
 
   const fetchCloudSessions = useCallback(async (pageNum = 1) => {
     if (!isAuthenticated || user?.isGuest || !token) return;
@@ -878,10 +880,10 @@ const Home = ({ isDark }) => {
     }
   }, [chatInputText, setPrompt, setSidebarOpen, setActiveView, setChatInputText]);
 
-  const handleSubmit = async () => {
-    if (!prompt.trim() || isSubmittingRef.current) return;
+  const handleSubmit = async (textOverride, fileData = null) => {
+    if ((!prompt.trim() && !textOverride && !fileData) || isSubmittingRef.current) return;
     
-    const userPrompt = prompt.trim();
+    const userPrompt = textOverride || prompt.trim();
     setPrompt('');  // Clear input immediately
     setActiveView('chat');
     isSubmittingRef.current = true;
@@ -890,10 +892,15 @@ const Home = ({ isDark }) => {
       const workingSessionId = activeChatId || `session-${Date.now()}`;
       if (!activeChatId) setActiveChatId(workingSessionId);
 
-      // Trim and capitalize session title
-      const sessionTitle = userPrompt.substring(0, 40).trim().replace(/^(.)/, (m) => m.toUpperCase());
-
-      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt, timestamp: new Date().toISOString() };
+      const userMessage = { 
+        id: getMsgId('user'), 
+        role: 'user', 
+        content: userPrompt, 
+        timestamp: new Date().toISOString(),
+        file: fileData
+      };
+      
+      const sessionTitle = userPrompt.substring(0, 40) || 'Untitled Session';
       
       // Update local history immediately for UI responsiveness
       setChatHistory(prev => {
@@ -965,6 +972,7 @@ const Home = ({ isDark }) => {
       hasMore={pagination.hasMore}
       isLoadingMore={pagination.loading && chatHistory.length > 0}
       onLoadMore={() => fetchCloudSessions(pagination.page + 1)}
+      onQuickAsk={() => setIsQuickAskOpen(true)}
     />
     </ErrorBoundary>
   );
@@ -1246,6 +1254,10 @@ const Home = ({ isDark }) => {
           </div>
         )}
 
+        <QuickAskOverlay 
+          isOpen={isQuickAskOpen} 
+          onClose={() => setIsQuickAskOpen(false)} 
+        />
       </Layout>
     </div>
   );

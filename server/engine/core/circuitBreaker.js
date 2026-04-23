@@ -17,7 +17,7 @@ const REDIS_KEY_PREFIX = 'cb:provider:';
 class CircuitBreaker {
   constructor() {
     this.providers = {};
-    const ids = ['openrouter', 'openai', 'google', 'anthropic', 'custom'];
+    const ids = ['openrouter', 'openai', 'google', 'anthropic', 'groq', 'deepseek', 'custom'];
     for (const id of ids) {
       this.providers[id] = this._newProviderState();
     }

@@ -71,8 +71,10 @@ const InteractiveCanvasLayer = React.memo(() => {
     const normalizedY = worldY / CANVAS_HEIGHT;
 
     const isOverExistingElement = canvasObjects.some(obj => {
-      const bw = obj.w || (obj.scale || 1) * (200 / CANVAS_WIDTH);
-      const bh = obj.h || (obj.scale || 1) * (120 / CANVAS_HEIGHT);
+      // Use smaller defaults (5-8% of canvas) for elements without explicit w/h 
+      // to prevent large invisible hit-boxes from blocking drawing tools.
+      const bw = obj.w || (obj.scale || 1) * 0.08;
+      const bh = obj.h || (obj.scale || 1) * 0.05;
       return (
         normalizedX >= obj.x - bw/2 && normalizedX <= obj.x + bw/2 &&
         normalizedY >= obj.y - bh/2 && normalizedY <= obj.y + bh/2

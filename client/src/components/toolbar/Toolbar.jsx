@@ -20,6 +20,8 @@ import DrawTool from './tools/DrawTool';
 import NoteTool from './tools/NoteTool';
 import ShapeTool from './tools/ShapeTool';
 import VisualizerTool from './tools/VisualizerTool';
+import CodeTool from './tools/CodeTool';
+import VoiceTool from './tools/VoiceTool';
 
 import ShareAction from './actions/ShareAction';
 import DeleteAction from './actions/DeleteAction';
@@ -194,10 +196,20 @@ const Toolbar = ({ onSettingsClick }) => {
         <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
         <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
         <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
+        <CodeTool 
+          {...commonToolProps} 
+          id="code"
+          isHoveredExternally={hoveredId === 'code'} 
+        />
         <VisualizerTool 
           {...commonToolProps} 
           id="visualizer"
           isHoveredExternally={hoveredId === 'visualizer'} 
+        />
+        <VoiceTool 
+          {...commonToolProps} 
+          id="voice"
+          isHoveredExternally={hoveredId === 'voice'} 
         />
         
         <ToolbarDivider />

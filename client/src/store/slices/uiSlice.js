@@ -10,7 +10,9 @@ export const createUiSlice = (set, get) => ({
   showGrid:            true,
   isSnapToGrid:        true,
   isProfileOpen:       false,
-  isVisualizerOpen:    false,
+  activeOverlay:       null, // 'settings' | 'visualizer' | 'profile' (if as overlay) | null
+  isExplainMinimized:  false,
+  isVisualizerMinimized: false,
   
   drawColor:           'var(--text-primary)',
   drawWidth:           3,
@@ -112,7 +114,11 @@ export const createUiSlice = (set, get) => ({
   setGridType:           (type) => set({ gridType: type }),
   setGridSize:           (size) => set({ gridSize: size }),
   toggleProfile:         ()     => set(s => ({ isProfileOpen: !s.isProfileOpen })),
-  setVisualizerOpen:     (open) => set({ isVisualizerOpen: open }),
+  setOverlay:            (id)   => set({ activeOverlay: id }),
+  setVisualizerOpen:     (open) => set({ activeOverlay: open ? 'scene-visualizer' : null }),
+  setCodeEditorOpen:     (open) => set({ activeOverlay: open ? 'code-editor' : null }),
+  setExplainMinimized:   (min)  => set({ isExplainMinimized: min }),
+  setVisualizerMinimized: (min) => set({ isVisualizerMinimized: min }),
 
   setDrawColor:          (color) => set({ drawColor: color }),
   setDrawWidth:          (width) => set({ drawWidth: width }),

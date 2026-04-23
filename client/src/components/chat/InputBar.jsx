@@ -19,18 +19,22 @@ import {
   ClipboardCheck,
   Bot,
   Key,
-  Globe
+  Globe,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 
-const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent }) => {
+const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk }) => {
   const { apiPrefs, switchApi } = useAuth();
   const textareaRef = useRef(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState(null);
   const [isListening, setIsListening] = useState(false);
+  const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
   const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
 
@@ -140,23 +144,27 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isGenerating && value.trim()) {
-        onSubmit();
+      if (!isGenerating && (value.trim() || attachedFile)) {
+        onSubmit(value, attachedFile);
+        setAttachedFile(null); // Clear after submit
         setIsPlusMenuOpen(false);
         setIsAgentMenuOpen(false);
       }
     }
   };
 
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
   const agents = [
-    { id: 'Universal', name: 'TutorBoard', icon: Bot, status: 'active' },
+    { id: 'Universal', name: 'TutorBoard', icon: Bot, status: 'active', isSystem: true },
     ...(apiPrefs?.allKeys || [])
       .filter(k => k.isActive && k.isValid)
       .map(k => ({
         id: k._id || k.id,
         name: k.label || k.provider,
         icon: Key,
-        status: k.isExpired ? 'expired' : (k.isLowCredits ? 'low' : 'active')
+        status: k.isExpired ? 'expired' : (k.isLowCredits ? 'low' : 'active'),
+        isCustom: true,
       }))
   ];
 
@@ -182,9 +190,42 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   };
 
   const handleUploadAction = (type) => {
-    // Mock upload action
-    console.log(`[TutorBoard] Uploading ${type}...`);
+    if (fileInputRef.current) {
+      // Accept specific types based on 'type' parameter
+      fileInputRef.current.accept = type === 'photo' ? 'image/*' : '*/*';
+      fileInputRef.current.click();
+    }
     setIsPlusMenuOpen(false);
+  };
+
+  const onFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const resp = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await resp.json();
+      if (data.url) {
+        setAttachedFile({
+          url: data.url,
+          name: file.name,
+          type: file.type,
+          size: data.size
+        });
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const getPlaceholder = () => {
@@ -202,34 +243,64 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
           
           {/* Active Mode Chip */}
           <AnimatePresence>
-            {activeMode && (
+            {(activeMode || attachedFile || isUploading) && (
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="flex items-center gap-2 pl-3 pt-3"
+                className="flex items-center gap-2 pl-3 pt-3 flex-wrap"
               >
-                <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl shadow-sm">
-                  {(() => {
-                    const action = quickActions.find(a => a.mode === activeMode);
-                    if (!action) return null;
-                    const Icon = action.icon;
-                    return (
-                      <>
-                        <div className="p-1 bg-[var(--text-primary)]/10 rounded-md text-[var(--text-primary)]">
-                          <Icon size={12} strokeWidth={3} />
-                        </div>
-                        <span className="text-[11px] font-normal tracking-tight">{action.label}</span>
-                      </>
-                    );
-                  })()}
-                  <button
-                    onClick={() => setActiveMode(null)}
-                    className="ml-1 p-1 hover:bg-[var(--bg-quaternary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-full transition-colors"
-                  >
-                    <X size={12} strokeWidth={3} />
-                  </button>
-                </div>
+                {activeMode && (
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl shadow-sm">
+                    {(() => {
+                      const action = quickActions.find(a => a.mode === activeMode);
+                      if (!action) return null;
+                      const Icon = action.icon;
+                      return (
+                        <>
+                          <div className="p-1 bg-[var(--text-primary)]/10 rounded-md text-[var(--text-primary)]">
+                            <Icon size={12} strokeWidth={3} />
+                          </div>
+                          <span className="text-[11px] font-normal tracking-tight">{action.label}</span>
+                        </>
+                      );
+                    })()}
+                    <button
+                      onClick={() => setActiveMode(null)}
+                      className="ml-1 p-1 hover:bg-[var(--bg-quaternary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-full transition-colors"
+                    >
+                      <X size={12} strokeWidth={3} />
+                    </button>
+                  </div>
+                )}
+
+                {isUploading && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)] rounded-xl">
+                    <Loader2 size={12} className="animate-spin" />
+                    <span className="text-[10px] uppercase tracking-widest">Uploading...</span>
+                  </div>
+                )}
+
+                {attachedFile && (
+                  <div className="flex items-center gap-2.5 px-2.5 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl shadow-sm group/file">
+                    {attachedFile.type.startsWith('image/') ? (
+                      <div className="w-6 h-6 rounded-md overflow-hidden border border-[var(--border-color)]">
+                        <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="p-1 bg-blue-500/10 rounded-md text-blue-500">
+                        <FileText size={12} strokeWidth={3} />
+                      </div>
+                    )}
+                    <span className="text-[11px] font-normal tracking-tight max-w-[120px] truncate">{attachedFile.name}</span>
+                    <button
+                      onClick={() => setAttachedFile(null)}
+                      className="ml-1 p-1 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-full transition-colors"
+                    >
+                      <X size={12} strokeWidth={3} />
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -311,6 +382,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           <span>{action.label}</span>
                         </button>
                       ))}
+                      <div className="h-[1px] bg-[var(--border-color)] my-1" />
+                      <button
+                        onClick={() => { onQuickAsk?.(); setIsToolsMenuOpen(false); }}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-[13px] font-normal rounded-xl transition-all text-[#8b5cf6] hover:bg-[#8b5cf6]/10"
+                      >
+                        <Sparkles size={16} />
+                        <span>AI Quick Assistant</span>
+                      </button>
                     </div>
                   </motion.div>
                 )}
@@ -345,41 +424,50 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     className="absolute bottom-full left-0 mb-3 w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] p-1.5 flex flex-col gap-0.5 shadow-xl"
                   >
-                    {agents.map(agent => {
+                  <div className="p-1.5 flex flex-col gap-0.5">
+                    {agents.map((agent, idx) => {
                       const Icon = agent.icon;
                       const isActive = isAgentActive(agent.id);
+                      const showDivider = agent.isSystem && agents.some(a => a.isCustom);
                       return (
-                        <button
-                          key={agent.id}
-                          onClick={() => { 
-                            setSelectedAgent(agent.id); 
-                            setIsAgentMenuOpen(false); 
-                          }}
-                          className={`flex items-center justify-between w-full px-3 py-2.5 text-[12px] rounded-xl transition-all font-normal ${
-                            isActive
-                              ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
-                              : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Icon size={15} />
-                            <span className="truncate max-w-[100px]">{agent.name}</span>
-                          </div>
-                          
-                          {/* Active Status Dot next to name */}
-                          {isActive && (
-                            <div className="flex items-center">
-                               <motion.div 
-                                 initial={{ scale: 0.8 }}
-                                 animate={{ scale: [1, 1.2, 1] }}
-                                 transition={{ duration: 2, repeat: Infinity }}
-                                 className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_6px_rgba(16,185,129,0.5)]" 
-                               />
+                        <React.Fragment key={agent.id}>
+                          <button
+                            onClick={() => { 
+                              setSelectedAgent(agent.id); 
+                              setIsAgentMenuOpen(false); 
+                            }}
+                            className={`flex items-center justify-between w-full px-3 py-2.5 text-[12px] rounded-xl transition-all font-normal ${
+                              isActive
+                                ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+                                : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Icon size={15} />
+                              <span className="truncate max-w-[100px]">{agent.name}</span>
+                              {agent.isCustom && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#10b981]/10 text-[#10b981] font-medium">Custom</span>
+                              )}
                             </div>
+                            
+                            {isActive && (
+                              <div className="flex items-center">
+                                 <motion.div 
+                                   initial={{ scale: 0.8 }}
+                                   animate={{ scale: [1, 1.2, 1] }}
+                                   transition={{ duration: 2, repeat: Infinity }}
+                                   className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_6px_rgba(16,185,129,0.5)]" 
+                                 />
+                              </div>
+                            )}
+                          </button>
+                          {showDivider && (
+                            <div className="h-[1px] bg-[var(--border-color)] my-1 mx-2 opacity-50" />
                           )}
-                        </button>
+                        </React.Fragment>
                       );
                     })}
+                  </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -422,12 +510,17 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </div>
             ) : (
               <button
-                onClick={onSubmit}
-                disabled={!value.trim()}
+                onClick={() => {
+                  if (value.trim() || attachedFile) {
+                    onSubmit(value, attachedFile);
+                    setAttachedFile(null);
+                  }
+                }}
+                disabled={!value.trim() && !attachedFile}
                 className={`w-9 h-9 flex items-center justify-center rounded-full transition-all focus:outline-none ${
-                  activeMode === 'teach' && value.trim()
+                  activeMode === 'teach' && (value.trim() || attachedFile)
                     ? 'bg-emerald-600 text-white shadow-md hover:scale-105 active:scale-95'
-                    : value.trim() 
+                    : (value.trim() || attachedFile)
                       ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-md hover:scale-105 active:scale-95 transition-transform'
                       : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/50 cursor-not-allowed disabled:opacity-40'
                 }`}
@@ -438,6 +531,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
           </div>
         </div>
       </div>
+      
+      {/* Hidden File Input */}
+      <input 
+        ref={fileInputRef}
+        type="file"
+        onChange={onFileChange}
+        className="hidden"
+      />
     </div>
   );
 };

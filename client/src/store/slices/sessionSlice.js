@@ -47,7 +47,7 @@ export const createSessionSlice = (set, get) => ({
   setTopic:         (topic) => set({ topic }),
   setConnected:     (connected) => set({ isConnected: connected, connectionError: null }),
   setConnectionError: (err)     => set({ connectionError: err, isConnected: false }),
-  setError:         (err)       => set({ error: err }),
+  setError:         (err)       => set({ error: err, machineState: STATES.IDLE }),
   setGreeting:      (msg)       => set({ greetingMessage: msg, machineState: STATES.IDLE }),
   setChatSessionId: (id)        => set({ chatSessionId: id }),
   setNarrationTokens: (tokens)  => set({ narrationTokens: tokens }),

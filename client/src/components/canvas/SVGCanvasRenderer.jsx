@@ -79,7 +79,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
   const label = obj.label ? DOMPurify.sanitize(obj.label) : null;
   const shape = (obj.type || obj.shape || 'orb').toLowerCase();
 
-  const props = { ...common, x, y, color: obj.color, label, w, h };
+  const props = { ...common, x, y, color: obj.color, label, w, h, isPinned: obj.isPinned };
 
   switch (shape) {
     case 'orb':

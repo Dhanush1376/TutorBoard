@@ -1,4 +1,4 @@
-import { SquareCode } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import ActionButtonBase from './ActionButtonBase';
 import useTutorStore from '../../../store/tutorStore';
 
@@ -12,8 +12,8 @@ const VisualizerTool = (props) => {
   return (
     <ActionButtonBase
       {...props}
-      icon={SquareCode}
-      label="Visualizer"
+      icon={Activity}
+      label="Explain Solution"
       onClick={handleClick}
     />
   );

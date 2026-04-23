@@ -221,6 +221,10 @@ export const addApiKey = async (req, res) => {
       });
     }
 
+    // RESET CIRCUIT: Since the key is now validated, we can safely reset the circuit 
+    // for this provider to clear any previous "All circuits are open" states.
+    circuitBreaker.reset(provider);
+
     // Step 2: Encrypt
     console.log(`[ApiKeys] Encrypting key...`);
     const encrypted = encrypt(apiKey);
@@ -287,12 +291,39 @@ export const addApiKey = async (req, res) => {
  */
 export const updateApiKey = async (req, res) => {
   try {
-    const { model, label, isActive, baseUrl } = req.body;
+    const { model, label, isActive, baseUrl, apiKey } = req.body;
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const key = user.apiKeys.id(req.params.id);
     if (!key) return res.status(404).json({ error: 'API key not found' });
+
+    // If a new API key string is provided, validate and encrypt it
+    if (apiKey && apiKey.trim() && !apiKey.includes('****')) {
+      console.log(`[ApiKeys] Re-validating updated ${key.provider} key...`);
+      const validation = await validateApiKey(key.provider, apiKey.trim(), model || key.model, baseUrl || key.baseUrl);
+      
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: 'Updated API key validation failed',
+          details: validation.error
+        });
+      }
+
+      const encrypted = encrypt(apiKey.trim());
+      key.encryptedKey = encrypted.encrypted;
+      key.iv = encrypted.iv;
+      key.tag = encrypted.tag;
+      key.maskedKey = maskApiKey(apiKey.trim());
+      key.isValid = true;
+      key.lastValidated = new Date();
+
+      // IMPORTANT: Reset the circuit breaker so the new key works immediately without restarting the server
+      const { circuitBreaker } = await import('../../utils/ai/llmClient.js');
+      if (circuitBreaker) {
+        circuitBreaker.reset(key.provider);
+      }
+    }
 
     if (model !== undefined) key.model = model;
     if (label !== undefined) key.label = label;
@@ -300,7 +331,7 @@ export const updateApiKey = async (req, res) => {
     if (baseUrl !== undefined) key.baseUrl = baseUrl;
 
     await user.save();
-    res.json({ success: true, message: 'API key updated' });
+    res.json({ success: true, message: 'API key updated successfully' });
   } catch (err) {
     console.error('[ApiKeys] PUT error:', err.message);
     res.status(500).json({ error: 'Failed to update API key' });
@@ -338,7 +369,7 @@ export const deleteApiKey = async (req, res) => {
 export const updatePreferences = async (req, res) => {
   try {
     const {
-      useCustomApi, fallbackToDefault, smartRouting,
+      useCustomApi, smartRouting,
       enableRacing, enableAdaptive, routingMode, modelOverride,
       costControl,
     } = req.body;
@@ -350,7 +381,7 @@ export const updatePreferences = async (req, res) => {
     const p = user.apiPreferences;
 
     if (useCustomApi !== undefined) p.useCustomApi = useCustomApi;
-    if (fallbackToDefault !== undefined) p.fallbackToDefault = fallbackToDefault;
+    // fallbackToDefault is deprecated — custom mode is fully isolated
     if (smartRouting !== undefined) p.smartRouting = smartRouting;
     if (enableRacing !== undefined) p.enableRacing = enableRacing;
     if (enableAdaptive !== undefined) p.enableAdaptive = enableAdaptive;
@@ -551,6 +582,12 @@ export const testApiKey = async (req, res) => {
     }
     
     key.lastValidated = new Date();
+    
+    // RESET CIRCUIT: If validation passed, reset the circuit breaker for this provider
+    if (validation.valid) {
+      circuitBreaker.reset(key.provider);
+    }
+    
     await user.save();
 
     res.json({

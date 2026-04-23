@@ -15,6 +15,8 @@ import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/session.js';
 import apikeyRoutes from './routes/apikeys.js';
 import userRoutes from './routes/user.js';
+import uploadRoutes from './routes/upload.js';
+import aiRouter from './ai-router/index.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
@@ -82,6 +84,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
+
+// Serve static uploads
+app.use('/uploads', express.static('uploads'));
 
 // Request Logger
 app.use((req, _res, next) => {
@@ -222,8 +227,10 @@ app.use('/', httpRateLimiter, doubtRoutes);
 // Auth routes (rate-limited)
 app.use('/api/auth', httpRateLimiter, dbCheck, authRoutes);
 app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
+app.use('/api/ai', httpRateLimiter, dbCheck, aiRouter);
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
+app.use('/api', uploadRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

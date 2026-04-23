@@ -553,12 +553,16 @@ async function executeCode(code, lang, onLine, onLog) {
 const DEFAULT_CODE = `console.log("Hello, World!");`;
 
 const CodeVisualizerModal = () => {
-  const { isVisualizerOpen, setVisualizerOpen, addCanvasObjects, layoutView } = useTutorStore();
+  const { 
+    activeOverlay, setOverlay, addCanvasObjects, layoutView,
+    isVisualizerMinimized, setVisualizerMinimized
+  } = useTutorStore();
+  const isVisualizerOpen = activeOverlay === 'code-editor';
+  const setVisualizerOpen = (val) => setOverlay(val ? 'code-editor' : null);
   const { mode } = useTheme();
   const [lang, setLang] = useState('javascript');
   const [code, setCode] = useState(DEFAULT_CODE);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [isTrafficHovered, setIsTrafficHovered] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [isDocked, setIsDocked] = useState(false);
@@ -660,26 +664,19 @@ const CodeVisualizerModal = () => {
 
   return createPortal(
     <AnimatePresence>
-      {isVisualizerOpen && (
+      {(isVisualizerOpen || isVisualizerMinimized) && (
         <div
-          className={`fixed inset-0 z-[99999] pointer-events-none ${(!isMinimized && !isDocked && !isMaximized) ? 'flex items-center justify-center' : ''}`}
+          className={`fixed inset-0 z-[99999] pointer-events-none ${(!isVisualizerMinimized && !isDocked && !isMaximized) ? 'flex items-center justify-center' : ''}`}
           style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
         >
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: isMaximized || isMinimized || isDocked ? 0 : 1 }}
+            animate={{ opacity: isVisualizerMinimized || isDocked ? 0 : 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setVisualizerOpen(false)}
-            className="absolute inset-0 pointer-events-auto"
-            style={{
-              background: mode === 'dark'
-                ? 'rgba(0,0,0,0.6)'
-                : 'rgba(230, 230, 240, 0.12)',
-              backdropFilter: isMinimized || isDocked ? 'none' : 'blur(20px)',
-              WebkitBackdropFilter: isMinimized || isDocked ? 'none' : 'blur(20px)',
-              pointerEvents: isMinimized || isDocked ? 'none' : 'auto'
-            }}
+            className={`fixed inset-0 bg-black/60 ${isVisualizerMinimized || isDocked ? 'pointer-events-none' : 'backdrop-blur-xl pointer-events-auto'}`}
+            style={{ zIndex: -1 }}
           />
 
           {/* Modal */}
@@ -687,7 +684,7 @@ const CodeVisualizerModal = () => {
             layout
             initial={{ scale: 0.9, opacity: 0 }}
             animate={
-              isMinimized ? {
+              isVisualizerMinimized ? {
                 position: 'fixed',
                 top: 'auto',
                 bottom: '80px',
@@ -728,29 +725,24 @@ const CodeVisualizerModal = () => {
             exit={{ scale: 0.9, opacity: 0 }}
             className="pointer-events-auto"
             style={{
-              background: isMinimized
-                ? (mode === 'dark' ? 'rgba(39, 39, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)')
-                : 'var(--bg-primary)',
-              backdropFilter: isMinimized ? 'blur(12px)' : 'none',
-              WebkitBackdropFilter: isMinimized ? 'blur(12px)' : 'none',
-              border: isMaximized ? 'none' : isMinimized ? `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` : '1px solid var(--border-color)',
-              boxShadow: isMinimized
-                ? '0 12px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05)'
-                : mode === 'dark'
-                  ? '0 0 0 1px #1a1a1a, 0 40px 120px rgba(0,0,0,0.8), 0 0 60px rgba(255,255,255,0.02)'
-                  : '0 40px 120px rgba(0,0,0,0.1), 0 0 40px rgba(0,0,0,0.05)',
+              background: isVisualizerMinimized ? (mode === 'dark' ? 'rgba(30, 30, 33, 0.8)' : 'rgba(255, 255, 255, 0.8)') : 'var(--bg-primary)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              color: 'var(--text-primary)',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              cursor: isMinimized ? 'pointer' : 'default',
+              cursor: isVisualizerMinimized ? 'pointer' : 'default',
+              border: '1px solid var(--border-color)',
+              boxShadow: isVisualizerMinimized ? '0 8px 32px rgba(0,0,0,0.2)' : '0 40px 100px rgba(0,0,0,0.4)',
               zIndex: 100000,
               color: 'var(--text-primary)',
             }}
-            whileHover={isMinimized ? { y: -4, scale: 1.02, background: mode === 'dark' ? 'rgba(45, 45, 48, 0.9)' : 'rgba(255, 255, 255, 0.9)' } : {}}
+            whileHover={isVisualizerMinimized ? { y: -4, scale: 1.02, background: mode === 'dark' ? 'rgba(45, 45, 48, 0.9)' : 'rgba(255, 255, 255, 0.9)' } : {}}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            onClick={() => { if (isMinimized) setIsMinimized(false); }}
+            onClick={() => { if (isVisualizerMinimized) setVisualizerMinimized(false); }}
           >
-            {isMinimized ? (
+            {isVisualizerMinimized ? (
               <div style={{
                 height: '100%',
                 display: 'flex',
@@ -802,7 +794,7 @@ const CodeVisualizerModal = () => {
                     >
                       {[
                         { color: '#ff5f57', action: () => setVisualizerOpen(false), icon: <X size={7} /> },
-                        { color: '#febc2e', action: (e) => { e.stopPropagation(); setIsMinimized(true); }, icon: <Minus size={8} /> },
+                        { color: '#febc2e', action: (e) => { e.stopPropagation(); setVisualizerMinimized(true); }, icon: <Minus size={8} /> },
                         { color: '#28c840', action: (e) => { e.stopPropagation(); setIsMaximized(!isMaximized); }, icon: isMaximized ? <Minus size={8} style={{ transform: 'rotate(90deg)' }} /> : <X size={7} style={{ transform: 'rotate(45deg)' }} /> },
                       ].map((btn, i) => (
                         <button
@@ -912,7 +904,7 @@ const CodeVisualizerModal = () => {
                     borderBottom: '1px solid var(--border-color)',
                     display: 'flex',
                     alignItems: 'stretch',
-                    paddingLeft: 8,
+                    justifyContent: 'center',
                     gap: 2,
                     flexShrink: 0,
                   }}
@@ -1032,7 +1024,7 @@ const CodeVisualizerModal = () => {
                       }}>
                         <span>Ln {lineCount}</span>
                         <span>Ch {charCount}</span>
-                        {!isMinimized && <span>UTF-8</span>}
+                        {!isVisualizerMinimized && <span>UTF-8</span>}
                       </div>
                     </>
                   )}

@@ -6,7 +6,7 @@ import { resolveNoteColors, CW, CH } from "./ShapeUtils";
 import { AW } from "./AnimatedWrapper";
 
 export const StickyNoteShape = ({
-  x, y, w, h, label, color, rotation = 0, attentionLevel, layoutId, animation, isSelected, onUpdate, onDelete, fontFamily, fontWeight, fontStyle, textDecoration,
+  x, y, w, h, label, color, rotation = 0, attentionLevel, layoutId, animation, isSelected, onUpdate, onDelete, fontFamily, fontWeight, fontStyle, textDecoration, isPinned: propIsPinned,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -14,7 +14,7 @@ export const StickyNoteShape = ({
   const textAreaRef = useRef(null);
   const { setCanvasLocked, setChatInputText, duplicateNote, toggleNotePin, bringToFront, pinnedNotes = [] } = useTutorStore();
   const canvasScale = useTutorStore(s => s.canvasTransform.scale) || 1;
-  const isPinned = pinnedNotes.some((n) => n.id === layoutId);
+  const isPinned = propIsPinned ?? pinnedNotes.some((n) => n.id === layoutId);
 
   useEffect(() => {
     setCanvasLocked(isSelected || isDragging);

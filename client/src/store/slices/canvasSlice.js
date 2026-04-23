@@ -35,7 +35,7 @@ export const createCanvasSlice = (set, get) => ({
   setCanvasMode: (mode) => set({ canvasMode: mode }),
   openCanvas:    ()     => set({ canvasMode: CANVAS_MODE.FULLSCREEN }),
   minimizeCanvas:()     => set({ canvasMode: CANVAS_MODE.MINIMIZED }),
-  closeCanvas:   ()     => set({ canvasMode: CANVAS_MODE.CLOSED }),
+  closeCanvas:   ()     => set({ canvasMode: CANVAS_MODE.CLOSED, activeTool: 'select' }),
   expandCanvas:  ()     => set({ canvasMode: CANVAS_MODE.FULLSCREEN }),
   setCanvasTransform: (transform) => set({ canvasTransform: transform }),
   setCanvasLocked:    (locked) => set({ isCanvasLocked: locked }),
@@ -283,5 +283,44 @@ export const createCanvasSlice = (set, get) => ({
     });
 
     return lastAddedIndex;
+  },
+
+  updateCanvasObjectSilently: (id, updates) => set(state => ({
+    canvasObjects: state.canvasObjects.map(o =>
+      o.id === id ? { ...o, ...updates, styles: { ...(o.styles || {}), ...(updates?.styles || {}) } } : o
+    )
+  })),
+
+  updateCanvasObject: (id, updates) => {
+    const { canvasObjects } = get();
+    const newObjects = canvasObjects.map(o =>
+      o.id === id ? { ...o, ...updates, styles: { ...(o.styles || {}), ...(updates?.styles || {}) } } : o
+    );
+    get().setCanvasObjectsWithHistory(newObjects);
+  },
+
+  deleteCanvasObject: (id) => set(state => ({
+    canvasObjects: state.canvasObjects.filter(o => o.id !== id)
+  })),
+
+  toggleNotePin: (id) => set(state => ({
+    canvasObjects: state.canvasObjects.map(o =>
+      o.id === id ? { ...o, isPinned: !o.isPinned } : o
+    )
+  })),
+
+  commitHistory: () => {
+    const { canvasObjects, history } = get();
+    // Prevent duplicate history entries
+    const lastState = history.past[history.past.length - 1];
+    if (lastState && JSON.stringify(lastState) === JSON.stringify(canvasObjects)) return;
+
+    set({
+      history: {
+        past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
+        future: []
+      },
+      canvasVersion: get().canvasVersion + 1,
+    });
   },
 });

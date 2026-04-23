@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { STATES, EVENTS } from '../../engine/core/teachingMachine.js';
 import sessionStore from '../../engine/core/sessionStore.js';
 import ChatSession from '../../models/ChatSession.js';
@@ -84,7 +85,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     }
 
     // Resumption / Linking Logic
-    if (chatId) {
+    if (chatId && mongoose.isValidObjectId(chatId)) {
       try {
         const chatSession = await ChatSession.findOne({ _id: chatId, userId: socket.user?.id || socket.user?._id });
         if (chatSession) {
@@ -250,7 +251,23 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     } catch (err) {
       console.error('[WS] session:start error:', err.message);
       machine.send(EVENTS.FAIL, { error: err.message });
-      socket.emit('teaching:error', { message: 'Failed to generate lesson.' });
+      
+      // Classify error source for targeted frontend messaging
+      const isCustomApiError = err.message?.includes('Your API') || err.message?.includes('Custom API');
+      const isSystemError = err.message?.includes('SYSTEM_NOT_CONFIGURED') || err.message?.includes('SYSTEM_FAILURE');
+      
+      let errorMessage = 'Failed to generate lesson.';
+      let errorType = 'generic';
+      
+      if (isCustomApiError) {
+        errorMessage = err.message;
+        errorType = 'custom_api_error';
+      } else if (isSystemError) {
+        errorMessage = 'TutorBoard system APIs are not available. Please add your own API key in Settings → AI Configuration.';
+        errorType = 'system_not_configured';
+      }
+      
+      socket.emit('teaching:error', { message: errorMessage, errorType });
       machine.forceReset();
     }
   });

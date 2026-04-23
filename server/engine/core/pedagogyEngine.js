@@ -264,7 +264,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
     // Stage 1: Animation Planner
     onProgress('Classifying concept & selecting renderer...');
     const domain = getPrimaryDomain(topic);
-    const planningResult = await planAnimation(topic, domain);
+    const planningResult = await planAnimation(topic, domain, userConfig);
 
     // Stage 2: Execute Agent Loop
     onProgress('Running autonomous visual planning loop...');
@@ -416,10 +416,23 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
       followUp: delta.followUp,
     };
   } catch (err) {
-    import('fs').then(fs => fs.appendFileSync('DEBUG_ERRORS.log', `[handleDoubt] ${err.stack}\n`)).catch(()=>{});
     console.error('[PedagogyEngine] Doubt handling failed:', err.message);
+    
+    // Propagate custom API errors clearly
+    const isCustomError = err.message?.includes('Custom API error') || err.message?.includes('Your API');
+    const isSystemError = err.message?.includes('SYSTEM_NOT_CONFIGURED');
+    
+    let answer;
+    if (isSystemError) {
+      answer = 'TutorBoard system APIs are not currently available. Please add your own API key in Settings → AI Configuration.';
+    } else if (isCustomError) {
+      answer = err.message;
+    } else {
+      answer = "I'm sorry, I encountered an error while processing that. Let's try again!";
+    }
+    
     return {
-      answer: "I'm sorry, I encountered an error while processing that. Let's try again!",
+      answer,
       isRelevant: true,
       hasVisuals: false,
       isError: true
@@ -453,22 +466,41 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
 
     if (response.error || !response.content) {
       const errorMsg = response.error || 'The AI provider returned an empty response.';
-      const detail = ` (Details: ${errorMsg})`;
+      const isCustomError = response._meta?.mode === 'custom' || response.errorType;
       
       console.warn(`[PedagogyEngine] Text response failed: ${errorMsg}`);
 
+      // Surface custom API errors directly — they are already user-friendly
+      if (isCustomError) {
+        return { 
+          answer: errorMsg, 
+          type: 'text',
+          isCustomApiError: true,
+        };
+      }
+
       return { 
-        answer: `I'm having trouble generating a response${detail}. If you're using a custom API key, please check your credits and connection in Settings.`, 
+        answer: `I'm having trouble generating a response. (${errorMsg}). If you're using a custom API key, please check your credits and connection in Settings.`, 
         type: 'text' 
       };
     }
 
     return { answer: response.content, type: 'text' };
   } catch (err) {
-    import('fs').then(fs => fs.appendFileSync('DEBUG_ERRORS.log', `[generateTextResponse] ${err.stack}\n`)).catch(()=>{});
+    const detail = err.message ? ` (${err.message})` : '';
+    const isSystemNotConfigured = err.message?.includes('SYSTEM_NOT_CONFIGURED');
     console.error('[PedagogyEngine] Text response failed:', err.message);
+    
+    if (isSystemNotConfigured) {
+      return {
+        answer: 'TutorBoard system APIs are not currently available. Please add your own API key in Settings → AI Configuration to continue learning.',
+        type: 'text',
+        isSystemError: true,
+      };
+    }
+    
     return {
-      answer: "I'm having a bit of trouble connecting. Could you try asking that again?",
+      answer: `I'm having a bit of trouble connecting${detail}. Please check your API configuration in Settings.`,
       type: 'text',
     };
   }

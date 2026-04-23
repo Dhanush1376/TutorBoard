@@ -19,6 +19,11 @@ const PROVIDER_CONFIG = {
     headerKey: 'Authorization',
     headerPrefix: 'Bearer ',
   },
+  groq: {
+    baseURL: 'https://api.groq.com/openai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
   anthropic: {
     baseURL: 'https://api.anthropic.com/v1',
     headerKey: 'x-api-key',
@@ -184,10 +189,71 @@ export async function executeProviderRequest(client, provider, { model, messages
       };
 
       if (onStream) {
-        // We'll implement a basic SSE parser for the native Anthropic stream
-        // For simplicity in this environment, if streaming fails, we fallback to non-streaming
-        // (Full SSE implementation is complex, so we'll do the non-streaming for now to ensure stability)
-        console.warn('[AI:Anthropic] Streaming requested but not fully implemented in native fallback. Using blocking request.');
+        console.log(`[AI:Anthropic] 🌊 Starting native stream parser for ${model}`);
+        
+        const response = await fetch(`${baseURL}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify(payload),
+          signal: signal || undefined
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.error?.message || `Anthropic API error: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let finalContent = '';
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // Keep the partial line in the buffer
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(trimmed.substring(6));
+                
+                if (data.type === 'content_block_delta' && data.delta?.text) {
+                  const text = data.delta.text;
+                  finalContent += text;
+                  onStream(text);
+                } else if (data.type === 'message_start' && data.message?.usage) {
+                  inputTokens = data.message.usage.input_tokens || 0;
+                } else if (data.type === 'message_delta' && data.usage) {
+                  outputTokens = data.usage.output_tokens || 0;
+                }
+              } catch (e) {
+                // Ignore parse errors for non-JSON or partial lines
+              }
+            }
+          }
+        }
+
+        return {
+          content: finalContent,
+          finishReason: 'stop',
+          provider: 'anthropic',
+          usage: {
+            prompt_tokens: inputTokens,
+            completion_tokens: outputTokens,
+            total_tokens: inputTokens + outputTokens,
+          },
+        };
       }
 
       const res = await fetch(`${baseURL}/messages`, {
@@ -224,13 +290,34 @@ export async function executeProviderRequest(client, provider, { model, messages
   }
 
   // Standard OpenAI-compatible path
+  // ─── Provider-specific response_format handling ───
+  // Google Gemini's OpenAI-compatible endpoint returns EMPTY responses when 
+  // response_format: { type: "json_object" } is sent. Similarly, Groq can be flaky.
+  // Fix: Strip response_format for these providers and inject a JSON instruction 
+  // into the system prompt instead.
+  let effectiveMessages = messages;
+  let effectiveResponseFormat = response_format;
+
+  const stripJsonFormat = ['google', 'groq', 'deepseek'].includes(provider);
+  if (stripJsonFormat && response_format?.type === 'json_object') {
+    effectiveResponseFormat = undefined;
+    // Inject JSON instruction into system message
+    effectiveMessages = messages.map(m => {
+      if (m.role === 'system') {
+        return { ...m, content: m.content + '\n\nIMPORTANT: You MUST respond with valid JSON only. No markdown, no explanation, just raw JSON.' };
+      }
+      return m;
+    });
+    console.log(`[AI:${provider}] Stripped response_format for compatibility, injected JSON instruction.`);
+  }
+
   const completionParams = {
-    model: (provider === 'google' && !model.startsWith('models/')) ? `models/${model}` : model,
-    messages,
+    model,
+    messages: effectiveMessages,
     temperature: temperature ?? 0.1,
     max_tokens: maxTokens ?? 1000,
     tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
-    response_format,
+    response_format: effectiveResponseFormat,
     stream: !!onStream,
   };
 
@@ -255,6 +342,20 @@ export async function executeProviderRequest(client, provider, { model, messages
       }
       msg = { content: finalContent };
     } else {
+      // ── DIAGNOSTIC: Log raw completion for debugging empty responses ──
+      console.log(`[AI:${provider}] Raw completion keys: ${Object.keys(completion || {}).join(', ')}`);
+      console.log(`[AI:${provider}] Choices count: ${completion.choices?.length || 0}`);
+      if (completion.choices?.[0]) {
+        const choice = completion.choices[0];
+        console.log(`[AI:${provider}] Choice[0] keys: ${Object.keys(choice).join(', ')}`);
+        console.log(`[AI:${provider}] Message keys: ${Object.keys(choice.message || {}).join(', ')}`);
+        console.log(`[AI:${provider}] Content type: ${typeof choice.message?.content}, length: ${(choice.message?.content || '').length}`);
+        console.log(`[AI:${provider}] Content preview: ${(choice.message?.content || '(null)').substring(0, 200)}`);
+        console.log(`[AI:${provider}] Finish reason: ${choice.finish_reason}`);
+      } else {
+        console.warn(`[AI:${provider}] ⚠️ No choices in completion! Full response: ${JSON.stringify(completion).substring(0, 500)}`);
+      }
+      
       msg = completion.choices?.[0]?.message;
       usage = completion.usage || null;
       finalContent = msg?.content || '';
@@ -263,7 +364,7 @@ export async function executeProviderRequest(client, provider, { model, messages
     }
 
     if (!finalContent && !tool_calls) {
-      console.warn(`[AI:${provider}] ⚠️ Received empty response from model ${completionParams.model}. Finish Reason: ${finishReason}`);
+      console.warn(`[AI:${provider}] ⚠️ Received empty response from model ${completionParams.model}. Finish Reason: ${finishReason}. Params: ${JSON.stringify({ model: completionParams.model, response_format: completionParams.response_format, msgCount: completionParams.messages?.length })}`);
     }
 
     return {
@@ -274,6 +375,22 @@ export async function executeProviderRequest(client, provider, { model, messages
       tool_calls: tool_calls,
     };
   } catch (err) {
+    // Enrich error with provider context
+    err.provider = provider;
+    err.model = completionParams.model;
+    
+    // The OpenAI SDK sometimes reports "429 status code (no body)" for Google API errors,
+    // even though Google DOES return a body with quota details. Enhance the error message.
+    if (err.status === 429 && (err.message?.includes('no body') || !err.message?.includes('quota'))) {
+      const enrichedMsg = `Your ${provider} free requests have run out for now. You can wait for the daily reset or upgrade your plan at Google AI Studio.`;
+      console.error(`[AI:${provider}] ❌ Quota/Rate limit reached.`);
+      const enrichedErr = new Error(enrichedMsg);
+      enrichedErr.status = 429;
+      enrichedErr.provider = provider;
+      enrichedErr.model = completionParams.model;
+      throw enrichedErr;
+    }
+    
     console.error(`[AI:${provider}] ❌ Request failed for model ${completionParams.model}: ${err.message}`);
     throw err;
   }

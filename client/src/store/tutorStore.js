@@ -29,7 +29,7 @@ const safeStorage = {
     }
   },
   removeItem: (name) => {
-    try { localStorage.removeItem(name); } catch (e) {}
+    try { localStorage.removeItem(name); } catch (e) { }
   }
 };
 
@@ -58,16 +58,16 @@ const useTutorStore = create(
       // Only persist UI preferences and global context — never large session data (objects, steps, history)
       partialize: (state) => ({
         playbackSpeed: state.playbackSpeed,
-        voiceEnabled:  state.voiceEnabled,
-        layoutView:    state.layoutView,
-        recentColors:  state.recentColors,
-        laserWidth:    state.laserWidth,
-        textToolSize:  state.textToolSize,
-        noteToolSize:  state.noteToolSize,
-        alertPrefs:    state.alertPrefs,
+        voiceEnabled: state.voiceEnabled,
+        layoutView: state.layoutView,
+        recentColors: state.recentColors,
+        laserWidth: state.laserWidth,
+        textToolSize: state.textToolSize,
+        noteToolSize: state.noteToolSize,
+        alertPrefs: state.alertPrefs,
         sessionManifest: state.sessionManifest,
-        chatSessionId:   state.chatSessionId,
-        sessionId:       state.sessionId,
+        chatSessionId: state.chatSessionId,
+        sessionId: state.sessionId,
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
       }),

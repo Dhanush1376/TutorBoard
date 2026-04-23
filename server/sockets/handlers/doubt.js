@@ -210,11 +210,28 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
     } catch (err) {
       console.error('[WS] session:doubt error:', err.message);
       machine.send(EVENTS.FAIL, { error: err.message });
+      
+      // Classify error source for targeted frontend messaging
+      const isCustomApiError = err.message?.includes('Your API') || err.message?.includes('Custom API');
+      const isSystemError = err.message?.includes('SYSTEM_NOT_CONFIGURED') || err.message?.includes('SYSTEM_FAILURE');
+      
+      let errorMessage = 'Something went wrong while processing your question.';
+      let errorType = 'generic';
+      
+      if (isCustomApiError) {
+        errorMessage = err.message;
+        errorType = 'custom_api_error';
+      } else if (isSystemError) {
+        errorMessage = 'TutorBoard system APIs are not available. Please add your own API key in Settings → AI Configuration.';
+        errorType = 'system_not_configured';
+      }
+      
       socket.emit('teaching:doubt-response', {
         _question: cleanQuestion,
-        answer: 'Something went wrong while processing your question.',
+        answer: errorMessage,
         isRelevant: true,
         hasVisuals: false,
+        errorType,
       });
     }
   });

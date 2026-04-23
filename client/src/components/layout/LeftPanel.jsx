@@ -28,12 +28,12 @@ const LeftPanel = ({
   // agent selection
   selectedAgent, setSelectedAgent,
   isLoadingHistory,
-  hasMore, isLoadingMore, onLoadMore
+  hasMore, isLoadingMore, onLoadMore,
+  onQuickAsk
 }) => {
   const navigate = useNavigate();
-  const { setSidebarOpen, layoutView, setLayoutView } = useTutorStore();
+  const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
   const hasStarted = messages.length > 0;
-  const [showSettings, setShowSettings] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -120,10 +120,10 @@ const LeftPanel = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="relative mb-3"
+              className="relative mb-3 cursor-default"
             >
               <div className="absolute inset-0 bg-[var(--text-primary)] opacity-5 blur-2xl rounded-full" />
-              <div className="relative w-12 h-12 rounded-xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-tertiary)] border border-[var(--border-color)] shadow-inner">
+              <div className="relative w-12 h-12 rounded-xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-tertiary)] border border-[var(--border-color)] shadow-inner opacity-40">
                 <BookOpen size={20} strokeWidth={1.5} />
               </div>
             </motion.div>
@@ -171,7 +171,11 @@ const LeftPanel = ({
                   ].map((text, i) => (
                     <button 
                       key={i}
-                      onClick={() => setPrompt(text)}
+                      onClick={() => {
+                        setPrompt(text);
+                        // SEC-14: Auto-submit suggestion for better UX
+                        setTimeout(() => onSubmit(text), 10);
+                      }}
                       className="px-3.5 py-2 rounded-lg bg-[var(--bg-tertiary)]/50 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[11px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.05] active:scale-[0.95] shadow-sm hover:shadow-md"
                     >
                       {text}
@@ -202,6 +206,13 @@ const LeftPanel = ({
           </div>
 
           <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setOverlay('settings')} 
+              className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
+              title="Open Settings"
+            >
+              <Settings size={20} strokeWidth={2.5} className="group-hover:rotate-45 transition-transform" />
+            </button>
             <button 
               onClick={() => setSidebarOpen(false)} 
               className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
@@ -283,94 +294,12 @@ const LeftPanel = ({
           isDark={isDark}
           selectedAgent={selectedAgent}
           setSelectedAgent={setSelectedAgent}
+          onQuickAsk={onQuickAsk}
         />
       </div>
 
       <ToastContainer />
 
-      {/* Settings Modal */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40"
-          >
-            {/* Modal Container */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-              className="w-full max-w-md bg-[var(--bg-primary)] border border-[var(--glass-border)] rounded-[24px] shadow-2xl overflow-hidden"
-              style={{
-                background: 'var(--bg-secondary)',
-              }}
-            >
-              <div className="flex items-center justify-between p-6 border-b border-[var(--border-color)]">
-                <h3 className="text-[13px] font-extrabold text-[var(--text-primary)] uppercase tracking-widest">Settings</h3>
-                <button onClick={() => setShowSettings(false)} className="p-1.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all">
-                  <X size={16} strokeWidth={2.5} />
-                </button>
-              </div>
-              
-              <div className="p-6 flex flex-col gap-6">
-                <div>
-                  <h4 className="text-[11px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Theme</h4>
-                  <ThemeSelector />
-                </div>
-                
-                <div>
-                  <h4 className="text-[11px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Layout View</h4>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setLayoutView('right')}
-                      className={`flex-1 flex flex-col items-center justify-center gap-2 px-3 py-4 rounded-2xl border transition-all relative ${
-                        layoutView === 'right' 
-                          ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)] shadow-md' 
-                          : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-tertiary)] opacity-60'
-                      }`}
-                    >
-                      {layoutView === 'right' && (
-                        <div className="absolute top-2 right-2 w-4 h-4 bg-[var(--bg-primary)] text-[var(--text-primary)] rounded-full flex items-center justify-center">
-                          <Check size={10} strokeWidth={4} />
-                        </div>
-                      )}
-                      <PanelLeft size={22} strokeWidth={2.5} />
-                      <span className="text-[12px] font-normal uppercase tracking-widest leading-none">Right Hand</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => setLayoutView('left')}
-                      className={`flex-1 flex flex-col items-center justify-center gap-2 px-3 py-4 rounded-2xl border transition-all relative ${
-                        layoutView === 'left' 
-                          ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)] shadow-md' 
-                          : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-tertiary)] opacity-60'
-                      }`}
-                    >
-                      {layoutView === 'left' && (
-                        <div className="absolute top-2 right-2 w-4 h-4 bg-[var(--bg-primary)] text-[var(--text-primary)] rounded-full flex items-center justify-center">
-                          <Check size={10} strokeWidth={4} />
-                        </div>
-                      )}
-                      <PanelRight size={22} strokeWidth={2.5} />
-                      <span className="text-[12px] font-normal uppercase tracking-widest leading-none">Left Hand</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-5 border-t border-[var(--border-color)] flex justify-end">
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="px-6 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[13px] font-normal hover:opacity-90 transition-opacity drop-shadow-md"
-                >
-                  Done
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

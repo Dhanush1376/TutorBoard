@@ -52,7 +52,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             initial={{ opacity: 0, x: -15 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            onClick={() => setActiveMode(mode.id)}
+            onClick={() => setActiveMode(activeMode === mode.id ? null : mode.id)}
             className={`flex items-center gap-3 px-5 py-3.5 rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
               activeMode === mode.id 
                 ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 

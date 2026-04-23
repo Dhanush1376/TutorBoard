@@ -222,7 +222,10 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
   onProgress(stageName);
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
-  const originalMessages = [...messages];
+  const originalMessages = [
+    { role: 'system', content: prompt },
+    { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) }
+  ];
   let lastError = null;
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -245,8 +248,8 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         messages: currentMessages,
         temperature: 0.3,
         maxTokens: stageName.includes('Finalizing') ? 8000 : 4000, 
-        responseMimeType: 'application/json',
         userConfig,
+        responseMimeType: 'application/json',
         taskType: 'teaching',
         onStream: attempt === 1 ? onStream : undefined, // Only stream on the first attempt to avoid UI duplication
       });

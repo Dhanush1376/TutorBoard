@@ -28,8 +28,9 @@ export default function CanvasOverlay() {
 
   // Identify the single selected element for formatting
   const selectedElement = useMemo(() => {
-    // Show formatting bar if text is selected OR if we are in active edit mode (even without selection)
-    if (!hasTextSelection && !editingObjectId) return null;
+    // Show formatting bar if text is selected OR if we are in active edit mode OR if a single element is selected
+    const isSingleSelected = selectedElementIds.length === 1;
+    if (!hasTextSelection && !editingObjectId && !isSingleSelected) return null;
 
     // We allow the bar during editing (isInteracting is true during edit)
     // but we might want to hide it if we are strictly dragging the element
@@ -41,10 +42,15 @@ export default function CanvasOverlay() {
     const obj = canvasObjects.find(o => o.id === id);
 
     // Only show formatting bar for intrinsic text types
-    const textTypes = ['text', 'label', 'annotation', 'caption', 'equation', 'code', 'math', 'terminal', 'sticky', 'note'];
+    const textTypes = [
+      'text', 'label', 'annotation', 'caption', 'equation', 'code', 
+      'math', 'terminal', 'sticky', 'note', 'step_box', 'callout', 'speech'
+    ];
+    
     if (obj && textTypes.includes(obj.type)) {
       return obj;
     }
+    return null;
     return null;
   }, [selectedElementIds, editingObjectId, canvasObjects, hasTextSelection]);
 

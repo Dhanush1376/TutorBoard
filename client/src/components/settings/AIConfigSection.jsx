@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Zap, Brain, Key, Shield, GitBranch, 
   Activity, Globe2, X, ExternalLink, Eye, 
-  Trash2, Sparkles, AlertTriangle, Gauge, DollarSign 
+  Trash2, Sparkles, AlertTriangle, Gauge, DollarSign,
+  Edit2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -43,7 +44,7 @@ export default function AIConfigSection({ showToast }) {
   const { token } = useAuth();
   const [apiKeys, setApiKeys] = useState([]);
   const [preferences, setPreferences] = useState({
-    useCustomApi: false, fallbackToDefault: true, smartRouting: false,
+    useCustomApi: false, smartRouting: false,
     enableRacing: false, enableAdaptive: false, routingMode: 'auto',
     modelOverride: '', costControl: { monthlyLimitCents: 0, warningThresholdPct: 80, hardStop: true },
   });
@@ -57,11 +58,29 @@ export default function AIConfigSection({ showToast }) {
   const [newModel, setNewModel] = useState('gpt-4o');
   const [newBaseUrl, setNewBaseUrl] = useState('');
   const [newLabel, setNewLabel] = useState('');
+
+  const CUSTOM_TEMPLATES = [
+    { name: 'Choose a Template...', url: '', model: '' },
+    { name: 'Groq (Fastest)', url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+    { name: 'OpenRouter (All Models)', url: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-3.5-sonnet' },
+    { name: 'Ollama (Local AI)', url: 'http://localhost:11434/v1', model: 'llama3' },
+    { name: 'DeepSeek (Official)', url: 'https://api.deepseek.com', model: 'deepseek-chat' },
+    { name: 'LM Studio (Local)', url: 'http://localhost:1234/v1', model: 'model-identifier' },
+  ];
+
+  const applyTemplate = (tpl) => {
+    if (!tpl.url) return;
+    setNewBaseUrl(tpl.url);
+    setNewModel(tpl.model);
+    showToast?.(`Applied ${tpl.name} settings!`, 'info');
+  };
   const [showKey, setShowKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
   const [testingKeyId, setTestingKeyId] = useState(null);
   const [testResults, setTestResults] = useState({});
+  const [editingKeyId, setEditingKeyId] = useState(null);
+  const [editForm, setEditForm] = useState({ label: '', apiKey: '', model: '', baseUrl: '' });
 
   useEffect(() => { if (token) fetchDashboardData(); }, [token]);
   useEffect(() => { if (!token) return; const interval = setInterval(fetchDashboardData, 30000); return () => clearInterval(interval); }, [token]);
@@ -115,8 +134,15 @@ export default function AIConfigSection({ showToast }) {
         });
         fetchDashboardData();
         showToast?.('API key added & activated! TutorBoard will now use your key.', 'success');
-      } else { setValidationResult({ success: false, message: data.details || data.error }); }
-    } catch (e) { setValidationResult({ success: false, message: 'Network error' }); }
+      } else { 
+        const errMsg = data.details || data.error || 'Validation failed';
+        setValidationResult({ success: false, message: errMsg }); 
+        showToast?.(errMsg, 'error');
+      }
+    } catch (e) { 
+      setValidationResult({ success: false, message: 'Network connection error' }); 
+      showToast?.('Network error', 'error'); 
+    }
     finally { setIsValidating(false); }
   };
 
@@ -137,6 +163,57 @@ export default function AIConfigSection({ showToast }) {
       }); 
       fetchDashboardData(); 
     } catch (e) {}
+  };
+
+  const handleStartEdit = (key) => {
+    setEditingKeyId(key.id);
+    setEditForm({
+      label: key.label || '',
+      apiKey: key.maskedKey || '',
+      model: key.model || '',
+      baseUrl: key.baseUrl || ''
+    });
+    setValidationResult(null);
+    setShowAddForm(false);
+  };
+
+  const handleUpdateKey = async () => {
+    if (!editingKeyId) return;
+    setIsValidating(true);
+    try {
+      const payload = {
+        label: editForm.label.trim(),
+        model: editForm.model,
+        baseUrl: editForm.baseUrl.trim()
+      };
+      
+      // Only send apiKey if it's been changed from the masked version
+      if (editForm.apiKey && !editForm.apiKey.includes('****')) {
+        payload.apiKey = editForm.apiKey.trim();
+      }
+
+      const res = await fetch(`${API_URL}/api/apikeys/${editingKeyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        showToast?.('API key updated successfully', 'success');
+        setEditingKeyId(null);
+        setValidationResult(null);
+        fetchDashboardData();
+      } else {
+        const errMsg = data.details || data.error || 'Update failed';
+        setValidationResult({ success: false, message: errMsg });
+        showToast?.(errMsg, 'error');
+      }
+    } catch (e) {
+      showToast?.('Network error', 'error');
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const handleUpdatePref = async (key, value) => {
@@ -176,10 +253,10 @@ export default function AIConfigSection({ showToast }) {
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: hasActiveCustomKey ? '#10b981' : hasKeyButDisabled ? '#f59e0b' : '#3b82f6' }} />
             <div>
               <div style={{ fontSize: '13px', fontWeight: 400 }}>
-                {hasActiveCustomKey ? 'Your Personal API Active' : hasKeyButDisabled ? 'Key Added — Enable "Use Custom API" Below' : 'TutorBoard Platform API'}
+                {hasActiveCustomKey ? 'Custom API Mode — Fully Independent' : hasKeyButDisabled ? 'Key Added — Enable "Use Custom API" Below' : '🌐 TutorBoard Platform API'}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
-                {hasActiveCustomKey ? 'All requests use your key' : hasKeyButDisabled ? 'Toggle "Use Custom API" to activate your key' : 'Shared platform credits'}
+                {hasActiveCustomKey ? 'All requests use YOUR API key exclusively — zero system dependency' : hasKeyButDisabled ? 'Toggle "Use Custom API" to activate your key' : 'Shared platform credits — add your own key for full independence'}
               </div>
             </div>
           </div>
@@ -197,7 +274,6 @@ export default function AIConfigSection({ showToast }) {
       <SectionTitle>API Configuration</SectionTitle>
       <SettingsGroup>
         <SettingsRow icon={Key} label="Use Custom API" rightElement={<AppleToggle value={preferences.useCustomApi} onChange={v => handleUpdatePref('useCustomApi', v)} />} />
-        <SettingsRow icon={Shield} label="Auto-Fallback" rightElement={<AppleToggle value={preferences.fallbackToDefault} onChange={v => handleUpdatePref('fallbackToDefault', v)} />} />
         <SettingsRow icon={Brain} label="Smart Routing" rightElement={<AppleToggle value={preferences.smartRouting} onChange={v => handleUpdatePref('smartRouting', v)} />} />
         <SettingsRow icon={GitBranch} label="Adaptive Learning" rightElement={<AppleToggle value={preferences.enableAdaptive} onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
         <SettingsRow icon={Activity} label="Parallel Racing" rightElement={<AppleToggle value={preferences.enableRacing} onChange={v => handleUpdatePref('enableRacing', v)} />} />
@@ -221,35 +297,33 @@ export default function AIConfigSection({ showToast }) {
           {showAddForm && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ marginBottom: '16px' }}>
               <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                   {Object.entries(PROVIDER_INFO).map(([id, p]) => (
                     <button
                       key={id}
                       onClick={() => setNewProvider(id)}
-                      className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group ${
+                      className={`relative flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-300 group ${
                         newProvider === id 
-                          ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] bg-opacity-[0.08] shadow-lg shadow-[var(--accent-primary)]/10 scale-[1.02]' 
-                          : 'border-[var(--bg-tertiary)] bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)] hover:border-opacity-30 hover:bg-[var(--bg-tertiary)]'
+                          ? 'border-[#8b5cf6] bg-[#8b5cf6]/10 shadow-sm scale-[1.02]' 
+                          : 'border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-[#8b5cf6]/50 hover:bg-[var(--bg-tertiary)]'
                       }`}
                     >
                       <div 
-                        className={`w-3 h-3 rounded-full mb-3 shadow-sm transition-transform duration-300 group-hover:scale-125`}
+                        className={`w-3 h-3 rounded-full mb-2 shadow-sm transition-transform duration-300 group-hover:scale-110`}
                         style={{ background: p.color }}
                       />
-                      <span className={`text-[13px] font-normal tracking-tight capitalize transition-colors duration-300 ${
-                        newProvider === id ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                      <span className={`text-[13px] font-medium tracking-tight transition-colors duration-300 ${
+                        newProvider === id ? 'text-[#8b5cf6]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                       }`}>
-                        {id}
+                        {p.name}
                       </span>
                       {newProvider === id && (
                         <motion.div 
                           layoutId="activeProvider"
-                          className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent-primary)] rounded-full flex items-center justify-center shadow-md"
+                          className="absolute top-2 right-2 w-2 h-2 bg-[#8b5cf6] rounded-full shadow-sm"
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                        >
-                          <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                        </motion.div>
+                        />
                       )}
                     </button>
                   ))}
@@ -259,8 +333,61 @@ export default function AIConfigSection({ showToast }) {
                   <button onClick={() => setShowKey(!showKey)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}><Eye size={14} /></button>
                 </div>
                 <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="Key Label" style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
-                {newProvider === 'custom' && <input type="text" value={newBaseUrl} onChange={e => setNewBaseUrl(e.target.value)} placeholder="Base URL" style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />}
-                {PROVIDER_INFO[newProvider]?.models.length > 0 && <PremiumDropdown value={newModel} onChange={setNewModel} options={PROVIDER_INFO[newProvider].models.map(m => ({ value: m, label: MODEL_LABELS[m] || m }))} styleContext="form" />}
+                {newProvider === 'custom' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(139, 92, 246, 0.05)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quick Setup Templates</span>
+                      <select 
+                        onChange={(e) => applyTemplate(CUSTOM_TEMPLATES[e.target.selectedIndex])}
+                        style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '12px' }}
+                      >
+                        {CUSTOM_TEMPLATES.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Base URL</span>
+                      <input 
+                        type="text" 
+                        value={newBaseUrl} 
+                        onChange={e => setNewBaseUrl(e.target.value)} 
+                        placeholder="https://api.your-provider.com/v1" 
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', fontSize: '13px' }} 
+                      />
+                    </div>
+                  </div>
+                )}
+                {newProvider === 'custom' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <input 
+                      type="text" 
+                      value={newModel} 
+                      onChange={e => setNewModel(e.target.value)} 
+                      placeholder="Model ID (e.g. llama3-8b-8192)" 
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} 
+                    />
+                    <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', paddingLeft: '4px' }}>
+                      The specific model name your provider uses.
+                    </span>
+                  </div>
+                )}
+                {newProvider !== 'custom' && PROVIDER_INFO[newProvider]?.models.length > 0 && (
+                  <PremiumDropdown value={newModel} onChange={setNewModel} options={PROVIDER_INFO[newProvider].models.map(m => ({ value: m, label: MODEL_LABELS[m] || m }))} styleContext="form" />
+                )}
+                
+                {validationResult && !validationResult.success && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }} 
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ padding: '12px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', fontSize: '12px', lineHeight: '1.5' }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Zap size={12} /> Validation Failed
+                    </div>
+                    {validationResult.message}
+                  </motion.div>
+                )}
+
                 <button onClick={handleAddKey} disabled={isValidating} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', fontWeight: 400, cursor: 'pointer' }}>{isValidating ? 'Validating...' : 'Validate & Save'}</button>
               </div>
             </motion.div>
@@ -278,11 +405,118 @@ export default function AIConfigSection({ showToast }) {
                     <div style={{ fontSize: '14px', fontWeight: 400 }}>{key.label || key.provider}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{key.maskedKey}</div>
                   </div>
-                  <button onClick={() => handleTestKey(key.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Zap size={13} /></button>
+                  <button 
+                    onClick={() => !testingKeyId && handleTestKey(key.id)} 
+                    disabled={testingKeyId === key.id}
+                    style={{ background: 'none', border: 'none', cursor: testingKeyId === key.id ? 'default' : 'pointer', opacity: testingKeyId === key.id ? 0.6 : 1 }}
+                  >
+                    {testingKeyId === key.id ? (
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                        <Activity size={13} />
+                      </motion.div>
+                    ) : (
+                      <Zap size={13} />
+                    )}
+                  </button>
+                  <button onClick={() => handleStartEdit(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px' }}>
+                    <Edit2 size={13} />
+                  </button>
                   <AppleToggle value={key.isActive} onChange={v => handleToggleKey(key.id, v)} />
-                  <button onClick={() => handleDeleteKey(key.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={13} /></button>
+                  <button onClick={() => handleDeleteKey(key.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px' }}><Trash2 size={13} /></button>
                 </div>
                 {testResult && <div style={{ marginTop: '8px', fontSize: '11px', color: testResult.valid ? '#10b981' : '#ef4444' }}>{testResult.valid ? `Connected (${testResult.latencyMs}ms)` : testResult.error}</div>}
+                
+                <AnimatePresence>
+                  {editingKeyId === key.id && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }} 
+                      animate={{ opacity: 1, height: 'auto' }} 
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '12px' }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Key Label</span>
+                        <input 
+                          type="text" 
+                          value={editForm.label} 
+                          onChange={e => setEditForm({ ...editForm, label: e.target.value })}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '13px' }} 
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>API Key (Masked)</span>
+                        <div style={{ position: 'relative' }}>
+                          <input 
+                            type={showKey ? 'text' : 'password'} 
+                            value={editForm.apiKey} 
+                            onChange={e => setEditForm({ ...editForm, apiKey: e.target.value })}
+                            placeholder="Enter new key to update"
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '13px' }} 
+                          />
+                          <button onClick={() => setShowKey(!showKey)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                            <Eye size={12} style={{ color: 'var(--text-tertiary)' }} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {key.provider === 'custom' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Base URL</span>
+                          <input 
+                            type="text" 
+                            value={editForm.baseUrl} 
+                            onChange={e => setEditForm({ ...editForm, baseUrl: e.target.value })}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '13px' }} 
+                          />
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Model ID</span>
+                        {key.provider === 'custom' ? (
+                          <input 
+                            type="text" 
+                            value={editForm.model} 
+                            onChange={e => setEditForm({ ...editForm, model: e.target.value })}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '13px' }} 
+                          />
+                        ) : (
+                          PROVIDER_INFO[key.provider]?.models.length > 0 && (
+                            <PremiumDropdown 
+                              value={editForm.model} 
+                              onChange={m => setEditForm({ ...editForm, model: m })} 
+                              options={PROVIDER_INFO[key.provider].models.map(m => ({ value: m, label: MODEL_LABELS[m] || m }))} 
+                              styleContext="form" 
+                            />
+                          )
+                        )}
+                      </div>
+
+                      {validationResult && !validationResult.success && editingKeyId === key.id && (
+                        <div style={{ padding: '12px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', fontSize: '11px', lineHeight: '1.4' }}>
+                          {validationResult.message}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                        <button 
+                          onClick={handleUpdateKey}
+                          disabled={isValidating}
+                          style={{ flex: 1, padding: '10px', borderRadius: '10px', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          {isValidating ? 'Validating...' : 'Save Changes'}
+                        </button>
+                        <button 
+                          onClick={() => setEditingKeyId(null)}
+                          style={{ padding: '10px 16px', borderRadius: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })}

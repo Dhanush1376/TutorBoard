@@ -21,20 +21,43 @@ import { classifyTask } from './taskClassifier.js';
 import UsageLog from '../../models/UsageLog.js';
 import { sanitizeString } from '../validation/logSanitizer.js';
 
-// ── Default OpenRouter client ─────────────────────────────────────────────────
+// ── Default Provider Clients ──────────────────────────────────────────────────
 let openRouterClient = null;
+let geminiClient = null;
+let groqClient = null;
+let hfClient = null;
 
 const initClients = () => {
   if (!openRouterClient && process.env.OPENROUTER_API_KEY) {
     openRouterClient = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: 'https://openrouter.ai/api/v1',
-      defaultHeaders: {
-        'HTTP-Referer': 'https://tutorboard.app',
-        'X-Title': 'TutorBoard',
-      }
+      defaultHeaders: { 'HTTP-Referer': 'https://tutorboard.app', 'X-Title': 'TutorBoard' }
     });
-    console.log('[AI] OpenRouter Engine Initialized ✅');
+    console.log('[AI] OpenRouter Client Initialized ✅');
+  }
+
+  if (!geminiClient && process.env.GEMINI_API_KEY) {
+    geminiClient = new OpenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
+    });
+    console.log('[AI] Gemini Client Initialized ✅');
+  }
+
+  if (!groqClient && process.env.GROQ_API_KEY) {
+    groqClient = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1'
+    });
+    console.log('[AI] Groq Client Initialized ✅');
+  }
+
+  if (!hfClient && process.env.HUGGINGFACE_API_KEY) {
+    // Note: HF doesn't always have a 1:1 OpenAI-compatible endpoint for free tier,
+    // but we can initialize it if they use a dedicated Inference Endpoint.
+    hfClient = { apiKey: process.env.HUGGINGFACE_API_KEY };
+    console.log('[AI] HuggingFace initialized ✅');
   }
 };
 
@@ -97,7 +120,7 @@ export function resolveModelId(modelId) {
     'Tutubot': 'openai/gpt-4o',
     
     // UI Label Map
-    'Claude Sonnet 4': 'claude-sonnet-4-20250514',
+    'Claude Sonnet 4': 'anthropic/claude-sonnet-4-20250514',
     'Claude 3.5 Sonnet': 'anthropic/claude-3-5-sonnet-20241022',
     'Gemini 2.0 Flash': 'gemini-2.0-flash',
     'Gemini 1.5 Pro': 'gemini-1.5-pro',
@@ -121,8 +144,8 @@ function classifyError(err) {
   const msg = (err.message || '').toLowerCase();
   const status = err.status || err.statusCode || 0;
   if (status === 401 || msg.includes('invalid') || msg.includes('unauthorized')) return 'invalid_key';
-  if (status === 429 || msg.includes('rate limit') || msg.includes('too many')) return 'rate_limit';
-  if (status === 402 || msg.includes('insufficient') || msg.includes('quota') || msg.includes('credit')) return 'quota';
+  if (status === 402 || msg.includes('insufficient') || msg.includes('quota') || msg.includes('credit') || msg.includes('billing')) return 'quota';
+  if (status === 429 || msg.includes('rate limit') || msg.includes('too many') || msg.includes('resource_exhausted')) return 'rate_limit';
   if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort')) return 'timeout';
   if (msg.includes('network') || msg.includes('fetch') || msg.includes('econnrefused')) return 'network';
   if (status >= 500) return 'server_error';
@@ -211,7 +234,7 @@ async function executeWithRetry(client, provider, params, maxRetries = 2, signal
       lastError = err;
       if (err.name === 'AbortError') throw err;
       const errorType = classifyError(err);
-      if (errorType === 'invalid_key' || errorType === 'quota') throw err;
+      if (errorType === 'invalid_key' || errorType === 'quota' || errorType === 'rate_limit') throw err;
       if (attempt < maxRetries) {
         const backoff = Math.pow(2, attempt) * 500;
         console.warn(`[AI:${sanitizeString(provider)}] Attempt ${attempt + 1} failed. Retrying in ${backoff}ms...`);
@@ -223,40 +246,58 @@ async function executeWithRetry(client, provider, params, maxRetries = 2, signal
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CUSTOM API ERROR CLASSIFIER — User-facing error messages
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function classifyCustomError(err) {
+  const errorType = classifyError(err);
+  const providerMsg = err.message || 'Unknown provider error';
+  
+  const userFacingMessages = {
+    invalid_key:  'The API key you entered doesn’t seem right. Please double-check it in your settings.',
+    rate_limit:   'You’re sending requests a bit too fast. Please wait a minute and try again.',
+    quota:        'Your API account has run out of credits or free requests. Please check your account balance.',
+    timeout:      'The AI is taking a bit too long to respond right now. Please try one more time.',
+    network:      'We can’t reach the AI provider. Please check your internet connection.',
+    server_error: 'The AI provider is having some trouble on their end. Please try again in a few minutes.',
+  };
+
+  return {
+    errorType,
+    userMessage: userFacingMessages[errorType] || `Custom API error: ${providerMsg}`,
+    technicalMessage: providerMsg,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN ORCHESTRATION ENGINE
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Robust LLM Call — Multi-Provider Orchestration Engine v3
+ * Robust LLM Call — Multi-Provider Orchestration Engine v4
+ * 
+ * ⛔ HARD FIREWALL ARCHITECTURE:
+ *   - Custom API path and System API path are COMPLETELY ISOLATED
+ *   - Custom API NEVER falls through to System APIs
+ *   - System APIs NEVER activate during Custom mode
+ *   - Each path has its own error handling and return semantics
  * 
  * Strategy:
- *   1. Check cost limits (if custom key + cost control enabled)
- *   2. Check response cache for identical prompts
- *   3. If userConfig → use user's custom key with timeout
- *   4. On failure → retry up to 2x with backoff
- *   5. On persistent failure → fallback to platform default
- *   6. Attach _meta to every response
- *   7. Log every attempt
+ *   1. Check cost limits (custom mode only)
+ *   2. Check response cache
+ *   3. FIREWALL DECISION:
+ *      ├── Custom Mode  → isolated custom execution → HARD RETURN
+ *      └── System Mode  → platform fallback chain   → HARD RETURN
  */
-export async function requestCompletion(params) {
+export async function requestCompletion(params = {}) {
   const { model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType, userConfig, taskType, onStream } = params;
-  initClients();
 
   const startTime = Date.now();
   const userId = userConfig?.userId || null;
-  const skipRacing = params.skipRacing || false;
+  const skipRacing = params?.skipRacing || false;
   
   // Resolve the canonical model ID once
   const canonicalModel = resolveModelId(model);
-
-  // ── Strategy 0: Parallel Racing ──
-  if (!skipRacing && userConfig?.racingConfigs) {
-    try {
-      return await requestCompletionRaced(params, userConfig.racingConfigs.primary, userConfig.racingConfigs.secondary);
-    } catch (err) {
-      console.warn('[AI:Racing] Racing failed, continuing with single-provider path');
-    }
-  }
 
   // ── Prepare response format ──
   let response_format;
@@ -274,7 +315,7 @@ export async function requestCompletion(params) {
     response_format = { type: "json_object" };
   }
 
-  // ── Cost limit check ──
+  // ── Cost limit check (Custom mode only) ──
   if (userConfig?.useCustomApi && userConfig?.costControl) {
     const costCheck = await checkCostLimit(userId, userConfig.costControl);
     if (!costCheck.allowed) {
@@ -295,181 +336,257 @@ export async function requestCompletion(params) {
     return { ...cached, _meta: { ...cached._meta, cached: true } };
   }
 
-  // ── Strategy 1: User's Custom API Key ──
+  // ═════════════════════════════════════════════════════════════════════════════
+  // ⛔ FIREWALL: Custom API vs System API — STRICT EXECUTION SPLIT
+  // ═════════════════════════════════════════════════════════════════════════════
+
   if (userConfig?.useCustomApi && userConfig?.getApiKey && userConfig?.provider) {
-    const provider = userConfig.provider;
-    const userModel = resolveModelId(userConfig.model || model);
+    // ╔═══════════════════════════════════════════════════════════════════════╗
+    // ║  CUSTOM API ENGINE — ISOLATED EXECUTION PATH                        ║
+    // ║  This block ALWAYS returns or throws. It NEVER falls through.       ║
+    // ║  Zero dependency on system clients. Zero dependency on .env keys.   ║
+    // ╚═══════════════════════════════════════════════════════════════════════╝
+    return await _executeCustomPath(params, {
+      userConfig, canonicalModel, response_format, isJson,
+      cacheKey, startTime, userId, taskType, skipRacing, onStream,
+      messages, temperature, maxTokens, tools,
+    });
+  }
 
-    if (circuitBreaker.isAvailable(provider)) {
-      const timeout = createTimeoutController(DEFAULT_TIMEOUT_MS);
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║  SYSTEM API ENGINE — PLATFORM FALLBACK CHAIN                            ║
+  // ║  Only reached when useCustomApi is false or no custom key is available.  ║
+  // ║  Uses .env-configured clients (OpenRouter → Gemini → Groq).             ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
+  return await _executeSystemPath(params, {
+    canonicalModel, response_format, isJson,
+    cacheKey, startTime: Date.now(), userId, taskType, onStream,
+    messages, temperature, maxTokens, tools,
+  });
+}
 
-      try {
-        console.log(`[AI:${provider}] Calling: ${userModel} (JSON: ${isJson})`);
+// ═══════════════════════════════════════════════════════════════════════════════
+// CUSTOM API ENGINE — Complete Isolation
+// No .env dependencies. No system client imports. No fallback leakage.
+// ═══════════════════════════════════════════════════════════════════════════════
 
-        const client = createProviderClient(provider, userConfig.getApiKey(), userConfig.baseUrl);
-        const result = await executeWithRetry(client, provider, {
-          model: userModel, messages, temperature, maxTokens, tools, response_format, onStream
-        }, 2, timeout.signal, userConfig.baseUrl);
+async function _executeCustomPath(params, ctx) {
+  const { userConfig, canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, skipRacing, onStream, messages, temperature, maxTokens, tools } = ctx;
+  const provider = userConfig.provider;
+  const userModel = resolveModelId(userConfig.model || params.model);
 
-        timeout.cleanup();
-        const responseTimeMs = Date.now() - startTime;
-        circuitBreaker.reportSuccess(provider, responseTimeMs);
-
-        const usage = result.usage || {};
-        const cost = calculateCost(userModel, usage.prompt_tokens || 0, usage.completion_tokens || 0);
-
-        // Log success
-        logUsage({ userId, provider, model: userModel, usage, responseTimeMs, taskType, success: true, isCustomKey: true, costCents: cost.costCents });
-
-        const response = {
-          content: result.content,
-          finishReason: result.finishReason,
-          provider,
-          tool_calls: result.tool_calls || null,
-          _meta: {
-            model_used: userModel,
-            provider_used: provider,
-            fallback_triggered: false,
-            response_time_ms: responseTimeMs,
-            estimated_cost_cents: cost.costCents,
-            tokens_in: usage.prompt_tokens || 0,
-            tokens_out: usage.completion_tokens || 0,
-            pricing_version: cost.pricingVersion,
-            cached: false,
-          },
-        };
-
-        if (!response.content && !response.tool_calls && userConfig.fallbackToDefault) {
-          console.warn(`[AI:${provider}] Custom key returned empty response. Falling back...`);
-        } else {
-          setCachedResponse(cacheKey, response);
-          return response;
-        }
-      } catch (err) {
-        timeout.cleanup();
-        if (err.name === 'AbortError') {
-          console.warn(`[AI:${provider}] Request timed out after ${DEFAULT_TIMEOUT_MS}ms`);
-        }
-        const errorType = classifyError(err);
-        console.warn(`[AI:${provider}] User key failed: ${sanitizeString(err.message)} (${errorType})`);
-        circuitBreaker.reportFailure(provider, err.status || 500, errorType);
-
-        logUsage({ userId, provider, model: userModel, responseTimeMs: Date.now() - startTime, taskType, success: false, errorType, isCustomKey: true });
-
-        
-        const errorMsg = err.message || 'Unknown provider error';
-        console.error(`[AI:Strategy1] ❌ Custom provider failed:`, errorMsg);
-
-        if (!userConfig.fallbackToDefault) {
-          return { content: '', error: errorMsg, provider: userConfig.provider };
-        }
-
-        console.log('[AI] Falling back to platform default (OpenRouter)...');
-      }
-    } else {
-      console.warn(`[AI:${provider}] Circuit is OPEN. Falling back to default.`);
+  // ── Strategy 0: Parallel Racing (custom keys only) ──
+  if (!skipRacing && userConfig?.racingConfigs) {
+    try {
+      return await requestCompletionRaced(params, userConfig.racingConfigs.primary, userConfig.racingConfigs.secondary);
+    } catch (err) {
+      console.warn('[AI:Custom:Racing] Racing failed, continuing with single-provider path');
+      // Fall through to single-provider custom execution below — NOT to system path
     }
   }
 
-  // ── Strategy 2: Platform Default (OpenRouter) ──
-  const wasFallback = !!userConfig?.useCustomApi;
-  // If we are in Strategy 2, we MUST use the platform's default model if the previous one failed or was "Universal"
-  const orModel = (wasFallback || canonicalModel.includes('Universal') || !canonicalModel) ? getModel() : canonicalModel;
-  const fallbackStart = Date.now();
+  // ── Circuit Breaker Check ──
+  if (!circuitBreaker.isAvailable(provider)) {
+    console.warn(`[AI:Custom] ⛔ Circuit for ${provider} is OPEN.`);
+    return {
+      content: '',
+      error: `Your ${provider} API is temporarily blocked due to repeated failures. Please wait 60 seconds or update your key in Settings.`,
+      provider,
+      _meta: { provider_used: provider, model_used: userModel, fallback_triggered: false, cached: false },
+    };
+  }
 
-  if (!openRouterClient) throw new Error('NO_API_AVAILABLE: OpenRouter client not initialized. Check .env');
-  if (!circuitBreaker.isAvailable('openrouter')) throw new Error('SERVICE_UNAVAILABLE: All circuits are open.');
-
+  // ── Execute Custom Request ──
   const timeout = createTimeoutController(DEFAULT_TIMEOUT_MS);
 
   try {
-    console.log(`[AI:OpenRouter] Calling: ${orModel}${wasFallback ? ' [FALLBACK]' : ''}`);
+    console.log(`[AI:Custom:${provider}] Calling: ${userModel} (JSON: ${isJson})`);
 
-    const completionParams = {
-      model: orModel, messages, temperature: temperature ?? 0.1,
-      max_tokens: maxTokens ?? 1000,
-      tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
-      response_format,
-      stream: !!onStream,
-    };
+    const client = createProviderClient(provider, userConfig.getApiKey(), userConfig.baseUrl);
+    const result = await executeWithRetry(client, provider, {
+      model: userModel, messages, temperature, maxTokens, tools, response_format, onStream
+    }, 2, timeout.signal, userConfig.baseUrl);
 
-    const completion = await openRouterClient.chat.completions.create(completionParams, { signal: timeout.signal });
-
-    let finalContent = '';
-    let msg, usage, finishReason = 'stop';
-    let tool_calls = null;
-
-    if (onStream) {
-      for await (const chunk of completion) {
-        const token = chunk.choices?.[0]?.delta?.content || "";
-        if (token) {
-          finalContent += token;
-          onStream(token);
-        }
-        if (chunk.choices?.[0]?.finish_reason) {
-            finishReason = chunk.choices[0].finish_reason;
-        }
-        // Grab usage if it arrives in the final chunk (OpenRouter sometimes sends it)
-        if (chunk.usage) usage = chunk.usage;
-      }
-      msg = { content: finalContent };
-    } else {
-      msg = completion.choices?.[0]?.message;
-      usage = completion.usage || {};
-      finalContent = msg?.content || '';
-      finishReason = completion.choices?.[0]?.finish_reason || 'stop';
-      tool_calls = msg?.tool_calls || null;
-    }
     timeout.cleanup();
-    const responseTimeMs = Date.now() - fallbackStart;
-    circuitBreaker.reportSuccess('openrouter', responseTimeMs);
-    const cost = calculateCost(orModel, usage?.prompt_tokens || 0, usage?.completion_tokens || 0);
+    const responseTimeMs = Date.now() - startTime;
+    circuitBreaker.reportSuccess(provider, responseTimeMs);
 
-    logUsage({ userId, provider: 'openrouter', model: orModel, usage: usage || {}, responseTimeMs, taskType, success: true, isCustomKey: false, wasFallback, costCents: cost.costCents });
+    const usage = result.usage || {};
+    const cost = calculateCost(userModel, usage.prompt_tokens || 0, usage.completion_tokens || 0);
+
+    logUsage({ userId, provider, model: userModel, usage, responseTimeMs, taskType, success: true, isCustomKey: true, costCents: cost.costCents });
 
     const response = {
-      content: finalContent,
-      finishReason: finishReason,
-      provider: 'openrouter',
-      tool_calls: tool_calls,
-      error: null,
+      content: result.content,
+      finishReason: result.finishReason,
+      provider,
+      tool_calls: result.tool_calls || null,
       _meta: {
-        model_used: orModel,
-        provider_used: 'openrouter',
-        fallback_triggered: wasFallback,
+        mode: 'custom',
+        model_used: userModel,
+        provider_used: provider,
+        fallback_triggered: false,
         response_time_ms: responseTimeMs,
         estimated_cost_cents: cost.costCents,
-        tokens_in: usage?.prompt_tokens || 0,
-        tokens_out: usage?.completion_tokens || 0,
+        tokens_in: usage.prompt_tokens || 0,
+        tokens_out: usage.completion_tokens || 0,
         pricing_version: cost.pricingVersion,
         cached: false,
       },
     };
 
-    if (!finalContent && !tool_calls) {
-      response.error = 'Provider returned an empty response.';
+    // Empty response — report it, do NOT fall through
+    if (!response.content && !response.tool_calls) {
+      console.warn(`[AI:Custom:${provider}] ⚠️ Empty response from ${userModel}.`);
+      return { 
+        content: '', 
+        error: 'Your API provider returned an empty response. Please try again.', 
+        errorType: 'empty_response',
+        provider,
+        _meta: { mode: 'custom', provider_used: provider, model_used: userModel, fallback_triggered: false, cached: false },
+      };
     }
 
     setCachedResponse(cacheKey, response);
     return response;
+
   } catch (err) {
     timeout.cleanup();
-    const errorType = classifyError(err);
-    const isAuth = err.status === 401 || err.message?.includes('401');
-    const orStatus = isCredits ? 402 : (isAuth ? 401 : (err.status || 500));
-    
-    let displayMsg = sanitizeString(err.message);
-    if (isAuth) displayMsg = "System API Key is invalid or expired. Please use a custom API key in Settings.";
 
-    console.error(`[AI:OpenRouter] Error: ${displayMsg}`);
-    circuitBreaker.reportFailure('openrouter', orStatus, errorType);
+    // Classify and log
+    const { errorType, userMessage, technicalMessage } = classifyCustomError(err);
+    console.error(`[AI:Custom:${provider}] ❌ FAILED: ${technicalMessage} (${errorType})`);
+    circuitBreaker.reportFailure(provider, err.status || 500, errorType);
+    logUsage({ userId, provider, model: userModel, responseTimeMs: Date.now() - startTime, taskType, success: false, errorType, isCustomKey: true });
 
-    logUsage({ userId, provider: 'openrouter', model: orModel, responseTimeMs: Date.now() - fallbackStart, taskType, success: false, errorType, isCustomKey: false, wasFallback });
-
-    const customErr = new Error(displayMsg);
-    customErr.status = orStatus;
-    throw customErr;
+    // ⛔ HARD RETURN — Never fall through to system path
+    return {
+      content: '',
+      error: userMessage,
+      errorType,
+      provider,
+      _meta: { mode: 'custom', provider_used: provider, model_used: userModel, fallback_triggered: false, cached: false },
+    };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYSTEM API ENGINE — Platform-Managed Fallback Chain
+// Only uses .env-configured clients. Never touches user keys.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function _executeSystemPath(params, ctx) {
+  const { canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, onStream, messages, temperature, maxTokens, tools } = ctx;
+  const skipRacing = params?.skipRacing || false;
+
+  // Initialize system clients from .env
+  initClients();
+
+  // ── Guard: Check if ANY system client is available ──
+  const hasAnySystemClient = !!(openRouterClient || geminiClient || groqClient);
+  if (!hasAnySystemClient) {
+    console.error('[AI:System] ⛔ No system API keys configured in .env');
+    throw new Error('SYSTEM_NOT_CONFIGURED: TutorBoard system APIs are not available. Please add your own API key in Settings → AI Configuration.');
+  }
+
+  // ── Strategy 0: Parallel Racing (system keys — unlikely but supported) ──
+  if (!skipRacing && params.userConfig?.racingConfigs) {
+    try {
+      return await requestCompletionRaced(params, params.userConfig.racingConfigs.primary, params.userConfig.racingConfigs.secondary);
+    } catch (err) {
+      console.warn('[AI:System:Racing] Racing failed, continuing with fallback chain');
+    }
+  }
+
+  // ── Platform Fallback Chain ──
+  const platformChain = [
+    { id: 'openrouter', client: openRouterClient, defaultModel: getModel() },
+    { id: 'google', client: geminiClient, defaultModel: 'gemini-2.0-flash' },
+    { id: 'groq', client: groqClient, defaultModel: 'llama-3.3-70b-versatile' }
+  ];
+
+  let lastError = null;
+
+  for (const entry of platformChain) {
+    const { id: providerId, client, defaultModel } = entry;
+
+    if (!client) continue;
+    if (!circuitBreaker.isAvailable(providerId)) {
+      console.warn(`[AI:System] Circuit for ${providerId} is OPEN. Skipping.`);
+      continue;
+    }
+
+    const currentModel = (!canonicalModel || canonicalModel.includes('Universal'))
+      ? defaultModel 
+      : canonicalModel;
+
+    const timeout = createTimeoutController(DEFAULT_TIMEOUT_MS);
+    
+    try {
+      console.log(`[AI:System] Attempting ${providerId} with model ${currentModel}...`);
+      
+      const response = await executeProviderRequest(client, providerId, {
+        model: currentModel, messages,
+        temperature: temperature ?? 0.1,
+        maxTokens: maxTokens ?? 1000,
+        tools, response_format, onStream
+      }, timeout.signal);
+
+      timeout.cleanup();
+      const responseTimeMs = Date.now() - startTime;
+      circuitBreaker.reportSuccess(providerId, responseTimeMs);
+
+      const cost = calculateCost(currentModel, response.usage?.prompt_tokens || 0, response.usage?.completion_tokens || 0);
+      
+      logUsage({ 
+        userId, provider: providerId, model: currentModel, 
+        usage: response.usage || {}, responseTimeMs, taskType, 
+        success: true, isCustomKey: false, costCents: cost.costCents 
+      });
+
+      const finalResponse = {
+        content: response.content,
+        finishReason: response.finishReason,
+        provider: providerId,
+        tool_calls: response.tool_calls,
+        error: null,
+        _meta: {
+          mode: 'system',
+          model_used: currentModel,
+          provider_used: providerId,
+          fallback_triggered: false,
+          response_time_ms: responseTimeMs,
+          estimated_cost_cents: cost.costCents,
+          tokens_in: response.usage?.prompt_tokens || 0,
+          tokens_out: response.usage?.completion_tokens || 0,
+          pricing_version: cost.pricingVersion,
+          cached: false,
+        }
+      };
+      
+      setCachedResponse(cacheKey, finalResponse);
+      return finalResponse;
+
+    } catch (err) {
+      timeout.cleanup();
+      lastError = err;
+      const errorType = classifyError(err);
+      console.warn(`[AI:System] ${providerId} failed: ${err.message} (${errorType}). Trying next...`);
+      circuitBreaker.reportFailure(providerId, err.status || 500, errorType);
+      
+      logUsage({ 
+        userId, provider: providerId, model: currentModel, 
+        responseTimeMs: Date.now() - startTime, taskType, 
+        success: false, errorType, isCustomKey: false 
+      });
+    }
+  }
+
+  // All system providers failed
+  const errMsg = lastError 
+    ? `Last error: ${lastError.message}` 
+    : `No platform keys configured in .env`;
+  throw new Error(`SYSTEM_FAILURE: All TutorBoard system providers failed. ${errMsg}`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -592,15 +709,20 @@ export const getAIClient = () => { initClients(); return openRouterClient; };
 
 export async function getEmbeddings(text) {
   initClients();
-  if (!openRouterClient) throw new Error('NO_API_AVAILABLE: OpenAI/OpenRouter client not initialized.');
+  if (!openRouterClient) {
+    console.warn('[AI] OpenRouter client missing, bypassing embeddings generation.');
+    return null;
+  }
+  
   try {
     const response = await openRouterClient.embeddings.create({
       model: 'openai/text-embedding-3-small',
       input: text.replace(/\n/g, ' '),
     });
+
     return response.data[0].embedding;
   } catch (err) {
-    console.error(`[AI:Embeddings] Error: ${sanitizeString(err.message)}`);
+    console.warn('[AI] Error generating embeddings, bypassing:', err.message);
     return null;
   }
 }

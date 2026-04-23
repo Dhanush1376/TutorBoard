@@ -60,7 +60,7 @@ function classifyFast(topic) {
  * LLM-powered classification for ambiguous topics.
  * Only called if the fast classifier has low confidence.
  */
-async function classifyDeep(topic, domain) {
+async function classifyDeep(topic, domain, userConfig) {
   try {
     const res = await requestCompletion({
       model: getTextModel(),
@@ -83,6 +83,7 @@ Return ONLY a JSON: { "conceptType": "TYPE", "confidence": 0.0-1.0, "reason": "o
       }],
       temperature: 0,
       maxTokens: 120,
+      userConfig,
       responseMimeType: 'application/json'
     });
 
@@ -101,14 +102,14 @@ Return ONLY a JSON: { "conceptType": "TYPE", "confidence": 0.0-1.0, "reason": "o
  * @param {string} domain - Detected domain from domainConfig
  * @returns {Promise<PlanningResult>}
  */
-export async function planAnimation(topic, domain) {
+export async function planAnimation(topic, domain, userConfig) {
   // 1. Fast classify
   const fastType = classifyFast(topic);
 
   // 2. Check confidence — if multiple patterns match (high ambiguity), use LLM
   const matchCount = Object.values(CONCEPT_PATTERNS).filter(p => p.test(topic)).length;
   const conceptType = matchCount > 3
-    ? await classifyDeep(topic, domain)
+    ? await classifyDeep(topic, domain, userConfig)
     : fastType;
 
   // 3. Select renderer and style

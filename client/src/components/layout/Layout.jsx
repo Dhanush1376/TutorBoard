@@ -70,7 +70,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         >
           <Toolbar 
             onShare={() => {}} 
-            onSettingsClick={() => navigate('/settings')}
+            onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
           />
         </div>
       )}
