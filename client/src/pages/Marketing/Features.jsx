@@ -37,7 +37,7 @@ const FEATURES = [
           style={{ position: 'absolute', bottom: 20, right: 20, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)' }}
         >
           <div style={{ width: 8, height: 8, borderRadius: 2, background: '#6366f1' }} />
-          <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>Infinite canvas</span>
+          <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 400 }}>Infinite canvas</span>
         </motion.div>
       </div>
     ),
@@ -80,7 +80,7 @@ const FEATURES = [
         <motion.div
           animate={{ opacity: [0, 1, 1, 0] }}
           transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 1, delay: 1 }}
-          style={{ position: 'absolute', top: 24, right: 24, padding: '6px 12px', borderRadius: 8, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 11, fontWeight: 600, color: '#f59e0b' }}
+          style={{ position: 'absolute', top: 24, right: 24, padding: '6px 12px', borderRadius: 8, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 11, fontWeight: 400, color: '#f59e0b' }}
         >
           ✏ Drawing...
         </motion.div>
@@ -116,7 +116,7 @@ const FEATURES = [
         <motion.div
           animate={{ opacity: [0.3, 1, 0.3] }}
           transition={{ duration: 2, repeat: Infinity }}
-          style={{ position: 'absolute', bottom: 12, right: 12, fontSize: 11, color: '#10b981', fontWeight: 600 }}
+          style={{ position: 'absolute', bottom: 12, right: 12, fontSize: 11, color: '#10b981', fontWeight: 400 }}
         >
           ↺ Click to restore
         </motion.div>
@@ -215,8 +215,8 @@ function FeatureCard({ feature, index }) {
           <Icon size={20} />
         </motion.div>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: feature.accent, marginBottom: 4 }}>{feature.tag}</div>
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.3px' }}>{feature.title}</h3>
+          <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: '0.1em', textTransform: 'uppercase', color: feature.accent, marginBottom: 4 }}>{feature.tag}</div>
+          <h3 style={{ fontSize: 18, fontWeight: 400, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.3px' }}>{feature.title}</h3>
         </div>
       </div>
       <p style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)', margin: 0 }}>{feature.description}</p>
@@ -233,7 +233,7 @@ const Features = () => {
            initial={{ opacity: 0, x: -30 }}
            animate={{ opacity: 1, x: 0 }}
            transition={{ duration: 0.7 }}
-           style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 20, padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-color)' }}
+           style={{ display: 'inline-block', fontSize: 11, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 20, padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-color)' }}
         >
           Built for Deep Work
         </motion.div>
@@ -248,15 +248,15 @@ const Features = () => {
         </p>
 
         <div style={{ marginTop: 48, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, fontWeight: 400, color: 'var(--text-primary)' }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-primary)' }} />
             Zero Latency Visual Generation
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, fontWeight: 400, color: 'var(--text-primary)' }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-primary)' }} />
             Cross-Model Intent Recognition
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, fontWeight: 400, color: 'var(--text-primary)' }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-primary)' }} />
             Full Historical Session Recall
           </div>

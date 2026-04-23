@@ -13,13 +13,14 @@ import {
 
 // Domain Components
 import GeneralSection from '../components/settings/GeneralSection';
-import AccountSection from '../components/settings/AccountSection';
+import AccountSection, { PrivacySection } from '../components/settings/AccountSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
 import AIConfigSection from '../components/settings/AIConfigSection';
+import AboutSection from '../components/settings/AboutSection';
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { user, loading, logout } = useAuth();
+  const { user, token, loading, logout } = useAuth();
   const [activeSection, setActiveSection] = useState('general');
   const [isTrafficHovered, setIsTrafficHovered] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -42,8 +43,8 @@ const Settings = () => {
       account: <AccountSection user={user} logout={logout} syncSettings={syncSettings} />,
       appearance: <AppearanceSection syncSettings={syncSettings} />,
       ai: <AIConfigSection showToast={showToast} />,
-      privacy: <AccountSection user={user} logout={logout} syncSettings={syncSettings} />, // Fallback to account which has privacy
-      about: <GeneralSection user={user} syncSettings={syncSettings} showToast={showToast} />, // Fallback to general which has about
+      privacy: <PrivacySection syncSettings={syncSettings} token={token} showToast={showToast} />,
+      about: <AboutSection />,
     };
 
     return sectionMap[activeSection] || sectionMap.general;
@@ -91,7 +92,7 @@ const Settings = () => {
             <div style={{ width: 1, height: 16, background: 'var(--border-color)', opacity: 0.3 }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <VisaiLogo size="xxs" />
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Settings — TutorBoard</span>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>Settings — TutorBoard</span>
             </div>
           </div>
         </div>
@@ -112,7 +113,7 @@ const Settings = () => {
         <AnimatePresence>
           {toast && (
             <motion.div initial={{ opacity: 0, y: -20, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: -20, x: '-50%' }}
-              style={{ position: 'absolute', top: '96px', left: '50%', zIndex: 100, padding: '10px 20px', borderRadius: '12px', background: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              style={{ position: 'absolute', top: '96px', left: '50%', zIndex: 100, padding: '10px 20px', borderRadius: '12px', background: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '8px' }}>
               {toast.message}
             </motion.div>
           )}
@@ -120,7 +121,7 @@ const Settings = () => {
 
         {/* Content Area */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '40px 24px' }}>
+          <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '40px 24px 160px 24px' }}>
             <AnimatePresence mode="wait">
               <motion.div key={activeSection} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.15 }} style={{ maxWidth: '800px', margin: '0 auto', height: '100%' }}>
                 <SectionWrapper isGuest={user?.isGuest} isRestricted={!['appearance', 'about'].includes(activeSection)} onUnlock={() => { logout(); navigate('/'); }}>

@@ -24,6 +24,7 @@ export function useTeachingMachine(isAuthReady = true) {
     setTimeline, setCurrentStep, setError, setGreeting, setChatSessionId,
     setDoubtProcessing, addDoubt, setDoubtResponse,
     mutateCanvasObjects, addCanvasObjects,
+    setNarrationTokens,
     startSession: storeStartSession,
     endSession,
     play: storePlay, pause: storePause,
@@ -57,6 +58,7 @@ export function useTeachingMachine(isAuthReady = true) {
     isPlaying: s.isPlaying,
     isPaused: s.isPaused,
     playbackSpeed: s.playbackSpeed,
+    setNarrationTokens: s.setNarrationTokens,
     setMachineState: s.setMachineState,
     setSessionId: s.setSessionId,
     setConnected: s.setConnected,
@@ -83,6 +85,7 @@ export function useTeachingMachine(isAuthReady = true) {
     setGuestTrialStatus: s.setGuestTrialStatus,
     setLearnerProfile: s.setLearnerProfile,
     setResumeContext: s.setResumeContext,
+    setLearnerProfile: s.setLearnerProfile,
   })));
 
   // ─── Sync connection state ────────────────────────────────────────────────
@@ -132,7 +135,7 @@ export function useTeachingMachine(isAuthReady = true) {
     cleanups.push(on('canvas:sync', (data) => {
       const state = useTutorStore.getState();
       if (!state.isInteracting && !state.activeSnapshotId) {
-        setCanvasObjects(data.objects);
+        useTutorStore.getState().setCanvasObjectsWithHistory(data.objects);
       }
     }));
 

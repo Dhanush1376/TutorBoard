@@ -160,7 +160,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         console.warn(`[${requestId}] [WS] socket.user missing! Defaulting to guest context.`);
         socket.user = { id: 'guest', isGuest: true };
       }
-      const userConfig = await resolveUserConfig(socket, socket.user, cleanTopic);
+      const userConfig = await resolveUserConfig(socket, socket.user, cleanTopic, selectedAgent);
       
       let intentResult;
       if (isGreeting(cleanTopic)) {

@@ -39,21 +39,21 @@ const SessionResumeOverlay = () => {
             </div>
             
             <div>
-              <h2 className="text-[18px] font-black text-[var(--text-primary)] mb-1">Welcome Back</h2>
-              <p className="text-[13px] text-[var(--text-tertiary)] font-medium leading-relaxed">
+              <h2 className="text-[18px] font-normal text-[var(--text-primary)] mb-1">Welcome Back</h2>
+              <p className="text-[13px] text-[var(--text-tertiary)] font-normal leading-relaxed">
                 Continuing your lesson on <br />
-                <span className="text-[var(--text-primary)] font-bold">"{resumeContext.topic}"</span>
+                <span className="text-[var(--text-primary)] font-normal">"{resumeContext.topic}"</span>
               </p>
             </div>
 
             <div className="px-4 py-2 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2">
               <PlayCircle size={14} className="text-[var(--text-tertiary)]" />
-              <span className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+              <span className="text-[11px] font-normal text-[var(--text-secondary)] uppercase tracking-wider">
                 Step {resumeContext.stepIndex + 1}
               </span>
             </div>
 
-            <p className="text-[10px] text-[var(--text-tertiary)] opacity-60 uppercase tracking-widest font-black mt-2">
+            <p className="text-[10px] text-[var(--text-tertiary)] opacity-60 uppercase tracking-widest font-normal mt-2">
               Ready to learn
             </p>
           </motion.div>

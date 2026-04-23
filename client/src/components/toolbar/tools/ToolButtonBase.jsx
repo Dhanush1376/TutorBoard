@@ -211,7 +211,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
               }}
             >
               <span
-                className="text-[11px] font-semibold tracking-wide"
+                className="text-[11px] font-normal tracking-wide"
                 style={{ color: 'var(--text-primary)', letterSpacing: '0.04em' }}
               >
                 {displayLabel}
@@ -291,7 +291,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                       </span>
 
                       <span
-                        className="flex-1 text-[12px] font-medium transition-colors"
+                        className="flex-1 text-[12px] font-normal transition-colors"
                         style={{ color: isVariantActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}
                       >
                         {variant.label}

@@ -62,16 +62,22 @@ export const useSessionSync = (chatMessages) => {
       return;
     }
 
-    // Guard: Don't sync if no ID AND no content (avoid empty session spam)
-    const hasContent = (state.canvasObjects && state.canvasObjects.length > 0) || (state.chatMessages && state.chatMessages.length > 0);
-    if (!state.chatSessionId && !hasContent) {
+    // Guard: Don't sync if no ID AND no user content (avoid empty session spam)
+    // We only consider a session "meaningful" if it has at least one user message 
+    // OR at least one manual drawing (ignoring agent-generated objects).
+    const hasUserMessages = state.chatMessages && state.chatMessages.some(m => m.role === 'user');
+    const hasManualDrawings = state.canvasObjects && state.canvasObjects.some(o => o.id?.startsWith('manual-'));
+    const hasUserContent = hasUserMessages || hasManualDrawings;
+    
+    if (!hasUserContent) {
+      if (isBeacon) console.log('[Sync] Beacon skipped: No user content');
       return;
     }
 
     const payload = {
       sessionId: state.chatSessionId,
       activeSnapshotId: state.activeSnapshotId,
-      title: state.topic || 'New Learning Session',
+      ...(state.topic ? { title: state.topic } : {}),
       messages: state.chatMessages || [],
       canvasState: state.canvasObjects || [],
       canvasSteps: state.canvasSteps || [],
@@ -131,8 +137,8 @@ export const useSessionSync = (chatMessages) => {
     const hasMessages = (doubtHistory && doubtHistory.length > 0) || (chatMessages && chatMessages.length > 0);
     const hasCanvas = canvasObjects && canvasObjects.length > 0;
 
-    // Guard: Only auto-sync if we have an ID OR if we have actual content to create an ID for
-    if (!chatSessionId && !hasCanvas && !hasMessages) return;
+    // Guard: Only auto-sync if we have actual content (canvas OR messages)
+    if (!hasCanvas && !hasMessages) return;
 
     // Throttle saves
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);

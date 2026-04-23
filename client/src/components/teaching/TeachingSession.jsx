@@ -278,14 +278,14 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
             </svg>
           </div>
           <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
-            <p className="text-[10px] font-bold text-white truncate">{timeline?.title || initialTopic}</p>
+            <p className="text-[10px] font-normal text-white truncate">{timeline?.title || initialTopic}</p>
             <p className="text-[9px] text-white/60">Step {currentStepIndex + 1}/{totalSteps}</p>
           </div>
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <div className="p-1 rounded-lg bg-white/10"><Maximize2 size={12} className="text-white" /></div>
           </div>
           <div className="absolute top-2 left-2">
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-500/20 text-[7px] font-bold text-red-400 uppercase">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-500/20 text-[7px] font-normal text-red-400 uppercase">
               <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />Live
             </span>
           </div>
@@ -383,7 +383,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
 
                 {/* Domain badge — always shown, falls back gracefully */}
                 <span
-                  className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] border"
+                  className="px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-[0.1em] border"
                   style={{
                     backgroundColor: domainStyle.bg,
                     borderColor: domainStyle.border,
@@ -394,7 +394,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                 </span>
 
                 <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[300px] truncate">
+                  <span className="text-[11px] font-normal text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[300px] truncate">
                     {timeline?.title || initialTopic || 'Teaching Session'}
                   </span>
                   {professorNote && (
@@ -406,12 +406,12 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
 
                 <div className="flex items-center gap-2 ml-2">
                   {mode && (
-                    <span className="px-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
+                    <span className="px-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-[10px] font-normal text-[var(--text-secondary)] uppercase tracking-widest">
                       {mode}
                     </span>
                   )}
                   {difficulty && (
-                    <span className={`px-2 py-0.5 border rounded text-[10px] font-bold uppercase tracking-wider ${
+                    <span className={`px-2 py-0.5 border rounded text-[10px] font-normal uppercase tracking-wider ${
                       difficulty === 'beginner' ? 'bg-green-500/10 border-green-500/20 text-green-400' :
                       difficulty === 'advanced' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
                       'bg-blue-500/10 border-blue-500/20 text-blue-400'
@@ -421,7 +421,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                   )}
                 </div>
 
-                <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-400 uppercase tracking-wider">
+                <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-normal text-red-400 uppercase tracking-wider">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
                   Live
                 </span>
@@ -431,7 +431,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
             {/* Right: Controls */}
             <div className="flex items-center gap-2">
               {!isConnected && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-bold text-red-400">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-normal text-red-400">
                   <WifiOff size={12} />Offline
                 </div>
               )}
@@ -567,7 +567,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
                     <button
                       key={spd}
                       onClick={() => handleSpeedChange(spd)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                      className={`px-2 py-1 rounded-lg text-[10px] font-normal transition-all ${
                         playbackSpeed === spd
                           ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
                           : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
@@ -608,7 +608,7 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
 
                 {/* Step counter */}
                 <div className="px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl">
-                  <span className="text-[11px] font-bold text-[var(--text-tertiary)] tabular-nums">
+                  <span className="text-[11px] font-normal text-[var(--text-tertiary)] tabular-nums">
                     {currentStepIndex + 1} / {totalSteps}
                   </span>
                 </div>

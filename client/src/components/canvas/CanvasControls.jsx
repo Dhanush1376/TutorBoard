@@ -43,7 +43,7 @@ const CanvasControls = ({
 
       {/* Zoom Level Display */}
       <div className="px-1 py-1 min-w-[48px] text-center">
-        <span className="text-[11px] font-bold text-[var(--text-tertiary)] tabular-nums tracking-tight">
+        <span className="text-[11px] font-normal text-[var(--text-tertiary)] tabular-nums tracking-tight">
           {zoomPercent}%
         </span>
       </div>

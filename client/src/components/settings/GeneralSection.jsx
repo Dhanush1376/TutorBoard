@@ -8,52 +8,7 @@ import {
   TrialBadge 
 } from './SettingsShared';
 
-const SystemStatusItem = ({ label, status, detail }) => {
-  const isOnline = status === 'online';
-  const isChecking = status === 'checking';
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ 
-          width: '8px', height: '8px', borderRadius: '50%', 
-          background: isOnline ? '#10b981' : (isChecking ? 'var(--text-tertiary)' : '#ef4444'),
-          boxShadow: isOnline ? '0 0 10px rgba(16,185,129,0.4)' : 'none',
-        }} />
-        <span style={{ fontSize: '14px', fontWeight: 600 }}>{label}</span>
-      </div>
-      <span style={{ fontSize: '12px', fontWeight: 500 }}>{status.toUpperCase()} {detail && `── ${detail}`}</span>
-    </div>
-  );
-};
 
-const AboutSection = ({ user }) => {
-  const { token } = useAuth();
-  const [systemStatus, setSystemStatus] = useState({ api: 'checking', db: 'checking', engine: 'online' });
-
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/test`, { headers: { 'Authorization': `Bearer ${token}` } });
-        setSystemStatus(prev => ({ ...prev, api: 'online', db: res.ok ? 'online' : 'offline' }));
-      } catch (e) { setSystemStatus(prev => ({ ...prev, api: 'offline', db: 'offline' })); }
-    };
-    if (token) check();
-  }, [token]);
-
-  return (
-    <div style={{ marginTop: '40px', paddingBottom: '40px' }}>
-      <SectionTitle>System Status</SectionTitle>
-      <SettingsGroup>
-        <SystemStatusItem label="API Gateway" status={systemStatus.api} />
-        <SystemStatusItem label="Cloud Database" status={systemStatus.db} />
-        <SystemStatusItem label="Orchestration Engine" status={systemStatus.engine} detail="v9.0 Cinematic" />
-      </SettingsGroup>
-      <div style={{ textAlign: 'center', marginTop: '32px', color: 'var(--text-tertiary)', fontSize: '12px' }}>
-        TutorBoard v2.1.0 Beta ── Made with ❤️ by the Team
-      </div>
-    </div>
-  );
-};
 
 export default function GeneralSection({ user, syncSettings, showToast }) {
   const { updateUser } = useAuth();
@@ -104,7 +59,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       syncSettings('general', { nickname, role, preferences, name: displayName, notifCompletion, notifSound });
       setTimeout(() => setSaveStatus('saved'), 300);
       setTimeout(() => setSaveStatus(null), 2000);
-    }, 1000);
+    }, 300);
     return () => clearTimeout(timeout);
   }, [nickname, role, preferences, displayName, notifCompletion, notifSound, syncSettings, updateUser]);
 
@@ -121,7 +76,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
             <ShieldAlert size={20} />
           </div>
           <div style={{ flex: 1 }}>
-            <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px 0' }}>Guest Mode Active</h4>
+            <h4 style={{ fontSize: '13px', fontWeight: 400, color: 'var(--text-primary)', margin: '0 0 2px 0' }}>Guest Mode Active</h4>
             <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0 }}>You're using a temporary account. Profile changes are locked.</p>
           </div>
         </div>
@@ -130,14 +85,14 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{displayName || 'User'}</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: 400, color: 'var(--text-primary)', margin: 0 }}>{displayName || 'User'}</h2>
             {user?.isGuest && <TrialBadge />}
           </div>
           <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: 0 }}>{user?.email || 'guest@tutorboard.ai'}</p>
         </div>
         {saveStatus && (
           <motion.span initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            style={{ fontSize: '11px', fontWeight: 600, marginTop: '8px', color: saveStatus === 'saving' ? 'var(--text-tertiary)' : '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            style={{ fontSize: '11px', fontWeight: 400, marginTop: '8px', color: saveStatus === 'saving' ? 'var(--text-tertiary)' : '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
             {saveStatus === 'saving' ? '⟳ Saving...' : '✓ Saved'}
           </motion.span>
         )}
@@ -164,7 +119,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       <SectionTitle>Personalized Learning</SectionTitle>
       <SettingsGroup>
         <div style={{ padding: '16px' }}>
-          <label style={{ display: 'block', fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>System Instructions</label>
+          <label style={{ display: 'block', fontSize: '15px', fontWeight: 400, color: 'var(--text-primary)', marginBottom: '8px' }}>System Instructions</label>
           <textarea value={preferences} onChange={e => setPreferences(e.target.value)} disabled={user?.isGuest}
             placeholder={user?.isGuest ? "Sign in to add custom instructions..." : "e.g. explain concepts with visual analogies..."}
             style={{ width: '100%', padding: '12px', resize: 'vertical', minHeight: '80px', background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-secondary)', fontSize: '14px', fontFamily: '"Geist", sans-serif', outline: 'none' }}
@@ -178,7 +133,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         <SettingsRow icon={Volume2} label="Sound Effects" borderBottom={false} rightElement={<AppleToggle value={notifSound} onChange={setNotifSound} />} />
       </SettingsGroup>
 
-      <AboutSection user={user} />
     </div>
   );
 }

@@ -418,7 +418,7 @@ const MistakeFlow = ({ content, cfg }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 10 }}>
       {wrongMatch && (
         <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 11, color: '#ef4444', lineHeight: 1.5 }}>
-          <span style={{ fontWeight: 800, marginRight: 6, opacity: 0.7 }}>✗ WRONG</span>
+          <span style={{ fontWeight: 400, marginRight: 6, opacity: 0.7 }}>✗ WRONG</span>
           {wrongMatch[1]}
         </div>
       )}
@@ -427,7 +427,7 @@ const MistakeFlow = ({ content, cfg }) => {
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
           style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.22)', fontSize: 11, color: '#22c55e', lineHeight: 1.5 }}
         >
-          <span style={{ fontWeight: 800, marginRight: 6, opacity: 0.7 }}>✓ RIGHT</span>
+          <span style={{ fontWeight: 400, marginRight: 6, opacity: 0.7 }}>✓ RIGHT</span>
           {rightMatch[2]}
         </motion.div>
       )}
@@ -444,7 +444,7 @@ const MicroSteps = ({ steps: ms, cfg }) => (
         transition={{ delay: i * 0.1 }}
         style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '7px 10px', borderRadius: 8, background: cfg.bg, border: `1px solid ${cfg.border}` }}
       >
-        <span style={{ fontSize: 9, fontWeight: 800, width: 18, height: 18, borderRadius: '50%', background: cfg.accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+        <span style={{ fontSize: 9, fontWeight: 400, width: 18, height: 18, borderRadius: '50%', background: cfg.accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
           {i + 1}
         </span>
         <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{s}</span>
@@ -475,7 +475,7 @@ const SocraticGate = ({ content, cfg }) => {
             <motion.button key="gate"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               onClick={() => setRevealed(true)}
-              style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', padding: '7px 16px', borderRadius: 9, background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.accent, cursor: 'pointer', display: 'block' }}
+              style={{ fontSize: 11, fontWeight: 400, letterSpacing: '0.06em', padding: '7px 16px', borderRadius: 9, background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.accent, cursor: 'pointer', display: 'block' }}
             >
               Reveal answer →
             </motion.button>
@@ -574,12 +574,12 @@ const StepPanel = ({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 8, fontWeight: 900, color: cfg.accent, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                <span style={{ fontSize: 8, fontWeight: 400, color: cfg.accent, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                   Lesson Arc • Phase {learningNodes.findIndex(n => n === node) + 1} of {learningNodes.length}
                 </span>
                 <span style={{ fontSize: 9, opacity: 0.5 }}>{cfg.icon}</span>
               </div>
-              <h5 style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px', letterSpacing: '0.01em' }}>
+              <h5 style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-primary)', margin: '0 0 4px', letterSpacing: '0.01em' }}>
                 {node.title}
               </h5>
               <p style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
@@ -591,7 +591,7 @@ const StepPanel = ({
 
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, marginTop: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
+          <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
             Step {currentStepIndex + 1} / {totalSteps}
           </span>
 
@@ -602,7 +602,7 @@ const StepPanel = ({
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 padding: '2px 9px', borderRadius: 999,
-                fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em',
+                fontSize: 9, fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.07em',
                 background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.accent,
               }}
             >
@@ -620,7 +620,7 @@ const StepPanel = ({
         )}
 
         {/* Step title */}
-        <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 11px', lineHeight: 1.4 }}>
+        <h4 style={{ fontSize: 13.5, fontWeight: 400, color: 'var(--text-primary)', margin: '0 0 11px', lineHeight: 1.4 }}>
           {stepTitle}
         </h4>
 
@@ -673,7 +673,7 @@ const StepPanel = ({
                 borderRadius: 12,
               }}
             >
-              <span style={{ display: 'block', fontSize: 8, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#fbbf24', marginBottom: 5 }}>
+              <span style={{ display: 'block', fontSize: 8, fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#fbbf24', marginBottom: 5 }}>
                 Memory Anchor ★
               </span>
               <p style={{ fontSize: 11, fontStyle: 'italic', color: '#fcd34d', lineHeight: 1.55, margin: 0 }}>

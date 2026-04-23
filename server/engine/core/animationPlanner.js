@@ -29,7 +29,7 @@ const RENDERER_MAP = {
   DATA:       'd3',
   NARRATIVE:  'narrative',
   COMPARISON: 'cinematic',
-  ABSTRACT:   'katex',
+  ABSTRACT:   'cinematic', // katex reserved for explicit math/equation topics via intentEngine
 };
 
 const STYLE_MAP = {

@@ -93,10 +93,10 @@ const ProgressArc = () => {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-end"
           >
-            <span className="text-[14px] font-black text-[var(--text-primary)] tracking-tighter">
+            <span className="text-[14px] font-normal text-[var(--text-primary)] tracking-tighter">
               {currentStepIndex + 1}<span className="text-[10px] text-[var(--text-tertiary)] ml-0.5">/ {totalSteps}</span>
             </span>
-            <span className="text-[7px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] -mt-1">
+            <span className="text-[7px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)] -mt-1">
               {isComplete ? 'Lesson Complete' : 'Progress'}
             </span>
           </motion.div>

@@ -116,7 +116,7 @@ const CanvasMinimap = ({
             </svg>
 
             {/* Label */}
-            <div className="absolute bottom-1 left-2 text-[8px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest opacity-60">
+            <div className="absolute bottom-1 left-2 text-[8px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest opacity-60">
               Minimap
             </div>
           </div>

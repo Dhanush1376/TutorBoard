@@ -17,7 +17,7 @@ export default function KaTeXRenderer({ timeline, currentStepIndex }) {
 
       {/* Narrative Context */}
       <div className="w-full p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Equation Derivation</h3>
+        <h3 className="text-xs font-normal text-blue-400 uppercase tracking-widest mb-2">Equation Derivation</h3>
         <p className="text-lg leading-relaxed">{currentStep.narration || currentStep.explanation}</p>
       </div>
     </div>

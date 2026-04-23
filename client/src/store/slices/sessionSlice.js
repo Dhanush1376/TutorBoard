@@ -219,6 +219,7 @@ export const createSessionSlice = (set, get) => ({
     generationProgress: null,
     machineState:       STATES.IDLE,
     sessionId:          null,
+    chatSessionId:      null,
     topic:              '',
 
     activeDoubtId:      null,

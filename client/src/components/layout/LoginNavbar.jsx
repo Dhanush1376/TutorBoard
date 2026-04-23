@@ -61,7 +61,7 @@ const LoginNavbar = () => {
 
                 {/* Desktop Navigation Links */}
                 <div className="hidden lg:flex items-center gap-10">
-                    <div className="flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
+                    <div className="flex items-center gap-8 text-[11px] font-normal uppercase tracking-widest text-[var(--text-secondary)]">
                         {links.map((link) => (
                             <Link 
                                 key={link.path} 
@@ -163,7 +163,7 @@ const LoginNavbar = () => {
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-[12px] font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)] group-hover:text-[var(--text-secondary)] transition-colors">TutorBoard</span>
-                                    <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Visual Learning System</span>
+                                    <span className="text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest">Visual Learning System</span>
                                 </div>
                             </Link>
 
@@ -195,12 +195,12 @@ const LoginNavbar = () => {
                                             </div>
                                             <div className="flex flex-col flex-1">
                                                 <div className="flex items-center justify-between">
-                                                    <span className={`text-[15px] font-bold tracking-tight ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'}`}>
+                                                    <span className={`text-[15px] font-normal tracking-tight ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'}`}>
                                                         {link.label}
                                                     </span>
                                                     <ChevronRight size={14} className={`transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'} text-[var(--text-tertiary)]`} />
                                                 </div>
-                                                <span className="text-[11px] text-[var(--text-tertiary)] font-medium leading-tight mt-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                                <span className="text-[11px] text-[var(--text-tertiary)] font-normal leading-tight mt-1 opacity-80 group-hover:opacity-100 transition-opacity">
                                                     {link.desc}
                                                 </span>
                                             </div>
@@ -244,7 +244,7 @@ const LoginNavbar = () => {
                                     <Code size={14} className="hover:text-[var(--text-primary)] transition-colors cursor-pointer" />
                                     <Sparkles size={14} className="hover:text-[var(--text-primary)] transition-colors cursor-pointer" />
                                 </div>
-                                <span className="text-[8px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-1">
+                                <span className="text-[8px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-1">
                                     v1.0.4 <ExternalLink size={8} />
                                 </span>
                             </div>

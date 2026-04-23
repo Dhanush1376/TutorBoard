@@ -42,7 +42,7 @@ const ColorPicker = ({
   return (
     <div className="px-3 pt-3 pb-1">
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
+        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
           {label || 'Color'}
         </span>
         {/* Live preview swatch */}
@@ -99,7 +99,7 @@ const ColorPicker = ({
             className="w-3.5 h-3.5 rounded-sm border border-white/20" 
             style={{ background: previewColor.startsWith('#') ? previewColor : '#fff' }} 
           />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+          <span className="text-[10px] font-normal uppercase tracking-wider text-[var(--text-secondary)]">
             Custom
           </span>
           <input
@@ -115,7 +115,7 @@ const ColorPicker = ({
       {/* Recent colors */}
       {recentColors.length > 0 && (
         <div className="mt-2.5">
-          <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.12em] block mb-1.5">
+          <span className="text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.12em] block mb-1.5">
             Recent
           </span>
           <div className="flex items-center gap-1.5">

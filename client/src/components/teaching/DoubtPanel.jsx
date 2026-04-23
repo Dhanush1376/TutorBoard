@@ -80,11 +80,11 @@ const DoubtPanel = ({
               setTimeout(() => inputRef.current?.focus(), 100);
             }}
             disabled={disabled}
-            className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all disabled:opacity-40"
+            className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full text-xs font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all disabled:opacity-40"
           >
             <MessageCircleQuestion size={14} />
             Ask a doubt about this step
-            <kbd className="ml-2 px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[9px] font-bold text-[var(--text-tertiary)] border border-[var(--border-color)]">?</kbd>
+            <kbd className="ml-2 px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[9px] font-normal text-[var(--text-tertiary)] border border-[var(--border-color)]">?</kbd>
           </motion.button>
         )}
       </AnimatePresence>
@@ -103,7 +103,7 @@ const DoubtPanel = ({
             <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2">
                 <MessageCircleQuestion size={14} className="text-[var(--text-tertiary)]" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
+                <span className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-tertiary)]">
                   Doubt Chat
                 </span>
                 {currentStepTitle && (
@@ -147,7 +147,7 @@ const DoubtPanel = ({
                               animate={{ opacity: 1, y: 0 }}
                               className="px-3.5 py-2.5 rounded-2xl bg-blue-500/5 text-blue-400 text-[11px] leading-relaxed border border-blue-500/10 italic"
                             >
-                              <span className="not-italic font-bold text-[9px] uppercase tracking-wider opacity-60 mr-2">Try thinking:</span>
+                              <span className="not-italic font-normal text-[9px] uppercase tracking-wider opacity-60 mr-2">Try thinking:</span>
                               "{entry.followUp}"
                             </motion.div>
                           )}
@@ -163,7 +163,7 @@ const DoubtPanel = ({
                     <div className="px-4 py-3 rounded-2xl rounded-tl-md bg-[var(--bg-tertiary)]">
                       <div className="flex items-center gap-2">
                         <Loader2 size={12} className="animate-spin text-[var(--text-tertiary)]" />
-                        <span className="text-[10px] text-[var(--text-tertiary)] font-medium">Thinking...</span>
+                        <span className="text-[10px] text-[var(--text-tertiary)] font-normal">Thinking...</span>
                       </div>
                     </div>
                   </div>

@@ -89,12 +89,32 @@ export function resolveModelId(modelId) {
     return defaultModel;
   }
 
+  // Model Aliases & Direct Mapping
   const mapping = {
-    'Bytez': 'anthropic/claude-opus-4-5',
-    'Bytez (Opus)': 'anthropic/claude-opus-4-5',
-    'Tutubot': 'openai/gpt-4o'
+    // Agents / Brand Names
+    'Bytez': 'anthropic/claude-3-5-sonnet-20241022',
+    'Bytez (Opus)': 'anthropic/claude-opus-20240229',
+    'Tutubot': 'openai/gpt-4o',
+    
+    // UI Label Map
+    'Claude Sonnet 4': 'claude-sonnet-4-20250514',
+    'Claude 3.5 Sonnet': 'anthropic/claude-3-5-sonnet-20241022',
+    'Gemini 2.0 Flash': 'gemini-2.0-flash',
+    'Gemini 1.5 Pro': 'gemini-1.5-pro',
+    'DeepSeek V3': 'deepseek-chat',
+    'DeepSeek R1': 'deepseek-reasoner'
   };
-  return mapping[normalizedId] || normalizedId;
+
+  const mapped = mapping[normalizedId];
+  if (mapped) return mapped;
+
+  // Fuzzy match for Gemini
+  if (normalizedId.toLowerCase().includes('gemini')) {
+    if (normalizedId.toLowerCase().includes('pro')) return 'gemini-1.5-pro';
+    return 'gemini-2.0-flash';
+  }
+
+  return normalizedId;
 }
 
 function classifyError(err) {
@@ -218,11 +238,25 @@ async function executeWithRetry(client, provider, params, maxRetries = 2, signal
  *   6. Attach _meta to every response
  *   7. Log every attempt
  */
-export async function requestCompletion({ model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType, userConfig, taskType, onStream }) {
+export async function requestCompletion(params) {
+  const { model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType, userConfig, taskType, onStream } = params;
   initClients();
 
   const startTime = Date.now();
   const userId = userConfig?.userId || null;
+  const skipRacing = params.skipRacing || false;
+  
+  // Resolve the canonical model ID once
+  const canonicalModel = resolveModelId(model);
+
+  // ── Strategy 0: Parallel Racing ──
+  if (!skipRacing && userConfig?.racingConfigs) {
+    try {
+      return await requestCompletionRaced(params, userConfig.racingConfigs.primary, userConfig.racingConfigs.secondary);
+    } catch (err) {
+      console.warn('[AI:Racing] Racing failed, continuing with single-provider path');
+    }
+  }
 
   // ── Prepare response format ──
   let response_format;
@@ -305,8 +339,12 @@ export async function requestCompletion({ model, messages, temperature, maxToken
           },
         };
 
-        setCachedResponse(cacheKey, response);
-        return response;
+        if (!response.content && !response.tool_calls && userConfig.fallbackToDefault) {
+          console.warn(`[AI:${provider}] Custom key returned empty response. Falling back...`);
+        } else {
+          setCachedResponse(cacheKey, response);
+          return response;
+        }
       } catch (err) {
         timeout.cleanup();
         if (err.name === 'AbortError') {
@@ -318,14 +356,14 @@ export async function requestCompletion({ model, messages, temperature, maxToken
 
         logUsage({ userId, provider, model: userModel, responseTimeMs: Date.now() - startTime, taskType, success: false, errorType, isCustomKey: true });
 
-        if (!userConfig.fallbackToDefault) throw err;
         
-        // Log fallback event for diagnostics
-        const fallbackReason = `${err.message} (${errorType})`;
-        import('fs').then(fs => {
-          fs.appendFileSync('DEBUG_ERRORS.log', `[AI:Fallback] ${new Date().toISOString()} | User: ${userId} | Reason: ${fallbackReason} | Switching to OpenRouter\n`);
-        }).catch(() => {});
-        
+        const errorMsg = err.message || 'Unknown provider error';
+        console.error(`[AI:Strategy1] ❌ Custom provider failed:`, errorMsg);
+
+        if (!userConfig.fallbackToDefault) {
+          return { content: '', error: errorMsg, provider: userConfig.provider };
+        }
+
         console.log('[AI] Falling back to platform default (OpenRouter)...');
       }
     } else {
@@ -334,9 +372,10 @@ export async function requestCompletion({ model, messages, temperature, maxToken
   }
 
   // ── Strategy 2: Platform Default (OpenRouter) ──
-  const orModel = resolveModelId(model);
-  const fallbackStart = Date.now();
   const wasFallback = !!userConfig?.useCustomApi;
+  // If we are in Strategy 2, we MUST use the platform's default model if the previous one failed or was "Universal"
+  const orModel = (wasFallback || canonicalModel.includes('Universal') || !canonicalModel) ? getModel() : canonicalModel;
+  const fallbackStart = Date.now();
 
   if (!openRouterClient) throw new Error('NO_API_AVAILABLE: OpenRouter client not initialized. Check .env');
   if (!circuitBreaker.isAvailable('openrouter')) throw new Error('SERVICE_UNAVAILABLE: All circuits are open.');
@@ -393,6 +432,7 @@ export async function requestCompletion({ model, messages, temperature, maxToken
       finishReason: finishReason,
       provider: 'openrouter',
       tool_calls: tool_calls,
+      error: null,
       _meta: {
         model_used: orModel,
         provider_used: 'openrouter',
@@ -406,19 +446,27 @@ export async function requestCompletion({ model, messages, temperature, maxToken
       },
     };
 
+    if (!finalContent && !tool_calls) {
+      response.error = 'Provider returned an empty response.';
+    }
+
     setCachedResponse(cacheKey, response);
     return response;
   } catch (err) {
     timeout.cleanup();
     const errorType = classifyError(err);
-    const isCredits = err.message?.includes('402');
-    const orStatus = isCredits ? 402 : (err.status || 500);
-    console.error(`[AI:OpenRouter] Error: ${sanitizeString(err.message)}`);
+    const isAuth = err.status === 401 || err.message?.includes('401');
+    const orStatus = isCredits ? 402 : (isAuth ? 401 : (err.status || 500));
+    
+    let displayMsg = sanitizeString(err.message);
+    if (isAuth) displayMsg = "System API Key is invalid or expired. Please use a custom API key in Settings.";
+
+    console.error(`[AI:OpenRouter] Error: ${displayMsg}`);
     circuitBreaker.reportFailure('openrouter', orStatus, errorType);
 
     logUsage({ userId, provider: 'openrouter', model: orModel, responseTimeMs: Date.now() - fallbackStart, taskType, success: false, errorType, isCustomKey: false, wasFallback });
 
-    const customErr = new Error('OpenRouter Fail: ' + sanitizeString(err.message));
+    const customErr = new Error(displayMsg);
     customErr.status = orStatus;
     throw customErr;
   }
@@ -453,7 +501,7 @@ export async function requestCompletionRaced(params, primaryConfig, secondaryCon
   const racers = [primaryConfig, secondaryConfig].filter(Boolean);
   if (racers.length < 2) {
     // Not enough providers to race — just use normal path
-    return requestCompletion(params);
+    return requestCompletion({ ...params, skipRacing: true });
   }
 
   const RACE_TIMEOUT = 30_000;
@@ -512,7 +560,7 @@ export async function requestCompletionRaced(params, primaryConfig, secondaryCon
   } catch (err) {
     // All racers failed — fallback to normal path
     console.warn('[AI:Race] All racers failed, falling back to normal path');
-    return requestCompletion(params);
+    return requestCompletion({ ...params, skipRacing: true });
   }
 }
 
@@ -520,20 +568,25 @@ export async function requestCompletionRaced(params, primaryConfig, secondaryCon
 // MODEL UTILITIES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export const getModel = () => process.env.AI_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
-export const getTextModel = () => process.env.AI_TEXT_MODEL || 'anthropic/claude-3.5-sonnet';
+export function getModel() {
+  return process.env.AI_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
+}
 
-export const getModelForAgent = (agent) => {
+export function getTextModel() {
+  return process.env.AI_TEXT_MODEL || 'anthropic/claude-3.5-sonnet';
+}
+
+export function getModelForAgent(agent) {
   if (!agent) return null;
   const mapping = {
-    'Bytez': 'anthropic/claude-opus-4-5',
-    'Bytez (Opus)': 'anthropic/claude-opus-4-5',
+    'Bytez': 'anthropic/claude-3-5-sonnet-20241022',
+    'Bytez (Opus)': 'anthropic/claude-opus-20240229',
     'OpenRouter': getModel(),
     'OpenRouterAI': getModel(),
     'Universal': getModel(),
   };
   return mapping[agent] || null;
-};
+}
 
 export const getAIClient = () => { initClients(); return openRouterClient; };
 

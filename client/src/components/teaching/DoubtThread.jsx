@@ -81,17 +81,17 @@ const DoubtThread = () => {
           <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
             <div className="flex items-center gap-2">
               <MessageCircleQuestion size={16} className="text-[var(--text-tertiary)]" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
+              <span className="text-[11px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
                 Doubt Thread
               </span>
-              <span className="px-1.5 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[9px] font-bold text-[var(--text-tertiary)]">
+              <span className="px-1.5 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[9px] font-normal text-[var(--text-tertiary)]">
                 {doubtHistory.length}
               </span>
             </div>
 
             <button 
               onClick={() => setShowGuide(true)}
-              className="px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-[8px] font-bold text-blue-400 uppercase tracking-widest hover:bg-blue-500/20 transition-all ml-4 mr-auto flex items-center gap-1.5"
+              className="px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-[8px] font-normal text-blue-400 uppercase tracking-widest hover:bg-blue-500/20 transition-all ml-4 mr-auto flex items-center gap-1.5"
             >
               <BookOpen size={10} />
               Guide
@@ -130,7 +130,7 @@ const DoubtThread = () => {
                             : 'border-white/15 bg-[var(--bg-primary)]/50 text-[var(--text-tertiary)]'
                         }`}
                         style={isActive ? { borderColor: domainStyle.color, backgroundColor: domainStyle.color } : {}}>
-                          <span className="text-[8px] font-bold">{i + 1}</span>
+                          <span className="text-[8px] font-normal">{i + 1}</span>
                         </div>
 
                         {/* Doubt card */}
@@ -144,7 +144,7 @@ const DoubtThread = () => {
                           <div className="p-3 pb-2">
                             <div className="flex items-center justify-between mb-1.5">
                               <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
+                                <span className="text-[9px] font-normal uppercase tracking-wider text-[var(--text-tertiary)]">
                                   Question
                                 </span>
                                 {expandedIds.has(doubt.id) ? (
@@ -157,7 +157,7 @@ const DoubtThread = () => {
                                 {formatTime(doubt.timestamp)}
                               </span>
                             </div>
-                            <p className="text-[12px] font-medium text-[var(--text-primary)] leading-relaxed">
+                            <p className="text-[12px] font-normal text-[var(--text-primary)] leading-relaxed">
                               {doubt.question}
                             </p>
                           </div>
@@ -192,7 +192,7 @@ const DoubtThread = () => {
                                 <div className="flex items-center gap-1.5 px-3 pb-2.5" onClick={(e) => e.stopPropagation()}>
                                   <button
                                     onClick={() => jumpToDoubt(doubt.id)}
-                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all"
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[10px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all"
                                   >
                                     <Eye size={10} />
                                     View State
@@ -200,14 +200,14 @@ const DoubtThread = () => {
                                   {doubt.answer && (
                                     <button
                                       onClick={() => pinDoubtToCanvas(doubt.id)}
-                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-medium text-amber-400 hover:bg-amber-500/20 transition-all"
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-normal text-amber-400 hover:bg-amber-500/20 transition-all"
                                     >
                                       <Zap size={10} />
                                       Pin to Canvas
                                     </button>
                                   )}
                                   {doubt.hasVisuals && (
-                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-normal text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                                       Visuals
                                     </span>
                                   )}
@@ -226,7 +226,7 @@ const DoubtThread = () => {
                 <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4">
                   <MessageCircleQuestion size={20} className="text-[var(--text-tertiary)]" />
                 </div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-2">No Doubts Yet</p>
+                <p className="text-[11px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] mb-2">No Doubts Yet</p>
                 <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed">
                   Your questions and AI responses will appear here in a beautiful timeline.
                 </p>

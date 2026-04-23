@@ -11,6 +11,7 @@ import {
   ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings
 } from 'lucide-react';
 import VisaiLogo from './VisaiLogo';
+import ToastContainer from './ToastContainer';
 
 
 const LeftPanel = ({
@@ -50,10 +51,10 @@ const LeftPanel = ({
           <div className="sticky top-0 bg-[var(--bg-primary)] z-10 pt-0 pb-2.5">
             <button
               onClick={() => { setActiveView('history'); }}
-              className="flex items-center gap-1.5 px-0.5 py-1 text-[12px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
+              className="flex items-center gap-1.5 px-0.5 py-1 text-[12px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
             >
-              <ChevronLeft size={14} strokeWidth={3.5} className="text-[12px] font-bold uppercase tracking-[0.15em] px-0.5 text-[var(--text-tertiary)]" />
-              <p className="text-[12px] font-bold uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">All Sessions</p>
+              <ChevronLeft size={14} strokeWidth={3.5} className="text-[12px] font-normal uppercase tracking-[0.15em] px-0.5 text-[var(--text-tertiary)]" />
+              <p className="text-[12px] font-normal uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">All Sessions</p>
             </button>
           </div>
           <ChatWindow
@@ -74,7 +75,7 @@ const LeftPanel = ({
         {/* Recent sessions history */}
         {/* Sticky Header for Recents */}
         <div className="sticky top-0 bg-[var(--bg-primary)] z-10 pt-0 pb-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">Recents</p>
+          <p className="text-[10px] font-normal uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">Recents</p>
         </div>
         <div className="flex flex-col w-full">
           {isLoadingHistory ? (
@@ -99,7 +100,7 @@ const LeftPanel = ({
               <button
                 onClick={onLoadMore}
                 disabled={isLoadingMore}
-                className="w-full py-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[11px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+                className="w-full py-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[11px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
               >
                 {isLoadingMore ? (
                   <Loader size={14} className="animate-spin" />
@@ -128,17 +129,17 @@ const LeftPanel = ({
             </motion.div>
             
             <div className="text-center space-y-1 mb-6">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-[var(--text-primary)]">
+              <h3 className="text-[10px] font-normal uppercase tracking-[0.25em] text-[var(--text-primary)]">
                 No recents
               </h3>
-              <p className="text-[9px] text-[var(--text-tertiary)] font-medium leading-relaxed">
+              <p className="text-[9px] text-[var(--text-tertiary)] font-normal leading-relaxed">
                 Your history is empty
               </p>
             </div>
 
             <div className="w-full mt-2">
               <div className="flex items-center gap-2.5 mb-4 px-2">
-                <span className="text-[8px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)] whitespace-nowrap">
+                <span className="text-[8px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)] whitespace-nowrap">
                   Try asking one
                 </span>
                 <div className="h-[1px] flex-1 bg-gradient-to-r from-[var(--border-color)] to-transparent" />
@@ -171,7 +172,7 @@ const LeftPanel = ({
                     <button 
                       key={i}
                       onClick={() => setPrompt(text)}
-                      className="px-3.5 py-2 rounded-lg bg-[var(--bg-tertiary)]/50 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[11px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.05] active:scale-[0.95] shadow-sm hover:shadow-md"
+                      className="px-3.5 py-2 rounded-lg bg-[var(--bg-tertiary)]/50 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[11px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.05] active:scale-[0.95] shadow-sm hover:shadow-md"
                     >
                       {text}
                     </button>
@@ -195,7 +196,7 @@ const LeftPanel = ({
         <div className="px-5 pt-5 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <VisaiLogo size="xs" className="text-[var(--text-primary)]" />
-            <span className="text-[16px] font-black uppercase tracking-[0.25em] text-[var(--text-primary)]">
+            <span className="text-[16px] font-normal uppercase tracking-[0.25em] text-[var(--text-primary)]">
               TutorBoard
             </span>
           </div>
@@ -219,7 +220,7 @@ const LeftPanel = ({
               {/* 1. New Chat (Primary Action) */}
               <button
                 onClick={() => { onNewChat(); setActiveView('chat'); }}
-                className="flex items-center gap-3 w-full px-4 py-3 text-[16px] font-semibold bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-[20px] hover:opacity-95 active:scale-[0.97] transition-all group"
+                className="flex items-center gap-3 w-full px-4 py-3 text-[16px] font-normal bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-[20px] hover:opacity-95 active:scale-[0.97] transition-all group"
               >
                 <div className="p-1.5 bg-[var(--bg-primary)]/15 rounded-xl border border-transparent group-hover:border-[var(--bg-primary)]/20 transition-all">
                   <Plus size={16} strokeWidth={3.5} />
@@ -230,7 +231,7 @@ const LeftPanel = ({
               {/* 2. Search (Secondary Input-like Action) */}
               <button
                 onClick={() => { setIsSearchOpen(v => !v); setSearchQuery(''); }}
-                className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13px] font-medium rounded-[18px] transition-all active:scale-[0.98] group/search ${isSearchOpen ? 'bg-[var(--bg-primary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
+                className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13px] font-normal rounded-[18px] transition-all active:scale-[0.98] group/search ${isSearchOpen ? 'bg-[var(--bg-primary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
               >
                 <div className="p-1.5 text-[var(--text-tertiary)] group-hover/search:text-[var(--text-primary)] transition-colors">
                   <Search size={16} strokeWidth={2.5} className="group-hover/search:scale-110 transition-transform" />
@@ -276,7 +277,7 @@ const LeftPanel = ({
           onChange={setPrompt}
           onSubmit={onSubmit}
           isGenerating={isGenerating}
-          isLanding={true}
+          isLanding={!hasStarted}
           activeMode={activeMode}
           setActiveMode={setActiveMode}
           isDark={isDark}
@@ -284,6 +285,8 @@ const LeftPanel = ({
           setSelectedAgent={setSelectedAgent}
         />
       </div>
+
+      <ToastContainer />
 
       {/* Settings Modal */}
       <AnimatePresence>
@@ -312,12 +315,12 @@ const LeftPanel = ({
               
               <div className="p-6 flex flex-col gap-6">
                 <div>
-                  <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Theme</h4>
+                  <h4 className="text-[11px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Theme</h4>
                   <ThemeSelector />
                 </div>
                 
                 <div>
-                  <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Layout View</h4>
+                  <h4 className="text-[11px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.1em] mb-3">Layout View</h4>
                   <div className="flex gap-3">
                     <button
                       onClick={() => setLayoutView('right')}
@@ -333,7 +336,7 @@ const LeftPanel = ({
                         </div>
                       )}
                       <PanelLeft size={22} strokeWidth={2.5} />
-                      <span className="text-[12px] font-bold uppercase tracking-widest leading-none">Right Hand</span>
+                      <span className="text-[12px] font-normal uppercase tracking-widest leading-none">Right Hand</span>
                     </button>
                     
                     <button
@@ -350,7 +353,7 @@ const LeftPanel = ({
                         </div>
                       )}
                       <PanelRight size={22} strokeWidth={2.5} />
-                      <span className="text-[12px] font-bold uppercase tracking-widest leading-none">Left Hand</span>
+                      <span className="text-[12px] font-normal uppercase tracking-widest leading-none">Left Hand</span>
                     </button>
                   </div>
                 </div>
@@ -359,7 +362,7 @@ const LeftPanel = ({
               <div className="p-5 border-t border-[var(--border-color)] flex justify-end">
                 <button
                   onClick={() => setShowSettings(false)}
-                  className="px-6 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[13px] font-bold hover:opacity-90 transition-opacity drop-shadow-md"
+                  className="px-6 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[13px] font-normal hover:opacity-90 transition-opacity drop-shadow-md"
                 >
                   Done
                 </button>

@@ -48,7 +48,7 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                   onKeyDown={(e) => e.key === 'Enter' && handleConfirmEdit()}
                   onBlur={handleConfirmEdit}
                   autoFocus
-                  className="flex-1 bg-transparent text-[var(--text-primary)] text-[13px] font-semibold outline-none"
+                  className="flex-1 bg-transparent text-[var(--text-primary)] text-[13px] font-normal outline-none"
                 />
                 <div className="flex items-center gap-1">
                   <button onClick={handleConfirmEdit} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"><Check size={14} /></button>
@@ -70,7 +70,7 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                     className={`mr-3 transition-colors ${activeChatId === chat.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover/btn:text-[var(--text-secondary)]'}`} 
                   />
                   
-                  <span className="truncate text-[13px] flex-1 font-medium transition-colors">
+                  <span className="truncate text-[13px] flex-1 font-normal transition-colors">
                     {chat.title || "Untitled Session"}
                   </span>
                   

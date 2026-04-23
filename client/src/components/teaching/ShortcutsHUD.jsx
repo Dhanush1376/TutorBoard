@@ -28,7 +28,7 @@ const ShortcutsHUD = () => {
             className="bg-[var(--bg-secondary)]/90 backdrop-blur-xl border border-[var(--border-strong)] rounded-2xl p-4 shadow-2xl min-w-[200px]"
           >
             <div className="flex items-center justify-between mb-4 px-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Shortcuts</span>
+              <span className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-tertiary)]">Shortcuts</span>
               <button onClick={() => setIsOpen(false)} className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                 <X size={14} />
               </button>
@@ -37,11 +37,11 @@ const ShortcutsHUD = () => {
             <div className="space-y-3">
               {shortcuts.map((s, i) => (
                 <div key={i} className="flex items-center justify-between group">
-                  <span className="text-[11px] font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                  <span className="text-[11px] font-normal text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
                     {s.label}
                   </span>
                   <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-color)] shadow-sm">
-                    <span className="text-[9px] font-black text-[var(--text-primary)]">{s.key}</span>
+                    <span className="text-[9px] font-normal text-[var(--text-primary)]">{s.key}</span>
                   </div>
                 </div>
               ))}

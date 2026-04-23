@@ -21,7 +21,7 @@ export default function MasteryDashboard() {
     <div className="p-8 max-w-6xl mx-auto space-y-12 bg-[var(--bg-primary)] min-h-screen text-white">
       {/* Header */}
       <div className="flex flex-col space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">Learner Intelligence</h1>
+        <h1 className="text-4xl font-normal tracking-tight">Learner Intelligence</h1>
         <p className="text-white/50 text-lg">Synthesizing your pedagogical journey across dimensions.</p>
       </div>
 
@@ -46,7 +46,7 @@ export default function MasteryDashboard() {
 
       {/* Topic Mastery Section */}
       <section className="space-y-6">
-        <h3 className="text-xl font-bold flex items-center space-x-3">
+        <h3 className="text-xl font-normal flex items-center space-x-3">
           <span className="w-2 h-6 bg-blue-500 rounded-full" />
           <span>Topic Specialization</span>
         </h3>
@@ -64,7 +64,7 @@ export default function MasteryDashboard() {
 
       {/* History & Semantic Continuity */}
       <section className="space-y-6">
-        <h3 className="text-xl font-bold flex items-center space-x-3">
+        <h3 className="text-xl font-normal flex items-center space-x-3">
           <span className="w-2 h-6 bg-purple-500 rounded-full" />
           <span>Semantic Continuity</span>
         </h3>
@@ -82,7 +82,7 @@ export default function MasteryDashboard() {
             <tbody>
               {doubtHistory?.slice(-5).map((doubt, i) => (
                 <tr key={i} className="border-t border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
-                  <td className="px-6 py-4 font-medium">{doubt.topic}</td>
+                  <td className="px-6 py-4 font-normal">{doubt.topic}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
                       <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
@@ -92,7 +92,7 @@ export default function MasteryDashboard() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-green-500/20 text-green-400 text-[10px] font-bold rounded-full uppercase">Resolved</span>
+                    <span className="px-2 py-1 bg-green-500/20 text-green-400 text-[10px] font-normal rounded-full uppercase">Resolved</span>
                   </td>
                   <td className="px-6 py-4 text-right text-white/40 text-xs">
                     {new Date(doubt.timestamp).toLocaleDateString()}
@@ -116,8 +116,8 @@ function StatCard({ label, value, color }) {
 
   return (
     <div className={`p-8 rounded-3xl border bg-gradient-to-br ${colors[color]} space-y-2 relative overflow-hidden`}>
-      <p className="text-xs font-bold uppercase tracking-widest opacity-60">{label}</p>
-      <p className="text-4xl font-bold">{value}</p>
+      <p className="text-xs font-normal uppercase tracking-widest opacity-60">{label}</p>
+      <p className="text-4xl font-normal">{value}</p>
       <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl -mr-16 -mt-16 rounded-full" />
     </div>
   );
@@ -130,9 +130,9 @@ function TopicCard({ topic, mastery }) {
         <div className="p-3 bg-blue-500/10 rounded-2xl group-hover:bg-blue-500/20 transition-colors">
           <div className="w-6 h-6 bg-blue-500 rounded-lg blur-[2px] opacity-50" />
         </div>
-        <span className="text-2xl font-bold text-white/90">{Math.round(mastery * 100)}%</span>
+        <span className="text-2xl font-normal text-white/90">{Math.round(mastery * 100)}%</span>
       </div>
-      <h4 className="font-bold text-lg mb-2">{topic}</h4>
+      <h4 className="font-normal text-lg mb-2">{topic}</h4>
       <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
         <motion.div 
           className="h-full bg-gradient-to-r from-blue-500 to-purple-500" 

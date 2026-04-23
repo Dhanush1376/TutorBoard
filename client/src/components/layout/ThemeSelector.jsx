@@ -10,7 +10,7 @@ const ThemeSelector = () => {
       
       {/* 1. Mode Toggle (Separate from Theme) */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+        <span className="text-xs font-normal text-[var(--text-secondary)] uppercase tracking-wider">
           Appearance
         </span>
         <button
@@ -42,13 +42,18 @@ const ThemeSelector = () => {
                   : 'bg-transparent border-[var(--border-color)] hover:border-[var(--text-tertiary)]'
               }`}
             >
-              <span className={`text-[9px] font-bold mb-2.5 transition-colors leading-tight ${isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+              <span className={`text-[9px] font-normal mb-2.5 transition-colors leading-tight ${isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
                 {theme.name.split(' & ')[0]}<br/>& {theme.name.split(' & ')[1]}
               </span>
 
               {/* Color Swatch Strip */}
               <div className="flex gap-1 mt-auto">
-                {[displayColors.bg, displayColors.surface, displayColors.text, displayColors.aiBubble].map((color, i) => (
+                {[
+                  displayColors?.bg || '#000', 
+                  displayColors?.surface || '#000', 
+                  displayColors?.text || '#000', 
+                  displayColors?.aiBubble || '#000'
+                ].map((color, i) => (
                   <div 
                     key={i} 
                     className="w-2.5 h-2.5 rounded-full border border-black/5 shadow-sm" 

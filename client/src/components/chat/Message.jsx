@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Copy, Edit2, Trash2, Check, Sparkles } from 'lucide-react';
+import { User, Copy, Edit2, Trash2, Check, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import VisaiLogo from '../layout/VisaiLogo';
 import ReactMarkdown from 'react-markdown';
@@ -11,19 +11,19 @@ const MarkdownComponents = {
     <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>
   ),
   strong: ({ children }) => (
-    <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>
+    <span className="font-normal text-[var(--text-primary)]">{children}</span>
   ),
   em: ({ children }) => (
     <em className="italic opacity-80">{children}</em>
   ),
   h1: ({ children }) => (
-    <h1 className="text-[15px] font-bold mb-2 mt-1">{children}</h1>
+    <h1 className="text-[15px] font-normal mb-2 mt-1">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="text-[14px] font-bold mb-1.5 mt-1">{children}</h2>
+    <h2 className="text-[14px] font-normal mb-1.5 mt-1">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-[13px] font-semibold mb-1 mt-1">{children}</h3>
+    <h3 className="text-[13px] font-normal mb-1 mt-1">{children}</h3>
   ),
   ul: ({ children }) => (
     <ul className="my-1.5 pl-4 space-y-1 list-disc marker:text-[var(--text-tertiary)]">{children}</ul>
@@ -63,7 +63,7 @@ const MarkdownComponents = {
     </div>
   ),
   th: ({ children }) => (
-    <th className="px-2 py-1.5 text-left font-semibold border border-[var(--border-color)] bg-black/5 dark:bg-white/5">{children}</th>
+    <th className="px-2 py-1.5 text-left font-normal border border-[var(--border-color)] bg-black/5 dark:bg-white/5">{children}</th>
   ),
   td: ({ children }) => (
     <td className="px-2 py-1.5 border border-[var(--border-color)]">{children}</td>
@@ -72,15 +72,23 @@ const MarkdownComponents = {
 
 const Message = ({
   role, content, steps, stepTitle, domain, visualizationType,
-  onOpenCanvas, onDeleteMessage, onEditMessage, messageId,
+  onOpenCanvas, onDeleteMessage, onEditMessage, messageId, timestamp,
   elements, motion: motionData, connections, sequence, objects, hasCanvas
 }) => {
   const isAssistant = role === 'assistant';
   const [copied, setCopied] = useState(false);
   const [showActions, setShowActions] = useState(false);
 
-  const now = new Date();
-  const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (ts) => {
+    try {
+      const d = ts ? new Date(ts) : new Date();
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  };
+
+  const displayTime = formatTime(timestamp);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
@@ -90,10 +98,10 @@ const Message = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      className={`w-full px-3 py-1.5 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
+      initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.5, ease: [0.19, 1, 0.22, 1] }}
+      className={`w-full px-4 py-2 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
@@ -106,10 +114,10 @@ const Message = ({
             <User size={10} className="text-[var(--text-secondary)]" />
           </div>
         )}
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
+        <span className="text-[10px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)] opacity-60">
           {isAssistant ? 'TutorBoard' : 'You'}
         </span>
-        <span className="text-[9px] text-[var(--text-tertiary)]/50 font-medium">{timestamp}</span>
+        <span className="text-[9px] text-[var(--text-tertiary)]/40 font-normal tabular-nums tracking-wider">{displayTime}</span>
 
         {/* Hover actions - moved to header to avoid bubble overlap */}
         <AnimatePresence>
@@ -153,15 +161,15 @@ const Message = ({
       {/* Bubble */}
       <div className="relative group max-w-[90%]">
         <div
-          className={`relative px-3.5 py-2.5 text-[13px] leading-relaxed transition-all duration-200 ${
+          className={`relative px-4 py-3 text-[14px] leading-relaxed transition-all duration-300 ${
             isAssistant
-              ? 'rounded-2xl rounded-tl-md shadow-sm'
-              : 'rounded-2xl rounded-tr-md shadow-md'
+              ? 'rounded-2xl rounded-tl-sm'
+              : 'rounded-2xl rounded-tr-sm'
           }`}
           style={{
-            backgroundColor: isAssistant ? 'var(--ai-bubble-bg)' : 'var(--user-bubble-bg)',
-            color: isAssistant ? 'var(--ai-bubble-text)' : 'var(--user-bubble-text)',
-            border: '1px solid var(--border-color)',
+            backgroundColor: isAssistant ? 'var(--bg-secondary)' : 'var(--text-primary)',
+            color: isAssistant ? 'var(--text-primary)' : 'var(--bg-primary)',
+            boxShadow: isAssistant ? 'none' : '0 8px 30px rgba(0,0,0,0.1)',
           }}
         >
           {/* Message content — Markdown for assistant, plain for user */}
@@ -178,9 +186,9 @@ const Message = ({
               {hasCanvas && (
                 <button
                   onClick={() => onOpenCanvas(messageId)}
-                  className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-xl transition-all shadow-sm active:scale-95 group font-semibold tracking-wide text-[11px] uppercase"
+                  className="mt-4 w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl transition-all shadow-lg hover:scale-[1.02] active:scale-[0.98] group font-normal tracking-widest text-[10px] uppercase"
                 >
-                  <Sparkles size={12} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+                  <Layers size={13} className="text-[var(--bg-primary)] group-hover:scale-110 transition-transform" />
                   Deep Visual Dive
                 </button>
               )}
@@ -195,3 +203,4 @@ const Message = ({
 };
 
 export default Message;
+

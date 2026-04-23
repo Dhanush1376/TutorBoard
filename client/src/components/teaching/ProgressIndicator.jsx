@@ -7,7 +7,7 @@ const ProgressIndicator = ({ totalSteps, currentStep, onStepClick }) => {
     <div className="flex items-center gap-2 w-full max-w-lg mx-auto">
       
       {/* Step Label */}
-      <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest whitespace-nowrap">
+      <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest whitespace-nowrap">
         Step {currentStep + 1} / {totalSteps}
       </span>
 

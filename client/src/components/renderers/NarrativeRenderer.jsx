@@ -174,9 +174,9 @@ export default function NarrativeRenderer({
         >
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em]">Narrative Thread</span>
+            <span className="text-[10px] font-normal text-blue-400 uppercase tracking-[0.2em]">Narrative Thread</span>
           </div>
-          <h2 className="text-xl font-bold text-white mb-2 leading-tight">
+          <h2 className="text-xl font-normal text-white mb-2 leading-tight">
             {currentStep.title || "The Journey Continues"}
           </h2>
           <p className="text-sm text-white/70 leading-relaxed italic">

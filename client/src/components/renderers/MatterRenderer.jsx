@@ -214,7 +214,7 @@ export default function MatterRenderer({
               justifyContent: 'center',
               color: 'white',
               fontSize: '11px',
-              fontWeight: 600,
+              fontWeight: 400,
               userSelect: 'none'
             }}
           >

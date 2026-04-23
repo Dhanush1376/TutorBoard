@@ -33,7 +33,7 @@ class ErrorBoundary extends Component {
               <AlertTriangle size={32} />
             </div>
             
-            <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 tracking-tight">
+            <h3 className="text-xl font-normal text-[var(--text-primary)] mb-2 tracking-tight">
               Component Error
             </h3>
             
@@ -51,14 +51,14 @@ class ErrorBoundary extends Component {
               {this.props.onClose && (
                 <button
                   onClick={this.props.onClose}
-                  className="flex-1 py-3 px-4 rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] text-sm font-bold transition-all"
+                  className="flex-1 py-3 px-4 rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] text-sm font-normal transition-all"
                 >
                   Close Engine
                 </button>
               )}
               <button
                 onClick={this.handleRetry}
-                className="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-red-500/20 to-red-600/20 text-red-100 hover:scale-[1.02] active:scale-[0.98] text-sm font-bold transition-all border border-red-500/30 flex items-center justify-center gap-2 shadow-lg shadow-red-500/10"
+                className="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-red-500/20 to-red-600/20 text-red-100 hover:scale-[1.02] active:scale-[0.98] text-sm font-normal transition-all border border-red-500/30 flex items-center justify-center gap-2 shadow-lg shadow-red-500/10"
               >
                 <RotateCcw size={16} />
                 Restore Engine

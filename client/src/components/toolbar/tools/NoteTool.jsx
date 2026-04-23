@@ -42,7 +42,7 @@ const SegButton = ({ isActive, onClick, children }) => (
       border:      isActive ? '1px solid var(--border-color)' : '1px solid transparent',
       boxShadow:   isActive ? '0 2px 8px rgba(0,0,0,.12)' : 'none',
       fontSize: 9,
-      fontWeight: 700,
+      fontWeight: 400,
       textTransform: 'uppercase',
       letterSpacing: '.04em',
     }}
@@ -88,7 +88,7 @@ const NoteTool = (props) => {
 
       {/* Color swatches */}
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest px-1">
           Sticky Color
         </span>
         <div className="grid grid-cols-4 gap-x-2 gap-y-3 px-1">
@@ -145,7 +145,7 @@ const NoteTool = (props) => {
                     </AnimatePresence>
                   </motion.div>
                 </button>
-                <span className={`text-[8px] font-bold uppercase tracking-tight truncate w-full text-center transition-colors ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>
+                <span className={`text-[8px] font-normal uppercase tracking-tight truncate w-full text-center transition-colors ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>
                   {label}
                 </span>
               </div>
@@ -154,7 +154,7 @@ const NoteTool = (props) => {
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest px-1">
           Note size
         </span>
         <div className="flex gap-2 h-14 items-center px-1">
@@ -190,7 +190,7 @@ const NoteTool = (props) => {
                     />
                   </div>
                 </div>
-                <span className={`text-[9px] font-bold uppercase transition-colors ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>
+                <span className={`text-[9px] font-normal uppercase transition-colors ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>
                   {label}
                 </span>
               </button>
@@ -203,7 +203,7 @@ const NoteTool = (props) => {
 
       {/* TypographySection */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest px-1">
           Font scale
         </span>
         <SegBar>
@@ -226,9 +226,9 @@ const NoteTool = (props) => {
         >
           <div className="absolute inset-0 bg-blue-500/0 group-active:bg-blue-500/10 transition-colors" />
           <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)] transition-transform group-hover:scale-105 shadow-sm">
-            <span className="text-[14px] text-blue-400 font-bold mt-[-1px]">+</span>
+            <span className="text-[14px] text-blue-400 font-normal mt-[-1px]">+</span>
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-primary)]">Add Note</span>
+          <span className="text-[10px] font-normal uppercase tracking-wider text-[var(--text-primary)]">Add Note</span>
         </button>
 
         <button

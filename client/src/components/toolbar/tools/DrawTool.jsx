@@ -80,7 +80,7 @@ const DrawTool = (props) => {
       {/* ─── Real-time Stroke Status ─── */}
       <div className="px-4 py-3 bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)]">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
+          <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
             Live Preview
           </span>
           {!isEraser && (
@@ -144,7 +144,7 @@ const DrawTool = (props) => {
                 }}
               >
                 <mode.icon size={15} strokeWidth={isActive ? 2.5 : 1.8} />
-                <span className="text-[8px] font-bold uppercase tracking-wider leading-none">
+                <span className="text-[8px] font-normal uppercase tracking-wider leading-none">
                   {mode.label}
                 </span>
                 {/* Shortcut removed */}
@@ -184,7 +184,7 @@ const DrawTool = (props) => {
             {/* Stroke Width */}
             <div className="px-3 pt-2.5 pb-2">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
+                <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
                   Stroke
                 </span>
                 <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
@@ -217,7 +217,7 @@ const DrawTool = (props) => {
                            }} 
                          />
                       </div>
-                      <span className="text-[8px] font-bold uppercase tracking-wider">{w.label}</span>
+                      <span className="text-[8px] font-normal uppercase tracking-wider">{w.label}</span>
                     </button>
                   );
                 })}
@@ -232,7 +232,7 @@ const DrawTool = (props) => {
       {hideColorControls && (
         <div className="px-3 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
+            <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
               {isLaser ? 'Laser Size' : 'Eraser Size'}
             </span>
             <span className="text-[9px] font-mono" style={{ color: 'var(--text-tertiary)' }}>
@@ -267,7 +267,7 @@ const DrawTool = (props) => {
                        }} 
                      />
                   </div>
-                  <span className="text-[8px] font-bold uppercase tracking-wider">{w.label}</span>
+                  <span className="text-[8px] font-normal uppercase tracking-wider">{w.label}</span>
                 </button>
               );
             })}

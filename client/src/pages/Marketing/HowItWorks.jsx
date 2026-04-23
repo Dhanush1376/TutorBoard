@@ -117,7 +117,7 @@ function CanvasDemo() {
   ];
   return (
     <div style={{ position: 'relative', height: 160, border: '1px dashed rgba(16,185,129,0.3)', borderRadius: 12, overflow: 'hidden', background: 'rgba(16,185,129,0.04)' }}>
-      <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(16,185,129,0.5)', textTransform: 'uppercase' }}>Canvas</div>
+      <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 400, letterSpacing: '0.1em', color: 'rgba(16,185,129,0.5)', textTransform: 'uppercase' }}>Canvas</div>
       {items.map((item, i) => (
         <motion.div
           key={i}
@@ -135,7 +135,7 @@ function CanvasDemo() {
             background: `${item.color}18`,
             border: `1px solid ${item.color}44`,
             fontSize: 12,
-            fontWeight: 500,
+            fontWeight: 400,
             color: item.color,
             cursor: 'grab',
             userSelect: 'none',
@@ -251,10 +251,10 @@ function StepCard({ step, index, isActive, onClick }) {
         <Icon size={20} />
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: isActive ? step.color : 'var(--text-tertiary)', marginBottom: 4 }}>
+        <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: '0.12em', textTransform: 'uppercase', color: isActive ? step.color : 'var(--text-tertiary)', marginBottom: 4 }}>
           {step.number}
         </div>
-        <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px', letterSpacing: '-0.3px' }}>{step.title}</h3>
+        <h3 style={{ fontSize: 17, fontWeight: 400, color: 'var(--text-primary)', margin: '0 0 6px', letterSpacing: '-0.3px' }}>{step.title}</h3>
         <AnimatePresence>
           {isActive && (
             <motion.p
@@ -287,7 +287,7 @@ const HowItWorks = () => {
         <motion.div
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
-          style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 20, padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-color)' }}
+          style={{ display: 'inline-block', fontSize: 11, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 20, padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-color)' }}
         >
           The Experience
         </motion.div>
@@ -335,7 +335,7 @@ const HowItWorks = () => {
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: STEPS[active].color, opacity: 0.2 }} />
           
           <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'center', marginBottom: 24 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: STEPS[active].color }}>
+            <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: '0.12em', textTransform: 'uppercase', color: STEPS[active].color }}>
               Step {STEPS[active].number} · Live Preview
             </div>
           </div>
@@ -377,7 +377,7 @@ const HowItWorks = () => {
           key={`caption-${active}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.5 }}
-          style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', marginTop: 20, textTransform: 'uppercase', letterSpacing: '0.1em' }}
+          style={{ textAlign: 'center', fontSize: 12, fontWeight: 400, color: 'var(--text-tertiary)', marginTop: 20, textTransform: 'uppercase', letterSpacing: '0.1em' }}
         >
           Interactive Demonstration
         </motion.p>

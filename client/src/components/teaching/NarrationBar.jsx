@@ -19,7 +19,8 @@ const NarrationBar = ({ text, isGenerating }) => {
   useEffect(() => {
     if (isGenerating) {
       // In generation mode, we use the streaming tokens from the store
-      const allWords = narrationTokens.split(' ');
+      // FIX: narrationTokens is an array of tokens, not a string — join first
+      const allWords = Array.isArray(narrationTokens) ? narrationTokens : (narrationTokens || '').split(' ');
       setWords(allWords);
       setVisibleCount(allWords.length);
       return;
@@ -67,7 +68,7 @@ const NarrationBar = ({ text, isGenerating }) => {
         transition={{ duration: 0.2, ease: "easeOut" }}
         className={`inline-block mr-[0.25em] ${
           isHighlighted 
-            ? 'text-amber-400 font-bold drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' 
+            ? 'text-amber-400 font-normal drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' 
             : 'text-white/90'
         }`}
       >
@@ -90,7 +91,7 @@ const NarrationBar = ({ text, isGenerating }) => {
             <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
             
             <div className="relative text-center">
-              <div className="text-xl md:text-3xl font-medium leading-relaxed tracking-tight">
+              <div className="text-xl md:text-3xl font-normal leading-relaxed tracking-tight">
                 {words.slice(0, visibleCount).map((word, i) => renderWord(word, i))}
                 
                 {visibleCount < words.length && (
@@ -114,7 +115,7 @@ const NarrationBar = ({ text, isGenerating }) => {
                       />
                     ))}
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">
+                  <span className="text-[10px] font-normal uppercase tracking-[0.3em] text-white/30">
                     AI Narration Streaming
                   </span>
                 </div>

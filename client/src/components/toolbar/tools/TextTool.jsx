@@ -56,7 +56,7 @@ const SegButton = ({ isActive, onClick, children, style: extraStyle }) => (
       border:      isActive ? '1px solid var(--border-color)' : '1px solid transparent',
       boxShadow:   isActive ? '0 2px 8px rgba(0,0,0,.12)' : 'none',
       fontSize: 9,
-      fontWeight: 700,
+      fontWeight: 400,
       textTransform: 'uppercase',
       letterSpacing: '.04em',
       ...extraStyle,
@@ -146,7 +146,7 @@ const TextTool = (props) => {
       {/* ─── Header: Quick Add ─── */}
       <div className="px-4 py-3 bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)]">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
+          <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
             Quick Add
           </span>
         </div>
@@ -167,7 +167,7 @@ const TextTool = (props) => {
               <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)] transition-transform group-hover:scale-105 shadow-sm">
                 <Icon size={14} className="text-blue-400" />
               </div>
-              <span className="text-[8px] font-bold text-[var(--text-primary)] uppercase tracking-wider text-center">
+              <span className="text-[8px] font-normal text-[var(--text-primary)] uppercase tracking-wider text-center">
                 {label}
               </span>
             </button>
@@ -185,7 +185,7 @@ const TextTool = (props) => {
             <select 
               value={textToolSize}
               onChange={(e) => setTextToolSize(Number(e.target.value))}
-              className="w-full h-8 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[10px] font-bold text-[var(--text-primary)] px-3 rounded-lg cursor-pointer outline-none appearance-none hover:bg-[var(--bg-tertiary)] transition-colors"
+              className="w-full h-8 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[10px] font-normal text-[var(--text-primary)] px-3 rounded-lg cursor-pointer outline-none appearance-none hover:bg-[var(--bg-tertiary)] transition-colors"
             >
               {SIZES.map(s => <option key={s.id} value={s.id}>{s.id}px</option>)}
             </select>
@@ -237,7 +237,7 @@ const TextTool = (props) => {
             }}
           >
             <span 
-              className="text-[10px] font-medium truncate"
+              className="text-[10px] font-normal truncate"
               style={{ 
                 fontFamily: "'Inter', sans-serif",
                 color: 'var(--text-secondary)',

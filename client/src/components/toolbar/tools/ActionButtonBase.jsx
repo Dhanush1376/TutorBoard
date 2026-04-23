@@ -252,7 +252,7 @@ const ActionButtonBase = ({
               }}
             >
               <span
-                className="text-[11px] font-semibold tracking-wide"
+                className="text-[11px] font-normal tracking-wide"
                 style={{
                   color: isDestructive || showSuccess ? '#fff' : 'var(--text-primary)',
                   letterSpacing: '0.04em',

@@ -1,0 +1,26 @@
+{
+  "name": "tutorboard",
+  "version": "1.0.0",
+  "description": "<div align=\"center\">\r   <img src=\"https://img.shields.io/badge/Status-Active-brightgreen.svg\" alt=\"Active\" />\r   <img src=\"https://img.shields.io/badge/React-19.2-blue.svg\" alt=\"React\" />\r   <img src=\"https://img.shields.io/badge/Express-MVC-purple.svg\" alt=\"Express\" />\r   <img src=\"https://img.shields.io/badge/AI-DeepSeek_Core-black.svg\" alt=\"DeepSeek\" />",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dhanush1376/TutorBoard.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Dhanush1376/TutorBoard/issues"
+  },
+  "homepage": "https://github.com/Dhanush1376/TutorBoard#readme",
+  "dependencies": {
+    "fs": "^0.0.1-security",
+    "openai": "^6.34.0",
+    "path": "^0.12.7"
+  }
+}

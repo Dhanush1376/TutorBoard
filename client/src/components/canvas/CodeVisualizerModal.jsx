@@ -184,7 +184,7 @@ function ConsolePanel({ logs, isRunning, onClear }) {
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               background: 'transparent', border: 'none', color: 'var(--text-tertiary)',
-              fontSize: 10, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+              fontSize: 10, fontWeight: 400, cursor: 'pointer', transition: 'all 0.2s',
               padding: '4px 8px', borderRadius: 4
             }}
             onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
@@ -759,7 +759,7 @@ const CodeVisualizerModal = () => {
                 gap: 10,
                 padding: '0 16px',
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: 400,
                 letterSpacing: '0.01em'
               }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -836,7 +836,7 @@ const CodeVisualizerModal = () => {
                         fontSize: 11,
                         color: 'var(--text-secondary)',
                         letterSpacing: '0.04em',
-                        fontWeight: 600,
+                        fontWeight: 400,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
@@ -845,13 +845,13 @@ const CodeVisualizerModal = () => {
                       </span>
                       
                       {runStatus === 'success' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#86efac', fontSize: 10, fontWeight: 700, opacity: 0.9 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#86efac', fontSize: 10, fontWeight: 400, opacity: 0.9 }}>
                           <CheckCircle2 size={10} />
                           {!isDocked && <span>passed</span>}
                         </div>
                       )}
                       {runStatus === 'error' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f87171', fontSize: 10, fontWeight: 700, opacity: 0.9 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f87171', fontSize: 10, fontWeight: 400, opacity: 0.9 }}>
                           <AlertCircle size={10} />
                           {!isDocked && <span>error</span>}
                         </div>
@@ -967,7 +967,7 @@ const CodeVisualizerModal = () => {
                         border: '1px solid var(--border-color)',
                         color: 'var(--text-primary)',
                         fontSize: 10,
-                        fontWeight: 700,
+                        fontWeight: 400,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -1028,7 +1028,7 @@ const CodeVisualizerModal = () => {
                       <div style={{ width: 1, height: 16, background: 'var(--border-color)', opacity: 0.3, margin: '0 8px' }} />
                       <div style={{
                         display: 'flex', alignItems: 'center', gap: 12, paddingRight: 8,
-                        fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 500
+                        fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400
                       }}>
                         <span>Ln {lineCount}</span>
                         <span>Ch {charCount}</span>
@@ -1101,7 +1101,7 @@ const CodeVisualizerModal = () => {
                       border: '1px solid ' + (isRunning ? 'rgba(248,113,113,0.25)' : 'rgba(96,165,250,0.2)'),
                       color: isRunning ? '#f87171' : '#60a5fa',
                       fontSize: 12,
-                      fontWeight: 600,
+                      fontWeight: 400,
                       cursor: 'pointer',
                       letterSpacing: '0.04em',
                       fontFamily: 'inherit',
@@ -1131,7 +1131,7 @@ const CodeVisualizerModal = () => {
                       border: '1px solid rgba(167,139,250,0.2)',
                       color: '#a78bfa',
                       fontSize: 12,
-                      fontWeight: 600,
+                      fontWeight: 400,
                       cursor: 'pointer',
                       letterSpacing: '0.04em',
                       fontFamily: 'inherit',

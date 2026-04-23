@@ -115,10 +115,10 @@ function StatPill({ label, value, from = 0, suffix = '' }) {
         cursor: 'default',
       }}
     >
-      <span style={{ fontSize: 42, fontWeight: 800, letterSpacing: '-2px', fontFamily: 'var(--font-serif, serif)', color: 'var(--text-primary)', lineHeight: 1 }}>
+      <span style={{ fontSize: 42, fontWeight: 400, letterSpacing: '-2px', fontFamily: 'var(--font-serif, serif)', color: 'var(--text-primary)', lineHeight: 1 }}>
         <AnimatedCounter from={from} to={value} />{suffix}
       </span>
-      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>{label}</span>
     </motion.div>
   );
 }
@@ -162,7 +162,7 @@ const About = () => {
             border: '1px solid var(--border-color)',
             background: 'var(--bg-secondary)',
             fontSize: 12,
-            fontWeight: 700,
+            fontWeight: 400,
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
             color: 'var(--text-secondary)',
@@ -222,7 +222,7 @@ const About = () => {
             color: 'var(--bg-primary)',
             border: 'none',
             fontSize: 15,
-            fontWeight: 700,
+            fontWeight: 400,
             cursor: 'pointer',
             letterSpacing: '-0.01em',
           }}

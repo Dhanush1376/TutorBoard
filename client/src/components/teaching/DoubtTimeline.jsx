@@ -67,7 +67,7 @@ const DoubtTimeline = () => {
             }}
           >
             <div className="px-3 py-2 border-b border-white/5">
-              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+              <span className="text-[8px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
                 Doubts
               </span>
             </div>
@@ -94,7 +94,7 @@ const DoubtTimeline = () => {
             </div>
             <button
               onClick={openDoubtThread}
-              className="px-3 py-2 border-t border-white/5 text-[9px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all text-center uppercase tracking-wider"
+              className="px-3 py-2 border-t border-white/5 text-[9px] font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all text-center uppercase tracking-wider"
             >
               Open Full Thread →
             </button>

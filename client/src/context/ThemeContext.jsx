@@ -10,7 +10,7 @@ export const ThemeProvider = ({ children }) => {
   });
   const [mode, setMode] = useState(() => {
     const saved = localStorage.getItem('tb-mode');
-    if (saved) return saved;
+    if (saved === 'light' || saved === 'dark') return saved;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
@@ -27,10 +27,23 @@ export const ThemeProvider = ({ children }) => {
       return; 
     }
 
+    // Helper to convert hex to RGB
+    const hexToRgb = (hex) => {
+      if (!hex || typeof hex !== 'string') return '0,0,0';
+      const cleanHex = hex.replace('#', '');
+      if (cleanHex.length !== 6) return '0,0,0';
+      const r = parseInt(cleanHex.substring(0, 2), 16);
+      const g = parseInt(cleanHex.substring(2, 4), 16);
+      const b = parseInt(cleanHex.substring(4, 6), 16);
+      return `${r}, ${g}, ${b}`;
+    };
+
     // Inject CSS variables into :root
     const mapping = {
       '--bg-primary': tokens.bg,
+      '--bg-primary-rgb': hexToRgb(tokens.bg),
       '--bg-secondary': tokens.surface,
+      '--bg-secondary-rgb': hexToRgb(tokens.surface),
       '--bg-tertiary': tokens.surface2,
       '--text-primary': tokens.text,
       '--text-secondary': tokens.textSub,

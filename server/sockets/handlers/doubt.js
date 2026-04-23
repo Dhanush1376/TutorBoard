@@ -74,7 +74,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
     socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
     try {
-      const userConfig = await resolveUserConfig(socket, socket.user, cleanQuestion);
+      const userConfig = await resolveUserConfig(socket, socket.user, cleanQuestion, selectedAgent);
       
       let intentResult;
       if (isGreeting(cleanQuestion)) {
@@ -86,35 +86,25 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
       let response;
       if (intentResult.intent === 'quick' || intentResult.intent === 'text_only') {
         const textRes = await withTimeout(
-          generateTextResponse(sessionId, cleanQuestion, resolveModelId(selectedAgent), userConfig),
+          generateTextResponse(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig),
           45000
         );
         response = { answer: textRes.answer, isRelevant: true, hasVisuals: false, visualUpdate: null };
       } else {
-        const session = await sessionStore.get(sessionId);
-        const currentState = {
-          elements: session?.canvasState || [],
-          currentStep: session?.steps?.[session.currentStepIndex] || {}
-        };
-        const context = { topic: session?.topic, domain: session?.domain };
-        const delta = await runDeltaAgent(cleanQuestion, currentState, context);
-        response = {
-          answer: delta.explanation,
-          isRelevant: true,
-          hasVisuals: delta.delta_actions && delta.delta_actions.length > 0,
-          visualUpdate: { actions: delta.delta_actions, isDelta: true },
-          pathway: delta.pathway,
-          mastery_impact: delta.mastery_impact
-        };
+        // Use the centralized handleDoubt from pedagogyEngine — it handles all state gathering and agent calls
+        response = await withTimeout(
+          handleDoubt(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig),
+          60000
+        );
       }
 
       machine.send(EVENTS.DOUBT_RESPONSE_READY, { response });
 
-      if (response.visualUpdate?.isDelta) {
+      if (response.visualUpdate?.isDelta && response.visualUpdate?.mutations) {
         socket.emit('teaching:doubt-delta', {
           _question:    cleanQuestion,
           answer:       response.answer,
-          actions:      response.visualUpdate.actions,
+          actions:      response.visualUpdate.mutations, // mutations is the canonical key in pedagogyEngine
           pathway:      response.pathway
         });
       } else {

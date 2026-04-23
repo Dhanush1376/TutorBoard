@@ -64,6 +64,7 @@ const useTutorStore = create(
         laserWidth:    state.laserWidth,
         textToolSize:  state.textToolSize,
         noteToolSize:  state.noteToolSize,
+        alertPrefs:    state.alertPrefs,
         sessionManifest: state.sessionManifest,
         chatSessionId:   state.chatSessionId,
         sessionId:       state.sessionId,

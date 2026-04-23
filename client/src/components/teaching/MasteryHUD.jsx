@@ -75,8 +75,8 @@ const MasteryHUD = () => {
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center flex-col">
-                  <span className="text-[14px] font-black text-[var(--text-primary)] leading-none">{Math.round(mastery)}%</span>
-                  <span className="text-[7px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] mt-1">Mastery</span>
+                  <span className="text-[14px] font-normal text-[var(--text-primary)] leading-none">{Math.round(mastery)}%</span>
+                  <span className="text-[7px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] mt-1">Mastery</span>
                 </div>
               </div>
 
@@ -87,9 +87,9 @@ const MasteryHUD = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${getConfusionColor(confusion)} animate-pulse shadow-[0_0_10px_rgba(0,0,0,0.2)]`} />
-                    <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">Mind State</span>
+                    <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-wider">Mind State</span>
                   </div>
-                  <span className="text-[10px] font-bold text-[var(--text-primary)]">{getConfusionLabel(confusion)}</span>
+                  <span className="text-[10px] font-normal text-[var(--text-primary)]">{getConfusionLabel(confusion)}</span>
                 </div>
 
                 <div className="h-px bg-[var(--border-color)] opacity-40" />
@@ -99,9 +99,9 @@ const MasteryHUD = () => {
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
                       <MessageSquare size={10} />
-                      <span className="text-[8px] font-bold uppercase tracking-widest">Doubts</span>
+                      <span className="text-[8px] font-normal uppercase tracking-widest">Doubts</span>
                     </div>
-                    <span className="text-[12px] font-black text-[var(--text-primary)]">{doubtsCount}</span>
+                    <span className="text-[12px] font-normal text-[var(--text-primary)]">{doubtsCount}</span>
                   </div>
 
                   <div className="w-px h-6 bg-[var(--border-color)] opacity-40" />
@@ -109,9 +109,9 @@ const MasteryHUD = () => {
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
                       <BookOpen size={10} />
-                      <span className="text-[8px] font-bold uppercase tracking-widest">Sessions</span>
+                      <span className="text-[8px] font-normal uppercase tracking-widest">Sessions</span>
                     </div>
-                    <span className="text-[12px] font-black text-[var(--text-primary)]">{learnerProfile?.totalSessions || 1}</span>
+                    <span className="text-[12px] font-normal text-[var(--text-primary)]">{learnerProfile?.totalSessions || 1}</span>
                   </div>
                 </div>
               </div>

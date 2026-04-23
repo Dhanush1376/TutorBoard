@@ -45,7 +45,7 @@ const TeachingGuide = ({ isOpen, onClose }) => {
               </div>
               <div>
                 <h2 className="text-lg font-serif text-[var(--text-primary)]">TutorBoard System Guide</h2>
-                <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-widest font-bold mt-0.5">Advanced Immersive Interface</p>
+                <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-widest font-normal mt-0.5">Advanced Immersive Interface</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-[var(--text-tertiary)] transition-all">
@@ -60,7 +60,7 @@ const TeachingGuide = ({ isOpen, onClose }) => {
                  <div key={i} className="flex gap-4 p-4 rounded-2xl bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]">
                   <div className="mt-1">{sec.icon}</div>
                   <div>
-                    <h3 className="text-sm font-bold text-[var(--text-primary)] mb-1">{sec.title}</h3>
+                    <h3 className="text-sm font-normal text-[var(--text-primary)] mb-1">{sec.title}</h3>
                     <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{sec.description}</p>
                   </div>
                 </div>
@@ -79,7 +79,7 @@ const TeachingGuide = ({ isOpen, onClose }) => {
           <div className="p-6 pt-0 flex justify-end">
              <button 
                onClick={onClose}
-               className="px-6 py-2.5 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] text-xs font-bold hover:opacity-90 transition-all active:scale-95"
+               className="px-6 py-2.5 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] text-xs font-normal hover:opacity-90 transition-all active:scale-95"
              >
                Got it, thanks!
              </button>

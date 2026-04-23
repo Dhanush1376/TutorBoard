@@ -81,11 +81,10 @@ Return ONLY a JSON object:
     };
   } catch (err) {
     console.error(`[IntentEngine] ⚠️ LLM Classification failed, falling back to regex: ${err.message}`);
-    if (err.name === 'SyntaxError') {
-      console.warn(`[IntentEngine] RAW RESPONSE PREVIEW: ${res?.content?.substring(0, 500)}`);
-    }
+    // res might be undefined here if requestCompletion failed before returning
+    
     // Minimal regex fallback
-    const isDeep = /\b(visualize|draw|animate|diagram|timeline|deep)\b/i.test(prompt);
+    const isDeep = /\b(visualize|draw|animate|diagram|timeline|deep|explain|how|why)\b/i.test(prompt);
     return {
       intent: isDeep ? 'deep' : 'quick',
       renderer: 'cinematic',

@@ -27,7 +27,7 @@ import { useSessionSync } from '../hooks/useSessionSync';
 import { 
   Volume2, VolumeX, Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
-  Check, Wifi, WifiOff, Loader, Key, Zap
+  Check, Wifi, WifiOff, Loader, Key, Cpu
 } from 'lucide-react';
 
 // ─── Drawing Overlay ─────────────────────────────────────────────────────────
@@ -72,7 +72,12 @@ const DrawingOverlay = ({ isVisible, isRethinking, isSidebarOpen, layoutView }) 
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4 }}
           className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
-          style={paddingStyle}
+          style={{
+            ...paddingStyle,
+            backgroundColor: 'rgba(var(--bg-primary-rgb), 0.4)',
+            backdropFilter: 'blur(8px) brightness(0.9)',
+            WebkitBackdropFilter: 'blur(8px) brightness(0.9)',
+          }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -113,7 +118,7 @@ const DrawingOverlay = ({ isVisible, isRethinking, isSidebarOpen, layoutView }) 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="text-sm font-medium text-[var(--text-secondary)]"
+              className="text-sm font-normal text-[var(--text-secondary)]"
             >
               {phases[phaseIndex]}
             </motion.span>
@@ -197,19 +202,21 @@ const Home = ({ isDark }) => {
         
         if (!sessions) return;
 
-        const cloudSessions = sessions.map(s => ({
-          id: s._id,
-          title: s.title || 'Saved Session',
-          date: new Date(s.updatedAt || s.lastUpdated || s.createdAt).toLocaleDateString(),
-          updatedAt: new Date(s.updatedAt || s.lastUpdated || s.createdAt).getTime(),
-          agent: 'TutorBoard AI',
-          messages: s.messages || [],
-          canvasState: s.canvasState || [],
-          canvasSteps: s.canvasSteps || [],
-          pinnedNotes: s.pinnedNotes || [],
-          preferences: s.preferences || {},
-          chatSessionId: s._id
-        }));
+        const cloudSessions = sessions
+          .filter(s => (s.messages?.some(m => m.role === 'user') || s.canvasState?.length > 0))
+          .map(s => ({
+            id: s._id,
+            title: s.title || 'Saved Session',
+            date: new Date(s.updatedAt || s.lastUpdated || s.createdAt).toLocaleDateString(),
+            updatedAt: new Date(s.updatedAt || s.lastUpdated || s.createdAt).getTime(),
+            agent: 'TutorBoard AI',
+            messages: s.messages || [],
+            canvasState: s.canvasState || [],
+            canvasSteps: s.canvasSteps || [],
+            pinnedNotes: s.pinnedNotes || [],
+            preferences: s.preferences || {},
+            chatSessionId: s._id
+          }));
 
         setChatHistory(prev => {
           if (pageNum === 1) {
@@ -324,6 +331,7 @@ const Home = ({ isDark }) => {
         id: getMsgId('doubt-ans'), 
         role: 'assistant', 
         content: latest.answer,
+        timestamp: new Date().toISOString(),
         hasCanvas: latest.hasVisuals,
         canvasSnapshot: latest.hasVisuals ? { canvasObjects, canvasSteps, totalSteps } : null
       };
@@ -355,6 +363,7 @@ const Home = ({ isDark }) => {
          id: getMsgId('session-ans'), 
          role: 'assistant', 
          content: `I've prepared a visual learning canvas for you on **${timeline.title}**. Dive in whenever you're ready!`,
+         timestamp: new Date().toISOString(),
          hasCanvas: true,
          canvasSnapshot: { canvasObjects, canvasSteps, totalSteps } 
       };
@@ -385,6 +394,7 @@ const Home = ({ isDark }) => {
          id: getMsgId('greeting-ans'), 
          role: 'assistant', 
          content: greetingMessage,
+         timestamp: new Date().toISOString(),
          hasCanvas: false 
       };
       
@@ -444,6 +454,7 @@ const Home = ({ isDark }) => {
          id: getMsgId('error-msg'), 
          role: 'assistant', 
          content: `⚠️ ${error}`,
+         timestamp: new Date().toISOString(),
          hasCanvas: false 
       };
       
@@ -470,15 +481,51 @@ const Home = ({ isDark }) => {
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
   const messages = activeSession?.messages || [];
 
+  // ── Canvas-First Session Creation ──
+  // If the user draws on the canvas without starting a chat, we create a "Canvas Session"
+  // so that toolbar drawings are always persisted.
+  const canvasSessionCreatedRef = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || user?.isGuest || !historyFetched) return; 
+    if (canvasObjects?.length === 0) return;
+    if (activeChatId) return; // Already in a session
+    if (canvasSessionCreatedRef.current) return; // Already created one
+
+    canvasSessionCreatedRef.current = true;
+    const localId = `session-${Date.now()}`;
+    const newSession = {
+      id: localId,
+      title: 'Canvas Session',
+      date: new Date().toLocaleDateString(),
+      updatedAt: Date.now(),
+      agent: 'TutorBoard AI',
+      messages: [],
+      canvasState: [],
+      canvasSteps: [],
+      pinnedNotes: [],
+    };
+    setChatHistory(prev => [newSession, ...prev]);
+    setActiveChatId(localId);
+    console.log('[Home] 🎨 Auto-created Canvas Session for standalone drawing.');
+  }, [canvasObjects?.length, activeChatId, isAuthenticated, user]);
+
   // ── Persistent Cloud Sync (Immediate Actions) ──
   // Returns the canonical MongoDB session ID after save (may differ from activeChatId if it was a local temp ID).
-  const saveCurrentSession = useCallback(async (updatedMessages = messages, overrideSessionId = null) => {
+  const saveCurrentSession = useCallback(async (updatedMessages = messages, overrideSessionId = null, overrideTitle = null) => {
     if (!isAuthenticated || user?.isGuest || !token) return null;
     
     const targetSessionId = overrideSessionId || activeChatId;
+    
+    // Guard: Don't save empty sessions (no user messages and no manual drawings)
+    const hasUserMessages = updatedMessages && updatedMessages.some(m => m.role === 'user');
+    const hasManualDrawings = canvasObjects && canvasObjects.some(o => o.id?.startsWith('manual-'));
+    const hasUserContent = hasUserMessages || hasManualDrawings;
+    
+    if (!hasUserContent) return null;
+
     const payload = {
       sessionId: targetSessionId,
-      title: activeSession?.title || timeline?.title || 'New Session',
+      title: overrideTitle || activeSession?.title || timeline?.title || (updatedMessages && updatedMessages.find(m => m.role === 'user')?.content?.substring(0, 40)) || 'Untitled Session',
       messages: updatedMessages,
       canvasState: canvasObjects || [],
       canvasSteps: canvasSteps || [],
@@ -532,6 +579,23 @@ const Home = ({ isDark }) => {
 
   // ── Passive Sync (Canvas/Prefs Debounce) ──
   useSessionSync(messages);
+
+  // ── Active Canvas Persistence: Save immediately after manual drawing ──
+  const canvasSyncTimer = useRef(null);
+  useEffect(() => {
+    const hasManualObjects = canvasObjects?.some(o => o.id?.startsWith('manual-'));
+    if (!hasManualObjects) return;
+    if (!isAuthenticated || user?.isGuest) return;
+
+    // Debounce 2s after last stroke
+    if (canvasSyncTimer.current) clearTimeout(canvasSyncTimer.current);
+    canvasSyncTimer.current = setTimeout(() => {
+      console.log('[Home] 🖊️ Manual drawing detected — syncing canvas to DB...');
+      saveCurrentSession(messages);
+    }, 2000);
+
+    return () => clearTimeout(canvasSyncTimer.current);
+  }, [canvasObjects, isAuthenticated, user]);
 
   // ─── Logic ───
   const { toggleSidebar } = useTutorStore();
@@ -698,33 +762,75 @@ const Home = ({ isDark }) => {
     }
   };
   const handleDeleteChat = (id) => {
+    const { alertPrefs, showToast } = useTutorStore.getState();
+    
+    const executeDeletionChain = () => {
+      const sessionToRestore = chatHistory.find(c => c.id === id);
+      if (!sessionToRestore) return;
+
+      // Optimistic local update
+      setChatHistory(prev => prev.filter(c => c.id !== id));
+      if (activeChatId === id) {
+        setActiveChatId(null);
+        useTutorStore.getState().endSession();
+      }
+
+      let isUndone = false;
+      
+      // PERSISTENCE HARDENING: Immediate background flush for cloud sessions
+      // We don't wait for the toast to finish before STARTING the request if it's a real cloud ID.
+      // However, we'll use a shorter window for the Undo to be effective.
+      const deleteTimer = setTimeout(async () => {
+        if (isUndone) return;
+        
+        const dbId = sessionToRestore.chatSessionId || id;
+        if (isAuthenticated && !isGuest && dbId && !dbId.startsWith('session-') && !dbId.startsWith('msg-')) {
+          try {
+            const res = await fetch(`${API_URL}/api/sessions/${dbId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+              console.log(`[Home] ✅ Session ${id} permanently deleted from cloud.`);
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              console.error(`[Home] ❌ Cloud deletion failed: ${res.status}`, errData);
+            }
+          } catch (err) {
+            console.error('[Home] Failed to finalize cloud deletion:', err);
+          }
+        }
+      }, 4000); // 4s instead of 5.5s to be more responsive
+
+      showToast({
+        message: 'Learning session deleted',
+        type: 'info',
+        duration: 4000,
+        onUndo: () => {
+          isUndone = true;
+          clearTimeout(deleteTimer);
+          // Restore the session to the list
+          setChatHistory(prev => {
+            if (prev.some(s => s.id === id)) return prev;
+            return [sessionToRestore, ...prev].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          });
+          console.log(`[Home] ↩️ Deletion undone for ${id}`);
+        }
+      });
+    };
+
+    if (alertPrefs['delete-session']) {
+      executeDeletionChain();
+      return;
+    }
+
     showAlert({
       type: 'warning',
       title: 'Delete Session',
       message: 'Are you sure you want to permanently delete this learning session? This action cannot be undone.',
       confirmLabel: 'Delete Permanently',
-      onConfirm: async () => {
-        // Optimistic local update
-        setChatHistory(prev => prev.filter(c => c.id !== id));
-        if (activeChatId === id) {
-          setActiveChatId(null);
-          // Reset store if we delete the active chat
-          useTutorStore.getState().resetSession?.();
-        }
-
-        // Persistent cloud update
-        if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
-          try {
-            await fetch(`${API_URL}/api/sessions/${id}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            console.log(`[Home] ✅ Session ${id} deleted from cloud.`);
-          } catch (err) {
-            console.error('[Home] Failed to delete session from cloud:', err);
-          }
-        }
-      }
+      prefKey: 'delete-session',
+      onConfirm: executeDeletionChain
     });
   };
   const handleRenameChat = async (id, newTitle) => {
@@ -787,7 +893,7 @@ const Home = ({ isDark }) => {
       // Trim and capitalize session title
       const sessionTitle = userPrompt.substring(0, 40).trim().replace(/^(.)/, (m) => m.toUpperCase());
 
-      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt };
+      const userMessage = { id: getMsgId('user'), role: 'user', content: userPrompt, timestamp: new Date().toISOString() };
       
       // Update local history immediately for UI responsiveness
       setChatHistory(prev => {
@@ -802,7 +908,7 @@ const Home = ({ isDark }) => {
       // We do NOT 'await' this so that the AI response can start immediately.
       // This solves the 'ignored AI' issue when DB latency is high.
       if (isAuthenticated && !user?.isGuest && token) {
-        saveCurrentSession([userMessage], workingSessionId)
+        saveCurrentSession([userMessage], workingSessionId, sessionTitle)
           .catch(err => console.error('[Home] Background persistence failed:', err));
       }
 
@@ -848,7 +954,7 @@ const Home = ({ isDark }) => {
       chatHistory={chatHistory} activeChatId={activeChatId}
       onNewChat={handleNewChat} onSelectChat={handleSelectChat}
       onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
-      messages={messages} isGenerating={machineState === STATES.GENERATING}
+      messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing}
       onOpenCanvas={handleOpenCanvas} onDeleteMessage={() => {}} onEditMessage={() => {}}
       getMsgId={getMsgId}
       prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit}
@@ -905,7 +1011,7 @@ const Home = ({ isDark }) => {
                 <div className="flex items-center gap-3">
                   <WifiOff size={16} className="animate-pulse" />
                   <div className="flex flex-col">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Database Connection Failed</span>
+                    <span className="text-[11px] font-normal uppercase tracking-wider">Database Connection Failed</span>
                     <span className="text-[10px] opacity-90 leading-tight">Your backend is unable to talk to MongoDB Atlas. Please ensure your IP is whitelisted in your Atlas Dashboard.</span>
                   </div>
                 </div>
@@ -923,7 +1029,7 @@ const Home = ({ isDark }) => {
         {/* All teaching controls are now floating overlays here */}
         
         {/* A. Top Bar Overlay (Domain + Title) */}
-        {timeline && (
+        {timeline && (canvasObjects?.length > 0 || machineState !== STATES.IDLE) && (
           <div className="tb-top-bar absolute top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
             <motion.div
               initial={{ opacity: 0, y: -20 }}
@@ -932,7 +1038,7 @@ const Home = ({ isDark }) => {
             >
               <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
               <span
-                className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em] border"
+                className="px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-[0.1em] border"
                 style={{
                   backgroundColor: domainStyle.bg,
                   borderColor: domainStyle.border,
@@ -941,7 +1047,7 @@ const Home = ({ isDark }) => {
               >
                 {domainStyle.label}
               </span>
-              <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[200px] truncate">
+              <span className="text-[11px] font-normal text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[200px] truncate">
                 {timeline.title}
               </span>
 
@@ -949,12 +1055,12 @@ const Home = ({ isDark }) => {
               {activeApiPrefs && (
                 <div 
                   title={activeApiPrefs.useCustomApi ? `Using your personal ${activeApiPrefs.activeProvider} model` : "Using TutorBoard platform credits"}
-                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider transition-all cursor-help
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-normal uppercase tracking-wider transition-all cursor-help
                     ${activeApiPrefs.useCustomApi 
                       ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
                       : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}
                 >
-                  {activeApiPrefs.useCustomApi ? <Key size={10} /> : <Zap size={10} />}
+                  {activeApiPrefs.useCustomApi ? <Key size={10} /> : <Cpu size={10} />}
                   {activeApiPrefs.useCustomApi ? 'Personal' : 'Universal'}
                 </div>
               )}
@@ -962,12 +1068,12 @@ const Home = ({ isDark }) => {
               {(() => {
                 const isLive = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
                 return isLive ? (
-                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-400 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-normal text-red-400 uppercase tracking-wider">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
                     Live
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] font-bold text-emerald-400 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] font-normal text-emerald-400 uppercase tracking-wider">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     Ready
                   </span>
@@ -1004,7 +1110,7 @@ const Home = ({ isDark }) => {
         </AnimatePresence>
 
         {/* C. Playback Dock (Bottom Center) */}
-        {timeline && (
+        {timeline && (canvasObjects?.length > 0 || machineState !== STATES.IDLE) && (
           <div className="tb-playback-dock absolute bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 w-full max-w-xl pointer-events-none">
             {/* Progress Bar */}
             <div className="w-full px-10 pointer-events-auto">
@@ -1033,7 +1139,7 @@ const Home = ({ isDark }) => {
 
               {/* Step Counter */}
               <div className="px-3 py-2 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] rounded-xl shadow-2xl">
-                <span className="text-[11px] font-bold text-[var(--text-tertiary)] tabular-nums">
+                <span className="text-[11px] font-normal text-[var(--text-tertiary)] tabular-nums">
                   {currentStepIndex + 1} / {totalSteps}
                 </span>
               </div>
@@ -1086,7 +1192,7 @@ const Home = ({ isDark }) => {
             >
               <button
                 onClick={resume}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-xs font-bold shadow-2xl hover:scale-105 transition-all active:scale-95"
+                className="flex items-center gap-2 px-6 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-xs font-normal shadow-2xl hover:scale-105 transition-all active:scale-95"
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-[var(--bg-primary)] animate-pulse" />
                 Resume Lesson Flow
@@ -1114,24 +1220,24 @@ const Home = ({ isDark }) => {
                   <div className="w-3 h-3 rounded-full bg-amber-500 animate-ping absolute" />
                   <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.6)]" />
                 </div>
-                <span className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-500">
+                <span className="text-[11px] font-normal uppercase tracking-[0.25em] text-amber-500">
                   Trial Mode
                 </span>
               </div>
               
               <div className="space-y-1.5">
-                <h3 className="text-[15px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
+                <h3 className="text-[15px] font-normal text-[var(--text-primary)] leading-tight tracking-tight">
                   Not an original account
                 </h3>
-                <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)] font-medium">
-                  Your work is <span className="text-[var(--text-primary)] font-bold">strictly temporary</span>. Refreshing the browser will <span className="text-amber-500 font-bold underline underline-offset-2 italic">delete all data</span>.
+                <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)] font-normal">
+                  Your work is <span className="text-[var(--text-primary)] font-normal">strictly temporary</span>. Refreshing the browser will <span className="text-amber-500 font-normal underline underline-offset-2 italic">delete all data</span>.
                 </p>
               </div>
 
               <div className="pt-2">
                 <button 
                   onClick={logout}
-                  className="w-full py-3.5 bg-amber-500 text-black rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] shadow-[0_8px_20px_-4px_rgba(245,158,11,0.4)] hover:bg-amber-400 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300"
+                  className="w-full py-3.5 bg-amber-500 text-black rounded-2xl text-[11px] font-normal uppercase tracking-[0.15em] shadow-[0_8px_20px_-4px_rgba(245,158,11,0.4)] hover:bg-amber-400 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300"
                 >
                   Create Official Account
                 </button>

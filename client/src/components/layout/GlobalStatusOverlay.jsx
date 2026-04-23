@@ -326,13 +326,13 @@ const GlobalStatusOverlay = () => {
                   fontFamily: '"DM Mono", monospace',
                   fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase',
                   color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
-                  fontWeight: 600,
+                  fontWeight: 400,
                 }}>
                   {cfg.label}
                 </span>
                 <h2 style={{
                   fontFamily: '"Syne", sans-serif',
-                  fontSize: 24, fontWeight: 700, lineHeight: 1.1,
+                  fontSize: 24, fontWeight: 400, lineHeight: 1.1,
                   letterSpacing: '-0.03em', color: isDark ? '#fff' : '#0f0f0e', margin: 0,
                 }}>
                   {titleLines.map((ln, i) => (
@@ -368,7 +368,7 @@ const GlobalStatusOverlay = () => {
                   fontFamily: '"DM Mono", monospace',
                   fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
                   color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.4)',
-                  fontWeight: 500,
+                  fontWeight: 400,
                 }}>
                   {cfg.pill}
                 </span>

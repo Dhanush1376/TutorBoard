@@ -564,7 +564,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
             }}>
               <ShieldAlert size={12} />
             </div>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.03em' }}>Guest Session</span>
+            <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--text-secondary)', letterSpacing: '0.03em' }}>Guest Session</span>
           </div>
         )}
       </CanvasContext.Provider>

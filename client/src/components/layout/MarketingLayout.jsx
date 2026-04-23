@@ -53,7 +53,7 @@ const MarketingLayout = () => {
                 <Link 
                   key={link.path}
                   to={link.path} 
-                  className={`relative px-4 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${
+                  className={`relative px-4 py-1.5 rounded-xl text-[11px] font-normal uppercase tracking-widest transition-all ${
                     isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                   }`}
                 >
@@ -124,7 +124,7 @@ const MarketingLayout = () => {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-[var(--border-color)] py-8 px-6 sm:px-12 lg:px-24 text-center mt-auto">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-normal uppercase tracking-widest text-[var(--text-tertiary)]">
           <div>© {new Date().getFullYear()} TutorBoard Inc.</div>
           <div className="flex gap-6">
             <Link to="/how-it-works" className="hover:text-[var(--text-primary)] transition-colors">How It Works</Link>

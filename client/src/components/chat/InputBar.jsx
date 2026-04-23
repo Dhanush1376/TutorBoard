@@ -15,10 +15,8 @@ import {
   Image,
   Settings2,
   X,
-  Sparkles,
-  Zap,
-  ClipboardCheck,
   Cpu,
+  ClipboardCheck,
   Bot,
   Key,
   Globe
@@ -151,19 +149,19 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   };
 
   const agents = [
-    { id: 'Universal', name: 'TutorBoard', icon: Zap, status: 'active' },
-    ...(apiPrefs?.allKeys || []).map(k => ({
-      id: k._id || k.id,
-      name: k.label || k.provider,
-      icon: Key,
-      status: k.isExpired ? 'expired' : (k.isLowCredits ? 'low' : (k.isActive ? 'active' : 'stable'))
-    }))
+    { id: 'Universal', name: 'TutorBoard', icon: Bot, status: 'active' },
+    ...(apiPrefs?.allKeys || [])
+      .filter(k => k.isActive && k.isValid)
+      .map(k => ({
+        id: k._id || k.id,
+        name: k.label || k.provider,
+        icon: Key,
+        status: k.isExpired ? 'expired' : (k.isLowCredits ? 'low' : 'active')
+      }))
   ];
 
-  // Logic to determine if an agent is truly active based on global preferences
   const isAgentActive = (agentId) => {
-    if (agentId === 'Universal') return !apiPrefs?.useCustomApi;
-    return apiPrefs?.useCustomApi && agentId === apiPrefs?.activeId;
+    return selectedAgent === agentId;
   };
 
   const uploadActions = [
@@ -173,7 +171,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   const quickActions = [
     { icon: BookOpen, label: 'Quick Answer', mode: 'quick' },
-    { icon: Sparkles, label: 'Deep Visual Dive', mode: 'deep' },
+    { icon: Layers, label: 'Deep Visual Dive', mode: 'deep' },
     { icon: ClipboardCheck, label: 'Test Me', mode: 'test_me' },
   ];
 
@@ -192,7 +190,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const getPlaceholder = () => {
     if (activeMode === 'teach') return 'Enter a topic for live teaching...';
     if (isLanding) return currentPlaceholder;
-    return 'Message TutorBoard...';
+    return 'Chat with TutorBoard...';
   };
 
   return (
@@ -221,7 +219,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                         <div className="p-1 bg-[var(--text-primary)]/10 rounded-md text-[var(--text-primary)]">
                           <Icon size={12} strokeWidth={3} />
                         </div>
-                        <span className="text-[11px] font-bold tracking-tight">{action.label}</span>
+                        <span className="text-[11px] font-normal tracking-tight">{action.label}</span>
                       </>
                     );
                   })()}
@@ -243,7 +241,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
             maxLength={5000}
-            className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] resize-none px-2 pt-4 pb-2 outline-none text-[15px] transition-colors duration-250 font-medium leading-relaxed"
+            className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] resize-none px-2 pt-4 pb-2 outline-none text-[15px] transition-colors duration-250 font-normal leading-relaxed"
             rows={1}
             style={{ minHeight: '52px' }}
           />
@@ -274,7 +272,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                         <button
                           key={action.label}
                           onClick={() => handleUploadAction(action.type)}
-                          className="flex items-center gap-3 w-full px-3 py-2.5 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-xl transition-all"
+                          className="flex items-center gap-3 w-full px-3 py-2.5 text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-xl transition-all"
                         >
                           <action.icon size={16} />
                           <span>{action.label}</span>
@@ -307,7 +305,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                         <button
                           key={action.label}
                           onClick={() => handleQuickAction(action.mode)}
-                          className={`flex items-center gap-3 w-full px-3 py-2.5 text-[13px] font-medium rounded-xl transition-all ${activeMode === action.mode ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
+                          className={`flex items-center gap-3 w-full px-3 py-2.5 text-[13px] font-normal rounded-xl transition-all ${activeMode === action.mode ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
                         >
                           <action.icon size={16} />
                           <span>{action.label}</span>
@@ -327,13 +325,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 title="Change AI Agent"
               >
                 {(() => {
-                  // Find the active agent to display its icon
-                  const activeAgentId = apiPrefs?.useCustomApi ? apiPrefs?.activeId : 'Universal';
-                  const agent = agents.find(a => a.id === activeAgentId) || agents[0];
+                  const agent = agents.find(a => a.id === selectedAgent) || agents[0];
                   const Icon = agent.icon;
                   return (
-                    <div className="relative">
-                      <Icon size={17} strokeWidth={2.5} />
+                    <div className="flex items-center gap-1.5 px-0.5">
+                      <Icon size={15} strokeWidth={2.5} />
+                      <span className="text-[11px] text-[var(--text-tertiary)] font-normal whitespace-nowrap overflow-hidden max-w-[80px] truncate">
+                        {agent.name}
+                      </span>
                     </div>
                   );
                 })()}
@@ -354,10 +353,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           key={agent.id}
                           onClick={() => { 
                             setSelectedAgent(agent.id); 
-                            switchApi(agent.id);
                             setIsAgentMenuOpen(false); 
                           }}
-                          className={`flex items-center justify-between w-full px-3 py-2.5 text-[12px] rounded-xl transition-all font-semibold ${
+                          className={`flex items-center justify-between w-full px-3 py-2.5 text-[12px] rounded-xl transition-all font-normal ${
                             isActive
                               ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
                               : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'

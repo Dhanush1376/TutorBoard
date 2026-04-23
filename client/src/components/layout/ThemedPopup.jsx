@@ -57,16 +57,33 @@ const ThemedPopup = () => {
                 <IconComponent size={32} style={{ color: config.color }} />
               </div>
 
-              <h2 className="text-xl font-black text-[var(--text-primary)] mb-2 tracking-tight font-syne">
+              <h2 className="text-xl font-normal text-[var(--text-primary)] mb-2 tracking-tight font-syne">
                 {title || 'Notice'}
               </h2>
-              <p className="text-[13px] leading-relaxed text-[var(--text-secondary)] font-medium">
+              <p className="text-[13px] leading-relaxed text-[var(--text-secondary)] font-normal">
                 {message}
               </p>
 
               {children && (
                 <div className="w-full mt-6 text-left">
                   {children}
+                </div>
+              )}
+
+              {/* Don't show again checkbox */}
+              {globalAlert.prefKey && (
+                <div className="w-full mt-6 flex items-center justify-center gap-2 group cursor-pointer select-none"
+                     onClick={() => useTutorStore.getState().setAlertPref(globalAlert.prefKey, !useTutorStore.getState().alertPrefs[globalAlert.prefKey])}>
+                  <div className={`w-4 h-4 rounded border transition-all flex items-center justify-center ${
+                    useTutorStore.getState().alertPrefs[globalAlert.prefKey] 
+                    ? 'bg-[var(--text-primary)] border-[var(--text-primary)]' 
+                    : 'border-[var(--border-color)] group-hover:border-[var(--text-tertiary)]'
+                  }`}>
+                    {useTutorStore.getState().alertPrefs[globalAlert.prefKey] && <Check size={10} className="text-[var(--bg-primary)]" strokeWidth={4} />}
+                  </div>
+                  <span className="text-[11px] font-normal text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors uppercase tracking-wider">
+                    Don't show again
+                  </span>
                 </div>
               )}
             </div>
@@ -76,14 +93,14 @@ const ThemedPopup = () => {
               {onConfirm && (
                 <button
                   onClick={handleCancel}
-                  className="flex-1 py-3.5 px-2 rounded-[16px] text-[13px] font-bold text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-95"
+                  className="flex-1 py-3.5 px-2 rounded-[16px] text-[13px] font-normal text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-95"
                 >
                   {cancelLabel}
                 </button>
               )}
               <button
                 onClick={handleConfirm}
-                className={`flex-1 py-3.5 px-2 rounded-[16px] text-[13px] font-bold tracking-wide transition-all active:scale-95 shadow-lg ${
+                className={`flex-1 py-3.5 px-2 rounded-[16px] text-[13px] font-normal tracking-wide transition-all active:scale-95 shadow-lg ${
                   onConfirm 
                     ? type === 'error' 
                       ? 'bg-red-500 text-white hover:bg-red-600 shadow-red-500/25' 

@@ -52,7 +52,7 @@ const StepController = ({
           <button
             key={s}
             onClick={() => onSpeedChange(s)}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+            className={`px-2 py-1 rounded-lg text-[10px] font-normal transition-all ${
               speed === s 
                 ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' 
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
+import { Layers, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../layout/VisaiLogo';
 
@@ -19,7 +19,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
 
   const modes = [
     { id: 'quick', label: 'Quick Answer', icon: BookOpen, color: '#60a5fa' },
-    { id: 'deep', label: 'Deep Visual Dive', icon: Sparkles, color: '#f87171' },
+    { id: 'deep', label: 'Deep Visual Dive', icon: Layers, color: '#f87171' },
     { id: 'test_me', label: 'Test Me', icon: ClipboardCheck, color: '#fbbf24' },
   ];
 
@@ -36,10 +36,10 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         className="mb-8"
       >
-        <p className="!text-[11px] lg:!text-[12px] font-medium text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
+        <p className="!text-[11px] lg:!text-[12px] font-normal text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
           {greeting}
         </p>
-        <h1 className="!text-[22px] lg:!text-[30px] font-medium text-[var(--text-primary)] leading-[1.2] tracking-tight">
+        <h1 className="!text-[22px] lg:!text-[30px] font-normal text-[var(--text-primary)] leading-[1.2] tracking-tight">
           Where should <br /> we start?
         </h1>
       </motion.div>
@@ -64,7 +64,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             }`}>
               <mode.icon size={20} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
             </div>
-            <span className="text-[16px] font-medium tracking-tight pr-1">
+            <span className="text-[16px] font-normal tracking-tight pr-1">
               {mode.label}
             </span>
           </motion.button>
@@ -74,31 +74,56 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
   );
 };
 
-// ── Typing indicator ──
+// ── Thinking / Typing indicator ──
 const ThinkingIndicator = () => (
   <motion.div
-    initial={{ opacity: 0, y: 8 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: 4 }}
-    transition={{ duration: 0.25 }}
-    className="flex items-center gap-2 px-4 pt-1 pb-3"
+    initial={{ opacity: 0, y: 12, scale: 0.95 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+    className="flex items-center gap-3 px-5 py-4 select-none"
   >
+    <div className="relative">
       <VisaiLogo size="xxs" />
-    <div
-      className="flex items-center gap-1.5 px-3 py-2 rounded-2xl rounded-tl-md text-[11px]"
-      style={{
-        backgroundColor: 'var(--ai-bubble-bg)',
-        border: '1px solid var(--border-color)',
-      }}
-    >
-      {[0, 1, 2].map((i) => (
-        <motion.div
-          key={i}
-          animate={{ y: [0, -4, 0] }}
-          transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
-          className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)]"
+      <motion.div 
+        animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute inset-0 bg-[var(--text-primary)] rounded-full blur-md -z-10"
+      />
+    </div>
+
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)] animate-pulse">
+          Agent Thinking
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-1">
+        <motion.div 
+          className="h-1 rounded-full bg-gradient-to-r from-[var(--text-primary)] to-transparent"
+          initial={{ width: 0 }}
+          animate={{ width: 40 }}
+          transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
         />
-      ))}
+        <div className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              animate={{ 
+                scale: [1, 1.5, 1],
+                opacity: [0.3, 1, 0.3]
+              }}
+              transition={{ 
+                duration: 1, 
+                repeat: Infinity, 
+                delay: i * 0.2,
+                ease: "easeInOut" 
+              }}
+              className="w-1 h-1 rounded-full bg-[var(--text-primary)]"
+            />
+          ))}
+        </div>
+      </div>
     </div>
   </motion.div>
 );
@@ -141,6 +166,7 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
                   onDeleteMessage={onDeleteMessage}
                   onEditMessage={onEditMessage}
                   messageId={msg.id}
+                  timestamp={msg.timestamp}
                   elements={msg.elements || msg.objects}
                   motion={msg.motion}
                   connections={msg.connections}

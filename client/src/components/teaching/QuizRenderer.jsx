@@ -38,7 +38,7 @@ const QuizRenderer = ({ stepData }) => {
         className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[2.5rem] p-10 max-w-xl w-[500px] shadow-2xl pointer-events-auto cursor-grab active:cursor-grabbing"
       >
         <div className="flex justify-center mb-6 drag-handle">
-           <span className="px-4 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-2">
+           <span className="px-4 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[10px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-2">
              <span className="w-2 h-2 rounded-full bg-[var(--text-tertiary)] animate-pulse" />
              Knowledge Check
            </span>
@@ -65,10 +65,10 @@ const QuizRenderer = ({ stepData }) => {
                 `}
               >
                 <div className="flex items-center gap-4">
-                   <div className={`w-9 h-9 flex items-center justify-center rounded-xl text-[12px] font-bold ${showFeedback && isCorrect ? 'bg-green-500 text-white' : (showFeedback && isIncorrect ? 'bg-red-500 text-white' : 'bg-[var(--bg-tertiary)]')}`}>
+                   <div className={`w-9 h-9 flex items-center justify-center rounded-xl text-[12px] font-normal ${showFeedback && isCorrect ? 'bg-green-500 text-white' : (showFeedback && isIncorrect ? 'bg-red-500 text-white' : 'bg-[var(--bg-tertiary)]')}`}>
                      {String.fromCharCode(65 + i)}
                    </div>
-                   <span className="text-[15px] font-medium">{option}</span>
+                   <span className="text-[15px] font-normal">{option}</span>
                 </div>
               </motion.button>
             );

@@ -309,7 +309,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
     // CRITICAL FIX: Even on exception, go through postProcessTimeline
     const domain = getPrimaryDomain(topic);
     const failsafe = postProcessTimeline(buildRawFailSafe(topic), topic, { renderer: 'cinematic', domain, animationStyle: 'linear' });
-    failsafe.chatMessage = `I hit a snag generating your lesson on "${topic}". Try rephrasing or asking a more specific question!`;
+    failsafe.chatMessage = err.message || `I hit a snag generating your lesson on "${topic}". Try rephrasing or asking a more specific question!`;
     return failsafe;
   }
 }
@@ -346,6 +346,8 @@ export async function generateQuiz(sessionId, topic, onProgress = () => {}, mode
       taskType: 'teaching',
     });
 
+    if (result.error) throw new Error(result.error);
+
     const parsed = safeParse(result.content);
     if (!parsed || !parsed.questions) throw new Error('Invalid quiz format');
 
@@ -360,7 +362,7 @@ export async function generateQuiz(sessionId, topic, onProgress = () => {}, mode
       mode: 'quiz',
       title: `Quiz: ${topic}`,
       questions: [],
-      chatMessage: "I couldn't build a quiz for you right now, but I can definitely explain the topic! What would you like to know?",
+      chatMessage: err.message || "I couldn't build a quiz for you right now, but I can definitely explain the topic! What would you like to know?",
       renderer: 'quiz'
     };
   }
@@ -394,12 +396,21 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
       userConfig
     });
 
+    if (delta.isError) {
+      return {
+        answer: delta.answer || 'I hit a snag analyzing your question. Please try again!',
+        isRelevant: true,
+        hasVisuals: false,
+        visualUpdate: { mutations: [] }
+      };
+    }
+
     return {
       answer: delta.answer,
       isRelevant: true,
-      hasVisuals: delta.commands && delta.commands.length > 0,
+      hasVisuals: (delta.commands || []).length > 0,
       visualUpdate: { 
-        mutations: delta.commands,
+        mutations: delta.commands || [],
         isDelta: true // Mark as delta to prevent canvas wipe
       },
       followUp: delta.followUp,
@@ -408,10 +419,10 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
     import('fs').then(fs => fs.appendFileSync('DEBUG_ERRORS.log', `[handleDoubt] ${err.stack}\n`)).catch(()=>{});
     console.error('[PedagogyEngine] Doubt handling failed:', err.message);
     return {
-      answer: 'I encountered a minor glitch while analyzing that. Could you rephrase your question?',
+      answer: "I'm sorry, I encountered an error while processing that. Let's try again!",
       isRelevant: true,
       hasVisuals: false,
-      visualUpdate: { mutations: [] },
+      isError: true
     };
   }
 }
@@ -440,7 +451,19 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
       taskType: 'simple_qa',
     });
 
-    return { answer: response.content || "I'm here to help!", type: 'text' };
+    if (response.error || !response.content) {
+      const errorMsg = response.error || 'The AI provider returned an empty response.';
+      const detail = ` (Details: ${errorMsg})`;
+      
+      console.warn(`[PedagogyEngine] Text response failed: ${errorMsg}`);
+
+      return { 
+        answer: `I'm having trouble generating a response${detail}. If you're using a custom API key, please check your credits and connection in Settings.`, 
+        type: 'text' 
+      };
+    }
+
+    return { answer: response.content, type: 'text' };
   } catch (err) {
     import('fs').then(fs => fs.appendFileSync('DEBUG_ERRORS.log', `[generateTextResponse] ${err.stack}\n`)).catch(()=>{});
     console.error('[PedagogyEngine] Text response failed:', err.message);

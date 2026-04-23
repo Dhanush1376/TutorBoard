@@ -293,7 +293,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
 
             <div className="flex items-center gap-2 ml-2">
               <Code2 size={14} style={{ color: 'var(--text-tertiary)' }} />
-              <span className="text-[11px] font-bold tracking-wide" style={{ color: 'var(--text-secondary)' }}>
+              <span className="text-[11px] font-normal tracking-wide" style={{ color: 'var(--text-secondary)' }}>
                 untitled{activeLang.ext}
               </span>
             </div>
@@ -303,7 +303,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
           <div className="relative">
             <button
               onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-              className="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border"
+              className="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-normal uppercase tracking-widest transition-all active:scale-95 border"
               style={{
                 background: 'var(--bg-primary)',
                 color: 'var(--text-primary)',
@@ -331,7 +331,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
                     <button
                       key={lang.id}
                       onClick={() => { setLanguage(lang.id); onLanguageChange?.(lang.id); setShowLanguageMenu(false); }}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--bg-secondary)] transition-colors"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-normal uppercase tracking-wider hover:bg-[var(--bg-secondary)] transition-colors"
                       style={{ color: language === lang.id ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
                     >
                       {lang.label}
@@ -427,7 +427,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
                 >
                   <div className="flex items-center gap-2">
                     <Terminal size={11} style={{ color: 'var(--text-tertiary)' }} />
-                    <span className="text-[9px] font-bold uppercase tracking-widest"
+                    <span className="text-[9px] font-normal uppercase tracking-widest"
                       style={{ color: 'var(--text-tertiary)' }}
                     >
                       Terminal Output
@@ -468,7 +468,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+              <span className="text-[9px] font-normal uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
                 Ready
               </span>
             </div>
@@ -484,7 +484,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
           <div className="flex items-center gap-2">
             <button
               onClick={handleRun}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 border"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 border"
               style={{
                 background: '#10b981',
                 color: '#fff',
@@ -498,7 +498,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
 
             <button
               onClick={() => setShowOutput(!showOutput)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest transition-all active:scale-95 border"
               style={{
                 background: 'var(--bg-primary)',
                 color: 'var(--text-primary)',
@@ -511,7 +511,7 @@ function CodeModalEditor({ obj, value, onChange, onLanguageChange, onClose }) {
 
             <button
               onClick={onClose}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border shadow-md"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-normal uppercase tracking-widest transition-all active:scale-95 border shadow-md"
               style={{
                 background: 'var(--text-primary)',
                 color: 'var(--bg-primary)',
@@ -598,7 +598,7 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
              <button
                key={sym.label}
                onPointerDown={(e) => { e.stopPropagation(); insertMath(sym.val); }}
-               className={`h-9 flex items-center justify-center rounded border border-[var(--border-color)] transition text-[11px] font-bold ${
+               className={`h-9 flex items-center justify-center rounded border border-[var(--border-color)] transition text-[11px] font-normal ${
                  /[0-9]/.test(sym.label) ? 'bg-[var(--bg-primary)] text-[var(--text-primary)]' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
                } hover:brightness-105 active:scale-95`}
              >
@@ -611,12 +611,12 @@ function MathInsideEditor({ value, onChange, styles, Z, color }) {
       {/* Real-time Preview */}
       <div className="h-20 flex items-center justify-center p-4 overflow-auto bg-[var(--bg-primary)] border-t border-[var(--border-color)] relative group">
         <div ref={previewRef} style={{ color: color || 'var(--text-primary)', fontSize: (styles.fontSize || 20) * Z }} />
-        <div className="absolute top-1 left-2 text-[8px] font-bold text-[var(--text-tertiary)] uppercase">Preview</div>
+        <div className="absolute top-1 left-2 text-[8px] font-normal text-[var(--text-tertiary)] uppercase">Preview</div>
       </div>
       
       <button 
         onPointerDown={(e) => { e.stopPropagation(); setEditingObjectId(null); }}
-        className="absolute bottom-2 right-2 px-3 py-1 bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-primary)] text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all z-20 shadow-lg"
+        className="absolute bottom-2 right-2 px-3 py-1 bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-primary)] text-[10px] font-normal rounded-lg uppercase tracking-wider transition-all z-20 shadow-lg"
       >
         Done
       </button>

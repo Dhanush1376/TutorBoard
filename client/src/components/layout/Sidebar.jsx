@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ChatHistory from '../chat/ChatHistory';
-import { Plus, Search, MessageSquare, PanelLeftClose, Settings, Send, BookOpen, Lightbulb, HelpCircle, Activity, Layers, ChevronDown } from 'lucide-react';
+import { Plus, Search, MessageSquare, PanelLeftClose, Settings, Send, BookOpen, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 
@@ -66,9 +66,9 @@ const Sidebar = ({
         <div className="p-4 pb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-[var(--text-primary)] rounded-md flex items-center justify-center">
-              <span className="text-[var(--bg-primary)] text-[10px] font-black">T</span>
+              <span className="text-[var(--bg-primary)] text-[10px] font-normal">T</span>
             </div>
-            <span className="text-[13px] font-bold tracking-[0.15em] text-[var(--text-primary)] uppercase">
+            <span className="text-[13px] font-normal tracking-[0.15em] text-[var(--text-primary)] uppercase">
               TutorBoard
             </span>
           </div>
@@ -91,7 +91,7 @@ const Sidebar = ({
             >
               <div className="flex items-center gap-2">
                 <Plus size={16} />
-                <span className="text-[13px] font-bold">New Chat</span>
+                <span className="text-[13px] font-normal">New Chat</span>
               </div>
               <ChevronDown size={14} className={`transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -110,7 +110,7 @@ const Sidebar = ({
                     <button 
                       key={option.mode}
                       onClick={() => handleNewChatOption(option.mode)}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors text-left"
                     >
                       <span className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]">
                         {option.icon}
@@ -128,7 +128,7 @@ const Sidebar = ({
             className="w-full flex items-center gap-3 px-3 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl hover:bg-[var(--bg-tertiary)] transition-all group"
           >
             <Activity size={16} className="text-blue-500" />
-            <span className="text-[13px] font-bold">Mastery Dashboard</span>
+            <span className="text-[13px] font-normal">Mastery Dashboard</span>
           </button>
 
           {/* Integrated Search Input */}
@@ -163,17 +163,17 @@ const Sidebar = ({
             </motion.div>
             
             <div className="text-center space-y-1.5 mb-10">
-              <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]">
+              <h3 className="text-[11px] font-normal uppercase tracking-[0.3em] text-[var(--text-primary)]">
                 No recents
               </h3>
-              <p className="text-[10px] text-[var(--text-tertiary)] font-medium leading-relaxed">
+              <p className="text-[10px] text-[var(--text-tertiary)] font-normal leading-relaxed">
                 Your learning history is empty<br/>Start a conversation to see it here
               </p>
             </div>
 
             <div className="w-full mt-4">
               <div className="flex items-center gap-3 mb-5 px-2">
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] whitespace-nowrap">
+                <span className="text-[9px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)] whitespace-nowrap">
                   Try asking one
                 </span>
                 <div className="h-[1px] flex-1 bg-gradient-to-r from-[var(--border-color)] to-transparent" />
@@ -206,7 +206,7 @@ const Sidebar = ({
                     <button 
                       key={i}
                       onClick={() => setPrompt(text)}
-                      className="px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.05] active:scale-[0.95] shadow-sm hover:shadow-md"
+                      className="px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.05] active:scale-[0.95] shadow-sm hover:shadow-md"
                     >
                       {text}
                     </button>
@@ -218,7 +218,7 @@ const Sidebar = ({
         ) : (
           <div className="space-y-4">
             <div className="px-2 pt-2">
-              <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Recent Activity</span>
+              <span className="text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest">Recent Activity</span>
             </div>
             <ChatHistory 
               chatHistory={filteredHistory}
@@ -236,7 +236,7 @@ const Sidebar = ({
         {/* Prompt Suggestions */}
         {!activeChatId && chatHistory.length > 0 && (
           <div className="mt-8 mb-4 border-t border-[var(--border-color)]/30 pt-6">
-            <span className="px-2 text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-3 block">Recommended Topics</span>
+            <span className="px-2 text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest mb-3 block">Recommended Topics</span>
             <div className="space-y-1.5 px-0.5">
               {[
                 "Explain me prefix sum",
@@ -251,7 +251,7 @@ const Sidebar = ({
                 <button 
                   key={i}
                   onClick={() => { setPrompt(text); }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl bg-[var(--bg-tertiary)]/30 border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]/60 transition-all text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] truncate"
+                  className="w-full text-left px-3 py-2.5 rounded-xl bg-[var(--bg-tertiary)]/30 border border-transparent hover:border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]/60 transition-all text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] truncate"
                 >
                   {text}
                 </button>
@@ -266,17 +266,17 @@ const Sidebar = ({
         {isGuest && (
           <div className="mb-3 p-3 bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10 rounded-2xl relative overflow-hidden group/trial">
             <div className="absolute top-0 right-0 p-1">
-              <Sparkles size={10} className="text-[var(--text-primary)] opacity-20 group-hover/trial:opacity-100 transition-opacity" />
+              <Bot size={10} className="text-[var(--text-primary)] opacity-20 group-hover/trial:opacity-100 transition-opacity" />
             </div>
-            <p className="text-[10px] font-bold text-[var(--text-primary)] mb-1 uppercase tracking-widest flex items-center gap-1.5">
+            <p className="text-[10px] font-normal text-[var(--text-primary)] mb-1 uppercase tracking-widest flex items-center gap-1.5">
               Trial Mode
             </p>
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] mb-2.5">
-              Your history won't be saved on refresh. <span className="text-[var(--text-primary)] font-semibold">Sign up free</span> to unlock unlimited sessions and cloud sync.
+              Your history won't be saved on refresh. <span className="text-[var(--text-primary)] font-normal">Sign up free</span> to unlock unlimited sessions and cloud sync.
             </p>
             <button 
               onClick={logout}
-              className="w-full py-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-[11px] font-black uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="w-full py-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-[11px] font-normal uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
             >
               Create Free Account
             </button>
@@ -304,7 +304,7 @@ const Sidebar = ({
           <div className="flex items-center justify-between px-2 pt-0.5">
              <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
                 <div className="h-1.5 w-1.5 rounded-full bg-[var(--text-primary)] opacity-50" />
-                <button className="text-[9px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] flex items-center transition-colors">
+                <button className="text-[9px] font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] flex items-center transition-colors">
                    {selectedAgent || "Gemini 3.1 Pro"} 
                 </button>
              </div>

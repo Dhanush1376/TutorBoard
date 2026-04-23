@@ -62,7 +62,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => safeStorage.getItem('tb-token'));
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_URL_MISSING' : null);
-  const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null, activeLabel: null, activeId: null, allKeys: [], status: 'stable' });
+  const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null, activeLabel: null, activeIds: [], allKeys: [], status: 'stable' });
   const [connectionStatus, setConnectionStatus] = useState('stable'); // stable, slow, timeout
   const [isExiting, setIsExiting] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
@@ -169,6 +169,7 @@ export const AuthProvider = ({ children }) => {
               const data = await res.json();
               if (data.token) {
                 safeStorage.setItem('tb-token', data.token);
+                sessionStorage.setItem('tb-just-logged-in', 'true');
                 console.log('[Auth] Exchange successful ✨');
               }
             }
@@ -235,13 +236,14 @@ export const AuthProvider = ({ children }) => {
             // Hydrate API Prefs from parallel fetch
             if (apiRes && apiRes.ok) {
               const apiData = await apiRes.json();
-              const activeKey = apiData.keys?.find(k => k.isActive && k.isValid);
-              const status = activeKey?.isExpired ? 'expired' : (activeKey?.isLowCredits ? 'low' : (activeKey?.isValid ? 'active' : 'stable'));
+              const activeKeys = (apiData.keys || []).filter(k => k.isActive && k.isValid);
+              const firstActive = activeKeys[0];
+              const status = firstActive?.isExpired ? 'expired' : (firstActive?.isLowCredits ? 'low' : (firstActive?.isValid ? 'active' : 'stable'));
               setApiPrefs({
-                useCustomApi: apiData.preferences?.useCustomApi && !!activeKey,
-                activeProvider: activeKey?.provider,
-                activeLabel: activeKey?.label,
-                activeId: activeKey?.id || activeKey?._id || null,
+                useCustomApi: apiData.preferences?.useCustomApi && activeKeys.length > 0,
+                activeProvider: firstActive?.provider,
+                activeLabel: firstActive?.label,
+                activeIds: activeKeys.map(k => k.id || k._id),
                 allKeys: apiData.keys || [],
                 status
               });
@@ -438,13 +440,14 @@ export const AuthProvider = ({ children }) => {
       const res = await fetch(`${API_URL}/api/apikeys`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
-        const activeKey = data.keys?.find(k => k.isActive && k.isValid);
-        const status = activeKey?.isExpired ? 'expired' : (activeKey?.isLowCredits ? 'low' : (activeKey?.isValid ? 'active' : 'stable'));
+        const activeKeys = (data.keys || []).filter(k => k.isActive && k.isValid);
+        const firstActive = activeKeys[0];
+        const status = firstActive?.isExpired ? 'expired' : (firstActive?.isLowCredits ? 'low' : (firstActive?.isValid ? 'active' : 'stable'));
         setApiPrefs({
-          useCustomApi: data.preferences?.useCustomApi && !!activeKey,
-          activeProvider: activeKey?.provider,
-          activeLabel: activeKey?.label,
-          activeId: activeKey?.id || activeKey?._id || null,
+          useCustomApi: data.preferences?.useCustomApi && activeKeys.length > 0,
+          activeProvider: firstActive?.provider,
+          activeLabel: firstActive?.label,
+          activeIds: activeKeys.map(k => k.id || k._id),
           allKeys: data.keys || [],
           status
         });
@@ -463,7 +466,7 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('tb-refresh-api-prefs', handleRefreshRequest);
   }, [refreshApiPrefs]);
 
-  const switchApi = useCallback(async (keyId) => {
+  const switchApi = useCallback(async (keyId, forceState = null) => {
     if (!token || user?.isGuest) return;
     try {
       if (keyId === 'Universal') {
@@ -476,22 +479,28 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      // Find current state to toggle it
+      const key = apiPrefs.allKeys.find(k => (k.id || k._id) === keyId);
+      const newState = forceState !== null ? forceState : !key?.isActive;
+
       const res = await fetch(`${API_URL}/api/apikeys/${keyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isActive: true })
+        body: JSON.stringify({ isActive: newState })
       });
       
       if (res.ok) {
-        await fetch(`${API_URL}/api/apikeys/preferences`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ useCustomApi: true })
-        });
+        if (newState) {
+          await fetch(`${API_URL}/api/apikeys/preferences`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ useCustomApi: true })
+          });
+        }
         refreshApiPrefs();
       }
     } catch (e) { /* silent */ }
-  }, [token, user, refreshApiPrefs]);
+  }, [token, user, refreshApiPrefs, apiPrefs.allKeys]);
 
   const isAuthenticated = !!user;
 

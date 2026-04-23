@@ -50,7 +50,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           >
             <button
               onClick={toggleSidebar}
-              className="flex items-center gap-2 px-3 rounded-xl transition-all text-[var(--text-primary)] font-bold active:scale-95 group hover:bg-[var(--bg-secondary)]"
+              className="flex items-center gap-2 px-3 rounded-xl transition-all text-[var(--text-primary)] font-normal active:scale-95 group hover:bg-[var(--bg-secondary)]"
               style={{ height: 'var(--tool-size)' }}
             >
               <PanelLeft size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />

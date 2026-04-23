@@ -28,6 +28,7 @@ export const createUiSlice = (set, get) => ({
   noteToolSize:        16,
 
   shapeStrokeStyle:    'solid',
+  shapeFill:           'transparent', // FIX: was missing, caused shapes to draw with fill:undefined
 
   textType:            'standard',
   textToolSize:        24,
@@ -43,6 +44,7 @@ export const createUiSlice = (set, get) => ({
   glassIntensity:      80,
   canvasTone:          'neutral',
   motionMode:          'fluid',
+  alertPrefs:          {}, // { [key]: boolean }
 
   globalAlert: { 
     isActive: false, 
@@ -54,6 +56,7 @@ export const createUiSlice = (set, get) => ({
     onConfirm: null,
     onCancel: null
   },
+  toasts: [], // { id, message, type, duration, onUndo }
 
 
   setLayoutView:    (view) => set({ layoutView: view }),
@@ -75,6 +78,18 @@ export const createUiSlice = (set, get) => ({
     globalAlert: { ...s.globalAlert, isActive: false } 
   })),
 
+  showToast: (config) => {
+    const id = Date.now();
+    set(s => ({ toasts: [...s.toasts, { id, type: 'info', duration: 5000, ...config }] }));
+    return id;
+  },
+
+  removeToast: (id) => set(s => ({ toasts: s.toasts.filter(t => t.id !== id) })),
+
+  setAlertPref: (key, val) => set(s => ({
+    alertPrefs: { ...s.alertPrefs, [key]: val }
+  })),
+
   setSidebarOpen:   (open)  => set({ isSidebarOpen: open }),
   toggleSidebar:    ()      => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
   setSelectedAgent: (agent) => {
@@ -87,9 +102,12 @@ export const createUiSlice = (set, get) => ({
   toggleFloatingSidebar: () => set(s => ({ showFloatingSidebar: !s.showFloatingSidebar })),
   openFloatingSidebar:   () => set({ showFloatingSidebar: true }),
   closeFloatingSidebar:  () => set({ showFloatingSidebar: false }),
+  setShowMinimap:         (show) => set({ showMinimap: show }),
   toggleMinimap:         () => set(s => ({ showMinimap: !s.showMinimap })),
   setActiveTool:         (tool) => set({ activeTool: tool }),
+  setShowGrid:           (show) => set({ showGrid: show }),
   toggleGrid:            ()     => set(s => ({ showGrid: !s.showGrid })),
+  setSnapToGrid:         (snap) => set({ isSnapToGrid: snap }),
   toggleSnap:            ()     => set(s => ({ isSnapToGrid: !s.isSnapToGrid })),
   setGridType:           (type) => set({ gridType: type }),
   setGridSize:           (size) => set({ gridSize: size }),
@@ -111,6 +129,12 @@ export const createUiSlice = (set, get) => ({
   setNoteToolSize:       (size)  => set({ noteToolSize: size }),
   setNotePinned:         (pinned) => set({ notePinned: pinned }),
   setShapeStrokeStyle:   (style) => set({ shapeStrokeStyle: style }),
+  setShapeFill:          (fill)  => set({ shapeFill: fill }),
+
+  // Show/hide notes layer — was missing, caused InteractiveCanvasLayer to get undefined
+  showNotes:             true,
+  setShowNotes:          (show) => set({ showNotes: show }),
+  toggleNotes:           () => set(s => ({ showNotes: !s.showNotes })),
 
   setTextType:      (type)  => set({ textType: type }),
   setTextToolSize:  (size)  => set({ textToolSize: size }),

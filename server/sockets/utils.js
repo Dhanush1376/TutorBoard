@@ -98,7 +98,7 @@ export function buildTimelinePayload(sessionId, timeline) {
 /**
  * Resolve User API Config — Logic for smart routing and custom keys
  */
-export async function resolveUserConfig(socket, socketUser, inputText) {
+export async function resolveUserConfig(socket, socketUser, inputText, selectedAgentId = null) {
   const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
 
   if (!socketUser || socketUser.isGuest || socketUser.id === 'guest') {
@@ -111,32 +111,76 @@ export async function resolveUserConfig(socket, socketUser, inputText) {
 
     const prefs = user.apiPreferences;
     const activeKeys = (user.apiKeys || []).filter(k => k.isActive && k.isValid);
-    if (activeKeys.length === 0) return null;
 
-    let selectedKey;
+    // MASTER OVERRIDE: If the user explicitly selects "Universal", always return null
+    // so the engine uses the platform's OpenRouter default.
+    if (selectedAgentId === 'Universal') {
+      console.log(`[UserConfig] User explicitly selected Universal API for session.`);
+      return null;
+    }
+
+    let selectedKey = null;
     let classification = null;
     let adaptiveScores = null;
 
-    if (prefs.routingMode === 'manual' && prefs.modelOverride) {
-      selectedKey = activeKeys.find(k => k.model === prefs.modelOverride) || activeKeys[0];
-    }
-    else if (prefs.smartRouting && inputText) {
-      classification = classifyTask(inputText);
-      if (prefs.enableAdaptive) {
-        try { adaptiveScores = await getAdaptiveScores(user._id); } catch (e) {}
+    // PRIORITY 1: Explicit match from frontend selection
+    if (selectedAgentId) {
+      const target = selectedAgentId.toString().toLowerCase();
+      
+      // Match by ID first
+      selectedKey = activeKeys.find(k => k._id.toString() === target);
+      
+      // Match by Provider if ID match fails (e.g. user selected 'OpenRouter' in UI)
+      if (!selectedKey) {
+        selectedKey = activeKeys.find(k => k.provider.toLowerCase() === target);
       }
-      const optimal = selectOptimalModel(
-        classification.taskType,
-        classification.recommendedTier,
-        activeKeys,
-        adaptiveScores
-      );
-      if (optimal) {
-        selectedKey = activeKeys.find(k => k._id.toString() === optimal.keyId?.toString()) || activeKeys[0];
+
+      // Match by Brand/Agent Name (e.g. 'Bytez' -> Anthropic/Claude)
+      if (!selectedKey) {
+        if (target.includes('bytez')) {
+          selectedKey = activeKeys.find(k => k.provider === 'anthropic' || k.provider === 'openrouter');
+        } else if (target.includes('tutu')) {
+          selectedKey = activeKeys.find(k => k.provider === 'openai');
+        }
       }
     }
 
-    if (!selectedKey) selectedKey = activeKeys[0];
+    // PRIORITY 2: If no explicit selection but global toggle is ON, follow prefs
+    if (!selectedKey && prefs?.useCustomApi) {
+      if (activeKeys.length === 0) return null;
+
+      // Manual override if set
+      if (prefs.routingMode === 'manual' && prefs.modelOverride) {
+        selectedKey = activeKeys.find(k => k.model === prefs.modelOverride) || activeKeys[0];
+      }
+      
+      // Smart Routing
+      else if (prefs.smartRouting && inputText) {
+        classification = classifyTask(inputText);
+        if (prefs.enableAdaptive) {
+          try { adaptiveScores = await getAdaptiveScores(user._id); } catch (e) {}
+        }
+        const optimal = selectOptimalModel(
+          classification.taskType,
+          classification.recommendedTier,
+          activeKeys,
+          adaptiveScores
+        );
+        if (optimal) {
+          selectedKey = activeKeys.find(k => k._id.toString() === optimal.keyId?.toString()) || activeKeys[0];
+        }
+      }
+
+      // Final fallback for global custom API
+      if (!selectedKey) selectedKey = activeKeys[0];
+    }
+
+    // If we still don't have a key, it means either:
+    // 1. Explicit selection failed (and global toggle is off)
+    // 2. Global toggle is off and no explicit selection was made
+    if (!selectedKey) return null;
+
+    console.log(`[UserConfig] Resolved custom key for user ${user._id}: ${selectedKey.provider}/${selectedKey.model} (Routing: ${prefs.routingMode})`);
 
     const decryptedKey = decrypt({
       encrypted: selectedKey.encryptedKey,
@@ -163,7 +207,7 @@ export async function resolveUserConfig(socket, socketUser, inputText) {
     return {
       useCustomApi: true,
       provider: selectedKey.provider,
-      model: selectedKey.model,
+      model: selectedKey.model || (selectedKey.provider === 'openai' ? 'gpt-4o' : 'anthropic/claude-3-5-sonnet-20241022'),
       getApiKey,
       baseUrl: selectedKey.baseUrl || '',
       fallbackToDefault: prefs.fallbackToDefault !== false,

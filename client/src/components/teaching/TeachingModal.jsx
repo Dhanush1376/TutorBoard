@@ -195,7 +195,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               {normalizedDomain && DOMAIN_STYLES[normalizedDomain] && (
                 <span 
-                  className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.1em]"
+                  className="px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-[0.1em]"
                   style={{ 
                     backgroundColor: DOMAIN_STYLES[normalizedDomain].bg, 
                     borderWidth: '1px',
@@ -206,7 +206,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
                   {DOMAIN_STYLES[normalizedDomain].label}
                 </span>
               )}
-              <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-[0.15em]">
+              <span className="text-[11px] font-normal text-[var(--text-primary)] uppercase tracking-[0.15em]">
                 {displayTitle}
               </span>
             </motion.div>
@@ -219,7 +219,7 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
                   animate={{ opacity: 1, scale: 1, x: 0 }}
                   exit={{ opacity: 0, scale: 0.9, x: 20 }}
                   onClick={handleClearDoubtViz}
-                  className="absolute left-1/2 -translate-x-1/2 top-5 px-4 py-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[10px] font-bold uppercase tracking-widest shadow-xl hover:opacity-90 active:scale-95 transition-all z-20"
+                  className="absolute left-1/2 -translate-x-1/2 top-5 px-4 py-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[10px] font-normal uppercase tracking-widest shadow-xl hover:opacity-90 active:scale-95 transition-all z-20"
                 >
                   Return to Lesson
                 </motion.button>
@@ -262,16 +262,16 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
             >
               <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl p-5 shadow-2xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                  <span className="text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest">
                     Step {currentStep + 1}
                   </span>
                   {activeStepData.type && (
-                    <span className="px-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">
+                    <span className="px-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-wider">
                       {activeStepData.type.replace(/_/g, ' ')}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-[var(--text-primary)] leading-relaxed font-medium">
+                <p className="text-sm text-[var(--text-primary)] leading-relaxed font-normal">
                   {activeStepData.description || activeStepData.label || activeStepData.text || "Visual step processing..."}
                 </p>
                 {(activeStepData.animation_instructions || activeStepData.animation) && (

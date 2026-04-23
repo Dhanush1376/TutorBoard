@@ -18,16 +18,16 @@ const UniversalUsageCard = ({ usage }) => {
   const isExceeded = usage.percent >= 100;
   return (
     <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '20px', marginBottom: '24px', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 0, right: 0, padding: '6px 12px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', fontSize: '10px', fontWeight: 700, borderRadius: '0 0 0 12px' }}>SYSTEM PROVIDED</div>
+      <div style={{ position: 'absolute', top: 0, right: 0, padding: '6px 12px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', fontSize: '10px', fontWeight: 400, borderRadius: '0 0 0 12px' }}>SYSTEM PROVIDED</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
         <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}><Sparkles size={20} /></div>
         <div>
-          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>TutorBoard Universal API</h4>
+          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 400 }}>TutorBoard Universal API</h4>
           <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-tertiary)' }}>Platform credits for common tasks</p>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 400 }}>
           <span>Monthly Usage</span>
           <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-primary)' }}>{usage.requests} / {usage.limit} requests</span>
         </div>
@@ -104,8 +104,17 @@ export default function AIConfigSection({ showToast }) {
       const data = await res.json();
       if (res.ok) {
         setValidationResult({ success: true, message: data.message });
-        setNewApiKey(''); setShowAddForm(false); fetchDashboardData();
-        showToast?.('API key added successfully!', 'success');
+        setNewApiKey(''); setShowAddForm(false);
+        // Auto-enable useCustomApi when a key is added
+        const autoEnablePrefs = { ...preferences, useCustomApi: true };
+        setPreferences(autoEnablePrefs);
+        await fetch(`${API_URL}/api/apikeys/preferences`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(autoEnablePrefs)
+        });
+        fetchDashboardData();
+        showToast?.('API key added & activated! TutorBoard will now use your key.', 'success');
       } else { setValidationResult({ success: false, message: data.details || data.error }); }
     } catch (e) { setValidationResult({ success: false, message: 'Network error' }); }
     finally { setIsValidating(false); }
@@ -120,9 +129,12 @@ export default function AIConfigSection({ showToast }) {
 
   const handleToggleKey = async (keyId, isActive) => {
     try { 
-      if (isActive) { setApiKeys(prev => prev.map(k => ({ ...k, isActive: k.id === keyId }))); }
-      else { setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, isActive: false } : k)); }
-      await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ isActive }) }); 
+      setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, isActive } : k));
+      await fetch(`${API_URL}/api/apikeys/${keyId}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        body: JSON.stringify({ isActive }) 
+      }); 
       fetchDashboardData(); 
     } catch (e) {}
   };
@@ -130,7 +142,13 @@ export default function AIConfigSection({ showToast }) {
   const handleUpdatePref = async (key, value) => {
     const updated = { ...preferences, [key]: value };
     setPreferences(updated);
-    try { await fetch(`${API_URL}/api/apikeys/preferences`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(updated) }); } catch (e) {}
+    try { 
+      console.log(`[AIConfig] Updating preference: ${key} = ${value}`);
+      await fetch(`${API_URL}/api/apikeys/preferences`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(updated) }); 
+      fetchDashboardData();
+    } catch (e) {
+      console.error(`[AIConfig] Preference update failed:`, e);
+    }
   };
 
   const handleTestKey = async (keyId) => {
@@ -146,19 +164,33 @@ export default function AIConfigSection({ showToast }) {
     finally { setTestingKeyId(null); }
   };
 
-  const hasActiveCustomKey = preferences.useCustomApi && apiKeys.some(k => k.isActive && k.isValid);
+  const hasActiveKey = apiKeys.some(k => k.isActive && k.isValid);
+  const hasActiveCustomKey = preferences.useCustomApi && hasActiveKey;
+  const hasKeyButDisabled = hasActiveKey && !preferences.useCustomApi;
 
   return (
-    <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-      <div style={{ background: hasActiveCustomKey ? 'rgba(16,185,129,0.08)' : 'rgba(59,130,246,0.08)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px 20px', marginBottom: '24px' }}>
+    <div style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '160px' }}>
+      <div style={{ background: hasActiveCustomKey ? 'rgba(16,185,129,0.08)' : hasKeyButDisabled ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)', border: `1px solid ${hasKeyButDisabled ? 'rgba(245,158,11,0.3)' : 'var(--border-color)'}`, borderRadius: '16px', padding: '16px 20px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: hasActiveCustomKey ? '#10b981' : '#3b82f6' }} />
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: hasActiveCustomKey ? '#10b981' : hasKeyButDisabled ? '#f59e0b' : '#3b82f6' }} />
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 700 }}>{hasActiveCustomKey ? 'Your Personal API' : 'TutorBoard Platform API'}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{hasActiveCustomKey ? 'Using your keys' : 'Shared platform credits'}</div>
+              <div style={{ fontSize: '13px', fontWeight: 400 }}>
+                {hasActiveCustomKey ? 'Your Personal API Active' : hasKeyButDisabled ? 'Key Added — Enable "Use Custom API" Below' : 'TutorBoard Platform API'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                {hasActiveCustomKey ? 'All requests use your key' : hasKeyButDisabled ? 'Toggle "Use Custom API" to activate your key' : 'Shared platform credits'}
+              </div>
             </div>
           </div>
+          {hasKeyButDisabled && (
+            <button
+              onClick={() => handleUpdatePref('useCustomApi', true)}
+              style={{ padding: '6px 14px', borderRadius: '10px', background: '#f59e0b', color: '#fff', border: 'none', fontSize: '11px', fontWeight: 400, cursor: 'pointer' }}
+            >
+              Activate
+            </button>
+          )}
         </div>
       </div>
 
@@ -178,10 +210,10 @@ export default function AIConfigSection({ showToast }) {
         </SettingsGroup>
       )}
 
-      <div style={{ marginTop: '20px' }}>
+      <div style={{ marginTop: '48px' }}>
         {!preferences.useCustomApi && universalUsage && <UniversalUsageCard usage={universalUsage} />}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Your API Keys</span>
+          <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Your API Keys</span>
           <button onClick={() => setShowAddForm(!showAddForm)} style={{ padding: '4px 12px', borderRadius: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', cursor: 'pointer' }}>{showAddForm ? 'Cancel' : 'Add Key'}</button>
         </div>
 
@@ -189,11 +221,36 @@ export default function AIConfigSection({ showToast }) {
           {showAddForm && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ marginBottom: '16px' }}>
               <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
-                  {Object.entries(PROVIDER_INFO).map(([id, info]) => (
-                    <button key={id} onClick={() => setNewProvider(id)} style={{ padding: '10px 4px', borderRadius: '12px', border: '1px solid', borderColor: newProvider === id ? info.color : 'var(--border-color)', background: newProvider === id ? `${info.color}15` : 'transparent', cursor: 'pointer' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: info.color, margin: '0 auto 4px' }} />
-                      <span style={{ fontSize: '8px', fontWeight: 700 }}>{id}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                  {Object.entries(PROVIDER_INFO).map(([id, p]) => (
+                    <button
+                      key={id}
+                      onClick={() => setNewProvider(id)}
+                      className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group ${
+                        newProvider === id 
+                          ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] bg-opacity-[0.08] shadow-lg shadow-[var(--accent-primary)]/10 scale-[1.02]' 
+                          : 'border-[var(--bg-tertiary)] bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)] hover:border-opacity-30 hover:bg-[var(--bg-tertiary)]'
+                      }`}
+                    >
+                      <div 
+                        className={`w-3 h-3 rounded-full mb-3 shadow-sm transition-transform duration-300 group-hover:scale-125`}
+                        style={{ background: p.color }}
+                      />
+                      <span className={`text-[13px] font-normal tracking-tight capitalize transition-colors duration-300 ${
+                        newProvider === id ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                      }`}>
+                        {id}
+                      </span>
+                      {newProvider === id && (
+                        <motion.div 
+                          layoutId="activeProvider"
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent-primary)] rounded-full flex items-center justify-center shadow-md"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                        >
+                          <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                        </motion.div>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -204,7 +261,7 @@ export default function AIConfigSection({ showToast }) {
                 <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="Key Label" style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
                 {newProvider === 'custom' && <input type="text" value={newBaseUrl} onChange={e => setNewBaseUrl(e.target.value)} placeholder="Base URL" style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />}
                 {PROVIDER_INFO[newProvider]?.models.length > 0 && <PremiumDropdown value={newModel} onChange={setNewModel} options={PROVIDER_INFO[newProvider].models.map(m => ({ value: m, label: MODEL_LABELS[m] || m }))} styleContext="form" />}
-                <button onClick={handleAddKey} disabled={isValidating} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', fontWeight: 700, cursor: 'pointer' }}>{isValidating ? 'Validating...' : 'Validate & Save'}</button>
+                <button onClick={handleAddKey} disabled={isValidating} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', fontWeight: 400, cursor: 'pointer' }}>{isValidating ? 'Validating...' : 'Validate & Save'}</button>
               </div>
             </motion.div>
           )}
@@ -218,7 +275,7 @@ export default function AIConfigSection({ showToast }) {
               <div key={key.id} style={{ background: key.isActive ? 'var(--bg-tertiary)' : 'var(--bg-primary)', border: '1px solid var(--border-color)', borderLeft: `3px solid ${pc}`, borderRadius: '16px', padding: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 800 }}>{key.label || key.provider}</div>
+                    <div style={{ fontSize: '14px', fontWeight: 400 }}>{key.label || key.provider}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{key.maskedKey}</div>
                   </div>
                   <button onClick={() => handleTestKey(key.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Zap size={13} /></button>
@@ -244,11 +301,15 @@ export default function AIConfigSection({ showToast }) {
         <div style={{ marginTop: '24px' }}>
           <SectionTitle>Analytics</SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-            {[{ label: 'Requests', value: usageStats.totals?.totalRequests, icon: Zap }, { label: 'Tokens', value: usageStats.totals?.totalTokens, icon: Brain }, { label: 'Latency', value: `${Math.round(usageStats.totals?.avgResponseTime || 0)}ms`, icon: Gauge }, { label: 'Cost', value: `$${((usageStats.totals?.totalCost || 0) / 100).toFixed(2)}`, icon: DollarSign }].map((s, i) => (
-              <div key={i} style={{ background: 'var(--bg-tertiary)', padding: '12px 6px', borderRadius: '16px', textAlign: 'center' }}>
-                <s.icon size={14} style={{ marginBottom: '4px' }} />
-                <div style={{ fontSize: '16px', fontWeight: 700 }}>{s.value}</div>
-                <div style={{ fontSize: '8px', textTransform: 'uppercase' }}>{s.label}</div>
+            {[{ label: 'Requests', value: usageStats.totalRequests, icon: Zap }, { label: 'Tokens', value: usageStats.totalTokens, icon: Brain }, { label: 'Latency', value: `${Math.round(usageStats.avgResponseTime || 0)}ms`, icon: Gauge }, { label: 'Cost', value: `$${((usageStats.totalCost || 0) / 100).toFixed(2)}`, icon: DollarSign }].map((s, i) => (
+              <div key={i} style={{ 
+                background: 'var(--bg-tertiary)', padding: '20px 12px', borderRadius: '20px', 
+                textAlign: 'center', border: '1px solid var(--border-color)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
+              }}>
+                <s.icon size={16} style={{ color: 'var(--text-tertiary)' }} />
+                <div style={{ fontSize: '20px', fontWeight: 400, color: 'var(--text-primary)' }}>{s.value ?? 0}</div>
+                <div style={{ fontSize: '10px', fontWeight: 400, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
               </div>
             ))}
           </div>

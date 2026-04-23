@@ -134,7 +134,9 @@ const InteractiveCanvasLayer = React.memo(() => {
         color: drawColor || 'var(--text-primary)',
         animation: { type: 'scale', duration: 0.4 }
       };
-      setCanvasObjectsWithHistory([...canvasObjects, newObj]);
+      // FIX: Use getState() to avoid stale closure overwriting prior objects
+      const latestObjects = useTutorStore.getState().canvasObjects;
+      setCanvasObjectsWithHistory([...latestObjects, newObj]);
       setSelectedElements([newId]);
       setActiveTool('select');
       setTimeout(() => {

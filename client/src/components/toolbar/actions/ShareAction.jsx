@@ -102,7 +102,7 @@ const ShareAction = (props) => {
     <div className="flex flex-col gap-5 p-4 min-w-[280px]">
       {/* Collaboration */}
       <div className="flex flex-col gap-2.5">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] px-1 opacity-70">Collaborate</span>
+        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.1em] px-1 opacity-70">Collaborate</span>
         <button
           onClick={handleCopyInvite}
           className="flex items-center gap-4 p-3 rounded-2xl border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] transition-all group w-full shadow-sm hover:shadow-md"
@@ -111,10 +111,10 @@ const ShareAction = (props) => {
             {feedback === 'invite' ? <Check size={18} className="text-green-500" /> : <Link size={18} className="text-[var(--text-primary)]" />}
           </div>
           <div className="flex flex-col items-start leading-tight">
-            <span className="text-[13px] font-bold text-[var(--text-primary)]">
+            <span className="text-[13px] font-normal text-[var(--text-primary)]">
               {feedback === 'invite' ? 'Link Copied!' : 'Invite Others'}
             </span>
-            <span className="text-[10px] text-[var(--text-tertiary)] font-medium">
+            <span className="text-[10px] text-[var(--text-tertiary)] font-normal">
               {feedback === 'invite' ? 'Ready to share with team' : 'Copy secure session link'}
             </span>
           </div>
@@ -125,7 +125,7 @@ const ShareAction = (props) => {
 
       {/* Export Options */}
       <div className="flex flex-col gap-2.5">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] px-1 opacity-70">Archive & Export</span>
+        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.1em] px-1 opacity-70">Archive & Export</span>
         <div className="flex gap-2">
           <button
             onClick={handleDownloadPNG}
@@ -135,7 +135,7 @@ const ShareAction = (props) => {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--bg-secondary)] group-hover:bg-[var(--bg-primary)] transition-colors">
               {feedback === 'png' ? <Check size={16} className="text-green-500" /> : <Download size={16} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />}
             </div>
-            <span className="text-[10px] font-black uppercase text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] tracking-wider">
+            <span className="text-[10px] font-normal uppercase text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] tracking-wider">
               {feedback === 'png' ? 'Saved' : 'PNG Image'}
             </span>
           </button>
@@ -148,7 +148,7 @@ const ShareAction = (props) => {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--bg-secondary)] group-hover:bg-[var(--bg-primary)] transition-colors">
               {feedback === 'json' ? <Check size={16} className="text-green-500" /> : <FileJson size={16} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]" />}
             </div>
-            <span className="text-[10px] font-black uppercase text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] tracking-wider">
+            <span className="text-[10px] font-normal uppercase text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] tracking-wider">
               {feedback === 'json' ? 'Copied' : 'JSON Data'}
             </span>
           </button>

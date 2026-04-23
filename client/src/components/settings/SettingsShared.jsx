@@ -42,7 +42,7 @@ export const MODEL_LABELS = {
 
 export const SectionTitle = ({ children }) => (
   <h2 style={{
-    fontSize: '13px', fontWeight: 600, letterSpacing: '0.04em',
+    fontSize: '13px', fontWeight: 400, letterSpacing: '0.04em',
     color: 'var(--text-tertiary)', textTransform: 'uppercase',
     marginBottom: '8px', marginLeft: '16px',
     fontFamily: '"Geist", sans-serif',
@@ -53,9 +53,10 @@ export const SettingsGroup = ({ children }) => (
   <div className="settings-group" style={{
     background: 'var(--bg-secondary)',
     borderRadius: '16px',
-    marginBottom: '24px',
+    marginBottom: '40px',
     border: '1px solid var(--border-color)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+    padding: '4px 0',
   }}>
     <style>{`
       .settings-group > *:first-child { border-top-left-radius: 15px; border-top-right-radius: 15px; }
@@ -72,7 +73,7 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
       onClick={onClick || undefined}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 16px',
+        padding: '20px 24px',
         borderBottom: borderBottom ? '1px solid var(--border-color)' : 'none',
         background: 'transparent',
         cursor: isClickable ? 'pointer' : 'default',
@@ -94,7 +95,7 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
         )}
         <div style={{ flex: 1 }}>
           <div style={{
-            fontSize: '15px', fontWeight: 500,
+            fontSize: '15px', fontWeight: 400,
             color: danger ? '#ef4444' : 'var(--text-primary)',
             fontFamily: '"Geist", sans-serif',
           }}>{label}</div>
@@ -121,24 +122,43 @@ export const AppleToggle = ({ value, onChange }) => (
   <button
     onClick={() => onChange(!value)}
     style={{
-      width: '50px', height: '28px', borderRadius: '14px',
+      width: '54px', height: '32px', borderRadius: '16px',
       background: value ? '#34C759' : 'var(--bg-tertiary)',
-      border: `1.5px solid ${value ? '#34C759' : 'var(--border-color)'}`,
+      border: `1.5px solid ${value ? '#32b350' : 'var(--border-color)'}`,
       position: 'relative', cursor: 'pointer',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       flexShrink: 0,
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 2px',
+      boxSizing: 'border-box',
     }}
   >
     <motion.div
       initial={false}
-      animate={{ x: value ? 22 : 0.5 }}
-      transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+      animate={{ x: value ? 22 : 0 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       style={{
-        width: '24px', height: '24px', borderRadius: '50%',
-        background: '#fff', position: 'absolute', top: '0.5px',
-        boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+        width: '26px', height: '26px', borderRadius: '50%',
+        background: '#fff',
+        boxShadow: '0 3px 8px rgba(0,0,0,0.2)',
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
       }}
-    />
+    >
+      <AnimatePresence>
+        {value && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#fff', boxShadow: '0 0 4px rgba(0,0,0,0.2)' }}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
   </button>
 );
 
@@ -149,7 +169,7 @@ export const RightInlineInput = ({ value, onChange, placeholder, type = 'text', 
     style={{
       width, padding: '6px 12px', background: 'transparent', border: 'none',
       color: disabled ? 'var(--text-tertiary)' : 'var(--text-secondary)',
-      fontSize: '15px', fontWeight: 500, fontFamily: '"Geist", sans-serif',
+      fontSize: '15px', fontWeight: 400, fontFamily: '"Geist", sans-serif',
       outline: 'none', textAlign: 'right', cursor: disabled ? 'not-allowed' : 'text',
     }}
   />
@@ -183,7 +203,7 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
           border: `1px solid ${isOpen ? 'var(--text-tertiary)' : borderCol}`,
           borderRadius: styleContext === 'form' ? '12px' : '8px',
           color: styleContext === 'form' ? 'var(--text-primary)' : 'var(--text-secondary)',
-          fontSize: styleContext === 'form' ? '13px' : '14px', fontWeight: 500, cursor: 'pointer', outline: 'none',
+          fontSize: styleContext === 'form' ? '13px' : '14px', fontWeight: 400, cursor: 'pointer', outline: 'none',
           transition: 'all 0.2s', minWidth: '130px',
         }}
         onMouseEnter={e => e.currentTarget.style.backgroundColor = hoverBg}
@@ -239,7 +259,7 @@ export const ContextButton = ({ children, onClick, danger, icon: Icon }) => (
     style={{
       padding: '12px 16px', width: '100%', background: 'transparent',
       border: 'none', borderBottom: '1px solid var(--border-color)',
-      color: danger ? '#ef4444' : '#007AFF', fontSize: '15px', fontWeight: 500,
+      color: danger ? '#ef4444' : '#007AFF', fontSize: '15px', fontWeight: 400,
       cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
       transition: 'background 0.2s',
     }}
@@ -258,23 +278,23 @@ export const TrialSectionOverlay = ({ onUnlock }) => (
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     borderRadius: '16px', padding: '24px', textAlign: 'center'
   }}>
-    <div style={{
-      width: '48px', height: '48px', borderRadius: '16px',
-      background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px',
-      color: 'var(--text-secondary)'
-    }}>
-      <Lock style={{ width: '20px', height: '20px' }} />
-    </div>
-    <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Trial Mode Feature</h3>
-    <button
-      onClick={onUnlock}
-      style={{
-        padding: '10px 20px', borderRadius: '10px',
-        background: 'var(--text-primary)', color: 'var(--bg-primary)',
-        fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer',
-      }}
-    >Login to Unlock</button>
+      <div style={{
+        width: '48px', height: '48px', borderRadius: '16px',
+        background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px',
+        color: 'var(--text-secondary)'
+      }}>
+        <Lock style={{ width: '20px', height: '20px' }} />
+      </div>
+      <h3 style={{ fontSize: '18px', fontWeight: 400, color: 'var(--text-primary)', marginBottom: '8px' }}>Trial Mode Feature</h3>
+      <button
+        onClick={onUnlock}
+        style={{
+          padding: '10px 20px', borderRadius: '10px',
+          background: 'var(--text-primary)', color: 'var(--bg-primary)',
+          fontSize: '14px', fontWeight: 400, border: 'none', cursor: 'pointer',
+        }}
+      >Login to Unlock</button>
   </div>
 );
 
@@ -283,7 +303,7 @@ export const TrialBadge = () => (
     display: 'flex', alignItems: 'center', gap: '6px',
     padding: '4px 10px', borderRadius: '20px',
     background: 'linear-gradient(135deg, #FFD60A, #FF9500)',
-    color: '#000', fontSize: '11px', fontWeight: 700,
+    color: '#000', fontSize: '11px', fontWeight: 400,
     textTransform: 'uppercase', letterSpacing: '0.05em',
   }}>
     <Zap size={10} fill="#000" />
@@ -292,23 +312,39 @@ export const TrialBadge = () => (
 );
 
 export const DialogModal = ({ title, description, children, primaryAction, primaryLabel, primaryDanger, loading, onClose }) => (
-  <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)' }} onClick={!loading ? onClose : undefined} />
-    <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+  <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', isolation: 'isolate' }}>
+    <motion.div 
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+      style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }} 
+      onClick={!loading ? onClose : undefined} 
+    />
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.98, y: 10 }} 
+      animate={{ opacity: 1, scale: 1, y: 0 }} 
+      exit={{ opacity: 0, scale: 0.98, y: 10 }}
       style={{
-        background: 'var(--bg-primary)', borderRadius: '32px', width: '100%', maxWidth: '400px',
-        position: 'relative', zIndex: 1001, boxShadow: '0 32px 80px -16px rgba(0,0,0,0.3)',
-        border: '1px solid var(--border-color)', overflow: 'hidden'
+        background: 'var(--bg-primary)', 
+        borderRadius: '24px', 
+        width: '100%', 
+        maxWidth: '400px', 
+        padding: '32px', 
+        boxShadow: '0 20px 40px rgba(0,0,0,0.3)', 
+        border: '1px solid var(--border-color)',
+        position: 'relative',
+        zIndex: 1,
+        transform: 'translateZ(0)',
+        willChange: 'transform, opacity',
+        backfaceVisibility: 'hidden',
+        WebkitBackdropFilter: 'none', // Prevent inheritance of blur from overlay
+        WebkitFontSmoothing: 'antialiased'
       }}
     >
-      <div style={{ padding: '32px' }}>
-        <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 12px 0', textAlign: 'center' }}>{title}</h3>
-        {description && <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 24px 0', lineHeight: 1.6, textAlign: 'center' }}>{description}</p>}
-        {children && <div style={{ marginBottom: '24px' }}>{children}</div>}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={onClose} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '16px', background: 'var(--bg-tertiary)', border: 'none', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>Cancel</button>
-          <button onClick={primaryAction} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '16px', background: primaryDanger ? '#ef4444' : 'var(--text-primary)', color: primaryDanger ? '#fff' : 'var(--bg-primary)', fontSize: '12px', fontWeight: 900, border: 'none', cursor: loading ? 'not-allowed' : 'pointer' }}>{loading ? 'Processing...' : primaryLabel}</button>
-        </div>
+      <h2 style={{ fontSize: '20px', fontWeight: 400, color: 'var(--text-primary)', marginBottom: '8px' }}>{title}</h2>
+      {description && <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: 1.5 }}>{description}</p>}
+      {children && <div style={{ marginBottom: '24px' }}>{children}</div>}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button onClick={onClose} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '16px', background: 'var(--bg-tertiary)', border: 'none', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 400, cursor: loading ? 'not-allowed' : 'pointer' }}>Cancel</button>
+        <button onClick={primaryAction} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '16px', background: primaryDanger ? '#ef4444' : 'var(--text-primary)', color: primaryDanger ? '#fff' : 'var(--bg-primary)', fontSize: '12px', fontWeight: 400, border: 'none', cursor: loading ? 'not-allowed' : 'pointer' }}>{loading ? 'Processing...' : primaryLabel}</button>
       </div>
     </motion.div>
   </div>
@@ -329,7 +365,7 @@ export const useSettingsSync = () => {
           body: JSON.stringify({ settings: { [category]: newValues }, ...topLevel })
         });
       } catch (err) { console.error('Settings sync failed:', err); }
-    }, 1000);
+    }, 200);
   };
 
   return syncSettings;

@@ -26,7 +26,7 @@ const StepFilmstrip = ({ steps, currentStepIndex, goToStep }) => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               className={`
-                w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold transition-all duration-300
+                w-10 h-10 rounded-xl flex items-center justify-center text-xs font-normal transition-all duration-300
                 ${isCurrent 
                   ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] border-2 border-white' 
                   : isCompleted

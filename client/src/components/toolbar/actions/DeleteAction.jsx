@@ -65,8 +65,8 @@ const HoldToConfirmButton = ({ onConfirm }) => {
       </div>
 
       <div className="flex flex-col items-start leading-tight">
-        <span className="text-xs font-bold text-red-500">Board Reset</span>
-        <span className="text-[9px] text-red-400/70 uppercase font-black">
+        <span className="text-xs font-normal text-red-500">Board Reset</span>
+        <span className="text-[9px] text-red-400/70 uppercase font-normal">
           {isHolding ? 'Release to Cancel' : 'Hold to Confirm'}
         </span>
       </div>
@@ -97,7 +97,7 @@ const DeleteAction = (props) => {
     <div className="flex flex-col gap-4 p-4" style={{ minWidth: 260 }}>
       {/* Quick Purge */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.1em] px-1 opacity-70">Quick Purge</span>
+        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.1em] px-1 opacity-70">Quick Purge</span>
         <div className="flex flex-col gap-1">
           <button
             onClick={() => {
@@ -108,10 +108,10 @@ const DeleteAction = (props) => {
           >
             <div className="flex items-center gap-3">
               <Pencil size={15} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
-              <span className="text-xs font-semibold text-[var(--text-primary)]">Clean Drawings</span>
+              <span className="text-xs font-normal text-[var(--text-primary)]">Clean Drawings</span>
             </div>
             {successId === 'drawings' && (
-              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-black text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-normal text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
             )}
           </button>
           
@@ -124,10 +124,10 @@ const DeleteAction = (props) => {
           >
             <div className="flex items-center gap-3">
               <StickyNote size={15} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
-              <span className="text-xs font-semibold text-[var(--text-primary)]">Clear All Notes</span>
+              <span className="text-xs font-normal text-[var(--text-primary)]">Clear All Notes</span>
             </div>
             {successId === 'notes' && (
-              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-black text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-normal text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
             )}
           </button>
 
@@ -140,10 +140,10 @@ const DeleteAction = (props) => {
           >
             <div className="flex items-center gap-3">
               <Square size={15} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
-              <span className="text-xs font-semibold text-[var(--text-primary)]">Clean Geometry</span>
+              <span className="text-xs font-normal text-[var(--text-primary)]">Clean Geometry</span>
             </div>
             {successId === 'shapes' && (
-              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-black text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-normal text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
             )}
           </button>
         </div>
@@ -153,7 +153,7 @@ const DeleteAction = (props) => {
 
       {/* Full Reset with Hold-to-Confirm */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-red-500/60 uppercase tracking-[0.1em] px-1">Danger Zone</span>
+        <span className="text-[10px] font-normal text-red-500/60 uppercase tracking-[0.1em] px-1">Danger Zone</span>
         
         <div className="relative group">
           <HoldToConfirmButton onConfirm={() => {

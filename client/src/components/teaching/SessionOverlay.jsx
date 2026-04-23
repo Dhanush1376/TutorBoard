@@ -70,13 +70,13 @@ const SessionOverlay = ({
             </div>
 
             <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
+              <h3 className="text-lg font-normal text-[var(--text-primary)] mb-2">
                 Building your visual lesson
               </h3>
               <p className="text-sm text-[var(--text-secondary)]">
                 Creating an interactive animated explanation for
               </p>
-              <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">
+              <p className="text-sm font-normal text-[var(--text-primary)] mt-1">
                 "{topic}"
               </p>
             </div>
@@ -143,7 +143,7 @@ const SessionOverlay = ({
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-2xl font-bold text-white">Thinking about your question...</h3>
+              <h3 className="text-2xl font-normal text-white">Thinking about your question...</h3>
               
               {/* Floating question card */}
               <motion.div
@@ -152,8 +152,8 @@ const SessionOverlay = ({
                 transition={{ delay: 0.3 }}
                 className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl shadow-2xl"
               >
-                <p className="text-white/60 text-[10px] uppercase tracking-widest font-bold mb-2">Your Doubt</p>
-                <p className="text-white text-lg font-medium italic">
+                <p className="text-white/60 text-[10px] uppercase tracking-widest font-normal mb-2">Your Doubt</p>
+                <p className="text-white text-lg font-normal italic">
                   "{store.doubtHistory?.[store.doubtHistory.length - 1]?.question || 'Thinking...'}"
                 </p>
               </motion.div>
@@ -170,7 +170,7 @@ const SessionOverlay = ({
                   />
                 ))}
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">
+              <span className="text-[10px] font-normal uppercase tracking-[0.2em] text-white/40">
                 Professor is analyzing...
               </span>
             </div>
@@ -197,9 +197,9 @@ const SessionOverlay = ({
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">Lesson Prepared!</h3>
+              <h3 className="text-xl font-normal text-[var(--text-primary)] mb-2">Lesson Prepared!</h3>
               <p className="text-sm text-[var(--text-secondary)] mb-1">
-                A visual timeline for <strong>"{topic}"</strong> is now ready for exploration.
+                A visual timeline for <span>"{topic}"</span> is now ready for exploration.
               </p>
               <p className="text-[11px] text-[var(--text-tertiary)] italic">
                 {totalSteps} interactive steps generated
@@ -208,7 +208,7 @@ const SessionOverlay = ({
 
             <button
               onClick={() => store.setCanvasMode('FULLSCREEN')}
-              className="group flex items-center gap-3 px-8 py-4 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-2xl text-[14px] font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-2xl"
+              className="group flex items-center gap-3 px-8 py-4 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-2xl text-[14px] font-normal uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-2xl"
             >
               Start Discovery
               <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
@@ -250,7 +250,7 @@ const SessionOverlay = ({
               } />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">
+              <h3 className="text-lg font-normal text-[var(--text-primary)] mb-1">
                 {error?.toLowerCase().includes('busy') || error?.toLowerCase().includes('capacity')
                   ? 'Server Capacity Reached'
                   : 'Something went wrong'}
@@ -262,14 +262,14 @@ const SessionOverlay = ({
             <div className="flex gap-3">
               <button
                 onClick={onRetry}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-[12px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-[12px] font-normal uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all"
               >
                 <RotateCcw size={14} />
                 Retry
               </button>
               <button
                 onClick={onClose}
-                className="px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] rounded-xl text-[12px] font-bold uppercase tracking-wider hover:text-[var(--text-primary)] active:scale-95 transition-all"
+                className="px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] rounded-xl text-[12px] font-normal uppercase tracking-wider hover:text-[var(--text-primary)] active:scale-95 transition-all"
               >
                 Close
               </button>
@@ -303,24 +303,24 @@ const SessionOverlay = ({
             </motion.div>
 
             <div>
-              <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">
+              <h3 className="text-xl font-normal text-[var(--text-primary)] mb-2">
                 Lesson Complete!
               </h3>
               <p className="text-sm text-[var(--text-secondary)]">
-                You've explored <strong>"{topic}"</strong> through {totalSteps} visual steps
+                You've explored <span>"{topic}"</span> through {totalSteps} visual steps
               </p>
             </div>
 
             {/* Stats */}
             <div className="flex gap-8">
               <div className="text-center">
-                <div className="text-3xl font-bold text-[var(--text-primary)]">{totalSteps}</div>
-                <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold">Steps</div>
+                <div className="text-3xl font-normal text-[var(--text-primary)]">{totalSteps}</div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-normal">Steps</div>
               </div>
               <div className="w-px bg-[var(--border-color)]" />
               <div className="text-center">
-                <div className="text-3xl font-bold text-[var(--text-primary)]">{doubtHistory?.length || 0}</div>
-                <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold">Doubts</div>
+                <div className="text-3xl font-normal text-[var(--text-primary)]">{doubtHistory?.length || 0}</div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-normal">Doubts</div>
               </div>
             </div>
 
@@ -335,7 +335,7 @@ const SessionOverlay = ({
                   <RotateCcw size={16} className="text-blue-400" />
                 </div>
                 <div>
-                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">Replay</span>
+                  <span className="text-[12px] font-normal text-[var(--text-primary)] block">Replay</span>
                   <span className="text-[10px] text-[var(--text-tertiary)]">Watch again</span>
                 </div>
               </button>
@@ -349,7 +349,7 @@ const SessionOverlay = ({
                   <Rewind size={16} className="text-purple-400" />
                 </div>
                 <div>
-                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">Rewind</span>
+                  <span className="text-[12px] font-normal text-[var(--text-primary)] block">Rewind</span>
                   <span className="text-[10px] text-[var(--text-tertiary)]">Step by step</span>
                 </div>
               </button>
@@ -367,7 +367,7 @@ const SessionOverlay = ({
                   <MessageCircleQuestion size={16} className="text-emerald-400" />
                 </div>
                 <div>
-                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">Ask Doubt</span>
+                  <span className="text-[12px] font-normal text-[var(--text-primary)] block">Ask Doubt</span>
                   <span className="text-[10px] text-[var(--text-tertiary)]">Clarify concepts</span>
                 </div>
               </button>
@@ -381,7 +381,7 @@ const SessionOverlay = ({
                   <Sparkles size={16} className="text-amber-400" />
                 </div>
                 <div>
-                  <span className="text-[12px] font-bold text-[var(--text-primary)] block">New Topic</span>
+                  <span className="text-[12px] font-normal text-[var(--text-primary)] block">New Topic</span>
                   <span className="text-[10px] text-[var(--text-tertiary)]">Learn more</span>
                 </div>
               </button>

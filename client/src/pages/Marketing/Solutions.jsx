@@ -31,7 +31,7 @@ const Solutions = () => {
            initial={{ opacity: 0, x: -30 }}
            whileInView={{ opacity: 1, x: 0 }}
            viewport={{ once: true }}
-           style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 20, padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-color)' }}
+           style={{ display: 'inline-block', fontSize: 11, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 20, padding: '6px 16px', borderRadius: 99, border: '1px solid var(--border-color)' }}
         >
           Use Cases
         </motion.div>
@@ -65,8 +65,8 @@ const Solutions = () => {
           >
             <div style={{ position: 'absolute', top: 0, right: 0, width: 120, height: 120, background: 'var(--text-primary)', opacity: 0.02, borderRadius: '0 0 0 100%' }} />
             <div style={{ color: 'var(--text-primary)', marginBottom: 24, opacity: 0.7 }}>{sol.icon}</div>
-            <h3 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4, letterSpacing: '-0.3px' }}>{sol.title}</h3>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 16 }}>{sol.target}</div>
+            <h3 style={{ fontSize: 22, fontWeight: 400, color: 'var(--text-primary)', marginBottom: 4, letterSpacing: '-0.3px' }}>{sol.title}</h3>
+            <div style={{ fontSize: 11, fontWeight: 400, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 16 }}>{sol.target}</div>
             <p style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--text-secondary)', margin: 0 }}>
               {sol.description}
             </p>

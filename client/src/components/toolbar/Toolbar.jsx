@@ -75,7 +75,7 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
 
         <div className="rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--border-color)] mb-1">
-            <p className="text-[12px] font-bold text-[var(--text-primary)]">{user?.name || (user?.isGuest ? 'Guest' : 'Account')}</p>
+            <p className="text-[12px] font-normal text-[var(--text-primary)]">{user?.name || (user?.isGuest ? 'Guest' : 'Account')}</p>
             <p className="text-[10px] text-[var(--text-tertiary)]">{user?.email || 'Not signed in'}</p>
           </div>
           
@@ -86,7 +86,7 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
             <button
               key={i}
               onClick={item.onClick}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[11px] font-medium transition-colors hover:bg-[var(--bg-secondary)]"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[11px] font-normal transition-colors hover:bg-[var(--bg-secondary)]"
               style={{ color: item.destructive ? 'rgb(239,68,68)' : 'var(--text-secondary)' }}
             >
               <item.icon size={14} />
@@ -232,7 +232,7 @@ const Toolbar = ({ onSettingsClick }) => {
               setIsHovered(false);
               setHoveredId(null);
             }}
-            className="relative w-[32px] h-[32px] rounded-full flex items-center justify-center font-bold text-[11px] outline-none"
+            className="relative w-[32px] h-[32px] rounded-full flex items-center justify-center font-normal text-[11px] outline-none"
           >
             {(isHovered) && !isProfileOpen && (
               <motion.div

@@ -225,7 +225,7 @@ export async function executeProviderRequest(client, provider, { model, messages
 
   // Standard OpenAI-compatible path
   const completionParams = {
-    model,
+    model: (provider === 'google' && !model.startsWith('models/')) ? `models/${model}` : model,
     messages,
     temperature: temperature ?? 0.1,
     max_tokens: maxTokens ?? 1000,
@@ -234,39 +234,47 @@ export async function executeProviderRequest(client, provider, { model, messages
     stream: !!onStream,
   };
 
-  const completion = await client.chat.completions.create(completionParams, signal ? { signal } : undefined);
+  try {
+    const completion = await client.chat.completions.create(completionParams, signal ? { signal } : undefined);
 
-  let finalContent = '';
-  let msg, usage, finishReason = 'stop';
-  let tool_calls = null;
+    let finalContent = '';
+    let msg, usage, finishReason = 'stop';
+    let tool_calls = null;
 
-  if (onStream) {
-    for await (const chunk of completion) {
-      const token = chunk.choices?.[0]?.delta?.content || "";
-      if (token) {
-        finalContent += token;
-        onStream(token);
+    if (onStream) {
+      for await (const chunk of completion) {
+        const token = chunk.choices?.[0]?.delta?.content || "";
+        if (token) {
+          finalContent += token;
+          onStream(token);
+        }
+        if (chunk.choices?.[0]?.finish_reason) {
+            finishReason = chunk.choices[0].finish_reason;
+        }
+        if (chunk.usage) usage = chunk.usage;
       }
-      if (chunk.choices?.[0]?.finish_reason) {
-          finishReason = chunk.choices[0].finish_reason;
-      }
-      // Grab usage if it arrives in the final chunk
-      if (chunk.usage) usage = chunk.usage;
+      msg = { content: finalContent };
+    } else {
+      msg = completion.choices?.[0]?.message;
+      usage = completion.usage || null;
+      finalContent = msg?.content || '';
+      finishReason = completion.choices?.[0]?.finish_reason || 'stop';
+      tool_calls = msg?.tool_calls || null;
     }
-    msg = { content: finalContent };
-  } else {
-    msg = completion.choices?.[0]?.message;
-    usage = completion.usage || null;
-    finalContent = msg?.content || '';
-    finishReason = completion.choices?.[0]?.finish_reason || 'stop';
-    tool_calls = msg?.tool_calls || null;
-  }
 
-  return {
-    content: finalContent,
-    finishReason: finishReason,
-    provider,
-    usage: usage,
-    tool_calls: tool_calls,
-  };
+    if (!finalContent && !tool_calls) {
+      console.warn(`[AI:${provider}] ⚠️ Received empty response from model ${completionParams.model}. Finish Reason: ${finishReason}`);
+    }
+
+    return {
+      content: finalContent,
+      finishReason: finishReason,
+      provider,
+      usage: usage,
+      tool_calls: tool_calls,
+    };
+  } catch (err) {
+    console.error(`[AI:${provider}] ❌ Request failed for model ${completionParams.model}: ${err.message}`);
+    throw err;
+  }
 }

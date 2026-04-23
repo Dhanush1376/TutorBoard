@@ -17,19 +17,21 @@ const AuthLanding = () => {
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Redirect if already authenticated — trigger transition if on root
+  // Redirect if already authenticated — differentiated flow for returning vs new
   useEffect(() => {
     if (isAuthenticated && !isSuccess && !loading) {
-      // If we just landed on Auth and are authenticated, show the cinematic transition first
-      // instead of a jump-cut to the dashboard.
-      setIsSuccess(true);
-      // We also mark this as a "login" phase transition in the props
-      setIsLogin(true);
-      try {
-        sessionStorage.setItem('tb-welcome-played', 'true');
-      } catch (e) { /* ignore */ }
+      // SEC-25: Check if we should show the cinematic transition (e.g. just logged in)
+      const justLoggedIn = sessionStorage.getItem('tb-just-logged-in') === 'true';
+      if (justLoggedIn) {
+        setIsSuccess(true);
+        sessionStorage.removeItem('tb-just-logged-in'); // Consume the flag
+        return;
+      }
+
+      // RETURNING USER (Already logged in previously): Skip the cinematic transition for speed
+      navigate('/dashboard', { replace: true });
     }
-  }, [isAuthenticated, isSuccess, loading]);
+  }, [isAuthenticated, isSuccess, loading, navigate]);
 
   // Advanced Demo State
   const [activeTopicIndex, setActiveTopicIndex] = useState(0);
@@ -110,6 +112,7 @@ const AuthLanding = () => {
       }
       
       // Trigger cinematic transition instead of immediate navigate
+      sessionStorage.setItem('tb-just-logged-in', 'true');
       setIsSuccess(true);
       setLoading(false);
       try {
@@ -155,7 +158,7 @@ const AuthLanding = () => {
             <h1 className="text-[20px] leading-[1.1] font-serif mb-2 text-[var(--text-primary)] tracking-tight">
               {isLogin ? 'Sign in to account' : 'Create an account'}
             </h1>
-            <p className="text-[var(--text-secondary)] text-[13px] font-medium opacity-80">
+            <p className="text-[var(--text-secondary)] text-[13px] font-normal opacity-80">
               {isLogin ? 'Welcome back, please enter your details.' : 'Enter your details to get started.'}
             </p>
           </div>
@@ -166,7 +169,7 @@ const AuthLanding = () => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[13px] font-medium flex items-center gap-2"
+                className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[13px] font-normal flex items-center gap-2"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -185,7 +188,7 @@ const AuthLanding = () => {
                   exit={{ opacity: 0, height: 0 }}
                   className="flex flex-col gap-1.5 overflow-hidden"
                 >
-                  <label className="text-[8px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Full Name</label>
+                  <label className="text-[8px] font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Full Name</label>
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                     <input
@@ -193,7 +196,7 @@ const AuthLanding = () => {
                       placeholder="Your full name"
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-medium"
+                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
                       disabled={loading}
                     />
                   </div>
@@ -202,7 +205,7 @@ const AuthLanding = () => {
             </AnimatePresence>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[8px] font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Email Address</label>
+              <label className="text-[8px] font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Email Address</label>
               <div className="relative group">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                 <input
@@ -210,7 +213,7 @@ const AuthLanding = () => {
                   placeholder="name@company.com"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-medium"
+                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
                   disabled={loading}
                 />
               </div>
@@ -218,9 +221,9 @@ const AuthLanding = () => {
 
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between items-center px-1 text-[8px]">
-                <label className="font-bold uppercase tracking-[0.1em] text-[var(--text-tertiary)]">Password</label>
+                <label className="font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)]">Password</label>
                 {isLogin && (
-                  <button type="button" className="font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+                  <button type="button" className="font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                     Forgot password?
                   </button>
                 )}
@@ -232,7 +235,7 @@ const AuthLanding = () => {
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-medium"
+                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
                   disabled={loading}
                 />
               </div>
@@ -241,7 +244,7 @@ const AuthLanding = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] text-[var(--bg-primary)] rounded-xl py-2.5 px-4 font-bold text-[12px] hover:opacity-95 shadow-xl shadow-[var(--border-color)] active:scale-[0.98] transition-all mt-1 flex justify-center items-center gap-2 group border border-white/5"
+              className="w-full bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] text-[var(--bg-primary)] rounded-xl py-2.5 px-4 font-normal text-[12px] hover:opacity-95 shadow-xl shadow-[var(--border-color)] active:scale-[0.98] transition-all mt-1 flex justify-center items-center gap-2 group border border-white/5"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-current/20 border-t-current rounded-full animate-spin"></div>
@@ -256,7 +259,7 @@ const AuthLanding = () => {
 
           <div className="flex items-center gap-4 my-5">
             <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
-            <span className="text-[var(--text-tertiary)] text-[8px] font-bold tracking-[0.2em] uppercase">Or continue with</span>
+            <span className="text-[var(--text-tertiary)] text-[8px] font-normal tracking-[0.2em] uppercase">Or continue with</span>
             <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
           </div>
 
@@ -264,7 +267,7 @@ const AuthLanding = () => {
             <button 
               type="button" 
               onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth/google`}
-              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-bold text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all active:scale-95 shadow-sm"
+              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-normal text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all active:scale-95 shadow-sm"
             >
               <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-4 h-4" alt="Google" />
               Google
@@ -272,7 +275,7 @@ const AuthLanding = () => {
             <button 
               type="button" 
               onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth/github`}
-              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-bold text-white bg-[#0d1117] border border-white/10 hover:bg-[#161b22] hover:border-white/20 transition-all active:scale-95 shadow-lg"
+              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-normal text-white bg-[#0d1117] border border-white/10 hover:bg-[#161b22] hover:border-white/20 transition-all active:scale-95 shadow-lg"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
               GitHub
@@ -283,7 +286,7 @@ const AuthLanding = () => {
             <button
               type="button"
               onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              className="text-[13px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
             </button>
@@ -292,12 +295,13 @@ const AuthLanding = () => {
               type="button"
               onClick={() => {
                 loginGuest();
+                sessionStorage.setItem('tb-just-logged-in', 'true');
                 setIsSuccess(true);
                 try {
                   sessionStorage.setItem('tb-welcome-played', 'true');
                 } catch (e) { /* ignore */ }
               }}
-              className="text-[12px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic"
+              className="text-[12px] font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic"
             >
               Skip and try as guest <Sparkles className="w-3 h-3" />
             </button>
@@ -317,13 +321,13 @@ const AuthLanding = () => {
         <nav className="hidden lg:flex items-center justify-between w-full px-12 py-8 relative z-20 shrink-0">
           <div className="flex items-center gap-2">
             <VisaiLogo size="md" className="text-[var(--text-primary)]" />
-            <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--text-primary)]">
+            <span className="text-[12px] font-normal uppercase tracking-wider text-[var(--text-primary)]">
               TutorBoard
             </span>
           </div>
 
           <div className="flex items-center gap-8">
-            <div className="flex items-center gap-7 text-[12px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+            <div className="flex items-center gap-7 text-[12px] font-normal uppercase tracking-wider text-[var(--text-secondary)]">
                <Link to="/how-it-works" className="hover:text-[var(--text-primary)] transition-colors">How it works</Link>
                <Link to="/features" className="hover:text-[var(--text-primary)] transition-colors">Features</Link>
                <Link to="/solutions" className="hover:text-[var(--text-primary)] transition-colors">Solutions</Link>
@@ -339,13 +343,13 @@ const AuthLanding = () => {
                   className="flex items-center gap-6"
                 >
                   {!user?.isGuest && (
-                    <button className="text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5">
+                    <button className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5">
                       <User size={14} /> Profile
                     </button>
                   )}
                   <button 
                     onClick={() => navigate('/dashboard')}
-                    className="text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
+                    className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
                   >
                     Dashboard <ArrowRight className="w-3 h-3 opacity-50" />
                   </button>
@@ -359,7 +363,7 @@ const AuthLanding = () => {
                     loginGuest();
                     navigate('/dashboard');
                   }}
-                  className="text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
+                  className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
                 >
                   Try TutorBoard <ArrowRight className="w-3 h-3 opacity-50" />
                 </motion.button>
@@ -384,7 +388,7 @@ const AuthLanding = () => {
                 <div className="w-11 h-11 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center shadow-sm">
                    {currentTopic.icon}
                 </div>
-                <div className="px-3.5 py-1.5 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
+                <div className="px-3.5 py-1.5 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[10px] font-normal uppercase tracking-widest text-[var(--text-secondary)]">
                   {currentTopic.subject}
                 </div>
               </div>
@@ -396,7 +400,7 @@ const AuthLanding = () => {
                 {currentTopic.visualization === 'math' && "Visualize calculations with geometric clarity."}
               </h2>
               
-              <p className="text-[var(--text-secondary)] text-[15px] leading-[1.5] mb-8 font-medium max-w-[95%] shrink-0 opacity-80">
+              <p className="text-[var(--text-secondary)] text-[15px] leading-[1.5] mb-8 font-normal max-w-[95%] shrink-0 opacity-80">
                 {currentTopic.visualization === 'bst' && "TutorBoard is your personal learning canvas. Join a community of learners pushing boundaries."}
                 {currentTopic.visualization === 'cell' && "Internal structures aren't just diagrams anymore. Experience them in 3D-like clarity."}
                 {currentTopic.visualization === 'orbit' && "From planetary orbits to atomic systems, visualize the invisible patterns of reality."}
@@ -415,7 +419,7 @@ const AuthLanding = () => {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95 }}
-                          className="self-end bg-[var(--text-primary)] text-[var(--bg-primary)] px-4 py-2.5 rounded-2xl rounded-tr-none text-[13px] font-medium shadow-sm max-w-[80%]"
+                          className="self-end bg-[var(--text-primary)] text-[var(--bg-primary)] px-4 py-2.5 rounded-2xl rounded-tr-none text-[13px] font-normal shadow-sm max-w-[80%]"
                         >
                           {currentTopic.question}
                         </motion.div>
@@ -434,7 +438,7 @@ const AuthLanding = () => {
                                 <Sparkles className="w-3 h-3 text-[var(--text-primary)]" />
                              </motion.div>
                           </div>
-                          <span className="text-[12px] font-bold text-[var(--text-secondary)] tracking-wide italic">Generating visual...</span>
+                          <span className="text-[12px] font-normal text-[var(--text-secondary)] tracking-wide italic">Generating visual...</span>
                         </motion.div>
                       )}
 
@@ -448,7 +452,7 @@ const AuthLanding = () => {
                            {/* BST VISUALIZATION */}
                            {currentTopic.visualization === 'bst' && (
                              <div className="flex flex-col items-center gap-3">
-                                <div className="w-9 h-9 rounded-full border-2 border-[var(--text-primary)]/20 flex items-center justify-center font-bold text-[var(--text-primary)] bg-[var(--bg-primary)] text-[13px] shadow-sm">8</div>
+                                <div className="w-9 h-9 rounded-full border-2 border-[var(--text-primary)]/20 flex items-center justify-center font-normal text-[var(--text-primary)] bg-[var(--bg-primary)] text-[13px] shadow-sm">8</div>
                                 <div className="flex justify-between w-28 px-4 opacity-10">
                                    <div className="h-6 w-[1.5px] bg-[var(--text-primary)] rotate-[35deg]" />
                                    <div className="h-6 w-[1.5px] bg-[var(--text-primary)] -rotate-[35deg]" />
@@ -502,7 +506,7 @@ const AuthLanding = () => {
                              </div>
                            )}
 
-                           <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] bg-[var(--bg-tertiary)] px-3 py-1 rounded-full border border-[var(--border-color)] mt-2">
+                           <div className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] bg-[var(--bg-tertiary)] px-3 py-1 rounded-full border border-[var(--border-color)] mt-2">
                              Visual Understanding
                            </div>
                         </motion.div>
@@ -518,7 +522,7 @@ const AuthLanding = () => {
                     </div>
                     <div className="flex items-center gap-2">
                        <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)] animate-pulse" />
-                       <span className="text-[9px] font-bold uppercase tracking-tighter text-[var(--text-tertiary)]">Powered by TutorBoard AI</span>
+                       <span className="text-[9px] font-normal uppercase tracking-tighter text-[var(--text-tertiary)]">Powered by TutorBoard AI</span>
                     </div>
                   </div>
               </div>
@@ -526,7 +530,7 @@ const AuthLanding = () => {
           </AnimatePresence>
         </div>
 
-            <div className="p-8 mt-auto text-[var(--text-primary)] opacity-20 text-[9px] uppercase font-bold tracking-[0.4em] shrink-0 text-center">
+            <div className="p-8 mt-auto text-[var(--text-primary)] opacity-20 text-[9px] uppercase font-normal tracking-[0.4em] shrink-0 text-center">
               Across every subject · Experience the Future
             </div>
           </div>

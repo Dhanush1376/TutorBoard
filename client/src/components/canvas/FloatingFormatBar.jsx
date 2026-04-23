@@ -72,7 +72,7 @@ export default function FloatingFormatBar({ element, updateCanvasObject, rotatio
             <select 
               value={styles.fontFamily || element.fontFamily || FONTS[0].id}
               onChange={(e) => handleStyleUpdate({ fontFamily: e.target.value })}
-              className="appearance-none bg-transparent text-[11px] font-semibold text-[var(--text-primary)] pl-2 pr-6 h-7 cursor-pointer outline-none hover:bg-white/5 rounded-md transition"
+              className="appearance-none bg-transparent text-[11px] font-normal text-[var(--text-primary)] pl-2 pr-6 h-7 cursor-pointer outline-none hover:bg-white/5 rounded-md transition"
             >
               {FONTS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
             </select>
@@ -85,7 +85,7 @@ export default function FloatingFormatBar({ element, updateCanvasObject, rotatio
             <select 
               value={styles.fontSize || element.fontSize || 16}
               onChange={(e) => handleStyleUpdate({ fontSize: Number(e.target.value) })}
-              className="appearance-none bg-transparent text-[11px] font-semibold text-[var(--text-primary)] pl-2 pr-6 h-7 cursor-pointer outline-none hover:bg-white/5 rounded-md transition"
+              className="appearance-none bg-transparent text-[11px] font-normal text-[var(--text-primary)] pl-2 pr-6 h-7 cursor-pointer outline-none hover:bg-white/5 rounded-md transition"
             >
               {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
