@@ -15,7 +15,7 @@ const usageLogSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['openrouter', 'openai', 'deepseek', 'google', 'anthropic', 'custom'],
+    enum: ['openrouter', 'openai', 'deepseek', 'google', 'anthropic', 'groq', 'custom'],
     required: true,
   },
   model: {

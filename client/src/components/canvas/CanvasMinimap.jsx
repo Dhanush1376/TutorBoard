@@ -19,9 +19,12 @@ const CanvasMinimap = ({
   transform, 
   containerWidth = 1200,
   containerHeight = 800,
-  onNavigate
+  onNavigate,
+  layoutView = 'right',
 }) => {
   const minimapRef = useRef(null);
+  const isDragging = useRef(false);
+  const isLeftHand = layoutView === 'left';
   
   // Guard against null transform (Bug 52 Fix)
   if (!transform) return null;
@@ -31,19 +34,22 @@ const CanvasMinimap = ({
   const scale = Math.min(scaleX, scaleY);
 
   // Viewport rectangle in minimap coordinates
+  // world viewport = containerSize / transform.scale
+  // minimap viewport = world viewport * scale
   const vpWidth = (containerWidth / transform.scale) * scale;
   const vpHeight = (containerHeight / transform.scale) * scale;
   const vpX = (-transform.x / transform.scale) * scale;
   const vpY = (-transform.y / transform.scale) * scale;
 
-  const handleClick = useCallback((e) => {
+  const navigateTo = useCallback((clientX, clientY) => {
     const rect = minimapRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
+    const clickX = clientX - rect.left;
+    const clickY = clientY - rect.top;
 
     // Convert minimap coords to canvas coords
+    // We want the CLICK position to be the CENTER of the new viewport
     const canvasX = clickX / scale;
     const canvasY = clickY / scale;
 
@@ -52,20 +58,38 @@ const CanvasMinimap = ({
     }
   }, [scale, onNavigate]);
 
+  const handlePointerDown = (e) => {
+    isDragging.current = true;
+    navigateTo(e.clientX, e.clientY);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging.current) return;
+    navigateTo(e.clientX, e.clientY);
+  };
+
+  const handlePointerUp = (e) => {
+    isDragging.current = false;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.8, x: 20 }}
-          animate={{ opacity: 1, scale: 1, x: 0 }}
-          exit={{ opacity: 0, scale: 0.8, x: 20 }}
+          initial={{ opacity: 0, scale: 0.8, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: 20 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="absolute top-6 right-6 z-50"
+          className={`absolute bottom-24 ${isLeftHand ? 'right-6' : 'left-6'} z-50`}
         >
           <div
             ref={minimapRef}
-            onClick={handleClick}
-            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl overflow-hidden shadow-2xl cursor-crosshair"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl overflow-hidden shadow-2xl cursor-crosshair touch-none select-none"
             style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
           >
             {/* Mini scene */}
@@ -73,7 +97,7 @@ const CanvasMinimap = ({
               width={MINIMAP_WIDTH} 
               height={MINIMAP_HEIGHT} 
               viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-              className="w-full h-full"
+              className="w-full h-full pointer-events-none"
             >
               {/* Background */}
               <rect width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="transparent" />
@@ -104,16 +128,20 @@ const CanvasMinimap = ({
                 );
               })}
 
-              {/* Viewport rectangle */}
+              {/* Viewport rectangle with glow and high contrast border */}
               <rect
                 x={vpX}
                 y={vpY}
-                width={Math.max(vpWidth, 20)}
-                height={Math.max(vpHeight, 15)}
-                fill="rgba(255,255,255,0.08)"
-                stroke="rgba(255,255,255,0.4)"
-                strokeWidth={3}
-                rx={4}
+                width={Math.max(vpWidth, 10)}
+                height={Math.max(vpHeight, 8)}
+                fill="rgba(255,255,255,0.04)"
+                stroke="var(--text-primary)"
+                strokeWidth={1.5}
+                rx={2}
+                style={{ 
+                  filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.2))',
+                  transition: isDragging.current ? 'none' : 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
               />
             </svg>
 

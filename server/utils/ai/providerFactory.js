@@ -8,7 +8,7 @@
 import OpenAI from 'openai';
 
 // ── Provider endpoint configurations ──────────────────────────────────────────
-const PROVIDER_CONFIG = {
+export const PROVIDER_CONFIG = {
   openai: {
     baseURL: 'https://api.openai.com/v1',
     headerKey: 'Authorization',
@@ -44,6 +44,56 @@ const PROVIDER_CONFIG = {
       'X-Title': 'TutorBoard',
     },
   },
+  mistral: {
+    baseURL: 'https://api.mistral.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  cohere: {
+    baseURL: 'https://api.cohere.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  together: {
+    baseURL: 'https://api.together.xyz/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  perplexity: {
+    baseURL: 'https://api.perplexity.ai',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  xai: {
+    baseURL: 'https://api.x.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  fireworks: {
+    baseURL: 'https://api.fireworks.ai/inference/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  anyscale: {
+    baseURL: 'https://api.endpoints.anyscale.com/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  nvidia: {
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  ai21: {
+    baseURL: 'https://api.ai21.com/studio/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  deepinfra: {
+    baseURL: 'https://api.deepinfra.com/v1/openai',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
 };
 
 // ── Versioned Pricing Engine ──────────────────────────────────────────────────
@@ -76,6 +126,16 @@ const PRICING_CONFIG = {
     'anthropic/claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00, provider: 'openrouter' },
     'anthropic/claude-3.5-sonnet':          { input: 3.00, output: 15.00, provider: 'openrouter' },
     'anthropic/claude-opus-4-5':            { input: 15.00, output: 75.00, provider: 'openrouter' },
+    'google/gemini-2.0-flash-001':          { input: 0.10, output: 0.40,  provider: 'openrouter' },
+    'deepseek/deepseek-r1':                 { input: 0.55, output: 2.19,  provider: 'openrouter' },
+    'openai/gpt-4o-mini':                   { input: 0.15, output: 0.60,  provider: 'openrouter' },
+    'meta-llama/llama-3.3-70b-instruct':    { input: 0.59, output: 0.79,  provider: 'openrouter' },
+
+    // Groq
+    'llama-3.3-70b-versatile':    { input: 0.59,  output: 0.79,  provider: 'groq' },
+    'llama-3.1-8b-instant':       { input: 0.05,  output: 0.08,  provider: 'groq' },
+    'mixtral-8x7b-32768':         { input: 0.24,  output: 0.24,  provider: 'groq' },
+    'gemma2-9b-it':               { input: 0.20,  output: 0.20,  provider: 'groq' },
   },
 };
 
@@ -127,12 +187,27 @@ export function estimateCost(provider, model, promptTokens, completionTokens) {
  * @returns {OpenAI} OpenAI SDK client instance
  */
 export function createProviderClient(provider, apiKey, customBaseUrl) {
+  if (!apiKey) {
+    throw new Error(`CRITICAL: No API key provided for custom ${provider} path. Isolation firewall blocked fallback to system environment.`);
+  }
+
   const config = PROVIDER_CONFIG[provider];
 
   if (provider === 'custom') {
+    // BUG FIX: The OpenAI SDK appends /chat/completions automatically.
+    // If the user pasted the full endpoint URL (ending with /chat/completions),
+    // strip it so the SDK doesn't double-append it and get a 404.
+    let baseURL = (customBaseUrl || 'http://localhost:11434/v1')
+      .replace(/\/+$/, '')                           // strip trailing slashes
+      .replace(/\/chat\/completions$/i, '')          // strip /chat/completions suffix
+      .replace(/\/completions$/i, '');               // strip /completions suffix (bare)
+    
+    // Also normalise: if they pasted just the v1 base, keep it as-is
+    console.log(`[ProviderFactory:Custom] Normalized baseURL: ${baseURL}`);
+    
     return new OpenAI({
       apiKey,
-      baseURL: customBaseUrl?.replace(/\/+$/, '') || 'http://localhost:11434/v1',
+      baseURL,
     });
   }
 
@@ -298,17 +373,20 @@ export async function executeProviderRequest(client, provider, { model, messages
   let effectiveMessages = messages;
   let effectiveResponseFormat = response_format;
 
-  const stripJsonFormat = ['google', 'groq', 'deepseek'].includes(provider);
-  if (stripJsonFormat && response_format?.type === 'json_object') {
+  // FIX: Strip response_format for providers that return empty content when they receive it.
+  // 'custom' added — Groq/Ollama/LMStudio/etc silently return empty on json_object or json_schema.
+  // Replace with a system-prompt JSON instruction that every provider understands.
+  const stripJsonFormat = ['google', 'groq', 'deepseek', 'custom'].includes(provider);
+  if (stripJsonFormat && response_format) {
     effectiveResponseFormat = undefined;
-    // Inject JSON instruction into system message
-    effectiveMessages = messages.map(m => {
-      if (m.role === 'system') {
-        return { ...m, content: m.content + '\n\nIMPORTANT: You MUST respond with valid JSON only. No markdown, no explanation, just raw JSON.' };
-      }
-      return m;
-    });
-    console.log(`[AI:${provider}] Stripped response_format for compatibility, injected JSON instruction.`);
+    const jsonInstruction = 'CRITICAL: Respond with valid JSON only. No markdown fences, no explanation — raw JSON.';
+    const hasSystem = effectiveMessages.some(m => m.role === 'system');
+    effectiveMessages = hasSystem
+      ? effectiveMessages.map(m => m.role === 'system'
+          ? { ...m, content: m.content + '\n\n' + jsonInstruction }
+          : m)
+      : [{ role: 'system', content: jsonInstruction }, ...effectiveMessages];
+    console.log('[AI:' + provider + '] Stripped response_format (' + (response_format && response_format.type) + ') — injected JSON instruction.');
   }
 
   const completionParams = {
@@ -342,25 +420,36 @@ export async function executeProviderRequest(client, provider, { model, messages
       }
       msg = { content: finalContent };
     } else {
-      // ── DIAGNOSTIC: Log raw completion for debugging empty responses ──
-      console.log(`[AI:${provider}] Raw completion keys: ${Object.keys(completion || {}).join(', ')}`);
-      console.log(`[AI:${provider}] Choices count: ${completion.choices?.length || 0}`);
-      if (completion.choices?.[0]) {
-        const choice = completion.choices[0];
-        console.log(`[AI:${provider}] Choice[0] keys: ${Object.keys(choice).join(', ')}`);
-        console.log(`[AI:${provider}] Message keys: ${Object.keys(choice.message || {}).join(', ')}`);
-        console.log(`[AI:${provider}] Content type: ${typeof choice.message?.content}, length: ${(choice.message?.content || '').length}`);
-        console.log(`[AI:${provider}] Content preview: ${(choice.message?.content || '(null)').substring(0, 200)}`);
-        console.log(`[AI:${provider}] Finish reason: ${choice.finish_reason}`);
-      } else {
-        console.warn(`[AI:${provider}] ⚠️ No choices in completion! Full response: ${JSON.stringify(completion).substring(0, 500)}`);
-      }
+      // ── DIAGNOSTIC: Log full raw completion for debugging ──
+      console.log(`[AI:${provider}] RAW RESPONSE:`, JSON.stringify(completion, null, 2));
       
-      msg = completion.choices?.[0]?.message;
-      usage = completion.usage || null;
-      finalContent = msg?.content || '';
-      finishReason = completion.choices?.[0]?.finish_reason || 'stop';
-      tool_calls = msg?.tool_calls || null;
+      // Robust Normalization Layer
+      // 1. Standard OpenAI / Groq / OpenRouter / DeepSeek
+      if (completion?.choices?.[0]?.message) {
+        msg = completion.choices[0].message;
+        finalContent = msg.content || '';
+        tool_calls = msg.tool_calls || null;
+        finishReason = completion.choices[0].finish_reason || 'stop';
+      }
+      // 2. Google Gemini Native (if somehow accessed outside OpenAI shim)
+      else if (completion?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        finalContent = completion.candidates[0].content.parts[0].text;
+        finishReason = completion.candidates[0].finishReason || 'stop';
+      }
+      // 3. Anthropic Native (if called via this shim)
+      else if (completion?.content?.[0]?.text) {
+        finalContent = completion.content[0].text;
+        finishReason = completion.stop_reason || 'stop';
+      }
+      // 4. Fallback for bare text responses (some local models)
+      else if (typeof completion === 'string') {
+        finalContent = completion;
+      }
+      else if (completion?.text) {
+        finalContent = completion.text;
+      }
+
+      usage = completion?.usage || null;
     }
 
     if (!finalContent && !tool_calls) {

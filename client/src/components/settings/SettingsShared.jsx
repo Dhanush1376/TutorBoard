@@ -4,7 +4,7 @@ import {
   ChevronRight, Check, Zap, Lock, 
   User, Shield, Palette, Key, Eye, Info 
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -13,40 +13,8 @@ export const SECTIONS = [
   { id: 'account', label: 'Account', icon: Shield },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'ai', label: 'API Configuration', icon: Key },
-  { id: 'privacy', label: 'Storage', icon: Eye },
   { id: 'about', label: 'About', icon: Info },
 ];
-
-export const PROVIDER_INFO = {
-  openai: { name: 'OpenAI', color: '#10a37f', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o3-mini'] },
-  deepseek: { name: 'DeepSeek', color: '#4d6cfa', models: ['deepseek-chat', 'deepseek-reasoner'] },
-  google: { name: 'Google Gemini', color: '#4285f4', models: ['gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'] },
-  anthropic: { name: 'Anthropic', color: '#d97757', models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'] },
-  groq: { name: 'Groq', color: '#f55036', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'] },
-  openrouter: { name: 'OpenRouter', color: '#6d28d9', models: ['anthropic/claude-3.5-sonnet', 'google/gemini-2.0-flash-001', 'deepseek/deepseek-r1'] },
-  custom: { name: 'Custom API', color: '#8b5cf6', models: [] },
-};
-
-export const MODEL_LABELS = {
-  'gpt-4o': 'GPT-4o',
-  'gpt-4o-mini': 'GPT-4o Mini',
-  'gpt-4-turbo': 'GPT-4 Turbo',
-  'o3-mini': 'o3-mini (Reasoning)',
-  'deepseek-chat': 'DeepSeek V3',
-  'deepseek-reasoner': 'DeepSeek R1 (Reasoning)',
-  'gemini-1.5-pro': 'Gemini 1.5 Pro',
-  'gemini-2.0-flash': 'Gemini 2.0 Flash',
-  'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite',
-  'claude-sonnet-4-20250514': 'Claude Sonnet 4',
-  'claude-3-5-haiku-20241022': 'Claude 3.5 Haiku',
-  'claude-3-haiku-20240307': 'Claude 3 Haiku',
-  'anthropic/claude-3.5-sonnet': 'Claude 3.5 Sonnet (OR)',
-  'google/gemini-2.0-flash-001': 'Gemini 2.0 Flash (OR)',
-  'deepseek/deepseek-r1': 'DeepSeek R1 (OR)',
-  'llama-3.3-70b-versatile': 'Llama 3.3 70B (Groq)',
-  'llama-3.1-8b-instant': 'Llama 3.1 8B (Groq)',
-  'mixtral-8x7b-32768': 'Mixtral 8x7B (Groq)',
-};
 
 export const SectionTitle = ({ children }) => (
   <h2 style={{
@@ -260,6 +228,29 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
 export const RightInlineSelect = (props) => (
   <PremiumDropdown {...props} align="right" styleContext="inline" />
 );
+
+export const StatusBadge = ({ isValid, isActive }) => {
+  if (!isActive) return <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: '20px' }}>Inactive</span>;
+  if (!isValid)  return <span style={{ fontSize: '10px', color: '#f59e0b', padding: '2px 8px', background: 'rgba(245,158,11,0.1)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}><Info size={9} /> Invalid</span>;
+  return <span style={{ fontSize: '10px', color: '#10b981', padding: '2px 8px', background: 'rgba(16,185,129,0.1)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}><Check size={9} /> Active</span>;
+};
+
+export const ValidationError = ({ message }) => {
+  if (!message) return null;
+  const lines = message.split('\n');
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ padding: '12px 14px', borderRadius: '12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', fontSize: '12px', lineHeight: '1.6' }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: lines.length > 1 ? '6px' : 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Info size={13} style={{ transform: 'rotate(180deg)' }} /> Validation Failed
+      </div>
+      {lines.map((l, i) => <div key={i} style={{ paddingLeft: '19px', opacity: i === 0 ? 1 : 0.85 }}>{l}</div>)}
+    </motion.div>
+  );
+};
 
 export const ContextButton = ({ children, onClick, danger, icon: Icon }) => (
   <button

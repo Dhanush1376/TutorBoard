@@ -13,6 +13,7 @@ export const createUiSlice = (set, get) => ({
   activeOverlay:       null, // 'settings' | 'visualizer' | 'profile' (if as overlay) | null
   isExplainMinimized:  false,
   isVisualizerMinimized: false,
+  isSettingsMinimized: false,
   
   drawColor:           'var(--text-primary)',
   drawWidth:           3,
@@ -82,7 +83,11 @@ export const createUiSlice = (set, get) => ({
 
   showToast: (config) => {
     const id = Date.now();
-    set(s => ({ toasts: [...s.toasts, { id, type: 'info', duration: 5000, ...config }] }));
+    set(s => {
+      const newToasts = [...s.toasts, { id, type: 'info', duration: 5000, ...config }];
+      // Keep only the last 3 toasts
+      return { toasts: newToasts.slice(-3) };
+    });
     return id;
   },
 
@@ -119,6 +124,7 @@ export const createUiSlice = (set, get) => ({
   setCodeEditorOpen:     (open) => set({ activeOverlay: open ? 'code-editor' : null }),
   setExplainMinimized:   (min)  => set({ isExplainMinimized: min }),
   setVisualizerMinimized: (min) => set({ isVisualizerMinimized: min }),
+  setSettingsMinimized: (min) => set({ isSettingsMinimized: min }),
 
   setDrawColor:          (color) => set({ drawColor: color }),
   setDrawWidth:          (width) => set({ drawWidth: width }),

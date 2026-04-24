@@ -115,7 +115,7 @@ export const createControlSlice = (set, get) => ({
       y: worldY,
       color: noteColor,
       size: noteSize,
-      pinned: notePinned,
+      isPinned: notePinned,
       text: '',
       fontSize: noteToolSize,
       appearsAtStep: 0,

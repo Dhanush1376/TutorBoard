@@ -62,6 +62,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => safeStorage.getItem('tb-token'));
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_URL_MISSING' : null);
+  const [dbOffline, setDbOffline] = useState(false);
   const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null, activeLabel: null, activeIds: [], allKeys: [], status: 'stable' });
   const [connectionStatus, setConnectionStatus] = useState('stable'); // stable, slow, timeout
   const [isExiting, setIsExiting] = useState(false);
@@ -227,6 +228,7 @@ export const AuthProvider = ({ children }) => {
             sessionStorage.removeItem('tb-is-guest'); // Clear guest flag if real token verified
             setUser(data.user);
             setToken(storedToken);
+            setDbOffline(false); // Reset if it was offline
             
             // BUG FIX: Immediately sync socket auth with verified token
             syncSocketAuth(storedToken);
@@ -254,6 +256,15 @@ export const AuthProvider = ({ children }) => {
               console.warn('[Auth] Rate limit reached. Retaining current session state to prevent lock-out.');
               setLoading(false);
               return;
+            }
+
+            // DB_OFFLINE detection
+            const errorData = await meRes.json().catch(() => ({}));
+            if (errorData.code === 'DB_OFFLINE') {
+              console.error('[Auth] Database is offline. Entering Degraded Mode.');
+              setDbOffline(true);
+              setLoading(false);
+              return; // Do NOT clear token, just stop loading
             }
 
             console.warn('[Auth] Session invalid or expired.');
@@ -527,7 +538,8 @@ export const AuthProvider = ({ children }) => {
       switchApi,
       connectionStatus,
       forceStopLoading,
-      isAuthResolved
+      isAuthResolved,
+      dbOffline
     }}>
       {children}
     </AuthContext.Provider>

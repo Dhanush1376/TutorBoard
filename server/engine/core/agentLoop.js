@@ -217,13 +217,27 @@ function validateSceneGraph(obj) {
   return { valid: errors.length === 0, errors, data: result.success ? result.data : obj };
 }
 
+// ─── User Context Helper ──────────────────────────────────────────────────────
+function getUserContext(userConfig) {
+  if (!userConfig) return '';
+  return `
+---
+STUDENT CONTEXT:
+- Name: ${userConfig.nickname || userConfig.name || 'Student'}
+- Role: ${userConfig.role || 'Learner'}
+${userConfig.customInstructions ? `- Custom AI Behavior: ${userConfig.customInstructions}` : ''}
+---
+`;
+}
+
 // ─── Single Stage Executor ────────────────────────────────────────────────────
 async function runStage({ stageName, prompt, input, model, onProgress, userConfig, onStream }) {
   onProgress(stageName);
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
+  const userContext = getUserContext(userConfig);
   const originalMessages = [
-    { role: 'system', content: prompt },
+    { role: 'system', content: userContext + prompt },
     { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) }
   ];
   let lastError = null;

@@ -1,5 +1,12 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env using absolute path to prevent CWD issues (BUG FIX #48)
+dotenv.config({ path: path.join(__dirname, '.env') });
 import crypto from 'crypto';
 
 process.stdout.setEncoding('utf8');
@@ -98,7 +105,7 @@ app.use((req, _res, next) => {
 app.use(requestIdMiddleware);
 
 // ─── Database Connection Config ──────────────────────────────────────────────
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tutorboard';
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/tutorboard';
 mongoose.set('bufferCommands', false);
 mongoose.set('debug', true);
 console.log('[DB] Mongoose Debug Mode: ENABLED');
@@ -106,6 +113,7 @@ console.log('[DB] Mongoose Debug Mode: ENABLED');
 // ─── Environment Variable Validation ─────────────────────────────────────────
 // BUG FIX #47: Added JWT_EXPIRES_IN to required env vars for token expiry validation
 const REQUIRED_ENV = [
+  { key: 'MONGODB_URI',        critical: true,  label: 'MongoDB Connection URI' },
   { key: 'OPENROUTER_API_KEY', critical: true,  label: 'OpenRouter API Key' },
   { key: 'JWT_SECRET',         critical: true,  label: 'JWT Secret' },
   { key: 'ENCRYPTION_KEY',     critical: true,  label: 'AES-256 Encryption Key' },
@@ -249,6 +257,7 @@ const startServer = async () => {
       console.log(`Socket.IO ready on /teaching namespace`);
     });
 
+    console.log(`[DB] Attempting connection to: ${MONGODB_URI.split('@')[1] || 'localhost'}`);
     console.log(`[DB] Connecting to MongoDB...`);
     await mongoose.connect(MONGODB_URI, {
       serverSelectionTimeoutMS: 5000, 

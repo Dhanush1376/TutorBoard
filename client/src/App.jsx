@@ -18,7 +18,7 @@ import useTutorStore from './store/tutorStore';
 import GlobalOverlayManager from './components/common/GlobalOverlayManager';
 
 function App() {
-  const { loading: authLoading, apiError, connectionStatus, forceStopLoading } = useAuth();
+  const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
   const { setGlobalOverlay } = useTutorStore();
 
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
@@ -84,6 +84,24 @@ function App() {
         <h1 className="text-2xl font-normal mb-4 tracking-tight">Configuration Required</h1>
         <p className="max-w-md mb-8 text-[var(--text-tertiary)]">The VITE_API_URL environment variable is missing.</p>
         <button onClick={() => window.location.reload()} className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full font-normal shadow-lg">Check Again</button>
+      </div>
+    );
+  }
+
+  if (dbOffline) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[var(--bg-primary)] p-8 text-center text-[var(--text-primary)]">
+        <div className="mb-6 text-6xl">📡</div>
+        <h1 className="text-2xl font-normal mb-2 tracking-tight">Database Offline</h1>
+        <p className="max-w-md mb-8 text-[var(--text-tertiary)] text-sm leading-relaxed">
+          The TutorBoard server is currently in <span className="text-[var(--text-primary)]">Degraded Mode</span>. 
+          Please ensure your IP is whitelisted in MongoDB Atlas or check your connection string.
+        </p>
+        <div className="flex gap-4">
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-sm font-medium transition-transform hover:scale-105 active:scale-95 shadow-xl">
+            Retry Connection
+          </button>
+        </div>
       </div>
     );
   }

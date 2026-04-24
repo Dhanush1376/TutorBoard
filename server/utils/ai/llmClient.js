@@ -125,8 +125,18 @@ export function resolveModelId(modelId) {
     'Gemini 2.0 Flash': 'gemini-2.0-flash',
     'Gemini 1.5 Pro': 'gemini-1.5-pro',
     'DeepSeek V3': 'deepseek-chat',
-    'DeepSeek R1': 'deepseek-reasoner'
+    'DeepSeek R1': 'deepseek-reasoner',
+    'Llama 3.3 70B': 'llama-3.3-70b-versatile',
+    'Llama 3.1 8B': 'llama-3.1-8b-instant',
+    'Mixtral 8x7B': 'mixtral-8x7b-32768',
+    'Gemma 2 9B': 'gemma2-9b-it',
   };
+
+  // BUG #2: If it's already a canonical ID (contains / or is a known value), return it immediately
+  // to prevent fuzzy matchers or alias maps from mangling it.
+  if (normalizedId.includes('/') || Object.values(mapping).includes(normalizedId)) {
+    return normalizedId;
+  }
 
   const mapped = mapping[normalizedId];
   if (mapped) return mapped;
@@ -341,11 +351,8 @@ export async function requestCompletion(params = {}) {
   // ═════════════════════════════════════════════════════════════════════════════
 
   if (userConfig?.useCustomApi && userConfig?.getApiKey && userConfig?.provider) {
-    // ╔═══════════════════════════════════════════════════════════════════════╗
-    // ║  CUSTOM API ENGINE — ISOLATED EXECUTION PATH                        ║
-    // ║  This block ALWAYS returns or throws. It NEVER falls through.       ║
-    // ║  Zero dependency on system clients. Zero dependency on .env keys.   ║
-    // ╚═══════════════════════════════════════════════════════════════════════╝
+    console.log("MODE: custom");
+    console.log("USING API: YES (Isolated User Key)");
     return await _executeCustomPath(params, {
       userConfig, canonicalModel, response_format, isJson,
       cacheKey, startTime, userId, taskType, skipRacing, onStream,
@@ -358,7 +365,9 @@ export async function requestCompletion(params = {}) {
   // ║  Only reached when useCustomApi is false or no custom key is available.  ║
   // ║  Uses .env-configured clients (OpenRouter → Gemini → Groq).             ║
   // ╚═══════════════════════════════════════════════════════════════════════════╝
-  return await _executeSystemPath(params, {
+    console.log("MODE: tutorboard (System)");
+    console.log("USING API: YES (Platform Env Keys)");
+    return await _executeSystemPath(params, {
     canonicalModel, response_format, isJson,
     cacheKey, startTime: Date.now(), userId, taskType, onStream,
     messages, temperature, maxTokens, tools,
@@ -373,7 +382,12 @@ export async function requestCompletion(params = {}) {
 async function _executeCustomPath(params, ctx) {
   const { userConfig, canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, skipRacing, onStream, messages, temperature, maxTokens, tools } = ctx;
   const provider = userConfig.provider;
-  const userModel = resolveModelId(userConfig.model || params.model);
+  // FIX: For custom providers, use the model ID exactly as stored — do NOT run it through
+  // resolveModelId() which has fuzzy Gemini matching and alias maps that corrupt custom IDs.
+  const rawCustomModel = userConfig.model || params.model || '';
+  const userModel = provider === 'custom'
+    ? rawCustomModel.trim()   // pass through verbatim for custom
+    : resolveModelId(rawCustomModel);
 
   // ── Strategy 0: Parallel Racing (custom keys only) ──
   if (!skipRacing && userConfig?.racingConfigs) {
@@ -406,6 +420,12 @@ async function _executeCustomPath(params, ctx) {
     const result = await executeWithRetry(client, provider, {
       model: userModel, messages, temperature, maxTokens, tools, response_format, onStream
     }, 2, timeout.signal, userConfig.baseUrl);
+
+    console.log(`[AI:Custom:${provider}] 🟢 SUCCESS. Content Length: ${(result.content || '').length}`);
+
+    if (!result.content && !result.tool_calls) {
+      console.error(`[AI:Custom:${provider}] ❌ EMPTY CONTENT RETURNED. Full result:`, JSON.stringify(result, null, 2));
+    }
 
     timeout.cleanup();
     const responseTimeMs = Date.now() - startTime;

@@ -1,94 +1,314 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
-import { 
-  Lock, Globe2, LogOut, Trash2, 
-  Upload, RotateCcw, Download, Layers, AlertTriangle,
-  Eye, EyeOff, Check, X
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Lock, Globe2, LogOut, Trash2,
+  Upload, Download, AlertTriangle,
+  Eye, EyeOff, Check, X, ShieldCheck,
+  GitBranch, Cloud, RefreshCcw, Shield
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  SectionTitle, SettingsGroup, SettingsRow, 
-  ContextButton, DialogModal, API_URL, AppleToggle,
-  RightInlineSelect
+import {
+  SectionTitle, SettingsGroup, SettingsRow,
+  ContextButton, DialogModal, API_URL, AppleToggle
 } from './SettingsShared';
+
+// ─── Shared Components ───────────────────────────────────────────────────────
+
+const SectionCard = ({ children, style = {} }) => (
+  <div style={{
+    background: 'var(--bg-secondary)',
+    borderRadius: '20px',
+    padding: '24px',
+    border: '1px solid var(--border-color)',
+    marginBottom: '32px',
+    ...style
+  }}>
+    {children}
+  </div>
+);
+
+const SocialButton = ({ icon: Icon, label, isConnected, onClick, color }) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      width: '100%',
+      padding: '14px 16px',
+      borderRadius: '14px',
+      background: 'var(--bg-primary)',
+      border: '1px solid var(--border-color)',
+      cursor: isConnected ? 'default' : 'pointer',
+      transition: 'background 0.2s',
+      textAlign: 'left',
+    }}
+    onMouseEnter={e => !isConnected && (e.currentTarget.style.background = 'var(--bg-tertiary)')}
+    onMouseLeave={e => !isConnected && (e.currentTarget.style.background = 'var(--bg-primary)')}
+  >
+    <div style={{
+      width: '32px', height: '32px', borderRadius: '10px',
+      background: isConnected ? `${color}15` : 'var(--bg-tertiary)',
+      color: isConnected ? color : 'var(--text-tertiary)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center'
+    }}>
+      <Icon size={18} />
+    </div>
+    <div style={{ flex: 1 }}>
+      <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{label}</div>
+      <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+        {isConnected ? 'Connected' : 'Not connected'}
+      </div>
+    </div>
+    {isConnected ? (
+      <div style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 500 }}>
+        <Check size={14} strokeWidth={3} /> Active
+      </div>
+    ) : (
+      <div style={{ color: '#007AFF', fontSize: '12px', fontWeight: 500 }}>Connect</div>
+    )}
+  </button>
+);
+
+// ─── Privacy / Data Section ──────────────────────────────────────────────────
 
 export const PrivacySection = ({ syncSettings, token, showToast }) => {
   const { showAlert } = useTutorStore();
   const [cloudSync, setCloudSync] = useState(localStorage.getItem('tb-cloud-sync') !== 'false');
-  const [localHistory, setLocalHistory] = useState(localStorage.getItem('tb-local-history') !== 'false');
-  const [autoSaveFreq, setAutoSaveFreq] = useState(localStorage.getItem('tb-auto-save') || '5');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
+    const t = setTimeout(() => {
       localStorage.setItem('tb-cloud-sync', String(cloudSync));
-      localStorage.setItem('tb-local-history', String(localHistory));
-      localStorage.setItem('tb-auto-save', autoSaveFreq);
-      syncSettings('privacy', { cloudSync, localHistory, autoSaveFreq });
+      syncSettings('privacy', { cloudSync });
+      setIsSyncing(true);
+      setTimeout(() => setIsSyncing(false), 1000);
     }, 300);
-    return () => clearTimeout(timeout);
-  }, [cloudSync, localHistory, autoSaveFreq, syncSettings]);
+    return () => clearTimeout(t);
+  }, [cloudSync]);
 
   const handleExport = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/user/export`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (!res.ok) throw new Error('Export failed');
+      const res = await fetch(`${API_URL}/api/user/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      const content = JSON.stringify(data, null, 2);
-      const blob = new Blob([content], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'tutorboard-data.json'; a.click();
-      showToast?.('Data exported successfully', 'success');
-    } catch (e) { 
-      console.error(e);
-      showToast?.('Export failed', 'error');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tutorboard-data.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast?.('Your data has been exported.', 'success');
+    } catch {
+      showToast?.('Export failed. Try again.', 'error');
     }
   };
 
   const handleWipeData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/user/data`, { 
-        method: 'DELETE', 
-        headers: { 'Authorization': `Bearer ${token}` } 
+      const res = await fetch(`${API_URL}/api/user/data`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        showToast?.('All cloud data wiped', 'info');
-      } else {
-        showToast?.('Wipe failed', 'error');
-      }
-    } catch (e) {
-      showToast?.('Network error', 'error');
+      if (res.ok) showToast?.('All cloud data wiped.', 'info');
+      else showToast?.('Wipe failed.', 'error');
+    } catch {
+      showToast?.('Network error.', 'error');
     }
   };
 
   return (
     <div style={{ marginTop: '40px' }}>
-      <SectionTitle>Cloud & Storage</SectionTitle>
-      <SettingsGroup>
-        <SettingsRow icon={Upload} label="Cloud Sync" rightElement={<AppleToggle value={cloudSync} onChange={setCloudSync} />} />
-        <SettingsRow icon={RotateCcw} label="Auto-Save" rightElement={<RightInlineSelect value={autoSaveFreq} onChange={setAutoSaveFreq} options={[{ value: '5', label: '5s' }, { value: '30', label: '30s' }]} />} />
-        <SettingsRow icon={Download} label="Local History" borderBottom={false} rightElement={<AppleToggle value={localHistory} onChange={setLocalHistory} />} />
-      </SettingsGroup>
-      <SectionTitle>Data Management</SectionTitle>
-      <SettingsGroup>
-        <ContextButton icon={Download} onClick={handleExport}>Export Data</ContextButton>
-        <ContextButton icon={Trash2} danger borderBottom={false} onClick={() => showAlert({ 
-          title: 'Wipe Cloud Data', 
-          message: 'This will permanently delete all your chat sessions and canvas history. This cannot be undone.',
-          confirmLabel: 'Wipe Everything',
-          type: 'warning',
-          onConfirm: handleWipeData 
-        })}>Wipe Cloud Data</ContextButton>
-      </SettingsGroup>
+      <SectionTitle>Cloud Storage</SectionTitle>
+      <SectionCard>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(0,122,255,0.1)', color: '#007AFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Cloud size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)' }}>Cloud Sync</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>Sync sessions across your devices</div>
+            </div>
+          </div>
+          <AppleToggle value={cloudSync} onChange={setCloudSync} />
+        </div>
+        
+        {cloudSync && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }} 
+            animate={{ opacity: 1, height: 'auto' }}
+            style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <motion.div
+              animate={isSyncing ? { rotate: 360 } : {}}
+              transition={{ duration: 1, repeat: isSyncing ? Infinity : 0, ease: "linear" }}
+              style={{ color: isSyncing ? '#007AFF' : '#10b981' }}
+            >
+              <RefreshCcw size={12} />
+            </motion.div>
+            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>
+              {isSyncing ? 'Synchronizing with cloud...' : 'All sessions up to date'}
+            </span>
+          </motion.div>
+        )}
+      </SectionCard>
+
+      <SectionTitle>Your Data</SectionTitle>
+      <SectionCard>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <button 
+            onClick={handleExport}
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', 
+              background: 'var(--bg-primary)', border: '1px solid var(--border-color)', 
+              borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s' 
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-primary)'}
+          >
+            <div style={{ color: 'var(--text-secondary)' }}><Download size={18} /></div>
+            <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--text-primary)' }}>Export All Data</span>
+          </button>
+
+          <div style={{ 
+            marginTop: '12px', padding: '16px', borderRadius: '16px', 
+            background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)' 
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', marginBottom: '8px' }}>
+              <AlertTriangle size={14} />
+              <span style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Danger Zone</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '12px', lineHeight: 1.5 }}>
+              Wiping your data is permanent. This removes all session history and canvas states from the cloud.
+            </p>
+            <button 
+              onClick={() => showAlert({
+                title: 'Wipe Cloud Data',
+                message: 'This permanently deletes all your sessions and history. Continue?',
+                confirmLabel: 'Wipe Everything',
+                type: 'warning',
+                onConfirm: handleWipeData,
+              })}
+              style={{ 
+                width: '100%', padding: '10px', background: '#ef4444', color: '#fff', 
+                border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 500, cursor: 'pointer' 
+              }}
+            >
+              Wipe Cloud Data
+            </button>
+          </div>
+        </div>
+      </SectionCard>
     </div>
   );
 };
 
+// ─── Password Strength ───────────────────────────────────────────────────────
+
+function getStrength(pw) {
+  if (!pw) return 0;
+  let s = 0;
+  if (pw.length >= 8) s += 25;
+  if (/[A-Z]/.test(pw)) s += 25;
+  if (/[0-9]/.test(pw)) s += 25;
+  if (/[^A-Za-z0-9]/.test(pw)) s += 25;
+  return s;
+}
+
+const STRENGTH_LABELS = { 0: '', 25: 'Weak', 50: 'Fair', 75: 'Good', 100: 'Strong' };
+const STRENGTH_COLORS = { 25: '#ef4444', 50: '#f59e0b', 75: '#3b82f6', 100: '#10b981' };
+
+function PasswordStrengthBar({ password }) {
+  const strength = getStrength(password);
+  if (!password) return null;
+  const color = STRENGTH_COLORS[strength] || '#ef4444';
+  const label = STRENGTH_LABELS[strength] || 'Weak';
+  const checks = [
+    { label: '8+ chars', met: password.length >= 8 },
+    { label: 'Uppercase', met: /[A-Z]/.test(password) },
+    { label: 'Number', met: /[0-9]/.test(password) },
+    { label: 'Symbol', met: /[^A-Za-z0-9]/.test(password) },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      style={{ overflow: 'hidden' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Password strength</span>
+        <span style={{ fontSize: '11px', fontWeight: 600, color }}>{label}</span>
+      </div>
+      <div style={{ height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden', marginBottom: '12px' }}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${strength}%` }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          style={{ height: '100%', background: color, borderRadius: '2px' }}
+        />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        {checks.map((c, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: c.met ? '#10b981' : 'var(--text-tertiary)', opacity: c.met ? 1 : 0.6 }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: c.met ? '#10b98122' : 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {c.met ? <Check size={10} strokeWidth={3} /> : <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.5 }} />}
+            </div>
+            {c.label}
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Reusable Password Input ─────────────────────────────────────────────────
+
+function PasswordInput({ value, onChange, placeholder, showToggle, onToggle, suffix }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type={showToggle ? 'text' : 'password'}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        style={{
+          width: '100%', padding: '14px 44px 14px 14px',
+          borderRadius: '14px', border: '1px solid var(--border-color)',
+          background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+          fontSize: '14px', outline: 'none', boxSizing: 'border-box',
+          fontFamily: 'inherit', transition: 'all 0.2s',
+        }}
+        onFocus={e => (e.target.style.borderColor = '#007AFF', e.target.style.boxShadow = '0 0 0 4px rgba(0,122,255,0.1)')}
+        onBlur={e => (e.target.style.borderColor = 'var(--border-color)', e.target.style.boxShadow = 'none')}
+      />
+      <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {suffix}
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0, display: 'flex' }}
+        >
+          {showToggle ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main AccountSection ─────────────────────────────────────────────────────
+
 export default function AccountSection({ user, logout, syncSettings, showToast }) {
   const navigate = useNavigate();
   const { token } = useAuth();
-  
+
   const [modalType, setModalType] = useState(null);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -102,55 +322,34 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
   const closeModals = () => {
     if (loading) return;
     setModalType(null);
-    setCurrentPw('');
-    setNewPw('');
-    setConfirmPw('');
-    setShowCurrent(false);
-    setShowNew(false);
-    setErrorMsg('');
-    setSuccessMsg('');
-  };
-
-  const getPasswordStrength = (pw) => {
-    if (!pw) return 0;
-    let strength = 0;
-    if (pw.length >= 8) strength += 25;
-    if (/[A-Z]/.test(pw)) strength += 25;
-    if (/[0-9]/.test(pw)) strength += 25;
-    if (/[^A-Za-z0-9]/.test(pw)) strength += 25;
-    return strength;
+    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    setShowCurrent(false); setShowNew(false);
+    setErrorMsg(''); setSuccessMsg('');
   };
 
   const handlePasswordSubmit = async () => {
-    if (!currentPw || !newPw || !confirmPw) {
-      setErrorMsg("Please fill in all fields.");
-      return;
-    }
-    if (newPw !== confirmPw) {
-      setErrorMsg("New passwords do not match.");
-      return;
-    }
-    if (newPw.length < 8) {
-      setErrorMsg("New password must be at least 8 characters.");
-      return;
-    }
+    if (!currentPw || !newPw || !confirmPw) return setErrorMsg('Please fill in all fields.');
+    if (newPw !== confirmPw) return setErrorMsg('New passwords do not match.');
+    if (newPw.length < 8) return setErrorMsg('Password must be at least 8 characters.');
+    if (getStrength(newPw) < 50) return setErrorMsg('Please choose a stronger password.');
+
     setLoading(true); setErrorMsg(''); setSuccessMsg('');
     try {
       const res = await fetch(`${API_URL}/api/user/password`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
       });
       const data = await res.json();
       if (res.ok) {
-        setSuccessMsg("Password updated successfully.");
+        setSuccessMsg('Password updated successfully.');
         setTimeout(closeModals, 1500);
       } else {
-        setErrorMsg(data.error || "Failed to update password");
+        setErrorMsg(data.error || 'Failed to update password.');
         setLoading(false);
       }
-    } catch (e) {
-      setErrorMsg("Network error.");
+    } catch {
+      setErrorMsg('Network error. Please try again.');
       setLoading(false);
     }
   };
@@ -160,149 +359,169 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
     try {
       const res = await fetch(`${API_URL}/api/user/account`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        logout();
-        navigate('/');
-      } else {
+      if (res.ok) { logout(); navigate('/'); }
+      else {
         const data = await res.json();
-        setErrorMsg(data.error || "Failed to delete account");
+        setErrorMsg(data.error || 'Could not delete account.');
         setLoading(false);
       }
-    } catch (e) {
-      setErrorMsg("Network error.");
+    } catch {
+      setErrorMsg('Network error. Please try again.');
       setLoading(false);
     }
   };
 
+  const matchIcon = confirmPw ? (
+    newPw === confirmPw ? <Check size={14} style={{ color: '#10b981' }} /> : <X size={14} style={{ color: '#ef4444' }} />
+  ) : null;
+
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+
+      {/* ── Modals ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {modalType === 'password' && (
-          <DialogModal title="Change Password" primaryAction={handlePasswordSubmit} primaryLabel="Update Password" loading={loading} onClose={closeModals}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ position: 'relative' }}>
-                <input 
-                  type={showCurrent ? "text" : "password"} 
-                  placeholder="Current Password" 
-                  value={currentPw} 
-                  onChange={e => setCurrentPw(e.target.value)} 
-                  style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} 
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowCurrent(!showCurrent)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          <DialogModal
+            title="Change Password"
+            primaryAction={handlePasswordSubmit}
+            primaryLabel="Update Password"
+            loading={loading}
+            onClose={closeModals}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <PasswordInput
+                value={currentPw}
+                onChange={e => setCurrentPw(e.target.value)}
+                placeholder="Current password"
+                showToggle={showCurrent}
+                onToggle={() => setShowCurrent(v => !v)}
+              />
+              <PasswordInput
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+                placeholder="New password"
+                showToggle={showNew}
+                onToggle={() => setShowNew(v => !v)}
+              />
+              <PasswordInput
+                value={confirmPw}
+                onChange={e => setConfirmPw(e.target.value)}
+                placeholder="Confirm new password"
+                showToggle={showNew}
+                onToggle={() => setShowNew(v => !v)}
+                suffix={matchIcon}
+              />
+
+              <AnimatePresence>
+                {newPw && <PasswordStrengthBar password={newPw} />}
+              </AnimatePresence>
+
+              {errorMsg && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    color: '#ef4444', fontSize: '12px', background: 'rgba(239,68,68,0.1)',
+                    padding: '12px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.2)',
+                    display: 'flex', gap: '8px', alignItems: 'center',
+                  }}
                 >
-                  {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <input 
-                  type={showNew ? "text" : "password"} 
-                  placeholder="New Password" 
-                  value={newPw} 
-                  onChange={e => setNewPw(e.target.value)} 
-                  style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} 
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowNew(!showNew)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  <AlertTriangle size={14} /> {errorMsg}
+                </motion.div>
+              )}
+              {successMsg && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    color: '#10b981', fontSize: '12px', background: 'rgba(16,185,129,0.1)',
+                    padding: '12px', borderRadius: '12px', border: '1px solid rgba(16,185,129,0.2)',
+                    display: 'flex', gap: '8px', alignItems: 'center',
+                  }}
                 >
-                  {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <input 
-                  type={showNew ? "text" : "password"} 
-                  placeholder="Confirm New Password" 
-                  value={confirmPw} 
-                  onChange={e => setConfirmPw(e.target.value)} 
-                  style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} 
-                />
-                <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', padding: '4px', display: 'flex', alignItems: 'center', opacity: 0.5 }}>
-                  {confirmPw && (newPw === confirmPw ? <Check size={16} style={{ color: '#10b981' }} /> : <X size={16} style={{ color: '#ef4444' }} />)}
-                </div>
-              </div>
-
-              {/* Password Strength Meter */}
-              <div style={{ height: '14px', display: 'flex', alignItems: 'center' }}>
-                {newPw && (
-                  <div style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Password Strength</span>
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: getPasswordStrength(newPw) <= 25 ? '#ef4444' : getPasswordStrength(newPw) <= 50 ? '#f59e0b' : getPasswordStrength(newPw) <= 75 ? '#3b82f6' : '#10b981' }}>
-                        {getPasswordStrength(newPw) <= 25 ? 'Weak' : getPasswordStrength(newPw) <= 50 ? 'Fair' : getPasswordStrength(newPw) <= 75 ? 'Good' : 'Strong'}
-                      </span>
-                    </div>
-                    <div style={{ height: '4px', width: '100%', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}>
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${getPasswordStrength(newPw)}%` }}
-                        style={{ height: '100%', background: getPasswordStrength(newPw) <= 25 ? '#ef4444' : getPasswordStrength(newPw) <= 50 ? '#f59e0b' : getPasswordStrength(newPw) <= 75 ? '#3b82f6' : '#10b981' }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              {/* Complexity Checklist */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
-                {[
-                  { label: '8+ Characters', met: newPw.length >= 8 },
-                  { label: 'Upper Case', met: /[A-Z]/.test(newPw) },
-                  { label: 'Number', met: /[0-9]/.test(newPw) },
-                  { label: 'Special Char', met: /[^A-Za-z0-9]/.test(newPw) }
-                ].map((req, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: req.met ? '#10b981' : 'var(--text-tertiary)', opacity: req.met ? 1 : 0.6 }}>
-                    {req.met ? <Check size={12} strokeWidth={3} /> : <div style={{ width: '12px' }} />}
-                    {req.label}
-                  </div>
-                ))}
-              </div>
-
-              {errorMsg && <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 400, background: '#fee2e2', padding: '10px', borderRadius: '10px', border: '1px solid #fecaca', display: 'flex', gap: '8px', alignItems: 'center' }}><AlertTriangle size={14} /> {errorMsg}</div>}
-              {successMsg && <div style={{ color: '#10b981', fontSize: '12px', fontWeight: 400, background: '#dcfce7', padding: '10px', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', gap: '8px', alignItems: 'center' }}><Check size={14} /> {successMsg}</div>}
+                  <Check size={14} strokeWidth={3} /> {successMsg}
+                </motion.div>
+              )}
             </div>
           </DialogModal>
         )}
-        
+
         {modalType === 'delete' && (
-          <DialogModal title="Delete Account" description="Are you absolutely sure? This action cannot be undone." primaryAction={handleDeleteSubmit} primaryLabel="Yes, Delete Everything" primaryDanger={true} loading={loading} onClose={closeModals}>
-            {errorMsg && <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 400 }}>{errorMsg}</div>}
+          <DialogModal
+            title="Delete Account"
+            description="All your data, sessions, and canvas history will be permanently erased. This cannot be undone."
+            primaryAction={handleDeleteSubmit}
+            primaryLabel="Delete Everything"
+            primaryDanger
+            loading={loading}
+            onClose={closeModals}
+          >
+            {errorMsg && (
+              <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px' }}>{errorMsg}</div>
+            )}
           </DialogModal>
         )}
       </AnimatePresence>
 
-      <SectionTitle>Email</SectionTitle>
-      <SettingsGroup>
-        <SettingsRow label="Contact Email" rightElement={<span style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>{user?.email || 'Not provided'}</span>} borderBottom={false} />
-      </SettingsGroup>
+      {/* ── Email ──────────────────────────────────────────────────── */}
+      <SectionTitle>Account</SectionTitle>
+      <SectionCard>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Shield size={22} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Email Address</div>
+            <div style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 400 }}>{user?.email || 'Not provided'}</div>
+          </div>
+          <div style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: '11px', fontWeight: 600 }}>Verified</div>
+        </div>
+      </SectionCard>
 
+      {/* ── Security ───────────────────────────────────────────────── */}
       <SectionTitle>Security</SectionTitle>
       <SettingsGroup>
-        <SettingsRow label="Change Password" icon={Lock} onClick={() => setModalType('password')} borderBottom={false} />
+        <SettingsRow
+          label="Change Password"
+          icon={Lock}
+          description="Update your login credentials"
+          onClick={() => setModalType('password')}
+          borderBottom={false}
+        />
       </SettingsGroup>
 
+      {/* ── Linked Accounts ────────────────────────────────────────── */}
       <SectionTitle>Linked Accounts</SectionTitle>
-      <SettingsGroup>
-        <SettingsRow icon={Globe2} label="Google" description={user?.googleId ? 'Connected' : 'Not Connected'}
-          rightElement={<button onClick={() => { if (!user?.googleId) window.location.href = `${API_URL}/api/auth/google`; }} style={{ fontSize: '14px', color: user?.googleId ? 'var(--text-tertiary)' : '#007AFF', background: 'none', border: 'none', cursor: 'pointer' }}>{user?.googleId ? 'Disconnect' : 'Connect'}</button>}
+      <SectionCard style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <SocialButton 
+          icon={Globe2} 
+          label="Google" 
+          isConnected={!!user?.googleId} 
+          color="#EA4335" 
+          onClick={() => !user?.googleId && (window.location.href = `${API_URL}/api/auth/google`)}
         />
-        <SettingsRow icon={Globe2} label="GitHub" description={user?.githubId ? 'Connected' : 'Not Connected'} borderBottom={false}
-          rightElement={<button onClick={() => { if (!user?.githubId) window.location.href = `${API_URL}/api/auth/github`; }} style={{ fontSize: '14px', color: user?.githubId ? 'var(--text-tertiary)' : '#007AFF', background: 'none', border: 'none', cursor: 'pointer' }}>{user?.githubId ? 'Disconnect' : 'Connect'}</button>}
+        <SocialButton 
+          icon={GitBranch} 
+          label="GitHub" 
+          isConnected={!!user?.githubId} 
+          color="#333" 
+          onClick={() => !user?.githubId && (window.location.href = `${API_URL}/api/auth/github`)}
         />
-      </SettingsGroup>
+      </SectionCard>
 
-      <SectionTitle>Session</SectionTitle>
+      {/* ── Privacy / Data ────────────────────────────────────────── */}
+      <PrivacySection syncSettings={syncSettings} token={token} showToast={showToast} />
+
+      {/* ── Session ──────────────────────────────────────────────────── */}
+      <SectionTitle>Session Management</SectionTitle>
       <SettingsGroup>
-        <ContextButton icon={LogOut} onClick={() => { logout(); navigate('/'); }}>Sign Out</ContextButton>
-        <ContextButton icon={Trash2} danger onClick={() => setModalType('delete')} borderBottom={false}>Delete Account</ContextButton>
+        <ContextButton icon={LogOut} onClick={() => { logout(); navigate('/'); }}>
+          Sign Out of TutorBoard
+        </ContextButton>
+        <ContextButton icon={Trash2} danger onClick={() => setModalType('delete')} borderBottom={false}>
+          Delete Account Permanently
+        </ContextButton>
       </SettingsGroup>
-
 
     </div>
   );

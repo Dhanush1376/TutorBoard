@@ -222,6 +222,19 @@ const MODEL_TIERS = {
   'claude-sonnet-4-20250514': 'premium',
   'claude-3-5-haiku-20241022': 'standard',
   'claude-3-haiku-20240307': 'economy',
+  
+  // Groq
+  'llama-3.3-70b-versatile': 'premium',
+  'llama-3.1-8b-instant': 'standard',
+  'mixtral-8x7b-32768': 'standard',
+  'gemma2-9b-it': 'economy',
+
+  // OpenRouter
+  'openai/gpt-4o-mini': 'standard',
+  'anthropic/claude-3.5-sonnet': 'premium',
+  'google/gemini-2.0-flash-001': 'standard',
+  'deepseek/deepseek-r1': 'premium',
+  'meta-llama/llama-3.3-70b-instruct': 'premium',
 };
 
 /**

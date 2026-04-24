@@ -40,6 +40,8 @@ const DRAWING_PHASES = [
   'Rendering final visuals',
 ];
 
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants/canvas';
+
 const RETHINK_PHASES = [
   'Agent is rethinking',
   'Tailoring canvas to your doubt',
@@ -173,7 +175,11 @@ const Home = ({ isDark }) => {
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
     setCanvasSnapshot, greetingMessage, layoutView, addNoteToCanvas,
     chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition, showAlert,
-    activeSnapshotId, setActiveSnapshotId, setTimeline
+    activeSnapshotId, setActiveSnapshotId, setTimeline,
+    // Manual interaction states
+    activeTool, setActiveTool, addCanvasObjects,
+    drawColor, noteColor, noteSize, notePinned, noteToolSize,
+    textToolSize, shapeStrokeStyle
   } = useTutorStore();
 
 
@@ -937,14 +943,81 @@ const Home = ({ isDark }) => {
     }
   };
 
-  // ── Manual Note Creation ──
-  const { activeTool } = useTutorStore();
-
+  // ── Manual Canvas Interaction ──
 
   const handleCanvasClick = useCallback((e) => {
-    // Standard click handling
-    return false;
-  }, []);
+    // If we're just selecting or the click was handled by an object, do nothing
+    if (activeTool === 'select' || e.target !== e.currentTarget) return;
+    
+    // Get world coordinates from click
+    const rect = e.currentTarget.getBoundingClientRect();
+    const rx = e.clientX - rect.left;
+    const ry = e.clientY - rect.top;
+    
+    const worldX = (rx - canvasTransform.x) / canvasTransform.scale;
+    const worldY = (ry - canvasTransform.y) / canvasTransform.scale;
+
+    const normX = worldX / CANVAS_WIDTH;
+    const normY = worldY / CANVAS_HEIGHT;
+
+    if (activeTool === 'note') {
+      const noteId = `manual-note-${Date.now()}`;
+      const note = {
+        id: noteId,
+        type: 'note',
+        shape: 'note',
+        x: normX,
+        y: normY,
+        color: noteColor,
+        size: noteSize,
+        isPinned: notePinned,
+        text: '',
+        fontSize: noteToolSize,
+        appearsAtStep: 0,
+      };
+      addCanvasObjects([note]);
+      setEditingObjectId(noteId);
+    } else if (activeTool === 'text') {
+      const textId = `manual-text-${Date.now()}`;
+      const textObj = {
+        id: textId,
+        type: 'text',
+        x: normX,
+        y: normY,
+        text: '',
+        fontSize: textToolSize,
+        color: drawColor,
+        appearsAtStep: 0,
+      };
+      addCanvasObjects([textObj]);
+      setEditingObjectId(textId);
+    } else if (activeTool.startsWith('shape:')) {
+      const shapeType = activeTool.replace('shape:', '');
+      const shapeId = `manual-shape-${Date.now()}`;
+      const shapeObj = {
+        id: shapeId,
+        type: shapeType,
+        x: normX,
+        y: normY,
+        w: 150 / CANVAS_WIDTH,
+        h: 100 / CANVAS_HEIGHT,
+        styles: {
+          stroke: drawColor,
+          strokeWidth: 2,
+          strokeStyle: shapeStrokeStyle,
+          fill: 'transparent'
+        },
+        appearsAtStep: 0,
+      };
+      addCanvasObjects([shapeObj]);
+      setSelectedElements([shapeId]);
+    }
+
+    return true;
+  }, [
+    activeTool, canvasTransform, addNoteToCanvas, addCanvasObjects, 
+    drawColor, textToolSize, shapeStrokeStyle
+  ]);
 
   // Selection cleanup
   const setSelectedElements = useTutorStore(state => state.setSelectedElements);
@@ -985,7 +1058,8 @@ const Home = ({ isDark }) => {
           ref={canvasRef}
           onViewportChange={setCanvasTransform}
           onInteractionStart={() => { isAutoFollow.current = false; }}
-          onClick={() => {
+          onClick={(e) => {
+            if (handleCanvasClick(e)) return;
             setSelectedElements([]);
             setHasTextSelection(false);
           }}
@@ -1156,6 +1230,14 @@ const Home = ({ isDark }) => {
         )}
 
         {/* D. Bottom Right Zoom / Minimap Tools */}
+        <CanvasMinimap
+          visible={showMinimap}
+          objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
+          transform={canvasTransform}
+          onNavigate={(wx, wy) => canvasRef.current?.centerOn(wx, wy)}
+          layoutView={layoutView}
+        />
+
         <CanvasControls
           transform={canvasTransform}
           onZoomIn={() => canvasRef.current?.zoomIn?.()}

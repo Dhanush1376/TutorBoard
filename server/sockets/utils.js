@@ -237,17 +237,49 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
       useCustomApi: true,
       mode: 'custom',
       provider: selectedKey.provider,
-      model: selectedKey.model || (selectedKey.provider === 'openai' ? 'gpt-4o' : 'anthropic/claude-3-5-sonnet-20241022'),
+      model: selectedKey.model || (() => {
+        // FIX: Per-provider safe defaults — 'anthropic/...' is an OpenRouter path, wrong for other providers
+        const defaults = {
+          openai: 'gpt-4o',
+          google: 'gemini-2.0-flash',
+          groq: 'llama-3.3-70b-versatile',
+          anthropic: 'claude-3-5-haiku-20241022',
+          deepseek: 'deepseek-chat',
+          openrouter: 'anthropic/claude-3.5-sonnet',
+          custom: '',
+        };
+        return defaults[selectedKey.provider] || '';
+      })(),
       getApiKey,
       baseUrl: selectedKey.baseUrl || '',
       // ⛔ No fallbackToDefault — Custom mode is fully isolated from system APIs
       userId: user._id,
+      name: user.name,
+      nickname: user.settings?.general?.nickname || user.name.split(' ')[0],
+      role: user.settings?.general?.role || 'student',
+      customInstructions: user.settings?.general?.preferences || '',
       costControl: prefs.costControl || null,
       racingConfigs,
       classification,
     };
   } catch (err) {
     console.warn('[UserConfig] Failed to resolve user API config:', err.message);
+    // Even if we fail to resolve custom keys, we might still want the user profile for system API mode
+    if (socketUser && !socketUser.isGuest) {
+      try {
+        const user = await User.findById(socketUser.id || socketUser._id);
+        if (user) {
+          return {
+            useCustomApi: false,
+            userId: user._id,
+            name: user.name,
+            nickname: user.settings?.general?.nickname || user.name.split(' ')[0],
+            role: user.settings?.general?.role || 'student',
+            customInstructions: user.settings?.general?.preferences || '',
+          };
+        }
+      } catch (e) {}
+    }
     return null;
   }
 }

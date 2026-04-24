@@ -96,12 +96,20 @@ export const CloudShape = ({ x, y, w, h, color, attentionLevel, layoutId, animat
 export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, type, animation, path, strokeWidth }) => {
   const c = resolve(color);
   
-  // High-fidelity fix for freehand paths
-  if (type === 'path' && path) {
-    // High-fidelity fix: Convert points array to SVG path string if it's not already serialized
-    const pathData = Array.isArray(path) 
-      ? (path.length < 2 ? '' : `M ${path[0].x},${path[0].y} ` + path.slice(1).map(p => `L ${p.x},${p.y}`).join(' '))
-      : path;
+  if (type === 'path') {
+    if (!path) return null;
+
+    // Robust path data resolution
+    let pathData = '';
+    if (typeof path === 'string') {
+      pathData = path;
+    } else if (Array.isArray(path) && path.length >= 2) {
+      // Support both {x, y} and [x, y] formats
+      pathData = `M ${path[0].x ?? path[0][0]},${path[0].y ?? path[0][1]} ` + 
+                 path.slice(1).map(p => `L ${p.x ?? p[0]},${p.y ?? p[1]}`).join(' ');
+    }
+
+    if (!pathData) return null;
 
     return (
       <AW attentionLevel={attentionLevel} layoutId={layoutId} animation={animation} cx={0} cy={0}>
@@ -114,7 +122,7 @@ export const FreeformShape = ({ layoutId, attentionLevel, x, y, label, color, ty
           strokeLinejoin="round"
           initial={animation?.type === "draw" ? { pathLength: 0 } : {}}
           animate={animation?.type === "draw" ? { pathLength: 1 } : {}}
-          transition={{ duration: animation?.duration || 0.5 }}
+          transition={{ duration: animation?.duration || 0.3 }}
         />
       </AW>
     );

@@ -172,7 +172,7 @@ const Toolbar = ({ onSettingsClick }) => {
         if (!isInteracting) document.body.style.cursor = 'default';
       }}
       transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
-      className={`flex items-center rounded-2xl relative transition-all duration-500 ${isLeftHand ? 'flex-row' : 'flex-row-reverse'} ${isInteracting ? 'scale-[0.98]' : ''}`}
+      className={`flex items-center rounded-2xl relative transition-all duration-500 flex-row ${isInteracting ? 'scale-[0.98]' : ''}`}
       style={{
         gap: 'var(--tool-gap)',
         padding: 'calc(var(--tool-gap) * 1.5) calc(var(--tool-gap) * 2)',
@@ -201,6 +201,12 @@ const Toolbar = ({ onSettingsClick }) => {
           id="code"
           isHoveredExternally={hoveredId === 'code'} 
         />
+        {/* 
+          FUTURE USE: Pedagogical Expansion Tools
+          These tools are temporarily disconnected from the primary toolbar 
+          but remain available in the codebase for upcoming releases.
+        */}
+        {/* 
         <VisualizerTool 
           {...commonToolProps} 
           id="visualizer"
@@ -211,6 +217,7 @@ const Toolbar = ({ onSettingsClick }) => {
           id="voice"
           isHoveredExternally={hoveredId === 'voice'} 
         />
+        */}
         
         <ToolbarDivider />
 

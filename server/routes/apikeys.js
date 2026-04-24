@@ -11,6 +11,7 @@ import {
   getModels,
   getHealthStatus,
   getCostStatus,
+  testTransientKey,
 } from '../controllers/apikeys.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -37,5 +38,6 @@ router.post('/', addApiKey);
 router.put('/:id', updateApiKey);
 router.delete('/:id', deleteApiKey);
 router.post('/:id/test', testApiKey);
+router.post('/test-transient', testTransientKey);
 
 export default router;

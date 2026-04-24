@@ -428,9 +428,18 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     {agents.map((agent, idx) => {
                       const Icon = agent.icon;
                       const isActive = isAgentActive(agent.id);
-                      const showDivider = agent.isSystem && agents.some(a => a.isCustom);
+                      const isFirstCustom = agent.isCustom && !agents[idx - 1]?.isCustom;
+
                       return (
                         <React.Fragment key={agent.id}>
+                          {isFirstCustom && (
+                            <div className="pt-2 pb-1 flex items-center gap-2">
+                              <span className="pl-3 text-[9px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold opacity-70 whitespace-nowrap">
+                                Custom API's
+                              </span>
+                              <div className="flex-1 h-[1px] bg-[var(--border-color)] opacity-100" />
+                            </div>
+                          )}
                           <button
                             onClick={() => { 
                               setSelectedAgent(agent.id); 
@@ -444,10 +453,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           >
                             <div className="flex items-center gap-2.5">
                               <Icon size={15} />
-                              <span className="truncate max-w-[100px]">{agent.name}</span>
-                              {agent.isCustom && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#10b981]/10 text-[#10b981] font-medium">Custom</span>
-                              )}
+                              <span className="truncate max-w-[120px]">{agent.name}</span>
                             </div>
                             
                             {isActive && (
@@ -461,9 +467,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                               </div>
                             )}
                           </button>
-                          {showDivider && (
-                            <div className="h-[1px] bg-[var(--border-color)] my-1 mx-2 opacity-50" />
-                          )}
                         </React.Fragment>
                       );
                     })}

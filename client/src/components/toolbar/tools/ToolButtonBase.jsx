@@ -200,7 +200,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
             exit={{ opacity: 0, y: 3, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 600, damping: 32, mass: 0.6 }}
             role="tooltip"
-            className={`absolute top-full mt-2.5 z-[9999] pointer-events-none ${isLeftHand ? 'left-0' : 'right-0'}`}
+            className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 z-[9999] pointer-events-none"
           >
             <div
               className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg whitespace-nowrap"
@@ -216,11 +216,10 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
               >
                 {displayLabel}
               </span>
-              {/* Shortcut badges removed */}
             </div>
-            {/* Tooltip caret */}
+            {/* Tooltip caret centered */}
             <div
-              className={`absolute -top-1 w-2 h-2 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+              className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
               style={{
                 background: 'var(--bg-primary)',
                 borderLeft: '1px solid var(--border-color)',
@@ -236,33 +235,35 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         {showVariantsMenu && (
           <motion.div
             ref={menuRef}
-            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            initial={{ opacity: 0, y: 8, scale: 0.96, x: '-50%' }}
             animate={{
               opacity: 1,
               y: 0,
               scale: 1,
-              x: menuOffset
+              x: menuOffset !== 0 ? `calc(-50% + ${menuOffset}px)` : '-50%'
             }}
-            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+            exit={{ opacity: 0, y: 6, scale: 0.98, x: '-50%' }}
             transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
-            className={`absolute top-full z-[9999] pt-2 ${isLeftHand ? 'left-0' : 'right-0'}`}
+            className="absolute top-full left-1/2 z-[9999] pt-2"
           >
-            {/* Interaction Bridge: Prevents onMouseLeave from firing in the gap between button and panel */}
+            {/* Interaction Bridge */}
             <div className="absolute inset-x-0 -top-2 h-4 pointer-events-auto" />
 
             <div
-              className="flex flex-col p-1 rounded-xl"
+              className="flex flex-col p-1 rounded-2xl"
               style={{
                 background: 'var(--bg-primary)',
                 border: '1px solid var(--border-color)',
-                boxShadow: '0 12px 32px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.08)',
-                minWidth: customSubmenu ? 'auto' : 160,
+                boxShadow: '0 16px 48px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12)',
+                minWidth: customSubmenu ? 'auto' : 180,
               }}
             >
               {customSubmenu ? (
-                React.isValidElement(customSubmenu)
-                  ? React.cloneElement(customSubmenu, { closeMenu: () => setIsHovered(false) })
-                  : customSubmenu
+                typeof customSubmenu.type === 'string'
+                  ? customSubmenu
+                  : React.isValidElement(customSubmenu)
+                    ? React.cloneElement(customSubmenu, { closeMenu: () => setIsPinned(false) })
+                    : customSubmenu
               ) : (
                 variants.map((variant) => {
                   const isVariantActive = variant.activeState !== undefined
@@ -273,25 +274,25 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                     <button
                       key={variant.id}
                       onClick={(e) => handleVariantClick(e, variant)}
-                      className="flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-all relative outline-none group/item"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all relative outline-none group/item"
                       style={{
                         minWidth: 160,
                         background: isVariantActive ? 'rgba(var(--text-primary-rgb, 255,255,255), 0.05)' : 'transparent'
                       }}
                     >
                       <span
-                        className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition-colors"
+                        className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg transition-colors"
                         style={{
                           color: isVariantActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
                           background: isVariantActive ? 'var(--bg-secondary)' : 'transparent',
                           boxShadow: isVariantActive ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
                         }}
                       >
-                        <variant.icon size={14} strokeWidth={isVariantActive ? 2.5 : 2} />
+                        <variant.icon size={15} strokeWidth={isVariantActive ? 2.5 : 2} />
                       </span>
 
                       <span
-                        className="flex-1 text-[12px] font-normal transition-colors"
+                        className="flex-1 text-[13px] font-normal transition-colors"
                         style={{ color: isVariantActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}
                       >
                         {variant.label}
@@ -304,22 +305,21 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                           className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)]"
                         />
                       )}
-
-                      {/* Shortcut removed */}
                     </button>
                   )
                 })
               )}
             </div>
 
-            {/* Submenu Caret - Shifted to stay above the button center */}
+            {/* Submenu Caret - Perfectly Centered */}
             <div
-              className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+              className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45"
               style={{
                 background: 'var(--bg-primary)',
                 borderLeft: '1px solid var(--border-color)',
                 borderTop: '1px solid var(--border-color)',
-                zIndex: -1
+                zIndex: -1,
+                transform: `translateX(calc(-50% - ${menuOffset}px)) rotate(45deg)` // Counter-shift the caret to stay under button
               }}
             />
           </motion.div>

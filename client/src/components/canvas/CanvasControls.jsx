@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, Lock, LockOpen } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, Lock, LockOpen, Map } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 
 const CanvasControls = ({ 
@@ -13,12 +13,15 @@ const CanvasControls = ({
   onZoomOut, 
   onFitToContent, 
   onResetView,
+  onToggleMinimap,
+  showMinimap = false,
   layoutView = 'right',
   isSidebarOpen = true,
 }) => {
   const { isCanvasLocked, setCanvasLocked } = useTutorStore();
   const zoomPercent = Math.round(transform.scale * 100);
   const isLeftHand = layoutView === 'left';
+  const IconMap = showMinimap ? Minimize2 : Maximize2; // Or use a specific Map icon if preferred
 
   return (
     <motion.div
@@ -93,7 +96,18 @@ const CanvasControls = ({
         <RotateCcw size={15} />
       </button>
 
-
+      {/* Minimap Toggle */}
+      <button
+        onClick={onToggleMinimap}
+        className={`p-2 rounded-xl transition-all active:scale-90 ${
+          showMinimap 
+            ? 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]' 
+            : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+        }`}
+        title={showMinimap ? "Hide Minimap" : "Show Minimap"}
+      >
+        <Map size={15} />
+      </button>
 
       {/* Lock Toggle */}
       <button

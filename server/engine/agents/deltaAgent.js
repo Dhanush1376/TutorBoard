@@ -11,10 +11,18 @@ export async function runDeltaAgent({ question, canvasState, topic, modelId, use
   try {
     console.log(`[DeltaAgent] Resolving doubt: "${question}"`);
 
+    const userContext = userConfig ? `
+STUDENT CONTEXT:
+- Name: ${userConfig.nickname || userConfig.name || 'Student'}
+- Role: ${userConfig.role || 'Learner'}
+${userConfig.customInstructions ? `- Custom AI Behavior: ${userConfig.customInstructions}` : ''}
+---
+` : '';
+
     const res = await requestCompletion({
       model: modelId || getTextModel(),
       messages: [
-        { role: 'system', content: DELTA_AGENT_PROMPT },
+        { role: 'system', content: userContext + DELTA_AGENT_PROMPT },
         { 
           role: 'user', 
           content: `

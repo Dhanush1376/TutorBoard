@@ -51,6 +51,8 @@ export const signup = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
+          googleId: user.googleId,
+          githubId: user.githubId,
         },
         token: generateToken(user._id),
       });
@@ -85,7 +87,9 @@ export const signin = async (req, res) => {
           name: userObj.name,
           email: userObj.email,
           settings: userObj.settings || {},
-          apiPreferences: userObj.apiPreferences || {}
+          apiPreferences: userObj.apiPreferences || {},
+          googleId: userObj.googleId,
+          githubId: userObj.githubId,
         },
         token: generateToken(user._id),
       });
@@ -111,7 +115,9 @@ export const getMe = async (req, res) => {
         id: req.user.id || 'guest',
         name: req.user.name || 'Guest User',
         email: req.user.email || 'guest@example.com',
-        settings: req.user.settings || {}
+        settings: req.user.settings || {},
+        googleId: req.user.googleId,
+        githubId: req.user.githubId,
       },
     });
   } catch (err) {

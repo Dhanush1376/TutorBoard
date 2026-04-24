@@ -202,13 +202,14 @@ export const createCanvasSlice = (set, get) => ({
   addCanvasObjects: (objects) => {
     const { canvasObjects, history, canvasSteps, currentStepIndex } = get();
     const existingIds = new Set(canvasObjects.map(o => o.id));
-    const newOnes = objects.filter(o => !existingIds.has(o.id));
-    const addedIds = newOnes.map(o => o.id);
+    const newOnes = objects.filter(o => o && o.id && !existingIds.has(o.id));
+    if (newOnes.length === 0) return;
 
+    const addedIds = newOnes.map(o => o.id);
     let newSteps = [...canvasSteps];
     if (currentStepIndex >= 0 && newSteps[currentStepIndex] && addedIds.length > 0) {
       const step = { ...newSteps[currentStepIndex] };
-      step.objectIds = [...(step.objectIds || []), ...addedIds];
+      step.objectIds = Array.from(new Set([...(step.objectIds || []), ...addedIds]));
       newSteps[currentStepIndex] = step;
     }
 

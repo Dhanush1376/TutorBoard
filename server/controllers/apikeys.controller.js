@@ -66,10 +66,23 @@ export const getApiKeyDashboard = async (req, res) => {
 
     const keys = (user.apiKeys || []).map(k => {
       const usage = perProviderUsage.find(u => u._id.provider === k.provider && u._id.model === k.model) || { requests: 0, tokens: 0, cost: 0 };
+      
+      // Basic masking: sk-proj-abc...xyz -> sk-proj-abc...****
+      const raw = k.label || '';
+      const maskedKey = k.provider === 'openai' ? 'sk-proj-****' : 'sk-****'; 
+      // Actually, since we don't have the decrypted key here, we use a generic placeholder 
+      // or we can decrypt just the prefix if we wanted to be fancy. 
+      // For now, let's just provide the necessary fields.
+      
       return {
-        id: k._id, provider: k.provider, model: k.model,
-        label: k.label || `${k.provider} key`,
-        isActive: k.isActive, isValid: k.isValid,
+        id: k._id, 
+        provider: k.provider, 
+        model: k.model,
+        label: k.label || `${k.provider} Key`,
+        isActive: k.isActive, 
+        isValid: k.isValid,
+        baseUrl: k.baseUrl || '',
+        maskedKey: k.maskedKey || '••••••••••••••••',
         usage: { requests: usage.requests, tokens: usage.tokens, costCents: usage.cost }
       };
     });
@@ -88,7 +101,11 @@ export const getApiKeyDashboard = async (req, res) => {
     });
   } catch (err) {
     console.error('[ApiKeys] Dashboard error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch dashboard data' });
+    console.error('[ApiKeys] Dashboard fetch error:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch dashboard data', 
+      details: err.message 
+    });
   }
 };
 
@@ -319,7 +336,7 @@ export const updateApiKey = async (req, res) => {
       key.lastValidated = new Date();
 
       // IMPORTANT: Reset the circuit breaker so the new key works immediately without restarting the server
-      const { circuitBreaker } = await import('../../utils/ai/llmClient.js');
+      // circuitBreaker is already imported at top level
       if (circuitBreaker) {
         circuitBreaker.reset(key.provider);
       }
@@ -598,5 +615,30 @@ export const testApiKey = async (req, res) => {
   } catch (err) {
     console.error('[ApiKeys] Test error:', err.message);
     res.status(500).json({ error: 'Failed to test API key' });
+  }
+};
+/**
+ * POST /api/apikeys/test-transient
+ * Validate a key WITHOUT saving it first
+ */
+export const testTransientKey = async (req, res) => {
+  try {
+    const { provider, apiKey, model, baseUrl } = req.body;
+
+    if (!apiKey) return res.status(400).json({ error: 'API key is required' });
+    if (!provider) return res.status(400).json({ error: 'Provider is required' });
+
+    console.log(`[ApiKeys] Performing transient validation for ${provider}...`);
+    const validation = await validateApiKey(provider, apiKey, model, baseUrl);
+
+    res.json({
+      valid: validation.valid,
+      latencyMs: validation.latencyMs,
+      error: validation.error || null,
+      details: validation.error
+    });
+  } catch (err) {
+    console.error('[ApiKeys] Transient test error:', err.message);
+    res.status(500).json({ error: 'Validation engine failure' });
   }
 };

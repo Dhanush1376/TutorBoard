@@ -38,6 +38,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const showGrid   = useTutorStore(state => state.showGrid);
   const gridType   = useTutorStore(state => state.gridType);
   const gridSize   = useTutorStore(state => state.gridSize);
+  const isSidebarOpen = useTutorStore(state => state.isSidebarOpen);
+  const layoutView = useTutorStore(state => state.layoutView);
+  const isRightHand = layoutView === 'right';
   const isCanvasLocked = useTutorStore(state => state.isCanvasLocked);
   const isInteracting  = useTutorStore(state => state.isInteracting);
   const { user } = useAuth();
@@ -99,13 +102,47 @@ const InfiniteCanvas = memo(React.forwardRef(({
     };
   }, []);
 
+  // AUTO-CENTER ON MOUNT
+  useEffect(() => {
+    if (initialTransform) return;
+    
+    const center = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        // Layout hasn't settled, try again next frame
+        requestAnimationFrame(center);
+        return;
+      }
+      
+      // Calculate offset if sidebar is open
+      let offsetX = 0;
+      if (isSidebarOpen) {
+        offsetX = isRightHand ? -160 : 160; 
+      }
+
+      const newTransform = {
+        x: Math.round(rect.width / 2 - 400 + offsetX),
+        y: Math.round(rect.height / 2 - 300),
+        scale: 1,
+      };
+      setTransform(newTransform);
+      transformRef.current = newTransform;
+      applyTransform(newTransform);
+    };
+
+    // Delay slightly to ensure layout settle (especially with sidebars)
+    const timer = setTimeout(center, 50);
+    return () => clearTimeout(timer);
+  }, [initialTransform, isSidebarOpen, isRightHand]); // Re-run if layout changes during mount
+
   // Apply transform via CSS (no React re-render)
   const applyTransform = useCallback((t) => {
     if (contentRef.current) {
       contentRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
     }
     // High-performance Grid synchronization
-    if (gridRef.current && showGridRef.current) {
+    if (gridRef.current && showGridRef.current && gridTypeRef.current !== 'none') {
       const s = t.scale;
       const gs = gridSizeRef.current;
       const gSizeStr = `${gs * s}px ${gs * s}px`;
@@ -411,48 +448,75 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
+    
+    // Enable temporary transition for smooth reset
+    if (contentRef.current) contentRef.current.style.transition = transitionStyle;
+    
+    // Calculate offset if sidebar is open
+    // Sidebar is 320px. We want to center in the remaining space.
+    let offsetX = 0;
+    if (isSidebarOpen) {
+      offsetX = isRightHand ? -160 : 160; 
+    }
+
     const newTransform = {
-      x: rect.width / 2 - (400 * 1), // Center (400, 300) world
-      y: rect.height / 2 - (300 * 1),
+      x: Math.round(rect.width / 2 - 400 + offsetX), 
+      y: Math.round(rect.height / 2 - 300),
       scale: 1,
     };
     applyTransform(newTransform);
     commitTransform(newTransform);
-  }, [applyTransform, commitTransform]);
+  }, [applyTransform, commitTransform, transitionStyle, isSidebarOpen, isRightHand]);
 
   const fitToContent = useCallback((cw = 800, ch = 600) => {
     if (isCanvasLocked) return;
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
+    
+    if (contentRef.current) contentRef.current.style.transition = transitionStyle;
+    
+    let offsetX = 0;
+    if (isSidebarOpen) {
+      offsetX = isRightHand ? -160 : 160;
+    }
+
     const padding = 60;
-    const sx = (rect.width - padding * 2) / cw;
+    const sx = (rect.width - (isSidebarOpen ? 320 : 0) - padding * 2) / cw;
     const sy = (rect.height - padding * 2) / ch;
-    const s = Math.min(sx, sy, 1.1); // Max scale 1.1 for fitting
+    const s = Math.min(sx, sy, 1.1); 
     const newTransform = {
-      x: rect.width / 2 - (400 * s),
-      y: rect.height / 2 - (300 * s),
+      x: Math.round((rect.width + (isSidebarOpen ? (isRightHand ? -320 : 320) : 0)) / 2 - 400 * s),
+      y: Math.round(rect.height / 2 - 300 * s),
       scale: s,
     };
     applyTransform(newTransform);
     commitTransform(newTransform);
-  }, [applyTransform, commitTransform]);
+  }, [applyTransform, commitTransform, transitionStyle, isSidebarOpen, isRightHand]);
 
   const centerOn = useCallback((wx, wy, zoom = null) => {
     if (isCanvasLocked) return;
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
+    
+    if (contentRef.current) contentRef.current.style.transition = transitionStyle;
+
+    let offsetX = 0;
+    if (isSidebarOpen) {
+      offsetX = isRightHand ? -160 : 160;
+    }
+
     const t = transformRef.current;
     const newScale = zoom || t.scale;
     const newTransform = {
-      x: rect.width / 2 - (wx * newScale),
-      y: rect.height / 2 - (wy * newScale),
+      x: Math.round(rect.width / 2 - wx * newScale + offsetX),
+      y: Math.round(rect.height / 2 - wy * newScale),
       scale: newScale,
     };
     applyTransform(newTransform);
     commitTransform(newTransform);
-  }, [applyTransform, commitTransform]);
+  }, [applyTransform, commitTransform, transitionStyle, isSidebarOpen, isRightHand]);
 
   // ─── Attach wheel listener (non-passive for preventDefault) ───
   useEffect(() => {
@@ -502,15 +566,17 @@ const InfiniteCanvas = memo(React.forwardRef(({
           ref={gridRef}
           className="absolute inset-0 pointer-events-none transition-opacity duration-300"
           style={{
-            display: showGrid ? 'block' : 'none',
+            display: (showGrid && gridType !== 'none') ? 'block' : 'none',
             opacity: 0.2,
             backgroundImage: gridType === 'dots' 
               ? `radial-gradient(circle, var(--text-tertiary) 0.8px, transparent 0.8px),
                  radial-gradient(circle, var(--text-tertiary) 1.5px, transparent 1.5px)`
-              : `linear-gradient(to right, var(--border-color) 1px, transparent 1px),
-                 linear-gradient(to bottom, var(--border-color) 1px, transparent 1px),
-                 linear-gradient(to right, var(--text-tertiary) 1px, transparent 1px),
-                 linear-gradient(to bottom, var(--text-tertiary) 1px, transparent 1px)`,
+              : gridType === 'lines' 
+                ? `linear-gradient(to right, var(--border-color) 1px, transparent 1px),
+                   linear-gradient(to bottom, var(--border-color) 1px, transparent 1px),
+                   linear-gradient(to right, var(--text-tertiary) 1px, transparent 1px),
+                   linear-gradient(to bottom, var(--text-tertiary) 1px, transparent 1px)`
+                : 'none',
             backgroundSize: gridType === 'dots'
               ? `${gridSize * transform.scale}px ${gridSize * transform.scale}px,
                  ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px`

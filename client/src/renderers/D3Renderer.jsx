@@ -112,6 +112,12 @@ export default function D3Renderer({ timeline, currentStepIndex }) {
       .attr('transform', d => `translate(${(d.x ?? 0.5) * CW}, ${(d.y ?? 0.5) * CH})`)
       .style('opacity', 0);
 
+    // UPDATE
+    const nodeUpdate = nodeEnter.merge(nodeSel);
+    nodeUpdate.transition().duration(600).ease(d3.easeCubicOut)
+      .attr('transform', d => `translate(${(d.x ?? 0.5) * CW}, ${(d.y ?? 0.5) * CH})`)
+      .style('opacity', d => fadeIds.has(d.id) ? 0.2 : 1);
+
     // Render/Update shape based on type
     nodeUpdate.each(function(d) {
       const group = d3.select(this);
@@ -189,12 +195,6 @@ export default function D3Renderer({ timeline, currentStepIndex }) {
           .text(d.label);
       }
     });
-
-    // UPDATE
-    const nodeUpdate = nodeEnter.merge(nodeSel);
-    nodeUpdate.transition().duration(600).ease(d3.easeCubicOut)
-      .attr('transform', d => `translate(${(d.x ?? 0.5) * CW}, ${(d.y ?? 0.5) * CH})`)
-      .style('opacity', d => fadeIds.has(d.id) ? 0.2 : 1);
 
     // Highlight pulse
     nodeUpdate.each(function(d) {

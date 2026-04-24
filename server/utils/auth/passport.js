@@ -32,21 +32,37 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     proxy: true
   }, async (accessToken, refreshToken, profile, done) => {
     try {
-      const email = profile.emails?.[0]?.value;
+      const email = profile.emails?.[0]?.value?.toLowerCase();
       if (!email) return done(new Error('No email found in Google profile'), null);
 
-      // Find or create user
-      const user = await User.findOneAndUpdate(
-        { googleId: profile.id },
-        { 
-          $set: { 
-            name: profile.displayName, 
-            email: email.toLowerCase(),
-            avatar: profile.photos?.[0]?.value 
-          } 
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+      // 1. Try to find user by googleId
+      let user = await User.findOne({ googleId: profile.id });
+      
+      if (user) {
+        // Update existing social link if needed
+        user.name = profile.displayName;
+        user.avatar = profile.photos?.[0]?.value || user.avatar;
+        await user.save();
+        return done(null, user);
+      }
+
+      // 2. Try to find user by email (Account Linking)
+      user = await User.findOne({ email });
+      if (user) {
+        user.googleId = profile.id;
+        user.avatar = user.avatar || profile.photos?.[0]?.value;
+        await user.save();
+        console.log(`[Auth] Linked Google account for existing user: ${email}`);
+        return done(null, user);
+      }
+
+      // 3. Create new user
+      user = await User.create({
+        googleId: profile.id,
+        name: profile.displayName,
+        email,
+        avatar: profile.photos?.[0]?.value,
+      });
       
       return done(null, user);
     } catch (err) {
@@ -66,20 +82,35 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
     scope: ['user:email']
   }, async (accessToken, refreshToken, profile, done) => {
     try {
-      // GitHub sometimes hides email; we use username fallback locally but prefer profile.emails
-      const email = profile.emails?.[0]?.value || `${profile.username}@github.com`;
+      const email = (profile.emails?.[0]?.value || `${profile.username}@github.com`).toLowerCase();
 
-      const user = await User.findOneAndUpdate(
-        { githubId: profile.id },
-        { 
-          $set: { 
-            name: profile.displayName || profile.username, 
-            email: email.toLowerCase(),
-            avatar: profile.photos?.[0]?.value 
-          } 
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+      // 1. Try to find user by githubId
+      let user = await User.findOne({ githubId: profile.id });
+
+      if (user) {
+        user.name = profile.displayName || profile.username;
+        user.avatar = profile.photos?.[0]?.value || user.avatar;
+        await user.save();
+        return done(null, user);
+      }
+
+      // 2. Try to find user by email (Account Linking)
+      user = await User.findOne({ email });
+      if (user) {
+        user.githubId = profile.id;
+        user.avatar = user.avatar || profile.photos?.[0]?.value;
+        await user.save();
+        console.log(`[Auth] Linked GitHub account for existing user: ${email}`);
+        return done(null, user);
+      }
+
+      // 3. Create new user
+      user = await User.create({
+        githubId: profile.id,
+        name: profile.displayName || profile.username,
+        email,
+        avatar: profile.photos?.[0]?.value,
+      });
       return done(null, user);
     } catch (err) {
       return done(err, null);

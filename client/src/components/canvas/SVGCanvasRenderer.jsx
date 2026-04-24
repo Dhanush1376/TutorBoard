@@ -57,15 +57,17 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
   const isFaded        = fadeIds.has(obj.id);
   const attentionLevel = isHighlighted ? 2 : isFaded ? 0 : 1;
 
+  const isManual = (obj.id && String(obj.id).startsWith('manual-')) || obj.isPinned || obj.pinned;
+  const opacity = isManual ? 1 : (highlightIds.has(obj.id) ? 1 : fadeIds.has(obj.id) ? 0.2 : 1);
+  const finalAnimation = isManual ? { type: 'none' } : (obj.animation || animation);
+
   const common = {
     layoutId:     obj.id,
     attentionLevel,
-    animation,
+    animation:    finalAnimation,
     content:      obj.content,
     styles:       obj.styles || {},
   };
-
-  const isManual = (obj.id && String(obj.id).startsWith('manual-')) || obj.isPinned;
   
   // ALL objects in TutorBoard store normalized (0.0-1.0) x,y coordinates
   // and normalized (0.0-1.0) w,h dimensions.
@@ -133,8 +135,9 @@ export default function SVGCanvasRenderer({
   const showNotes = propShowNotes !== undefined ? propShowNotes : storeShowNotes;
 
   const rawElements = useMemo(() => {
-    const timelineEls = timeline?.elements || timeline?.objects || [];
-    return [...(extElements || extObjects || []), ...timelineEls];
+    // AgentCanvasRenderer already merged and deduplicated timeline + manual objects into extElements.
+    // We should NOT merge them again here to avoid duplicate key errors.
+    return extElements || extObjects || timeline?.elements || timeline?.objects || [];
   }, [extElements, extObjects, timeline]);
 
   const connections  = extConnections  || timeline?.connections || [];
@@ -143,20 +146,25 @@ export default function SVGCanvasRenderer({
 
   const stepObjectIds = useMemo(() => {
     const ids = currentStep.objectIds || currentStep.elements || [];
-    const baseSet = new Set(ids);
+    const baseSet = new Set(ids.map(id => String(id)));
     rawElements.forEach(el => {
-      if (el?.isPinned || el?.id?.startsWith?.('manual-')) baseSet.add(el.id);
+      if (!el?.id) return;
+      const sId = String(el.id);
+      if (el.isPinned || el.pinned || sId.startsWith('manual-')) {
+        baseSet.add(sId);
+      }
     });
-    return baseSet.size > 0 ? baseSet : new Set(rawElements.map(e => e?.id));
+    return baseSet.size > 0 ? baseSet : new Set(rawElements.map(e => String(e?.id)));
   }, [currentStep, rawElements]);
 
   const elements = useMemo(() => {
     return rawElements
       .filter(el => {
         if (!el?.id) return false;
-        const isManual = el.id.startsWith('manual-') || el.isPinned || el.doubtDriven;
+        const sId = String(el.id);
+        const isManual = sId.startsWith('manual-') || el.isPinned || el.pinned || el.doubtDriven;
         if (forceManualOnly && !isManual) return false;
-        return isManual || stepObjectIds.has(el.id);
+        return isManual || stepObjectIds.has(sId);
       })
       .map(el => {
         const mutation = (currentStep.mutations || []).find(m => m.id === el.id);
@@ -164,8 +172,14 @@ export default function SVGCanvasRenderer({
       });
   }, [rawElements, stepObjectIds, currentStep.mutations]);
 
-  const worldElements = useMemo(() => elements.filter(el => !el.isPinned), [elements]);
-  const pinnedElements = useMemo(() => elements.filter(el => el.isPinned), [elements]);
+  const worldElements = useMemo(() => {
+    // World elements are anything NOT pinned
+    return elements.filter(el => !el.isPinned && !el.pinned);
+  }, [elements]);
+  const pinnedElements = useMemo(() => {
+    // Pinned elements are anything explicitly marked as pinned or isPinned
+    return elements.filter(el => el.isPinned || el.pinned);
+  }, [elements]);
 
   const { highlightIds, fadeIds, camera } = useStepDirector(worldElements, timelineSteps, currentStepIndex);
   
@@ -194,9 +208,17 @@ export default function SVGCanvasRenderer({
           transition={isUserControlled ? { duration: 0 } : { duration: 0.75, ease: EASE }}
         >
           <VisualScriptInterpreter actions={combinedActions} currentStepIndex={currentStepIndex}>
-            <AnimatePresence mode="popLayout">
+            <g className="world-elements">
               {worldElements.map(obj => (
-                <g key={obj.id} data-element-id={obj.id} onPointerDown={() => setSelectedElements([obj.id])}>
+                <g 
+                  key={obj.id} 
+                  data-element-id={obj.id} 
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setSelectedElements([obj.id]);
+                  }}
+                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                >
                   <RenderShape 
                     obj={obj} 
                     highlightIds={highlightIds} 
@@ -207,9 +229,31 @@ export default function SVGCanvasRenderer({
                   />
                 </g>
               ))}
-            </AnimatePresence>
+            </g>
           </VisualScriptInterpreter>
         </motion.g>
+
+        {/* Pinned Layer (Sticky Notes, etc that follow the viewport but stay on top) */}
+        {pinnedElements.map(obj => (
+          <g 
+            key={`pinned-${obj.id}`} 
+            data-element-id={obj.id} 
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              setSelectedElements([obj.id]);
+            }}
+            style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+          >
+            <RenderShape 
+              obj={obj} 
+              highlightIds={new Set()} 
+              fadeIds={new Set()} 
+              isSelected={selectedElementIds.includes(obj.id)}
+              onUpdate={updateCanvasObject}
+              onDelete={deleteCanvasObject}
+            />
+          </g>
+        ))}
       </svg>
       {editingObjectId && <InlineEditor elements={rawElements} editingObjectId={editingObjectId} Z={Z} tx={tx} ty={ty} />}
     </div>

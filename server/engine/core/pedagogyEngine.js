@@ -268,9 +268,8 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
 
     // Stage 2: Execute Agent Loop
     onProgress('Running autonomous visual planning loop...');
-
+    
     const targetSteps = DOMAIN_MIN_STEPS[domain]?.default || 10;
-
     const rawSceneGraph = await runAgentLoop({
       topic,
       domain,
@@ -321,7 +320,15 @@ export async function generateQuiz(sessionId, topic, onProgress = () => {}, mode
   onProgress('Building personalized quiz...');
 
   try {
-    const prompt = `You are a Quiz Master. Create a 4-question interactive quiz on "${topic}".
+    const userContext = userConfig ? `
+    Student Info:
+    - Name: ${userConfig.nickname || userConfig.name || 'Student'}
+    - Role: ${userConfig.role || 'Student'}
+    ${userConfig.customInstructions ? `- Custom AI Behavior: ${userConfig.customInstructions}` : ''}
+    ` : '';
+
+    const prompt = `You are a Quiz Master. ${userContext}
+    Create a 4-question interactive quiz on "${topic}".
     The output must be a JSON object:
     {
       "mode": "quiz",
@@ -453,6 +460,8 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
         {
           role: 'system',
           content: `You are Tutu, a friendly and helpful AI pedagogical assistant. 
+          The student you are teaching is ${userConfig?.nickname || userConfig?.name || 'a student'} (Role: ${userConfig?.role || 'Learner'}).
+          ${userConfig?.customInstructions ? `PERSONALIZED INSTRUCTIONS: ${userConfig.customInstructions}` : ''}
           The current context is: ${topic}. 
           Answer conversationally, be encouraging, and keep it under 3 sentences.`,
         },

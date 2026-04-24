@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useContext, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './CanvasContext';
 import { getToolCursor } from '../../utils/cursors';
@@ -238,7 +238,7 @@ const InteractiveCanvasLayer = React.memo(() => {
       }
     }
     
-    const finalizedObject = { ...draft, animation: { type: 'none' } };
+    const finalizedObject = { ...draft, animation: { type: 'fade', duration: 0.3 } };
     delete finalizedObject.isDraft;
 
     if (activeTool === 'draw:laser') {
@@ -262,8 +262,15 @@ const InteractiveCanvasLayer = React.memo(() => {
       finalizedObject.points = [...pointsRef.current];
     }
 
-    state.addCanvasObjects([finalizedObject]);
+    // 1. CLEAR DRAFT IMMEDIATELY to prevent key collisions during the store update re-render
     setDraftObject(null);
+    pointsRef.current = [];
+    isDrawing.current = false;
+    setInteracting(false);
+    draftStateRef.current = null;
+
+    // 2. Add to store
+    state.addCanvasObjects([finalizedObject]);
 
     if (activeTool.startsWith('shape:')) {
       state.setSelectedElements([finalizedObject.id]);
@@ -300,9 +307,18 @@ const InteractiveCanvasLayer = React.memo(() => {
       ref={layerRef}
       className="absolute inset-0 z-10 pointer-events-none"
     >
-      {draftObject && !draftObject.isTyping && (
-        <svg width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
-          <motion.g animate={{ x: transform.x, y: transform.y, scale: transform.scale }}>
+      {/* ─── Ephemeral Drawing/Shape Draft ─── */}
+      <AnimatePresence>
+        {draftObject && !draftObject.isTyping && (
+          <svg key={`draft-svg-${draftObject.id}`} width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
+            <motion.g
+              key={`draft-${draftObject.id}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ pointerEvents: 'none' }}
+            >
+              <motion.g animate={{ x: transform.x, y: transform.y, scale: transform.scale }}>
             {(() => {
               const dx = draftObject.x * CANVAS_WIDTH;
               const dy = draftObject.y * CANVAS_HEIGHT;
@@ -343,12 +359,12 @@ const InteractiveCanvasLayer = React.memo(() => {
                 default:
                   return <rect x={dx} y={dy} width={dw} height={dh} {...strokeProps} />;
               }
-            })()}
-
-
-          </motion.g>
-        </svg>
-      )}
+              })()}
+              </motion.g>
+            </motion.g>
+          </svg>
+        )}
+      </AnimatePresence>
 
     </div>
   );
