@@ -230,7 +230,7 @@ function postProcessTimeline(raw, topic, planningResult) {
 }
 
 // ─── Main Generation Entry Point ──────────────────────────────────────────────
-export async function generateTimeline(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null) {
+export async function generateTimeline(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null, file = null) {
   const session = await sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -279,6 +279,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
       onProgress,
       userConfig,
       learnerProfile,
+      file,
     });
 
     if (!rawSceneGraph || (!rawSceneGraph.timeline && !rawSceneGraph.steps)) {
@@ -376,7 +377,7 @@ export async function generateQuiz(sessionId, topic, onProgress = () => {}, mode
 }
 
 // ─── Doubt/Text Handlers ──────────────────────────────────────────────────────
-export async function handleDoubt(sessionId, question, modelId = null, userConfig = null) {
+export async function handleDoubt(sessionId, question, modelId = null, userConfig = null, file = null) {
   const session = await sessionStore.get(sessionId);
   const topic = session?.topic || 'General Education';
   const domain = session?.domain || 'general';
@@ -400,7 +401,8 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
       canvasState: fullState,
       question,
       modelId,
-      userConfig
+      userConfig,
+      file
     });
 
     if (delta.isError) {
@@ -447,7 +449,7 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
   }
 }
 
-export async function generateTextResponse(sessionId, prompt, modelId = null, userConfig = null) {
+export async function generateTextResponse(sessionId, prompt, modelId = null, userConfig = null, file = null) {
   try {
     const session = await sessionStore.get(sessionId);
     const topic = session?.topic || 'General Discussion';
@@ -471,6 +473,7 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
       maxTokens: 500,
       userConfig,
       taskType: 'simple_qa',
+      file,
     });
 
     if (response.error || !response.content) {

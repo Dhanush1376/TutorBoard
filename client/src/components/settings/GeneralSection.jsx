@@ -128,7 +128,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '100px' }}
+      style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '20px' }}
     >
       {/* Guest Banner */}
       {isGuest && (
@@ -167,18 +167,18 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       <motion.div 
         variants={itemVariants}
         style={{
-          display: 'flex', alignItems: 'center', gap: '28px',
-          marginBottom: '40px', padding: '32px',
-          background: 'var(--bg-secondary)', borderRadius: '28px',
+          display: 'flex', alignItems: 'center', gap: '20px',
+          marginBottom: '24px', padding: '20px',
+          background: 'var(--bg-secondary)', borderRadius: '24px',
           border: '1px solid var(--border-color)',
           position: 'relative', overflow: 'hidden',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.04)',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
         }}
       >
         <div style={{ position: 'absolute', top: -100, right: -100, width: '300px', height: '300px', background: 'radial-gradient(circle, var(--accent-primary)08, transparent 70%)', pointerEvents: 'none' }} />
         
         <div style={{ position: 'relative' }}>
-          <AvatarCircle name={displayName} size={84} />
+          <AvatarCircle name={displayName} size={64} />
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -190,8 +190,8 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         </div>
 
         <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
               {displayName || 'Your Name'}
             </h2>
             {isGuest && <TrialBadge />}
@@ -286,17 +286,17 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       <motion.div variants={itemVariants}>
         <SectionTitle>AI Configuration</SectionTitle>
         <SettingsGroup>
-          <div style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '10px', background: 'linear-gradient(135deg, #FF9500, #FFB033)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,149,0,0.2)' }}>
-                  <Sparkles size={18} strokeWidth={2} />
+          <div style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, #FF9500, #FFB033)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(255,149,0,0.2)' }}>
+                  <Sparkles size={16} strokeWidth={2} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'block', letterSpacing: '-0.01em' }}>
+                  <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', display: 'block', letterSpacing: '-0.01em' }}>
                     Custom Behavior
                   </label>
-                  <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Shape how the AI responds globally</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Shape how the AI responds globally</span>
                 </div>
               </div>
               <span style={{
@@ -321,14 +321,14 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                     : 'e.g. Always explain with real-world analogies. I prefer concise answers with code examples...'
                 }
                 style={{
-                  width: '100%', padding: '18px',
-                  resize: 'vertical', minHeight: '140px', maxHeight: '400px',
+                  width: '100%', padding: '14px',
+                  resize: 'vertical', minHeight: '120px', maxHeight: '400px',
                   background: 'var(--bg-primary)',
-                  border: `1.5px solid ${prefsOverLimit ? '#ef444466' : 'var(--border-color)'}`,
-                  borderRadius: '20px',
-                  color: 'var(--text-primary)', fontSize: '14px',
+                  border: `1.2px solid ${prefsOverLimit ? '#ef444466' : 'var(--border-color)'}`,
+                  borderRadius: '16px',
+                  color: 'var(--text-primary)', fontSize: '13px',
                   fontFamily: '"Geist", sans-serif',
-                  lineHeight: 1.7, outline: 'none',
+                  lineHeight: 1.6, outline: 'none',
                   transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxSizing: 'border-box',
                   opacity: isGuest ? 0.6 : 1,

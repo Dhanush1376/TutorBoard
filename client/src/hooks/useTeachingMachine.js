@@ -390,7 +390,7 @@ export function useTeachingMachine(isAuthReady = true) {
 
 
   // ─── Actions ──────────────────────────────────────────────────────────────
-  const startSession = useCallback((topicStr, initialQuestion, activeMode) => {
+  const startSession = useCallback((topicStr, initialQuestion, activeMode, file = null) => {
     storeStartSession(topicStr, initialQuestion);
     // Pass the existing chatSessionId (if any) so the server can resume/link
     // the correct MongoDB document instead of creating a duplicate.
@@ -399,14 +399,26 @@ export function useTeachingMachine(isAuthReady = true) {
     identifyUser(topicStr, { last_topic: topicStr });
     trackEvent('session_started', { topic: topicStr, mode: activeMode, agent: selectedAgent });
     
-    emit('session:start', { topic: topicStr, initialQuestion, selectedAgent, activeMode, chatId: existingChatId || undefined });
+    emit('session:start', { 
+      topic: topicStr, 
+      initialQuestion, 
+      selectedAgent, 
+      activeMode, 
+      chatId: existingChatId || undefined,
+      file // Multimodal support
+    });
   }, [emit, storeStartSession, selectedAgent]);
 
-  const askDoubt = useCallback((question, activeMode) => {
+  const askDoubt = useCallback((question, activeMode, file = null) => {
     storePause();
     setDoubtProcessing(true);
     trackEvent('doubt_asked', { question, agent: selectedAgent });
-    emit('session:doubt', { question, selectedAgent, activeMode });
+    emit('session:doubt', { 
+      question, 
+      selectedAgent, 
+      activeMode,
+      file // Multimodal support
+    });
   }, [emit, storePause, setDoubtProcessing, selectedAgent]);
 
   const goToStep = useCallback((stepIndex) => {

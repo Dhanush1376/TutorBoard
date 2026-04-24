@@ -25,12 +25,12 @@ const UniversalUsageCard = ({ usage }) => {
     <div style={{ 
       background: 'var(--bg-secondary)', 
       border: '1px solid var(--border-color)', 
-      borderRadius: '18px', 
-      padding: '16px', 
-      marginBottom: '24px', 
+      borderRadius: '16px', 
+      padding: '12px', 
+      marginBottom: '20px', 
       position: 'relative', 
       overflow: 'hidden',
-      boxShadow: '0 8px 24px rgba(0,0,0,0.02)'
+      boxShadow: '0 4px 16px rgba(0,0,0,0.02)'
     }}>
       <div style={{ 
         position: 'absolute', top: 0, right: 0, padding: '6px 12px', 
@@ -39,13 +39,13 @@ const UniversalUsageCard = ({ usage }) => {
         letterSpacing: '0.08em', textTransform: 'uppercase' 
       }}>System Quota</div>
       
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
         <div style={{ 
-          width: '36px', height: '36px', borderRadius: '10px', 
+          width: '32px', height: '32px', borderRadius: '8px', 
           background: 'rgba(139,92,246,0.08)', display: 'flex', alignItems: 'center', 
-          justifyContent: 'center', color: '#8b5cf6', boxShadow: '0 4px 12px rgba(139,92,246,0.08)' 
+          justifyContent: 'center', color: '#8b5cf6', boxShadow: '0 2px 8px rgba(139,92,246,0.08)' 
         }}>
-          <Sparkles size={20} strokeWidth={2.5} />
+          <Sparkles size={16} strokeWidth={2.5} />
         </div>
         <div>
           <div style={{ fontSize: '14px', fontWeight: 800, letterSpacing: '-0.02em' }}>TutorBoard Edge Engine</div>
@@ -54,12 +54,12 @@ const UniversalUsageCard = ({ usage }) => {
       </div>
 
       {/* Main progress bar */}
-      <div style={{ marginBottom: '28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '10px', fontWeight: 700 }}>
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', fontWeight: 700 }}>
           <span style={{ color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monthly Capacity</span>
           <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-primary)' }}>{usage.requests} / {usage.limit}</span>
         </div>
-        <div style={{ height: '10px', background: 'var(--bg-tertiary)', borderRadius: '5px', overflow: 'hidden', padding: '1.5px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
+        <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden', padding: '1.2px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
           <motion.div 
             initial={{ width: 0 }} 
             animate={{ width: `${usage.percent}%` }} 
@@ -232,7 +232,7 @@ export default function APIConfigSection({ showToast }) {
   const statColors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', paddingBottom: '160px' }}>
+    <div style={{ maxWidth: '600px', margin: '0 auto', paddingBottom: '20px' }}>
 
       {/* Status banner — elevated with gradient accent */}
       <motion.div
@@ -431,7 +431,7 @@ export default function APIConfigSection({ showToast }) {
       {usageStats && (
         <div style={{ marginTop: '48px' }}>
           <SectionTitle>Performance Analytics</SectionTitle>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
             {[
               { label: 'Requests', value: usageStats.totalRequests || 0, icon: Zap },
               { label: 'Tokens',   value: usageStats.totalTokens   || 0, icon: Brain },
@@ -445,23 +445,23 @@ export default function APIConfigSection({ showToast }) {
                 transition={{ delay: i * 0.08, duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
                 whileHover={{ y: -4, boxShadow: `0 12px 32px ${statColors[i]}22`, background: 'var(--bg-tertiary)33' }}
                 style={{ 
-                  background: 'var(--bg-secondary)', padding: '16px 12px', borderRadius: '18px', 
+                  background: 'var(--bg-secondary)', padding: '12px 8px', borderRadius: '16px', 
                   textAlign: 'center', border: '1px solid var(--border-color)', 
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', 
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', 
                   cursor: 'default', transition: 'all 0.3s', position: 'relative', overflow: 'hidden',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
                 }}
               >
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '3px', background: `linear-gradient(90deg, ${statColors[i]}, transparent)` }} />
                 <div style={{ 
-                  width: '32px', height: '32px', borderRadius: '10px', 
+                  width: '28px', height: '28px', borderRadius: '8px', 
                   background: `${statColors[i]}15`, display: 'flex', alignItems: 'center', 
                   justifyContent: 'center', color: statColors[i],
-                  boxShadow: `0 4px 10px ${statColors[i]}22`
+                  boxShadow: `0 2px 8px ${statColors[i]}22`
                 }}>
-                  <s.icon size={16} strokeWidth={2.5} />
+                  <s.icon size={14} strokeWidth={2.5} />
                 </div>
-                <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.03em', fontFamily: '"Geist Mono", monospace', color: 'var(--text-primary)' }}>{s.value}</div>
+                <div style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.03em', fontFamily: '"Geist Mono", monospace', color: 'var(--text-primary)' }}>{s.value}</div>
                 <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.7 }}>{s.label}</div>
               </motion.div>
             ))}

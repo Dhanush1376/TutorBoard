@@ -19,7 +19,7 @@ import { runDeltaAgent } from '../../engine/agents/deltaAgent.js';
 
 export function registerDoubtHandlers(socket, machine, sessionId) {
   
-  socket.on('session:doubt', async ({ question, selectedAgent, activeMode }) => {
+  socket.on('session:doubt', async ({ question, selectedAgent, activeMode, file }) => {
     // ─── Sliding Window Rate Limiting (5 doubts / 60s) — Redis Backed ────────
     const now = Date.now();
     const ip = socket.handshake.address;
@@ -86,14 +86,14 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
       let response;
       if (intentResult.intent === 'quick' || intentResult.intent === 'text_only') {
         const textRes = await withTimeout(
-          generateTextResponse(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig),
+          generateTextResponse(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig, file),
           45000
         );
         response = { answer: textRes.answer, isRelevant: true, hasVisuals: false, visualUpdate: null };
       } else {
         // Use the centralized handleDoubt from pedagogyEngine — it handles all state gathering and agent calls
         response = await withTimeout(
-          handleDoubt(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig),
+          handleDoubt(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig, file),
           60000
         );
       }

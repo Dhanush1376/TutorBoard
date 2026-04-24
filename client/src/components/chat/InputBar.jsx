@@ -26,6 +26,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import useTutorStore from '../../store/tutorStore';
 
+import { BASE_URL as API_URL } from '../../services/api';
+
 const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk }) => {
   const { apiPrefs, switchApi } = useAuth();
   const textareaRef = useRef(null);
@@ -154,7 +156,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     }
   };
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
   const agents = [
     { id: 'Universal', name: 'TutorBoard', icon: Bot, status: 'active', isSystem: true },

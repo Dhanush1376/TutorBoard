@@ -122,12 +122,12 @@ const LayoutOption = ({ id, label, icon: Icon, isActive, onClick, children }) =>
     whileTap={{ scale: 0.97 }}
     onClick={() => onClick(id)}
     style={{
-      flex: 1, display: 'flex', flexDirection: 'column', gap: '10px',
-      padding: '12px', borderRadius: '14px',
-      border: `1.5px solid ${isActive ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+      flex: 1, display: 'flex', flexDirection: 'column', gap: '8px',
+      padding: '10px', borderRadius: '12px',
+      border: `1.2px solid ${isActive ? 'var(--accent-primary)' : 'var(--border-color)'}`,
       background: isActive ? 'var(--bg-secondary)' : 'transparent',
       cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-      boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.02)' : 'none',
+      boxShadow: isActive ? '0 4px 10px rgba(0,0,0,0.02)' : 'none',
       position: 'relative', overflow: 'hidden',
     }}
   >
@@ -154,12 +154,12 @@ const LayoutOption = ({ id, label, icon: Icon, isActive, onClick, children }) =>
     </div>
     {children && (
       <div style={{
-        height: '40px', width: '100%', borderRadius: '10px',
+        height: '32px', width: '100%', borderRadius: '8px',
         background: 'var(--bg-primary)', border: '1px solid var(--border-color)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         opacity: isActive ? 1 : 0.6, transition: 'all 0.3s',
         overflow: 'hidden', zIndex: 1,
-        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)',
+        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)',
       }}>
         {children}
       </div>
@@ -192,12 +192,12 @@ export default function AppearanceSection({ syncSettings }) {
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '48px', paddingBottom: '100px' }}
+      style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '20px' }}
     >
 
       {/* ── Interface Style ─────────────────────────────────────────── */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <SectionTitle style={{ margin: 0 }}>Interface Style</SectionTitle>
 
           {/* Light / Dark toggle — Premium Segmented Control */}
@@ -216,17 +216,17 @@ export default function AppearanceSection({ syncSettings }) {
                 whileTap={{ scale: 0.96 }}
                 onClick={() => mode !== m.id && toggleMode()}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  padding: '7px 16px', borderRadius: '10px', border: 'none',
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '6px 12px', borderRadius: '8px', border: 'none',
                   cursor: 'pointer',
                   background: mode === m.id ? 'var(--bg-primary)' : 'transparent',
                   color: mode === m.id ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                  fontSize: '12px', fontWeight: mode === m.id ? 700 : 500,
+                  fontSize: '11px', fontWeight: mode === m.id ? 700 : 500,
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxShadow: mode === m.id ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
-                <m.icon size={14} strokeWidth={mode === m.id ? 2.5 : 2} />
+                <m.icon size={13} strokeWidth={mode === m.id ? 2.5 : 2} />
                 {m.label}
               </motion.button>
             ))}
@@ -234,7 +234,7 @@ export default function AppearanceSection({ syncSettings }) {
         </div>
 
         {/* Theme Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
           {themes.map(theme => (
             <ThemePreviewCard
               key={theme.id}
@@ -252,8 +252,8 @@ export default function AppearanceSection({ syncSettings }) {
         <SectionTitle>Canvas Workspace</SectionTitle>
 
         {/* Grid type */}
-        <div style={{ marginBottom: '24px' }}>
-          <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '12px', opacity: 0.8, letterSpacing: '0.02em' }}>
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '8px', opacity: 0.8, letterSpacing: '0.02em' }}>
             BACKGROUND PATTERN
           </p>
           <div style={{ display: 'flex', gap: '14px' }}>
@@ -298,8 +298,8 @@ export default function AppearanceSection({ syncSettings }) {
         </div>
 
         {/* Panel side */}
-        <div style={{ marginBottom: '32px' }}>
-          <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '12px', opacity: 0.8, letterSpacing: '0.02em' }}>
+        <div style={{ marginBottom: '24px' }}>
+          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '8px', opacity: 0.8, letterSpacing: '0.02em' }}>
             CHAT PANEL POSITION
           </p>
           <div style={{ display: 'flex', gap: '14px' }}>

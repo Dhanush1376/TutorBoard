@@ -97,7 +97,16 @@ const ROUTING_THRESHOLDS = {
  * @param {string} prompt - User's input text
  * @returns {{ complexityScore: number, breakdown: object, recommendedTier: string, taskType: string, reasoning: string }}
  */
-export function classifyTask(prompt) {
+export function classifyTask(prompt, file = null) {
+  if (file && file.type?.startsWith('image/')) {
+    return {
+      complexityScore: 80,
+      breakdown: { length: 0, keywords: 0, code: 0, multiStep: 0, domain: 0, depth: 0 },
+      recommendedTier: 'premium',
+      taskType: 'vision',
+      reasoning: 'Image attached — requires multi-modal vision capabilities',
+    };
+  }
   if (!prompt || prompt.length < 3) {
     return {
       complexityScore: 0,
@@ -248,6 +257,9 @@ const MODEL_TIERS = {
 export function selectOptimalModel(taskType, recommendedTier, availableKeys, adaptiveScores = null) {
   if (!availableKeys || availableKeys.length === 0) return null;
 
+  // If it's a vision task, prioritize models known to support vision
+  const visionCapableModels = ['gpt-4o', 'gemini-1.5-pro', 'claude-sonnet-4-20250514', 'anthropic/claude-3-5-sonnet', 'google/gemini-2.0-flash-001', 'gpt-4o-mini', 'gemini-2.0-flash'];
+
   const activeKeys = availableKeys.filter(k => k.isActive && k.isValid);
   if (activeKeys.length === 0) return null;
 
@@ -267,8 +279,13 @@ export function selectOptimalModel(taskType, recommendedTier, availableKeys, ada
     return { key, tier, tierRank: tierRank === -1 ? 99 : tierRank, adaptiveScore };
   });
 
-  // Sort by: tier priority first, then adaptive score (higher is better)
+  // Sort by: vision capability (if vision task), tier priority, then adaptive score
   candidates.sort((a, b) => {
+    if (taskType === 'vision') {
+      const aVision = visionCapableModels.includes(a.key.model) ? 0 : 1;
+      const bVision = visionCapableModels.includes(b.key.model) ? 0 : 1;
+      if (aVision !== bVision) return aVision - bVision;
+    }
     if (a.tierRank !== b.tierRank) return a.tierRank - b.tierRank;
     return b.adaptiveScore - a.adaptiveScore; // higher adaptive score wins
   });

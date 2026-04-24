@@ -108,9 +108,9 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 x: 0, y: 0, scale: 1, opacity: 1,
               } : {
                 position: 'relative',
-                width: 'min(1040px, 95vw)',
-                height: 'min(820px, 90vh)',
-                borderRadius: '32px',
+                width: 'min(840px, 95vw)',
+                height: 'min(640px, 90vh)',
+                borderRadius: '24px',
                 x: 0, y: 0, scale: 1, opacity: 1,
               }
             }
@@ -244,7 +244,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
 
                 {/* Content Area — Refined Spacing */}
                 <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-                  <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '48px 32px 180px 32px' }} className="no-scrollbar">
+                  <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '32px 24px 40px 24px' }} className="no-scrollbar">
                     <AnimatePresence mode="wait">
                       <motion.div 
                         key={activeSection} 

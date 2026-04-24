@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { BASE_URL as API_URL_IMPORT } from '../../services/api';
+export const API_URL = API_URL_IMPORT;
 
 export const SECTIONS = [
   { id: 'general', label: 'General', icon: User },
@@ -18,9 +19,9 @@ export const SECTIONS = [
 
 export const SectionTitle = ({ children, style = {} }) => (
   <h2 style={{
-    fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em',
+    fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em',
     color: 'var(--text-tertiary)', textTransform: 'uppercase',
-    marginBottom: '10px', marginLeft: '20px',
+    marginBottom: '8px', marginLeft: '16px',
     fontFamily: '"Geist", sans-serif',
     opacity: 0.8,
     ...style
@@ -30,11 +31,11 @@ export const SectionTitle = ({ children, style = {} }) => (
 export const SettingsGroup = ({ children }) => (
   <div className="settings-group" style={{
     background: 'var(--bg-secondary)',
-    borderRadius: '16px',
-    marginBottom: '24px',
+    borderRadius: '14px',
+    marginBottom: '20px',
     border: '1px solid var(--border-color)',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.02)',
-    padding: '4px 0',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.02)',
+    padding: '2px 0',
     overflow: 'hidden'
   }}>
     <style>{`
@@ -52,7 +53,7 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
       onClick={onClick || undefined}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 20px',
+        padding: '10px 16px',
         borderBottom: borderBottom ? '1px solid var(--border-color)' : 'none',
         background: 'transparent',
         cursor: isClickable ? 'pointer' : 'default',
@@ -64,13 +65,13 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
       <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1 }}>
         {Icon && (
           <div style={{
-            width: '28px', height: '28px', borderRadius: '8px',
+            width: '26px', height: '26px', borderRadius: '7px',
             background: danger ? 'rgba(239,68,68,0.1)' : 'var(--text-primary)',
             color: danger ? '#ef4444' : 'var(--bg-primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            boxShadow: danger ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
+            boxShadow: danger ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
           }}>
-            <Icon size={15} strokeWidth={2.5} />
+            <Icon size={14} strokeWidth={2.5} />
           </div>
         )}
         <div style={{ flex: 1 }}>
@@ -104,7 +105,7 @@ export const AppleToggle = ({ value, onChange }) => (
   <button
     onClick={() => onChange(!value)}
     style={{
-      width: '42px', height: '24px', borderRadius: '12px',
+      width: '36px', height: '20px', borderRadius: '10px',
       background: value ? '#10b981' : 'var(--bg-tertiary)',
       border: `none`,
       position: 'relative', cursor: 'pointer',
@@ -114,17 +115,17 @@ export const AppleToggle = ({ value, onChange }) => (
       alignItems: 'center',
       padding: '0 2px',
       boxSizing: 'border-box',
-      boxShadow: value ? '0 2px 8px rgba(16,185,129,0.2)' : 'inset 0 1px 2px rgba(0,0,0,0.05)',
+      boxShadow: value ? '0 2px 6px rgba(16,185,129,0.2)' : 'inset 0 1px 2px rgba(0,0,0,0.05)',
     }}
   >
     <motion.div
       initial={false}
-      animate={{ x: value ? 18 : 0 }}
+      animate={{ x: value ? 16 : 0 }}
       transition={{ type: 'spring', stiffness: 600, damping: 35 }}
       style={{
-        width: '20px', height: '20px', borderRadius: '50%',
+        width: '16px', height: '16px', borderRadius: '50%',
         background: '#fff',
-        boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
@@ -140,10 +141,10 @@ export const RightInlineInput = ({ value, onChange, placeholder, type = 'text', 
     type={type} value={value} onChange={onChange}
     placeholder={placeholder} disabled={disabled}
     style={{
-      width, padding: '8px 12px', background: 'var(--bg-tertiary)33', border: 'none',
-      borderRadius: '8px',
+      width, padding: '6px 10px', background: 'var(--bg-tertiary)33', border: 'none',
+      borderRadius: '6px',
       color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-      fontSize: '14px', fontWeight: 600, fontFamily: '"Geist", sans-serif',
+      fontSize: '13px', fontWeight: 600, fontFamily: '"Geist", sans-serif',
       outline: 'none', textAlign: 'right', cursor: disabled ? 'not-allowed' : 'text',
       transition: 'all 0.2s',
     }}
@@ -175,13 +176,13 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
           padding: basePadding, backgroundColor: isOpen ? hoverBg : baseBg,
-          border: `1.5px solid ${isOpen ? 'var(--accent-primary)' : borderCol}`,
-          borderRadius: styleContext === 'form' ? '16px' : '10px',
+          border: `1.2px solid ${isOpen ? 'var(--accent-primary)' : borderCol}`,
+          borderRadius: styleContext === 'form' ? '12px' : '8px',
           color: styleContext === 'form' ? 'var(--text-primary)' : 'var(--text-primary)',
-          fontSize: '14px', fontWeight: 600, cursor: 'pointer', outline: 'none',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', minWidth: '150px',
+          fontSize: '13px', fontWeight: 600, cursor: 'pointer', outline: 'none',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', minWidth: '130px',
         }}
         onMouseEnter={e => e.currentTarget.style.backgroundColor = hoverBg}
         onMouseLeave={e => e.currentTarget.style.backgroundColor = isOpen ? hoverBg : baseBg}
@@ -262,17 +263,17 @@ export const ContextButton = ({ children, onClick, danger, icon: Icon, borderBot
   <button
     onClick={onClick}
     style={{
-      padding: '20px 28px', width: '100%', background: 'transparent',
+      padding: '14px 20px', width: '100%', background: 'transparent',
       border: 'none', borderBottom: borderBottom ? '1px solid var(--border-color)' : 'none',
-      color: danger ? '#ef4444' : 'var(--accent-primary)', fontSize: '15px', fontWeight: 600,
-      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+      color: danger ? '#ef4444' : 'var(--accent-primary)', fontSize: '13.5px', fontWeight: 600,
+      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
       transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       letterSpacing: '-0.01em',
     }}
     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
   >
-    {Icon && <Icon size={18} strokeWidth={2.5} />}
+    {Icon && <Icon size={16} strokeWidth={2.5} />}
     {children}
   </button>
 );

@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../layout/VisaiLogo';
 import { SectionTitle, SettingsGroup, SettingsRow } from './SettingsShared';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { BASE_URL as API_URL } from '../../services/api';
 
 const APP_VERSION = '2.1.0';
 const BUILD_NUMBER = 'TB-2026-0422-REL';
@@ -64,9 +64,9 @@ function SystemHealthBanner({ statuses }) {
       animate={{ opacity: 1, y: 0 }}
       style={{
         display: 'flex', alignItems: 'center', gap: '10px',
-        padding: '12px 16px', borderRadius: '14px',
+        padding: '10px 14px', borderRadius: '12px',
         background: cfg.bg, border: `1px solid ${cfg.border}`,
-        marginBottom: '28px',
+        marginBottom: '20px',
       }}
     >
       <span style={{ fontSize: '10px', color: cfg.color }}>{cfg.icon}</span>
@@ -120,23 +120,23 @@ export default function AboutSection() {
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '100px' }}
+      style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '20px' }}
     >
 
       {/* ── App Header — Premium Branding ──────────────────────────────── */}
-      <div style={{ textAlign: 'center', padding: '60px 0 48px', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', width: '200px', height: '200px', background: 'radial-gradient(circle, var(--accent-primary)08, transparent 70%)', pointerEvents: 'none' }} />
+      <div style={{ textAlign: 'center', padding: '40px 0 32px', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)', width: '160px', height: '160px', background: 'radial-gradient(circle, var(--accent-primary)08, transparent 70%)', pointerEvents: 'none' }} />
         
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 20 }}
           style={{
-            width: '84px', height: '84px', borderRadius: '24px',
+            width: '64px', height: '64px', borderRadius: '18px',
             background: 'var(--text-primary)',
-            margin: '0 auto 24px',
+            margin: '0 auto 16px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
             position: 'relative',
             zIndex: 1
           }}
@@ -283,7 +283,7 @@ export default function AboutSection() {
       </SettingsGroup>
 
       {/* Footer — Premium Refinement */}
-      <div style={{ textAlign: 'center', marginTop: '60px', opacity: 0.6 }}>
+      <div style={{ textAlign: 'center', marginTop: '40px', opacity: 0.6 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
           <div style={{ width: '32px', height: '1px', background: 'var(--border-color)' }} />
           <VisaiLogo size="xxs" />

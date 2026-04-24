@@ -7,7 +7,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { BASE_URL as SOCKET_URL } from '../services/api';
 
 // Socket Singleton instance
 let globalSocket = null;

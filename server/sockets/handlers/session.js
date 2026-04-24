@@ -21,7 +21,7 @@ import { logActivity } from '../../controllers/session.controller.js';
 export function registerSessionHandlers(socket, machine, sessionId, requestId) {
   
   // ─── START SESSION ──────────────────────────────────────────────────
-  socket.on('session:start', async ({ topic, selectedAgent, activeMode, chatId }) => {
+  socket.on('session:start', async ({ topic, selectedAgent, activeMode, chatId, file }) => {
     const rateKey = getRateKey(socket);
     
     if (!checkSocketRate(rateKey)) {
@@ -209,7 +209,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
             lastProgressAt = Date.now();
             if (chunk) socket.emit('teaching:progress-tokens', { stage, token: chunk });
             else socket.emit('teaching:progress', { message: stage });
-          }, resolveModelId(selectedAgent), userConfig),
+          }, resolveModelId(selectedAgent), userConfig, file),
           240000
         );
 

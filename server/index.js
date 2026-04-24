@@ -100,9 +100,10 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use(express.json({ limit: '1mb' }));
 // CORS must be early
 app.use(cors({
-  origin: allowedOrigins,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: [
+    "http://localhost:5173",
+    "https://tutor-board-mocha.vercel.app"
+  ],
   credentials: true,
 }));
 
@@ -183,14 +184,10 @@ function isOriginAllowed(origin) {
 // --------------- Socket.IO ---------------
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: (origin, callback) => {
-      if (isOriginAllowed(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`CORS blocked origin (Socket.IO): ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: [
+      "http://localhost:5173",
+      "https://tutor-board-mocha.vercel.app"
+    ],
     methods: ['GET', 'POST'],
     credentials: true,
   },

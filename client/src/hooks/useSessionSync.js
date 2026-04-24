@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import useSocket from './useSocket';
 import { getCanvasFingerprint } from '../lib/utils';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { BASE_URL as API_URL } from '../services/api';
 
 /**
  * useSessionSync

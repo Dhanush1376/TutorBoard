@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Loader2, MessageCircleQuestion } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || "https://tutorboard.onrender.com";
+import { BASE_URL as API_URL } from '../../services/api';
 
 const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) => {
   const [messages, setMessages] = useState([]);

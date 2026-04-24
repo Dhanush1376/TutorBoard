@@ -301,7 +301,7 @@ function classifyCustomError(err) {
  *      └── System Mode  → platform fallback chain   → HARD RETURN
  */
 export async function requestCompletion(params = {}) {
-  const { model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType, userConfig, taskType, onStream } = params;
+  const { model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType, userConfig, taskType, onStream, file } = params;
 
   const startTime = Date.now();
   const userId = userConfig?.userId || null;
@@ -363,7 +363,7 @@ export async function requestCompletion(params = {}) {
     const result = await _executeCustomPath(params, {
       userConfig, canonicalModel, response_format, isJson,
       cacheKey, startTime, userId, taskType, skipRacing, onStream,
-      messages, temperature, maxTokens, tools,
+      messages, temperature, maxTokens, tools, file
     });
 
     // If custom failed completely and it's a fatal error (invalid key/quota), return it.
@@ -383,7 +383,7 @@ export async function requestCompletion(params = {}) {
     return await _executeSystemPath(params, {
     canonicalModel, response_format, isJson,
     cacheKey, startTime: Date.now(), userId, taskType, onStream,
-    messages, temperature, maxTokens, tools,
+    messages, temperature, maxTokens, tools, file
   });
 }
 
@@ -393,7 +393,7 @@ export async function requestCompletion(params = {}) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function _executeCustomPath(params, ctx) {
-  const { userConfig, canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, skipRacing, onStream, messages, temperature, maxTokens, tools } = ctx;
+  const { userConfig, canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, skipRacing, onStream, messages, temperature, maxTokens, tools, file } = ctx;
   const provider = userConfig.provider;
   // FIX: For custom providers, use the model ID exactly as stored — do NOT run it through
   // resolveModelId() which has fuzzy Gemini matching and alias maps that corrupt custom IDs.
@@ -434,7 +434,7 @@ async function _executeCustomPath(params, ctx) {
     
     try {
       result = await executeWithRetry(client, provider, {
-        model: userModel, messages, temperature, maxTokens, tools, response_format, onStream
+        model: userModel, messages, temperature, maxTokens, tools, response_format, onStream, file
       }, 2, timeout.signal, userConfig.baseUrl);
     } catch (err) {
       // HIGH-RESILIENCY FALLBACK CHAIN: If model fails, iterate through verified models
@@ -453,7 +453,7 @@ async function _executeCustomPath(params, ctx) {
           try {
             console.log(`[AI:Custom:${provider}] 🔄 Attempting fallback: ${fallbackModel}`);
             result = await executeWithRetry(client, provider, {
-              model: fallbackModel, messages, temperature, maxTokens, tools, response_format, onStream
+              model: fallbackModel, messages, temperature, maxTokens, tools, response_format, onStream, file
             }, 1, timeout.signal, userConfig.baseUrl);
             
             result._fallbackUsed = true;
@@ -538,7 +538,7 @@ async function _executeCustomPath(params, ctx) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function _executeSystemPath(params, ctx) {
-  const { canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, onStream, messages, temperature, maxTokens, tools } = ctx;
+  const { canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, onStream, messages, temperature, maxTokens, tools, file } = ctx;
   const skipRacing = params?.skipRacing || false;
 
   // Initialize system clients from .env
@@ -591,7 +591,7 @@ async function _executeSystemPath(params, ctx) {
         model: currentModel, messages,
         temperature: temperature ?? 0.1,
         maxTokens: maxTokens ?? 1000,
-        tools, response_format, onStream
+        tools, response_format, onStream, file
       }, timeout.signal);
 
       timeout.cleanup();

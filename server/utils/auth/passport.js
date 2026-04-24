@@ -22,7 +22,7 @@ passport.deserializeUser(async (id, done) => {
 
 // 1. Google Strategy
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  const googleCallback = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/auth/google/callback`;
+  const googleCallback = process.env.GOOGLE_CALLBACK_URL || `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/auth/google/callback`;
   console.log('[Auth] Initializing Google Strategy with callback:', googleCallback);
 
   passport.use(new GoogleStrategy({
@@ -78,7 +78,7 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
   passport.use(new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/auth/github/callback`,
+    callbackURL: process.env.GITHUB_CALLBACK_URL || `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/auth/github/callback`,
     scope: ['user:email']
   }, async (accessToken, refreshToken, profile, done) => {
     try {

@@ -6,6 +6,32 @@
  */
 
 import OpenAI from 'openai';
+import fs from 'fs';
+import path from 'path';
+
+/**
+ * Helper to get base64 data from a file URL
+ */
+async function getBase64Image(fileUrl) {
+  try {
+    // If it's a local /uploads path
+    if (fileUrl.includes('/uploads/')) {
+      const filename = fileUrl.split('/uploads/').pop();
+      const localPath = path.join(process.cwd(), 'uploads', filename);
+      if (fs.existsSync(localPath)) {
+        const buffer = await fs.promises.readFile(localPath);
+        return buffer.toString('base64');
+      }
+    }
+    // Fallback: try to fetch it if it's a remote URL
+    const response = await fetch(fileUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer).toString('base64');
+  } catch (err) {
+    console.error('[AI:ProviderFactory] Failed to get base64 for image:', err.message);
+    return null;
+  }
+}
 
 // ── Provider endpoint configurations ──────────────────────────────────────────
 export const PROVIDER_CONFIG = {
@@ -321,7 +347,7 @@ export function createProviderClient(provider, apiKey, customBaseUrl) {
  * @param {AbortSignal} [signal] - Optional abort signal for timeout/racing
  * @returns {Promise<{content: string, finishReason: string, provider: string, usage?: object}>}
  */
-export async function executeProviderRequest(client, provider, { model, messages, temperature, maxTokens, tools, response_format, onStream }, signal, customBaseUrl) {
+export async function executeProviderRequest(client, provider, { model, messages, temperature, maxTokens, tools, response_format, onStream, file }, signal, customBaseUrl) {
   if (provider === 'anthropic') {
     const apiKey = client.apiKey;
     const baseURL = (customBaseUrl || 'https://api.anthropic.com/v1').replace(/\/+$/, '');
@@ -329,12 +355,34 @@ export async function executeProviderRequest(client, provider, { model, messages
     try {
       console.log(`[AI:Anthropic] Executing native fetch request to ${baseURL}/messages`);
       
+      const lastMsg = messages[messages.length - 1];
+      const otherMsgs = messages.filter(m => m.role !== 'system' && m !== lastMsg);
+      
+      let lastMsgContent = lastMsg?.content || '';
+      if (file && file.type?.startsWith('image/') && lastMsg?.role === 'user') {
+        const base64 = await getBase64Image(file.url);
+        if (base64) {
+          console.log(`[AI:Anthropic] Injecting multimodal image data into request.`);
+          lastMsgContent = [
+            { type: 'text', text: lastMsg.content },
+            { 
+              type: 'image', 
+              source: { 
+                type: 'base64', 
+                media_type: file.type || 'image/jpeg', 
+                data: base64 
+              } 
+            }
+          ];
+        }
+      }
+
       const payload = {
         model,
-        messages: messages.filter(m => m.role !== 'system').map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
+        messages: [
+          ...otherMsgs.map(m => ({ role: m.role, content: m.content })),
+          { role: lastMsg?.role || 'user', content: lastMsgContent }
+        ],
         system: messages.find(m => m.role === 'system')?.content || '',
         max_tokens: maxTokens ?? 2000,
         temperature: temperature ?? 0.7,
@@ -509,9 +557,28 @@ export async function executeProviderRequest(client, provider, { model, messages
     console.log('[AI:' + provider + '] Stripped response_format (' + (response_format && response_format.type) + ') — injected JSON instruction.');
   }
 
+  // ─── Multimodal (Vision) Handling ───
+  let multimodalMessages = effectiveMessages;
+  if (file && file.type?.startsWith('image/')) {
+    const lastMsg = effectiveMessages[effectiveMessages.length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+      console.log(`[AI:${provider}] Injecting vision context for model ${model}`);
+      multimodalMessages = [
+        ...effectiveMessages.slice(0, -1),
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: lastMsg.content },
+            { type: 'image_url', image_url: { url: file.url } }
+          ]
+        }
+      ];
+    }
+  }
+
   const completionParams = {
     model,
-    messages: effectiveMessages,
+    messages: multimodalMessages,
     temperature: temperature ?? 0.1,
     max_tokens: maxTokens ?? 1000,
     tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,

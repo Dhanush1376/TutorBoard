@@ -79,11 +79,11 @@ function App() {
     }
   }, [connectionStatus, setGlobalOverlay]);
 
-  if (apiError === 'VITE_API_URL_MISSING') {
+  if (apiError === 'VITE_API_BASE_URL_MISSING') {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[var(--bg-primary)] p-8 text-center text-[var(--text-primary)]">
         <h1 className="text-2xl font-normal mb-4 tracking-tight">Configuration Required</h1>
-        <p className="max-w-md mb-8 text-[var(--text-tertiary)]">The VITE_API_URL environment variable is missing.</p>
+        <p className="max-w-md mb-8 text-[var(--text-tertiary)]">The VITE_API_BASE_URL environment variable is missing.</p>
         <button onClick={() => window.location.reload()} className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full font-normal shadow-lg">Check Again</button>
       </div>
     );

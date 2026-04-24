@@ -7,7 +7,7 @@ import { DELTA_AGENT_PROMPT } from '../../utils/ai/deltaPrompt.js';
  * Specifically designed to handle real-time doubts by generating 
  * incremental visual/narrative changes (deltas) to the current state.
  */
-export async function runDeltaAgent({ question, canvasState, topic, modelId, userConfig }) {
+export async function runDeltaAgent({ question, canvasState, topic, modelId, userConfig, file = null }) {
   try {
     console.log(`[DeltaAgent] Resolving doubt: "${question}"`);
 
@@ -37,7 +37,8 @@ ${userConfig.customInstructions ? `- Custom AI Behavior: ${userConfig.customInst
       temperature: 0.2,
       responseMimeType: 'application/json',
       userConfig, // CRITICAL: Pass user-provided credentials
-      taskType: 'teaching'
+      taskType: 'teaching',
+      file
     });
 
     const parsed = JSON.parse(res.content || '{}');

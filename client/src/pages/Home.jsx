@@ -9,7 +9,7 @@ import LeftPanel from '../components/layout/LeftPanel';
 import useTutorStore, { STATES as STORE_STATES, CANVAS_MODE } from '../store/tutorStore';
 import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import { BASE_URL as API_URL } from '../services/api';
 
 // Canvas & Teaching Overlays
 import InfiniteCanvas from '../components/canvas/InfiniteCanvas';
@@ -932,9 +932,9 @@ const Home = ({ isDark }) => {
       const isFollowUp = activeChatId && history.length > 0;
       
       if (isFollowUp) {
-        askDoubt(userPrompt, activeMode);
+        askDoubt(userPrompt, activeMode, fileData);
       } else {
-        startSession(userPrompt, userPrompt, activeMode);
+        startSession(userPrompt, userPrompt, activeMode, fileData);
       }
     } catch (err) {
       console.error('[Home] handleSubmit failed:', err);

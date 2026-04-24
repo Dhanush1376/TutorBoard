@@ -6,11 +6,11 @@ import { syncSocketAuth, disconnectSocket } from '../hooks/useSocket';
 
 const AuthContext = createContext(null);
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-const IS_API_MISSING = import.meta.env.PROD && !import.meta.env.VITE_API_URL;
+import { BASE_URL as API_URL } from '../services/api';
+const IS_API_MISSING = import.meta.env.PROD && !import.meta.env.VITE_API_BASE_URL;
 
 if (IS_API_MISSING) {
-  console.error('[Auth] CRITICAL: VITE_API_URL is missing in production environment. Authentication will fail. Ensure VITE_API_URL is set in your Vercel project settings.');
+  console.error('[Auth] CRITICAL: VITE_API_BASE_URL is missing in production environment. Authentication will fail. Ensure VITE_API_BASE_URL is set in your Vercel project settings.');
 }
 
 // Safe storage helper to prevent crashes in restrictive browser environments (Private Mode)
@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => safeStorage.getItem('tb-token'));
   const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_URL_MISSING' : null);
+  const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_BASE_URL_MISSING' : null);
   const [dbOffline, setDbOffline] = useState(false);
   const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null, activeLabel: null, activeIds: [], allKeys: [], status: 'stable' });
   const [connectionStatus, setConnectionStatus] = useState('stable'); // stable, slow, timeout

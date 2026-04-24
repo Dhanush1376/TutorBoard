@@ -257,6 +257,8 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         await new Promise(r => setTimeout(r, delay));
       }
 
+      const stageFile = input?.file || null;
+
       const response = await requestCompletion({
         model: model || getModel(),
         messages: currentMessages,
@@ -266,6 +268,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         responseMimeType: 'application/json',
         taskType: 'teaching',
         onStream: attempt === 1 ? onStream : undefined, // Only stream on the first attempt to avoid UI duplication
+        file: stageFile,
       });
 
       if (!response?.content) throw new Error('Empty response');
@@ -283,7 +286,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
 }
 
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
-export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null }) {
+export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null, file = null }) {
   console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
 
   try {
@@ -302,7 +305,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     const plannerOutput = planningResult || await runStage({
       stageName: '💡 Thinking deeply about the topic...',
       prompt: plannerPrompt,
-      input: { topic, domain, maxSteps: targetMax, learnerProfile },
+      input: { topic, domain, maxSteps: targetMax, learnerProfile, file },
       model, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 1 (Planner) COMPLETE — ${plannerOutput.flow?.length || 0} steps planned`);
