@@ -104,7 +104,7 @@ export default function AboutSection() {
     } catch {
       setSystemStatus(prev => ({ ...prev, api: 'offline', database: 'offline' }));
     } finally {
-      setRefreshing(false);
+      setTimeout(() => setRefreshing(false), 600);
     }
   };
 
@@ -113,169 +113,187 @@ export default function AboutSection() {
   }, [token]);
 
   const timeAgo = lastChecked
-    ? `Checked ${Math.round((Date.now() - lastChecked) / 1000)}s ago`
+    ? `Verified ${Math.round((Date.now() - lastChecked) / 1000)}s ago`
     : null;
 
   return (
-    <div style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '80px' }}>
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '100px' }}
+    >
 
-      {/* ── App Header ──────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ textAlign: 'center', padding: '40px 0 36px' }}
-      >
+      {/* ── App Header — Premium Branding ──────────────────────────────── */}
+      <div style={{ textAlign: 'center', padding: '60px 0 48px', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', width: '200px', height: '200px', background: 'radial-gradient(circle, var(--accent-primary)08, transparent 70%)', pointerEvents: 'none' }} />
+        
         <motion.div
-          initial={{ scale: 0.88, opacity: 0 }}
+          initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 20 }}
           style={{
-            width: '76px', height: '76px', borderRadius: '22px',
+            width: '84px', height: '84px', borderRadius: '24px',
             background: 'var(--text-primary)',
-            margin: '0 auto 18px',
+            margin: '0 auto 24px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 12px 28px rgba(0,0,0,0.12)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+            position: 'relative',
+            zIndex: 1
           }}
         >
           <VisaiLogo size="md" className="text-[var(--bg-primary)]" />
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
+            transition={{ repeat: Infinity, duration: 3 }}
+            style={{ position: 'absolute', inset: -8, borderRadius: '28px', border: '2px solid var(--text-primary)', opacity: 0.1 }}
+          />
         </motion.div>
 
-        <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: '0 0 4px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px', letterSpacing: '-0.03em' }}>
           TutorBoard AI
         </h1>
-        <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', margin: '0 0 16px' }}>
-          Version {APP_VERSION} · Cinematic
+        <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', margin: '0 0 20px', fontWeight: 500 }}>
+          Version {APP_VERSION} · <span style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>CINEMATIC</span>
         </p>
 
-        {/* Built with tag */}
+        {/* Community Tag */}
         <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: '5px',
-          padding: '5px 12px', borderRadius: '20px',
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '6px 16px', borderRadius: '24px',
           background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
         }}>
-          <Heart size={11} style={{ color: '#f43f5e' }} />
-          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+          <Heart size={12} style={{ color: '#f43f5e' }} fill="#f43f5e" />
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.01em' }}>
             Built for learners everywhere
           </span>
         </div>
-      </motion.div>
+      </div>
 
       {/* ── System Health Banner ─────────────────────────────────────── */}
       <SystemHealthBanner statuses={systemStatus} />
 
       {/* ── System Status ────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-        <SectionTitle style={{ margin: 0 }}>System Status</SectionTitle>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <SectionTitle style={{ margin: 0 }}>Cloud Infrastructure</SectionTitle>
         <button
           onClick={checkStatus}
           disabled={refreshing}
           style={{
-            display: 'flex', alignItems: 'center', gap: '5px',
-            fontSize: '11px', color: 'var(--text-tertiary)',
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: '4px 8px', borderRadius: '8px',
-            opacity: refreshing ? 0.5 : 1, transition: 'opacity 0.2s',
+            display: 'flex', alignItems: 'center', gap: '6px',
+            fontSize: '11px', color: refreshing ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+            fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', 
+            cursor: 'pointer', padding: '6px 12px', borderRadius: '10px',
+            transition: 'all 0.2s',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
           }}
+          onMouseEnter={e => !refreshing && (e.currentTarget.style.background = 'var(--bg-tertiary)')}
+          onMouseLeave={e => !refreshing && (e.currentTarget.style.background = 'var(--bg-secondary)')}
         >
-          <motion.div animate={refreshing ? { rotate: 360 } : {}} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}>
-            <RefreshCw size={12} />
+          <motion.div animate={refreshing ? { rotate: 360 } : {}} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+            <RefreshCw size={12} strokeWidth={2.5} />
           </motion.div>
-          {timeAgo || 'Refresh'}
+          {refreshing ? 'Syncing…' : timeAgo ? 'Verified' : 'Verify'}
         </button>
       </div>
 
       <SettingsGroup>
         <SettingsRow
           icon={Code}
-          label="API Service"
-          description="REST endpoints and authentication"
+          label="API Orchestrator"
+          description="High-performance edge endpoints"
           rightElement={<StatusBadge status={systemStatus.api} />}
         />
         <SettingsRow
           icon={Shield}
-          label="Database"
-          description="Session storage and user data"
+          label="Secure Vault"
+          description="Encrypted session storage"
           rightElement={<StatusBadge status={systemStatus.database} />}
         />
         <SettingsRow
           icon={Sparkles}
-          label="AI Engine"
-          description="Multi-agent reasoning pipeline"
+          label="Inference Engine"
+          description="Multi-model reasoning pipeline"
           rightElement={<StatusBadge status={systemStatus.ai} />}
           borderBottom={false}
         />
       </SettingsGroup>
 
-      {/* ── What's inside ────────────────────────────────────────────── */}
-      <SectionTitle>What Powers TutorBoard</SectionTitle>
+      {/* ── Core Technologies ────────────────────────────────────────── */}
+      <SectionTitle>Core Technologies</SectionTitle>
       <SettingsGroup>
         <SettingsRow
           icon={Cpu}
-          label="Pedagogical Engine"
-          description="6-agent AI pipeline that plans, explains, and adapts to how you learn."
+          label="Pedagogical Intelligence"
+          description="6-agent AI pipeline that adapts to your learning style."
         />
         <SettingsRow
           icon={Layers}
-          label="Infinite Canvas"
-          description="Hardware-accelerated workspace for visual lessons, diagrams, and notes."
+          label="Accelerated Canvas"
+          description="Hardware-boosted workspace for deep visual learning."
         />
         <SettingsRow
           icon={BookOpen}
-          label="24+ Subjects"
-          description="Domain-aware prompting tuned for Math, Science, CS, History, and more."
+          label="Domain Intelligence"
+          description="Specialized reasoning tuned for 24+ academic subjects."
         />
         <SettingsRow
           icon={Globe}
-          label="Real-time Sync"
-          description="Sessions and canvas state stay in sync across all your devices."
+          label="Global Continuum"
+          description="Instant cross-device synchronization and persistence."
           borderBottom={false}
         />
       </SettingsGroup>
 
-      {/* ── App Info ──────────────────────────────────────────────────── */}
-      <SectionTitle>App Info</SectionTitle>
+      {/* ── Intelligence Feed ────────────────────────────────────────── */}
+      <SectionTitle>Platform Intelligence</SectionTitle>
       <SettingsGroup>
         <SettingsRow
           icon={Activity}
-          label="Version"
-          rightElement={<span style={{ color: 'var(--text-tertiary)', fontSize: '13px' }}>{APP_VERSION}</span>}
+          label="Version Integrity"
+          rightElement={<span style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 700, background: 'var(--bg-tertiary)', padding: '4px 10px', borderRadius: '8px' }}>{APP_VERSION}</span>}
         />
         <SettingsRow
           icon={Zap}
-          label="Build"
-          rightElement={<span style={{ color: 'var(--text-tertiary)', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{BUILD_NUMBER}</span>}
+          label="Build Signature"
+          rightElement={<span style={{ color: 'var(--text-tertiary)', fontSize: '12px', fontWeight: 600, fontFamily: '"Geist Mono", monospace' }}>{BUILD_NUMBER}</span>}
           borderBottom={false}
         />
       </SettingsGroup>
 
-      {/* ── Support & Legal ───────────────────────────────────────────── */}
-      <SectionTitle>Support</SectionTitle>
+      {/* ── Resources ─────────────────────────────────────────────────── */}
+      <SectionTitle>Resources</SectionTitle>
       <SettingsGroup>
         <SettingsRow
           icon={FileText}
-          label="Documentation"
-          description="Guides, tips, and feature walkthroughs"
+          label="Developer Docs"
+          description="Technical guides and architectural overview"
           onClick={() => window.open('https://docs.tutorboard.ai', '_blank')}
-          rightElement={<ChevronRight size={16} style={{ color: 'var(--text-tertiary)', opacity: 0.5 }} />}
+          rightElement={<ChevronRight size={16} style={{ color: 'var(--text-tertiary)', opacity: 0.4 }} />}
         />
         <SettingsRow
           icon={MessageCircle}
-          label="Discord Community"
-          description="Chat with other learners and the team"
+          label="Join the Community"
+          description="Collaborate with learners and developers"
           onClick={() => window.open('https://discord.gg/tutorboard', '_blank')}
-          rightElement={<ChevronRight size={16} style={{ color: 'var(--text-tertiary)', opacity: 0.5 }} />}
+          rightElement={<ChevronRight size={16} style={{ color: 'var(--text-tertiary)', opacity: 0.4 }} />}
           borderBottom={false}
         />
       </SettingsGroup>
 
-      {/* Footer */}
-      <div style={{ textAlign: 'center', marginTop: '40px' }}>
-        <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', opacity: 0.5, margin: 0 }}>
-          © 2026 TutorBoard AI · All rights reserved
+      {/* Footer — Premium Refinement */}
+      <div style={{ textAlign: 'center', marginTop: '60px', opacity: 0.6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
+          <div style={{ width: '32px', height: '1px', background: 'var(--border-color)' }} />
+          <VisaiLogo size="xxs" />
+          <div style={{ width: '32px', height: '1px', background: 'var(--border-color)' }} />
+        </div>
+        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          © 2026 TutorBoard AI · The Future of Learning
         </p>
       </div>
 
-    </div>
+    </motion.div>
   );
 }

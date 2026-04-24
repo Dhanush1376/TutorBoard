@@ -96,7 +96,13 @@ export function validateApiKeyInput(apiKey) {
  * Validate provider input
  */
 export function validateProviderInput(provider) {
-  const allowed = ['openai', 'google', 'anthropic', 'deepseek', 'groq', 'openrouter', 'custom'];
+  const allowed = [
+    'openai', 'google', 'anthropic', 'deepseek', 'groq', 'openrouter', 'custom',
+    'mistral', 'cohere', 'together', 'perplexity', 'xai', 'fireworks', 'anyscale',
+    'nvidia', 'ai21', 'deepinfra', 'huggingface', 'cerebras', 'sambanova',
+    'novita', 'lepton', 'replicate', 'voyage', 'azure', 'aws', 'elevenlabs',
+    'stability', 'fal', 'runpod', 'upstage', 'workers', 'ollama', 'vllm', 'lmstudio'
+  ];
   if (!provider || !allowed.includes(provider)) {
     return { valid: false, error: `Invalid provider. Must be one of: ${allowed.join(', ')}` };
   }

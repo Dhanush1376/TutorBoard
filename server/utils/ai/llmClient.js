@@ -17,6 +17,7 @@ import crypto from 'crypto';
 import { circuitBreaker } from '../../engine/core/circuitBreaker.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { createProviderClient, executeProviderRequest, calculateCost, estimateCost } from './providerFactory.js';
+import { MODEL_REGISTRY } from './modelRegistry.js';
 import { classifyTask } from './taskClassifier.js';
 import UsageLog from '../../models/UsageLog.js';
 import { sanitizeString } from '../validation/logSanitizer.js';
@@ -352,12 +353,24 @@ export async function requestCompletion(params = {}) {
 
   if (userConfig?.useCustomApi && userConfig?.getApiKey && userConfig?.provider) {
     console.log("MODE: custom");
-    console.log("USING API: YES (Isolated User Key)");
-    return await _executeCustomPath(params, {
+    
+    // MULTI-PROVIDER FAILOVER CHAIN
+    // If the user has multiple keys enabled, we should be able to failover between them.
+    // However, the current `userConfig` usually represents the SELECTED provider.
+    // If we want true failover, we need to access all enabled keys.
+    // For now, we implement "Self-Healing" for the current provider (Model Auto-Switch).
+    
+    const result = await _executeCustomPath(params, {
       userConfig, canonicalModel, response_format, isJson,
       cacheKey, startTime, userId, taskType, skipRacing, onStream,
       messages, temperature, maxTokens, tools,
     });
+
+    // If custom failed completely and it's a fatal error (invalid key/quota), return it.
+    // If it's a network/timeout error, we could potentially try a system fallback if allowed,
+    // but the policy is "STRICT ISOLATION".
+    
+    return result;
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -417,24 +430,57 @@ async function _executeCustomPath(params, ctx) {
     console.log(`[AI:Custom:${provider}] Calling: ${userModel} (JSON: ${isJson})`);
 
     const client = createProviderClient(provider, userConfig.getApiKey(), userConfig.baseUrl);
-    const result = await executeWithRetry(client, provider, {
-      model: userModel, messages, temperature, maxTokens, tools, response_format, onStream
-    }, 2, timeout.signal, userConfig.baseUrl);
+    let result;
+    
+    try {
+      result = await executeWithRetry(client, provider, {
+        model: userModel, messages, temperature, maxTokens, tools, response_format, onStream
+      }, 2, timeout.signal, userConfig.baseUrl);
+    } catch (err) {
+      // HIGH-RESILIENCY FALLBACK CHAIN: If model fails, iterate through verified models
+      const errorMsg = (err.message || '').toLowerCase();
+      const isModelError = err.status === 404 || err.status === 400 || errorMsg.includes('model') || errorMsg.includes('not found') || errorMsg.includes('permission') || errorMsg.includes('gate');
+      
+      if (isModelError) {
+        const reg = MODEL_REGISTRY[provider];
+        const chain = reg?.chain || (reg?.fallback ? [reg.fallback] : []);
+        
+        console.warn(`[AI:Custom:${provider}] 🔄 Model ${userModel} failed (${err.status}). Probing fallback chain...`);
 
-    console.log(`[AI:Custom:${provider}] 🟢 SUCCESS. Content Length: ${(result.content || '').length}`);
-
-    if (!result.content && !result.tool_calls) {
-      console.error(`[AI:Custom:${provider}] ❌ EMPTY CONTENT RETURNED. Full result:`, JSON.stringify(result, null, 2));
+        for (const fallbackModel of chain) {
+          if (fallbackModel === userModel) continue; // Skip if it's the one that just failed
+          
+          try {
+            console.log(`[AI:Custom:${provider}] 🔄 Attempting fallback: ${fallbackModel}`);
+            result = await executeWithRetry(client, provider, {
+              model: fallbackModel, messages, temperature, maxTokens, tools, response_format, onStream
+            }, 1, timeout.signal, userConfig.baseUrl);
+            
+            result._fallbackUsed = true;
+            result._originalModel = userModel;
+            result._finalModel = fallbackModel;
+            break; // Success!
+          } catch (fallbackErr) {
+            console.warn(`[AI:Custom:${provider}] ❌ Fallback ${fallbackModel} failed too. Trying next...`);
+          }
+        }
+      }
+      
+      // If we still don't have a result after the chain (or it wasn't a model error), throw
+      if (!result) throw err;
     }
 
+    console.log(`[AI:Custom:${provider}] 🟢 SUCCESS. Content Length: ${(result.content || '').length}`);
+    
     timeout.cleanup();
     const responseTimeMs = Date.now() - startTime;
     circuitBreaker.reportSuccess(provider, responseTimeMs);
 
+    const activeModel = result._fallbackUsed ? result._finalModel : userModel;
     const usage = result.usage || {};
-    const cost = calculateCost(userModel, usage.prompt_tokens || 0, usage.completion_tokens || 0);
+    const cost = calculateCost(activeModel, usage.prompt_tokens || 0, usage.completion_tokens || 0);
 
-    logUsage({ userId, provider, model: userModel, usage, responseTimeMs, taskType, success: true, isCustomKey: true, costCents: cost.costCents });
+    logUsage({ userId, provider, model: activeModel, usage, responseTimeMs, taskType, success: true, isCustomKey: true, costCents: cost.costCents });
 
     const response = {
       content: result.content,
@@ -443,9 +489,10 @@ async function _executeCustomPath(params, ctx) {
       tool_calls: result.tool_calls || null,
       _meta: {
         mode: 'custom',
-        model_used: userModel,
+        model_used: activeModel,
         provider_used: provider,
-        fallback_triggered: false,
+        fallback_triggered: result._fallbackUsed || false,
+        original_model: result._originalModel || null,
         response_time_ms: responseTimeMs,
         estimated_cost_cents: cost.costCents,
         tokens_in: usage.prompt_tokens || 0,
@@ -455,15 +502,13 @@ async function _executeCustomPath(params, ctx) {
       },
     };
 
-    // Empty response — report it, do NOT fall through
     if (!response.content && !response.tool_calls) {
-      console.warn(`[AI:Custom:${provider}] ⚠️ Empty response from ${userModel}.`);
       return { 
         content: '', 
         error: 'Your API provider returned an empty response. Please try again.', 
         errorType: 'empty_response',
         provider,
-        _meta: { mode: 'custom', provider_used: provider, model_used: userModel, fallback_triggered: false, cached: false },
+        _meta: response._meta,
       };
     }
 
@@ -472,14 +517,11 @@ async function _executeCustomPath(params, ctx) {
 
   } catch (err) {
     timeout.cleanup();
-
-    // Classify and log
     const { errorType, userMessage, technicalMessage } = classifyCustomError(err);
     console.error(`[AI:Custom:${provider}] ❌ FAILED: ${technicalMessage} (${errorType})`);
     circuitBreaker.reportFailure(provider, err.status || 500, errorType);
     logUsage({ userId, provider, model: userModel, responseTimeMs: Date.now() - startTime, taskType, success: false, errorType, isCustomKey: true });
 
-    // ⛔ HARD RETURN — Never fall through to system path
     return {
       content: '',
       error: userMessage,

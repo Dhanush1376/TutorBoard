@@ -128,7 +128,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      style={{ maxWidth: '640px', margin: '0 auto' }}
+      style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '100px' }}
     >
       {/* Guest Banner */}
       {isGuest && (
@@ -137,83 +137,103 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
           style={{
             background: 'var(--bg-secondary)',
             border: '1px solid rgba(59,130,246,0.3)',
-            borderRadius: '16px', padding: '16px 20px', marginBottom: '32px',
-            display: 'flex', alignItems: 'center', gap: '16px',
+            borderRadius: '20px', padding: '18px 22px', marginBottom: '32px',
+            display: 'flex', alignItems: 'center', gap: '18px',
+            boxShadow: '0 4px 20px rgba(59,130,246,0.06)',
           }}
         >
           <div style={{
-            width: '40px', height: '40px', borderRadius: '12px',
-            background: '#3b82f6',
+            width: '44px', height: '44px', borderRadius: '14px',
+            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
           }}>
-            <ShieldAlert size={18} />
+            <ShieldAlert size={20} />
           </div>
-          <div>
-            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px' }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 2px', letterSpacing: '-0.01em' }}>
               Guest Mode Active
             </p>
-            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.4 }}>
-              Some personalization features are limited in Guest Mode. 
-              Sign in to unlock persistent AI preferences.
+            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.5 }}>
+              Some personalization features are limited. 
+              Sign in to unlock persistent AI preferences and cloud sync.
             </p>
           </div>
         </motion.div>
       )}
 
-      {/* Profile Header Card */}
+      {/* Profile Header Card — Premium Glassmorphism */}
       <motion.div 
         variants={itemVariants}
         style={{
-          display: 'flex', alignItems: 'center', gap: '24px',
-          marginBottom: '40px', padding: '28px',
-          background: 'var(--bg-secondary)', borderRadius: '24px',
+          display: 'flex', alignItems: 'center', gap: '28px',
+          marginBottom: '40px', padding: '32px',
+          background: 'var(--bg-secondary)', borderRadius: '28px',
           border: '1px solid var(--border-color)',
-          position: 'relative',
+          position: 'relative', overflow: 'hidden',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.04)',
         }}
       >
+        <div style={{ position: 'absolute', top: -100, right: -100, width: '300px', height: '300px', background: 'radial-gradient(circle, var(--accent-primary)08, transparent 70%)', pointerEvents: 'none' }} />
         
-        <AvatarCircle name={displayName} size={72} />
+        <div style={{ position: 'relative' }}>
+          <AvatarCircle name={displayName} size={84} />
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.5, type: 'spring' }}
+            style={{ position: 'absolute', bottom: -2, right: -2, width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg-primary)', border: '1.5px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+          >
+            <Check size={14} strokeWidth={3} />
+          </motion.div>
+        </div>
+
         <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
               {displayName || 'Your Name'}
             </h2>
             {isGuest && <TrialBadge />}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-            <Mail size={12} style={{ color: 'var(--text-tertiary)' }} />
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              {user?.email || 'guest@tutorboard.ai'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-            <GraduationCap size={12} style={{ color: 'var(--text-tertiary)' }} />
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              {ROLE_OPTIONS.find(o => o.value === role)?.label || 'Learner'}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px', opacity: 0.8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Mail size={13} style={{ color: 'var(--text-tertiary)' }} />
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                {user?.email || 'guest@tutorboard.ai'}
+              </span>
+            </div>
+            <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.4 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <GraduationCap size={13} style={{ color: 'var(--text-tertiary)' }} />
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                {ROLE_OPTIONS.find(o => o.value === role)?.label.split(' ').pop() || 'Learner'}
+              </span>
+            </div>
           </div>
         </div>
 
         <AnimatePresence>
           {saveStatus && (
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
               style={{
-                position: 'absolute', top: '20px', right: '20px',
-                display: 'flex', alignItems: 'center', gap: '6px',
-                fontSize: '11px', fontWeight: 600,
+                position: 'absolute', top: '24px', right: '24px',
+                display: 'flex', alignItems: 'center', gap: '8px',
+                fontSize: '11px', fontWeight: 700,
                 color: saveStatus === 'saved' ? '#10b981' : '#007AFF',
-                padding: '6px 12px', borderRadius: '20px',
-                background: saveStatus === 'saved' ? 'rgba(16,185,129,0.1)' : 'rgba(0,122,255,0.1)',
+                padding: '6px 14px', borderRadius: '12px',
+                background: saveStatus === 'saved' ? 'rgba(16,185,129,0.08)' : 'rgba(0,122,255,0.08)',
                 border: '1px solid',
                 borderColor: saveStatus === 'saved' ? 'rgba(16,185,129,0.2)' : 'rgba(0,122,255,0.2)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                letterSpacing: '0.02em', textTransform: 'uppercase'
               }}
             >
-              {saveStatus === 'saved' ? <Check size={12} strokeWidth={3} /> : <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} style={{ width: 12, height: 12, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%' }} />}
-              {saveStatus === 'saving' ? 'Syncing...' : 'Synced'}
+              {saveStatus === 'saved' ? <Check size={12} strokeWidth={3.5} /> : <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} style={{ width: 10, height: 10, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%' }} />}
+              {saveStatus === 'saving' ? 'Syncing' : 'Synced'}
             </motion.div>
           )}
         </AnimatePresence>
@@ -266,28 +286,28 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       <motion.div variants={itemVariants}>
         <SectionTitle>AI Configuration</SectionTitle>
         <SettingsGroup>
-          <div style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FF9500', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Sparkles size={16} />
+          <div style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: 32, height: 32, borderRadius: '10px', background: 'linear-gradient(135deg, #FF9500, #FFB033)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,149,0,0.2)' }}>
+                  <Sparkles size={18} strokeWidth={2} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
+                  <label style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'block', letterSpacing: '-0.01em' }}>
                     Custom Behavior
                   </label>
-                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Shape how the AI responds globally</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Shape how the AI responds globally</span>
                 </div>
               </div>
               <span style={{
-                fontSize: '11px', fontWeight: 600,
+                fontSize: '11px', fontWeight: 700,
                 color: prefsOverLimit ? '#ef4444' : 'var(--text-tertiary)',
-                opacity: 0.8,
                 background: 'var(--bg-tertiary)',
-                padding: '4px 8px',
-                borderRadius: '8px'
+                padding: '5px 10px',
+                borderRadius: '10px',
+                fontFamily: '"Geist Mono", monospace'
               }}>
-                {prefsLeft} characters left
+                {prefsLeft}
               </span>
             </div>
             <div style={{ position: 'relative' }}>
@@ -301,24 +321,32 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                     : 'e.g. Always explain with real-world analogies. I prefer concise answers with code examples...'
                 }
                 style={{
-                  width: '100%', padding: '16px',
-                  resize: 'vertical', minHeight: '120px', maxHeight: '300px',
+                  width: '100%', padding: '18px',
+                  resize: 'vertical', minHeight: '140px', maxHeight: '400px',
                   background: 'var(--bg-primary)',
                   border: `1.5px solid ${prefsOverLimit ? '#ef444466' : 'var(--border-color)'}`,
-                  borderRadius: '16px',
+                  borderRadius: '20px',
                   color: 'var(--text-primary)', fontSize: '14px',
                   fontFamily: '"Geist", sans-serif',
-                  lineHeight: 1.6, outline: 'none',
-                  transition: 'all 0.2s',
+                  lineHeight: 1.7, outline: 'none',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxSizing: 'border-box',
                   opacity: isGuest ? 0.6 : 1,
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
+                  boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.02)'
                 }}
-                onFocus={e => !prefsOverLimit && (e.target.style.borderColor = '#007AFF', e.target.style.boxShadow = '0 0 0 4px rgba(0,122,255,0.1)')}
-                onBlur={e => (e.target.style.borderColor = prefsOverLimit ? '#ef444466' : 'var(--border-color)', e.target.style.boxShadow = 'none')}
+                onFocus={e => {
+                  if (!prefsOverLimit) {
+                    e.target.style.borderColor = 'var(--accent-primary)';
+                    e.target.style.boxShadow = '0 0 0 4px var(--accent-primary)15';
+                  }
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = prefsOverLimit ? '#ef444466' : 'var(--border-color)';
+                  e.target.style.boxShadow = 'none';
+                }}
               />
-              <div style={{ position: 'absolute', bottom: '12px', right: '12px', pointerEvents: 'none', opacity: 0.3 }}>
-                <Sparkles size={16} style={{ color: 'var(--text-tertiary)' }} />
+              <div style={{ position: 'absolute', bottom: '16px', right: '16px', pointerEvents: 'none', opacity: 0.2 }}>
+                <Sparkles size={20} style={{ color: 'var(--text-tertiary)' }} />
               </div>
             </div>
           </div>
@@ -344,7 +372,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
           />
         </SettingsGroup>
       </motion.div>
-
     </motion.div>
   );
 }

@@ -51,7 +51,7 @@ export const PROVIDER_CONFIG = {
   },
   cohere: {
     baseURL: 'https://api.cohere.ai/v1',
-    headerKey: 'Authorization',
+    headerKey: 'Authorization',    
     headerPrefix: 'Bearer ',
   },
   together: {
@@ -91,6 +91,84 @@ export const PROVIDER_CONFIG = {
   },
   deepinfra: {
     baseURL: 'https://api.deepinfra.com/v1/openai',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  huggingface: {
+    baseURL: 'https://api-inference.huggingface.co',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  cerebras: {
+    baseURL: 'https://api.cerebras.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  sambanova: {
+    baseURL: 'https://api.sambanova.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  novita: {
+    baseURL: 'https://api.novita.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  lepton: {
+    baseURL: 'https://api.lepton.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  voyage: {
+    baseURL: 'https://api.voyageai.com/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  upstage: {
+    baseURL: 'https://api.upstage.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  stability: {
+    baseURL: 'https://api.stability.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  fal: {
+    baseURL: 'https://api.fal.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  runpod: {
+    baseURL: 'https://api.runpod.ai/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  ollama: {
+    baseURL: 'http://localhost:11434/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+    isLocal: true,
+  },
+  lmstudio: {
+    baseURL: 'http://localhost:1234/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+    isLocal: true,
+  },
+  vllm: {
+    baseURL: 'http://localhost:8000/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+    isLocal: true,
+  },
+  replicate: {
+    baseURL: 'https://api.replicate.com/v1',
+    headerKey: 'Authorization',
+    headerPrefix: 'Bearer ',
+  },
+  workers: {
+    baseURL: 'https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID/ai/v1',
     headerKey: 'Authorization',
     headerPrefix: 'Bearer ',
   },
@@ -364,7 +442,49 @@ export async function executeProviderRequest(client, provider, { model, messages
     }
   }
 
-  // Standard OpenAI-compatible path
+  // ─── HuggingFace Inference API ───
+  // HF free-tier requires model in the URL path: /models/{model}/v1/chat/completions
+  if (provider === 'huggingface') {
+    const hfBaseURL = `https://api-inference.huggingface.co/models/${model}/v1`;
+    const hfClient = new OpenAI({
+      apiKey: client.apiKey,
+      baseURL: hfBaseURL,
+    });
+
+    try {
+      console.log(`[AI:HuggingFace] Using model-specific endpoint: ${hfBaseURL}/chat/completions`);
+      const completion = await hfClient.chat.completions.create({
+        model,
+        messages,
+        temperature: temperature ?? 0.1,
+        max_tokens: maxTokens ?? 1000,
+        stream: !!onStream,
+      }, signal ? { signal } : undefined);
+
+      let finalContent = '';
+      if (onStream) {
+        for await (const chunk of completion) {
+          const token = chunk.choices?.[0]?.delta?.content || '';
+          if (token) { finalContent += token; onStream(token); }
+        }
+      } else {
+        finalContent = completion.choices?.[0]?.message?.content || '';
+      }
+
+      return {
+        content: finalContent,
+        finishReason: 'stop',
+        provider: 'huggingface',
+        usage: completion?.usage || null,
+      };
+    } catch (err) {
+      console.error(`[AI:HuggingFace] ❌ Request failed for model ${model}: ${err.message}`);
+      err.provider = 'huggingface';
+      err.model = model;
+      throw err;
+    }
+  }
+
   // ─── Provider-specific response_format handling ───
   // Google Gemini's OpenAI-compatible endpoint returns EMPTY responses when 
   // response_format: { type: "json_object" } is sent. Similarly, Groq can be flaky.

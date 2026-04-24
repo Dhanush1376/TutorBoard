@@ -1,6 +1,7 @@
 import { AI_CONFIG } from '../config/providers.js';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
+import { resolveModel } from '../../utils/ai/modelResolver.js';
 
 // Provider Imports
 import * as gemini from '../providers/gemini.js';
@@ -43,15 +44,19 @@ export async function routeRequest(query, options = {}) {
     activePriority = ["groq", ...priority.filter(p => p !== "groq")];
   }
 
+  let fallbackUsed = false;
+
   // Iterate through priority list
   for (const providerKey of activePriority) {
     const provider = providers[providerKey];
     
     if (!provider || !AI_CONFIG.providers[providerKey]?.enabled) {
       logger.warn(`Provider ${providerKey} is disabled or missing. Skipping.`);
+      fallbackUsed = true;
       continue;
     }
 
+    const startTime = Date.now();
     try {
       logger.info(`Attempting ${providerKey}...`);
       
@@ -62,14 +67,24 @@ export async function routeRequest(query, options = {}) {
         timeout
       );
 
+      const latency = Date.now() - startTime;
+      const { model } = resolveModel(providerKey, null, false);
+
       logger.info(`Successfully received response from ${providerKey}`);
       return {
         ...response,
-        _meta: { provider: providerKey, success: true }
+        provider: providerKey,
+        model: model,
+        status: fallbackUsed ? 'fallback' : 'success',
+        latency: `${latency}ms`,
+        fallbackUsed,
+        suggestions: [],
+        message: 'Successfully generated response'
       };
 
     } catch (err) {
       logger.error(`${providerKey} failed all attempts. Trying next fallback...`, err);
+      fallbackUsed = true;
     }
   }
 

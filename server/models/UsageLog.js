@@ -15,7 +15,13 @@ const usageLogSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['openrouter', 'openai', 'deepseek', 'google', 'anthropic', 'groq', 'custom'],
+    enum: [
+      'openrouter', 'openai', 'deepseek', 'google', 'anthropic', 'groq', 'custom',
+      'mistral', 'cohere', 'together', 'perplexity', 'xai', 'fireworks', 'anyscale',
+      'nvidia', 'ai21', 'deepinfra', 'huggingface', 'cerebras', 'sambanova',
+      'novita', 'lepton', 'replicate', 'voyage', 'azure', 'aws', 'elevenlabs',
+      'stability', 'fal', 'runpod', 'upstage', 'workers', 'ollama', 'vllm', 'lmstudio'
+    ],
     required: true,
   },
   model: {

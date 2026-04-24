@@ -11,6 +11,7 @@ export const createUiSlice = (set, get) => ({
   isSnapToGrid:        true,
   isProfileOpen:       false,
   activeOverlay:       null, // 'settings' | 'visualizer' | 'profile' (if as overlay) | null
+  settingsActiveSection: 'general', // 'general' | 'account' | 'appearance' | 'ai' | 'about'
   isExplainMinimized:  false,
   isVisualizerMinimized: false,
   isSettingsMinimized: false,
@@ -124,6 +125,7 @@ export const createUiSlice = (set, get) => ({
   setGridSize:           (size) => set({ gridSize: size }),
   toggleProfile:         ()     => set(s => ({ isProfileOpen: !s.isProfileOpen })),
   setOverlay:            (id)   => set({ activeOverlay: id }),
+  setSettingsActiveSection: (section) => set({ settingsActiveSection: section }),
   setVisualizerOpen:     (open) => set({ activeOverlay: open ? 'scene-visualizer' : null }),
   setCodeEditorOpen:     (open) => set({ activeOverlay: open ? 'code-editor' : null }),
   setExplainMinimized:   (min)  => set({ isExplainMinimized: min }),

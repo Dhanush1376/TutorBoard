@@ -250,16 +250,6 @@ const LeftPanel = ({
                 <span className="tracking-tight">Search chats</span>
               </button>
 
-              {/* 3. Mastery Dashboard (SPA Routing) */}
-              <button
-                onClick={() => { setActiveView?.('mastery'); navigate('/mastery'); }}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-[18px] transition-all active:scale-[0.98] group"
-              >
-                <div className="p-1.5 text-blue-500/70 group-hover:text-blue-500 transition-colors">
-                  <Activity size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="tracking-tight">Mastery Dashboard</span>
-              </button>
 
               <AnimatePresence>
                 {isSearchOpen && (

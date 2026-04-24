@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import useTutorStore from '../../store/tutorStore';
 
 const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk }) => {
   const { apiPrefs, switchApi } = useAuth();
@@ -433,11 +434,24 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                       return (
                         <React.Fragment key={agent.id}>
                           {isFirstCustom && (
-                            <div className="pt-2 pb-1 flex items-center gap-2">
+                            <div className="pt-2 pb-1 flex items-center gap-2 pr-2">
                               <span className="pl-3 text-[9px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold opacity-70 whitespace-nowrap">
                                 Custom API's
                               </span>
-                              <div className="flex-1 h-[1px] bg-[var(--border-color)] opacity-100" />
+                              <div className="flex-1 h-[1px] bg-[var(--border-color)] opacity-40" />
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const { setOverlay, setSettingsActiveSection } = useTutorStore.getState();
+                                  setSettingsActiveSection('ai');
+                                  setOverlay('settings');
+                                  setIsAgentMenuOpen(false);
+                                }}
+                                className="p-1 hover:bg-[var(--bg-tertiary)] rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group/add"
+                                title="Manage & Add APIs"
+                              >
+                                <Plus size={10} strokeWidth={3} className="opacity-60 group-hover/add:opacity-100" />
+                              </button>
                             </div>
                           )}
                           <button
@@ -470,7 +484,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                         </React.Fragment>
                       );
                     })}
-                  </div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -42,7 +42,7 @@ export const getApiKeyDashboard = async (req, res) => {
       UsageLog.aggregate([
         { $match: { userId: req.user._id, isCustomKey: false, timestamp: { $gte: startOfMonth } } },
         { $group: {
-          _id: null,
+          _id: '$model',
           requests: { $sum: 1 },
           tokens: { $sum: '$tokensUsed' },
           cost: { $sum: '$costEstimate' },
@@ -61,19 +61,35 @@ export const getApiKeyDashboard = async (req, res) => {
       ])
     ]);
 
-    const universal = universalUsageRaw[0] || { requests: 0, tokens: 0, cost: 0 };
-    const UNIVERSAL_LIMIT = 500;
+    // Define tier-based limits for universal models to show usage bars
+    const UNIVERSAL_LIMITS = {
+      'gpt-4o': 50,
+      'gpt-4o-mini': 200,
+      'gemini-1.5-pro': 50,
+      'gemini-1.5-flash': 300,
+      'claude-3-5-sonnet': 50,
+      'claude-3-opus': 20,
+      'default': 100
+    };
+
+    const universalBreakdown = universalUsageRaw.map(u => {
+      const limit = UNIVERSAL_LIMITS[u._id] || UNIVERSAL_LIMITS.default;
+      return {
+        model: u._id || 'unknown',
+        requests: u.requests,
+        tokens: u.tokens,
+        costCents: u.cost,
+        limit,
+        percent: Math.min(100, Math.round((u.requests / limit) * 100))
+      };
+    });
+
+    const totalUniversalRequests = universalUsageRaw.reduce((sum, u) => sum + u.requests, 0);
+    const totalUniversalCost = universalUsageRaw.reduce((sum, u) => sum + u.cost, 0);
+    const UNIVERSAL_TOTAL_LIMIT = 1000;
 
     const keys = (user.apiKeys || []).map(k => {
       const usage = perProviderUsage.find(u => u._id.provider === k.provider && u._id.model === k.model) || { requests: 0, tokens: 0, cost: 0 };
-      
-      // Basic masking: sk-proj-abc...xyz -> sk-proj-abc...****
-      const raw = k.label || '';
-      const maskedKey = k.provider === 'openai' ? 'sk-proj-****' : 'sk-****'; 
-      // Actually, since we don't have the decrypted key here, we use a generic placeholder 
-      // or we can decrypt just the prefix if we wanted to be fancy. 
-      // For now, let's just provide the necessary fields.
-      
       return {
         id: k._id, 
         provider: k.provider, 
@@ -92,11 +108,11 @@ export const getApiKeyDashboard = async (req, res) => {
       preferences: user.apiPreferences || {},
       usage: totals[0] || { totalRequests: 0, totalTokens: 0, totalCost: 0, avgResponseTime: 0 },
       universal: {
-        requests: universal.requests,
-        tokens: universal.tokens,
-        costCents: universal.cost,
-        limit: UNIVERSAL_LIMIT,
-        percent: Math.min(100, Math.round((universal.requests / UNIVERSAL_LIMIT) * 100))
+        requests: totalUniversalRequests,
+        costCents: totalUniversalCost,
+        limit: UNIVERSAL_TOTAL_LIMIT,
+        percent: Math.min(100, Math.round((totalUniversalRequests / UNIVERSAL_TOTAL_LIMIT) * 100)),
+        breakdown: universalBreakdown
       }
     });
   } catch (err) {
@@ -624,21 +640,24 @@ export const testApiKey = async (req, res) => {
 export const testTransientKey = async (req, res) => {
   try {
     const { provider, apiKey, model, baseUrl } = req.body;
+    console.log(`[ApiKeys:Transient] Starting test for ${provider}. Model: ${model || 'default'}`);
 
     if (!apiKey) return res.status(400).json({ error: 'API key is required' });
     if (!provider) return res.status(400).json({ error: 'Provider is required' });
 
-    console.log(`[ApiKeys] Performing transient validation for ${provider}...`);
     const validation = await validateApiKey(provider, apiKey, model, baseUrl);
+    console.log(`[ApiKeys:Transient] Validation finished for ${provider}. Valid: ${validation.valid}`);
 
     res.json({
       valid: validation.valid,
       latencyMs: validation.latencyMs,
       error: validation.error || null,
-      details: validation.error
+      details: validation.error,
+      suggestions: validation.suggestions || [],
+      status: validation.status || (validation.valid ? 'valid' : 'invalid'),
     });
   } catch (err) {
-    console.error('[ApiKeys] Transient test error:', err.message);
-    res.status(500).json({ error: 'Validation engine failure' });
+    console.error('[ApiKeys:Transient] CRITICAL ERROR:', err);
+    res.status(500).json({ error: 'Validation engine failure', details: err.message });
   }
 };

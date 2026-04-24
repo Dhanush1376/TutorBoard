@@ -11,6 +11,20 @@ import crypto from 'crypto';
 
 process.stdout.setEncoding('utf8');
 
+import fs from 'fs';
+
+// BUG FIX #99: Global crash logging (Console only to prevent nodemon restart loop)
+process.on('uncaughtException', (err) => {
+  const msg = `[CRITICAL] Uncaught Exception at ${new Date().toISOString()}:\n${err.stack}\n\n`;
+  console.error(msg);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  const msg = `[CRITICAL] Unhandled Rejection at ${new Date().toISOString()}:\nReason: ${reason}\n\n`;
+  console.error(msg);
+});
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
@@ -275,3 +289,4 @@ const startServer = async () => {
 };
 
 startServer();
+// Trigger nodemon restart

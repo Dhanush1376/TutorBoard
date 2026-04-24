@@ -12,16 +12,17 @@ import { PROVIDERS, ALL_DEFAULT_MODELS, detectProvider } from './ProviderRegistr
 
 const labelStyle = {
   fontSize: '11px',
-  fontWeight: 600,
+  fontWeight: 700,
   textTransform: 'uppercase',
-  letterSpacing: '0.06em',
+  letterSpacing: '0.08em',
   color: 'var(--text-tertiary)',
-  marginBottom: '7px',
+  marginBottom: '8px',
+  display: 'block',
 };
 
 const inputBase = {
   width: '100%',
-  padding: '10px 12px',
+  padding: '12px 14px',
   borderRadius: '12px',
   border: '1px solid var(--border-color)',
   background: 'var(--bg-tertiary)',
@@ -29,12 +30,12 @@ const inputBase = {
   fontSize: '13px',
   outline: 'none',
   boxSizing: 'border-box',
-  transition: 'border-color 0.15s',
+  transition: 'border-color 0.2s, box-shadow 0.2s',
 };
 
 const eyeBtn = {
   position: 'absolute',
-  right: '10px',
+  right: '12px',
   top: '50%',
   transform: 'translateY(-50%)',
   background: 'none',
@@ -43,17 +44,27 @@ const eyeBtn = {
   color: 'var(--text-tertiary)',
   display: 'flex',
   padding: '4px',
+  transition: 'color 0.2s',
 };
 
 // ─── Provider Dot ─────────────────────────────────────────────────────────────
 
-function ProviderDot({ color, size = 10 }) {
+function ProviderDot({ color, size = 10, pulsing = false }) {
   return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: color, flexShrink: 0,
-      transition: 'background 0.2s',
-    }} />
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        background: color, transition: 'background 0.3s',
+        boxShadow: `0 0 8px ${color}40`,
+      }} />
+      {pulsing && (
+        <div style={{
+          position: 'absolute', inset: -2, borderRadius: '50%',
+          border: `1px solid ${color}50`,
+          animation: 'pulse-ring 2s infinite',
+        }} />
+      )}
+    </div>
   );
 }
 
@@ -63,40 +74,57 @@ function ProviderGrid({ selected, onSelect }) {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
-      gap: '10px',
-      marginTop: '12px',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+      gap: '12px',
+      marginTop: '16px',
     }}>
-      {PROVIDERS.map(p => {
+      {PROVIDERS.map((p, i) => {
         const isSelected = selected?.id === p.id;
         return (
-          <button
+          <motion.button
             key={p.id}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.015, duration: 0.25, ease: 'easeOut' }}
             onClick={() => onSelect(isSelected ? null : p)}
+            whileHover={{ y: -3, boxShadow: `0 8px 24px ${p.color}25` }}
+            whileTap={{ scale: 0.94 }}
             style={{
-              padding: '10px 8px',
-              borderRadius: '12px',
+              padding: '14px 10px',
+              borderRadius: '16px',
               border: isSelected ? `2px solid ${p.color}` : '1px solid var(--border-color)',
-              background: isSelected ? `${p.color}14` : 'var(--bg-tertiary)',
+              background: isSelected ? `${p.color}10` : 'var(--bg-tertiary)',
               cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '5px',
-              transition: 'all 0.12s',
+              gap: '10px',
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              position: 'relative', overflow: 'hidden'
             }}
           >
-            <ProviderDot color={p.color} size={8} />
+            {isSelected && (
+              <motion.div 
+                layoutId="active-bg"
+                style={{ position: 'absolute', inset: 0, background: `${p.color}08`, zIndex: 0 }} 
+              />
+            )}
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <ProviderDot color={p.color} size={10} pulsing={isSelected} />
+            </div>
             <span style={{
               fontSize: '11px',
               color: isSelected ? p.color : 'var(--text-secondary)',
-              fontWeight: isSelected ? 600 : 400,
+              fontWeight: isSelected ? 800 : 600,
               textAlign: 'center',
-              lineHeight: 1.3,
+              lineHeight: 1.2,
+              letterSpacing: '-0.01em',
+              position: 'relative', zIndex: 1,
+              textTransform: 'uppercase'
             }}>
               {p.name}
             </span>
-          </button>
+          </motion.button>
         );
       })}
     </div>
@@ -106,44 +134,49 @@ function ProviderGrid({ selected, onSelect }) {
 // ─── Saved Key Card ───────────────────────────────────────────────────────────
 
 function SavedKeyCard({ entry, onRemove }) {
+  const pColor = entry.provider?.color || '#8b5cf6';
   return (
     <motion.div
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: 20 }}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
-        padding: '12px 16px',
-        borderRadius: '14px',
+        gap: '16px',
+        padding: '16px 20px',
+        borderRadius: '20px',
         border: '1px solid var(--border-color)',
         background: 'var(--bg-secondary)',
-        marginBottom: '8px',
+        marginBottom: '12px',
+        boxShadow: `0 4px 20px rgba(0,0,0,0.02), inset 0 0 0 1px ${pColor}10`,
+        position: 'relative',
+        overflow: 'hidden'
       }}
     >
-      <ProviderDot color={entry.provider?.color || '#888'} size={9} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: pColor }} />
+      <ProviderDot color={pColor} size={12} pulsing />
+      
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: '15px', fontWeight: 750, color: 'var(--text-primary)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {entry.label}
+          <div style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '999px', background: `${pColor}15`, color: pColor, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            {entry.provider?.name}
+          </div>
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontFamily: 'monospace' }}>
-          {entry.maskedKey} · {entry.model}
+        <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px', fontFamily: '"Geist Mono", monospace', letterSpacing: '-0.01em', fontWeight: 500 }}>
+          {entry.maskedKey} <span style={{ opacity: 0.3 }}>·</span> <span style={{ color: 'var(--text-secondary)' }}>{entry.model}</span>
         </div>
       </div>
-      <div style={{
-        fontSize: '11px', padding: '3px 10px', borderRadius: '999px',
-        background: 'rgba(16,185,129,0.08)', color: '#10b981',
-        border: '1px solid rgba(16,185,129,0.2)', fontWeight: 600,
-      }}>
-        active
-      </div>
-      <button
+
+      <motion.button
+        whileHover={{ scale: 1.1, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
+        whileTap={{ scale: 0.9 }}
         onClick={() => onRemove(entry.id)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '4px' }}
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '8px', borderRadius: '12px', transition: 'all 0.2s', opacity: 0.6 }}
       >
-        <X size={14} />
-      </button>
+        <X size={16} strokeWidth={2.5} />
+      </motion.button>
     </motion.div>
   );
 }
@@ -175,7 +208,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
         setModel(detected.defaultModel || '');
       }
     }
-  }, [apiKey]);
+  }, [apiKey, model]);
 
   const handleProviderSelect = (p) => {
     setProvider(p);
@@ -207,14 +240,26 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: 'The server returned an invalid response. Please check your backend logs.' }));
+      
       if (res.ok && data.valid) {
         setValidationResult({ valid: true, latency: data.latencyMs });
       } else {
-        setValidationResult({ valid: false, error: data.details || data.error || 'Validation failed' });
+        // SAFE ERROR PARSING: Ensure we never display [object Object]
+        const rawErr = data.details || data.error || `Server error (HTTP ${res.status})`;
+        const errorMsg = typeof rawErr === 'object' 
+          ? (rawErr.message || JSON.stringify(rawErr)) 
+          : rawErr;
+
+        setValidationResult({ 
+          valid: false, 
+          error: errorMsg,
+          suggestions: data.suggestions || []
+        });
       }
-    } catch {
-      setError('Network error during validation.');
+    } catch (err) {
+      console.error('[Validation] Network error:', err);
+      setError(`Network error: ${err.message || 'Could not reach the server'}. Please ensure the backend is running on port 3001.`);
     } finally {
       setIsValidating(false);
     }
@@ -278,16 +323,21 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 8 }}
-      style={{ marginBottom: '24px' }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 240 }}
+      style={{ marginBottom: '32px' }}
     >
-      <AnimatePresence>
+      <AnimatePresence mode="popLayout">
         {savedKeys.length > 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: '10px' }}>
-              Active keys
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            style={{ marginBottom: '28px' }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-tertiary)', marginBottom: '16px', paddingLeft: '4px' }}>
+              PROVISIONED CREDENTIALS
             </div>
             {savedKeys.map(k => (
               <SavedKeyCard
@@ -301,51 +351,62 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
       </AnimatePresence>
 
       <div style={{
+        position: 'relative',
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-color)',
-        borderRadius: '20px',
-        padding: 'clamp(16px, 4vw, 24px)', // Responsive padding
+        borderRadius: '28px',
+        padding: '32px', 
         display: 'flex',
         flexDirection: 'column',
-        gap: '18px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+        gap: '28px',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.08)',
+        overflow: 'hidden',
       }}>
+        {/* Animated accent gradient */}
+        <div style={{ 
+          position: 'absolute', top: -150, right: -150, width: '400px', height: '400px', 
+          background: 'radial-gradient(circle, rgba(139,92,246,0.08), transparent 70%)', 
+          pointerEvents: 'none', filter: 'blur(40px)' 
+        }} />
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '20px', position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
             <div style={{
-              width: '42px', height: '42px', borderRadius: '12px',
-              background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)',
+              width: '52px', height: '52px', borderRadius: '18px',
+              background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(139,92,246,0.05))', 
+              border: '1px solid rgba(139,92,246,0.3)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6',
-              flexShrink: 0
+              flexShrink: 0, boxShadow: '0 12px 24px rgba(139,92,246,0.15)'
             }}>
-              <ShieldCheck size={20} />
+              <ShieldCheck size={26} strokeWidth={2.2} />
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)' }}>Your API vault</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '1px' }}>
-                Paste any key — provider auto-detected
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Identity Credentials</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px', fontWeight: 500 }}>
+                Securely bind your API keys. Patterns are matched in real-time.
               </div>
             </div>
           </div>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05, background: 'var(--bg-primary)' }} whileTap={{ scale: 0.95 }}
             onClick={() => setShowDirectory(true)}
             style={{
-              padding: '6px 12px', borderRadius: '10px',
+              padding: '10px 20px', borderRadius: '14px',
               background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
-              fontSize: '11px', fontWeight: 600, color: '#8b5cf6',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-              transition: 'all 0.2s',
+              fontSize: '12px', fontWeight: 800, color: '#8b5cf6',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.03)', letterSpacing: '0.03em',
+              textTransform: 'uppercase'
             }}
           >
-            <Globe size={13} />
-            Get API keys
-          </button>
+            <Globe size={14} strokeWidth={2.5} />
+            Providers
+          </motion.button>
         </div>
 
-        <div>
-          <div style={labelStyle}>API key</div>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <label style={labelStyle}>API key</label>
           <div style={{ position: 'relative' }}>
             <input
               type={showKey ? 'text' : 'password'}
@@ -355,74 +416,99 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
                 setValidationResult(null);
                 setError('');
               }}
-              placeholder="Paste your key here…"
+              placeholder="••••••••••••••••••••••••••••••••"
               autoComplete="off"
               spellCheck={false}
               style={{
                 ...inputBase,
-                fontFamily: apiKey ? 'monospace' : 'inherit',
-                paddingRight: '40px',
+                padding: '16px 18px',
+                borderRadius: '16px',
+                fontFamily: apiKey ? '"Geist Mono", monospace' : 'inherit',
+                paddingRight: '52px',
+                fontSize: '14px',
+                border: apiKey ? (provider ? `1.5px solid ${provider.color}80` : '1px solid var(--border-color)') : '1px solid var(--border-color)',
+                boxShadow: apiKey && provider ? `0 0 0 4px ${provider.color}10` : 'none',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
             />
             <button
               onClick={() => setShowKey(v => !v)}
-              style={eyeBtn}
+              style={{ ...eyeBtn, right: '16px' }}
               title={showKey ? 'Hide key' : 'Show key'}
             >
-              {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+              {showKey ? <EyeOff size={18} strokeWidth={2.5} /> : <Eye size={18} strokeWidth={2.5} />}
             </button>
           </div>
           {provider && (
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '5px', fontFamily: 'monospace' }}>
-              pattern: {provider.hint}
-            </div>
+            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '10px', fontFamily: '"Geist Mono", monospace', paddingLeft: '4px', fontWeight: 600 }}>
+              <span style={{ color: provider.color }}>{provider.name}</span> detected via pattern: <span style={{ opacity: 0.7 }}>{provider.hint}</span>
+            </motion.div>
           )}
         </div>
 
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <div style={labelStyle}>Detected provider</div>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <label style={{ ...labelStyle, marginBottom: 0 }}>Matched Provider</label>
             <button
               onClick={() => setShowPicker(v => !v)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-tertiary)' }}
+              style={{ 
+                background: 'none', border: 'none', cursor: 'pointer', 
+                display: 'flex', alignItems: 'center', gap: '6px', 
+                fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)',
+                opacity: 0.8, transition: 'opacity 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.8'}
             >
-              <ChevronDown size={12} style={{ transition: 'transform 0.2s', transform: showPicker ? 'rotate(180deg)' : 'none' }} />
-              pick manually
+              <ChevronDown size={14} strokeWidth={2.5} style={{ transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)', transform: showPicker ? 'rotate(180deg)' : 'none' }} />
+              Manual Override
             </button>
           </div>
 
           <div style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            padding: '11px 14px', borderRadius: '12px',
+            display: 'flex', alignItems: 'center', gap: '16px',
+            padding: '16px 20px', borderRadius: '18px',
             border: '1px solid var(--border-color)',
-            background: 'var(--bg-tertiary)',
+            background: provider ? `${provider.color}0c` : 'var(--bg-tertiary)',
             flexWrap: 'wrap',
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: provider ? `inset 0 0 20px ${provider.color}05` : 'none'
           }}>
-            <ProviderDot color={provider?.color || 'var(--text-tertiary)'} />
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: provider?.color || 'var(--text-tertiary)' }}>
-                {provider ? provider.name : (apiKey ? 'Unknown — pick manually' : 'Paste a key to auto-detect')}
+            <div style={{ 
+              width: '32px', height: '32px', borderRadius: '10px', 
+              background: provider ? `${provider.color}20` : 'var(--bg-secondary)', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center' 
+            }}>
+              <ProviderDot color={provider?.color || 'var(--text-tertiary)'} size={10} pulsing={!!provider} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '15px', fontWeight: 750, color: provider?.color || 'var(--text-secondary)', letterSpacing: '-0.01em' }}>
+                {provider ? provider.name : (apiKey ? 'Unrecognized pattern' : 'Awaiting credentials')}
               </div>
               {provider?.link && (
-                <a
+                <motion.a
+                  whileHover={{ scale: 1.05, background: provider.color, color: '#fff' }}
                   href={provider.link}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
                     fontSize: '11px',
-                    color: 'var(--text-tertiary)',
+                    color: provider.color,
                     textDecoration: 'none',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    padding: '2px 8px',
-                    borderRadius: '8px',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '10px',
                     background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
+                    border: `1px solid ${provider.color}40`,
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
                   }}
                 >
-                  Get Key <ExternalLink size={10} />
-                </a>
+                  Acquire Key <ExternalLink size={11} strokeWidth={2.5} />
+                </motion.a>
               )}
             </div>
           </div>
@@ -435,7 +521,9 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
                 exit={{ opacity: 0, height: 0 }}
                 style={{ overflow: 'hidden' }}
               >
-                <ProviderGrid selected={provider} onSelect={p => { handleProviderSelect(p); setShowPicker(false); }} />
+                <div style={{ padding: '8px 4px' }}>
+                  <ProviderGrid selected={provider} onSelect={p => { handleProviderSelect(p); setShowPicker(false); }} />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -445,43 +533,46 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
-          gap: '12px' 
+          gap: '20px',
+          position: 'relative', zIndex: 1
         }}>
           <div>
-            <div style={labelStyle}>Model</div>
+            <label style={labelStyle}>Execution Model</label>
             <input
               type="text"
               value={model}
               onChange={e => setModel(e.target.value)}
-              placeholder={provider?.defaultModel || 'model-id'}
-              style={inputBase}
+              placeholder={provider?.defaultModel || 'gpt-4o'}
+              style={{ ...inputBase, padding: '14px 16px', borderRadius: '14px', fontWeight: 600, fontFamily: '"Geist Mono", monospace' }}
             />
           </div>
           <div>
-            <div style={labelStyle}>Label (optional)</div>
+            <label style={labelStyle}>Workspace Label</label>
             <input
               type="text"
               value={label}
               onChange={e => setLabel(e.target.value)}
-              placeholder={provider ? `${provider.name} Key` : 'My key'}
-              style={inputBase}
+              placeholder={provider ? `${provider.name} Primary` : 'Personal Key'}
+              style={{ ...inputBase, padding: '14px 16px', borderRadius: '14px', fontWeight: 600 }}
             />
           </div>
         </div>
 
         <AnimatePresence>
           {provider?.id === 'custom' && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
-              <div style={labelStyle}>Base URL (proxy / local)</div>
-              <div style={{ position: 'relative' }}>
-                <Globe size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-                <input
-                  type="text"
-                  value={baseUrl}
-                  onChange={e => setBaseUrl(e.target.value)}
-                  placeholder="https://your-proxy.com/v1"
-                  style={{ ...inputBase, paddingLeft: '32px' }}
-                />
+            <motion.div initial={{ opacity: 0, y: -10, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -10, height: 0 }} style={{ overflow: 'hidden' }}>
+              <div style={{ paddingTop: '4px' }}>
+                <label style={labelStyle}>Proxy / Gateway Endpoint</label>
+                <div style={{ position: 'relative' }}>
+                  <Globe size={18} strokeWidth={2} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', opacity: 0.6 }} />
+                  <input
+                    type="text"
+                    value={baseUrl}
+                    onChange={e => setBaseUrl(e.target.value)}
+                    placeholder="https://your-proxy.com/v1"
+                    style={{ ...inputBase, padding: '14px 16px', paddingLeft: '48px', borderRadius: '14px', fontFamily: '"Geist Mono", monospace', fontWeight: 500 }}
+                  />
+                </div>
               </div>
             </motion.div>
           )}
@@ -490,85 +581,153 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
         <AnimatePresence>
           {validationResult && (
             <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              layout
+              initial={{ opacity: 0, scale: 0.96, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
               style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '11px 14px', borderRadius: '12px',
-                background: validationResult.valid ? 'rgba(16,185,129,0.07)' : 'rgba(239,68,68,0.07)',
-                border: `1px solid ${validationResult.valid ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
-                flexWrap: 'wrap',
+                display: 'flex', flexDirection: 'column', gap: '12px',
+                padding: '20px 24px', borderRadius: '20px',
+                background: validationResult.valid ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                border: `1.5px solid ${validationResult.valid ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                boxShadow: validationResult.valid ? '0 12px 30px rgba(16,185,129,0.1)' : '0 12px 30px rgba(239,68,68,0.1)',
+                position: 'relative', zIndex: 1
               }}
             >
-              {validationResult.valid
-                ? <CheckCircle size={16} color="#10b981" />
-                : <XCircle size={16} color="#ef4444" />}
-              <span style={{ fontSize: '13px', color: validationResult.valid ? '#10b981' : '#ef4444' }}>
-                {validationResult.valid
-                  ? `Connected in ${validationResult.latency}ms`
-                  : validationResult.error}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ 
+                  width: '32px', height: '32px', borderRadius: '10px', 
+                  background: validationResult.valid ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {validationResult.valid
+                    ? <CheckCircle size={18} color="#10b981" strokeWidth={3} />
+                    : <XCircle size={18} color="#ef4444" strokeWidth={3} />}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '15px', color: validationResult.valid ? '#10b981' : '#ef4444', fontWeight: 800, letterSpacing: '-0.01em' }}>
+                    {validationResult.valid ? 'Connectivity Verified' : 'Validation Failed'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: validationResult.valid ? '#10b981' : '#ef4444', opacity: 0.8, fontWeight: 500, marginTop: '2px' }}>
+                    {validationResult.valid
+                      ? `Latency: ${validationResult.latency}ms — ready for deployment.`
+                      : validationResult.error}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Auto-Correction Engine UI */}
+              {!validationResult.valid && validationResult.suggestions?.length > 0 && (
+                <div style={{ marginTop: '8px', paddingTop: '16px', borderTop: '1px dashed rgba(239,68,68,0.25)' }}>
+                  <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>
+                    REPAIR SUGGESTIONS
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                    {validationResult.suggestions.map(s => (
+                      <motion.button
+                        key={s}
+                        whileHover={{ scale: 1.04, background: 'rgba(239,68,68,0.18)' }}
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => {
+                          setModel(s);
+                          setValidationResult(null);
+                        }}
+                        style={{
+                          background: 'rgba(239,68,68,0.1)',
+                          border: '1px solid rgba(239,68,68,0.35)',
+                          color: '#ef4444',
+                          padding: '8px 16px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 750,
+                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                          transition: 'all 0.2s',
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        <Zap size={13} strokeWidth={2.5} /> USE {s.toUpperCase()}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
           {error && <ValidationError message={error} />}
         </AnimatePresence>
 
-        {/* Responsive Buttons */}
+        {/* Responsive Action Core */}
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: '10px' 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '16px',
+          marginTop: '8px',
+          position: 'relative', zIndex: 1
         }}>
-            <button
+            <motion.button
+            whileHover={canValidate ? { scale: 1.02, background: 'var(--bg-primary)' } : {}}
+            whileTap={canValidate ? { scale: 0.98 } : {}}
             onClick={handleValidate}
             disabled={!canValidate}
             style={{
               width: '100%',
-              padding: '14px',
-              borderRadius: '14px',
-              border: '1px solid var(--border-color)',
+              padding: '18px',
+              borderRadius: '18px',
+              border: canValidate ? '1.5px solid var(--text-primary)' : '1px solid var(--border-color)',
               background: 'var(--bg-tertiary)',
               color: canValidate ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontSize: '13px', fontWeight: 600,
+              fontSize: '14px', fontWeight: 800,
               cursor: canValidate ? 'pointer' : 'default',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              opacity: canValidate ? 1 : 0.5,
+              textTransform: 'uppercase', letterSpacing: '0.04em'
             }}
           >
             {isValidating
-              ? <Activity size={14} style={{ animation: 'spin 1s linear infinite' }} />
-              : <Zap size={14} />}
-            {isValidating ? 'Testing…' : 'Test connection'}
-          </button>
+              ? <Activity size={18} strokeWidth={2.5} style={{ animation: 'spin 1.2s linear infinite' }} />
+              : <Zap size={18} strokeWidth={2.5} />}
+            {isValidating ? 'VALIDATING…' : 'TEST CONNECTION'}
+          </motion.button>
 
-            <button
+            <motion.button
+            whileHover={canSave ? { scale: 1.02, filter: 'brightness(1.1)', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' } : {}}
+            whileTap={canSave ? { scale: 0.98 } : {}}
             onClick={handleSave}
             disabled={!canSave}
             style={{
               width: '100%',
-              padding: '14px',
-              borderRadius: '14px',
+              padding: '18px',
+              borderRadius: '18px',
               border: 'none',
               background: canSave ? 'var(--text-primary)' : 'var(--bg-tertiary)',
               color: canSave ? 'var(--bg-primary)' : 'var(--text-tertiary)',
-              fontSize: '13px', fontWeight: 700,
+              fontSize: '14px', fontWeight: 900,
               cursor: canSave ? 'pointer' : 'default',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              boxShadow: canSave ? '0 4px 18px rgba(0,0,0,0.15)' : 'none',
-              transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+              boxShadow: canSave ? '0 8px 24px rgba(0,0,0,0.15)' : 'none',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              opacity: canSave ? 1 : 0.5,
+              textTransform: 'uppercase', letterSpacing: '0.05em'
             }}
           >
-            <CheckCircle size={14} />
-            Save & activate
-          </button>
+            <CheckCircle size={18} strokeWidth={3} />
+            AUTHORIZE & BIND
+          </motion.button>
         </div>
 
         <button
           onClick={onCancel}
-          style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline', textAlign: 'center' }}
+          style={{ 
+            background: 'none', border: 'none', color: 'var(--text-tertiary)', 
+            fontSize: '13px', fontWeight: 700, cursor: 'pointer', 
+            textAlign: 'center', transition: 'all 0.2s', opacity: 0.6,
+            letterSpacing: '0.02em'
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.opacity = '1'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.opacity = '0.6'; }}
         >
-          Cancel
+          Dismiss Setup
         </button>
       </div>
 
@@ -579,66 +738,106 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             style={{
-              position: 'fixed', inset: 0, zIndex: 2000,
-              background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
+              position: 'fixed', inset: 0, zIndex: 100005,
+              background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(16px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
             }}
             onClick={() => setShowDirectory(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 30 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
               style={{
-                background: 'var(--bg-primary)', borderRadius: '24px',
-                width: '100%', maxWidth: '500px', maxHeight: '80vh',
+                background: 'var(--bg-primary)', borderRadius: '32px',
+                width: '100%', maxWidth: '560px', maxHeight: '85vh',
                 display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-                border: '1px solid var(--border-color)',
+                boxShadow: '0 40px 100px rgba(0,0,0,0.5), inset 0 0 0 1px var(--border-color)',
+                border: '1px solid rgba(255,255,255,0.05)',
               }}
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ 
+                padding: '28px 32px', 
+                borderBottom: '1px solid var(--border-color)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                background: 'var(--bg-secondary)',
+                position: 'relative'
+              }}>
                 <div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Provider Directory</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>Free to Premium</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Intelligence Index</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px', fontWeight: 500 }}>Global Directory of Supported AI Providers</div>
                 </div>
-                <button onClick={() => setShowDirectory(false)} style={{ background: 'var(--bg-tertiary)', border: 'none', padding: '6px', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
-                  <X size={18} />
-                </button>
+                <motion.button 
+                  whileHover={{ scale: 1.1, background: 'var(--bg-tertiary)', color: '#ef4444' }} whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowDirectory(false)} 
+                  style={{ 
+                    background: 'transparent', border: '1px solid var(--border-color)', 
+                    padding: '10px', borderRadius: '14px', cursor: 'pointer', 
+                    color: 'var(--text-secondary)', display: 'flex', transition: 'all 0.2s' 
+                  }}
+                >
+                  <X size={20} strokeWidth={2.5} />
+                </motion.button>
               </div>
 
-              <div style={{ overflowY: 'auto', padding: '12px' }}>
+              <div style={{ 
+                overflowY: 'auto', padding: '20px 32px 32px', 
+                display: 'flex', flexDirection: 'column', gap: '12px',
+                scrollbarWidth: 'none'
+              }} className="no-scrollbar">
                 {[...PROVIDERS]
                   .filter(p => p.id !== 'custom')
                   .sort((a, b) => (a.price || 0) - (b.price || 0))
                   .map(p => (
-                    <div key={p.id} style={{
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      padding: '12px', borderRadius: '16px',
-                      border: '1px solid var(--border-color)', marginBottom: '8px',
-                      background: 'var(--bg-secondary)',
-                    }}>
-                      <ProviderDot color={p.color} size={10} />
+                    <motion.div 
+                      key={p.id} 
+                      whileHover={{ scale: 1.02, background: `${p.color}08`, border: `1px solid ${p.color}40` }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '20px',
+                        padding: '18px 24px', borderRadius: '24px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        cursor: 'default'
+                      }}
+                    >
+                      <div style={{ 
+                        width: '42px', height: '42px', borderRadius: '14px', 
+                        background: `${p.color}15`, display: 'flex', alignItems: 'center', 
+                        justifyContent: 'center', boxShadow: `0 4px 12px ${p.color}10` 
+                      }}>
+                        <ProviderDot color={p.color} size={14} />
+                      </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
-                          {p.price === 0 && (
-                            <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: '#10b98115', color: '#10b981', fontWeight: 700 }}>FREE</span>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{p.name}</div>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {p.price === 0 ? (
+                            <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '8px', background: '#10b98115', color: '#10b981', fontWeight: 900, letterSpacing: '0.06em' }}>FREE TIER</span>
+                          ) : (
+                            <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 800, letterSpacing: '0.06em' }}>PREMIUM API</span>
                           )}
-                          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{p.hint}</span>
+                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.3 }} />
+                          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: '"Geist Mono", monospace', fontWeight: 600 }}>{p.hint}</span>
                         </div>
                       </div>
                       {p.link && (
-                        <a href={p.link} target="_blank" rel="noopener noreferrer" style={{
-                          padding: '8px 12px', borderRadius: '10px', background: 'var(--bg-tertiary)',
-                          color: 'var(--text-primary)', textDecoration: 'none', fontSize: '11px', fontWeight: 600,
-                          display: 'flex', alignItems: 'center', gap: '5px', border: '1px solid var(--border-color)',
-                        }}>
-                          Link <ExternalLink size={12} />
-                        </a>
+                        <motion.a 
+                          whileHover={{ scale: 1.06, background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
+                          href={p.link} target="_blank" rel="noopener noreferrer" 
+                          style={{
+                            padding: '12px 18px', borderRadius: '14px', background: 'var(--bg-tertiary)',
+                            color: 'var(--text-primary)', textDecoration: 'none', fontSize: '12px', fontWeight: 800,
+                            display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', letterSpacing: '0.02em',
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          KEYS <ExternalLink size={14} strokeWidth={2.5} />
+                        </motion.a>
                       )}
-                    </div>
+                    </motion.div>
                   ))}
               </div>
             </motion.div>
@@ -646,7 +845,16 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
         )}
       </AnimatePresence>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } } 
+        @keyframes pulse-ring { 
+          0% { opacity: 0.6; transform: scale(1); } 
+          50% { opacity: 0; transform: scale(1.8); } 
+          100% { opacity: 0; transform: scale(1.8); } 
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </motion.div>
   );
 }
