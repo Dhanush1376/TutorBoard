@@ -181,11 +181,11 @@
   /* Manual dark mode override if .dark class is present */
   .dark {
     --bg-primary: #050505;
-    /* Deeper obsidian */
+    --bg-primary-rgb: 5, 5, 5;
     --bg-secondary: #0f0f0e;
+    --bg-secondary-rgb: 15, 15, 14;
     --bg-tertiary: #1a1a18;
     --text-primary: #fdfaf3;
-    /* Brighter bone text */
     --text-secondary: #a3a198;
     --text-tertiary: #6b6a64;
     --border-color: rgba(253, 250, 243, 0.1);

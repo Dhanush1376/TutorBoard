@@ -50,6 +50,7 @@ server/eslint-result.json
 
 # Generated/ephemeral data (never commit)
 server/data/
+server/uploads/
 eslint-result.json
 *-eslint-output.json
 *.eslint.json

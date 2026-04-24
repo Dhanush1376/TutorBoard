@@ -60,6 +60,10 @@ export const createUiSlice = (set, get) => ({
     onCancel: null
   },
   toasts: [], // { id, message, type, duration, onUndo }
+  featureFlags: {
+    enableVisualizer: false,
+    enableVoice: false,
+  },
 
 
   setLayoutView:    (view) => set({ layoutView: view }),

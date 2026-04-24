@@ -9,7 +9,7 @@ export const STATES = {
   ERROR:           'ERROR',
 };
 
-const capManifest = (manifest, limit = 20) => {
+export const capManifest = (manifest, limit = 20) => {
   const keys = Object.keys(manifest);
   if (keys.length <= limit) return manifest;
   

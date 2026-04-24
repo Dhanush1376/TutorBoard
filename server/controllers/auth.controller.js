@@ -21,12 +21,29 @@ const generateToken = (id) => {
   );
 };
 
+// SEC-12: Simple input sanitization helper
+const sanitize = (str, maxLen = 255) => {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .trim()
+    .slice(0, maxLen)
+    .replace(/[<>]/g, ''); // Basic XSS prevention: strip tags
+};
+
 /**
  * POST /api/auth/signup
  * Register a new user
  */
 export const signup = async (req, res) => {
-  const { name, email, password, confirmPassword } = req.body;
+  let { name, email, password, confirmPassword } = req.body;
+
+  // Sanitize inputs
+  name = sanitize(name, 50);
+  email = sanitize(email?.toLowerCase(), 100);
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "Name, email, and password are required" });
+  }
 
   if (password !== confirmPassword) {
     return res.status(400).json({ error: "Passwords don't match" });

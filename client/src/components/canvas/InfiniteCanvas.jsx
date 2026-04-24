@@ -577,17 +577,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
                    linear-gradient(to right, var(--text-tertiary) 1px, transparent 1px),
                    linear-gradient(to bottom, var(--text-tertiary) 1px, transparent 1px)`
                 : 'none',
-            backgroundSize: gridType === 'dots'
-              ? `${gridSize * transform.scale}px ${gridSize * transform.scale}px,
-                 ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px`
-              : `${gridSize * transform.scale}px ${gridSize * transform.scale}px,
-                 ${gridSize * transform.scale}px ${gridSize * transform.scale}px,
-                 ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px,
-                 ${gridSize * 5 * transform.scale}px ${gridSize * 5 * transform.scale}px`,
-            backgroundPosition: `
-              ${transform.x % (gridSize * transform.scale)}px ${transform.y % (gridSize * transform.scale)}px,
-              ${transform.x % (gridSize * 5 * transform.scale)}px ${transform.y % (gridSize * 5 * transform.scale)}px
-            `,
+            // SEC-21: Grid size and position are managed exclusively via gridRef in applyTransform()
+            // to prevent React-state synchronization flickers during high-frequency panning.
           }}
         />
 
@@ -596,6 +587,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
           ref={contentRef}
           className="absolute top-0 left-0 origin-top-left will-change-transform"
           style={{
+            // Transform is applied via DOM ref in applyTransform, but we keep 
+            // the initial inline style for SSR/initial-mount consistency.
             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
             transition: isDragging ? 'none' : transitionStyle,
           }}

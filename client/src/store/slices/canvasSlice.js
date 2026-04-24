@@ -1,3 +1,5 @@
+import { capManifest } from './sessionSlice.js';
+
 export const CANVAS_MODE = {
   CLOSED:     'CLOSED',
   FULLSCREEN: 'FULLSCREEN',
@@ -97,18 +99,36 @@ export const createCanvasSlice = (set, get) => ({
 
     if (sessionId) {
       const existing = sessionManifest[sessionId] || {};
+      
+      // HIGH: Prune manifest objects to prevent localStorage QuotaExceededError
+      // We only keep minimal metadata for the sidebar/switcher.
+      const prunedObjects = (canvasObjects || []).map(obj => ({
+        id: obj.id,
+        type: obj.type,
+        x: obj.x,
+        y: obj.y,
+        scale: obj.scale || 1,
+        color: obj.color || obj.styles?.stroke || obj.styles?.color || '#000000',
+        label: obj.label || obj.text?.substring(0, 20) || ''
+      }));
+
+      const updatedManifest = {
+        ...sessionManifest,
+        [sessionId]: {
+          ...existing,
+          canvasObjects: prunedObjects,
+          // Exclude connections and steps from local manifest; 
+          // these are large and should be fetched from cloud on switch.
+          canvasConnections: [], 
+          canvasSteps: [],
+          canvasTransform: finalTransform,
+          pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
+          lastActive: Date.now()
+        }
+      };
+
       set({
-        sessionManifest: {
-          ...sessionManifest,
-          [sessionId]: {
-            ...existing,
-            canvasObjects,
-            canvasConnections,
-            canvasSteps,
-            canvasTransform: finalTransform,
-            pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
-          }
-        },
+        sessionManifest: capManifest(updatedManifest, 20),
         pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
       });
     }

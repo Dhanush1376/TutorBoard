@@ -20,10 +20,10 @@ const Loader = ({ fullScreen = true, glass = true }) => {
       `}
       style={{
         backgroundColor: glass 
-          ? `rgba(var(--bg-primary-rgb), ${isDark ? 0.45 : 0.6})` 
+          ? `rgba(var(--bg-primary-rgb), ${isDark ? 0.15 : 0.1})` 
           : 'var(--bg-primary)',
-        backdropFilter: glass ? 'blur(16px) saturate(120%) brightness(0.9)' : 'none',
-        WebkitBackdropFilter: glass ? 'blur(16px) saturate(120%) brightness(0.9)' : 'none',
+        backdropFilter: glass ? 'blur(40px) saturate(180%) brightness(1.05)' : 'none',
+        WebkitBackdropFilter: glass ? 'blur(40px) saturate(180%) brightness(1.05)' : 'none',
       }}
     >
       <div className="relative">

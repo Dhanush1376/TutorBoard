@@ -1,0 +1,16 @@
+{
+  "short_name": "TutorBoard",
+  "name": "TutorBoard AI",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' fill='%231c1711' rx='56' /%3E%3Cg transform='translate(-212, -62)'%3E%3Cpolygon points='340,90 427,140 340,190 253,140' fill='white' fill-opacity='0.15' /%3E%3Cpolygon points='253,140 340,190 340,290 253,240' fill='white' fill-opacity='0.35' /%3E%3Cpolygon points='340,190 427,140 427,240 340,290' fill='white' fill-opacity='0.5' /%3E%3Cpolygon points='340,158 376,179 340,200 304,179' fill='white' fill-opacity='0.25' /%3E%3Cpolygon points='304,179 340,200 340,242 304,221' fill='white' fill-opacity='0.5' /%3E%3Cpolygon points='340,200 376,179 376,221 340,242' fill='white' fill-opacity='0.85' /%3E%3C/g%3E%3C/svg%3E",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1c1711",
+  "background_color": "#fdfaf3"
+}

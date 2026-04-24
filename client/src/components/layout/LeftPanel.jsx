@@ -36,7 +36,7 @@ const LeftPanel = ({
   const hasStarted = messages.length > 0;
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const filteredHistory = searchQuery.trim()
     ? chatHistory.filter(c => (c.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
     : chatHistory;
@@ -116,7 +116,7 @@ const LeftPanel = ({
         {/* Empty State & Suggestions (shown only on landing if no history) */}
         {!isLoadingHistory && chatHistory.length === 0 && (
           <div className="flex flex-col items-center justify-center py-6 px-0.5 select-none animate-fade-in opacity-60 hover:opacity-100 transition-opacity duration-500">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -127,7 +127,7 @@ const LeftPanel = ({
                 <BookOpen size={20} strokeWidth={1.5} />
               </div>
             </motion.div>
-            
+
             <div className="text-center space-y-1 mb-6">
               <h3 className="text-[10px] font-normal uppercase tracking-[0.25em] text-[var(--text-primary)]">
                 No recents
@@ -144,9 +144,9 @@ const LeftPanel = ({
                 </span>
                 <div className="h-[1px] flex-1 bg-gradient-to-r from-[var(--border-color)] to-transparent" />
               </div>
-              
+
               <div className="relative overflow-hidden h-10 w-full mask-fade-x">
-                <motion.div 
+                <motion.div
                   className="flex gap-2.5 absolute whitespace-nowrap items-center h-full"
                   animate={{ x: [0, -1000] }}
                   transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
@@ -169,7 +169,7 @@ const LeftPanel = ({
                     "Solar system",
                     "Explain binary search",
                   ].map((text, i) => (
-                    <button 
+                    <button
                       key={i}
                       onClick={() => {
                         setPrompt(text);
@@ -206,15 +206,15 @@ const LeftPanel = ({
           </div>
 
           <div className="flex items-center gap-1">
-            <button 
-              onClick={() => setOverlay('settings')} 
+            <button
+              onClick={() => setOverlay('settings')}
               className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
               title="Open Settings"
             >
               <Settings size={20} strokeWidth={2.5} className="group-hover:rotate-45 transition-transform" />
             </button>
-            <button 
-              onClick={() => setSidebarOpen(false)} 
+            <button
+              onClick={() => setSidebarOpen(false)}
               className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
               title="Close Sidebar"
             >
@@ -248,6 +248,17 @@ const LeftPanel = ({
                   <Search size={16} strokeWidth={2.5} className="group-hover/search:scale-110 transition-transform" />
                 </div>
                 <span className="tracking-tight">Search chats</span>
+              </button>
+
+              {/* 3. Mastery Dashboard (SPA Routing) */}
+              <button
+                onClick={() => { setActiveView?.('mastery'); navigate('/mastery'); }}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-[18px] transition-all active:scale-[0.98] group"
+              >
+                <div className="p-1.5 text-blue-500/70 group-hover:text-blue-500 transition-colors">
+                  <Activity size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                </div>
+                <span className="tracking-tight">Mastery Dashboard</span>
               </button>
 
               <AnimatePresence>

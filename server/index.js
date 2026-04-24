@@ -104,11 +104,14 @@ app.use((req, _res, next) => {
 // BUG FIX #60: Request correlation ID for distributed tracing across agent pipeline
 app.use(requestIdMiddleware);
 
-// ─── Database Connection Config ──────────────────────────────────────────────
+// Database Connection Config
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/tutorboard';
 mongoose.set('bufferCommands', false);
-mongoose.set('debug', true);
-console.log('[DB] Mongoose Debug Mode: ENABLED');
+
+// Only enable query logging in development to prevent PII leaks in production
+const isDev = (process.env.NODE_ENV || 'development') === 'development';
+mongoose.set('debug', isDev);
+if (isDev) console.log('[DB] Mongoose Debug Mode: ENABLED');
 
 // ─── Environment Variable Validation ─────────────────────────────────────────
 // BUG FIX #47: Added JWT_EXPIRES_IN to required env vars for token expiry validation
@@ -238,7 +241,7 @@ app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
 app.use('/api/ai', httpRateLimiter, dbCheck, aiRouter);
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
-app.use('/api', uploadRoutes);
+app.use('/api', httpRateLimiter, uploadRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

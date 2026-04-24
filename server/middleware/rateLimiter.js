@@ -24,18 +24,17 @@ if (process.env.REDIS_URL) {
 
 export const httpRateLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 1000000, // Effectively unlimited for development
+  max: 100, // Hardened for production (100 req/min per IP)
   standardHeaders: true,
   legacyHeaders: false,
   store: httpStore,
   skip: (req) => {
-    // skip rate limiting for local development
     const ip = req.ip || req.connection.remoteAddress;
     return ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
   },
   handler: (req, res) => {
     res.status(429).json({
-      error: 'Rate limit unreachable (Unlimited Mode)',
+      error: 'Too many requests from this IP. Please try again after a minute.',
       code: 'RATE_LIMIT_EXCEEDED',
       retryAfterSeconds: 60,
     });

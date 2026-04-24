@@ -184,7 +184,9 @@ const Home = ({ isDark }) => {
 
 
   const isGuest = !!user?.isGuest;
-  console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
+  if (import.meta.env.DEV) {
+    console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
+  }
   
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
@@ -945,79 +947,6 @@ const Home = ({ isDark }) => {
 
   // ── Manual Canvas Interaction ──
 
-  const handleCanvasClick = useCallback((e) => {
-    // If we're just selecting or the click was handled by an object, do nothing
-    if (activeTool === 'select' || e.target !== e.currentTarget) return;
-    
-    // Get world coordinates from click
-    const rect = e.currentTarget.getBoundingClientRect();
-    const rx = e.clientX - rect.left;
-    const ry = e.clientY - rect.top;
-    
-    const worldX = (rx - canvasTransform.x) / canvasTransform.scale;
-    const worldY = (ry - canvasTransform.y) / canvasTransform.scale;
-
-    const normX = worldX / CANVAS_WIDTH;
-    const normY = worldY / CANVAS_HEIGHT;
-
-    if (activeTool === 'note') {
-      const noteId = `manual-note-${Date.now()}`;
-      const note = {
-        id: noteId,
-        type: 'note',
-        shape: 'note',
-        x: normX,
-        y: normY,
-        color: noteColor,
-        size: noteSize,
-        isPinned: notePinned,
-        text: '',
-        fontSize: noteToolSize,
-        appearsAtStep: 0,
-      };
-      addCanvasObjects([note]);
-      setEditingObjectId(noteId);
-    } else if (activeTool === 'text') {
-      const textId = `manual-text-${Date.now()}`;
-      const textObj = {
-        id: textId,
-        type: 'text',
-        x: normX,
-        y: normY,
-        text: '',
-        fontSize: textToolSize,
-        color: drawColor,
-        appearsAtStep: 0,
-      };
-      addCanvasObjects([textObj]);
-      setEditingObjectId(textId);
-    } else if (activeTool.startsWith('shape:')) {
-      const shapeType = activeTool.replace('shape:', '');
-      const shapeId = `manual-shape-${Date.now()}`;
-      const shapeObj = {
-        id: shapeId,
-        type: shapeType,
-        x: normX,
-        y: normY,
-        w: 150 / CANVAS_WIDTH,
-        h: 100 / CANVAS_HEIGHT,
-        styles: {
-          stroke: drawColor,
-          strokeWidth: 2,
-          strokeStyle: shapeStrokeStyle,
-          fill: 'transparent'
-        },
-        appearsAtStep: 0,
-      };
-      addCanvasObjects([shapeObj]);
-      setSelectedElements([shapeId]);
-    }
-
-    return true;
-  }, [
-    activeTool, canvasTransform, addNoteToCanvas, addCanvasObjects, 
-    drawColor, textToolSize, shapeStrokeStyle
-  ]);
 
   // Selection cleanup
   const setSelectedElements = useTutorStore(state => state.setSelectedElements);
@@ -1058,8 +987,7 @@ const Home = ({ isDark }) => {
           ref={canvasRef}
           onViewportChange={setCanvasTransform}
           onInteractionStart={() => { isAutoFollow.current = false; }}
-          onClick={(e) => {
-            if (handleCanvasClick(e)) return;
+          onClick={() => {
             setSelectedElements([]);
             setHasTextSelection(false);
           }}
@@ -1076,7 +1004,7 @@ const Home = ({ isDark }) => {
 
       {/* 2. Global Layout Overlay */}
       <Layout
-        title={activeSession?.title || "TutorBoard"}
+        title={activeSession?.title || "TutorBoard AI"}
         onBack={handleNewChat}
         sidebar={leftPanel}
       >

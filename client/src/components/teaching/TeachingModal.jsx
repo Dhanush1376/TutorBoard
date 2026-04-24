@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Board from '../canvas/Board';
 import StepController from './StepController';
 import ProgressIndicator from './ProgressIndicator';
 import InlineChat from '../chat/InlineChat';
@@ -159,23 +158,8 @@ const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationTyp
           transition={{ duration: 0.3 }}
           className="absolute inset-0 z-[200] flex flex-col bg-[var(--bg-primary)] overflow-hidden"
         >
-          {/* ─── 1. IMMERSIVE BOARD BACKDROP ─── */}
+          {/* ─── 1. IMMERSIVE BACKDROP ─── */}
           <div className="absolute inset-0 z-0 overflow-hidden">
-            <Board 
-              stepData={activeStepData} 
-              steps={displaySteps} 
-              currentStep={currentStep} 
-              domain={displayDomain} 
-              visualizationType={displayVizType} 
-              dsl={displayDSL}
-              style={displayStyle}
-              elements={displayElements}
-              motionData={displayMotion}
-              sequence={displaySequence}
-              connections={displayConnections}
-              objects={displayObjects}
-            />
-            
             {/* Immersive Cinematic Spotlight */}
             <div 
               className="absolute inset-0 pointer-events-none transition-opacity duration-1000 bg-[radial-gradient(circle_at_50%_45%,transparent_0%,var(--bg-primary)_120%)] opacity-70"

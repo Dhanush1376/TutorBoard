@@ -93,10 +93,9 @@ export const useSessionSync = (chatMessages) => {
 
     // Use Beacon for unload if supported
     if (isBeacon && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      // Beacon doesn't support headers, so we append the token as a query param
-      // The server's 'protect' middleware will be updated to handle this.
-      const url = `${API_URL}/api/sessions/beacon?_auth=${encodeURIComponent(state.token)}`;
-      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      // Beacon doesn't support headers, so we include the token in the payload body
+      const url = `${API_URL}/api/sessions/beacon`;
+      const blob = new Blob([JSON.stringify({ ...payload, token: state.token })], { type: 'application/json' });
       const success = navigator.sendBeacon(url, blob);
       console.log(`[Sync] Beacon flush ${success ? 'queued' : 'failed'}`);
       return;

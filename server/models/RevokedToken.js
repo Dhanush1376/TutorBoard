@@ -10,13 +10,14 @@ const RevokedTokenSchema = new mongoose.Schema({
   expiresAt: {
     type: Date,
     required: true,
+    // SEC-21: Auto-delete revoked tokens after 7 days to keep blocklist lean.
+    index: { expires: '7d' }
   }
 }, {
   timestamps: true
 });
 
-// TTL Index: MongoDB automatically deletes document when current date >= expiresAt
-RevokedTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// SEC-21: Schema-level TTL index is managed via the 'expires' option above.
 
 const RevokedToken = mongoose.model('RevokedToken', RevokedTokenSchema);
 

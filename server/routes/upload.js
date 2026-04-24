@@ -2,8 +2,12 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import { uploadFile } from '../controllers/upload.controller.js';
+import { protect } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
+
+// Apply authentication guard to all upload routes
+router.use(protect);
 
 // Configure storage
 const storage = multer.diskStorage({
@@ -18,11 +22,20 @@ const storage = multer.diskStorage({
 
 // File filter
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'text/plain'];
-  if (allowedTypes.includes(file.mimetype)) {
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'text/plain'];
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.txt'];
+  
+  const fileExt = path.extname(file.originalname).toLowerCase();
+  const isMimeOk = allowedMimeTypes.includes(file.mimetype);
+  const isExtOk = allowedExtensions.includes(fileExt);
+
+  if (isMimeOk && isExtOk) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only JPG, PNG, GIF, PDF, and TXT are allowed.'), false);
+    const error = !isExtOk 
+      ? `Forbidden extension: ${fileExt}. Allowed: ${allowedExtensions.join(', ')}`
+      : `Mismatched MIME type for ${fileExt}. Expected one of ${allowedMimeTypes.join(', ')}`;
+    cb(new Error(error), false);
   }
 };
 

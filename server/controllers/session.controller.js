@@ -203,9 +203,7 @@ export const saveSession = async (req, res) => {
  */
 export const beaconSave = async (req, res) => {
   try {
-    const bodyToken = req.body && req.body.token;
-    const queryToken = req.query && req.query._auth;
-    const token = bodyToken || queryToken;
+    const token = req.body && req.body.token;
     const { sessionId, ...data } = req.body;
     
     // Beacon requests include the token in the body since Beacon API doesn't support headers

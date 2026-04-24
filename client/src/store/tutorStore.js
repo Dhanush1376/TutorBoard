@@ -65,7 +65,13 @@ const useTutorStore = create(
         textToolSize: state.textToolSize,
         noteToolSize: state.noteToolSize,
         alertPrefs: state.alertPrefs,
-        sessionManifest: state.sessionManifest,
+        sessionManifest: typeof state.sessionManifest === 'object' && state.sessionManifest !== null
+          ? Object.fromEntries(
+              Object.entries(state.sessionManifest)
+                .sort(([, a], [, b]) => (b.lastActive || 0) - (a.lastActive || 0))
+                .slice(0, 10)
+            )
+          : state.sessionManifest,
         chatSessionId: state.chatSessionId,
         sessionId: state.sessionId,
         // Explicitly exclude history {past, future} and snapshots to save space/performance

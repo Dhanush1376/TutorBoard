@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
 import MasteryDashboard from './components/dashboard/MasteryDashboard';
@@ -108,25 +109,36 @@ function App() {
 
   if (welcomeLoading) return <IntroAnimation />;
 
-  if (authLoading) {
-    const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-    return (
-      <div className="relative h-screen w-full">
-        <Loader fullScreen={true} glass={true} simple={isGuest} />
-        {showSkip && (
-          <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[1000]">
-            <button onClick={() => forceStopLoading()} className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-full text-white/50 text-sm font-normal transition-all shadow-2xl">Enter Dashboard Anyway →</button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="app-root">
+      {/* ── GLOBAL OVERLAYS ── */}
+      <AnimatePresence>
+        {authLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999]"
+          >
+            <Loader fullScreen={true} glass={true} />
+            {showSkip && (
+              <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[10000]">
+                <button 
+                  onClick={() => forceStopLoading()} 
+                  className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-full text-white/50 text-sm font-normal transition-all shadow-2xl"
+                >
+                  Enter Dashboard Anyway →
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <GlobalOverlayManager />
       <GlobalStatusOverlay />
       <ThemedPopup />
+      
       <main className="app-main">
         <Routes>
           <Route path="/" element={<AuthLanding />} />

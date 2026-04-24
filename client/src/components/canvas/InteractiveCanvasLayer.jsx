@@ -14,8 +14,6 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
  * Pushes finalized elements to the global `tutorStore`.
  */
 
-
-
 const generateId = () => `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 const InteractiveCanvasLayer = React.memo(() => {
@@ -44,12 +42,13 @@ const InteractiveCanvasLayer = React.memo(() => {
   const startPoint = useRef(null);
   const cachedRect = useRef(null);
 
-  const isInteractionTool = activeTool && String(activeTool).startsWith('draw:') || 
-                             activeTool === 'shape' ||
-                             activeTool && String(activeTool).startsWith('shape:') || 
-                             activeTool === 'text' ||
-                             activeTool === 'note';
-
+  const isInteractionTool = (
+    (activeTool && String(activeTool).startsWith('draw:')) ||
+    activeTool === 'shape' ||
+    (activeTool && String(activeTool).startsWith('shape:')) ||
+    activeTool === 'text' ||
+    activeTool === 'note'
+  );
 
   const pointsRef = useRef([]);
   const draftStateRef = useRef(null);
@@ -71,10 +70,10 @@ const InteractiveCanvasLayer = React.memo(() => {
     const normalizedY = worldY / CANVAS_HEIGHT;
 
     const isOverExistingElement = canvasObjects.some(obj => {
-      // Use smaller defaults (5-8% of canvas) for elements without explicit w/h 
-      // to prevent large invisible hit-boxes from blocking drawing tools.
-      const bw = obj.w || (obj.scale || 1) * 0.08;
-      const bh = obj.h || (obj.scale || 1) * 0.05;
+      // SEC-20: Reduced default hitbox (from 8% to 2%) for elements without explicit bounds.
+      // This prevents large invisible bounding boxes from blocking drawing activity.
+      const bw = obj.w || (obj.scale || 1) * 0.02;
+      const bh = obj.h || (obj.scale || 1) * 0.015;
       return (
         normalizedX >= obj.x - bw/2 && normalizedX <= obj.x + bw/2 &&
         normalizedY >= obj.y - bh/2 && normalizedY <= obj.y + bh/2
@@ -83,7 +82,10 @@ const InteractiveCanvasLayer = React.memo(() => {
 
     if (isOverExistingElement) return;
 
-    setInteracting(true);
+    // Only set global interaction lock for tools that involve dragging/drawing paths
+    const isDragTool = activeTool.startsWith('draw:') || activeTool.startsWith('shape:');
+    if (isDragTool) setInteracting(true);
+    
     cachedRect.current = rect;
     isDrawing.current = true;
     startPoint.current = { x: normalizedX, y: normalizedY };
@@ -136,25 +138,24 @@ const InteractiveCanvasLayer = React.memo(() => {
         color: drawColor || 'var(--text-primary)',
         animation: { type: 'scale', duration: 0.4 }
       };
-      // FIX: Use getState() to avoid stale closure overwriting prior objects
       const latestObjects = useTutorStore.getState().canvasObjects;
       setCanvasObjectsWithHistory([...latestObjects, newObj]);
       setSelectedElements([newId]);
       setActiveTool('select');
       setTimeout(() => {
         setEditingObjectId(newId);
-        setInteracting(false);
+        // Note: setInteracting(false) was moved/removed to prevent race conditions
       }, 50);
+      return; // Exit early as text doesn't need drag logic
     } else if (activeTool === 'note') {
       addNoteToCanvas(normalizedX, normalizedY);
       setActiveTool('select');
-      setInteracting(false);
-      return;
+      return; // Exit early
     }
     
     draftStateRef.current = newDraft;
     setDraftObject(newDraft);
-  }, [activeTool, transform, setInteracting, canvasObjects, drawColor, drawWidth, shapeFill, shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor, setSelectedElements, setCanvasObjectsWithHistory, setActiveTool]);
+  }, [activeTool, transform, setInteracting, canvasObjects, drawColor, drawWidth, shapeFill, shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor, setSelectedElements, setCanvasObjectsWithHistory, setActiveTool, addNoteToCanvas, setEditingObjectId]);
 
   const handlePointerMove = useCallback((e) => {
     if (!isDrawing.current || (!draftStateRef.current && activeTool !== 'draw:eraser')) return;
@@ -188,7 +189,9 @@ const InteractiveCanvasLayer = React.memo(() => {
         const currentObjects = useTutorStore.getState().canvasObjects;
         const hit = currentObjects.find(obj => {
           if (obj.points) {
-            for (let i = 0; i < obj.points.length; i += 2) {
+            // SEC-21: Check every point (i++) rather than skipping (i+=2) 
+            // for reliable erasure on thin/curved strokes.
+            for (let i = 0; i < obj.points.length; i++) {
               const p = obj.points[i];
               if (Math.abs(p[0]-normalizedX) < 0.02 && Math.abs(p[1]-normalizedY) < 0.02) return true;
             }
@@ -262,14 +265,12 @@ const InteractiveCanvasLayer = React.memo(() => {
       finalizedObject.points = [...pointsRef.current];
     }
 
-    // 1. CLEAR DRAFT IMMEDIATELY to prevent key collisions during the store update re-render
     setDraftObject(null);
     pointsRef.current = [];
     isDrawing.current = false;
     setInteracting(false);
     draftStateRef.current = null;
 
-    // 2. Add to store
     state.addCanvasObjects([finalizedObject]);
 
     if (activeTool.startsWith('shape:')) {
@@ -290,7 +291,6 @@ const InteractiveCanvasLayer = React.memo(() => {
     };
   }, [isInteractionTool, handlePointerDown, handlePointerMove, handlePointerUp]);
   
-  // U5: Dynamic Body Cursor Management
   useEffect(() => {
     if (isInteractionTool) {
       document.body.style.cursor = activeTool === 'text' ? 'text' : getToolCursor(activeTool);
@@ -305,9 +305,8 @@ const InteractiveCanvasLayer = React.memo(() => {
   return (
     <div 
       ref={layerRef}
-      className="absolute inset-0 z-10 pointer-events-none"
+      className="absolute inset-0 z-10 pointer-events-auto"
     >
-      {/* ─── Ephemeral Drawing/Shape Draft ─── */}
       <AnimatePresence>
         {draftObject && !draftObject.isTyping && (
           <svg key={`draft-svg-${draftObject.id}`} width="100%" height="100%" className="border-none pointer-events-none overflow-visible">
@@ -318,54 +317,54 @@ const InteractiveCanvasLayer = React.memo(() => {
               exit={{ opacity: 0 }}
               style={{ pointerEvents: 'none' }}
             >
-              <motion.g animate={{ x: transform.x, y: transform.y, scale: transform.scale }}>
-            {(() => {
-              const dx = draftObject.x * CANVAS_WIDTH;
-              const dy = draftObject.y * CANVAS_HEIGHT;
-              const dw = draftObject.w * CANVAS_WIDTH;
-              const dh = draftObject.h * CANVAS_HEIGHT;
-              const strokeProps = {
-                fill: "transparent",
-                stroke: draftObject.color,
-                strokeWidth: 2,
-                strokeDasharray: draftObject.strokeStyle === 'dashed' ? '6,6' : (draftObject.strokeStyle === 'dotted' ? '2,4' : 'none')
-              };
+              {/* SEC-19: Using native transform attribute for pixel-perfect alignment with canvas world coords */}
+              <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
+                {(() => {
+                  const dx = draftObject.x * CANVAS_WIDTH;
+                  const dy = draftObject.y * CANVAS_HEIGHT;
+                  const dw = draftObject.w * CANVAS_WIDTH;
+                  const dh = draftObject.h * CANVAS_HEIGHT;
+                  const strokeProps = {
+                    fill: "transparent",
+                    stroke: draftObject.color,
+                    strokeWidth: 2,
+                    strokeDasharray: draftObject.strokeStyle === 'dashed' ? '6,6' : (draftObject.strokeStyle === 'dotted' ? '2,4' : 'none')
+                  };
 
-              switch (draftObject.type) {
-                case 'rect':
-                  return <rect x={dx} y={dy} width={dw} height={dh} rx={4} {...strokeProps} />;
-                case 'diamond':
-                  return <polygon points={getDiamondPoints(dx, dy, dw, dh)} {...strokeProps} />;
-                case 'triangle':
-                  return <polygon points={`${dx + dw/2},${dy} ${dx + dw},${dy + dh} ${dx},${dy + dh}`} {...strokeProps} />;
-                case 'star':
-                  return <polygon points={getStarPoints(dx, dy, dw, dh)} {...strokeProps} />;
-                case 'hexagon':
-                  return <polygon points={getHexagonPoints(dx, dy, dw, dh)} {...strokeProps} />;
-                case 'ellipse':
-                  return <ellipse cx={dx + dw/2} cy={dy + dh/2} rx={dw/2} ry={dh / 2} {...strokeProps} />;
-                case 'line':
-                case 'arrow':
-                   return <line x1={draftObject.x1 * CANVAS_WIDTH} y1={draftObject.y1 * CANVAS_HEIGHT} x2={draftObject.x2 * CANVAS_WIDTH} y2={draftObject.y2 * CANVAS_HEIGHT} {...strokeProps} />;
-                case 'path':
-                  return <path d={getSvgPath(draftObject.points, CANVAS_WIDTH, CANVAS_HEIGHT)} fill="none" stroke={draftObject.color} strokeWidth={draftObject.strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={strokeProps.strokeDasharray} />;
-                case 'callout':
-                case 'speech': {
-                  const rw = dw / 2; const rh = dh / 2; const cx = dx + rw; const cy = dy + rh;
-                  return <path d={`M ${cx - rw},${cy - rh} H ${cx + rw} V ${cy + rh} H ${cx - rw + 30} L ${cx - rw},${cy + rh + 20} L ${cx - rw + 15},${cy + rh} H ${cx - rw} Z`} {...strokeProps} />;
-                }
-                case 'cloud':
-                  return <rect x={dx} y={dy} width={dw} height={dh} rx={20} {...strokeProps} />;
-                default:
-                  return <rect x={dx} y={dy} width={dw} height={dh} {...strokeProps} />;
-              }
-              })()}
-              </motion.g>
+                  switch (draftObject.type) {
+                    case 'rect':
+                      return <rect x={dx} y={dy} width={dw} height={dh} rx={4} {...strokeProps} />;
+                    case 'diamond':
+                      return <polygon points={getDiamondPoints(dx, dy, dw, dh)} {...strokeProps} />;
+                    case 'triangle':
+                      return <polygon points={`${dx + dw/2},${dy} ${dx + dw},${dy + dh} ${dx},${dy + dh}`} {...strokeProps} />;
+                    case 'star':
+                      return <polygon points={getStarPoints(dx, dy, dw, dh)} {...strokeProps} />;
+                    case 'hexagon':
+                      return <polygon points={getHexagonPoints(dx, dy, dw, dh)} {...strokeProps} />;
+                    case 'ellipse':
+                      return <ellipse cx={dx + dw/2} cy={dy + dh/2} rx={dw/2} ry={dh / 2} {...strokeProps} />;
+                    case 'line':
+                    case 'arrow':
+                      return <line x1={draftObject.x1 * CANVAS_WIDTH} y1={draftObject.y1 * CANVAS_HEIGHT} x2={draftObject.x2 * CANVAS_WIDTH} y2={draftObject.y2 * CANVAS_HEIGHT} {...strokeProps} />;
+                    case 'path':
+                      return <path d={getSvgPath(draftObject.points, CANVAS_WIDTH, CANVAS_HEIGHT)} fill="none" stroke={draftObject.color} strokeWidth={draftObject.strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={strokeProps.strokeDasharray} />;
+                    case 'callout':
+                    case 'speech': {
+                      const rw = dw / 2; const rh = dh / 2; const cx = dx + rw; const cy = dy + rh;
+                      return <path d={`M ${cx - rw},${cy - rh} H ${cx + rw} V ${cy + rh} H ${cx - rw + 30} L ${cx - rw},${cy + rh + 20} L ${cx - rw + 15},${cy + rh} H ${cx - rw} Z`} {...strokeProps} />;
+                    }
+                    case 'cloud':
+                      return <rect x={dx} y={dy} width={dw} height={dh} rx={20} {...strokeProps} />;
+                    default:
+                      return <rect x={dx} y={dy} width={dw} height={dh} {...strokeProps} />;
+                  }
+                })()}
+              </g>
             </motion.g>
           </svg>
         )}
       </AnimatePresence>
-
     </div>
   );
 });

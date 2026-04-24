@@ -201,23 +201,21 @@ const Toolbar = ({ onSettingsClick }) => {
           id="code"
           isHoveredExternally={hoveredId === 'code'} 
         />
-        {/* 
-          FUTURE USE: Pedagogical Expansion Tools
-          These tools are temporarily disconnected from the primary toolbar 
-          but remain available in the codebase for upcoming releases.
-        */}
-        {/* 
-        <VisualizerTool 
-          {...commonToolProps} 
-          id="visualizer"
-          isHoveredExternally={hoveredId === 'visualizer'} 
-        />
-        <VoiceTool 
-          {...commonToolProps} 
-          id="voice"
-          isHoveredExternally={hoveredId === 'voice'} 
-        />
-        */}
+        {/* Pedagogical Expansion Tools (Managed via Feature Flags) */}
+        {useTutorStore.getState().featureFlags?.enableVisualizer && (
+          <VisualizerTool 
+            {...commonToolProps} 
+            id="visualizer"
+            isHoveredExternally={hoveredId === 'visualizer'} 
+          />
+        )}
+        {useTutorStore.getState().featureFlags?.enableVoice && (
+          <VoiceTool 
+            {...commonToolProps} 
+            id="voice"
+            isHoveredExternally={hoveredId === 'voice'} 
+          />
+        )}
         
         <ToolbarDivider />
 
