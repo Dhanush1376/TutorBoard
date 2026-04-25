@@ -59,10 +59,10 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
               <div className="relative">
                 <button
                   onClick={() => onSelectChat(chat.id)}
-                  className={`w-full text-left px-3 py-3 rounded-xl flex items-center transition-all duration-200 relative overflow-hidden group/btn ${
+                  className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center transition-all duration-200 relative overflow-hidden group/btn ${
                     activeChatId === chat.id 
-                      ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)] shadow-sm' 
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                      ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' 
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <MessageSquare 
@@ -70,14 +70,14 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                     className={`mr-3 transition-colors ${activeChatId === chat.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover/btn:text-[var(--text-secondary)]'}`} 
                   />
                   
-                  <span className="truncate text-[13px] flex-1 font-normal transition-colors">
+                  <span className="truncate text-[12px] flex-1 font-normal tracking-tight transition-colors">
                     {chat.title || "Untitled Session"}
                   </span>
                   
                   {activeChatId === chat.id && (
                     <motion.div 
                       layoutId="activeIndicator" 
-                      className="absolute left-0 top-3 bottom-3 w-1 bg-[var(--text-primary)] rounded-r-full" 
+                      className="absolute left-0 top-2 bottom-2 w-[3px] bg-[var(--text-primary)] rounded-full opacity-60" 
                     />
                   )}
                 </button>

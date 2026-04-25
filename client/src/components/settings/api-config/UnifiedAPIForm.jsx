@@ -11,8 +11,8 @@ import { PROVIDERS, ALL_DEFAULT_MODELS, detectProvider } from './ProviderRegistr
 // ─── Shared style constants ───────────────────────────────────────────────────
 
 const labelStyle = {
-  fontSize: '11px',
-  fontWeight: 700,
+  fontSize: '10px',
+  fontWeight: 500,
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
   color: 'var(--text-tertiary)',
@@ -22,12 +22,12 @@ const labelStyle = {
 
 const inputBase = {
   width: '100%',
-  padding: '12px 14px',
+  padding: '10px 12px',
   borderRadius: '12px',
   border: '1px solid var(--border-color)',
   background: 'var(--bg-tertiary)',
   color: 'var(--text-primary)',
-  fontSize: '13px',
+  fontSize: '12px',
   outline: 'none',
   boxSizing: 'border-box',
   transition: 'border-color 0.2s, box-shadow 0.2s',
@@ -74,7 +74,7 @@ function ProviderGrid({ selected, onSelect }) {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))',
       gap: '12px',
       marginTop: '16px',
     }}>
@@ -90,7 +90,7 @@ function ProviderGrid({ selected, onSelect }) {
             whileHover={{ y: -3, boxShadow: `0 8px 24px ${p.color}25` }}
             whileTap={{ scale: 0.94 }}
             style={{
-              padding: '14px 10px',
+              padding: '10px 8px',
               borderRadius: '16px',
               border: isSelected ? `2px solid ${p.color}` : '1px solid var(--border-color)',
               background: isSelected ? `${p.color}10` : 'var(--bg-tertiary)',
@@ -113,9 +113,9 @@ function ProviderGrid({ selected, onSelect }) {
               <ProviderDot color={p.color} size={10} pulsing={isSelected} />
             </div>
             <span style={{
-              fontSize: '11px',
+              fontSize: '10px',
               color: isSelected ? p.color : 'var(--text-secondary)',
-              fontWeight: isSelected ? 800 : 600,
+              fontWeight: isSelected ? 700 : 500,
               textAlign: 'center',
               lineHeight: 1.2,
               letterSpacing: '-0.01em',
@@ -144,7 +144,7 @@ function SavedKeyCard({ entry, onRemove }) {
         display: 'flex',
         alignItems: 'center',
         gap: '16px',
-        padding: '16px 20px',
+        padding: '12px 16px',
         borderRadius: '20px',
         border: '1px solid var(--border-color)',
         background: 'var(--bg-secondary)',
@@ -158,9 +158,9 @@ function SavedKeyCard({ entry, onRemove }) {
       <ProviderDot color={pColor} size={12} pulsing />
       
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '15px', fontWeight: 750, color: 'var(--text-primary)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {entry.label}
-          <div style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '999px', background: `${pColor}15`, color: pColor, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '999px', background: `${pColor}15`, color: pColor, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {entry.provider?.name}
           </div>
         </div>
@@ -259,7 +259,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
       }
     } catch (err) {
       console.error('[Validation] Network error:', err);
-      setError(`Network error: ${err.message || 'Could not reach the server'}. Please ensure the backend is running on port 3001.`);
+      setError(`Network error: ${err.message || 'Could not reach the server'}. Please ensure the API is accessible.`);
     } finally {
       setIsValidating(false);
     }
@@ -336,7 +336,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             animate={{ opacity: 1, y: 0 }} 
             style={{ marginBottom: '28px' }}
           >
-            <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-tertiary)', marginBottom: '16px', paddingLeft: '4px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-tertiary)', marginBottom: '16px', paddingLeft: '4px' }}>
               PROVISIONED CREDENTIALS
             </div>
             {savedKeys.map(k => (
@@ -352,14 +352,16 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
 
       <div style={{
         position: 'relative',
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border-color)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid var(--glass-border)',
         borderRadius: '28px',
-        padding: '32px', 
+        padding: '18px', 
         display: 'flex',
         flexDirection: 'column',
-        gap: '28px',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.08)',
+        gap: '14px',
+        boxShadow: 'var(--glass-shadow)',
         overflow: 'hidden',
       }}>
         {/* Animated accent gradient */}
@@ -372,17 +374,17 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '20px', position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
             <div style={{
-              width: '52px', height: '52px', borderRadius: '18px',
+              width: '36px', height: '36px', borderRadius: '11px',
               background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(139,92,246,0.05))', 
               border: '1px solid rgba(139,92,246,0.3)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6',
-              flexShrink: 0, boxShadow: '0 12px 24px rgba(139,92,246,0.15)'
+              flexShrink: 0, boxShadow: '0 8px 16px rgba(139,92,246,0.15)'
             }}>
-              <ShieldCheck size={26} strokeWidth={2.2} />
+              <ShieldCheck size={18} strokeWidth={2.2} />
             </div>
             <div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Identity Credentials</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px', fontWeight: 500 }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Identity Credentials</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontWeight: 500 }}>
                 Securely bind your API keys. Patterns are matched in real-time.
               </div>
             </div>
@@ -392,15 +394,15 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             whileHover={{ scale: 1.05, background: 'var(--bg-primary)' }} whileTap={{ scale: 0.95 }}
             onClick={() => setShowDirectory(true)}
             style={{
-              padding: '10px 20px', borderRadius: '14px',
+              padding: '7px 14px', borderRadius: '11px',
               background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
-              fontSize: '12px', fontWeight: 800, color: '#8b5cf6',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+              fontSize: '11px', fontWeight: 700, color: '#8b5cf6',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.03)', letterSpacing: '0.03em',
               textTransform: 'uppercase'
             }}
           >
-            <Globe size={14} strokeWidth={2.5} />
+            <Globe size={12} strokeWidth={2.5} />
             Providers
           </motion.button>
         </div>
@@ -421,11 +423,11 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               spellCheck={false}
               style={{
                 ...inputBase,
-                padding: '16px 18px',
-                borderRadius: '16px',
+                padding: '9px 12px',
+                borderRadius: '12px',
                 fontFamily: apiKey ? '"Geist Mono", monospace' : 'inherit',
-                paddingRight: '52px',
-                fontSize: '14px',
+                paddingRight: '44px',
+                fontSize: '12px',
                 border: apiKey ? (provider ? `1.5px solid ${provider.color}80` : '1px solid var(--border-color)') : '1px solid var(--border-color)',
                 boxShadow: apiKey && provider ? `0 0 0 4px ${provider.color}10` : 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
@@ -436,7 +438,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               style={{ ...eyeBtn, right: '16px' }}
               title={showKey ? 'Hide key' : 'Show key'}
             >
-              {showKey ? <EyeOff size={18} strokeWidth={2.5} /> : <Eye size={18} strokeWidth={2.5} />}
+              {showKey ? <EyeOff size={15} strokeWidth={2.5} /> : <Eye size={15} strokeWidth={2.5} />}
             </button>
           </div>
           {provider && (
@@ -454,7 +456,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               style={{ 
                 background: 'none', border: 'none', cursor: 'pointer', 
                 display: 'flex', alignItems: 'center', gap: '6px', 
-                fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)',
+                fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)',
                 opacity: 0.8, transition: 'opacity 0.2s'
               }}
               onMouseEnter={e => e.currentTarget.style.opacity = '1'}
@@ -466,8 +468,8 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
           </div>
 
           <div style={{
-            display: 'flex', alignItems: 'center', gap: '16px',
-            padding: '16px 20px', borderRadius: '18px',
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '10px 14px', borderRadius: '12px',
             border: '1px solid var(--border-color)',
             background: provider ? `${provider.color}0c` : 'var(--bg-tertiary)',
             flexWrap: 'wrap',
@@ -475,14 +477,14 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             boxShadow: provider ? `inset 0 0 20px ${provider.color}05` : 'none'
           }}>
             <div style={{ 
-              width: '32px', height: '32px', borderRadius: '10px', 
+              width: '24px', height: '24px', borderRadius: '8px', 
               background: provider ? `${provider.color}20` : 'var(--bg-secondary)', 
               display: 'flex', alignItems: 'center', justifyContent: 'center' 
             }}>
               <ProviderDot color={provider?.color || 'var(--text-tertiary)'} size={10} pulsing={!!provider} />
             </div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: '15px', fontWeight: 750, color: provider?.color || 'var(--text-secondary)', letterSpacing: '-0.01em' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: provider?.color || 'var(--text-secondary)', letterSpacing: '-0.01em' }}>
                 {provider ? provider.name : (apiKey ? 'Unrecognized pattern' : 'Awaiting credentials')}
               </div>
               {provider?.link && (
@@ -502,7 +504,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
                     borderRadius: '10px',
                     background: 'var(--bg-secondary)',
                     border: `1px solid ${provider.color}40`,
-                    fontWeight: 800,
+                    fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em'
                   }}
@@ -532,8 +534,8 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
         {/* Responsive Grid for Model and Label */}
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
-          gap: '20px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
+          gap: '12px',
           position: 'relative', zIndex: 1
         }}>
           <div>
@@ -543,7 +545,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               value={model}
               onChange={e => setModel(e.target.value)}
               placeholder={provider?.defaultModel || 'gpt-4o'}
-              style={{ ...inputBase, padding: '14px 16px', borderRadius: '14px', fontWeight: 600, fontFamily: '"Geist Mono", monospace' }}
+              style={{ ...inputBase, padding: '10px 12px', borderRadius: '12px', fontWeight: 600, fontFamily: '"Geist Mono", monospace' }}
             />
           </div>
           <div>
@@ -553,7 +555,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               value={label}
               onChange={e => setLabel(e.target.value)}
               placeholder={provider ? `${provider.name} Primary` : 'Personal Key'}
-              style={{ ...inputBase, padding: '14px 16px', borderRadius: '14px', fontWeight: 600 }}
+              style={{ ...inputBase, padding: '10px 12px', borderRadius: '12px', fontWeight: 600 }}
             />
           </div>
         </div>
@@ -585,8 +587,8 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               initial={{ opacity: 0, scale: 0.96, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               style={{
-                display: 'flex', flexDirection: 'column', gap: '12px',
-                padding: '20px 24px', borderRadius: '20px',
+                display: 'flex', flexDirection: 'column', gap: '10px',
+                padding: '14px 18px', borderRadius: '14px',
                 background: validationResult.valid ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
                 border: `1.5px solid ${validationResult.valid ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
                 boxShadow: validationResult.valid ? '0 12px 30px rgba(16,185,129,0.1)' : '0 12px 30px rgba(239,68,68,0.1)',
@@ -595,19 +597,19 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <div style={{ 
-                  width: '32px', height: '32px', borderRadius: '10px', 
+                  width: '26px', height: '26px', borderRadius: '8px', 
                   background: validationResult.valid ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
                   {validationResult.valid
-                    ? <CheckCircle size={18} color="#10b981" strokeWidth={3} />
-                    : <XCircle size={18} color="#ef4444" strokeWidth={3} />}
+                    ? <CheckCircle size={14} color="#10b981" strokeWidth={3} />
+                    : <XCircle size={14} color="#ef4444" strokeWidth={3} />}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '15px', color: validationResult.valid ? '#10b981' : '#ef4444', fontWeight: 800, letterSpacing: '-0.01em' }}>
+                  <div style={{ fontSize: '13px', color: validationResult.valid ? '#10b981' : '#ef4444', fontWeight: 700, letterSpacing: '-0.01em' }}>
                     {validationResult.valid ? 'Connectivity Verified' : 'Validation Failed'}
                   </div>
-                  <div style={{ fontSize: '13px', color: validationResult.valid ? '#10b981' : '#ef4444', opacity: 0.8, fontWeight: 500, marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', color: validationResult.valid ? '#10b981' : '#ef4444', opacity: 0.8, fontWeight: 500, marginTop: '2px' }}>
                     {validationResult.valid
                       ? `Latency: ${validationResult.latency}ms — ready for deployment.`
                       : validationResult.error}
@@ -618,7 +620,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               {/* Auto-Correction Engine UI */}
               {!validationResult.valid && validationResult.suggestions?.length > 0 && (
                 <div style={{ marginTop: '8px', paddingTop: '16px', borderTop: '1px dashed rgba(239,68,68,0.25)' }}>
-                  <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>
                     REPAIR SUGGESTIONS
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
@@ -638,7 +640,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
                           padding: '8px 16px',
                           borderRadius: '12px',
                           fontSize: '12px',
-                          fontWeight: 750,
+                          fontWeight: 600,
                           cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: '8px',
                           transition: 'all 0.2s',
@@ -671,12 +673,12 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             disabled={!canValidate}
             style={{
               width: '100%',
-              padding: '18px',
-              borderRadius: '18px',
+              padding: '10px',
+              borderRadius: '14px',
               border: canValidate ? '1.5px solid var(--text-primary)' : '1px solid var(--border-color)',
               background: 'var(--bg-tertiary)',
               color: canValidate ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontSize: '14px', fontWeight: 800,
+              fontSize: '12px', fontWeight: 700,
               cursor: canValidate ? 'pointer' : 'default',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -685,8 +687,8 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             }}
           >
             {isValidating
-              ? <Activity size={18} strokeWidth={2.5} style={{ animation: 'spin 1.2s linear infinite' }} />
-              : <Zap size={18} strokeWidth={2.5} />}
+              ? <Activity size={15} strokeWidth={2.5} style={{ animation: 'spin 1.2s linear infinite' }} />
+              : <Zap size={15} strokeWidth={2.5} />}
             {isValidating ? 'VALIDATING…' : 'TEST CONNECTION'}
           </motion.button>
 
@@ -697,12 +699,12 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
             disabled={!canSave}
             style={{
               width: '100%',
-              padding: '18px',
-              borderRadius: '18px',
+              padding: '10px',
+              borderRadius: '14px',
               border: 'none',
               background: canSave ? 'var(--text-primary)' : 'var(--bg-tertiary)',
               color: canSave ? 'var(--bg-primary)' : 'var(--text-tertiary)',
-              fontSize: '14px', fontWeight: 900,
+              fontSize: '12px', fontWeight: 700,
               cursor: canSave ? 'pointer' : 'default',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
               boxShadow: canSave ? '0 8px 24px rgba(0,0,0,0.15)' : 'none',
@@ -711,7 +713,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
               textTransform: 'uppercase', letterSpacing: '0.05em'
             }}
           >
-            <CheckCircle size={18} strokeWidth={3} />
+            <CheckCircle size={15} strokeWidth={3} />
             AUTHORIZE & BIND
           </motion.button>
         </div>
@@ -720,7 +722,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
           onClick={onCancel}
           style={{ 
             background: 'none', border: 'none', color: 'var(--text-tertiary)', 
-            fontSize: '13px', fontWeight: 700, cursor: 'pointer', 
+            fontSize: '11px', fontWeight: 600, cursor: 'pointer', 
             textAlign: 'center', transition: 'all 0.2s', opacity: 0.6,
             letterSpacing: '0.02em'
           }}
@@ -766,7 +768,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
                 position: 'relative'
               }}>
                 <div>
-                  <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Intelligence Index</div>
+                  <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Intelligence Index</div>
                   <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px', fontWeight: 500 }}>Global Directory of Supported AI Providers</div>
                 </div>
                 <motion.button 
@@ -811,12 +813,12 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
                         <ProviderDot color={p.color} size={14} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{p.name}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{p.name}</div>
                         <div style={{ display: 'flex', gap: '10px', marginTop: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                           {p.price === 0 ? (
-                            <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '8px', background: '#10b98115', color: '#10b981', fontWeight: 900, letterSpacing: '0.06em' }}>FREE TIER</span>
+                            <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '8px', background: '#10b98115', color: '#10b981', fontWeight: 700, letterSpacing: '0.06em' }}>FREE TIER</span>
                           ) : (
-                            <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 800, letterSpacing: '0.06em' }}>PREMIUM API</span>
+                            <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 700, letterSpacing: '0.06em' }}>PREMIUM API</span>
                           )}
                           <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.3 }} />
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: '"Geist Mono", monospace', fontWeight: 600 }}>{p.hint}</span>
@@ -828,7 +830,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast }) {
                           href={p.link} target="_blank" rel="noopener noreferrer" 
                           style={{
                             padding: '12px 18px', borderRadius: '14px', background: 'var(--bg-tertiary)',
-                            color: 'var(--text-primary)', textDecoration: 'none', fontSize: '12px', fontWeight: 800,
+                            color: 'var(--text-primary)', textDecoration: 'none', fontSize: '12px', fontWeight: 700,
                             display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-color)',
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', letterSpacing: '0.02em',
                             textTransform: 'uppercase'

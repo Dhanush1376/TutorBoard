@@ -12,15 +12,15 @@ const Loader = ({ fullScreen = true, glass = true }) => {
   const isDark = mode === 'dark';
 
   return (
-    <div 
+    <div
       className={`
         ${fullScreen ? "fixed inset-0" : "relative w-full py-16"} 
         flex items-center justify-center z-[1000]
         transition-opacity duration-300
       `}
       style={{
-        backgroundColor: glass 
-          ? `rgba(var(--bg-primary-rgb), ${isDark ? 0.15 : 0.1})` 
+        backgroundColor: glass
+          ? `rgba(var(--bg-primary-rgb), ${isDark ? 0.15 : 0.1})`
           : 'var(--bg-primary)',
         backdropFilter: glass ? 'blur(40px) saturate(180%) brightness(1.05)' : 'none',
         WebkitBackdropFilter: glass ? 'blur(40px) saturate(180%) brightness(1.05)' : 'none',
@@ -28,7 +28,7 @@ const Loader = ({ fullScreen = true, glass = true }) => {
     >
       <div className="relative">
         {/* Ambient Glow */}
-        <motion.div 
+        <motion.div
           className="absolute inset-[-40px] rounded-full blur-[50px] opacity-20"
           style={{ background: 'var(--text-primary)' }}
           animate={{
@@ -91,7 +91,7 @@ const Loader = ({ fullScreen = true, glass = true }) => {
         </motion.div>
 
         {/* Pulsing Ring */}
-        <motion.div 
+        <motion.div
           className="absolute inset-[-10px] border border-[var(--text-primary)] rounded-full opacity-10"
           animate={{
             scale: [0.9, 1.3, 0.9],

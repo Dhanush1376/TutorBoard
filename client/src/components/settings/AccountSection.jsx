@@ -60,7 +60,7 @@ const SocialButton = ({ icon: Icon, label, isConnected, onClick, color }) => (
       <Icon size={20} strokeWidth={2.5} />
     </div>
     <div style={{ flex: 1 }}>
-      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{label}</div>
+      <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{label}</div>
       <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
         {isConnected ? 'Link Active' : 'Not Linked'}
       </div>
@@ -70,7 +70,7 @@ const SocialButton = ({ icon: Icon, label, isConnected, onClick, color }) => (
         padding: '4px 10px', borderRadius: '10px', 
         background: 'rgba(16,185,129,0.1)', color: '#10b981', 
         display: 'flex', alignItems: 'center', gap: '5px', 
-        fontSize: '11px', fontWeight: 700 
+        fontSize: '11px', fontWeight: 600 
       }}>
         <Check size={12} strokeWidth={4} /> CONNECTED
       </div>
@@ -140,7 +140,7 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
               <Cloud size={22} strokeWidth={2} />
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Universal Cloud Sync</div>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Universal Cloud Sync</div>
               <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Keep your sessions & canvas in sync globally</div>
             </div>
           </div>
@@ -162,7 +162,7 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
               >
                 <RefreshCcw size={14} strokeWidth={2.5} />
               </motion.div>
-              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500 }}>
                 {isSyncing ? 'SYNCHRONIZING SECURELY…' : 'SYSTEM FULLY SYNCHRONIZED'}
               </span>
             </motion.div>
@@ -192,7 +192,7 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
               <Download size={18} />
             </div>
             <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Export Personal Data</div>
+              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>Export Personal Data</div>
               <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Download JSON backup of all workspace states</div>
             </div>
           </button>
@@ -204,7 +204,7 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', marginBottom: '10px' }}>
               <AlertTriangle size={16} strokeWidth={2.5} />
-              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Danger Zone</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Danger Zone</span>
             </div>
             <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '16px', lineHeight: 1.6, fontWeight: 500 }}>
               Purging your cloud data is irreversible. This action removes all session history and canvas artifacts.
@@ -219,7 +219,7 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
               })}
               style={{ 
                 width: '100%', padding: '14px', background: '#ef4444', color: '#fff', 
-                border: 'none', borderRadius: '14px', fontSize: '13px', fontWeight: 700, 
+                border: 'none', borderRadius: '14px', fontSize: '13px', fontWeight: 600, 
                 cursor: 'pointer', boxShadow: '0 8px 20px rgba(239,68,68,0.2)',
                 transition: 'all 0.2s'
               }}
@@ -270,8 +270,8 @@ function PasswordStrengthBar({ password }) {
       style={{ overflow: 'hidden', padding: '4px 0' }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', letterSpacing: '0.02em' }}>SECURITY SCORE</span>
-        <span style={{ fontSize: '11px', fontWeight: 800, color, textTransform: 'uppercase' }}>{label}</span>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', letterSpacing: '0.02em' }}>SECURITY SCORE</span>
+        <span style={{ fontSize: '11px', fontWeight: 700, color, textTransform: 'uppercase' }}>{label}</span>
       </div>
       <div style={{ height: '5px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden', marginBottom: '14px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
         <motion.div
@@ -283,7 +283,7 @@ function PasswordStrengthBar({ password }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         {checks.map((c, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px', fontWeight: 700, color: c.met ? '#10b981' : 'var(--text-tertiary)', opacity: c.met ? 1 : 0.5, transition: 'all 0.3s' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px', fontWeight: 600, color: c.met ? '#10b981' : 'var(--text-tertiary)', opacity: c.met ? 1 : 0.5, transition: 'all 0.3s' }}>
             <div style={{ width: 16, height: 16, borderRadius: '50%', background: c.met ? '#10b98122' : 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {c.met ? <Check size={10} strokeWidth={4} /> : <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.5 }} />}
             </div>
@@ -474,7 +474,7 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
                 <motion.div
                   initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
                   style={{
-                    color: '#10b981', fontSize: '13px', fontWeight: 600, background: 'rgba(16,185,129,0.08)',
+                    color: '#10b981', fontSize: '13px', fontWeight: 500, background: 'rgba(16,185,129,0.08)',
                     padding: '14px', borderRadius: '16px', border: '1.5px solid rgba(16,185,129,0.1)',
                     display: 'flex', gap: '10px', alignItems: 'center',
                   }}
@@ -497,7 +497,7 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
             onClose={closeModals}
           >
             {errorMsg && (
-              <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '12px', fontWeight: 600 }}>{errorMsg}</div>
+              <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '12px', fontWeight: 500 }}>{errorMsg}</div>
             )}
           </DialogModal>
         )}
@@ -511,10 +511,10 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
             <Shield size={26} strokeWidth={2} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>VERIFIED EMAIL</div>
-            <div style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: 600, letterSpacing: '-0.01em' }}>{user?.email || 'Not provided'}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>VERIFIED EMAIL</div>
+            <div style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: 500, letterSpacing: '-0.01em' }}>{user?.email || 'Not provided'}</div>
           </div>
-          <div style={{ padding: '6px 12px', borderRadius: '12px', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: '11px', fontWeight: 800, letterSpacing: '0.02em', boxShadow: '0 2px 8px rgba(16,185,129,0.05)' }}>ACTIVE</div>
+          <div style={{ padding: '6px 12px', borderRadius: '12px', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: '11px', fontWeight: 700, letterSpacing: '0.02em', boxShadow: '0 2px 8px rgba(16,185,129,0.05)' }}>ACTIVE</div>
         </div>
       </SectionCard>
 
@@ -527,10 +527,9 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
           description="Update your password and login methods"
           onClick={() => setModalType('password')}
           borderBottom={false}
-          rightElement={<div style={{ padding: '6px 12px', borderRadius: '10px', background: 'var(--bg-tertiary)', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>UPDATE</div>}
+          rightElement={<div style={{ padding: '6px 12px', borderRadius: '10px', background: 'var(--bg-tertiary)', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>UPDATE</div>}
         />
       </SettingsGroup>
-
       {/* ── Linked Accounts ────────────────────────────────────────── */}
       <SectionTitle>Linked Identity</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '32px' }}>

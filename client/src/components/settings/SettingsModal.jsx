@@ -144,7 +144,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 gap: 12,
                 padding: '0 20px',
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 600,
                 letterSpacing: '-0.01em'
               }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -198,7 +198,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                     <div style={{ width: 1, height: 18, background: 'var(--border-color)', opacity: 0.4 }} />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <VisaiLogo size="xxs" />
-                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.01em' }}>Settings — TutorBoard AI</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, letterSpacing: '0.01em' }}>Settings — TutorBoard AI</span>
                     </div>
                   </div>
                 </div>
@@ -218,13 +218,13 @@ const SettingsModal = ({ isOpen, onClose }) => {
                         style={{ 
                           padding: '0 20px', background: 'transparent', border: 'none', 
                           color: isTabActive ? 'var(--accent-primary)' : 'var(--text-tertiary)', 
-                          fontSize: 13, fontWeight: isTabActive ? 700 : 500, cursor: 'pointer', 
+                          fontSize: 13, fontWeight: isTabActive ? 600 : 400, cursor: 'pointer', 
                           display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
                           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                           position: 'relative'
                         }}
                       >
-                        <tab.icon size={14} strokeWidth={isTabActive ? 3 : 2} style={{ opacity: isTabActive ? 1 : 0.7 }} />
+                        <tab.icon size={14} strokeWidth={isTabActive ? 2.5 : 1.5} style={{ opacity: isTabActive ? 1 : 0.7 }} />
                         {tab.label}
                         {isTabActive && (
                           <motion.div 
@@ -276,7 +276,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                       }}
                     >
                       {toast.type === 'success' && <Check size={16} strokeWidth={4} className="text-white" />}
-                      <span className="text-sm font-bold text-white letter-spacing-[-0.01em] uppercase">{toast.message}</span>
+                      <span className="text-sm font-semibold text-white letter-spacing-[-0.01em] uppercase">{toast.message}</span>
                     </motion.div>
                   )}
                 </AnimatePresence>

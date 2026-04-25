@@ -47,7 +47,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     "Explain the Greenhouse effect.",
     "Visualize Merge Sort steps.",
     "What is a Neural Network?",
-    "Show me the process of Photosynthesis.",
     "Compare Mitosis and Meiosis."
   ];
   const [placeholderIndex, setPlaceholderIndex] = useState(0);

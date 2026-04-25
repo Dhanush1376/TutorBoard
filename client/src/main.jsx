@@ -12,6 +12,11 @@ import { initPostHog } from './utils/analytics';
 // Initialize Analytics
 initPostHog();
 
+// Deployment Diagnostics
+if (import.meta.env.MODE === 'production') {
+  console.log('[Deployment] API Base URL:', import.meta.env.VITE_API_BASE_URL);
+}
+
 
 // Hydration is handled automatically by Zustand persist middleware
 // No manual hydrate call needed anymore

@@ -34,8 +34,27 @@ const LeftPanel = ({
   const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
   const hasStarted = messages.length > 0;
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Keyboard Shortcuts for Professional Feel
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // 1. "/" focuses search
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      // 2. "Alt + N" starts new session
+      if (e.altKey && (e.key.toLowerCase() === 'n' || e.code === 'KeyN')) {
+        e.preventDefault();
+        onNewChat();
+        setActiveView('chat');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onNewChat, setActiveView]);
 
   const filteredHistory = searchQuery.trim()
     ? chatHistory.filter(c => (c.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
@@ -48,13 +67,13 @@ const LeftPanel = ({
         <div className="flex flex-col gap-2 relative min-h-full">
           {/* Compact Back Button for Sidebar Chat */}
           {/* Sticky Header with Back Button */}
-          <div className="sticky top-0 bg-[var(--bg-primary)] z-10 pt-0 pb-2.5">
+          <div className="sticky top-0 bg-transparent z-10 pt-0 pb-2.5">
             <button
               onClick={() => { setActiveView('history'); }}
-              className="flex items-center gap-1.5 px-0.5 py-1 text-[12px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
+              className="flex items-center gap-1.5 px-1 py-1 text-[12px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
             >
-              <ChevronLeft size={14} strokeWidth={3.5} className="text-[12px] font-normal uppercase tracking-[0.15em] px-0.5 text-[var(--text-tertiary)]" />
-              <p className="text-[12px] font-normal uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">All Sessions</p>
+              <ChevronLeft size={14} strokeWidth={3.5} className="text-[12px] font-normal uppercase tracking-[0.15em] px-1 text-[var(--text-tertiary)]" />
+              <p className="text-[12px] font-normal uppercase tracking-[0.15em] px-1 py-1 text-[var(--text-tertiary)]">All Sessions</p>
             </button>
           </div>
           <ChatWindow
@@ -74,8 +93,8 @@ const LeftPanel = ({
       <div className="flex flex-col gap-0 w-full relative">
         {/* Recent sessions history */}
         {/* Sticky Header for Recents */}
-        <div className="sticky top-0 bg-[var(--bg-primary)] z-10 pt-0 pb-1">
-          <p className="text-[10px] font-normal uppercase tracking-[0.15em] px-0.5 py-1 text-[var(--text-tertiary)]">Recents</p>
+        <div className="sticky top-0 bg-transparent z-10 pt-0 pb-1">
+          <p className="text-[10px] font-normal uppercase tracking-[0.15em] px-1 py-1 text-[var(--text-tertiary)]">Recents</p>
         </div>
         <div className="flex flex-col w-full">
           {isLoadingHistory ? (
@@ -115,68 +134,89 @@ const LeftPanel = ({
 
         {/* Empty State & Suggestions (shown only on landing if no history) */}
         {!isLoadingHistory && chatHistory.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-6 px-0.5 select-none animate-fade-in opacity-60 hover:opacity-100 transition-opacity duration-500">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="relative mb-3 cursor-default"
-            >
-              <div className="absolute inset-0 bg-[var(--text-primary)] opacity-5 blur-2xl rounded-full" />
-              <div className="relative w-12 h-12 rounded-xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-tertiary)] border border-[var(--border-color)] shadow-inner opacity-40">
-                <BookOpen size={20} strokeWidth={1.5} />
-              </div>
-            </motion.div>
+          <div className="flex flex-col items-center justify-center py-10 px-0.5 select-none animate-fade-in">
+            {/* 1. Large Cinematic Logo */}
+            <div className="relative mb-8 group cursor-default">
+              {/* Pulsing Background Glow */}
+              <motion.div 
+                animate={{ 
+                  opacity: [0.05, 0.12, 0.05],
+                  scale: [1, 1.2, 1]
+                }}
+                transition={{ 
+                  duration: 6, 
+                  repeat: Infinity, 
+                  ease: "easeInOut" 
+                }}
+                className="absolute inset-0 bg-[var(--text-primary)] blur-[60px] rounded-full pointer-events-none" 
+              />
+              
+              {/* Floating Logo Animation */}
+              <motion.div 
+                animate={{ 
+                  y: [0, -12, 0],
+                  rotate: [0, 1, 0]
+                }}
+                transition={{ 
+                  duration: 5, 
+                  repeat: Infinity, 
+                  ease: "easeInOut" 
+                }}
+                className="relative transform hover:scale-110 transition-transform duration-700 ease-spring"
+              >
+                <VisaiLogo size="xl" className="text-[var(--text-primary)] opacity-80" />
+              </motion.div>
+            </div>
 
-            <div className="text-center space-y-1 mb-6">
-              <h3 className="text-[10px] font-normal uppercase tracking-[0.25em] text-[var(--text-primary)]">
-                No recents
+            <div className="text-center space-y-2 mb-12">
+              <h3 className="text-[20px] font-serif uppercase tracking-[0.2em] text-[var(--text-primary)] opacity-90 leading-tight">
+                No Sessions
               </h3>
-              <p className="text-[9px] text-[var(--text-tertiary)] font-normal leading-relaxed">
-                Your history is empty
+              <p className="text-[11px] text-[var(--text-tertiary)] font-normal tracking-wide opacity-60">
+                Your cinematic learning journey starts here
               </p>
             </div>
 
-            <div className="w-full mt-2">
-              <div className="flex items-center gap-2.5 mb-4 px-2">
-                <span className="text-[8px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)] whitespace-nowrap">
-                  Try asking one
+            <div className="w-full mt-4">
+              <div className="flex items-center gap-3 mb-6 px-2">
+                <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-[var(--border-color)]" />
+                <span className="text-[9px] font-medium uppercase tracking-[0.3em] text-[var(--text-tertiary)] opacity-50 whitespace-nowrap">
+                  Ask a Question
                 </span>
-                <div className="h-[1px] flex-1 bg-gradient-to-r from-[var(--border-color)] to-transparent" />
+                <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-[var(--border-color)]" />
               </div>
 
-              <div className="relative overflow-hidden h-10 w-full mask-fade-x">
+              <div className="relative h-12 w-full overflow-hidden mask-fade-x">
                 <motion.div
-                  className="flex gap-2.5 absolute whitespace-nowrap items-center h-full"
-                  animate={{ x: [0, -1000] }}
-                  transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+                  className="flex gap-3 absolute whitespace-nowrap items-center h-full py-1"
+                  animate={{ x: [0, -1200] }}
+                  transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
                 >
                   {[
-                    "Explain me prefix sum",
-                    "Explain linear search",
-                    "Explain me bubble sort",
-                    "Explain me about sliding window",
-                    "Explain me the process of photosynthesis",
-                    "On DSA",
-                    "Solar system",
-                    "Explain binary search",
-                    "Explain me prefix sum",
-                    "Explain linear search",
-                    "Explain me bubble sort",
-                    "Explain me about sliding window",
-                    "Explain me the process of photosynthesis",
-                    "On DSA",
-                    "Solar system",
-                    "Explain binary search",
+                    "Explain prefix sum in detail",
+                    "How does linear search work?",
+                    "Visualize bubble sort algorithm",
+                    "Explain sliding window technique",
+                    "The process of photosynthesis",
+                    "Core concepts of DSA",
+                    "Exploring the Solar system",
+                    "Step-by-step Binary search",
+                    "Explain prefix sum in detail",
+                    "How does linear search work?",
+                    "Visualize bubble sort algorithm",
+                    "Explain sliding window technique",
+                    "The process of photosynthesis",
+                    "Core concepts of DSA",
+                    "Exploring the Solar system",
+                    "Step-by-step Binary search",
                   ].map((text, i) => (
                     <button
                       key={i}
                       onClick={() => {
                         setPrompt(text);
-                        // SEC-14: Auto-submit suggestion for better UX
                         setTimeout(() => onSubmit(text), 10);
                       }}
-                      className="px-3.5 py-2 rounded-lg bg-[var(--bg-tertiary)]/50 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[11px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.05] active:scale-[0.95] shadow-sm hover:shadow-md"
+                      className="px-5 py-2.5 rounded-xl bg-[var(--bg-secondary)]/40 hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.03] active:scale-[0.97] hover:border-[var(--text-tertiary)]/30 shadow-sm"
                     >
                       {text}
                     </button>
@@ -192,7 +232,7 @@ const LeftPanel = ({
 
   // ── MAIN UNIFIED RETURN ──
   return (
-    <div className="flex flex-col h-full text-[var(--text-primary)] bg-transparent">
+    <div className="flex flex-col h-full text-[var(--text-primary)] bg-transparent pr-2">
 
       {/* ─── 1. FIXED TOP SECTION ─── */}
       <div className="flex-shrink-0 relative z-20">
@@ -200,7 +240,10 @@ const LeftPanel = ({
         <div className="px-5 pt-5 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <VisaiLogo size="xs" className="text-[var(--text-primary)]" />
-            <span className="text-[16px] font-normal uppercase tracking-[0.25em] text-[var(--text-primary)]">
+            <span
+              className="text-[13px] font-normal uppercase tracking-[0.22em] text-[var(--text-primary)]"
+              style={{ letterSpacing: '0.22em', opacity: 0.9 }}
+            >
               TutorBoard
             </span>
           </div>
@@ -211,14 +254,14 @@ const LeftPanel = ({
               className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
               title="Open Settings"
             >
-              <Settings size={20} strokeWidth={2.5} className="group-hover:rotate-45 transition-transform" />
+              <Settings size={20} strokeWidth={1.8} className="group-hover:rotate-45 transition-transform" />
             </button>
             <button
               onClick={() => setSidebarOpen(false)}
               className="p-2.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group"
               title="Close Sidebar"
             >
-              <PanelLeftClose size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+              <PanelLeftClose size={22} strokeWidth={1.8} className="group-hover:scale-110 transition-transform" />
             </button>
           </div>
         </div>
@@ -226,49 +269,61 @@ const LeftPanel = ({
         {/* Top block visible only on landing/history */}
         {activeView !== 'chat' && (
           <div className="px-4 mb-6">
-            {/* Professional Action Console (Redesigned like InputBar) */}
-            <div className="bg-[var(--bg-secondary)] rounded-[24px] border border-[var(--border-color)] overflow-hidden flex flex-col p-1.5 gap-1.5 transition-all duration-300">
-              {/* 1. New Chat (Primary Action) */}
+            <div className="flex flex-col gap-3">
+              {/* 1. New Chat (Primary Hero Action) */}
               <button
-                onClick={() => { onNewChat(); setActiveView('chat'); }}
-                className="flex items-center gap-3 w-full px-4 py-3 text-[16px] font-normal bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-[20px] hover:opacity-95 active:scale-[0.97] transition-all group"
+                onClick={() => { 
+                  onNewChat(); 
+                  setActiveView('chat'); 
+                }}
+                className="relative group w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-gradient-to-br from-[var(--text-primary)] to-[var(--text-primary)]/90 text-[var(--bg-primary)] shadow-lg shadow-[var(--text-primary)]/10 hover:shadow-[var(--text-primary)]/20 active:scale-[0.98] transition-all duration-300 overflow-hidden"
               >
-                <div className="p-1.5 bg-[var(--bg-primary)]/15 rounded-xl border border-transparent group-hover:border-[var(--bg-primary)]/20 transition-all">
-                  <Plus size={16} strokeWidth={3.5} />
+                {/* Subtle Inner Glow */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-lg bg-[var(--bg-primary)]/15 border border-white/10 flex items-center justify-center group-hover:rotate-90 transition-transform duration-500">
+                    <Plus size={14} strokeWidth={3} />
+                  </div>
+                  <span className="text-[13px] font-medium tracking-tight">New session</span>
                 </div>
-                <span className="tracking-tight">New chat</span>
+                
+                {/* Visual indicator of "Primary" action */}
+                <div className="text-[10px] font-medium opacity-40 px-1.5 py-0.5 rounded-md border border-white/20 uppercase tracking-[0.1em] bg-white/5 group-hover:opacity-100 transition-opacity">
+                  Alt N
+                </div>
               </button>
 
-              {/* 2. Search (Secondary Input-like Action) */}
-              <button
-                onClick={() => { setIsSearchOpen(v => !v); setSearchQuery(''); }}
-                className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13px] font-normal rounded-[18px] transition-all active:scale-[0.98] group/search ${isSearchOpen ? 'bg-[var(--bg-primary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'}`}
-              >
-                <div className="p-1.5 text-[var(--text-tertiary)] group-hover/search:text-[var(--text-primary)] transition-colors">
-                  <Search size={16} strokeWidth={2.5} className="group-hover/search:scale-110 transition-transform" />
+              {/* 2. Search (Integrated Command-style Search) */}
+              <div className="relative group">
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors pointer-events-none">
+                  <Search size={14} strokeWidth={2.5} className="group-focus-within:scale-110 transition-transform" />
                 </div>
-                <span className="tracking-tight">Search chats</span>
-              </button>
-
-
-              <AnimatePresence>
-                {isSearchOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                    className="pt-1 px-1 overflow-hidden"
-                  >
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="Filter sessions..."
-                      autoFocus
-                      className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-[13px] outline-none focus:border-[var(--text-tertiary)] transition-all shadow-sm mb-1"
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search chats..."
+                  className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] focus:bg-[var(--bg-primary)] border border-[var(--border-color)] focus:border-[var(--text-tertiary)] rounded-2xl pl-10 pr-10 py-2.5 text-[12.5px] outline-none transition-all placeholder:text-[var(--text-tertiary)]/60 placeholder:font-normal shadow-sm"
+                />
+                
+                {/* Clear search or Keyboard Hint */}
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  {searchQuery ? (
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      className="p-1 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                    >
+                      <X size={12} strokeWidth={3} />
+                    </button>
+                  ) : (
+                    <div className="text-[9px] font-medium text-[var(--text-tertiary)]/50 border border-[var(--border-color)] rounded-md px-1.5 py-0.5 uppercase tracking-tighter bg-[var(--bg-tertiary)]/30 group-focus-within:opacity-0 transition-opacity">
+                      /
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -298,9 +353,6 @@ const LeftPanel = ({
           onQuickAsk={onQuickAsk}
         />
       </div>
-
-      <ToastContainer />
-
     </div>
   );
 };

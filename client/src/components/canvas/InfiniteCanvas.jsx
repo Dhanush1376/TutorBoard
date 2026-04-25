@@ -118,15 +118,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
         requestAnimationFrame(center);
         return;
       }
-      
-      // Calculate offset if sidebar is open
-      let offsetX = 0;
-      if (isSidebarOpen) {
-        offsetX = isRightHand ? -160 : 160; 
-      }
 
       const newTransform = {
-        x: Math.round(rect.width / 2 - 400 + offsetX),
+        x: Math.round(rect.width / 2 - 400),
         y: Math.round(rect.height / 2 - 300),
         scale: 1,
       };
@@ -136,7 +130,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
     };
 
     // Delay slightly to ensure layout settle (especially with sidebars)
-    const timer = setTimeout(center, 50);
+    const timer = setTimeout(center, 80);
     return () => clearTimeout(timer);
   }, [initialTransform, isSidebarOpen, isRightHand]); // Re-run if layout changes during mount
 
@@ -149,19 +143,17 @@ const InfiniteCanvas = memo(React.forwardRef(({
     if (gridRef.current && showGridRef.current && gridTypeRef.current !== 'none') {
       const s = t.scale;
       const gs = gridSizeRef.current;
-      const gSizeStr = `${gs * s}px ${gs * s}px`;
-      const majorStr = `${gs * 5 * s}px ${gs * 5 * s}px`;
+      const mSize = gs * s;
+      const MSize = gs * 5 * s;
       
-      // Ensure all layers get square sizing
-      const sizes = gridTypeRef.current === 'dots' 
-        ? `${gSizeStr}, ${majorStr}`
-        : `${gSizeStr}, ${gSizeStr}, ${majorStr}, ${majorStr}`;
-        
-      gridRef.current.style.backgroundSize = sizes;
-      gridRef.current.style.backgroundPosition = `
-        ${t.x % (gs * s)}px ${t.y % (gs * s)}px, 
-        ${t.x % (gs * 5 * s)}px ${t.y % (gs * 5 * s)}px
-      `;
+      if (gridTypeRef.current === 'dots') {
+        gridRef.current.style.backgroundSize = `${mSize}px ${mSize}px, ${MSize}px ${MSize}px`;
+        gridRef.current.style.backgroundPosition = `${t.x % mSize}px ${t.y % mSize}px, ${t.x % MSize}px ${t.y % MSize}px`;
+      } else {
+        // Explicitly define 4 layers to match the 4 gradients (Minor V, Minor H, Major V, Major H)
+        gridRef.current.style.backgroundSize = `${mSize}px ${mSize}px, ${mSize}px ${mSize}px, ${MSize}px ${MSize}px, ${MSize}px ${MSize}px`;
+        gridRef.current.style.backgroundPosition = `${t.x % mSize}px ${t.y % mSize}px, ${t.x % mSize}px ${t.y % mSize}px, ${t.x % MSize}px ${t.y % MSize}px, ${t.x % MSize}px ${t.y % MSize}px`;
+      }
     }
   }, []);
 
@@ -203,7 +195,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE WHEEL ───
   const handleWheel = useCallback((e) => {
-    if (isCanvasLocked || isInteracting) return;
+    if (isCanvasLocked) return;
     e.preventDefault();
     zoomAtPoint(e.deltaY, e.clientX, e.clientY);
     onInteractionStart?.();
@@ -239,8 +231,8 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   // ─── MOUSE PAN ───
   const handleMouseDown = useCallback((e) => {
-    // Force lock if the store says we are interacting or if a global lock is active
-    if (isCanvasLocked || isInteracting) return;
+    // Only lock if the global lock is active; allow panning during interaction
+    if (isCanvasLocked) return;
 
     const safeTool = String(activeTool || 'select');
     const isInteractiveTool = safeTool !== 'select' && safeTool !== 'hand';
@@ -259,6 +251,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
     if (isInteractiveTool && !isMiddleButton && !isSpacePan) return;
 
     if (!isMiddleButton && !isSpacePan && !isDirectPan) return;
+    
+    // PREVENT browser from starting text selection or drag-drop operations
+    e.preventDefault();
 
     if (contentRef.current) contentRef.current.style.transition = 'none';
     if (gridRef.current) gridRef.current.style.transition = 'none';
@@ -449,28 +444,28 @@ const InfiniteCanvas = memo(React.forwardRef(({
 
   const resetView = useCallback(() => {
     if (isCanvasLocked) return;
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    
-    // Enable temporary transition for smooth reset
-    if (contentRef.current) contentRef.current.style.transition = transitionStyle;
-    
-    // Calculate offset if sidebar is open
-    // Sidebar is 320px. We want to center in the remaining space.
-    let offsetX = 0;
-    if (isSidebarOpen) {
-      offsetX = isRightHand ? -160 : 160; 
-    }
+    const doReset = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        requestAnimationFrame(doReset);
+        return;
+      }
 
-    const newTransform = {
-      x: Math.round(rect.width / 2 - 400 + offsetX), 
-      y: Math.round(rect.height / 2 - 300),
-      scale: 1,
+      if (contentRef.current) contentRef.current.style.transition = transitionStyle;
+
+      const newTransform = {
+        x: Math.round(rect.width / 2 - 400),
+        y: Math.round(rect.height / 2 - 300),
+        scale: 1,
+      };
+      applyTransform(newTransform);
+      commitTransform(newTransform);
     };
-    applyTransform(newTransform);
-    commitTransform(newTransform);
-  }, [applyTransform, commitTransform, transitionStyle, isSidebarOpen, isRightHand]);
+    // Use rAF so the browser has a chance to settle any layout changes
+    requestAnimationFrame(doReset);
+  }, [applyTransform, commitTransform, transitionStyle]);
 
   const fitToContent = useCallback((cw = 800, ch = 600) => {
     if (isCanvasLocked) return;
@@ -479,24 +474,19 @@ const InfiniteCanvas = memo(React.forwardRef(({
     const rect = container.getBoundingClientRect();
     
     if (contentRef.current) contentRef.current.style.transition = transitionStyle;
-    
-    let offsetX = 0;
-    if (isSidebarOpen) {
-      offsetX = isRightHand ? -160 : 160;
-    }
 
     const padding = 60;
-    const sx = (rect.width - (isSidebarOpen ? 320 : 0) - padding * 2) / cw;
+    const sx = (rect.width - padding * 2) / cw;
     const sy = (rect.height - padding * 2) / ch;
     const s = Math.min(sx, sy, 1.1); 
     const newTransform = {
-      x: Math.round((rect.width + (isSidebarOpen ? (isRightHand ? -320 : 320) : 0)) / 2 - 400 * s),
+      x: Math.round(rect.width / 2 - 400 * s),
       y: Math.round(rect.height / 2 - 300 * s),
       scale: s,
     };
     applyTransform(newTransform);
     commitTransform(newTransform);
-  }, [applyTransform, commitTransform, transitionStyle, isSidebarOpen, isRightHand]);
+  }, [applyTransform, commitTransform, transitionStyle]);
 
   const centerOn = useCallback((wx, wy, zoom = null) => {
     if (isCanvasLocked) return;
@@ -506,21 +496,16 @@ const InfiniteCanvas = memo(React.forwardRef(({
     
     if (contentRef.current) contentRef.current.style.transition = transitionStyle;
 
-    let offsetX = 0;
-    if (isSidebarOpen) {
-      offsetX = isRightHand ? -160 : 160;
-    }
-
     const t = transformRef.current;
     const newScale = zoom || t.scale;
     const newTransform = {
-      x: Math.round(rect.width / 2 - wx * newScale + offsetX),
+      x: Math.round(rect.width / 2 - wx * newScale),
       y: Math.round(rect.height / 2 - wy * newScale),
       scale: newScale,
     };
     applyTransform(newTransform);
     commitTransform(newTransform);
-  }, [applyTransform, commitTransform, transitionStyle, isSidebarOpen, isRightHand]);
+  }, [applyTransform, commitTransform, transitionStyle]);
 
   // ─── Attach wheel listener (non-passive for preventDefault) ───
   useEffect(() => {
@@ -551,11 +536,11 @@ const InfiniteCanvas = memo(React.forwardRef(({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden transition-colors duration-500 ${className}`}
+      className={`relative w-full h-full overflow-hidden transition-colors duration-500 select-none ${className}`}
       style={{ 
         cursor: getCursor(), 
         touchAction: 'none',
-        background: 'var(--bg-primary)'
+        background: 'rgba(255,255,255,0.001)'
       }}
       onMouseDown={handleMouseDown}
       onClick={(e) => {

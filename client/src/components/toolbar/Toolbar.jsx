@@ -172,9 +172,9 @@ const Toolbar = ({ onSettingsClick }) => {
         if (!isInteracting) document.body.style.cursor = 'default';
       }}
       transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
-      className={`flex items-center rounded-[28px] relative transition-all duration-500 ${isInteracting ? 'scale-[0.98]' : ''}`}
+      className={`flex items-center rounded-[28px] relative transition-all duration-500 gap-1 ${isInteracting ? 'scale-[0.98]' : ''}`}
       style={{
-        gap: '6px',
+        gap: '4px',
         padding: '6px',
         background: isInteracting 
           ? 'rgba(var(--bg-primary-rgb), 0.4)' 
@@ -191,17 +191,17 @@ const Toolbar = ({ onSettingsClick }) => {
     >
       <LayoutGroup id="main-toolbar">
         {/* Drawing & Construction Tools */}
-        <div className="flex items-center gap-1.5 px-1">
+        <div className="flex items-center gap-1 px-1">
           <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
           <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
           <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
           <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
         </div>
 
-        <ToolbarDivider />
+
 
         {/* Intelligence & Code Tools */}
-        <div className="flex items-center gap-1.5 px-1">
+        <div className="flex items-center gap-1 px-1">
           <CodeTool 
             {...commonToolProps} 
             id="code"

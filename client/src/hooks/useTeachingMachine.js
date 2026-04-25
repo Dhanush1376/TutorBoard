@@ -100,9 +100,19 @@ export function useTeachingMachine(isAuthReady = true) {
     const notifCompletion = localStorage.getItem('tb-notif-completion') !== 'false';
     const notifSound = localStorage.getItem('tb-notif-sound') !== 'false';
 
-    if (notifCompletion && typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'granted') {
-        new Notification(title, { body });
+    if (notifCompletion) {
+      // 1. In-app Toast (Top Right)
+      useTutorStore.getState().showToast({
+        message: body,
+        type: 'info',
+        duration: 4000
+      });
+
+      // 2. System Push Notification
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          new Notification(title, { body });
+        }
       }
     }
 

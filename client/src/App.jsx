@@ -17,6 +17,7 @@ import ThemedPopup from './components/layout/ThemedPopup';
 import IntroAnimation from './components/layout/IntroAnimation';
 import useTutorStore from './store/tutorStore';
 import GlobalOverlayManager from './components/common/GlobalOverlayManager';
+import ToastContainer from './components/layout/ToastContainer';
 
 function App() {
   const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
@@ -138,6 +139,7 @@ function App() {
       <GlobalOverlayManager />
       <GlobalStatusOverlay />
       <ThemedPopup />
+      <ToastContainer />
       
       <main className="app-main">
         <Routes>

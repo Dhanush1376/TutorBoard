@@ -183,6 +183,7 @@ export function syncSocketAuth(newToken = 'guest') {
       timeout: 20000,
       autoConnect: true,
       auth: { token: newToken },
+      withCredentials: true,
     });
     return;
   }

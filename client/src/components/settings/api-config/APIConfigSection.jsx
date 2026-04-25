@@ -48,14 +48,14 @@ const UniversalUsageCard = ({ usage }) => {
           <Sparkles size={16} strokeWidth={2.5} />
         </div>
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 800, letterSpacing: '-0.02em' }}>TutorBoard Edge Engine</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.02em' }}>TutorBoard Edge Engine</div>
           <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500, opacity: 0.8 }}>Shared credits — automatically optimized</div>
         </div>
       </div>
 
       {/* Main progress bar */}
       <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', fontWeight: 700 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', fontWeight: 600 }}>
           <span style={{ color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monthly Capacity</span>
           <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-primary)' }}>{usage.requests} / {usage.limit}</span>
         </div>
@@ -81,7 +81,7 @@ const UniversalUsageCard = ({ usage }) => {
           paddingTop: '24px', borderTop: '1px solid var(--border-color)', 
           opacity: 0.95 
         }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '4px' }}>Model Allocation</div>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '4px' }}>Model Allocation</div>
           {usage.breakdown.map((m, i) => {
             const mLabel = MODEL_LABELS[m.model] || m.model;
             const mWarning = m.percent >= 80;
@@ -260,7 +260,7 @@ export default function APIConfigSection({ showToast }) {
             <div style={{ position: 'absolute', inset: '-4px', borderRadius: '50%', border: `2.5px solid ${bannerDot}30`, animation: hasActiveCustom ? 'pulse-ring 2s infinite' : 'none' }} />
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>{bannerTitle}</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>{bannerTitle}</div>
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', lineHeight: 1.4, fontWeight: 500 }}>{bannerSub}</div>
           </div>
         </div>
@@ -303,7 +303,7 @@ export default function APIConfigSection({ showToast }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', padding: '0 8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '4px', height: '18px', borderRadius: '4px', background: 'var(--accent-primary)' }} />
-            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Identity Credentials</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Identity Credentials</span>
             {apiKeys.length > 0 && (
               <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-tertiary)', background: 'var(--bg-tertiary)', padding: '3px 10px', borderRadius: '10px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>{apiKeys.length}</span>
             )}
@@ -313,11 +313,11 @@ export default function APIConfigSection({ showToast }) {
             whileTap={{ scale: 0.97 }}
             onClick={() => setShowAddForm(s => !s)}
             style={{ 
-              padding: '10px 24px', borderRadius: '16px', 
+              padding: '8px 18px', borderRadius: '14px', 
               background: showAddForm ? 'var(--bg-secondary)' : 'var(--text-primary)', 
               color: showAddForm ? 'var(--text-primary)' : 'var(--bg-primary)', 
               border: '1px solid var(--border-color)', 
-              cursor: 'pointer', fontSize: '12px', fontWeight: 800,
+              cursor: 'pointer', fontSize: '11px', fontWeight: 700,
               boxShadow: showAddForm ? 'none' : '0 8px 20px rgba(0,0,0,0.15)',
               display: 'flex', alignItems: 'center', gap: '8px',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -351,7 +351,7 @@ export default function APIConfigSection({ showToast }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
               style={{ 
-                textAlign: 'center', padding: '64px 32px', 
+                textAlign: 'center', padding: '48px 24px', 
                 background: 'var(--bg-secondary)',
                 borderRadius: '32px', border: '1px solid var(--border-color)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px',
@@ -365,18 +365,18 @@ export default function APIConfigSection({ showToast }) {
                 animate={{ y: [0, -6, 0] }}
                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                 style={{ 
-                  width: '76px', height: '76px', borderRadius: '24px', 
+                  width: '60px', height: '60px', borderRadius: '20px', 
                   background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-tertiary))', border: '1px solid var(--border-color)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: '0 12px 32px rgba(0,0,0,0.08)',
                   color: 'var(--text-tertiary)', position: 'relative', zIndex: 1,
                 }}
               >
-                <Key size={32} strokeWidth={1.5} />
+                <Key size={26} strokeWidth={1.5} />
               </motion.div>
               <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px', letterSpacing: '-0.02em' }}>No API credentials</div>
-                <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', maxWidth: '280px', lineHeight: 1.6, fontWeight: 500 }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px', letterSpacing: '-0.02em' }}>No API credentials</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', maxWidth: '280px', lineHeight: 1.6, fontWeight: 500 }}>
                   Add your provider keys to unlock independent, ultra-high-performance AI models.
                 </div>
               </div>
@@ -385,9 +385,9 @@ export default function APIConfigSection({ showToast }) {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowAddForm(true)}
                 style={{ 
-                  marginTop: '8px', padding: '12px 32px', borderRadius: '16px', 
+                  marginTop: '8px', padding: '10px 28px', borderRadius: '14px', 
                   background: 'var(--text-primary)', color: 'var(--bg-primary)', 
-                  border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 800,
+                  border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700,
                   boxShadow: '0 10px 25px rgba(0,0,0,0.2)', letterSpacing: '0.02em',
                   position: 'relative', zIndex: 1,
                 }}
@@ -461,8 +461,8 @@ export default function APIConfigSection({ showToast }) {
                 }}>
                   <s.icon size={14} strokeWidth={2.5} />
                 </div>
-                <div style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.03em', fontFamily: '"Geist Mono", monospace', color: 'var(--text-primary)' }}>{s.value}</div>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.7 }}>{s.label}</div>
+                <div style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.03em', fontFamily: '"Geist Mono", monospace', color: 'var(--text-primary)' }}>{s.value}</div>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.7 }}>{s.label}</div>
               </motion.div>
             ))}
           </div>

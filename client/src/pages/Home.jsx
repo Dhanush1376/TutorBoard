@@ -563,13 +563,10 @@ const Home = ({ isDark }) => {
 
   const handleNewChat = () => { 
     useTutorStore.getState().triggerSync();
-    // Allow the sync effect a tick to read the current session ID before clearing it
-    setTimeout(() => {
-      useTutorStore.getState().setChatSessionId(null);
-      setActiveChatId(null);
-      setPrompt(''); 
-      endSession(); 
-    }, 50);
+    useTutorStore.getState().setChatSessionId(null);
+    setActiveChatId(null);
+    setPrompt(''); 
+    endSession(); 
   };
   const handleSelectChat = async (id) => {
     setActiveChatId(id);
@@ -874,33 +871,32 @@ const Home = ({ isDark }) => {
 
   return (
     <div className="h-screen w-screen bg-[var(--bg-primary)] overflow-hidden relative">
-      {/* 1. Main Background Canvas */}
-      <div className="absolute inset-0 z-0">
-        <InfiniteCanvas
-          ref={canvasRef}
-          onViewportChange={setCanvasTransform}
-          onInteractionStart={() => { isAutoFollow.current = false; }}
-          onClick={() => {
-            setSelectedElements([]);
-            setHasTextSelection(false);
-          }}
-          overlay={<InteractiveCanvasLayer />}
-        >
-          <AgentCanvasRenderer
-            timeline={timeline}
-            objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
-            steps={canvasSteps}
-            currentStepIndex={currentStepIndex}
-          />
-        </InfiniteCanvas>
-      </div>
-
-      {/* 2. Global Layout Overlay */}
+      {/* 1. Global Layout (contains the interactive glass panel) */}
       <Layout
         title={activeSession?.title || "TutorBoard AI"}
         onBack={handleNewChat}
         sidebar={leftPanel}
       >
+        {/* The Main Background Canvas (now inside the glass panel) */}
+        <div className="absolute inset-0 z-0">
+          <InfiniteCanvas
+            ref={canvasRef}
+            onViewportChange={setCanvasTransform}
+            onInteractionStart={() => { isAutoFollow.current = false; }}
+            onClick={() => {
+              setSelectedElements([]);
+              setHasTextSelection(false);
+            }}
+            overlay={<InteractiveCanvasLayer />}
+          >
+            <AgentCanvasRenderer
+              timeline={timeline}
+              objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
+              steps={canvasSteps}
+              currentStepIndex={currentStepIndex}
+            />
+          </InfiniteCanvas>
+        </div>
         {/* Connection Alert Banner */}
         <AnimatePresence>
           {isDbOffline && (

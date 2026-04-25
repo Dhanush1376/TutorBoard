@@ -88,7 +88,7 @@ const ThemePreviewCard = ({ theme, mode, isSelected, onClick }) => {
       <div style={{ padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <span style={{
-            fontSize: '13px', fontWeight: 600,
+            fontSize: '13px', fontWeight: 500,
             color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
             transition: 'color 0.2s',
             letterSpacing: '-0.01em',
@@ -144,7 +144,7 @@ const LayoutOption = ({ id, label, icon: Icon, isActive, onClick, children }) =>
         }}>
           <Icon size={14} strokeWidth={2.5} />
         </div>
-        <span style={{ fontSize: '13px', fontWeight: isActive ? 600 : 500, letterSpacing: '-0.01em' }}>{label}</span>
+        <span style={{ fontSize: '13px', fontWeight: isActive ? 500 : 400, letterSpacing: '-0.01em' }}>{label}</span>
       </div>
       {isActive && (
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
@@ -221,7 +221,7 @@ export default function AppearanceSection({ syncSettings }) {
                   cursor: 'pointer',
                   background: mode === m.id ? 'var(--bg-primary)' : 'transparent',
                   color: mode === m.id ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                  fontSize: '11px', fontWeight: mode === m.id ? 700 : 500,
+                  fontSize: '11px', fontWeight: mode === m.id ? 600 : 400,
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   boxShadow: mode === m.id ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
                 }}
@@ -253,7 +253,7 @@ export default function AppearanceSection({ syncSettings }) {
 
         {/* Grid type */}
         <div style={{ marginBottom: '16px' }}>
-          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '8px', opacity: 0.8, letterSpacing: '0.02em' }}>
+          <p style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', marginBottom: '8px', opacity: 0.8, letterSpacing: '0.02em' }}>
             BACKGROUND PATTERN
           </p>
           <div style={{ display: 'flex', gap: '14px' }}>
@@ -299,7 +299,7 @@ export default function AppearanceSection({ syncSettings }) {
 
         {/* Panel side */}
         <div style={{ marginBottom: '24px' }}>
-          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '8px', opacity: 0.8, letterSpacing: '0.02em' }}>
+          <p style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', marginBottom: '8px', opacity: 0.8, letterSpacing: '0.02em' }}>
             CHAT PANEL POSITION
           </p>
           <div style={{ display: 'flex', gap: '14px' }}>

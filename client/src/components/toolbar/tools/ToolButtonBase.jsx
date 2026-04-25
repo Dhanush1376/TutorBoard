@@ -178,16 +178,17 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
 
         {/* Tiny dropdown indicator if variants or custom submenu exist */}
         {(hasVariants || customSubmenu) && (
-          <div
-            className="absolute bottom-1 right-1 w-0 h-0"
-            style={{
-              borderLeft: '3px solid transparent',
-              borderRight: '3px solid transparent',
-              borderBottom: `3px solid ${isGroupActive ? 'var(--bg-primary)' : 'var(--text-tertiary)'}`,
-              opacity: 0.6,
-              transform: 'rotate(135deg)'
+          <svg
+            className="absolute bottom-1 right-1 w-1.5 h-1.5"
+            viewBox="0 0 6 6"
+            style={{ 
+              color: isGroupActive ? 'var(--bg-primary)' : 'var(--text-tertiary)',
+              opacity: 0.7,
+              transform: 'rotate(0deg)' // No rotation needed for a right-triangle path
             }}
-          />
+          >
+            <path d="M6 0 L6 6 L0 6 Z" fill="currentColor" />
+          </svg>
         )}
       </motion.button>
 

@@ -32,7 +32,7 @@ function AvatarCircle({ name, size = 64 }) {
       width: size, height: size, borderRadius: '18px',
       background: bg, color: fg,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.35, fontWeight: 600, letterSpacing: '-0.02em',
+      fontSize: size * 0.35, fontWeight: 500, letterSpacing: '-0.02em',
       flexShrink: 0, userSelect: 'none',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       border: `1.5px solid var(--border-color)`,
@@ -152,7 +152,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
             <ShieldAlert size={20} />
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 2px', letterSpacing: '-0.01em' }}>
+            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px', letterSpacing: '-0.01em' }}>
               Guest Mode Active
             </p>
             <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.5 }}>
@@ -191,7 +191,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
 
         <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
               {displayName || 'Your Name'}
             </h2>
             {isGuest && <TrialBadge />}
@@ -222,7 +222,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
               style={{
                 position: 'absolute', top: '24px', right: '24px',
                 display: 'flex', alignItems: 'center', gap: '8px',
-                fontSize: '11px', fontWeight: 700,
+                fontSize: '11px', fontWeight: 600,
                 color: saveStatus === 'saved' ? '#10b981' : '#007AFF',
                 padding: '6px 14px', borderRadius: '12px',
                 background: saveStatus === 'saved' ? 'rgba(16,185,129,0.08)' : 'rgba(0,122,255,0.08)',
@@ -293,14 +293,14 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                   <Sparkles size={16} strokeWidth={2} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', display: 'block', letterSpacing: '-0.01em' }}>
+                  <label style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', display: 'block', letterSpacing: '-0.01em' }}>
                     Custom Behavior
                   </label>
                   <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Shape how the AI responds globally</span>
                 </div>
               </div>
               <span style={{
-                fontSize: '11px', fontWeight: 700,
+                fontSize: '11px', fontWeight: 600,
                 color: prefsOverLimit ? '#ef4444' : 'var(--text-tertiary)',
                 background: 'var(--bg-tertiary)',
                 padding: '5px 10px',

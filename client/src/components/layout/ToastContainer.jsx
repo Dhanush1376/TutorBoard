@@ -31,48 +31,68 @@ const Toast = ({ toast, index, total }) => {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 30, scale: 0.9 }}
+      initial={{ opacity: 0, y: 20, scale: 0.92 }}
       animate={{ 
         opacity, 
         y: 0, 
         scale,
         filter: `blur(${blur}px)`,
       }}
-      exit={{ opacity: 0, scale: 0.9, y: -20, transition: { duration: 0.2 } }}
-      className="flex items-center gap-3 px-4 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.2)] pointer-events-auto w-fit mx-auto max-w-[calc(100%-24px)]"
+      exit={{ opacity: 0, scale: 0.88, y: -16, transition: { duration: 0.18 } }}
       style={{
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255,255,255,0.08)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid var(--glass-border)',
+        borderLeft: `3px solid ${config.color}`,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.1)',
+        borderRadius: '14px',
+        overflow: 'hidden',
+        pointerEvents: 'auto',
+        width: 'fit-content',
+        maxWidth: 'calc(100% - 24px)',
+        margin: '0 auto',
       }}
     >
-      <div className="flex-shrink-0 flex items-center justify-center">
-        <Icon size={16} style={{ color: config.color }} />
-      </div>
-      
-      <p className="flex-1 truncate text-[13px] font-normal text-[var(--text-primary)] pr-2">
-        {message}
-      </p>
+      {/* Progress drain bar */}
+      <motion.div
+        initial={{ scaleX: 1 }}
+        animate={{ scaleX: 0 }}
+        transition={{ duration: (duration || 5000) / 1000, ease: 'linear' }}
+        style={{
+          height: '2px',
+          background: config.color,
+          transformOrigin: 'left',
+          opacity: 0.4,
+        }}
+      />
 
-      {onUndo && (
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        <div className="flex-shrink-0">
+          <Icon size={15} style={{ color: config.color }} />
+        </div>
+        
+        <p className="flex-1 truncate text-[12px] font-normal text-[var(--text-primary)] pr-1" style={{ letterSpacing: '-0.01em' }}>
+          {message}
+        </p>
+
+        {onUndo && (
+          <button
+            onClick={() => { onUndo(); removeToast(id); }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] transition-all active:scale-95 group border border-[var(--border-color)]"
+          >
+            <RotateCcw size={11} className="group-hover:-rotate-45 transition-transform" />
+            <span className="text-[10px] font-normal uppercase tracking-wider">Undo</span>
+          </button>
+        )}
+
         <button
-          onClick={() => {
-            onUndo();
-            removeToast(id);
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-all active:scale-95 group border border-[var(--border-color)]"
+          onClick={() => removeToast(id)}
+          className="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors opacity-50 hover:opacity-100 rounded-lg hover:bg-[var(--bg-tertiary)]"
         >
-          <RotateCcw size={12} className="group-hover:-rotate-45 transition-transform" />
-          <span className="text-[11px] font-medium uppercase tracking-tight">Undo</span>
+          <X size={13} />
         </button>
-      )}
-
-      <button
-        onClick={() => removeToast(id)}
-        className="p-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors opacity-60 hover:opacity-100"
-      >
-        <X size={14} />
-      </button>
+      </div>
     </motion.div>
   );
 };
@@ -84,10 +104,10 @@ const ToastContainer = () => {
 
   return (
     <div 
-      className="absolute bottom-[100px] left-0 right-0 z-[5000] flex flex-col items-center gap-2 pointer-events-none origin-bottom"
+      className="fixed top-6 right-6 z-[9999] flex flex-col items-end gap-3 pointer-events-none"
     >
       <AnimatePresence mode="popLayout" initial={false}>
-        {toasts.map((toast, idx) => (
+        {toasts.slice().reverse().map((toast, idx) => (
           <Toast 
             key={toast.id} 
             toast={toast} 
