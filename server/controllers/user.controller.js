@@ -1,6 +1,6 @@
 import User from '../models/User.js';
 import ChatSession from '../models/ChatSession.js';
-import bcrypt from 'bcryptjs';
+import { validateAvatarUrl } from '../utils/validation/securityValidators.js';
 
 // Update User Settings (merges with existing)
 export const updateSettings = async (req, res) => {
@@ -22,10 +22,14 @@ export const updateSettings = async (req, res) => {
     
     // Explicitly update top-level fields
     // Prize req.body.avatar, then settings.avatar, then keep existing
-    if (req.body.avatar !== undefined) {
-      user.avatar = req.body.avatar;
-    } else if (settings.avatar !== undefined) {
-      user.avatar = settings.avatar;
+    const avatarToValidate = req.body.avatar !== undefined ? req.body.avatar : settings.avatar;
+    
+    if (avatarToValidate !== undefined) {
+      const validation = validateAvatarUrl(avatarToValidate);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
+      user.avatar = avatarToValidate;
     }
 
     if (settings.general?.name) {

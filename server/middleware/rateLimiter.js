@@ -41,18 +41,40 @@ export const httpRateLimiter = rateLimit({
   },
 });
 
+// ─── 1.5. Auth Sign-in Rate Limiter (Tight: 5 attempts per 15 min) ───
+export const authSigninRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, 
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: httpStore,
+  skip: (req) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    return ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
+  },
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Too many sign-in attempts from this IP. Please try again after 15 minutes.',
+      code: 'AUTH_RATE_LIMIT_EXCEEDED',
+      retryAfterSeconds: 15 * 60,
+    });
+  },
+});
+
 // ─── 2. Socket Rate Limiter (Redis-backed with Memory Fallback) ───
 const hitsBySocket = new Map();
 const guestMonthlyHits = new Map(); // Fallback for month-level guest usage
 const SOCKET_WINDOW_MS = 60_000;
-const SOCKET_MAX_HITS  = 10000; // Increased to prevent drawing/doubt blocking
+const AUTH_SOCKET_MAX_HITS = 2000; // 2k/min for authenticated users
+const GUEST_SOCKET_MAX_HITS = 200;  // 200/min for guests (canvas/doubt spam protection)
 export const GUEST_MONTHLY_LIMIT = 1000; 
 
 /**
- * SEC-06: Global Rate Limit Check
+ * SEC-06: Global Rate Limit Check (Differentiated by auth status)
  */
 export async function checkSocketRate(key) {
   const now = Date.now();
+  const limit = key.startsWith('auth:') ? AUTH_SOCKET_MAX_HITS : GUEST_SOCKET_MAX_HITS;
   
   // 1. Try Redis for global instance-wide limiting
   if (redisClient.isConnected) {
@@ -66,7 +88,7 @@ export async function checkSocketRate(key) {
       
       const results = await multi.exec();
       const count = results[2][1];
-      return count <= SOCKET_MAX_HITS;
+      return count <= limit;
     } catch (err) {
       console.warn('[RateLimit] Redis socket check failed, falling back to memory:', err.message);
     }
@@ -79,7 +101,7 @@ export async function checkSocketRate(key) {
   fresh.push(now);
   hitsBySocket.set(key, fresh);
 
-  return fresh.length <= SOCKET_MAX_HITS;
+  return fresh.length <= limit;
 }
 
 /**

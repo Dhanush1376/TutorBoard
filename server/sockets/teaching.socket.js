@@ -3,6 +3,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 import { createTeachingMachine, STATES, EVENTS } from '../engine/core/teachingMachine.js';
 import sessionStore from '../engine/core/sessionStore.js';
 import tokenStore from '../utils/auth/tokenStore.js';
@@ -49,9 +50,18 @@ export function setupTeachingSocket(io) {
       }
 
       // Standardize identity for the session
+      const userId = decoded.id || decoded._id;
+      
+      // SEC-15: Ensure the user still exists in the database
+      const user = await User.findById(userId);
+      if (!user) {
+        console.warn(`[WS:Auth] 🚨 User NOT FOUND in DB for ${ip}: ${userId}`);
+        return next(new Error('Authentication error: User account no longer exists'));
+      }
+
       socket.user = {
         ...decoded,
-        id: decoded.id || decoded._id // Ensure fallback compatibility
+        id: userId
       };
       
       console.log(`[WS:Auth] User assigned to socket: ${socket.user.id}`);

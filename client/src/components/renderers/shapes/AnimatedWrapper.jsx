@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RotateCw, Trash2 } from "lucide-react";
+import useTutorStore from "../../../store/tutorStore";
 
 export const CW = 800;
 export const CH = 600;
@@ -91,48 +92,30 @@ export const AW = ({
   const handleMovePointerDown = (e) => {
     e.stopPropagation();
     if (!onUpdate || isLocked) return;
-    
-    const svgEl = e.currentTarget.closest('svg');
-    if (!svgEl) return;
-    
-    let ctm;
-    try {
-      ctm = e.currentTarget.getScreenCTM();
-    } catch(err) {
-      return; 
-    }
-    if (!ctm) return;
 
-    const pt = svgEl.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    let startWorld = pt.matrixTransform(ctm.inverse());
+    // Ensure element is selected when move starts
+    if (layoutId) {
+      useTutorStore.getState().setSelectedElements([layoutId]);
+    }
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialX = cx;
+    const initialY = cy;
+    const scale = useTutorStore.getState().canvasTransform.scale || 1;
 
     setIsDragging(true);
+    props.onDragStart?.();
 
-    const onMove = (moveEvent) => {
-      pt.x = moveEvent.clientX;
-      pt.y = moveEvent.clientY;
-      const moveWorld = pt.matrixTransform(ctm.inverse());
-      
-      const GRID_SNAP = 20;
-      const snappedWorldX = Math.round(moveWorld.x / GRID_SNAP) * GRID_SNAP;
-      const snappedWorldY = Math.round(moveWorld.y / GRID_SNAP) * GRID_SNAP;
-      
-      const deltaX = snappedWorldX - startWorld.x;
-      const deltaY = snappedWorldY - startWorld.y;
-
-      if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
-        onUpdate({ 
-          dx: deltaX / 800, 
-          dy: deltaY / 600 
-        });
-        startWorld = { x: snappedWorldX, y: snappedWorldY };
-      }
+    const onMove = (me) => {
+      const dx = (me.clientX - startX) / scale;
+      const dy = (me.clientY - startY) / scale;
+      onUpdate({ x: initialX + dx/800, y: initialY + dy/600 });
     };
 
     const onUp = () => {
       setIsDragging(false);
+      props.onDragEnd?.();
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
     };
@@ -215,6 +198,7 @@ export const AW = ({
         transformBox: "fill-box",
         zIndex: isDragging ? 100 : 1
       }}
+      {...props}
     >
       <g style={{ pointerEvents: onUpdate ? "visiblePainted" : "auto" }}>
         {children}

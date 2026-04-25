@@ -23,26 +23,26 @@ const StepFilmstrip = ({ steps, currentStepIndex, goToStep }) => {
             className="relative flex-shrink-0 group"
           >
             <motion.div
-              whileHover={{ scale: 1.1 }}
+              whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={`
-                w-10 h-10 rounded-xl flex items-center justify-center text-xs font-normal transition-all duration-300
+                w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-bold transition-all duration-300
                 ${isCurrent 
-                  ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] border-2 border-white' 
+                  ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[0_8px_24px_rgba(0,0,0,0.2)]' 
                   : isCompleted
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white/60'
+                    ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                 }
               `}
             >
-              {isCompleted ? <Check size={14} /> : index + 1}
+              {isCompleted ? <Check size={14} strokeWidth={3} /> : index + 1}
               
-              {/* Current Step Glow Ring */}
+              {/* Current Step Active Glow */}
               {isCurrent && (
                 <motion.div
-                  layoutId="glow-ring"
-                  className="absolute -inset-1 rounded-2xl border-2 border-white/30"
-                  animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+                  layoutId="step-glow"
+                  className="absolute -inset-1 rounded-2xl border-2 border-[var(--text-primary)]/20"
+                  animate={{ opacity: [0.3, 0.6, 0.3] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 />
               )}

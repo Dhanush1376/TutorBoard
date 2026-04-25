@@ -83,6 +83,9 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
 
   const props = { ...common, x, y, color: obj.color, label, w, h, isPinned: obj.isPinned };
 
+  const onUpdateBound = (updates) => onUpdate(obj.id, updates);
+  const onDeleteBound = () => onDelete(obj.id);
+
   switch (shape) {
     case 'orb':
     case 'circle':
@@ -103,15 +106,16 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       return <CalloutShape key={obj.id} {...props} />;
     case 'cloud':
       return <CloudShape key={obj.id} {...props} />;
+    case 'note':
     case 'sticky':
-      return <StickyNoteShape key={obj.id} {...props} onUpdate={onUpdate} onDelete={onDelete} isSelected={isSelected} />;
+      return <StickyNoteShape key={obj.id} {...props} layoutId={obj.id} onUpdate={onUpdateBound} onDelete={onDeleteBound} isSelected={isSelected} />;
     case 'path':
       return <FreeformShape key={obj.id} {...props} type="path" path={obj.path} strokeWidth={obj.strokeWidth} />;
     case 'label':
     case 'text':
     case 'code':
     case 'equation':
-      return <PremiumTextBox key={obj.id} obj={obj} isSelected={isSelected} onUpdate={onUpdate} onDelete={onDelete} />;
+      return <PremiumTextBox key={obj.id} obj={obj} isSelected={isSelected} onUpdate={onUpdateBound} onDelete={onDeleteBound} />;
     default:
       return <FreeformShape key={obj.id} {...props} type={shape} />;
   }

@@ -39,10 +39,11 @@ import userRoutes from './routes/user.js';
 import uploadRoutes from './routes/upload.js';
 import aiRouter from './ai-router/index.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
-import { httpRateLimiter } from './middleware/rateLimiter.js';
+import { httpRateLimiter, strictGuestLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
 import mongoose from 'mongoose';
 import passport from './utils/auth/passport.js';
+import { optionalProtect } from './middleware/auth.middleware.js';
 
 import * as Sentry from "@sentry/node";
 
@@ -58,19 +59,17 @@ if (process.env.SENTRY_DSN) {
 const app = express();
 app.set('trust proxy', 1); // Trust only the immediate reverse proxy (Vercel, Cloudflare, etc.)
 
-// Middleware to generate a unique nonce for each request to support CSP without 'unsafe-inline'
-app.use((req, res, next) => {
-  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
-  next();
-});
+// CSP Nonces were removed to support static SPA deployments via Vercel. 
+// CSP should be managed via Vercel headers for client-side protection.
 
-// BUG FIX #57: Enhanced CSP header with nonces to prevent SVG/script injection from LLM-generated content
+// BUG FIX #57: Enhanced CSP header for API protection.
+// Note: Client-side CSP for the React SPA is managed via vercel.json headers.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
-      styleSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Allowed for React component styles
       imgSrc: ["'self'", 'data:', 'https:'],      // Allow data: URLs for canvas exports
       objectSrc: ["'none'"],                      // Prevent plugin injection
       baseUri: ["'self'"],                        // Restrict base tag
@@ -81,8 +80,7 @@ app.use(helmet({
   },
 }));
 
-// --------------- CORS Origins ---------------
-// Read from env var, or fall back to defaults. Comma-separated.
+// ─── CORS Origins ───
 const DEFAULT_ORIGINS = [
   'https://tutor-board-mocha.vercel.app',
   'http://localhost:5173',
@@ -95,20 +93,38 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
   : DEFAULT_ORIGINS;
 
-// ─── Core Middleware ─────────────────────────────────────────────────────────
+// Check if an origin matches — supports wildcard Vercel preview subdomains
+function isOriginAllowed(origin, callback) {
+  // Block requests with no origin if they are not from browsers (optional, but safer for credentialed CORS)
+  if (!origin) return callback(null, false);
+  
+  const isAllowed = allowedOrigins.includes(origin) ||
+    /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+    /^https:\/\/tutor-board[a-z0-9-]*\.vercel\.app$/.test(origin);
+
+  if (isAllowed) {
+    callback(null, true);
+  } else {
+    callback(new Error('Not allowed by CORS'));
+  }
+}
+
+// ─── Core Middleware ───
 // Parse JSON bodies first
 app.use(express.json({ limit: '1mb' }));
 // CORS must be early
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://tutor-board-mocha.vercel.app"
-  ],
+  origin: isOriginAllowed,
   credentials: true,
 }));
 
-// Serve static uploads
-app.use('/uploads', express.static('uploads'));
+// Serve static uploads with security headers
+app.use('/uploads', express.static('uploads', {
+  setHeaders: (res) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Disposition', 'attachment');
+  }
+}));
 
 // Request Logger
 app.use((req, _res, next) => {
@@ -168,26 +184,11 @@ if (!hasAllCritical) {
 const httpServer = createServer(app);
 const port = process.env.PORT || 5000;
 
-// Check if an origin matches — supports wildcard Vercel preview subdomains
-function isOriginAllowed(origin) {
-  if (!origin) return false; // Block requests with no origin (strictly follow CORS for credentialed setup)
-  if (allowedOrigins.includes(origin)) return true;
-  
-  // Allow any localhost or 127.0.0.1 origin for robust development
-  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
-
-  // Match Vercel preview deployments: tutor-board-*.vercel.app
-  if (/^https:\/\/tutor-board[a-z0-9-]*\.vercel\.app$/.test(origin)) return true;
-  return false;
-}
 
 // --------------- Socket.IO ---------------
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://tutor-board-mocha.vercel.app"
-    ],
+    origin: isOriginAllowed,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -249,7 +250,7 @@ app.use('/', httpRateLimiter, doubtRoutes);
 // Auth routes (rate-limited)
 app.use('/api/auth', httpRateLimiter, dbCheck, authRoutes);
 app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
-app.use('/api/ai', httpRateLimiter, dbCheck, aiRouter);
+app.use('/api/ai', httpRateLimiter, optionalProtect, strictGuestLimiter, dbCheck, aiRouter);
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
 app.use('/api', httpRateLimiter, uploadRoutes);

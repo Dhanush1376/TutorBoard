@@ -13,7 +13,10 @@ const API = axios.create({
 // Request Interceptor
 API.interceptors.request.use(
   (config) => {
-    // You can add auth tokens here if not using cookies
+    const token = localStorage.getItem('tb-token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {

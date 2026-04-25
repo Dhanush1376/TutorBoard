@@ -46,8 +46,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     (activeTool && String(activeTool).startsWith('draw:')) ||
     activeTool === 'shape' ||
     (activeTool && String(activeTool).startsWith('shape:')) ||
-    activeTool === 'text' ||
-    activeTool === 'note'
+    activeTool === 'text'
   );
 
   const pointsRef = useRef([]);
@@ -81,6 +80,22 @@ const InteractiveCanvasLayer = React.memo(() => {
     });
 
     if (isOverExistingElement) return;
+    
+    // TRIPLE TAP DETECTION
+    const now = Date.now();
+    if (now - tapCounter.current.last < 400) {
+      tapCounter.current.count += 1;
+    } else {
+      tapCounter.current.count = 1;
+    }
+    tapCounter.current.last = now;
+
+    if (tapCounter.current.count === 3) {
+      const { deselectAll } = useTutorStore.getState();
+      deselectAll?.();
+      tapCounter.current.count = 0;
+      return;
+    }
 
     // Only set global interaction lock for tools that involve dragging/drawing paths
     const isDragTool = activeTool.startsWith('draw:') || activeTool.startsWith('shape:');
@@ -147,10 +162,6 @@ const InteractiveCanvasLayer = React.memo(() => {
         // Note: setInteracting(false) was moved/removed to prevent race conditions
       }, 50);
       return; // Exit early as text doesn't need drag logic
-    } else if (activeTool === 'note') {
-      addNoteToCanvas(normalizedX, normalizedY);
-      setActiveTool('select');
-      return; // Exit early
     }
     
     draftStateRef.current = newDraft;

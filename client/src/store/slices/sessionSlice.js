@@ -96,21 +96,9 @@ export const createSessionSlice = (set, get) => ({
       // PERSISTENCE HARDENING (SEC-21): Capture the MongoDB ID in the manifest
       const currentChatSessionId = state.chatSessionId;
       
-      // HIGH: Prune canvasObjects to avoid localStorage quota issues
-      // Only keep essential layout fields, discard heavy SVG/path/logic data
-      const prunedObjects = (state.canvasObjects || []).map(obj => ({
-        id: obj.id,
-        type: obj.type,
-        x: obj.x,
-        y: obj.y,
-        scale: obj.scale,
-        color: obj.color || obj.styles?.stroke || obj.styles?.color || '#000000',
-        label: obj.label || obj.text?.substring(0, 20) || ''
-      }));
-
       updatedManifest[oldId] = {
-        canvasObjects: prunedObjects,
-        pinnedNotes:   [...(state.pinnedNotes || [])].slice(0, 10), // Limit pinned notes context
+        canvasObjects: [...(state.canvasObjects || [])],
+        pinnedNotes:   [...(state.pinnedNotes || [])].slice(0, 20),
         canvasTransform: { ...(state.canvasTransform || { x: 0, y: 0, scale: 1 }) },
         lastActive: Date.now(),
         tools: {

@@ -6,6 +6,10 @@ import { getCanvasFingerprint } from '../lib/utils';
 
 import { BASE_URL as API_URL } from '../services/api';
 
+// Generate a stable local UUID for sessions that haven't been assigned a server ID yet.
+// This ensures toolbar drawings are saved immediately without waiting for the socket handshake.
+const generateLocalId = () => `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
 /**
  * useSessionSync
  * 
@@ -53,6 +57,8 @@ export const useSessionSync = (chatMessages) => {
     };
   });
 
+  const localSessionIdRef = useRef(null);
+
   const performSync = async (isBeacon = false) => {
     const state = latestRef.current;
     
@@ -62,7 +68,7 @@ export const useSessionSync = (chatMessages) => {
       return;
     }
 
-    // Guard: Don't sync if no ID AND no user content (avoid empty session spam)
+    // Guard: Don't sync if no user content (avoid empty session spam)
     // We only consider a session "meaningful" if it has at least one user message 
     // OR at least one manual drawing (ignoring agent-generated objects).
     const hasUserMessages = state.chatMessages && state.chatMessages.some(m => m.role === 'user');
@@ -74,8 +80,17 @@ export const useSessionSync = (chatMessages) => {
       return;
     }
 
+    // FIX: If we have no chatSessionId yet (session not started or socket handshake pending),
+    // use a stable local UUID so manual toolbar drawings are immediately persisted.
+    // When the server later assigns a real MongoDB _id, we adopt it (see below).
+    if (!state.chatSessionId && !localSessionIdRef.current) {
+      localSessionIdRef.current = generateLocalId();
+      console.log(`[Sync] No chatSessionId yet — using local fallback ID: ${localSessionIdRef.current}`);
+    }
+    const effectiveSessionId = state.chatSessionId || localSessionIdRef.current;
+
     const payload = {
-      sessionId: state.chatSessionId,
+      sessionId: effectiveSessionId,
       activeSnapshotId: state.activeSnapshotId,
       ...(state.topic ? { title: state.topic } : {}),
       messages: state.chatMessages || [],
@@ -119,6 +134,8 @@ export const useSessionSync = (chatMessages) => {
         if (savedSession._id && savedSession._id !== state.chatSessionId) {
           console.log(`[Sync] Adopted MongoDB ID: ${savedSession._id}`);
           state.setChatSessionId(savedSession._id);
+          // Clear the local fallback ID — from now on, use the real server ID
+          localSessionIdRef.current = null;
         }
 
         console.log('[Sync] Session flushed to cloud successfully.');

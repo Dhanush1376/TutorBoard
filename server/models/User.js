@@ -22,6 +22,7 @@ const userSchema = new mongoose.Schema({
     // Password is required for manual signup, but not social
     required: false,
     minlength: [6, 'Password must be at least 6 characters'],
+    maxlength: [128, 'Password cannot exceed 128 characters'],
     select: false,
   },
   googleId: {

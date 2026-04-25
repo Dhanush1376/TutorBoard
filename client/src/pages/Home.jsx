@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import LeftPanel from '../components/layout/LeftPanel';
 import useTutorStore, { STATES as STORE_STATES, CANVAS_MODE } from '../store/tutorStore';
 import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
+import TeachingSession from '../components/teaching/TeachingSession';
 
 import { BASE_URL as API_URL } from '../services/api';
 
@@ -17,7 +18,6 @@ import AgentCanvasRenderer from '../components/canvas/AgentCanvasRenderer';
 import InteractiveCanvasLayer from '../components/canvas/InteractiveCanvasLayer';
 import CanvasControls from '../components/canvas/CanvasControls';
 import CanvasMinimap from '../components/canvas/CanvasMinimap';
-import StepPanel from '../components/teaching/StepPanel';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
@@ -31,126 +31,9 @@ import {
   Check, Wifi, WifiOff, Loader, Key, Cpu
 } from 'lucide-react';
 
-// ─── Drawing Overlay ─────────────────────────────────────────────────────────
-const DRAWING_PHASES = [
-  'Analyzing your question',
-  'Generating visual layout',
-  'Drawing diagrams',
-  'Adding labels and annotations',
-  'Rendering final visuals',
-];
 
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants/canvas';
 
-const RETHINK_PHASES = [
-  'Agent is rethinking',
-  'Tailoring canvas to your doubt',
-  'Editing lesson context',
-  'Finalizing clarification',
-];
 
-const DrawingOverlay = ({ isVisible, isRethinking, isSidebarOpen, layoutView }) => {
-  const [phaseIndex, setPhaseIndex] = useState(0);
-  const phases = isRethinking ? RETHINK_PHASES : DRAWING_PHASES;
-  
-  // Calculate padding to center the overlay over the active canvas area
-  // Assuming sidebar is roughly 340px wide when open
-  const isRightHand = layoutView === 'right';
-  const paddingStyle = isSidebarOpen ? (isRightHand ? { paddingRight: 340 } : { paddingLeft: 340 }) : {};
-
-  useEffect(() => {
-    if (!isVisible) { setPhaseIndex(0); return; }
-    const timer = setInterval(() => {
-      setPhaseIndex(prev => (prev + 1) % phases.length);
-    }, 2200);
-    return () => clearInterval(timer);
-  }, [isVisible, phases.length]);
-
-  return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.4 }}
-          className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
-          style={{
-            ...paddingStyle,
-            backgroundColor: 'rgba(var(--bg-primary-rgb), 0.4)',
-            backdropFilter: 'blur(8px) brightness(0.9)',
-            WebkitBackdropFilter: 'blur(8px) brightness(0.9)',
-          }}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col items-center gap-5"
-          >
-            {/* Animated drawing indicator */}
-            <div className="relative w-20 h-20">
-              <svg viewBox="0 0 80 80" className="w-full h-full">
-                <motion.circle
-                  cx="40" cy="40" r="32"
-                  fill="none"
-                  stroke="var(--text-tertiary)"
-                  strokeWidth="1.5"
-                  strokeDasharray="200"
-                  animate={{ strokeDashoffset: [200, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
-                  opacity={0.3}
-                />
-                <motion.path
-                  d="M 20 50 Q 30 20 40 40 Q 50 60 60 30"
-                  fill="none"
-                  stroke="var(--text-primary)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: [0, 1] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: [0.16, 1, 0.3, 1] }}
-                  opacity={0.6}
-                />
-              </svg>
-            </div>
-
-            <motion.span 
-              key={phaseIndex}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="text-sm font-normal text-[var(--text-secondary)]"
-            >
-              {phases[phaseIndex]}
-            </motion.span>
-            
-            <div className="w-48 h-1 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
-              <motion.div 
-                className="h-full bg-[var(--accent-primary)]"
-                animate={{ x: ['-100%', '100%'] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
-
-// ─── Constants ───
-const DOMAIN_STYLES = {
-  dsa:              { bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.3)',   text: '#10b981', label: 'DSA' },
-  mathematics:      { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#8b5cf6', label: 'Math' },
-  physics:          { bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.3)',   text: '#3b82f6', label: 'Physics' },
-  chemistry:        { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#ef4444', label: 'Chemistry' },
-  biology:          { bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#22c55e', label: 'Biology' },
-  general:          { bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)', text: '#9ca3af', label: 'General' },
-};
-
-const PANEL_VISIBLE_STATES = new Set([STATES.TEACHING, STATES.RESPONDING, STATES.RESUMING]);
 
 const Home = ({ isDark }) => {
   const { isAuthenticated, token, user, loading: authLoading, apiPrefs: globalApiPrefs, logout, isAuthResolved } = useAuth();
@@ -569,13 +452,27 @@ const Home = ({ isDark }) => {
         if (saved._id) {
           useTutorStore.getState().setChatSessionId(saved._id);
         }
+
+        // ── SYNC LOCAL CACHE: Update the chatHistory entry with full state ──
+        setChatHistory(prev => prev.map(s => {
+          if (s.id === targetSessionId || s.id === saved._id) {
+            return {
+              ...s,
+              id: saved._id || s.id,
+              chatSessionId: saved._id || s.chatSessionId,
+              canvasState: canvasObjects || [],
+              messages: updatedMessages,
+              pinnedNotes: pinnedNotes || [],
+              updatedAt: Date.now()
+            };
+          }
+          return s;
+        }));
+
         // If we were using a local UUID, swap it for the permanent Mongo ID everywhere.
         if (saved._id && saved._id !== targetSessionId) {
           console.log(`[Persistence] 🔗 Adopting permanent Mongo ID: ${saved._id}`);
           setActiveChatId(saved._id);
-          setChatHistory(prev => prev.map(s => 
-            s.id === targetSessionId ? { ...s, id: saved._id, chatSessionId: saved._id } : s
-          ));
           return saved._id;
         }
         return saved._id || targetSessionId;
@@ -584,7 +481,7 @@ const Home = ({ isDark }) => {
       console.error('[Persistence] ❌ Immediate save failed:', err);
     }
     return null;
-  }, [activeChatId, activeSession, timeline, canvasObjects, canvasSteps, isAuthenticated, user, token, messages]);
+  }, [activeChatId, activeSession, timeline, canvasObjects, canvasSteps, pinnedNotes, isAuthenticated, user, token, messages]);
 
 
   // ── Passive Sync (Canvas/Prefs Debounce) ──
@@ -952,10 +849,6 @@ const Home = ({ isDark }) => {
   const setSelectedElements = useTutorStore(state => state.setSelectedElements);
   const setHasTextSelection = useTutorStore(state => state.setHasTextSelection);
 
-  const domain = (timeline?.domain || 'general').toLowerCase();
-  const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general || DOMAIN_STYLES.dsa;
-  const showStepPanel = currentStep && PANEL_VISIBLE_STATES.has(machineState);
-
   const leftPanel = (
     <ErrorBoundary reloadOnRetry={true}>
       <LeftPanel
@@ -1036,128 +929,15 @@ const Home = ({ isDark }) => {
           )}
         </AnimatePresence>
 
-        {/* All teaching controls are now floating overlays here */}
-        
-        {/* A. Top Bar Overlay (Domain + Title) */}
-        {timeline && (canvasObjects?.length > 0 || machineState !== STATES.IDLE) && (
-          <div className="tb-top-bar absolute top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] px-5 py-2 rounded-2xl shadow-xl pointer-events-auto"
-            >
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
-              <span
-                className="px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-[0.1em] border"
-                style={{
-                  backgroundColor: domainStyle.bg,
-                  borderColor: domainStyle.border,
-                  color: domainStyle.text,
-                }}
-              >
-                {domainStyle.label}
-              </span>
-              <span className="text-[11px] font-normal text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[200px] truncate">
-                {timeline.title}
-              </span>
+        {/* ─── 3. TEACHING OVERLAYS ─── */}
+        <TeachingSession 
+          deselectAll={() => {
+            setSelectedElements([]);
+            setHasTextSelection(false);
+          }} 
+        />
 
-              {/* API Source Badge */}
-              {activeApiPrefs && (
-                <div 
-                  title={activeApiPrefs.useCustomApi ? `Using your personal ${activeApiPrefs.activeProvider} model` : "Using TutorBoard platform credits"}
-                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-normal uppercase tracking-wider transition-all cursor-help
-                    ${activeApiPrefs.useCustomApi 
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                      : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}
-                >
-                  {activeApiPrefs.useCustomApi ? <Key size={10} /> : <Cpu size={10} />}
-                  {activeApiPrefs.useCustomApi ? 'Personal' : 'Universal'}
-                </div>
-              )}
-
-              {(() => {
-                const isLive = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
-                return isLive ? (
-                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-normal text-red-400 uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                    Live
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] font-normal text-emerald-400 uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Ready
-                  </span>
-                );
-              })()}
-
-            </motion.div>
-          </div>
-        )}
-
-        {/* B. Step Panel Overlay (Top Left) */}
-        <AnimatePresence>
-          {showStepPanel && (
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ 
-                opacity: 1, 
-                x: (layoutView === 'left' && isSidebarOpen) ? 340 : 0,
-              }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="tb-step-panel absolute top-24 left-6 z-40 max-w-sm pointer-events-auto"
-            >
-              <StepPanel
-                currentStep={currentStep}
-                currentStepIndex={currentStepIndex}
-                totalSteps={totalSteps}
-                learningNodes={learningNodes}
-                memoryAnchor={memoryAnchor}
-                keyFormula={keyFormula}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* C. Playback Dock (Bottom Center) */}
-        {timeline && (canvasObjects?.length > 0 || machineState !== STATES.IDLE) && (
-          <div className="tb-playback-dock absolute bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 w-full max-w-xl pointer-events-none">
-            {/* Progress Bar */}
-            <div className="w-full px-10 pointer-events-auto">
-              <div className="flex gap-0.5">
-                {Array.from({ length: Math.min(totalSteps, 50) }).map((_, i) => (
-                  <button
-                    key={`step-progress-${i}`}
-                    onClick={() => goToStep(i)}
-                    className={`flex-1 h-1 rounded-full transition-all ${
-                      i <= currentStepIndex ? 'bg-[var(--text-primary)]' : 'bg-[var(--border-color)]'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pointer-events-auto">
-              {/* Playback Controls */}
-              <div className="flex items-center gap-1 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] rounded-2xl px-3 py-1.5 shadow-2xl">
-                <button onClick={prevStep} disabled={currentStepIndex <= 0} className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20"><SkipBack size={16} /></button>
-                <button onClick={isPlaying ? pause : play} className="p-3 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm active:scale-95 transition-transform">
-                  {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
-                </button>
-                <button onClick={nextStep} className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><SkipForward size={16} /></button>
-              </div>
-
-              {/* Step Counter */}
-              <div className="px-3 py-2 bg-[var(--bg-secondary)]/80 border border-[var(--border-color)] rounded-xl shadow-2xl">
-                <span className="text-[11px] font-normal text-[var(--text-tertiary)] tabular-nums">
-                  {currentStepIndex + 1} / {totalSteps}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* D. Bottom Right Zoom / Minimap Tools */}
+        {/* ─── 4. GLOBAL CANVAS TOOLS ─── */}
         <CanvasMinimap
           visible={showMinimap}
           objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
@@ -1186,17 +966,6 @@ const Home = ({ isDark }) => {
           showMinimap={showMinimap}
           layoutView={layoutView}
           isSidebarOpen={isSidebarOpen}
-        />
-
-        {/* E. Chat & Overlays (DoubtThread etc) */}
-
-        
-        {/* Unified Drawing Overlay */}
-        <DrawingOverlay 
-          isVisible={machineState === STATES.GENERATING || isDoubtProcessing} 
-          isRethinking={isDoubtProcessing}
-          isSidebarOpen={isSidebarOpen}
-          layoutView={layoutView}
         />
 
         {/* ── G. Doubt Resume Pill (Contextual) ── */}

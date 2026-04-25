@@ -85,7 +85,7 @@ const DOUBT_PLACEHOLDERS = {
 // States where StepPanel should be visible
 const PANEL_VISIBLE_STATES = new Set([STATES.TEACHING, STATES.RESPONDING, STATES.RESUMING]);
 
-const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
+const TeachingSession = ({ initialTopic }) => {
   const machine = useTeachingMachine();
   const {
     machineState, isConnected,
@@ -107,13 +107,16 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread,
     showDoubtThread,
-    showNotes, // NEW destructure
+    showNotes, 
+    deselectAll,
   } = useTutorStore();
+
+  const isOpen = machineState !== STATES.IDLE;
+  const isTeachingActive = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
 
   const handleClose = useCallback(() => {
     endSession(); // CLEANUP server session on close!
-    onClose();
-  }, [onClose, endSession]);
+  }, [endSession]);
 
   const [doubtInput, setDoubtInput] = useState('');
   const canvasRef = useRef(null);
@@ -232,392 +235,222 @@ const TeachingSession = ({ isOpen, onClose, initialTopic }) => {
     setCanvasTransform({ x: 0, y: 0, scale: 1 });
   }, [setCanvasTransform]);
 
+  // ─── RENDER ───────────────────────────────────────────────────────────────
   if (!isOpen) return null;
 
   const domain = timeline?.domain?.toLowerCase() || 'general';
   const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
-  const isMinimized = canvasMode === CANVAS_MODE.MINIMIZED;
-  const showStepPanel = currentStep && PANEL_VISIBLE_STATES.has(machineState);
+  const isGenerating = machineState === STATES.GENERATING;
 
-  // Progress bar: cap at 50 segments to avoid overflow
-  const progressSegments = Math.min(totalSteps, 50);
-  const progressStep = totalSteps > 50
-    ? Math.floor((currentStepIndex / (totalSteps - 1)) * (progressSegments - 1))
-    : currentStepIndex;
-
-  const doubtPlaceholder = machineState === STATES.GENERATING
-    ? 'Preparing lesson...'
-    : (DOUBT_PLACEHOLDERS[domain] || DOUBT_PLACEHOLDERS.general);
-
-  // ─── MINIMIZED VIEW ──────────────────────────────────────────────────────────
-  if (isMinimized) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.5, y: 100 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.5, y: 100 }}
-        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed bottom-6 right-6 z-[9999] cursor-pointer group"
-        onClick={handleExpand}
-      >
-        <div
-          className="w-[200px] h-[130px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative"
-          style={{ background: 'var(--bg-secondary)' }}
-        >
-          {/* Mini canvas preview */}
-          <div className="absolute inset-0 opacity-60 pointer-events-none">
-            <svg viewBox="0 0 800 600" className="w-full h-full">
-              {canvasObjects.slice(0, 10).map((obj, i) => {
-                // Bug 44 Fix: Multiply normalized 0-1 coords by SVG viewBox (800x600)
-                const cx = (parseFloat(obj.x ?? obj.cx) || 0.5) * 800;
-                const cy = (parseFloat(obj.y ?? obj.cy) || 0.5) * 600;
-                return (
-                  <circle key={obj.id || i} cx={cx} cy={cy} r={4} fill="var(--text-tertiary)" opacity={0.5} />
-                );
-              })}
-            </svg>
-          </div>
-          <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
-            <p className="text-[10px] font-normal text-white truncate">{timeline?.title || initialTopic}</p>
-            <p className="text-[9px] text-white/60">Step {currentStepIndex + 1}/{totalSteps}</p>
-          </div>
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="p-1 rounded-lg bg-white/10"><Maximize2 size={12} className="text-white" /></div>
-          </div>
-          <div className="absolute top-2 left-2">
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-500/20 text-[7px] font-normal text-red-400 uppercase">
-              <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />Live
-            </span>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  // ─── FULL-SCREEN VIEW ────────────────────────────────────────────────────────
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 1000 }}
-          className="flex flex-col bg-[var(--bg-primary)] overflow-hidden"
-        >
-          <SessionResumeOverlay />
-          {/* ─── STATE OVERLAYS ─── */}
-          <SessionOverlay
-            machineState={machineState}
-            error={error}
-            topic={topic || initialTopic}
-            totalSteps={totalSteps}
-            doubtHistory={doubtHistory}
-            onRetry={handleRetry}
-            onNewTopic={handleClose}
-            onClose={handleClose}
-            onReplay={() => goToStep(0)}
-            goToStep={goToStep}
-            play={play}
-            pause={pause}
-          />
-
-          {/* ─── CANVAS LAYER ─── */}
-          <div className="absolute inset-0 z-0">
-            <InfiniteCanvas
-              ref={canvasRef}
-              onZoomChange={handleZoomChange}
-              onViewportChange={handleViewportChange}
-              className="bg-[var(--bg-primary)]"
-            >
-              <AgentCanvasRenderer
-                timeline={timeline}
-                elements={canvasObjects}
-                connections={canvasConnections}
-                steps={canvasSteps}
-                currentStepIndex={currentStepIndex}
-                showNotes={showNotes} // Pass it down
-              />
-              <InteractiveCanvasLayer />
-            </InfiniteCanvas>
-
-            {/* Canvas Controls */}
-            <div className="absolute inset-0 z-50 pointer-events-none">
-              {timeline && (
-                <div className="w-full h-full relative p-6">
-                  <div className="absolute bottom-6 right-6 pointer-events-auto">
-                    <CanvasControls
-                      transform={canvasTransform}
-                      onZoomIn={handleZoomIn}
-                      onZoomOut={handleZoomOut}
-                      onFitToContent={() => canvasRef.current?.fitToContent?.()}
-                      onResetView={handleResetView}
-                    />
-                  </div>
+    <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
+      {/* ─── 1. LOADING OVERLAY (Doubt Generation) ─── */}
+      <AnimatePresence mode="wait">
+        {isGenerating && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-md"
+          >
+            <div className="flex flex-col items-center gap-6">
+              <div className="relative w-24 h-24">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                  className="absolute inset-0 border-t-2 border-r-2 border-white/20 rounded-full"
+                />
+                <motion.div
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="absolute inset-4 border-b-2 border-l-2 border-white/40 rounded-full"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                 </div>
-              )}
+              </div>
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60"
+              >
+                Synthesizing Knowledge...
+              </motion.p>
             </div>
-          </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* ─── TOP BAR ─── */}
-          <motion.div className="relative z-10 flex items-center justify-between px-5 pt-5">
-
-            {/* Left: Sidebar + Title */}
-            <div className="flex items-center gap-2">
+      {/* ─── 2. TOP COMMAND HEADER ─── */}
+      <AnimatePresence>
+        {isTeachingActive && (
+          <div className="absolute top-6 inset-x-0 z-[1000] flex justify-center px-6 pointer-events-none">
+            <motion.header
+              initial={{ y: -40, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -20, opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200, delay: 0.2 }}
+              className="flex items-center gap-1.5 p-1.5 rounded-[28px] bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] shadow-[var(--glass-shadow)] pointer-events-auto"
+            >
               <button
                 onClick={openFloatingSidebar}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
-                title="Open sidebar (Alt + S)"
+                className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-95 group"
+                title="Workspace (Alt + S)"
               >
-                <Menu size={16} />
+                <Menu size={18} strokeWidth={2.5} className="group-hover:rotate-90 transition-transform duration-300" />
               </button>
 
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="flex items-center gap-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] px-5 py-2.5 rounded-2xl shadow-xl"
-              >
-                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
+              <div className="h-6 w-px bg-[var(--border-color)] mx-1" />
 
-                {/* Domain badge — always shown, falls back gracefully */}
-                <span
-                  className="px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-[0.1em] border"
-                  style={{
-                    backgroundColor: domainStyle.bg,
-                    borderColor: domainStyle.border,
-                    color: domainStyle.text,
-                  }}
+              <div className="flex items-center gap-4 pl-3 pr-5 py-1.5 min-w-[200px] max-w-[500px]">
+                <div className="flex flex-col items-start gap-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.12em] border shadow-sm"
+                      style={{
+                        backgroundColor: domainStyle.bg,
+                        borderColor: domainStyle.border,
+                        color: domainStyle.text,
+                      }}
+                    >
+                      {domainStyle.label}
+                    </span>
+                    <span className="flex items-center gap-1.5 px-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">
+                      <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
+                      {isConnected ? 'Live' : 'Offline'}
+                    </span>
+                  </div>
+                  <h1 className="text-[13px] font-medium text-[var(--text-primary)] truncate max-w-full">
+                    {timeline?.title || "Session"}
+                  </h1>
+                </div>
+              </div>
+
+              <div className="h-6 w-px bg-[var(--border-color)] mx-1" />
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={toggleDoubtThread}
+                  className={`w-11 h-11 flex items-center justify-center rounded-2xl border transition-all relative group ${
+                    showDoubtThread ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'
+                  }`}
                 >
-                  {domainStyle.label}
-                </span>
+                  <MessageCircleQuestion size={18} strokeWidth={2.2} />
+                </button>
 
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-normal text-[var(--text-primary)] uppercase tracking-[0.12em] max-w-[300px] truncate">
-                    {timeline?.title || initialTopic || 'Teaching Session'}
-                  </span>
-                  {professorNote && (
-                    <span className="text-[10px] text-[var(--text-tertiary)] italic truncate max-w-[400px]">
-                      "{professorNote}"
-                    </span>
-                  )}
-                </div>
+                <button
+                  onClick={toggleVoice}
+                  className={`w-11 h-11 flex items-center justify-center rounded-2xl border transition-all ${
+                    voiceEnabled ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'
+                  }`}
+                >
+                  {voiceEnabled ? <Volume2 size={18} strokeWidth={2.2} /> : <VolumeX size={18} strokeWidth={2.2} />}
+                </button>
 
-                <div className="flex items-center gap-2 ml-2">
-                  {mode && (
-                    <span className="px-2 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-[10px] font-normal text-[var(--text-secondary)] uppercase tracking-widest">
-                      {mode}
-                    </span>
-                  )}
-                  {difficulty && (
-                    <span className={`px-2 py-0.5 border rounded text-[10px] font-normal uppercase tracking-wider ${
-                      difficulty === 'beginner' ? 'bg-green-500/10 border-green-500/20 text-green-400' :
-                      difficulty === 'advanced' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                      'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                    }`}>
-                      {difficulty}
-                    </span>
-                  )}
-                </div>
+                <div className="h-6 w-px bg-[var(--border-color)] mx-1" />
 
-                <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-normal text-red-400 uppercase tracking-wider">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                  Live
-                </span>
-              </motion.div>
-            </div>
+                <button
+                  onClick={handleClose}
+                  className="w-11 h-11 flex items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all"
+                >
+                  <X size={18} strokeWidth={2.5} />
+                </button>
+              </div>
+            </motion.header>
+          </div>
+        )}
+      </AnimatePresence>
 
-            {/* Right: Controls */}
-            <div className="flex items-center gap-2">
-              {!isConnected && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-normal text-red-400">
-                  <WifiOff size={12} />Offline
-                </div>
-              )}
+      {/* ─── HUDs & NARRATION ─── */}
+      <NarrationBar 
+        text={currentStep?.narration || currentStep?.explanation} 
+        isGenerating={machineState === STATES.GENERATING}
+      />
 
-              <button
-                onClick={toggleDoubtThread}
-                className={`p-2.5 rounded-xl border transition-all relative group ${
-                  showDoubtThread
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent'
-                    : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                }`}
-                title="Doubt thread (Alt + D)"
-              >
-                {/* Pulse ring for new doubts */}
-                {doubtHistory.length > 0 && !showDoubtThread && (
-                  <span className="absolute inset-0 rounded-xl bg-emerald-500/20 animate-ping pointer-events-none" />
-                )}
-                
-                <div className="relative">
-                  <MessageCircleQuestion size={16} />
-                  {doubtHistory.length > 0 && !showDoubtThread && (
-                    <motion.div 
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full border border-[var(--bg-primary)] shadow-[0_0_8px_rgba(16,185,129,0.5)]" 
-                    />
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={toggleVoice}
-                className={`p-2.5 rounded-xl border transition-all ${
-                  voiceEnabled
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent'
-                    : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-              </button>
-
-              <button
-                onClick={handleMinimize}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
-                title="Minimize"
-              >
-                <Minimize2 size={16} />
-              </button>
-
-              {/* FIXED: onClick was missing in original */}
-              <button
-                onClick={handleClose}
-                className="p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
-                title="Close (Esc)"
-              >
-                <X size={16} />
-              </button>
-            </div>
+      <AnimatePresence>
+        {isTeachingActive && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <MasteryHUD />
+            <ProgressArc />
           </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* ─── LESSON STEP FILMSTRIP (Fixed at top below top bar) ─── */}
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative z-10 w-full flex justify-center"
-          >
-            <StepFilmstrip 
-              steps={canvasSteps} 
-              currentStepIndex={currentStepIndex} 
-              goToStep={goToStep} 
-            />
-          </motion.div>
+      <FloatingSidebar />
+      <DoubtThread />
 
-          {/* ─── NARATION BAR ─── */}
-          <NarrationBar 
-            text={currentStep?.narration || currentStep?.explanation} 
-            isGenerating={machineState === STATES.GENERATING}
-          />
+      {/* ─── NAVIGATION DOCK (Bottom) ─── */}
+      <AnimatePresence>
+        {isTeachingActive && (
+          <div className="absolute bottom-8 inset-x-0 z-[1000] flex flex-col items-center gap-6 pointer-events-none">
+            {canvasObjects.length > 0 && (
+              <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
+            )}
 
-          {/* ─── HUDs & Overlays ─── */}
-          <MasteryHUD />
-          <ShortcutsHUD />
-          <ProgressArc />
+            <motion.footer
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              className="flex items-center gap-3 p-2 rounded-[32px] bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] shadow-[var(--glass-shadow)] pointer-events-auto"
+            >
+              <div className="flex items-center gap-1.5 px-1.5">
+                <button onClick={prevStep} disabled={currentStepIndex <= 0} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all disabled:opacity-20">
+                  <SkipBack size={18} strokeWidth={2.2} />
+                </button>
 
-          {/* ─── SIDEBAR + THREAD + TIMELINE ─── */}
-          <FloatingSidebar />
-          <DoubtThread />
-          <DoubtTimeline />
+                <button
+                  onClick={isPlaying ? pause : play}
+                  className="w-14 h-14 flex items-center justify-center rounded-2xl bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-xl transition-all"
+                >
+                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                </button>
 
-          {/* ─── BOTTOM CONTROL DOCK ─── */}
-          <motion.div className="relative z-10 mt-auto w-full flex flex-col items-center gap-3 pb-5 pt-6 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/70 to-transparent">
+                <button onClick={nextStep} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all">
+                  <SkipForward size={18} strokeWidth={2.2} />
+                </button>
+              </div>
 
-            {/* Doubt Input Bar */}
-            <div className="w-full max-w-2xl px-5">
-              <div className="flex items-center gap-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl px-4 py-2 shadow-xl">
-                <MessageCircleQuestion size={14} className="text-[var(--text-tertiary)] flex-shrink-0" />
+              <div className="h-8 w-px bg-[var(--border-color)]" />
+
+              {/* Doubt Input Command Bar */}
+              <div className="flex items-center gap-3 bg-[var(--bg-secondary)]/50 border border-[var(--border-color)] rounded-2xl px-4 py-1.5 min-w-[300px]">
+                <MessageCircleQuestion size={16} className="text-[var(--text-tertiary)]" />
                 <input
-                  ref={doubtInputRef}
-                  data-doubt-input
                   type="text"
                   value={doubtInput}
                   onChange={(e) => setDoubtInput(e.target.value)}
                   onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleDoubtSubmit(); }
+                    if (e.key === 'Enter') handleDoubtSubmit();
                   }}
-                  placeholder={doubtPlaceholder}
-                  disabled={machineState === STATES.GENERATING || machineState === STATES.IDLE}
-                  className="flex-1 bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] text-xs outline-none py-1.5 disabled:opacity-40"
+                  placeholder="Ask a doubt..."
+                  className="flex-1 bg-transparent text-[var(--text-primary)] text-[13px] outline-none"
                 />
-                <button
-                  onClick={handleDoubtSubmit}
-                  disabled={!doubtInput.trim() || isDoubtProcessing || machineState === STATES.GENERATING}
-                  className="p-2 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl disabled:opacity-20 hover:opacity-90 transition-all active:scale-90 flex-shrink-0"
-                >
-                  {isDoubtProcessing ? <Loader size={14} className="animate-spin" /> : <ArrowUp size={14} />}
+                <button onClick={handleDoubtSubmit} className="w-8 h-8 flex items-center justify-center bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl">
+                  <ArrowUp size={16} strokeWidth={2.5} />
                 </button>
               </div>
-            </div>
 
+              <div className="h-8 w-px bg-[var(--border-color)]" />
 
-            {/* Playback Controls */}
-            {timeline && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="flex items-center gap-2"
-              >
-                {/* Speed */}
-                <div className="flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl px-2 py-1">
-                  {[0.5, 1, 1.5, 2].map(spd => (
+              {/* Speed & Stats */}
+              <div className="flex items-center gap-2 pr-3">
+                <div className="flex items-center bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-1">
+                  {[1, 1.5, 2].map(spd => (
                     <button
                       key={spd}
                       onClick={() => handleSpeedChange(spd)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-normal transition-all ${
-                        playbackSpeed === spd
-                          ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
-                          : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-                      }`}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold ${playbackSpeed === spd ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'text-[var(--text-tertiary)]'}`}
                     >
                       {spd}×
                     </button>
                   ))}
                 </div>
-
-                {/* Main controls */}
-                <div className="flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl px-3 py-1.5">
-                  <button
-                    onClick={prevStep}
-                    disabled={currentStepIndex <= 0}
-                    className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all disabled:opacity-20"
-                  >
-                    <SkipBack size={16} />
-                  </button>
-
-                  <button
-                    onClick={isPlaying ? pause : play}
-                    className="p-3 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 transition-all active:scale-90 mx-1"
-                  >
-                    {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
-                  </button>
-
-                  <button
-                    onClick={nextStep}
-                    className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all disabled:opacity-20"
-                    title={currentStepIndex >= totalSteps - 1 ? 'Finish Lesson' : 'Next Step'}
-                  >
-                    {currentStepIndex >= totalSteps - 1
-                      ? <Check size={16} className="text-emerald-400" />
-                      : <SkipForward size={16} />}
-                  </button>
-                </div>
-
-                {/* Step counter */}
-                <div className="px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl">
-                  <span className="text-[11px] font-normal text-[var(--text-tertiary)] tabular-nums">
-                    {currentStepIndex + 1} / {totalSteps}
-                  </span>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+              </div>
+            </motion.footer>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import bcrypt from 'bcryptjs';
 import tokenStore from '../utils/auth/tokenStore.js';
 import crypto from 'crypto';
 
@@ -43,6 +44,11 @@ export const signup = async (req, res) => {
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: "Name, email, and password are required" });
+  }
+
+  // Explicit length validation before CPU-intensive hashing
+  if (password.length > 128) {
+    return res.status(400).json({ error: "Password cannot exceed 128 characters" });
   }
 
   if (password !== confirmPassword) {
@@ -92,8 +98,19 @@ export const signin = async (req, res) => {
 
   try {
     const user = await User.findOne({ email }).select('+password');
+    let isMatch = false;
 
-    if (user && (await user.comparePassword(password))) {
+    if (user && user.password) {
+      isMatch = await user.comparePassword(password);
+    } else {
+      // SEC-14: Timing attack mitigation. 
+      // We perform a dummy comparison to ensure response time is consistent 
+      // whether the user exists or not.
+      const dummyHash = '$2a$12$LRY6z8Zp9X7X.e.O/B/K/uP9f0n/yX0j0l0k0l0k0l0k0l0k0l0k0';
+      await bcrypt.compare(password, dummyHash);
+    }
+
+    if (isMatch) {
       // Return full user object for immediate hydration
       const userObj = user.toObject();
       delete userObj.password;

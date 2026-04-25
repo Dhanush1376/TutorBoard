@@ -117,6 +117,14 @@ export const createUiSlice = (set, get) => ({
   setShowMinimap:         (show) => set({ showMinimap: show }),
   toggleMinimap:         () => set(s => ({ showMinimap: !s.showMinimap })),
   setActiveTool:         (tool) => set({ activeTool: tool }),
+  deselectAll: () => {
+    set({ 
+      activeTool: 'select', 
+      selectedElementIds: [], 
+      editingObjectId: null,
+      hasTextSelection: false 
+    });
+  },
   setShowGrid:           (show) => set({ showGrid: show }),
   toggleGrid:            ()     => set(s => ({ showGrid: !s.showGrid })),
   setSnapToGrid:         (snap) => set({ isSnapToGrid: snap }),

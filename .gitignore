@@ -1,56 +1,45 @@
+# Dependencies
 node_modules/
-.env
+.pnp
+.pnp.js
+
+# Build
 dist/
 build/
-.DS_Store
-*.log
-coverage/
-.vscode/
-traces.json
-.DS_Store
-graphify-out/
-.graphify/
-.agents/
+client/dist/
 
-# Runtime output files
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 error.txt
 server_log.txt
 server_output.log
 db_status.log
-debug_latency.log
-build_error.txt
 
-# Test output logs
-test_*.log
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+*.swp
 
-# Scratch/test files with potential env variable access or test API calls
+# Project Specific
+graphify-out/
+.graphify/
+.agents/
+scratch/
 server/scratch/
-api_test_output.json
-
-# Scratch and test scripts
-server/scratch/
+server/uploads/
+server/data/
 server/test_*.js
 server/verify_*.js
-scratch_test_schema.js
-scratch/
 eslint-result.json
-*-eslint-output.json
-*.eslint.json
-client/eslint-result.json
-server/eslint-result.json
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-.env.development.local
-.env.test.local
-.env.production.localserver/data/
-
-
-# Generated/ephemeral data (never commit)
-server/data/
-server/uploads/
-eslint-result.json
-*-eslint-output.json
-*.eslint.json

@@ -95,32 +95,31 @@ const TextTool = (props) => {
     const id = `manual-text-${Date.now()}`;
     const { canvasTransform, isSidebarOpen } = useTutorStore.getState();
     const { x: tx, y: ty, scale } = canvasTransform;
-    
-    // Style Mapping for Presets
+
     const presets = {
-      heading:  { size: 32, weight: 700, opacity: 1, w: 0.4 },
-      standard: { size: 24, weight: 400, opacity: 1, w: 0.3 },
-      caption:  { size: 16, weight: 400, opacity: 0.7, w: 0.2 }
+      heading:  { size: 32, weight: 700, w: 0.4 },
+      standard: { size: 24, weight: 400, w: 0.3 },
+      caption:  { size: 16, weight: 400, w: 0.2 }
     };
-
     const preset = presets[mode] || presets.standard;
-    const sidebarWidth = isSidebarOpen ? 340 : 0;
-    
-    // H3 FIX: Correct centerX = sidebarWidth + (remainingSpace / 2)
-    const centerX = sidebarWidth + (window.innerWidth - sidebarWidth) / 2;
-    const centerY = window.innerHeight / 2;
 
+    // Convert screen center → world pixels → normalized coords
+    const sidebarWidth = isSidebarOpen ? 340 : 0;
+    const screenCenterX = sidebarWidth + (window.innerWidth - sidebarWidth) / 2;
+    const screenCenterY = window.innerHeight / 2;
+    const CANVAS_W = 800;
+    const CANVAS_H = 600;
     const scatter = (Math.random() - 0.5) * 40;
-    const worldX = 0.5 + (scatter / 800);
-    const worldY = 0.5 + (scatter / 600);
+    const normalizedX = ((screenCenterX - tx) / scale + scatter) / CANVAS_W;
+    const normalizedY = ((screenCenterY - ty) / scale + scatter * 0.75) / CANVAS_H;
 
     const newObj = {
       id,
       type: 'label',
-      x: worldX,
-      y: worldY,
+      x: normalizedX,
+      y: normalizedY,
       w: preset.w,
-      h: preset.size * 2.5 / 600, // Normalized height estimate
+      h: preset.size * 2.5 / CANVAS_H,
       content: '',
       label: '',
       styles: {

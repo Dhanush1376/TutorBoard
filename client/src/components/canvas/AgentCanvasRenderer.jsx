@@ -15,21 +15,21 @@ export default function AgentCanvasRenderer({
   connections: extConnections, steps: extSteps,
   showNotes,
 }) {
+  // Keep a separate reference to raw timeline objects for specialized renderers
+  const timelineObjects = React.useMemo(() => {
+    return timeline?.elements || timeline?.objects || [];
+  }, [timeline?.elements, timeline?.objects]);
+
   // Use a Map to deduplicate objects by ID, favoring manual/external objects over timeline defaults
   const combinedElements = React.useMemo(() => {
     const elementMap = new Map();
-    
-    // 1. Add timeline objects first
-    const timelineObjects = timeline?.elements || timeline?.objects || [];
+    // 1. Add timeline objects first (lowest priority)
     timelineObjects.forEach(obj => { if (obj?.id) elementMap.set(String(obj.id), obj); });
-    
-    // 2. Add manual/external objects (these should overwrite if IDs match)
-    // Flatten and deduplicate the manual/external lists themselves first
+    // 2. Manual/external objects overwrite — these are always visible
     const manualList = [...extElements, ...extObjects];
     manualList.forEach(obj => { if (obj?.id) elementMap.set(String(obj.id), obj); });
-
     return Array.from(elementMap.values());
-  }, [timeline?.elements, timeline?.objects, extElements, extObjects]);
+  }, [timelineObjects, extElements, extObjects]);
 
   const rendererType = timeline?.renderer || 'cinematic';
   

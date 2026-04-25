@@ -1,6 +1,7 @@
 import RevokedToken from '../../models/RevokedToken.js';
 import crypto from 'crypto';
 import redisClient from '../core/redis.js';
+import * as Sentry from "@sentry/node";
 
 /**
  * TokenStore — Persistence-backed store for short-lived OAuth exchange codes and token revocation.
@@ -116,6 +117,14 @@ class TokenStore {
     } catch (err) {
       // SEC-04: Fail-open for availability, but log a high-severity alert for visibility
       console.error(`[SECURITY] Revocation check BYPASSED — both stores unreachable: ${err.message}`);
+      
+      // Send to Sentry for real-time alerting
+      Sentry.captureException(err, {
+        level: 'fatal',
+        tags: { component: 'TokenStore', action: 'isTokenRevoked' },
+        extra: { jti }
+      });
+
       return false; 
     }
   }

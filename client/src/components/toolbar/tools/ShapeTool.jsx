@@ -94,8 +94,46 @@ const ShapeTool = (props) => {
     recentColors, addRecentColor
   } = useTutorStore();
 
-  const handleShapeClick = (toolId) => {
+  const handleAdd = (toolId) => {
+    const shapeType = toolId.replace('shape:', '');
+    const { canvasTransform, isSidebarOpen, addCanvasObjects, drawColor } = useTutorStore.getState();
+    const { x: tx, y: ty, scale } = canvasTransform;
+
+    const sidebarWidth = isSidebarOpen ? 340 : 0;
+    const centerX = sidebarWidth + (window.innerWidth - sidebarWidth) / 2;
+    const centerY = window.innerHeight / 2;
+
+    const scatter = (Math.random() - 0.5) * 40;
+    const worldX = (centerX + scatter - tx) / scale / 800; 
+    const worldY = (centerY + scatter - ty) / scale / 600;
+
+    const id = `manual-shape-${Date.now()}`;
+    const newObj = {
+      id,
+      type: shapeType,
+      x: worldX,
+      y: worldY,
+      w: 0.15,
+      h: 0.15,
+      color: drawColor || 'var(--text-primary)',
+      styles: {
+        stroke: drawColor || 'var(--text-primary)',
+        strokeWidth: 2,
+        strokeStyle: shapeStrokeStyle || 'solid'
+      },
+      animation: { type: 'draw', duration: 0.5 }
+    };
+
+    addCanvasObjects([newObj]);
     setActiveTool(toolId);
+  };
+
+  const handleShapeClick = (toolId) => {
+    if (activeTool === toolId) {
+      handleAdd(toolId);
+    } else {
+      setActiveTool(toolId);
+    }
   };
 
   const Submenu = (

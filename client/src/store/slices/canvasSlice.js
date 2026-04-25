@@ -42,9 +42,28 @@ export const createCanvasSlice = (set, get) => ({
   setCanvasTransform: (transform) => set({ canvasTransform: transform }),
   setCanvasLocked:    (locked) => set({ isCanvasLocked: locked }),
   setInteracting:     (active) => set({ isInteracting: active }),
-  setSelectedElements: (ids)   => set({ selectedElementIds: ids }),
   setCurrentStep: (index)      => set({ currentStepIndex: index, deltaState: null }),
   setDeltaState:  (delta)      => set({ deltaState: delta }),
+
+  _syncManifest: (canvasObjects) => {
+    const { sessionId, sessionManifest, pinnedNotes, canvasTransform } = get();
+    if (!sessionId) return;
+    
+    const existing = sessionManifest[sessionId] || {};
+    
+    const updatedManifest = {
+      ...sessionManifest,
+      [sessionId]: {
+        ...existing,
+        canvasObjects: [...(canvasObjects || [])],
+        canvasTransform: canvasTransform || { x: 0, y: 0, scale: 1 },
+        pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
+        lastActive: Date.now()
+      }
+    };
+
+    set({ sessionManifest: capManifest(updatedManifest, 20) });
+  },
 
   setTimeline: (data) => {
     const serverObjects     = data.elements     || data.objects      || [];
@@ -100,23 +119,11 @@ export const createCanvasSlice = (set, get) => ({
     if (sessionId) {
       const existing = sessionManifest[sessionId] || {};
       
-      // HIGH: Prune manifest objects to prevent localStorage QuotaExceededError
-      // We only keep minimal metadata for the sidebar/switcher.
-      const prunedObjects = (canvasObjects || []).map(obj => ({
-        id: obj.id,
-        type: obj.type,
-        x: obj.x,
-        y: obj.y,
-        scale: obj.scale || 1,
-        color: obj.color || obj.styles?.stroke || obj.styles?.color || '#000000',
-        label: obj.label || obj.text?.substring(0, 20) || ''
-      }));
-
       const updatedManifest = {
         ...sessionManifest,
         [sessionId]: {
           ...existing,
-          canvasObjects: prunedObjects,
+          canvasObjects: [...(canvasObjects || [])],
           // Exclude connections and steps from local manifest; 
           // these are large and should be fetched from cloud on switch.
           canvasConnections: [], 
@@ -242,6 +249,7 @@ export const createCanvasSlice = (set, get) => ({
       },
       canvasVersion: get().canvasVersion + 1,
     });
+    get()._syncManifest([...canvasObjects, ...newOnes]);
   },
 
   addCanvasConnections: (connections) => {
@@ -318,6 +326,7 @@ export const createCanvasSlice = (set, get) => ({
       o.id === id ? { ...o, ...updates, styles: { ...(o.styles || {}), ...(updates?.styles || {}) } } : o
     );
     get().setCanvasObjectsWithHistory(newObjects);
+    get()._syncManifest(newObjects);
   },
 
   deleteCanvasObject: (id) => set(state => ({

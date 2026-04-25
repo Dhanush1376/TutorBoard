@@ -116,11 +116,10 @@ export const getApiKeyDashboard = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('[ApiKeys] Dashboard error:', err.message);
-    console.error('[ApiKeys] Dashboard fetch error:', err);
+    console.error('[ApiKeys] Dashboard error:', err);
     res.status(500).json({ 
       error: 'Failed to fetch dashboard data', 
-      details: err.message 
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined 
     });
   }
 };
@@ -313,7 +312,7 @@ export const addApiKey = async (req, res) => {
     console.error('[ApiKeys] POST error:', err);
     res.status(500).json({ 
       error: 'Failed to save API key', 
-      details: err.message,
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined,
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   }
@@ -511,7 +510,10 @@ export const getHealthStatus = async (req, res) => {
     // Also pull last 24h stats from UsageLog per provider
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const dbHealth = await UsageLog.aggregate([
-      { $match: { timestamp: { $gte: twentyFourHoursAgo } } },
+      { $match: { 
+        userId: req.user._id,
+        timestamp: { $gte: twentyFourHoursAgo } 
+      } },
       { $group: {
         _id: '$provider',
         requests24h: { $sum: 1 },
@@ -658,6 +660,9 @@ export const testTransientKey = async (req, res) => {
     });
   } catch (err) {
     console.error('[ApiKeys:Transient] CRITICAL ERROR:', err);
-    res.status(500).json({ error: 'Validation engine failure', details: err.message });
+    res.status(500).json({ 
+      error: 'Validation engine failure', 
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
   }
 };

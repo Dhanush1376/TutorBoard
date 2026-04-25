@@ -93,7 +93,7 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
     e.target.style.height = newHeight + 'px';
     
     setLocalDim(prev => ({ ...prev, h: newHeight }));
-    updateCanvasObjectSilently(obj.id, { content: val, h: newHeight / CH });
+    updateCanvasObjectSilently(obj.id, { content: val, h: newHeight / CANVAS_HEIGHT });
   };
 
   const handleKeyDown = (e) => {

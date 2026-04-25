@@ -23,6 +23,7 @@ const InfiniteCanvas = memo(React.forwardRef(({
   onInteractionEnd,
   onDoubleClick,
   onClick,
+  deselectAll,
   className = '',
   initialTransform = null,
 }, ref) => {
@@ -57,6 +58,9 @@ const InfiniteCanvas = memo(React.forwardRef(({
   const lastPinchDist = useRef(0);
   const lastPinchCenter = useRef({ x: 0, y: 0 });
   const isPinching = useRef(false);
+  
+  const clickCountRef = useRef(0);
+  const lastClickTimeRef = useRef(0);
   
   // Refs for settings to prevent stale closures in requestAnimationFrame (Bug 42 Fix)
   const gridSizeRef = useRef(gridSize);
@@ -554,7 +558,23 @@ const InfiniteCanvas = memo(React.forwardRef(({
         background: 'var(--bg-primary)'
       }}
       onMouseDown={handleMouseDown}
-      onClick={onClick}
+      onClick={(e) => {
+        const now = Date.now();
+        if (now - lastClickTimeRef.current < 400) {
+          clickCountRef.current += 1;
+        } else {
+          clickCountRef.current = 1;
+        }
+        lastClickTimeRef.current = now;
+
+        if (clickCountRef.current === 3) {
+          console.log('[Canvas] Triple tap detected → Deselect All');
+          deselectAll?.();
+          clickCountRef.current = 0; // Reset
+        }
+        
+        onClick?.(e);
+      }}
       onDoubleClick={handleDoubleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -587,6 +607,11 @@ const InfiniteCanvas = memo(React.forwardRef(({
           ref={contentRef}
           className="absolute top-0 left-0 origin-top-left will-change-transform"
           style={{
+            // CRITICAL: Must be exactly 800x600 so SVG viewBox="0 0 800 600" maps 1 unit = 1px.
+            // Without explicit dimensions, this div collapses to 0x0, and all SVG user-unit
+            // coordinates (paths, shapes) collapse to invisible points at the origin.
+            width: 800,
+            height: 600,
             // Transform is applied via DOM ref in applyTransform, but we keep 
             // the initial inline style for SSR/initial-mount consistency.
             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,

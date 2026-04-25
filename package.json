@@ -4,7 +4,11 @@
   "description": "<div align=\"center\">\r   <img src=\"https://img.shields.io/badge/Status-Active-brightgreen.svg\" alt=\"Active\" />\r   <img src=\"https://img.shields.io/badge/React-19.2-blue.svg\" alt=\"React\" />\r   <img src=\"https://img.shields.io/badge/Express-MVC-purple.svg\" alt=\"Express\" />\r   <img src=\"https://img.shields.io/badge/AI-DeepSeek_Core-black.svg\" alt=\"DeepSeek\" />",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install-all": "npm install && npm install --prefix client && npm install --prefix server",
+    "build": "npm run build --prefix client",
+    "start": "npm start --prefix server",
+    "dev": "npm run dev --prefix client & npm run dev --prefix server"
   },
   "repository": {
     "type": "git",

@@ -59,7 +59,8 @@ const NoteTool = (props) => {
     noteToolSize, setNoteToolSize, // Use isolated note size
     isSidebarOpen,
     canvasTransform, addNoteToCanvas,
-    showNotes, setShowNotes
+    showNotes, setShowNotes,
+    setActiveTool
   } = useTutorStore();
 
   const handleAddNote = () => {
@@ -79,6 +80,7 @@ const NoteTool = (props) => {
     const worldY = 0.5 + (offsetY / 600);
 
     addNoteToCanvas(worldX, worldY);
+    setActiveTool('select');
   };
 
   const activeColorEntry = NOTE_COLORS.find((c) => c.bg === noteColor) ?? NOTE_COLORS[0];

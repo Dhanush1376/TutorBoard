@@ -24,7 +24,9 @@ export const validateBody = (schema) => (req, res, next) => {
 // Common Schemas
 export const GenerateSchema = z.object({
   prompt: z.string().min(2, 'Prompt must be at least 2 characters').max(5000, 'Prompt too long'),
-  mode: z.enum(['quick', 'deep', 'test_me']).optional()
+  mode: z.enum(['quick', 'deep', 'test_me']).optional(),
+  agentId: z.string().optional(),
+  model: z.string().optional(),
 });
 
 export const DoubtSchema = z.object({

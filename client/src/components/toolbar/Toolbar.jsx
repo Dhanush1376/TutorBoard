@@ -153,90 +153,98 @@ const Toolbar = ({ onSettingsClick }) => {
   };
 
   const isInteracting = useTutorStore(state => state.isInteracting);
+  const featureFlags = useTutorStore(state => state.featureFlags);
   const isHidden = isInteracting && !isHovered;
 
   return (
     <motion.div
       ref={toolbarRef}
-      initial={{ y: 16, opacity: 0, scale: 0.97 }}
+      initial={{ y: 24, opacity: 0, scale: 0.95 }}
       animate={{ 
-        y: isHidden ? 20 : 0, 
-        opacity: isHidden ? 0.2 : 1, 
-        scale: isHidden ? 0.95 : 1,
-        filter: isHidden ? 'blur(2px)' : 'blur(0px)'
+        y: isHidden ? 32 : 0, 
+        opacity: isHidden ? 0.3 : 1, 
+        scale: isHidden ? 0.96 : 1,
+        filter: isHidden ? 'blur(4px)' : 'blur(0px)'
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
-        // Ensure body cursor is restored if we leave the toolbar area
         if (!isInteracting) document.body.style.cursor = 'default';
       }}
       transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
-      className={`flex items-center rounded-2xl relative transition-all duration-500 flex-row ${isInteracting ? 'scale-[0.98]' : ''}`}
+      className={`flex items-center rounded-[28px] relative transition-all duration-500 ${isInteracting ? 'scale-[0.98]' : ''}`}
       style={{
-        gap: 'var(--tool-gap)',
-        padding: 'calc(var(--tool-gap) * 1.5) calc(var(--tool-gap) * 2)',
+        gap: '6px',
+        padding: '6px',
         background: isInteracting 
-          ? 'rgba(var(--bg-primary-rgb), 0.25)' 
-          : 'var(--bg-primary)',
-        backdropFilter: isInteracting ? 'blur(24px) saturate(160%)' : 'blur(0px)',
-        border: isInteracting 
-          ? '1px solid rgba(var(--bg-primary-rgb), 0.15)' 
-          : '1px solid var(--border-color)',
+          ? 'rgba(var(--bg-primary-rgb), 0.4)' 
+          : 'var(--glass-bg)',
+        backdropFilter: 'blur(32px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+        border: '1px solid var(--glass-border)',
         boxShadow: isInteracting
-          ? '0 12px 40px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05)'
-          : '0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.06)',
+          ? '0 8px 32px rgba(0,0,0,0.15)'
+          : 'var(--glass-shadow)',
         userSelect: 'none',
         pointerEvents: 'auto',
       }}
     >
       <LayoutGroup id="main-toolbar">
-        {/* Group 1: Drawing & Pedagogical Tools */}
-        <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
-        <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
-        <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
-        <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
-        <CodeTool 
-          {...commonToolProps} 
-          id="code"
-          isHoveredExternally={hoveredId === 'code'} 
-        />
-        {/* Pedagogical Expansion Tools (Managed via Feature Flags) */}
-        {useTutorStore.getState().featureFlags?.enableVisualizer && (
-          <VisualizerTool 
+        {/* Drawing & Construction Tools */}
+        <div className="flex items-center gap-1.5 px-1">
+          <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
+          <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
+          <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
+          <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
+        </div>
+
+        <ToolbarDivider />
+
+        {/* Intelligence & Code Tools */}
+        <div className="flex items-center gap-1.5 px-1">
+          <CodeTool 
             {...commonToolProps} 
-            id="visualizer"
-            isHoveredExternally={hoveredId === 'visualizer'} 
+            id="code"
+            isHoveredExternally={hoveredId === 'code'} 
           />
-        )}
-        {useTutorStore.getState().featureFlags?.enableVoice && (
-          <VoiceTool 
-            {...commonToolProps} 
-            id="voice"
-            isHoveredExternally={hoveredId === 'voice'} 
-          />
-        )}
+          {featureFlags?.enableVisualizer && (
+            <VisualizerTool 
+              {...commonToolProps} 
+              id="visualizer"
+              isHoveredExternally={hoveredId === 'visualizer'} 
+            />
+          )}
+          {featureFlags?.enableVoice && (
+            <VoiceTool 
+              {...commonToolProps} 
+              id="voice"
+              isHoveredExternally={hoveredId === 'voice'} 
+            />
+          )}
+        </div>
         
         <ToolbarDivider />
 
-        {/* Group 2: Session Actions */}
-        <ShareAction 
-          {...commonToolProps} 
-          id="action:share"
-          isHoveredExternally={hoveredId === 'action:share'} 
-        />
-
-        <DeleteAction 
-          {...commonToolProps} 
-          id="action:delete"
-          isHoveredExternally={hoveredId === 'action:delete'} 
-        />
+        {/* Session Management */}
+        <div className="flex items-center gap-1 px-1">
+          <ShareAction 
+            {...commonToolProps} 
+            id="action:share"
+            isHoveredExternally={hoveredId === 'action:share'} 
+          />
+          <DeleteAction 
+            {...commonToolProps} 
+            id="action:delete"
+            isHoveredExternally={hoveredId === 'action:delete'} 
+          />
+        </div>
 
         <ToolbarDivider />
         
-        <div className="relative">
+        {/* Profile / Account */}
+        <div className="relative pl-1 pr-2">
           <motion.button
-            whileHover={!isProfileOpen ? { y: -1 } : {}}
+            whileHover={!isProfileOpen ? { scale: 1.05 } : {}}
             whileTap={{ scale: 0.95 }}
             onClick={toggleProfile}
             onMouseEnter={() => {
@@ -249,26 +257,18 @@ const Toolbar = ({ onSettingsClick }) => {
               setIsHovered(false);
               setHoveredId(null);
             }}
-            className="relative w-[32px] h-[32px] rounded-full flex items-center justify-center font-normal text-[11px] outline-none"
+            className="relative w-9 h-9 rounded-full flex items-center justify-center transition-all overflow-hidden"
+            style={{
+              background: (isProfileOpen || hoveredId === 'profile') ? 'var(--text-primary)' : 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+            }}
           >
-            {(isHovered) && !isProfileOpen && (
-              <motion.div
-                layoutId="profile-liquid-hover"
-                className="absolute inset-0.5 rounded-full z-0"
-                style={{ 
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              />
-            )}
             <User 
               size={18} 
               strokeWidth={2.5}
               className="relative z-10 transition-colors"
               style={{
-                color: (isProfileOpen || isHovered) ? 'var(--text-primary)' : 'var(--text-tertiary)'
+                color: (isProfileOpen || hoveredId === 'profile') ? 'var(--bg-primary)' : 'var(--text-tertiary)'
               }}
             />
           </motion.button>
@@ -286,13 +286,13 @@ const Toolbar = ({ onSettingsClick }) => {
         </div>
       </LayoutGroup>
 
-        <style>{`
-          @keyframes active-glow {
-            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-          }
-        `}</style>
+      <style>{`
+        @keyframes active-glow {
+          0% { box-shadow: 0 0 0 0 rgba(var(--accent-primary-rgb), 0.4); }
+          70% { box-shadow: 0 0 0 6px rgba(var(--accent-primary-rgb), 0); }
+          100% { box-shadow: 0 0 0 0 rgba(var(--accent-primary-rgb), 0); }
+        }
+      `}</style>
       </motion.div>
   );
 };

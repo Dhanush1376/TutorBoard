@@ -16,9 +16,9 @@ All necessary dependencies and environment settings for the TutorBoard AI platfo
 | `vite` | ^8.0.1 | Build Tool / Dev Server |
 | `tailwindcss` | ^4.2.2 | CSS Framework (v4) |
 | `@tailwindcss/vite` | ^4.2.2 | Tailwind v4 Vite Plugin |
-| `konva` | ^10.2.3 | Canvas Engine |
-| `react-konva` | ^19.2.3 | React Wrapper for Konva |
-| `@react-spring/konva`| ^10.0.3 | Physics Animations |
+| `matter-js` | ^0.20.0 | Physics Engine |
+| `d3` | ^7.9.0 | Visualization Library |
+| `three` | ^0.174.0 | 3D Graphics Engine |
 | `lucide-react` | ^1.7.0 | Icon Library |
 | `react-router-dom` | ^7.13.2 | Navigation |
 
