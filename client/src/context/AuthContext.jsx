@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useNavigate } from 'react-router-dom';
 import useTutorStore from '../store/tutorStore';
 import { useTheme } from './ThemeContext';
+import API, { BASE_URL as API_URL } from '../services/api';
 import { syncSocketAuth, disconnectSocket } from '../hooks/useSocket';
 
 const AuthContext = createContext(null);
 
-import { BASE_URL as API_URL } from '../services/api';
 const IS_API_MISSING = import.meta.env.PROD && !import.meta.env.VITE_API_BASE_URL;
 
 if (IS_API_MISSING) {
@@ -35,25 +35,6 @@ const safeStorage = {
     } catch (e) {
       console.warn('[Auth] Storage remove failed:', e);
     }
-  }
-};
-
-// Fetch with AbortController timeout to prevent permanent hangs
-const fetchWithTimeout = async (resource, options = {}) => {
-  const { timeout = 8000 } = options;
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  
-  try {
-    const response = await fetch(resource, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(id);
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    throw error;
   }
 };
 
@@ -142,20 +123,34 @@ export const AuthProvider = ({ children }) => {
       });
     }, 12000);
 
-    // Stage 2: Hard fail after 30s
-    const failTimer = setTimeout(() => {
+    // Stage 2: Mark as warming after 30s (Render.com cold starts)
+    const warmingTimer = setTimeout(() => {
       setLoading(loading => {
         if (loading) {
-          console.error('[Auth] Hard timeout: High latency detected (30s). Force-resolving to prevent hang.');
-          setConnectionStatus('timeout');
-          return false;
+          console.warn('[Auth] Warming up: Server is taking longer than 30s to respond.');
+          setConnectionStatus('warming');
         }
         return loading;
       });
     }, 30000);
 
+    // Stage 3: Hard fail after 90s
+    const failTimer = setTimeout(() => {
+      setLoading(loading => {
+        if (loading) {
+          console.error('[Auth] Hard timeout: High latency detected (90s). Force-resolving to prevent hang.');
+          setConnectionStatus('timeout');
+          return false;
+        }
+        return loading;
+      });
+    }, 90000);
+
     const verifyToken = async () => {
       try {
+        // Wake up the server if it's cold (BUG FIX for Render.com/Heroku)
+        API.get('/health').catch(() => {/* fire and forget */});
+
         // Check for token in URL (Legacy Social Login direct)
         const urlParams = new URL(window.location.href).searchParams;
         const exchangeCode = urlParams.get('code');
@@ -163,16 +158,12 @@ export const AuthProvider = ({ children }) => {
         if (exchangeCode) {
           // Exchange one-time code for real JWT
           console.log('[Auth] Exchange code detected, trading for session...');
-            // Simultaneous exchange
-            const res = await fetchWithTimeout(`${API_URL}/api/auth/exchange?code=${exchangeCode}`, { timeout: 5000 });
+            const res = await API.get(`/api/auth/exchange?code=${exchangeCode}`);
             
-            if (res.ok) {
-              const data = await res.json();
-              if (data.token) {
-                safeStorage.setItem('tb-token', data.token);
-                sessionStorage.setItem('tb-just-logged-in', 'true');
-                console.log('[Auth] Exchange successful ✨');
-              }
+            if (res.data?.token) {
+              safeStorage.setItem('tb-token', res.data.token);
+              sessionStorage.setItem('tb-just-logged-in', 'true');
+              console.log('[Auth] Exchange successful ✨');
             }
           // Clean up URL to prevent re-exchange
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -187,7 +178,6 @@ export const AuthProvider = ({ children }) => {
           console.log('[Auth] Restoring Guest session');
           setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
           setToken(null);
-          setLoading(false);
           return;
         }
 
@@ -199,12 +189,7 @@ export const AuthProvider = ({ children }) => {
             sessionStorage.setItem('tb-is-guest', 'true');
             setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
             setToken(null);
-            syncSocketAuth('guest'); // Ensure socket connects as guest
-          } else {
-            // No token and no prompt - stay in unauthenticated state but ensure socket is ready as guest
-            syncSocketAuth('guest');
           }
-          setLoading(false);
           return;
         }
 
@@ -212,32 +197,23 @@ export const AuthProvider = ({ children }) => {
         try {
           // Parallelize profile and API prefs fetch for high performance
           const [meRes, apiRes] = await Promise.all([
-            fetchWithTimeout(`${API_URL}/api/auth/me`, {
-              headers: { Authorization: `Bearer ${storedToken}` },
-              timeout: 5000
-            }),
-            storedToken !== 'guest' ? fetchWithTimeout(`${API_URL}/api/apikeys`, { 
-              headers: { Authorization: `Bearer ${storedToken}` },
-              timeout: 3000
-            }).catch(() => null) : Promise.resolve(null)
+            API.get('/api/auth/me').catch(e => e.response),
+            storedToken !== 'guest' ? API.get('/api/apikeys').catch(() => null) : Promise.resolve(null)
           ]);
 
-          if (meRes && meRes.ok) {
-            const data = await meRes.json();
+          if (meRes && meRes.data) {
+            const data = meRes.data;
             console.log('[Auth] Session verified for:', data.user?.email);
             sessionStorage.removeItem('tb-is-guest'); // Clear guest flag if real token verified
             setUser(data.user);
             setToken(storedToken);
             setDbOffline(false); // Reset if it was offline
             
-            // BUG FIX: Immediately sync socket auth with verified token
-            syncSocketAuth(storedToken);
-
             hydrateSettings(data.user, isHydrated);
 
-            // Hydrate API Prefs from parallel fetch
-            if (apiRes && apiRes.ok) {
-              const apiData = await apiRes.json();
+            // Hydrate API Prefs
+            if (apiRes && apiRes.data) {
+              const apiData = apiRes.data;
               const activeKeys = (apiData.keys || []).filter(k => k.isActive && k.isValid);
               const firstActive = activeKeys[0];
               const status = firstActive?.isExpired ? 'expired' : (firstActive?.isLowCredits ? 'low' : (firstActive?.isValid ? 'active' : 'stable'));
@@ -254,7 +230,6 @@ export const AuthProvider = ({ children }) => {
             // BUG FIX: Handle 429 Too Many Requests gracefully
             if (meRes?.status === 429) {
               console.warn('[Auth] Rate limit reached. Retaining current session state to prevent lock-out.');
-              setLoading(false);
               return;
             }
 
@@ -263,7 +238,6 @@ export const AuthProvider = ({ children }) => {
             if (errorData.code === 'DB_OFFLINE') {
               console.error('[Auth] Database is offline. Entering Degraded Mode.');
               setDbOffline(true);
-              setLoading(false);
               return; // Do NOT clear token, just stop loading
             }
 
@@ -275,37 +249,35 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (err) {
           console.error('[Auth] Network error or timeout during verification:', err.name || err);
-          syncSocketAuth('guest');
           setUser(null); 
-        } finally {
-          console.log('[Auth] Verification logic finished');
-          setLoading(false);
-          setIsAuthResolved(true);
         }
       } catch (globalErr) {
         console.error('[Auth] CRITICAL Error in verifyToken:', globalErr);
+      } finally {
+        console.log('[Auth] Verification logic finished, resolving state...');
         setLoading(false);
+        setIsAuthResolved(true);
       }
     };
-
-    // Fallback: If verification hangs for > 7s, resolve auth anyway to unblock socket (Guest mode)
-    const fallbackTimer = setTimeout(() => {
-      setIsAuthResolved(prev => {
-        if (!prev) {
-          console.warn('[Auth] Verification timed out after 7s, forcing socket unblock');
-          syncSocketAuth(safeStorage.getItem('tb-token') || 'guest');
-        }
-        return true;
-      });
-    }, 7000);
 
     verifyToken();
     return () => {
       clearTimeout(slowTimer);
+      clearTimeout(warmingTimer);
       clearTimeout(failTimer);
-      clearTimeout(fallbackTimer);
     };
   }, []);
+
+  // BUG FIX: Centralized Socket Auth Sync
+  // Ensures we only connect to the socket once identity is definitively resolved,
+  // preventing "Guest" status for logged-in users on slow server cold starts.
+  useEffect(() => {
+    if (isAuthResolved) {
+      const activeToken = safeStorage.getItem('tb-token');
+      console.log(`[Auth] Resolving socket identity: ${activeToken ? 'User (Token)' : 'Guest'}`);
+      syncSocketAuth(activeToken || 'guest');
+    }
+  }, [isAuthResolved]);
 
   // Trial Mode Refresh Protection
   useEffect(() => {
@@ -326,57 +298,47 @@ export const AuthProvider = ({ children }) => {
   }, [user, isExiting]);
 
   const login = useCallback(async (email, password) => {
-    const res = await fetch(`${API_URL}/api/auth/signin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const res = await API.post('/api/auth/signin', { email, password });
+      const data = res.data;
 
-    const data = await res.json();
+      sessionStorage.removeItem('tb-is-guest'); // Promote to real user
+      safeStorage.setItem('tb-token', data.token);
+      setToken(data.token);
+      setUser(data.user);
+      
+      // Immediate hydration after login
+      hydrateSettings(data.user, false);
 
-    if (!res.ok) {
-      throw new Error(data.error || 'Login failed');
+      // BUG FIX: Immediate socket sync after login
+      try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after login'); }
+
+      return data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Login failed');
     }
-
-    sessionStorage.removeItem('tb-is-guest'); // Promote to real user
-    safeStorage.setItem('tb-token', data.token);
-    setToken(data.token);
-    setUser(data.user);
-    
-    // Immediate hydration after login
-    hydrateSettings(data.user, false);
-
-    // BUG FIX: Immediate socket sync after login
-    try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after login'); }
-
-    return data;
   }, []);
 
   const signup = useCallback(async (name, email, password, confirmPassword) => {
-    const res = await fetch(`${API_URL}/api/auth/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, confirmPassword }),
-    });
+    try {
+      const res = await API.post('/api/auth/signup', { name, email, password, confirmPassword });
+      const data = res.data;
 
-    const data = await res.json();
+      sessionStorage.removeItem('tb-is-guest'); // Promote to real user
+      safeStorage.setItem('tb-token', data.token);
+      setToken(data.token);
+      setUser(data.user);
+      
+      // Immediate hydration after signup
+      hydrateSettings(data.user, false);
 
-    if (!res.ok) {
-      throw new Error(data.error || 'Signup failed');
+      // BUG FIX: Immediate socket sync after signup
+      try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after signup'); }
+
+      return data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Signup failed');
     }
-
-    sessionStorage.removeItem('tb-is-guest'); // Promote to real user
-    safeStorage.setItem('tb-token', data.token);
-    setToken(data.token);
-    setUser(data.user);
-    
-    // Immediate hydration after signup
-    hydrateSettings(data.user, false);
-
-    // BUG FIX: Immediate socket sync after signup
-    try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after signup'); }
-
-    return data;
   }, []);
 
   const loginGuest = useCallback(() => {
@@ -402,6 +364,12 @@ export const AuthProvider = ({ children }) => {
       }
 
       setIsExiting(true);
+      
+      // BUG FIX: Revoke token server-side before clearing client state
+      // Using the API instance ensures headers are correctly set
+      if (safeStorage.getItem('tb-token')) {
+        API.post('/api/auth/logout').catch(err => console.warn('[Auth] Server-side logout failed:', err));
+      }
       // 1. Clear Auth Tokens
       safeStorage.removeItem('tb-token');
       
@@ -413,16 +381,26 @@ export const AuthProvider = ({ children }) => {
       // 3. Clear Zustand Persisted State to prevent canvas leak
       localStorage.removeItem('tutorboard-session');
 
-      // 4. Update memory state
+      // 5. Cleanup Zustand Trial State
+      const store = useTutorStore.getState();
+      if (typeof store.resetTeaching === 'function') store.resetTeaching();
+      if (typeof store.setGuestTrialStatus === 'function') {
+        store.setGuestTrialStatus({ count: 0, warning: false });
+      }
+      if (typeof store.setLearnerProfile === 'function') {
+        store.setLearnerProfile({ level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} });
+      }
+
+      // 6. Cleanup memory state
       sessionStorage.removeItem('tb-is-guest');
       sessionStorage.removeItem('tb-settings-hydrated');
       setToken(null);
       setUser(null);
 
-      // 5. Cleanup Socket 
+      // 7. Cleanup Socket 
       try { disconnectSocket(); } catch (e) { console.warn('[Auth] Socket disconnect failed'); }
 
-      // 6. Navigate away
+      // 8. Navigate away
       navigate('/');
     };
 

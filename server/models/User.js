@@ -52,6 +52,7 @@ const userSchema = new mongoose.Schema({
     },
     appearance: {
       theme: { type: String, default: 'system' },
+      themeId: { type: String, default: 'default' },
       showMinimap: { type: Boolean, default: true },
       showGrid: { type: Boolean, default: true },
       layoutView: { type: String, default: 'left' }

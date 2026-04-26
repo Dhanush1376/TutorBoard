@@ -13,7 +13,11 @@ const AuthLanding = () => {
   const { login, signup, loginGuest, isAuthenticated, user } = useAuth();
   
   const [isLogin, setIsLogin] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -92,15 +96,34 @@ const AuthLanding = () => {
     return () => { isMounted = false; };
   }, []);
 
+  const validatePassword = (pass) => {
+    if (pass.length < 8) return 'Password must be at least 8 characters.';
+    if (!/\d/.test(pass)) return 'Password must include at least one number.';
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pass)) return 'Password must include at least one special character.';
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
       setError('Email and password are required.');
       return;
     }
-    if (!isLogin && !formData.name) {
-      setError('Name is required to sign up.');
-      return;
+    
+    if (!isLogin) {
+      if (!formData.name) {
+        setError('Name is required to sign up.');
+        return;
+      }
+      const passError = validatePassword(formData.password);
+      if (passError) {
+        setError(passError);
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError('Passwords do not match.');
+        return;
+      }
     }
 
     try {
@@ -109,13 +132,18 @@ const AuthLanding = () => {
       if (isLogin) {
         await login(formData.email, formData.password);
       } else {
-        await signup(formData.name, formData.email, formData.password, formData.password);
+        await signup(formData.name, formData.email, formData.password, formData.confirmPassword);
       }
       
       // Trigger cinematic transition instead of immediate navigate
       sessionStorage.setItem('tb-just-logged-in', 'true');
-      setIsSuccess(true);
-      setLoading(false);
+      
+      // UX-08: Add a tiny delay to ensure the successful auth state is captured before 
+      // the AnimatePresence exit phase begins.
+      setTimeout(() => {
+        setIsSuccess(true);
+        setLoading(false);
+      }, 50);
       try {
         sessionStorage.setItem('tb-welcome-played', 'true');
       } catch (e) { /* ignore */ }
@@ -240,7 +268,36 @@ const AuthLanding = () => {
                   disabled={loading}
                 />
               </div>
+              {!isLogin && formData.password && (
+                <div className="px-1 mt-1">
+                  <div className="flex gap-1 h-1">
+                    <div className={`h-full flex-1 rounded-full transition-all ${formData.password.length >= 8 ? 'bg-green-500/50' : 'bg-[var(--border-color)] opacity-20'}`}></div>
+                    <div className={`h-full flex-1 rounded-full transition-all ${/\d/.test(formData.password) ? 'bg-green-500/50' : 'bg-[var(--border-color)] opacity-20'}`}></div>
+                    <div className={`h-full flex-1 rounded-full transition-all ${/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) ? 'bg-green-500/50' : 'bg-[var(--border-color)] opacity-20'}`}></div>
+                  </div>
+                  <p className="text-[9px] text-[var(--text-tertiary)] mt-1 opacity-60">
+                    Use 8+ chars with numbers & symbols
+                  </p>
+                </div>
+              )}
             </div>
+
+            {!isLogin && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[8px] font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Confirm Password</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                    className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"

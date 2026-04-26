@@ -85,7 +85,6 @@ export function useTeachingMachine(isAuthReady = true) {
     setGuestTrialStatus: s.setGuestTrialStatus,
     setLearnerProfile: s.setLearnerProfile,
     setResumeContext: s.setResumeContext,
-    setLearnerProfile: s.setLearnerProfile,
   })));
 
   // ─── Sync connection state ────────────────────────────────────────────────

@@ -76,6 +76,7 @@ export const signup = async (req, res) => {
           email: user.email,
           googleId: user.googleId,
           githubId: user.githubId,
+          avatar: user.avatar,
         },
         token: generateToken(user._id),
       });
@@ -124,6 +125,7 @@ export const signin = async (req, res) => {
           apiPreferences: userObj.apiPreferences || {},
           googleId: userObj.googleId,
           githubId: userObj.githubId,
+          avatar: userObj.avatar,
         },
         token: generateToken(user._id),
       });
@@ -152,6 +154,7 @@ export const getMe = async (req, res) => {
         settings: req.user.settings || {},
         googleId: req.user.googleId,
         githubId: req.user.githubId,
+        avatar: req.user.avatar,
       },
     });
   } catch (err) {
@@ -170,10 +173,10 @@ export const socialLoginSuccess = async (req, res) => {
     const token = generateToken(req.user.id);
     const code = await tokenStore.createCode(token);
     const frontendUrl = process.env.FRONTEND_URL;
-    res.redirect(`${frontendUrl}/login?code=${code}`);
+    res.redirect(`${frontendUrl}/?code=${code}`);
   } else {
     const frontendUrl = process.env.FRONTEND_URL;
-    res.redirect(`${frontendUrl}/login?error=auth_failed`);
+    res.redirect(`${frontendUrl}/?error=auth_failed`);
   }
 };
 

@@ -10,23 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageCircleQuestion, ArrowUpRight, Eye, FlaskConical, Binary, Sigma, Zap, Leaf, Stethoscope, Briefcase, Scale, History, Settings, Brain, TrendingUp, Palette, Plane, BookOpen, ChevronLeft } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import TeachingGuide from './TeachingGuide';
-
-const DOMAIN_STYLES = {
-  'DSA': { color: '#10b981' },
-  'Mathematics': { color: '#6366f1' },
-  'Physics': { color: '#3b82f6' },
-  'Chemistry': { color: '#ef4444' },
-  'Biology': { color: '#22c55e' },
-  'Medicine': { color: '#ec4899' },
-  'Business': { color: '#14b8a6' },
-  'Law': { color: '#f59e0b' },
-  'History': { color: '#d97706' },
-  'Engineering': { color: '#f97316' },
-  'Psychology': { color: '#a855f7' },
-  'Economics': { color: '#4ade80' },
-  'Arts': { color: '#f43f5e' },
-  'Aviation': { color: '#38bdf8' },
-};
+import { DOMAIN_STYLES } from '../../lib/teaching';
 
 const DoubtThread = () => {
   const {
@@ -37,7 +21,8 @@ const DoubtThread = () => {
     timeline,
   } = useTutorStore();
 
-  const domainStyle = DOMAIN_STYLES[timeline?.domain] || { color: '#94a3b8' };
+  const domain = timeline?.domain?.toLowerCase();
+  const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
 
   const [showGuide, setShowGuide] = React.useState(false);
   const [expandedIds, setExpandedIds] = React.useState(new Set());
@@ -70,7 +55,7 @@ const DoubtThread = () => {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 360, opacity: 0 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed top-0 right-0 z-[10002] h-full w-[340px] flex flex-col glass"
+          className="fixed top-0 right-0 z-[10002] h-full w-[85vw] sm:w-[340px] flex flex-col glass"
           style={{
             background: 'var(--bg-secondary)',
             borderLeft: '1px solid var(--glass-border)',

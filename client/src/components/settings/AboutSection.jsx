@@ -46,17 +46,17 @@ function StatusBadge({ status }) {
 
 function SystemHealthBanner({ statuses }) {
   const values = Object.values(statuses);
-  const allOnline = values.every(s => s === 'online');
   const anyOffline = values.some(s => s === 'offline');
   const checking = values.some(s => s === 'checking');
 
   const state = checking ? 'checking' : anyOffline ? 'degraded' : 'healthy';
   const map = {
-    healthy: { icon: '●', color: '#10b981', bg: 'rgba(16,185,129,0.06)', border: 'rgba(16,185,129,0.15)', text: 'All systems operational' },
-    degraded: { icon: '▲', color: '#f59e0b', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.15)', text: 'Some services degraded' },
-    checking: { icon: '◌', color: 'var(--text-tertiary)', bg: 'var(--bg-secondary)', border: 'var(--border-color)', text: 'Checking system status…' },
+    healthy: { icon: Check, color: '#10b981', bg: 'rgba(16,185,129,0.06)', border: 'rgba(16,185,129,0.15)', text: 'All systems operational' },
+    degraded: { icon: ShieldAlert, color: '#f59e0b', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.15)', text: 'Some services degraded' },
+    checking: { icon: RefreshCw, color: 'var(--text-tertiary)', bg: 'var(--bg-secondary)', border: 'var(--border-color)', text: 'Verifying system integrity…' },
   };
   const cfg = map[state];
+  const Icon = cfg.icon;
 
   return (
     <motion.div
@@ -69,8 +69,8 @@ function SystemHealthBanner({ statuses }) {
         marginBottom: '20px',
       }}
     >
-      <span style={{ fontSize: '10px', color: cfg.color }}>{cfg.icon}</span>
-      <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 400 }}>{cfg.text}</span>
+      <Icon size={12} strokeWidth={3} style={{ color: cfg.color }} className={state === 'checking' ? 'animate-spin' : ''} />
+      <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500, letterSpacing: '-0.01em' }}>{cfg.text}</span>
     </motion.div>
   );
 }
@@ -156,16 +156,15 @@ export default function AboutSection() {
           Version {APP_VERSION} · <span style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>CINEMATIC</span>
         </p>
 
-        {/* Community Tag */}
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: '8px',
           padding: '6px 16px', borderRadius: '24px',
           background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
           boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
         }}>
-          <Heart size={12} style={{ color: '#f43f5e' }} fill="#f43f5e" />
+          <Globe size={12} style={{ color: 'var(--accent-primary)' }} />
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.01em' }}>
-            Built for learners everywhere
+            Decentralized Learning Platform
           </span>
         </div>
       </div>

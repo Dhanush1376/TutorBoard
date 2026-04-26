@@ -61,6 +61,27 @@ export const authSigninRateLimiter = rateLimit({
   },
 });
 
+// ─── 1.6. Auth Sign-up Rate Limiter (Relaxed: 10 attempts per 30 min) ───
+export const authSignupRateLimiter = rateLimit({
+  windowMs: 30 * 60 * 1000, // 30 minutes
+  max: 10, 
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: httpStore,
+  skip: (req) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    return ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
+  },
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Too many account creation attempts from this IP. Please try again after 30 minutes.',
+      code: 'AUTH_SIGNUP_LIMIT_EXCEEDED',
+      retryAfterSeconds: 30 * 60,
+    });
+  },
+});
+
+
 // ─── 2. Socket Rate Limiter (Redis-backed with Memory Fallback) ───
 const hitsBySocket = new Map();
 const guestMonthlyHits = new Map(); // Fallback for month-level guest usage

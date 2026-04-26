@@ -22,7 +22,8 @@ function getAvatarColor(name = '') {
   return AVATAR_PALETTE[idx] || AVATAR_PALETTE[0];
 }
 
-function AvatarCircle({ name, size = 64 }) {
+function AvatarCircle({ user, size = 64 }) {
+  const name = user?.name || '';
   const initials = name
     ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
@@ -37,8 +38,13 @@ function AvatarCircle({ name, size = 64 }) {
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       border: `1.5px solid var(--border-color)`,
       position: 'relative',
+      overflow: 'hidden',
     }}>
-      {initials}
+      {user?.avatar && !user.isGuest ? (
+        <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectCover: 'cover' }} />
+      ) : (
+        initials
+      )}
     </div>
   );
 }
@@ -47,12 +53,12 @@ const MAX_PREFS = 300;
 
 const ROLE_OPTIONS = [
   { value: '', label: 'Select role...' },
-  { value: 'student-high-school', label: '🎒 High School Student' },
-  { value: 'student-undergrad', label: '🎓 Undergraduate Student' },
-  { value: 'student-grad', label: '📚 Graduate Student' },
-  { value: 'teacher', label: '🏫 Teacher / Professor' },
-  { value: 'professional', label: '💼 Professional' },
-  { value: 'self-learner', label: '🔍 Self Learner' },
+  { value: 'student-high-school', label: 'High School Student' },
+  { value: 'student-undergrad', label: 'Undergraduate Student' },
+  { value: 'student-grad', label: 'Graduate Student' },
+  { value: 'teacher', label: 'Teacher / Professor' },
+  { value: 'professional', label: 'Professional' },
+  { value: 'self-learner', label: 'Self Learner' },
 ];
 
 export default function GeneralSection({ user, syncSettings, showToast }) {
@@ -71,9 +77,26 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
   );
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved'
   const lastSavedName = useRef(user?.name);
+  const isFirstRender = useRef(true);
+  const initialState = useRef({ nickname, role, preferences, notifCompletion, notifSound, displayName });
   const isGuest = user?.isGuest;
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const hasChanged = 
+      nickname !== initialState.current.nickname ||
+      role !== initialState.current.role ||
+      preferences !== initialState.current.preferences ||
+      notifCompletion !== initialState.current.notifCompletion ||
+      notifSound !== initialState.current.notifSound ||
+      displayName !== initialState.current.displayName;
+
+    if (!hasChanged) return;
+
     const timeout = setTimeout(() => {
       localStorage.setItem('tb-nickname', nickname);
       localStorage.setItem('tb-role', role);
@@ -87,6 +110,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         lastSavedName.current = displayName;
       }
       syncSettings('general', { nickname, role, preferences, name: displayName, notifCompletion, notifSound });
+      initialState.current = { nickname, role, preferences, notifCompletion, notifSound, displayName };
       setTimeout(() => setSaveStatus('saved'), 400);
       setTimeout(() => setSaveStatus(null), 2200);
     }, 600);
@@ -178,7 +202,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         <div style={{ position: 'absolute', top: -100, right: -100, width: '300px', height: '300px', background: 'radial-gradient(circle, var(--accent-primary)08, transparent 70%)', pointerEvents: 'none' }} />
         
         <div style={{ position: 'relative' }}>
-          <AvatarCircle name={displayName} size={64} />
+          <AvatarCircle user={user} size={64} />
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -285,71 +309,94 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       {/* AI Instructions */}
       <motion.div variants={itemVariants}>
         <SectionTitle>AI Configuration</SectionTitle>
-        <SettingsGroup>
-          <div style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, #FF9500, #FFB033)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(255,149,0,0.2)' }}>
-                  <Sparkles size={16} strokeWidth={2} />
+        <SettingsGroup className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[24px]">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                    <Sparkles size={20} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <label className="text-[14px] font-semibold text-[var(--text-primary)] block tracking-tight leading-tight mb-0.5">
+                      Custom Personal & Behaviour
+                    </label>
+                    <span className="text-[11px] text-[var(--text-tertiary)] font-medium opacity-80">
+                      Define your AI's global identity and response style
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', display: 'block', letterSpacing: '-0.01em' }}>
-                    Custom Behavior
-                  </label>
-                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Shape how the AI responds globally</span>
+                
+                <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all duration-300 ${prefsOverLimit ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] border border-[var(--border-color)]'}`}>
+                  {prefsLeft} <span className="opacity-40 font-normal">chars left</span>
                 </div>
               </div>
-              <span style={{
-                fontSize: '11px', fontWeight: 600,
-                color: prefsOverLimit ? '#ef4444' : 'var(--text-tertiary)',
-                background: 'var(--bg-tertiary)',
-                padding: '5px 10px',
-                borderRadius: '10px',
-                fontFamily: '"Geist Mono", monospace'
-              }}>
-                {prefsLeft}
-              </span>
-            </div>
-            <div style={{ position: 'relative' }}>
-              <textarea
-                value={preferences}
-                onChange={e => setPreferences(e.target.value.slice(0, MAX_PREFS + 20))}
-                disabled={isGuest}
-                placeholder={
-                  isGuest
-                    ? 'Sign in to add custom instructions...'
-                    : 'e.g. Always explain with real-world analogies. I prefer concise answers with code examples...'
-                }
-                style={{
-                  width: '100%', padding: '14px',
-                  resize: 'vertical', minHeight: '120px', maxHeight: '400px',
-                  background: 'var(--bg-primary)',
-                  border: `1.2px solid ${prefsOverLimit ? '#ef444466' : 'var(--border-color)'}`,
-                  borderRadius: '16px',
-                  color: 'var(--text-primary)', fontSize: '13px',
-                  fontFamily: '"Geist", sans-serif',
-                  lineHeight: 1.6, outline: 'none',
-                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxSizing: 'border-box',
-                  opacity: isGuest ? 0.6 : 1,
-                  boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.02)'
-                }}
-                onFocus={e => {
-                  if (!prefsOverLimit) {
-                    e.target.style.borderColor = 'var(--accent-primary)';
-                    e.target.style.boxShadow = '0 0 0 4px var(--accent-primary)15';
+
+              <div className="relative">
+                <textarea
+                  value={preferences}
+                  onChange={e => setPreferences(e.target.value.slice(0, MAX_PREFS + 20))}
+                  disabled={isGuest}
+                  placeholder={
+                    isGuest
+                      ? 'Sign in to customize your AI assistant...'
+                      : 'e.g. "You are a senior software engineer who explains complex concepts using LEGO analogies. Keep responses extremely concise but include code snippets where relevant."'
                   }
-                }}
-                onBlur={e => {
-                  e.target.style.borderColor = prefsOverLimit ? '#ef444466' : 'var(--border-color)';
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
-              <div style={{ position: 'absolute', bottom: '16px', right: '16px', pointerEvents: 'none', opacity: 0.2 }}>
-                <Sparkles size={20} style={{ color: 'var(--text-tertiary)' }} />
+                  className={`w-full p-4.5 min-h-[140px] max-h-[300px] bg-[var(--bg-primary)]/50 border-1.5 rounded-2xl text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/50 leading-relaxed outline-none transition-all duration-300 resize-none ${
+                    isGuest 
+                      ? 'opacity-40 cursor-not-allowed border-[var(--border-color)]' 
+                      : prefsOverLimit 
+                        ? 'border-red-500/40 focus:border-red-500' 
+                        : 'border-[var(--border-color)] focus:border-amber-500/50 focus:bg-[var(--bg-primary)]'
+                  }`}
+                />
+                
+                {/* Floating Decoration */}
+                <div className="absolute bottom-4 right-4 pointer-events-none transition-opacity duration-500 opacity-10 group-focus-within:opacity-30">
+                  <Sparkles size={24} className="text-amber-500" />
+                </div>
+                
+                {/* Visual Guidelines */}
+                {!isGuest && !preferences && (
+                  <div className="absolute top-16 left-5 right-5 pointer-events-none space-y-2 opacity-30 select-none">
+                    <div className="h-2 w-3/4 bg-[var(--text-tertiary)]/20 rounded-full" />
+                    <div className="h-2 w-1/2 bg-[var(--text-tertiary)]/20 rounded-full" />
+                  </div>
+                )}
               </div>
+
+              {/* Professional Prompt Suggestions */}
+              {!isGuest && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {[
+                    { label: 'Conceptual Focus', text: 'Prioritize conceptual understanding over direct answers.' },
+                    { label: 'Technical Depth', text: 'Provide detailed technical explanations with code.' },
+                    { label: 'Iterative Learning', text: 'Ask follow-up questions to verify my understanding.' }
+                  ].map((chip) => (
+                    <button
+                      key={chip.label}
+                      onClick={() => {
+                        const newPrefs = preferences ? `${preferences} ${chip.text}` : chip.text;
+                        if (newPrefs.length <= MAX_PREFS) setPreferences(newPrefs);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--text-primary)]/5 border border-[var(--border-color)] text-[10px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all uppercase tracking-wider"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {isGuest && (
+                <div className="mt-4 p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-center gap-3">
+                  <div className="p-1.5 bg-amber-500/10 rounded-lg text-amber-500">
+                    <Sparkles size={14} />
+                  </div>
+                  <p className="text-[11px] text-amber-500/80 font-medium leading-tight">
+                    Custom instructions are a pro feature. Create an account to save your AI persona.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
         </SettingsGroup>
       </motion.div>
 

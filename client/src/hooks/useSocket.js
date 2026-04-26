@@ -98,6 +98,15 @@ export function useSocket(isAuthReady = true) {
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onError);
       socket.off('reconnect_attempt', onRetry);
+
+      // PERFORMANCE HARDENING: Automatically cleanup all listeners registered via this hook instance
+      // This prevents leaks if components forget to call the cleanup function returned by on()
+      for (const [event, callbacks] of listenersRef.current) {
+        for (const cb of callbacks) {
+          socket.off(event, cb);
+        }
+      }
+      listenersRef.current.clear();
     };
   }, [isAuthReady]);
 

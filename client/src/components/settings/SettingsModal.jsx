@@ -24,21 +24,17 @@ const SettingsModal = ({ isOpen, onClose }) => {
   const { 
     isSettingsMinimized, setSettingsMinimized,
     isExplainMinimized, isVisualizerMinimized,
-    layoutView, settingsActiveSection, setSettingsActiveSection
+    layoutView, settingsActiveSection, setSettingsActiveSection,
+    showToast
   } = useTutorStore();
   
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const activeSection = settingsActiveSection;
   const setActiveSection = setSettingsActiveSection;
   const [isTrafficHovered, setIsTrafficHovered] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [toast, setToast] = useState(null);
   const contentRef = useRef(null);
   const syncSettings = useSettingsSync();
- 
-  const showToast = useCallback((message, type = 'info') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }, []);
 
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
@@ -70,7 +66,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
       {isActuallyOpen && (
         <div 
           className={`fixed inset-0 z-[6000] pointer-events-none ${(!isSettingsMinimized && !isMaximized) ? 'flex items-center justify-center' : ''}`}
-          style={{ fontFamily: '"Geist", sans-serif' }}
+          style={{ fontFamily: '"Outfit", "Inter", sans-serif' }}
         >
           {/* Backdrop Blur */}
           <motion.div
@@ -96,7 +92,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 height: '44px',
                 borderRadius: '22px',
                 x: 0, y: 0, scale: 1, opacity: 1,
-              } : isMaximized ? {
+              } : (isMaximized || isMobile) ? {
                 position: 'fixed',
                 top: 0,
                 bottom: 0,
@@ -262,24 +258,6 @@ const SettingsModal = ({ isOpen, onClose }) => {
                   </div>
                 </div>
 
-                {/* Premium Toast Feedback */}
-                <AnimatePresence>
-                  {toast && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 30, scale: 0.9 }} 
-                      animate={{ opacity: 1, y: 0, scale: 1 }} 
-                      exit={{ opacity: 0, y: 30, scale: 0.9 }}
-                      className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-xl border border-white/10"
-                      style={{ 
-                        background: toast.type === 'error' ? 'rgba(239, 68, 68, 0.9)' : toast.type === 'success' ? 'rgba(16, 185, 129, 0.9)' : 'rgba(59, 130, 246, 0.9)',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
-                      }}
-                    >
-                      {toast.type === 'success' && <Check size={16} strokeWidth={4} className="text-white" />}
-                      <span className="text-sm font-semibold text-white letter-spacing-[-0.01em] uppercase">{toast.message}</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </>
             )}
           </motion.div>

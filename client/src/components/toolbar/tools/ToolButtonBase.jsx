@@ -113,7 +113,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   return (
     <div
       className="relative flex-shrink-0"
-      style={{ width: 'var(--tool-size)', height: 'var(--tool-size)', isolation: 'isolate' }}
+      style={{ width: '40px', height: '40px', isolation: 'isolate' }}
       onMouseEnter={() => {
         if (!disabled) {
           setIsHovered(true);
@@ -127,13 +127,13 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
     >
       <motion.button
         whileHover={!disabled ? { y: -1 } : {}}
-        whileTap={!disabled ? { scale: 0.93 } : {}}
+        whileTap={!disabled ? { scale: 0.92 } : {}}
         onClick={handleMainClick}
         disabled={disabled}
         aria-label={displayLabel}
         aria-pressed={isGroupActive}
         title=""
-        className="relative w-full h-full flex items-center justify-center rounded-full transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-primary)]/40"
+        className="relative w-full h-full flex items-center justify-center rounded-2xl transition-all duration-200 outline-none"
         style={{
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.35 : 1,
@@ -142,21 +142,24 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         {(isHovered || isHoveredExternally) && !isGroupActive && !isInteracting && !disabled && (
           <motion.div
             layoutId="liquid-hover-pill"
-            className="absolute inset-0.9 rounded-full z-0"
+            className="absolute inset-[1.5px] rounded-[14px] z-0"
             style={{
-              background: 'var(--bg-tertiary)',
+              background: 'var(--bg-tertiary)cc',
               border: '1px solid var(--border-color)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06), inset 0 0 8px rgba(255,255,255,0.03)',
             }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
           />
         )}
 
         {isGroupActive && (
           <motion.div
             layoutId="active-tool-pill"
-            className="absolute inset-0 rounded-full z-0"
-            style={{ background: 'var(--text-primary)' }}
+            className="absolute inset-[1.5px] rounded-[14px] z-0"
+            style={{ 
+              background: 'var(--text-primary)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            }}
             initial={false}
             transition={{ type: 'spring', stiffness: 600, damping: 38 }}
           />
@@ -170,25 +173,23 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
               : (isHovered || isHoveredExternally)
                 ? 'var(--text-primary)'
                 : 'var(--text-tertiary)',
-            transition: 'color 0.15s ease',
+            transition: 'color 0.2s ease',
           }}
         >
-          <DisplayIcon size={17} strokeWidth={isGroupActive ? 2.2 : 1.9} />
+          <DisplayIcon size={18} strokeWidth={isGroupActive ? 2.2 : 2} />
         </span>
 
-        {/* Tiny dropdown indicator if variants or custom submenu exist */}
-        {(hasVariants || customSubmenu) && (
-          <svg
-            className="absolute bottom-1 right-1 w-1.5 h-1.5"
-            viewBox="0 0 6 6"
+        {/* Subtle dropdown indicator - only show if NOT active to avoid clutter */}
+        {(hasVariants || customSubmenu) && !isGroupActive && (
+          <div
+            className="absolute bottom-1.5 right-1.5 w-1 h-1 rounded-full"
             style={{ 
-              color: isGroupActive ? 'var(--bg-primary)' : 'var(--text-tertiary)',
-              opacity: 0.7,
-              transform: 'rotate(0deg)' // No rotation needed for a right-triangle path
+              background: 'var(--text-tertiary)',
+              opacity: 0.6,
+              transform: isPinned ? 'scale(1.2)' : 'scale(1)',
+              transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
             }}
-          >
-            <path d="M6 0 L6 6 L0 6 Z" fill="currentColor" />
-          </svg>
+          />
         )}
       </motion.button>
 
@@ -204,29 +205,24 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
             className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 z-[9999] pointer-events-none"
           >
             <div
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg whitespace-nowrap"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl whitespace-nowrap"
               style={{
-                background: 'var(--bg-primary)',
+                background: 'rgba(var(--bg-primary-rgb), 0.85)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
                 border: '1px solid var(--border-color)',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.3)',
+                fontFamily: 'var(--global-font)'
               }}
             >
               <span
-                className="text-[11px] font-normal tracking-wide"
-                style={{ color: 'var(--text-primary)', letterSpacing: '0.04em' }}
+                className="text-[11px] font-semibold tracking-tight"
+                style={{ color: 'var(--text-primary)', letterSpacing: '0.01em' }}
               >
                 {displayLabel}
               </span>
             </div>
-            {/* Tooltip caret centered */}
-            <div
-              className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
-              style={{
-                background: 'var(--bg-primary)',
-                borderLeft: '1px solid var(--border-color)',
-                borderTop: '1px solid var(--border-color)',
-              }}
-            />
+            {/* Tooltip caret removed for a cleaner glass look */}
           </motion.div>
         )}
       </AnimatePresence>
@@ -251,12 +247,13 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
             <div className="absolute inset-x-0 -top-2 h-4 pointer-events-auto" />
 
             <div
-              className="flex flex-col p-1 rounded-2xl"
+              className="flex flex-col p-1.5 rounded-2xl"
               style={{
                 background: 'var(--bg-primary)',
                 border: '1px solid var(--border-color)',
-                boxShadow: '0 16px 48px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12)',
-                minWidth: customSubmenu ? 'auto' : 180,
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.1)',
+                minWidth: customSubmenu ? 'auto' : 200,
+                fontFamily: '"Outfit", sans-serif'
               }}
             >
               {customSubmenu ? (
@@ -272,57 +269,69 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
                     : activeTool === variant.id;
 
                   return (
-                    <button
+                    <motion.button
                       key={variant.id}
                       onClick={(e) => handleVariantClick(e, variant)}
+                      onMouseEnter={() => setHoveredId(variant.id)}
+                      onMouseLeave={() => setHoveredId(null)}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all relative outline-none group/item"
                       style={{
-                        minWidth: 160,
-                        background: isVariantActive ? 'rgba(var(--text-primary-rgb, 255,255,255), 0.05)' : 'transparent'
+                        minWidth: 180,
+                        background: 'transparent'
                       }}
                     >
-                      <span
-                        className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg transition-colors"
-                        style={{
-                          color: isVariantActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                          background: isVariantActive ? 'var(--bg-secondary)' : 'transparent',
-                          boxShadow: isVariantActive ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'
-                        }}
-                      >
-                        <variant.icon size={15} strokeWidth={isVariantActive ? 2.5 : 2} />
-                      </span>
+                      {/* Submenu Item Hover Pill */}
+                      {hoveredId === variant.id && !isVariantActive && (
+                        <motion.div
+                          layoutId={`submenu-hover-${id}`}
+                          className="absolute inset-0 bg-[var(--bg-tertiary)]/50 rounded-xl z-0"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                        />
+                      )}
 
                       <span
-                        className="flex-1 text-[13px] font-normal transition-colors"
-                        style={{ color: isVariantActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+                        className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-colors relative z-10"
+                        style={{
+                          color: isVariantActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                          background: isVariantActive ? 'var(--bg-primary)' : 'transparent',
+                          boxShadow: isVariantActive ? '0 2px 10px rgba(0,0,0,0.1)' : 'none',
+                          border: isVariantActive ? '1px solid var(--border-color)' : '1px solid transparent'
+                        }}
                       >
-                        {variant.label}
+                        <variant.icon size={16} strokeWidth={isVariantActive ? 2.5 : 2} />
                       </span>
+
+                      <div className="flex-1 flex flex-col relative z-10">
+                        <span
+                          className="text-[13px] font-medium transition-colors"
+                          style={{ color: isVariantActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+                        >
+                          {variant.label}
+                        </span>
+                        {variant.description && (
+                          <span className="text-[10px] text-[var(--text-tertiary)] opacity-70">
+                            {variant.description}
+                          </span>
+                        )}
+                      </div>
 
                       {isVariantActive && (
                         <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)]"
+                          className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)] shadow-[0_0_8px_rgba(var(--text-primary-rgb),0.5)]"
                         />
                       )}
-                    </button>
+                    </motion.button>
                   )
                 })
               )}
             </div>
 
-            {/* Submenu Caret - Perfectly Centered */}
-            <div
-              className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45"
-              style={{
-                background: 'var(--bg-primary)',
-                borderLeft: '1px solid var(--border-color)',
-                borderTop: '1px solid var(--border-color)',
-                zIndex: -1,
-                transform: `translateX(calc(-50% - ${menuOffset}px)) rotate(45deg)` // Counter-shift the caret to stay under button
-              }}
-            />
+            {/* Submenu Caret removed for cleaner look and to avoid overlapping glitches */}
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -41,7 +41,7 @@ const SocialButton = ({ icon: Icon, label, isConnected, onClick, color }) => (
       padding: '16px 18px',
       borderRadius: '18px',
       background: 'var(--bg-primary)',
-      border: `1.5px solid ${isConnected ? 'var(--border-color)' : 'var(--border-color)'}`,
+      border: `1.5px solid ${isConnected ? color + '33' : 'var(--border-color)'}`,
       cursor: isConnected ? 'default' : 'pointer',
       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       textAlign: 'left',
@@ -86,8 +86,13 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
   const { showAlert } = useTutorStore();
   const [cloudSync, setCloudSync] = useState(localStorage.getItem('tb-cloud-sync') !== 'false');
   const [isSyncing, setIsSyncing] = useState(false);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     const t = setTimeout(() => {
       localStorage.setItem('tb-cloud-sync', String(cloudSync));
       syncSettings('privacy', { cloudSync });
@@ -247,8 +252,8 @@ function getStrength(pw) {
   return s;
 }
 
-const STRENGTH_LABELS = { 0: '', 25: 'Weak', 50: 'Fair', 75: 'Secure', 100: 'Hardened' };
-const STRENGTH_COLORS = { 25: '#ef4444', 50: '#f59e0b', 75: 'var(--accent-primary)', 100: '#10b981' };
+const STRENGTH_LABELS = { 0: 'Too Short', 25: 'Weak', 50: 'Fair', 75: 'Secure', 100: 'Hardened' };
+const STRENGTH_COLORS = { 0: '#ef4444', 25: '#ef4444', 50: '#f59e0b', 75: 'var(--accent-primary)', 100: '#10b981' };
 
 function PasswordStrengthBar({ password }) {
   const strength = getStrength(password);
@@ -555,13 +560,19 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
       {/* ── Management ──────────────────────────────────────────────────── */}
       <SectionTitle>Workspace Management</SectionTitle>
       <SettingsGroup>
-        <ContextButton icon={LogOut} onClick={() => { logout(); navigate('/'); }}>
+        <ContextButton icon={LogOut} onClick={() => { logout(); }}>
           End Current Session
         </ContextButton>
-        <ContextButton icon={Trash2} danger onClick={() => setModalType('delete')} borderBottom={false}>
-          Terminate Account Permanently
-        </ContextButton>
       </SettingsGroup>
+
+      <div style={{ marginTop: '32px' }}>
+        <SectionTitle style={{ color: '#ef4444', opacity: 1 }}>Danger Zone</SectionTitle>
+        <SettingsGroup>
+          <ContextButton icon={Trash2} danger onClick={() => setModalType('delete')} borderBottom={false}>
+            Terminate Account Permanently
+          </ContextButton>
+        </SettingsGroup>
+      </div>
 
     </motion.div>
   );

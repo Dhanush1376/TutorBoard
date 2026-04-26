@@ -14,10 +14,30 @@ process.stdout.setEncoding('utf8');
 import fs from 'fs';
 
 // BUG FIX #99: Global crash logging (Console only to prevent nodemon restart loop)
-process.on('uncaughtException', (err) => {
+// BUG FIX #99: Global crash logging (Console only to prevent nodemon restart loop)
+process.on('uncaughtException', async (err) => {
   const msg = `[CRITICAL] Uncaught Exception at ${new Date().toISOString()}:\n${err.stack}\n\n`;
   console.error(msg);
-  process.exit(1);
+  
+  // REL-05: Graceful shutdown for production reliability
+  if (typeof httpServer !== 'undefined' && httpServer.listening) {
+    console.log('[Graceful] Closing HTTP server...');
+    httpServer.close(() => {
+      console.log('[Graceful] HTTP server closed.');
+      mongoose.connection.close(false).then(() => {
+        console.log('[Graceful] Mongoose connection closed.');
+        process.exit(1);
+      });
+    });
+    
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => {
+      console.error('[Graceful] Shutdown timed out. Forcing exit.');
+      process.exit(1);
+    }, 10000);
+  } else {
+    process.exit(1);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -95,8 +115,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 // Check if an origin matches — supports wildcard Vercel preview subdomains
 function isOriginAllowed(origin, callback) {
-  // Block requests with no origin if they are not from browsers (optional, but safer for credentialed CORS)
-  if (!origin) return callback(null, false);
+  // Allow requests with no origin (like mobile apps, curl, or server-to-server calls)
+  if (!origin) return callback(null, true);
   
   const isAllowed = allowedOrigins.includes(origin) ||
     /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
@@ -140,9 +160,9 @@ const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb
 mongoose.set('bufferCommands', false);
 
 // Only enable query logging in development to prevent PII leaks in production
-const isDev = (process.env.NODE_ENV || 'development') === 'development';
-mongoose.set('debug', isDev);
-if (isDev) console.log('[DB] Mongoose Debug Mode: ENABLED');
+const isDevMode = process.env.NODE_ENV !== 'production';
+mongoose.set('debug', isDevMode);
+if (isDevMode) console.log('[DB] Mongoose Debug Mode: ENABLED');
 
 // ─── Environment Variable Validation ─────────────────────────────────────────
 // BUG FIX #47: Added JWT_EXPIRES_IN to required env vars for token expiry validation
@@ -244,8 +264,8 @@ app.get('/api/test', (_req, res) => {
 });
 
 // Feature routes (rate-limited)
-app.use('/', httpRateLimiter, generateRoutes);
-app.use('/', httpRateLimiter, doubtRoutes);
+app.use('/', httpRateLimiter, dbCheck, generateRoutes);
+app.use('/', httpRateLimiter, dbCheck, doubtRoutes);
 
 // Auth routes (rate-limited)
 app.use('/api/auth', httpRateLimiter, dbCheck, authRoutes);
@@ -253,7 +273,7 @@ app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
 app.use('/api/ai', httpRateLimiter, optionalProtect, strictGuestLimiter, dbCheck, aiRouter);
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
-app.use('/api', httpRateLimiter, uploadRoutes);
+app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

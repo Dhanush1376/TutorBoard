@@ -27,7 +27,8 @@ function App() {
     try {
       const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
       if (isGuest) return false;
-      return !sessionStorage.getItem('tb-welcome-played');
+      // UX-01: Use localStorage so the intro only plays once per browser session lifecycle
+      return !localStorage.getItem('tb-welcome-played-v1');
     } catch {
       return false;
     }
@@ -39,7 +40,7 @@ function App() {
       const timer = setTimeout(() => {
         setWelcomeLoading(false);
         try {
-          sessionStorage.setItem('tb-welcome-played', 'true');
+          localStorage.setItem('tb-welcome-played-v1', 'true');
         } catch {}
       }, 5000);
       return () => clearTimeout(timer);
@@ -122,6 +123,20 @@ function App() {
             className="fixed inset-0 z-[9999]"
           >
             <Loader fullScreen={true} glass={true} />
+            {connectionStatus === 'warming' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="fixed bottom-32 left-0 right-0 flex flex-col items-center gap-2 z-[10000]"
+              >
+                <p className="text-white/60 text-sm font-light tracking-wide animate-pulse">
+                  Warming up the engine...
+                </p>
+                <p className="text-white/30 text-[10px] uppercase tracking-[0.2em]">
+                  Render.com cold start in progress
+                </p>
+              </motion.div>
+            )}
             {showSkip && (
               <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[10000]">
                 <button 
@@ -144,6 +159,7 @@ function App() {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<AuthLanding />} />
+          <Route path="/login" element={<AuthLanding />} />
           <Route path="/auth" element={<Navigate to="/" replace />} />
           
           <Route element={<MarketingLayout />}>

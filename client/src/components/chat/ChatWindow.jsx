@@ -8,6 +8,7 @@ import VisaiLogo from '../layout/VisaiLogo';
 // ── New premium starting interface ──
 const ChatLanding = ({ setActiveMode, activeMode }) => {
   const { user } = useAuth();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   
   const greeting = React.useMemo(() => {
     const hour = new Date().getHours();
@@ -27,19 +28,19 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="flex-1 flex flex-col justify-start px-6 py-16 select-none overflow-y-auto no-scrollbar"
+      className={`flex-1 flex flex-col justify-start ${isMobile ? 'px-4 py-8' : 'px-6 py-16'} select-none overflow-y-auto no-scrollbar`}
     >
       {/* Personalized Greeting */}
       <motion.div
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="mb-8"
+        className={isMobile ? "mb-6" : "mb-8"}
       >
         <p className="!text-[11px] lg:!text-[12px] font-normal text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
           {greeting}
         </p>
-        <h1 className="!text-[22px] lg:!text-[30px] font-normal text-[var(--text-primary)] leading-[1.2] tracking-tight">
+        <h1 className={`${isMobile ? '!text-[24px]' : '!text-[22px] lg:!text-[30px]'} font-normal text-[var(--text-primary)] leading-[1.2] tracking-tight`}>
           Where should <br /> we start?
         </h1>
       </motion.div>
@@ -53,7 +54,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setActiveMode(activeMode === mode.id ? null : mode.id)}
-            className={`flex items-center gap-3 px-5 py-3.5 rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
+            className={`flex items-center ${isMobile ? 'gap-2.5 px-4 py-3' : 'gap-3 px-5 py-3.5'} rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
               activeMode === mode.id 
                 ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
                 : 'bg-[var(--bg-tertiary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/90'
@@ -62,9 +63,9 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             <div className={`flex items-center justify-center transition-transform group-hover:scale-110 ${
               activeMode === mode.id ? 'opacity-100' : 'opacity-80'
             }`}>
-              <mode.icon size={20} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
+              <mode.icon size={isMobile ? 18 : 20} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
             </div>
-            <span className="text-[16px] font-normal tracking-tight pr-1">
+            <span className={`${isMobile ? 'text-[14px]' : 'text-[16px]'} font-normal tracking-tight pr-1`}>
               {mode.label}
             </span>
           </motion.button>

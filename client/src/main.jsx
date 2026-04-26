@@ -30,7 +30,8 @@ class ErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
   componentDidCatch(error, errorInfo) { console.error('[Fatal] App Crash Caught:', error, errorInfo); }
   handleReset = () => {
-    localStorage.clear();
+    // BUG FIX: Only clear the workspace session, NOT the entire localStorage (which includes token/theme)
+    localStorage.removeItem('tutorboard-session');
     window.location.href = '/';
   };
   render() {

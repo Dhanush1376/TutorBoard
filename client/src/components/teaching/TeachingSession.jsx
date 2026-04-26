@@ -35,55 +35,10 @@ import ProgressArc from './ProgressArc';
 import SessionResumeOverlay from './SessionResumeOverlay';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
-
-// ─── All 24 domain styles ─────────────────────────────────────────────────────
-const DOMAIN_STYLES = {
-  dsa:                  { bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.3)',   text: '#10b981', label: 'DSA' },
-  mathematics:          { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#8b5cf6', label: 'Math' },
-  physics:              { bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.3)',   text: '#3b82f6', label: 'Physics' },
-  chemistry:            { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#ef4444', label: 'Chemistry' },
-  biology:              { bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#22c55e', label: 'Biology' },
-  medicine:             { bg: 'rgba(236,72,153,0.15)',  border: 'rgba(236,72,153,0.3)',  text: '#ec4899', label: 'Medicine' },
-  computer_science:     { bg: 'rgba(6,182,212,0.15)',   border: 'rgba(6,182,212,0.3)',   text: '#06b6d4', label: 'CS' },
-  engineering:          { bg: 'rgba(217,119,6,0.15)',   border: 'rgba(217,119,6,0.3)',   text: '#f59e0b', label: 'Engineering' },
-  business:             { bg: 'rgba(20,184,166,0.15)',  border: 'rgba(20,184,166,0.3)',  text: '#14b8a6', label: 'Business' },
-  law:                  { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)',  text: '#fbbf24', label: 'Law' },
-  history:              { bg: 'rgba(161,98,7,0.15)',    border: 'rgba(161,98,7,0.3)',    text: '#ca8a04', label: 'History' },
-  geography:            { bg: 'rgba(21,128,61,0.15)',   border: 'rgba(21,128,61,0.3)',   text: '#16a34a', label: 'Geography' },
-  psychology:           { bg: 'rgba(168,85,247,0.15)',  border: 'rgba(168,85,247,0.3)',  text: '#a855f7', label: 'Psychology' },
-  arts:                 { bg: 'rgba(244,63,94,0.15)',   border: 'rgba(244,63,94,0.3)',   text: '#f43f5e', label: 'Arts' },
-  economics:            { bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.3)',   text: '#4ade80', label: 'Economics' },
-  aviation_maritime:    { bg: 'rgba(56,189,248,0.15)',  border: 'rgba(56,189,248,0.3)',  text: '#38bdf8', label: 'Aviation' },
-  data_science:         { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#7c3aed', label: 'Data Science' },
-  cybersecurity:        { bg: 'rgba(30,41,59,0.25)',    border: 'rgba(71,85,105,0.3)',   text: '#94a3b8', label: 'Cybersecurity' },
-  linguistics:          { bg: 'rgba(147,51,234,0.15)',  border: 'rgba(147,51,234,0.3)',  text: '#9333ea', label: 'Linguistics' },
-  philosophy:           { bg: 'rgba(87,83,78,0.15)',    border: 'rgba(87,83,78,0.3)',    text: '#a8a29e', label: 'Philosophy' },
-  environmental_science:{ bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#16a34a', label: 'Environment' },
-  music:                { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#dc2626', label: 'Music' },
-  space_astronomy:      { bg: 'rgba(30,27,75,0.25)',    border: 'rgba(129,140,248,0.3)', text: '#818cf8', label: 'Astronomy' },
-  general:              { bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)', text: '#9ca3af', label: 'General' },
-};
-
-// Domain-aware doubt placeholders
-const DOUBT_PLACEHOLDERS = {
-  dsa:              'Trace through this step with me... (?)',
-  mathematics:      'Why does this equation work? (?)',
-  physics:          'I don\'t understand this force... (?)',
-  chemistry:        'How do these atoms bond here? (?)',
-  biology:          'Which organelle does this? (?)',
-  medicine:         'What would this mean clinically? (?)',
-  computer_science: 'What happens in memory here? (?)',
-  engineering:      'Where does this force go? (?)',
-  business:         'How does this apply to real cases? (?)',
-  law:              'What\'s the legal principle here? (?)',
-  history:          'Why did this happen at this moment? (?)',
-  psychology:       'Is this behavior always true? (?)',
-  economics:        'What causes this market shift? (?)',
-  general:          'Ask a doubt or give a command... (?)',
-};
+import { DOMAIN_STYLES, DOUBT_PLACEHOLDERS, PANEL_VISIBLE_STATES as PANEL_VISIBLE_STATES_ARR } from '../../lib/teaching';
 
 // States where StepPanel should be visible
-const PANEL_VISIBLE_STATES = new Set([STATES.TEACHING, STATES.RESPONDING, STATES.RESUMING]);
+const PANEL_VISIBLE_STATES = new Set(PANEL_VISIBLE_STATES_ARR);
 
 const TeachingSession = ({ initialTopic }) => {
   const machine = useTeachingMachine();
@@ -328,10 +283,11 @@ const TeachingSession = ({ initialTopic }) => {
 
               <div className="h-6 w-px bg-[var(--border-color)] mx-1" />
 
-              <div className="flex items-center gap-1">
+              {/* Header Controls */}
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   onClick={toggleDoubtThread}
-                  className={`w-11 h-11 flex items-center justify-center rounded-2xl border transition-all relative group ${
+                  className={`w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-2xl border transition-all relative group ${
                     showDoubtThread ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'
                   }`}
                 >
@@ -340,18 +296,18 @@ const TeachingSession = ({ initialTopic }) => {
 
                 <button
                   onClick={toggleVoice}
-                  className={`w-11 h-11 flex items-center justify-center rounded-2xl border transition-all ${
+                  className={`hidden sm:flex w-11 h-11 items-center justify-center rounded-2xl border transition-all ${
                     voiceEnabled ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'
                   }`}
                 >
                   {voiceEnabled ? <Volume2 size={18} strokeWidth={2.2} /> : <VolumeX size={18} strokeWidth={2.2} />}
                 </button>
 
-                <div className="h-6 w-px bg-[var(--border-color)] mx-1" />
+                <div className="h-6 w-px bg-[var(--border-color)] mx-0.5 sm:mx-1" />
 
                 <button
                   onClick={handleClose}
-                  className="w-11 h-11 flex items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all"
+                  className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all"
                 >
                   <X size={18} strokeWidth={2.5} />
                 </button>
@@ -369,7 +325,12 @@ const TeachingSession = ({ initialTopic }) => {
 
       <AnimatePresence>
         {isTeachingActive && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="hidden lg:block"
+          >
             <MasteryHUD />
             <ProgressArc />
           </motion.div>
@@ -384,37 +345,39 @@ const TeachingSession = ({ initialTopic }) => {
         {isTeachingActive && (
           <div className="absolute bottom-8 inset-x-0 z-[1000] flex flex-col items-center gap-6 pointer-events-none">
             {canvasObjects.length > 0 && (
-              <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
+              <div className="hidden sm:block">
+                <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
+              </div>
             )}
 
             <motion.footer
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 40, opacity: 0 }}
-              className="flex items-center gap-3 p-2 rounded-[32px] bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] shadow-[var(--glass-shadow)] pointer-events-auto"
+              className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-3xl sm:rounded-[32px] bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] shadow-[var(--glass-shadow)] pointer-events-auto max-w-[95vw]"
             >
-              <div className="flex items-center gap-1.5 px-1.5">
-                <button onClick={prevStep} disabled={currentStepIndex <= 0} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all disabled:opacity-20">
-                  <SkipBack size={18} strokeWidth={2.2} />
+              <div className="flex items-center gap-1 sm:gap-1.5 px-0.5 sm:px-1.5">
+                <button onClick={prevStep} disabled={currentStepIndex <= 0} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl sm:rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all disabled:opacity-20">
+                  <SkipBack size={16} sm:size={18} strokeWidth={2.2} />
                 </button>
 
                 <button
                   onClick={isPlaying ? pause : play}
-                  className="w-14 h-14 flex items-center justify-center rounded-2xl bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-xl transition-all"
+                  className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-xl sm:rounded-2xl bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-xl transition-all"
                 >
-                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                  {isPlaying ? <Pause size={20} sm:size={24} fill="currentColor" /> : <Play size={20} sm:size={24} fill="currentColor" className="ml-1" />}
                 </button>
 
-                <button onClick={nextStep} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all">
-                  <SkipForward size={18} strokeWidth={2.2} />
+                <button onClick={nextStep} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl sm:rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all">
+                  <SkipForward size={16} sm:size={18} strokeWidth={2.2} />
                 </button>
               </div>
 
-              <div className="h-8 w-px bg-[var(--border-color)]" />
+              <div className="hidden sm:block h-8 w-px bg-[var(--border-color)]" />
 
               {/* Doubt Input Command Bar */}
-              <div className="flex items-center gap-3 bg-[var(--bg-secondary)]/50 border border-[var(--border-color)] rounded-2xl px-4 py-1.5 min-w-[300px]">
-                <MessageCircleQuestion size={16} className="text-[var(--text-tertiary)]" />
+              <div className="flex items-center gap-2 sm:gap-3 bg-[var(--bg-secondary)]/50 border border-[var(--border-color)] rounded-xl sm:rounded-2xl px-3 sm:px-4 py-1 sm:py-1.5 min-w-0 sm:min-w-[300px] flex-1 sm:flex-initial">
+                <MessageCircleQuestion size={14} className="hidden xs:block text-[var(--text-tertiary)]" />
                 <input
                   type="text"
                   value={doubtInput}
@@ -422,24 +385,23 @@ const TeachingSession = ({ initialTopic }) => {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleDoubtSubmit();
                   }}
-                  placeholder="Ask a doubt..."
-                  className="flex-1 bg-transparent text-[var(--text-primary)] text-[13px] outline-none"
+                  placeholder="Doubt?"
+                  className="flex-1 bg-transparent text-[var(--text-primary)] text-[12px] sm:text-[13px] outline-none min-w-[60px]"
                 />
-                <button onClick={handleDoubtSubmit} className="w-8 h-8 flex items-center justify-center bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl">
-                  <ArrowUp size={16} strokeWidth={2.5} />
+                <button onClick={handleDoubtSubmit} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-lg sm:rounded-xl">
+                  <ArrowUp size={14} strokeWidth={2.5} />
                 </button>
               </div>
 
-              <div className="h-8 w-px bg-[var(--border-color)]" />
-
-              {/* Speed & Stats */}
-              <div className="flex items-center gap-2 pr-3">
+              {/* Speed & Stats - Hidden on very small screens */}
+              <div className="hidden sm:flex items-center gap-2 pr-1 sm:pr-3">
+                <div className="h-8 w-px bg-[var(--border-color)] mr-2" />
                 <div className="flex items-center bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-1">
                   {[1, 1.5, 2].map(spd => (
                     <button
                       key={spd}
                       onClick={() => handleSpeedChange(spd)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold ${playbackSpeed === spd ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'text-[var(--text-tertiary)]'}`}
+                      className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-bold ${playbackSpeed === spd ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'text-[var(--text-tertiary)]'}`}
                     >
                       {spd}×
                     </button>

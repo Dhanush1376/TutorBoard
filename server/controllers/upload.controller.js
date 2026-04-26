@@ -6,8 +6,14 @@ export const uploadFile = (req, res) => {
   }
 
   // Generate URL for the uploaded file
-  // In a real prod environment, this would be an S3/Cloudinary URL
-  const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+  // SEC-20: Use https in production to prevent mixed-content blocks
+  let baseUrl = process.env.SERVER_URL || process.env.BACKEND_URL;
+  
+  if (!baseUrl) {
+    const protocol = (req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' || process.env.NODE_ENV === 'production') ? 'https' : 'http';
+    baseUrl = `${protocol}://${req.get('host')}`;
+  }
+  
   const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
 
   res.status(200).json({

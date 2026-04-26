@@ -35,6 +35,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [attachedFile, setAttachedFile] = useState(null);
   const [isListening, setIsListening] = useState(false);
   const fileInputRef = useRef(null);
@@ -54,15 +55,20 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    if (!isLanding) { setCurrentPlaceholder("Message TutorBoard..."); return; }
+    // Stop animation if not in landing mode or if a session has started/is generating
+    if (!isLanding || isGenerating) { 
+      setCurrentPlaceholder("Message TutorBoard..."); 
+      return; 
+    }
     
     let timeout;
     const typingSpeed = isDeleting ? 30 : 60;
     const fullText = placeholders[placeholderIndex];
 
     const runAnimation = () => {
-      if (document.visibilityState === 'hidden') {
-        timeout = setTimeout(runAnimation, 1000); // Check again in 1s
+      // SEC-UX: Strictly check visibility and active state before scheduling next frame
+      if (document.visibilityState === 'hidden' || !isLanding || isGenerating) {
+        timeout = setTimeout(runAnimation, 1000);
         return;
       }
 
@@ -80,7 +86,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
     // Pause animation if tab is hidden to save battery
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && isLanding && !isGenerating) {
         clearTimeout(timeout);
         runAnimation();
       }
@@ -97,7 +103,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
       clearTimeout(timeout);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentPlaceholder, isDeleting, placeholderIndex, isLanding]);
+  }, [currentPlaceholder, isDeleting, placeholderIndex, isLanding, isGenerating]);
 
   // Cleanup recognition on unmount
   useEffect(() => {
@@ -191,6 +197,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   };
 
   const handleUploadAction = (type) => {
+    // BUG FIX #102: Disable uploads in production until S3/Cloudinary is integrated
+    // Render filesystem is ephemeral and wipes all uploads on restart.
+    if (import.meta.env.PROD) {
+      alert("File uploads are temporarily disabled in the production preview to prevent data loss. We are currently integrating persistent cloud storage (S3/Cloudinary).");
+      setIsPlusMenuOpen(false);
+      return;
+    }
+
     if (fileInputRef.current) {
       // Accept specific types based on 'type' parameter
       fileInputRef.current.accept = type === 'photo' ? 'image/*' : '*/*';
@@ -204,29 +218,49 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     if (!file) return;
 
     setIsUploading(true);
+    setUploadProgress(0);
     const formData = new FormData();
     formData.append('file', file);
 
-    try {
-      const resp = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await resp.json();
-      if (data.url) {
-        setAttachedFile({
-          url: data.url,
-          name: file.name,
-          type: file.type,
-          size: data.size
-        });
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_URL}/api/upload`, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('tb-token')}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percentComplete = (e.loaded / e.total) * 100;
+        setUploadProgress(percentComplete);
       }
-    } catch (err) {
-      console.error('Upload failed:', err);
-    } finally {
+    };
+
+    xhr.onload = () => {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+      setUploadProgress(0);
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        if (data.url) {
+          setAttachedFile({
+            url: data.url,
+            name: file.name,
+            type: file.type,
+            size: data.size
+          });
+        }
+      } else {
+        const errorData = JSON.parse(xhr.responseText || '{}');
+        const { showToast } = useTutorStore.getState();
+        showToast({ message: errorData.error || 'Upload failed', type: 'error' });
+      }
+    };
+
+    xhr.onerror = () => {
+      setIsUploading(false);
+      setUploadProgress(0);
+      const { showToast } = useTutorStore.getState();
+      showToast({ message: 'Network error during upload', type: 'error' });
+    };
+
+    xhr.send(formData);
   };
 
   const getPlaceholder = () => {
@@ -235,9 +269,24 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     return 'Chat with TutorBoard...';
   };
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
     <div className="w-full">
-      <div className={`flex flex-col bg-[var(--bg-secondary)] rounded-t-[28px] pt-2 px-3 pb-4 shadow-sm relative transition-all duration-300 group`}>
+      <div className={`flex flex-col bg-[var(--bg-secondary)] ${isMobile ? 'rounded-t-2xl' : 'rounded-t-[28px]'} pt-1.5 px-2 pb-3 shadow-sm relative transition-all duration-300 group`}>
+        
+        {/* Upload Progress Bar */}
+        <AnimatePresence>
+          {isUploading && (
+            <motion.div
+              initial={{ scaleX: 0, opacity: 0 }}
+              animate={{ scaleX: uploadProgress / 100, opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#10b981] origin-left z-50 rounded-t-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+              transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+            />
+          )}
+        </AnimatePresence>
 
         {/* ── Textarea Area (Top Box) ── */}
         <div className="bg-transparent transition-all flex flex-col">
@@ -249,10 +298,10 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="flex items-center gap-2 pl-3 pt-3 flex-wrap"
+                className="flex items-center gap-1.5 pl-2 pt-2 flex-wrap"
               >
                 {activeMode && (
-                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl shadow-sm">
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg shadow-sm">
                     {(() => {
                       const action = quickActions.find(a => a.mode === activeMode);
                       if (!action) return null;
@@ -260,45 +309,45 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                       return (
                         <>
                           <div className="p-1 bg-[var(--text-primary)]/10 rounded-md text-[var(--text-primary)]">
-                            <Icon size={12} strokeWidth={3} />
+                            <Icon size={10} strokeWidth={3} />
                           </div>
-                          <span className="text-[11px] font-normal tracking-tight">{action.label}</span>
+                          <span className="text-[10px] font-normal tracking-tight">{action.label}</span>
                         </>
                       );
                     })()}
                     <button
                       onClick={() => setActiveMode(null)}
-                      className="ml-1 p-1 hover:bg-[var(--bg-quaternary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-full transition-colors"
+                      className="ml-0.5 p-0.5 hover:bg-[var(--bg-quaternary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-full transition-colors"
                     >
-                      <X size={12} strokeWidth={3} />
+                      <X size={10} strokeWidth={3} />
                     </button>
                   </div>
                 )}
 
                 {isUploading && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)] rounded-xl">
-                    <Loader2 size={12} className="animate-spin" />
-                    <span className="text-[10px] uppercase tracking-widest">Uploading...</span>
+                  <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)] rounded-lg">
+                    <Loader2 size={10} className="animate-spin" />
+                    <span className="text-[9px] uppercase tracking-widest">Uploading</span>
                   </div>
                 )}
 
                 {attachedFile && (
-                  <div className="flex items-center gap-2.5 px-2.5 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl shadow-sm group/file">
+                  <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg shadow-sm">
                     {attachedFile.type.startsWith('image/') ? (
-                      <div className="w-6 h-6 rounded-md overflow-hidden border border-[var(--border-color)]">
+                      <div className="w-5 h-5 rounded-sm overflow-hidden border border-[var(--border-color)]">
                         <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="p-1 bg-blue-500/10 rounded-md text-blue-500">
-                        <FileText size={12} strokeWidth={3} />
+                        <FileText size={10} strokeWidth={3} />
                       </div>
                     )}
-                    <span className="text-[11px] font-normal tracking-tight max-w-[120px] truncate">{attachedFile.name}</span>
+                    <span className="text-[10px] font-normal tracking-tight max-w-[80px] truncate">{attachedFile.name}</span>
                     <button
                       onClick={() => setAttachedFile(null)}
-                      className="ml-1 p-1 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-full transition-colors"
+                      className="ml-0.5 p-0.5 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-full transition-colors"
                     >
-                      <X size={12} strokeWidth={3} />
+                      <X size={10} strokeWidth={3} />
                     </button>
                   </div>
                 )}
@@ -313,14 +362,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
             maxLength={5000}
-            className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] resize-none px-2 pt-4 pb-2 outline-none text-[15px] transition-colors duration-250 font-normal leading-relaxed"
+            className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] resize-none px-2 ${isMobile ? 'pt-2 pb-1' : 'pt-4 pb-2'} outline-none text-[15px] transition-colors duration-250 font-normal leading-relaxed`}
             rows={1}
-            style={{ minHeight: '52px' }}
+            style={{ minHeight: isMobile ? '40px' : '52px' }}
           />
         </div>
 
         {/* ── Action Bar (Bottom Row) ── */}
-        <div className="flex items-center justify-between px-2 pt-1 pb-1">
+        <div className="flex items-center justify-between px-1.5 pt-0.5 pb-0.5">
           
           <div className="flex items-center gap-1">
             {/* 1. Plus Menu (Uploads) */}
@@ -337,9 +386,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className="absolute bottom-full left-0 mb-3 w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100]"
+                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-40' : 'w-48'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] shadow-xl`}
                   >
-                    <div className="p-2 flex flex-col gap-0.5">
+                    <div className="p-1.5 flex flex-col gap-0.5">
                       {uploadActions.map((action) => (
                         <button
                           key={action.label}
@@ -370,9 +419,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className="absolute bottom-full left-0 mb-3 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100]"
+                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-52' : 'w-56'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] shadow-xl`}
                   >
-                    <div className="p-2 flex flex-col gap-0.5">
+                    <div className="p-1.5 flex flex-col gap-0.5">
                       {quickActions.map((action) => (
                         <button
                           key={action.label}
@@ -401,18 +450,20 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             <div className="relative">
               <button
                 onClick={() => setIsAgentMenuOpen(!isAgentMenuOpen)}
-                className={`p-1.5 rounded-full transition-all hover:bg-[var(--bg-tertiary)] ${isAgentMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-tertiary)]'}`}
+                className={`p-1 rounded-full transition-all hover:bg-[var(--bg-tertiary)] ${isAgentMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-tertiary)]'}`}
                 title="Change AI Agent"
               >
                 {(() => {
                   const agent = agents.find(a => a.id === selectedAgent) || agents[0];
                   const Icon = agent.icon;
                   return (
-                    <div className="flex items-center gap-1.5 px-0.5">
-                      <Icon size={15} strokeWidth={2.5} />
-                      <span className="text-[11px] text-[var(--text-tertiary)] font-normal whitespace-nowrap overflow-hidden max-w-[80px] truncate">
-                        {agent.name}
-                      </span>
+                    <div className="flex items-center gap-1.5 px-1">
+                      <Icon size={16} strokeWidth={2.5} />
+                      {!isMobile && (
+                        <span className="text-[11px] text-[var(--text-tertiary)] font-normal whitespace-nowrap overflow-hidden max-w-[80px] truncate">
+                          {agent.name}
+                        </span>
+                      )}
                     </div>
                   );
                 })()}
@@ -423,9 +474,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className="absolute bottom-full left-0 mb-3 w-48 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] p-1.5 flex flex-col gap-0.5 shadow-xl"
+                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-44' : 'w-48'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] p-1.5 flex flex-col gap-0.5 shadow-xl`}
                   >
-                  <div className="p-1.5 flex flex-col gap-0.5">
                     {agents.map((agent, idx) => {
                       const Icon = agent.icon;
                       const isActive = isAgentActive(agent.id);
@@ -436,22 +486,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           {isFirstCustom && (
                             <div className="pt-2 pb-1 flex items-center gap-2 pr-2">
                               <span className="pl-3 text-[9px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold opacity-70 whitespace-nowrap">
-                                Custom API's
+                                APIs
                               </span>
                               <div className="flex-1 h-[1px] bg-[var(--border-color)] opacity-40" />
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const { setOverlay, setSettingsActiveSection } = useTutorStore.getState();
-                                  setSettingsActiveSection('ai');
-                                  setOverlay('settings');
-                                  setIsAgentMenuOpen(false);
-                                }}
-                                className="p-1 hover:bg-[var(--bg-tertiary)] rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group/add"
-                                title="Manage & Add APIs"
-                              >
-                                <Plus size={10} strokeWidth={3} className="opacity-60 group-hover/add:opacity-100" />
-                              </button>
                             </div>
                           )}
                           <button
@@ -467,7 +504,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           >
                             <div className="flex items-center gap-2.5">
                               <Icon size={15} />
-                              <span className="truncate max-w-[120px]">{agent.name}</span>
+                              <span className="truncate max-w-[110px]">{agent.name}</span>
                             </div>
                             
                             {isActive && (
@@ -484,7 +521,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                         </React.Fragment>
                       );
                     })}
-                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -493,7 +529,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
           <div className="flex-1" />
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {/* Voice */}
             {isSpeechSupported && (
               <div className="relative flex items-center justify-center">

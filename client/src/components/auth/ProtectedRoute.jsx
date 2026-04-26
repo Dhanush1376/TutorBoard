@@ -4,9 +4,9 @@ import { useAuth } from '../../context/AuthContext';
 import Loader from '../layout/Loader';
 
 const ProtectedRoute = ({ children, guestAllowed = true }) => {
-  const { isAuthenticated, loading, user } = useAuth();
+  const { isAuthenticated, loading, isAuthResolved, user } = useAuth();
 
-  if (loading) {
+  if (loading || !isAuthResolved) {
     return (
       <div className="h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] flex items-center justify-center overflow-hidden font-sans transition-colors duration-250">
         <Loader autoFade={false} />
@@ -15,7 +15,7 @@ const ProtectedRoute = ({ children, guestAllowed = true }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
 
   // Handle guest restriction for sensitive routes (e.g. settings)

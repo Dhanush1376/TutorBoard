@@ -65,6 +65,10 @@ const useTutorStore = create(
         textToolSize: state.textToolSize,
         noteToolSize: state.noteToolSize,
         alertPrefs: state.alertPrefs,
+        globalFont: state.globalFont,
+        glassIntensity: state.glassIntensity,
+        canvasTone: state.canvasTone,
+        motionMode: state.motionMode,
         sessionManifest: typeof state.sessionManifest === 'object' && state.sessionManifest !== null
           ? Object.fromEntries(
               Object.entries(state.sessionManifest)
@@ -72,8 +76,6 @@ const useTutorStore = create(
                 .slice(0, 10)
             )
           : state.sessionManifest,
-        chatSessionId: state.chatSessionId,
-        sessionId: state.sessionId,
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
       }),

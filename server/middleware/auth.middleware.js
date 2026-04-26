@@ -62,6 +62,7 @@ export const protect = async (req, res, next) => {
     // Attach actual user from DB (not mocked)
     req.user = user;
     req.tokenJti = decoded.jti; // Store JTI for potential revocation
+    req.tokenExp = decoded.exp; // Store expiration for TTL management
     next();
   } catch (err) {
     console.error('Auth middleware error:', err.message);
@@ -96,6 +97,7 @@ export const optionalProtect = async (req, res, next) => {
 
     req.user = user;
     req.tokenJti = decoded.jti;
+    req.tokenExp = decoded.exp;
     next();
   } catch (err) {
     next(); // Invalid token, still continue as guest

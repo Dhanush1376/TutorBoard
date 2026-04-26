@@ -8,7 +8,7 @@
     "install-all": "npm install && npm install --prefix client && npm install --prefix server",
     "build": "npm run build --prefix client",
     "start": "npm start --prefix server",
-    "dev": "npm run dev --prefix client & npm run dev --prefix server"
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\""
   },
   "repository": {
     "type": "git",
@@ -26,5 +26,8 @@
     "fs": "^0.0.1-security",
     "openai": "^6.34.0",
     "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, PanelRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -11,11 +11,17 @@ const PANEL_RADIUS = 28;
 const PANEL_GAP = 0;
 
 const sidebarStyle = {
-  background: 'transparent',
+  background: 'var(--bg-primary)',
+  borderRight: '1px solid var(--border-color)',
+  backdropFilter: 'blur(40px)',
+  WebkitBackdropFilter: 'blur(40px)',
 };
 
 const sidebarStyleRight = {
-  background: 'transparent',
+  background: 'var(--bg-primary)',
+  borderLeft: '1px solid var(--border-color)',
+  backdropFilter: 'blur(40px)',
+  WebkitBackdropFilter: 'blur(40px)',
 };
 
 const miniGlass = {
@@ -32,13 +38,15 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   const isRightHand = layoutView === 'right';
   const { user } = useAuth();
 
+  // Responsive logic
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const currentSidebarWidth = isMobile ? '100%' : SIDEBAR_WIDTH;
   const sidebarVisible = isSidebarOpen && !forceCollapse;
 
   return (
     <div
-      className="fixed inset-0 w-screen h-screen overflow-hidden m-0 p-0"
+      className="fixed inset-0 w-screen h-screen overflow-hidden m-0 p-0 flex"
       style={{
-        display: 'flex',
         flexDirection: isRightHand ? 'row-reverse' : 'row',
         background: 'var(--bg-primary)',
       }}
@@ -48,17 +56,29 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         {sidebarVisible && (
           <motion.aside
             key="sidebar"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: SIDEBAR_WIDTH, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="tb-sidebar flex-shrink-0 flex flex-col overflow-hidden h-full"
+            initial={{ 
+              x: isRightHand ? '100%' : '-100%', 
+              opacity: 0.5,
+              width: isMobile ? '100%' : 0
+            }}
+            animate={{ 
+              x: 0, 
+              opacity: 1,
+              width: currentSidebarWidth
+            }}
+            exit={{ 
+              x: isRightHand ? '100%' : '-100%', 
+              opacity: 0,
+              width: isMobile ? '100%' : 0
+            }}
+            transition={{ type: 'spring', damping: 30, stiffness: 350, mass: 0.8 }}
+            className="tb-sidebar flex-shrink-0 flex flex-col overflow-hidden h-full z-[5000] md:z-auto fixed md:relative"
             style={{
               ...(isRightHand ? sidebarStyleRight : sidebarStyle),
-              minWidth: 0,
+              boxShadow: isMobile ? '0 0 40px rgba(0,0,0,0.2)' : 'none',
             }}
           >
-            <div style={{ width: SIDEBAR_WIDTH, minWidth: SIDEBAR_WIDTH, height: '100%' }}>
+            <div className="w-full h-full">
               {sidebar}
             </div>
           </motion.aside>
@@ -67,11 +87,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
       {/* ── MAIN CONTENT AREA ── */}
       <main
-        className="relative flex-1 min-w-0 h-full transition-all duration-500"
+        className="relative flex-1 min-w-0 h-full overflow-hidden"
         style={{
           padding: 0,
-          paddingLeft: !isRightHand && sidebarVisible ? PANEL_GAP : 0,
-          paddingRight: isRightHand && sidebarVisible ? PANEL_GAP : 0,
           background: 'var(--bg-primary)',
         }}
       >
@@ -80,18 +98,15 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
           style={{
             margin: 0,
-            marginLeft: !isRightHand && sidebarVisible ? PANEL_GAP : 0,
-            marginRight: isRightHand && sidebarVisible ? PANEL_GAP : 0,
             borderRadius: 0,
-            borderTopLeftRadius: !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomLeftRadius: !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderTopRightRadius: isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomRightRadius: isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderTopLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderBottomLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderTopRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderBottomRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
             background: 'var(--glass-bg)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
-            border: 'none',
-            boxShadow: `
+            boxShadow: isMobile ? 'none' : `
               ${isRightHand ? 10 : -10}px 40px 120px -20px rgba(0, 0, 0, 0.18),
               ${isRightHand ? 5 : -5}px 20px 60px -15px rgba(0, 0, 0, 0.12),
               inset 0 1px 1px rgba(255, 255, 255, 0.8),
@@ -105,10 +120,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           className="relative w-full h-full z-10"
           style={{
             borderRadius: 0,
-            borderTopLeftRadius: !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomLeftRadius: !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderTopRightRadius: isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomRightRadius: isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderTopLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderBottomLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderTopRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
+            borderBottomRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
             overflow: 'hidden'
           }}
         >
@@ -117,14 +132,13 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
         {/* ── OVERLAYS (Pills, Toolbar, etc.) ── */}
 
-        {/* Floating Top-Left Pill */}
+        {/* Floating Top Pill (Workspace Toggle) */}
         <AnimatePresence>
           {!isSidebarOpen && !forceCollapse && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, x: isRightHand ? 20 : -20 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.9, x: isRightHand ? 20 : -20 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, scale: 0.9, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -10 }}
               className={`absolute top-5 ${isRightHand ? 'right-5' : 'left-5'} z-50 flex items-center`}
               style={{
                 background: 'var(--glass-bg)',
@@ -134,42 +148,48 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
                 boxShadow: 'var(--glass-shadow)',
                 borderRadius: 'var(--radius-2xl)',
                 padding: '6px 10px',
-                gap: '8px'
               }}
             >
               <button
                 onClick={toggleSidebar}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:bg-[var(--bg-tertiary)]/40"
               >
-                <PanelLeft size={15} strokeWidth={1.8} style={{ opacity: 0.7 }} />
-                <span className="text-[10px] uppercase tracking-widest opacity-60">Workspace</span>
+                {isSidebarOpen ? <PanelRight size={15} strokeWidth={2} /> : <PanelLeft size={15} strokeWidth={2} />}
+                <span className="text-[10px] uppercase tracking-widest font-semibold opacity-70">
+                  {isSidebarOpen ? 'Close' : 'Workspace'}
+                </span>
               </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Floating Top-Right Toolbar */}
+        {/* Responsive Toolbar Positioning */}
         {!forceCollapse && (
           <div
-            className={`absolute top-5 ${isRightHand ? 'left-5' : 'right-5'} z-50 flex items-center gap-2 transition-opacity duration-300 ${isSidebarOpen ? 'max-md:opacity-0 pointer-events-none' : 'opacity-100'
-              }`}
+            className={`absolute z-50 flex items-center transition-all duration-500 ${
+              isMobile 
+                ? 'bottom-6 left-1/2 -translate-x-1/2 w-fit max-w-[95vw]' 
+                : `top-5 ${isRightHand ? 'left-5' : 'right-5'}`
+            } ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100'}`}
           >
-            <Toolbar
-              onShare={() => { }}
-              onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
-            />
+            <div className={`${isMobile ? 'overflow-x-auto no-scrollbar py-2 px-1' : ''}`}>
+              <Toolbar
+                onShare={() => { }}
+                onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
+              />
+            </div>
           </div>
         )}
       </main>
 
       {/* MOBILE BACKDROP */}
       <AnimatePresence>
-        {sidebarVisible && (
+        {sidebarVisible && isMobile && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[4999] bg-black/20 md:hidden"
+            className="fixed inset-0 z-[4999] bg-black/40 backdrop-blur-sm md:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}

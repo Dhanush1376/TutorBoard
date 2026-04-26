@@ -69,7 +69,7 @@ const ActionButtonBase = ({
   return (
     <div
       className="relative flex-shrink-0"
-      style={{ width: 'var(--tool-size)', height: 'var(--tool-size)' }}
+      style={{ width: '40px', height: '40px' }}
       onMouseEnter={() => {
         if (!disabled) {
           setIsHovered(true);
@@ -84,32 +84,29 @@ const ActionButtonBase = ({
     >
       <motion.button
         whileHover={!disabled ? { y: -1 } : {}}
-        whileTap={!disabled ? { scale: 0.93 } : {}}
+        whileTap={!disabled ? { scale: 0.92 } : {}}
         onClick={handleClick}
         disabled={disabled}
         aria-label={label}
         title=""
-        className="relative w-full h-full flex items-center justify-center rounded-[9px] outline-none focus-visible:ring-2 transition-colors duration-150"
+        className="relative w-full h-full flex items-center justify-center rounded-2xl outline-none transition-all duration-200"
         style={{
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.35 : 1,
-          background: showSuccess ? 'rgba(34,197,94,0.12)' : (showMenu ? 'rgba(255,255,255,0.06)' : 'transparent'),
-          focusVisibleRingColor: isDestructive ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)',
+          background: showSuccess ? 'rgba(34,197,94,0.12)' : 'transparent',
         }}
       >
-
-
         {/* Shared Liquid Hover Pill */}
         {(isHovered || isHoveredExternally) && !disabled && !showSuccess && !showMenu && (
           <motion.div
             layoutId="liquid-hover-pill"
-            className="absolute inset-0.5 rounded-full z-0"
+            className="absolute inset-[1.5px] rounded-[14px] z-0"
             style={{
-              background: isDestructive ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-tertiary)',
+              background: isDestructive ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-tertiary)cc',
               border: isDestructive ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--border-color)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06), inset 0 0 8px rgba(255,255,255,0.03)',
             }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
           />
         )}
 
@@ -118,11 +115,11 @@ const ActionButtonBase = ({
           <motion.div
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="absolute inset-0 rounded-[9px] z-0"
+            className="absolute inset-0 rounded-2xl z-0"
             style={{
               boxShadow: showSuccess
                 ? 'inset 0 0 0 1px rgba(34,197,94,0.35)'
-                : 'inset 0 0 0 1px rgba(255,255,255,0.1)',
+                : 'inset 0 0 0 1.2px var(--text-primary)',
               background: showSuccess ? 'rgba(34,197,94,0.1)' : 'transparent',
             }}
           />
@@ -150,15 +147,15 @@ const ActionButtonBase = ({
                 className="flex items-center justify-center"
               >
                 <Icon
-                  size={16}
-                  strokeWidth={1.9}
+                  size={17}
+                  strokeWidth={2}
                   style={{
                     color: isDestructive
                       ? (isHovered || isHoveredExternally) ? 'rgb(239,68,68)' : 'var(--text-tertiary)'
                       : (isHovered || isHoveredExternally || showMenu)
                         ? 'var(--text-primary)'
                         : 'var(--text-tertiary)',
-                    transition: 'color 0.15s ease',
+                    transition: 'color 0.2s ease',
                   }}
                 />
               </motion.div>
@@ -194,18 +191,7 @@ const ActionButtonBase = ({
               {/* Interaction Bridge: Prevents closure in the gap */}
               <div className="absolute inset-x-0 -top-3 h-3 pointer-events-auto" />
 
-              {/* Submenu Caret - Tracks the button center even if menu slides */}
-              <div
-                className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
-                style={{
-                  background: 'var(--bg-primary)',
-                  borderLeft: '1px solid var(--border-color)',
-                  borderTop: '1px solid var(--border-color)',
-                  zIndex: -1,
-                  transformOrigin: 'center center',
-                  transform: `translateX(${-menuOffset}px) rotate(45deg)`
-                }}
-              />
+              {/* Submenu Caret removed for cleaner look */}
 
               <div className="rounded-2xl overflow-hidden">
                 {React.isValidElement(customSubmenu)
@@ -235,44 +221,36 @@ const ActionButtonBase = ({
             className={`absolute top-full mt-2.5 z-[9999] pointer-events-none ${isLeftHand ? 'left-0' : 'right-0'}`}
           >
             <div
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg whitespace-nowrap"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl whitespace-nowrap"
               style={{
                 background: isDestructive
-                  ? 'rgba(220,38,38,0.92)'
+                  ? 'rgba(220,38,38,0.95)'
                   : showSuccess
-                    ? 'rgba(22,163,74,0.92)'
-                    : 'var(--bg-primary)',
+                    ? 'rgba(22,163,74,0.95)'
+                    : 'rgba(var(--bg-primary-rgb), 0.85)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
                 border: `1px solid ${isDestructive
                   ? 'rgba(239,68,68,0.25)'
                   : showSuccess
                     ? 'rgba(34,197,94,0.25)'
                     : 'var(--border-color)'
                   }`,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.10)',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.3)',
+                fontFamily: 'var(--global-font)'
               }}
             >
               <span
-                className="text-[11px] font-normal tracking-wide"
+                className="text-[11px] font-semibold tracking-tight"
                 style={{
                   color: isDestructive || showSuccess ? '#fff' : 'var(--text-primary)',
-                  letterSpacing: '0.04em',
+                  letterSpacing: '0.02em',
                 }}
               >
                 {showSuccess ? successLabel : label}
               </span>
             </div>
-            <div
-              className={`absolute -top-1 w-2 h-2 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
-              style={{
-                background: isDestructive
-                  ? 'rgba(220,38,38,0.92)'
-                  : showSuccess
-                    ? 'rgba(22,163,74,0.92)'
-                    : 'var(--bg-primary)',
-                borderLeft: `1px solid ${isDestructive ? 'rgba(239,68,68,0.25)' : showSuccess ? 'rgba(34,197,94,0.25)' : 'var(--border-color)'}`,
-                borderTop: `1px solid ${isDestructive ? 'rgba(239,68,68,0.25)' : showSuccess ? 'rgba(34,197,94,0.25)' : 'var(--border-color)'}`,
-              }}
-            />
+            {/* Tooltip caret removed for cleaner look */}
           </motion.div>
         )}
       </AnimatePresence>

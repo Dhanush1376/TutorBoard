@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import ChatSession from '../models/ChatSession.js';
 import { validateAvatarUrl } from '../utils/validation/securityValidators.js';
+import tokenStore from '../utils/auth/tokenStore.js';
 
 // Update User Settings (merges with existing)
 export const updateSettings = async (req, res) => {
@@ -66,6 +67,12 @@ export const updatePassword = async (req, res) => {
     user.password = newPassword;
     await user.save(); // pre-save hook handles hashing
 
+    // SEC-16: Revoke current session on password change for security
+    if (req.tokenJti) {
+      await tokenStore.revokeToken(req.tokenJti, req.tokenExp);
+      console.log(`[Auth] Session ${req.tokenJti} revoked due to password change`);
+    }
+
     res.status(200).json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     console.error('Update password error:', error);
@@ -77,20 +84,40 @@ export const updatePassword = async (req, res) => {
 export const exportData = async (req, res) => {
   try {
     const sessions = await ChatSession.find({ userId: req.user.id });
-    
+
     // We could format this, but sending raw JSON is generally what's expected for export plugins
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename=tutorboard-export.json');
-    
+
+    // SEC-GDPR: Sanitize sessions to be human-readable and stripped of internal DB fields
+    const sanitizedSessions = sessions.map(session => ({
+      title: session.title || 'Untitled Session',
+      startTime: session.createdAt,
+      lastActive: session.updatedAt || session.lastUpdated,
+      messageCount: session.messages?.length || 0,
+      messages: (session.messages || []).map(m => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+        hasVisuals: !!m.hasCanvas
+      })),
+      canvasNodeCount: session.canvasState?.length || 0,
+      // We include canvas state but strip internal Mongoose/MongoDB keys if they leaked into the array
+      canvasState: (session.canvasState || []).map(obj => {
+        const { _id, __v, ...rest } = obj.toObject ? obj.toObject() : obj;
+        return rest;
+      })
+    }));
+
     res.status(200).json({
+      version: '1.0.0',
       exportDate: new Date().toISOString(),
       user: {
-        id: req.user.id,
         name: req.user.name,
         email: req.user.email,
         settings: req.user.settings
       },
-      sessions
+      sessions: sanitizedSessions
     });
   } catch (error) {
     console.error('Export data error:', error);
@@ -116,7 +143,12 @@ export const deleteAccount = async (req, res) => {
     // 1. Delete all sessions
     await ChatSession.deleteMany({ userId: req.user.id });
     
-    // 2. Delete user
+    // 2. Revoke current token
+    if (req.tokenJti) {
+      await tokenStore.revokeToken(req.tokenJti, req.tokenExp);
+    }
+
+    // 3. Delete user
     await User.findByIdAndDelete(req.user.id);
     
     res.status(200).json({ success: true, message: 'Account deleted successfully' });

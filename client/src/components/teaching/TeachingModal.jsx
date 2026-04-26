@@ -4,17 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import StepController from './StepController';
 import ProgressIndicator from './ProgressIndicator';
 import InlineChat from '../chat/InlineChat';
-
-// Domain badge styling
-const DOMAIN_STYLES = {
-  dsa: { bg: 'rgba(5, 150, 105, 0.15)', border: 'rgba(5, 150, 105, 0.3)', text: '#059669', label: 'DSA' },
-  mathematics: { bg: 'rgba(124, 58, 237, 0.15)', border: 'rgba(124, 58, 237, 0.3)', text: '#7c3aed', label: 'Math' },
-  physics: { bg: 'rgba(37, 99, 235, 0.15)', border: 'rgba(37, 99, 235, 0.3)', text: '#2563eb', label: 'Physics' },
-  chemistry: { bg: 'rgba(220, 38, 38, 0.15)', border: 'rgba(220, 38, 38, 0.3)', text: '#dc2626', label: 'Chemistry' },
-  biology: { bg: 'rgba(22, 163, 74, 0.15)', border: 'rgba(22, 163, 74, 0.3)', text: '#16a34a', label: 'Biology' },
-  mechanical: { bg: 'rgba(217, 119, 6, 0.15)', border: 'rgba(217, 119, 6, 0.3)', text: '#d97706', label: 'Mechanical' },
-  general: { bg: 'rgba(107, 114, 128, 0.15)', border: 'rgba(107, 114, 128, 0.3)', text: '#6b7280', label: 'General' },
-};
+import { DOMAIN_STYLES } from '../../lib/teaching';
 
 const TeachingModal = ({ isOpen, onClose, title, steps, domain, visualizationType, elements, motion: motionData, connections, sequence, objects }) => {
   const [currentStep, setCurrentStep] = useState(0);

@@ -8,9 +8,9 @@
 @theme {
 
   /* Typography */
-  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-serif: "DM Serif Display", Georgia, serif;
-  --font-mono: "Geist Mono", "Fira Code", monospace;
+  --font-mono: "Inter", monospace;
 
   /* Spacing scale */
   --space-px: 1px;
@@ -387,7 +387,7 @@ button {
   cursor: pointer;
   border: none;
   background: none;
-  font: inherit;
+  font-family: "Inter", var(--font-sans), sans-serif;
   color: inherit;
 }
 
@@ -399,7 +399,7 @@ select {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 8px 32px 8px 12px;
-  font-family: inherit;
+  font-family: "Inter", sans-serif;
   font-size: 0.875rem;
   color: var(--text-primary);
   cursor: pointer;

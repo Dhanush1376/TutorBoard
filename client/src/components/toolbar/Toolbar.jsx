@@ -28,14 +28,16 @@ import DeleteAction from './actions/DeleteAction';
 
 const ToolbarDivider = () => (
   <div 
-    className="w-[1px] h-[18px] opacity-20" 
+    className="w-[1px] h-[16px] opacity-10 mx-0.5" 
     style={{ background: 'var(--text-tertiary)' }} 
   />
 );
 
 const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) => {
   const [offset, setOffset] = useState(0);
+  const [hoveredId, setHoveredId] = useState(null);
   const dropdownRef = useRef(null);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   useEffect(() => {
     if (dropdownRef.current) {
@@ -51,10 +53,10 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
   return (
     <motion.div
       ref={dropdownRef}
-      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+      initial={{ opacity: 0, y: isMobile ? 10 : -10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1, x: offset }}
-      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-      className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
+      exit={{ opacity: 0, y: isMobile ? 10 : -10, scale: 0.95 }}
+      className={`absolute ${isMobile ? 'bottom-full mb-4' : 'top-full mt-4'} z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
     >
       <div 
         className="p-1.5 rounded-2xl relative shadow-2xl"
@@ -65,11 +67,13 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
         }}
       >
         <div
-          className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+          className={`absolute ${isMobile ? '-bottom-1.5' : '-top-1.5'} w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
           style={{
             background: 'var(--bg-primary)',
-            borderLeft: '1px solid var(--border-color)',
-            borderTop: '1px solid var(--border-color)',
+            borderLeft: isMobile ? 'none' : '1px solid var(--border-color)',
+            borderTop: isMobile ? 'none' : '1px solid var(--border-color)',
+            borderRight: isMobile ? '1px solid var(--border-color)' : 'none',
+            borderBottom: isMobile ? '1px solid var(--border-color)' : 'none',
             zIndex: -1,
             transform: `translateX(${-offset}px) rotate(45deg)` // Counter-shift the caret
           }}
@@ -85,15 +89,28 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
             { label: 'Settings', icon: Settings, onClick: onSettingsClick },
             { label: 'Log Out', icon: LogOut, destructive: true, onClick: handleLogout },
           ].map((item, i) => (
-            <button
-              key={i}
-              onClick={item.onClick}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[11px] font-normal transition-colors hover:bg-[var(--bg-secondary)]"
-              style={{ color: item.destructive ? 'rgb(239,68,68)' : 'var(--text-secondary)' }}
-            >
-              <item.icon size={14} />
-              {item.label}
-            </button>
+            <div key={i} className="relative">
+              <button
+                onClick={item.onClick}
+                onMouseEnter={() => setHoveredId(`profile-${item.label}`)}
+                onMouseLeave={() => setHoveredId(null)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[12px] font-medium transition-all relative z-10 outline-none"
+                style={{ color: item.destructive ? 'rgb(239,68,68)' : 'var(--text-secondary)' }}
+              >
+                <item.icon size={14} strokeWidth={2} />
+                {item.label}
+              </button>
+              {hoveredId === `profile-${item.label}` && (
+                <motion.div
+                  layoutId="profile-hover-pill"
+                  className="absolute inset-0 bg-[var(--bg-tertiary)]/50 rounded-xl z-0"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -167,41 +184,32 @@ const Toolbar = ({ onSettingsClick }) => {
         filter: isHidden ? 'blur(4px)' : 'blur(0px)'
       }}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        if (!isInteracting) document.body.style.cursor = 'default';
-      }}
+      onMouseLeave={() => setIsHovered(false)}
       transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
-      className={`flex items-center rounded-[28px] relative transition-all duration-500 gap-1 ${isInteracting ? 'scale-[0.98]' : ''}`}
+      className={`flex items-center rounded-3xl relative transition-all duration-500 gap-0.5 ${isInteracting ? 'scale-[0.98]' : ''}`}
       style={{
-        gap: '4px',
-        padding: '6px',
+        padding: '7px 8px',
         background: isInteracting 
-          ? 'rgba(var(--bg-primary-rgb), 0.4)' 
+          ? 'rgba(var(--bg-primary-rgb), 0.5)' 
           : 'var(--glass-bg)',
-        backdropFilter: 'blur(32px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-        border: '1px solid var(--glass-border)',
+        backdropFilter: 'blur(40px) saturate(200%)',
+        WebkitBackdropFilter: 'blur(40px) saturate(200%)',
+        border: '1.2px solid var(--glass-border)',
         boxShadow: isInteracting
-          ? '0 8px 32px rgba(0,0,0,0.15)'
-          : 'var(--glass-shadow)',
+          ? '0 12px 40px rgba(0,0,0,0.2)'
+          : '0 24px 60px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.03)',
         userSelect: 'none',
         pointerEvents: 'auto',
       }}
     >
       <LayoutGroup id="main-toolbar">
-        {/* Drawing & Construction Tools */}
-        <div className="flex items-center gap-1 px-1">
+        {/* All tools in a single seamless group */}
+        <div className="flex items-center gap-0.5">
           <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
           <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
           <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
           <ShapeTool {...commonToolProps} isHoveredExternally={hoveredId === 'shape'} />
-        </div>
-
-
-
-        {/* Intelligence & Code Tools */}
-        <div className="flex items-center gap-1 px-1">
+          
           <CodeTool 
             {...commonToolProps} 
             id="code"
@@ -221,12 +229,7 @@ const Toolbar = ({ onSettingsClick }) => {
               isHoveredExternally={hoveredId === 'voice'} 
             />
           )}
-        </div>
-        
-        <ToolbarDivider />
-
-        {/* Session Management */}
-        <div className="flex items-center gap-1 px-1">
+          
           <ShareAction 
             {...commonToolProps} 
             id="action:share"
@@ -238,39 +241,63 @@ const Toolbar = ({ onSettingsClick }) => {
             isHoveredExternally={hoveredId === 'action:delete'} 
           />
         </div>
-
-        <ToolbarDivider />
         
-        {/* Profile / Account */}
-        <div className="relative pl-1 pr-2">
+        <div className="relative ml-0.5 group/profile">
+          {/* Seamless Liquid Hover Pill - Integrated with the main toolset */}
+          <AnimatePresence>
+            {(hoveredId === 'profile' && !isProfileOpen) && (
+              <motion.div
+                layoutId="liquid-hover-pill"
+                className="absolute inset-[1.5px] rounded-[14px] z-0"
+                style={{
+                  background: 'var(--bg-tertiary)cc',
+                  border: '1px solid var(--border-color)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06), inset 0 0 8px rgba(255,255,255,0.03)',
+                }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
+              />
+            )}
+          </AnimatePresence>
+
           <motion.button
-            whileHover={!isProfileOpen ? { scale: 1.05 } : {}}
-            whileTap={{ scale: 0.95 }}
+            whileHover={!isProfileOpen ? { scale: 1.02, y: -0.5 } : {}}
+            whileTap={{ scale: 0.94 }}
             onClick={toggleProfile}
             onMouseEnter={() => {
-              if (!isProfileOpen) {
-                setIsHovered(true);
-                setHoveredId('profile');
-              }
+              if (!isProfileOpen) setHoveredId('profile');
             }}
             onMouseLeave={() => {
-              setIsHovered(false);
               setHoveredId(null);
             }}
-            className="relative w-9 h-9 rounded-full flex items-center justify-center transition-all overflow-hidden"
+            className="relative w-[40px] h-[40px] rounded-[14px] flex items-center justify-center transition-all overflow-hidden cursor-pointer z-10"
             style={{
-              background: (isProfileOpen || hoveredId === 'profile') ? 'var(--text-primary)' : 'var(--bg-secondary)',
+              background: isProfileOpen ? 'var(--text-primary)' : 'var(--bg-tertiary)44',
               border: '1px solid var(--border-color)',
+              boxShadow: isProfileOpen ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
             }}
           >
-            <User 
-              size={18} 
-              strokeWidth={2.5}
-              className="relative z-10 transition-colors"
-              style={{
-                color: (isProfileOpen || hoveredId === 'profile') ? 'var(--bg-primary)' : 'var(--text-tertiary)'
-              }}
-            />
+            {user?.avatar ? (
+              <img 
+                src={user.avatar} 
+                alt={user.name} 
+                className={`w-full h-full object-cover transition-all duration-500 ${isProfileOpen ? 'opacity-20 scale-125 blur-md' : (hoveredId === 'profile' ? 'opacity-60 scale-110 blur-[2px]' : 'opacity-100')}`}
+              />
+            ) : (
+              <User 
+                size={18} 
+                strokeWidth={2.5}
+                className="relative z-10 transition-colors"
+                style={{
+                  color: isProfileOpen ? 'var(--bg-primary)' : (hoveredId === 'profile' ? 'var(--text-primary)' : 'var(--text-tertiary)')
+                }}
+              />
+            )}
+            
+            {isProfileOpen && user?.avatar && (
+              <div className="absolute inset-0 flex items-center justify-center z-20">
+                <User size={16} strokeWidth={3} style={{ color: 'var(--bg-primary)' }} />
+              </div>
+            )}
           </motion.button>
           
           <AnimatePresence>

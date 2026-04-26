@@ -22,25 +22,29 @@ export const SectionTitle = ({ children, style = {} }) => (
     fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em',
     color: 'var(--text-tertiary)', textTransform: 'uppercase',
     marginBottom: '8px', marginLeft: '16px',
-    fontFamily: '"Geist", sans-serif',
+    fontFamily: '"Inter", sans-serif',
     opacity: 0.8,
     ...style
   }}>{children}</h2>
 );
 
-export const SettingsGroup = ({ children }) => (
-  <div className="settings-group" style={{
-    background: 'var(--bg-secondary)',
-    borderRadius: '14px',
-    marginBottom: '20px',
-    border: '1px solid var(--border-color)',
-    boxShadow: '0 4px 16px rgba(0,0,0,0.02)',
-    padding: '2px 0',
-    overflow: 'hidden'
-  }}>
+export const SettingsGroup = ({ children, className = '', style = {} }) => (
+  <div 
+    className={`settings-group ${className}`} 
+    style={{
+      background: 'var(--bg-secondary)',
+      borderRadius: '14px',
+      marginBottom: '20px',
+      border: '1px solid var(--border-color)',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.02)',
+      padding: '2px 0',
+      position: 'relative',
+      ...style
+    }}
+  >
     <style>{`
-      .settings-group > *:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
-      .settings-group > *:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; border-bottom: none !important; }
+      .settings-group > *:first-child { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+      .settings-group > *:last-child { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; border-bottom: none !important; }
     `}</style>
     {children}
   </div>
@@ -51,6 +55,7 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
   return (
     <div
       onClick={onClick || undefined}
+      className="relative group/row"
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '10px 16px',
@@ -59,10 +64,14 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
         cursor: isClickable ? 'pointer' : 'default',
         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
-      onMouseEnter={isClickable ? e => e.currentTarget.style.background = 'var(--bg-tertiary)' : undefined}
-      onMouseLeave={isClickable ? e => e.currentTarget.style.background = 'transparent' : undefined}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1 }}>
+      {isClickable && (
+        <div 
+          className="absolute inset-x-1.5 inset-y-1 rounded-xl opacity-0 group-hover/row:opacity-100 transition-opacity duration-300 pointer-events-none"
+          style={{ background: 'var(--bg-tertiary)66', zIndex: 0 }}
+        />
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1, position: 'relative', zIndex: 10 }}>
         {Icon && (
           <div style={{
             width: '26px', height: '26px', borderRadius: '7px',
@@ -78,14 +87,14 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
           <div style={{
             fontSize: '13.5px', fontWeight: 500,
             color: danger ? '#ef4444' : 'var(--text-primary)',
-            fontFamily: '"Geist", sans-serif',
+            fontFamily: '"Inter", sans-serif',
             letterSpacing: '-0.01em',
           }}>{label}</div>
           {description && (
             <div style={{
               fontSize: '11.5px', color: 'var(--text-tertiary)',
               marginTop: '2px', lineHeight: 1.4,
-              fontFamily: '"Geist", sans-serif',
+              fontFamily: '"Inter", sans-serif',
               fontWeight: 500,
             }}>{description}</div>
           )}
@@ -144,7 +153,7 @@ export const RightInlineInput = ({ value, onChange, placeholder, type = 'text', 
       width, padding: '6px 10px', background: 'var(--bg-tertiary)33', border: 'none',
       borderRadius: '6px',
       color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-      fontSize: '13px', fontWeight: 500, fontFamily: '"Geist", sans-serif',
+      fontSize: '13px', fontWeight: 500, fontFamily: '"Inter", sans-serif',
       outline: 'none', textAlign: 'right', cursor: disabled ? 'not-allowed' : 'text',
       transition: 'all 0.2s',
     }}

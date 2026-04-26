@@ -10,24 +10,26 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, List, MessageCircleQuestion, RotateCcw, Play, CheckCircle2, FlaskConical, Binary, Sigma, Zap, Leaf, Stethoscope, Briefcase, Scale, History, Settings, Brain, TrendingUp, Palette, Plane } from 'lucide-react';
+import { X, List, MessageCircleQuestion, RotateCcw, Play, CheckCircle2, Binary, Sigma, Zap, FlaskConical, Leaf, Stethoscope, Briefcase, Scale, History, Settings, Brain, TrendingUp, Palette, Plane } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
+import { DOMAIN_STYLES } from '../../lib/teaching';
 
-const DOMAIN_STYLES = {
-  'DSA': { color: '#10b981', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: <Binary size={12} /> },
-  'Mathematics': { color: '#6366f1', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', icon: <Sigma size={12} /> },
-  'Physics': { color: '#3b82f6', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: <Zap size={12} /> },
-  'Chemistry': { color: '#ef4444', bg: 'bg-red-500/10', border: 'border-red-500/20', icon: <FlaskConical size={12} /> },
-  'Biology': { color: '#22c55e', bg: 'bg-green-500/10', border: 'border-green-500/20', icon: <Leaf size={12} /> },
-  'Medicine': { color: '#ec4899', bg: 'bg-pink-500/10', border: 'border-pink-500/20', icon: <Stethoscope size={12} /> },
-  'Business': { color: '#14b8a6', bg: 'bg-teal-500/10', border: 'border-teal-500/20', icon: <Briefcase size={12} /> },
-  'Law': { color: '#f59e0b', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: <Scale size={12} /> },
-  'History': { color: '#d97706', bg: 'bg-orange-600/10', border: 'border-orange-600/20', icon: <History size={12} /> },
-  'Engineering': { color: '#f97316', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: <Settings size={12} /> },
-  'Psychology': { color: '#a855f7', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: <Brain size={12} /> },
-  'Economics': { color: '#4ade80', bg: 'bg-green-400/10', border: 'border-green-400/20', icon: <TrendingUp size={12} /> },
-  'Arts': { color: '#f43f5e', bg: 'bg-rose-500/10', border: 'border-rose-500/20', icon: <Palette size={12} /> },
-  'Aviation': { color: '#38bdf8', bg: 'bg-sky-400/10', border: 'border-sky-400/20', icon: <Plane size={12} /> },
+// Icon mapping for domain badges
+const DOMAIN_ICONS = {
+  dsa: <Binary size={12} />,
+  mathematics: <Sigma size={12} />,
+  physics: <Zap size={12} />,
+  chemistry: <FlaskConical size={12} />,
+  biology: <Leaf size={12} />,
+  medicine: <Stethoscope size={12} />,
+  business: <Briefcase size={12} />,
+  law: <Scale size={12} />,
+  history: <History size={12} />,
+  engineering: <Settings size={12} />,
+  psychology: <Brain size={12} />,
+  economics: <TrendingUp size={12} />,
+  arts: <Palette size={12} />,
+  aviation_maritime: <Plane size={12} />,
 };
 
 const FloatingSidebar = () => {
@@ -38,7 +40,9 @@ const FloatingSidebar = () => {
     goToStep, play,
   } = useTutorStore();
 
-  const domainStyle = DOMAIN_STYLES[timeline?.domain] || { color: '#94a3b8', bg: 'bg-white/5', border: 'border-white/10' };
+  const domain = timeline?.domain?.toLowerCase();
+  const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
+  const domainIcon = DOMAIN_ICONS[domain];
 
   return (
     <AnimatePresence>
@@ -50,7 +54,7 @@ const FloatingSidebar = () => {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -280, opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed top-0 left-0 z-[10002] h-full w-[280px] flex flex-col glass"
+            className="fixed top-0 left-0 z-[10002] h-full w-[85vw] sm:w-[280px] flex flex-col glass"
             style={{
               background: 'var(--bg-secondary)',
               borderRight: '1px solid var(--glass-border)',
@@ -82,7 +86,7 @@ const FloatingSidebar = () => {
                 </p>
                 {timeline?.domain && (
                   <div className={`mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-normal uppercase tracking-wider ${domainStyle.bg} ${domainStyle.border} border`} style={{ color: domainStyle.color }}>
-                    {domainStyle.icon}
+                    {domainIcon}
                     {timeline.domain}
                   </div>
                 )}

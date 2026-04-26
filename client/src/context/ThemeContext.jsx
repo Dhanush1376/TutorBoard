@@ -54,12 +54,10 @@ export const ThemeProvider = ({ children }) => {
       '--ai-bubble-text': tokens.aiBubbleText,
       
       // Dynamic Appearance
-      '--global-font': globalFont === 'geist' ? '"Geist", sans-serif' : 
-                       globalFont === 'inter' ? '"Inter", sans-serif' :
-                       globalFont === 'outfit' ? '"Outfit", sans-serif' : '"Fira Code", monospace',
-      '--glass-blur': `${(glassIntensity / 100) * 25}px`,
-      '--glass-opacity': `${(glassIntensity / 100) * 0.95}`,
-      '--canvas-filter': canvasTone === 'neutral' ? 'none' : 
+      '--global-font': '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      '--glass-blur': `${((glassIntensity ?? 80) / 100) * 25}px`,
+      '--glass-opacity': `${((glassIntensity ?? 80) / 100) * 0.95}`,
+      '--canvas-filter': (canvasTone || 'neutral') === 'neutral' ? 'none' : 
                          canvasTone === 'warm' ? 'sepia(0.15) saturate(1.1) brightness(1.02)' : 
                          'hue-rotate(200deg) saturate(0.2) brightness(1.05)', // Cool/Frosty
     };

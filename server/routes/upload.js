@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { uploadFile } from '../controllers/upload.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
+import { validateFile } from '../middleware/fileValidator.js';
 
 const router = express.Router();
 
@@ -45,6 +46,6 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-router.post('/upload', upload.single('file'), uploadFile);
+router.post('/upload', upload.single('file'), validateFile, uploadFile);
 
 export default router;
