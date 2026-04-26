@@ -6,20 +6,10 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
 import './styles/animations.css';
-import useTutorStore from './store/tutorStore';
 import { initPostHog } from './utils/analytics';
 
 // Initialize Analytics
 initPostHog();
-
-// Deployment Diagnostics
-if (import.meta.env.MODE === 'production') {
-  console.log('[Deployment] API Base URL:', import.meta.env.VITE_API_BASE_URL);
-}
-
-
-// Hydration is handled automatically by Zustand persist middleware
-// No manual hydrate call needed anymore
 
 // Simple Error Boundary for Top-Level Crashes
 class ErrorBoundary extends React.Component {
@@ -30,7 +20,6 @@ class ErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
   componentDidCatch(error, errorInfo) { console.error('[Fatal] App Crash Caught:', error, errorInfo); }
   handleReset = () => {
-    // BUG FIX: Only clear the workspace session, NOT the entire localStorage (which includes token/theme)
     localStorage.removeItem('tutorboard-session');
     window.location.href = '/';
   };

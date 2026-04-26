@@ -43,7 +43,8 @@ const ThemeSelector = () => {
               }`}
             >
               <span className={`text-[9px] font-normal mb-2.5 transition-colors leading-tight ${isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-                {theme.name.split(' & ')[0]}<br/>& {theme.name.split(' & ')[1]}
+                {theme.displayName.line1}<br/>
+                {theme.displayName.line2 && `& ${theme.displayName.line2}`}
               </span>
 
               {/* Color Swatch Strip */}

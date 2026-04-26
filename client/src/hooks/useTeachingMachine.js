@@ -282,8 +282,24 @@ export function useTeachingMachine(isAuthReady = true) {
 
     // Guest Trial Status
     cleanups.push(on('guest:status', (data) => {
-      console.log(`[Machine] Guest Usage: ${data.count} / ${data.limit} (Warning: ${data.warning})`);
-      setGuestTrialStatus(data);
+      const current = useTutorStore.getState().guestTrialStatus;
+      // Only sync if server has a higher count (persistence safety)
+      if (data.count > current.messageCount) {
+        console.log(`[Machine] Syncing guest usage from server: ${data.count}`);
+        setGuestTrialStatus(data);
+      }
+    }));
+
+    // Guest Trial Limit Reached
+    cleanups.push(on('guest:limit-reached', (data) => {
+      const current = useTutorStore.getState().guestTrialStatus;
+      console.warn(`[Machine] 🚫 Guest limit reached (Server): ${data.count}/${data.limit}`);
+      setGuestTrialStatus({ 
+        isLimitReached: true, 
+        messageCount: Math.max(data.count, current.messageCount), 
+        limit: data.limit,
+        warning: true 
+      });
     }));
 
     // Learner Profile update
@@ -400,10 +416,23 @@ export function useTeachingMachine(isAuthReady = true) {
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   const startSession = useCallback((topicStr, initialQuestion, activeMode, file = null) => {
+    const store = useTutorStore.getState();
+    const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
+    
+    // Enforce Guest Limits locally
+    if (isGuest) {
+      const allowed = store.incrementGuestSession();
+      if (!allowed) {
+        console.warn('[Machine] Guest session limit reached.');
+        return;
+      }
+      store.incrementGuestUsage(); // Initial question counts as a message
+    }
+
     storeStartSession(topicStr, initialQuestion);
     // Pass the existing chatSessionId (if any) so the server can resume/link
     // the correct MongoDB document instead of creating a duplicate.
-    const existingChatId = useTutorStore.getState().chatSessionId;
+    const existingChatId = store.chatSessionId;
     
     identifyUser(topicStr, { last_topic: topicStr });
     trackEvent('session_started', { topic: topicStr, mode: activeMode, agent: selectedAgent });
@@ -419,6 +448,18 @@ export function useTeachingMachine(isAuthReady = true) {
   }, [emit, storeStartSession, selectedAgent]);
 
   const askDoubt = useCallback((question, activeMode, file = null) => {
+    const store = useTutorStore.getState();
+    const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
+
+    // Enforce Guest Limits locally
+    if (isGuest) {
+      const allowed = store.incrementGuestUsage();
+      if (!allowed) {
+        console.warn('[Machine] Guest message limit reached.');
+        return;
+      }
+    }
+
     storePause();
     setDoubtProcessing(true);
     trackEvent('doubt_asked', { question, agent: selectedAgent });

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Shield, Activity, Globe, Cpu, Layers, Sparkles,
   MessageCircle, FileText, Code, RefreshCw, ChevronRight,
-  Heart, BookOpen
+  Heart, BookOpen, Check, ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../layout/VisaiLogo';

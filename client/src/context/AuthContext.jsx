@@ -279,23 +279,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, [isAuthResolved]);
 
-  // Trial Mode Refresh Protection
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      // SEC-14: If we are intentionally navigating away via internal 'logout', skip the dialog
-      if (isExiting) return;
-
-      if (user?.isGuest) {
-        const msg = 'You are in Trial Mode. Your history and settings will not be saved. Are you sure you want to leave?';
-        e.preventDefault();
-        e.returnValue = msg;
-        return msg;
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user, isExiting]);
 
   const login = useCallback(async (email, password) => {
     try {
@@ -354,7 +337,7 @@ export const AuthProvider = ({ children }) => {
     useTutorStore.getState().setLayoutView('left');
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((skipConfirm = false) => {
     const performLogout = async () => {
       // SEC-15: Trigger an immediate cloud sync before clearing state to prevent data loss
       if (user && !user.isGuest) {
@@ -385,7 +368,7 @@ export const AuthProvider = ({ children }) => {
       const store = useTutorStore.getState();
       if (typeof store.resetTeaching === 'function') store.resetTeaching();
       if (typeof store.setGuestTrialStatus === 'function') {
-        store.setGuestTrialStatus({ count: 0, warning: false });
+        store.setGuestTrialStatus({ count: 0, warning: false, isLimitReached: false });
       }
       if (typeof store.setLearnerProfile === 'function') {
         store.setLearnerProfile({ level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} });
@@ -404,13 +387,13 @@ export const AuthProvider = ({ children }) => {
       navigate('/');
     };
 
-    if (user?.isGuest) {
+    if (user?.isGuest && !skipConfirm) {
       // Use the global showAlert for a premium experience
       useTutorStore.getState().showAlert({
         type: 'warning',
-        title: 'End Trial Session',
-        message: 'Your progress in this guest session will be permanently deleted. Are you sure you want to end your trial?',
-        confirmLabel: 'End Trial',
+        title: 'End Session',
+        message: 'Your progress in this session will be cleared. Are you sure you want to log out?',
+        confirmLabel: 'Log Out',
         onConfirm: performLogout
       });
     } else {

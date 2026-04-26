@@ -5,6 +5,9 @@ import ChatSession from '../../models/ChatSession.js';
 import { generateTimeline, generateTextResponse, generateQuiz } from '../../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
 import { checkSocketRate, checkGuestUsage, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../../middleware/rateLimiter.js';
+
+/** Per-socket guest session message limit (matches client-side TRIAL_LIMITS.MAX_MESSAGES) */
+const GUEST_SESSION_LIMIT = 10;
 import { sanitizeInput } from '../../utils/validation/sanitize.js';
 import { isGreeting } from '../../engine/agents/agentUtils.js';
 import { 
@@ -30,6 +33,21 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     }
 
     if (socket.user?.isGuest) {
+      // Per-socket message tracking
+      if (!socket._guestMessageCount) socket._guestMessageCount = 0;
+      socket._guestMessageCount++;
+
+      // Check per-socket limit first (stricter, immediate)
+      if (socket._guestMessageCount > GUEST_SESSION_LIMIT) {
+        socket.emit('guest:limit-reached', { 
+          count: socket._guestMessageCount, 
+          limit: GUEST_SESSION_LIMIT,
+          message: 'Trial limit reached. Create a free account to continue learning.' 
+        });
+        socket.emit('teaching:error', { message: 'Trial limit reached (10 messages). Please sign up to continue.' });
+        return;
+      }
+
       if (!checkSocketRate(`session:guest:${rateKey}`)) {
         socket.emit('teaching:error', { message: 'Guest limit reached: 1 session per minute. Please sign up for more.' });
         return;
@@ -39,10 +57,19 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
       const isAllowed = await checkGuestUsage(ip);
       const newCount = await getGuestUsageCount(ip);
-      socket.emit('guest:status', { count: newCount, limit: GUEST_MONTHLY_LIMIT, warning: newCount >= 40 });
+      socket.emit('guest:status', { 
+        count: socket._guestMessageCount, 
+        limit: GUEST_SESSION_LIMIT, 
+        warning: socket._guestMessageCount >= 7 
+      });
 
       if (!isAllowed) {
-        socket.emit('teaching:error', { message: 'Trial limit exceeded (50 interactions/mo). Please sign in to continue learning.' });
+        socket.emit('guest:limit-reached', { 
+          count: newCount, 
+          limit: GUEST_MONTHLY_LIMIT,
+          message: 'Monthly trial limit exceeded. Please sign in to continue learning.' 
+        });
+        socket.emit('teaching:error', { message: 'Trial limit exceeded. Please sign in to continue learning.' });
         return;
       }
     }

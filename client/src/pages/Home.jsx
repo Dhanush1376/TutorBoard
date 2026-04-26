@@ -140,10 +140,31 @@ const Home = ({ isDark }) => {
     }
   }, [isAuthenticated, token, user?.isGuest]);
 
-  // Initial load — fetch all sessions from MongoDB (source of truth)
+  const loadLocalGuestHistory = useCallback(() => {
+    try {
+      const local = localStorage.getItem('tutorboard-guest-history');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) {
+          setChatHistory(parsed);
+          console.log('[Home] 🏠 Loaded guest local history:', parsed.length);
+        }
+      }
+    } catch (e) {
+      console.warn('[Home] Failed to load guest history:', e);
+    } finally {
+      setHistoryFetched(true);
+    }
+  }, []);
+
+  // Initial load — fetch all sessions from MongoDB (for users) or LocalStorage (for guests)
   useEffect(() => {
-    fetchCloudSessions(1);
-  }, [fetchCloudSessions, isAuthenticated, user]);
+    if (user?.isGuest) {
+      loadLocalGuestHistory();
+    } else {
+      fetchCloudSessions(1);
+    }
+  }, [fetchCloudSessions, loadLocalGuestHistory, isAuthenticated, user]);
 
   const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore();
   
@@ -188,6 +209,12 @@ const Home = ({ isDark }) => {
     if (authLoading) return;
     if (hasHydratedActive.current) return;
     
+    // If we already have an active chat (e.g. from store sync), we are done with hydration
+    if (activeChatId) {
+      hasHydratedActive.current = true;
+      return;
+    }
+
     const savedActiveId = localStorage.getItem('tutorboard-active-chat');
     
     // Only attempt hydration if we actually have history loaded (from local or cloud)
@@ -405,8 +432,6 @@ const Home = ({ isDark }) => {
   // ── Persistent Cloud Sync (Immediate Actions) ──
   // Returns the canonical MongoDB session ID after save (may differ from activeChatId if it was a local temp ID).
   const saveCurrentSession = useCallback(async (updatedMessages = messages, overrideSessionId = null, overrideTitle = null) => {
-    if (!isAuthenticated || user?.isGuest || !token) return null;
-    
     const targetSessionId = overrideSessionId || activeChatId;
     
     // Guard: Don't save empty sessions (no user messages and no manual drawings)
@@ -417,7 +442,7 @@ const Home = ({ isDark }) => {
     if (!hasUserContent) return null;
 
     const payload = {
-      sessionId: targetSessionId,
+      id: targetSessionId,
       title: overrideTitle || activeSession?.title || timeline?.title || (updatedMessages && updatedMessages.find(m => m.role === 'user')?.content?.substring(0, 40)) || 'Untitled Session',
       messages: updatedMessages,
       canvasState: canvasObjects || [],
@@ -428,17 +453,40 @@ const Home = ({ isDark }) => {
         textToolSize, noteToolSize,
         noteColor, noteSize,
         layoutView, gridType, gridSize, showGrid
-      }
+      },
+      updatedAt: Date.now()
     };
 
-    console.log(`[Persistence] 💾 Saving session: ${targetSessionId}`);
+    // ── GUEST PERSISTENCE (LocalStorage) ──
+    if (user?.isGuest) {
+      console.log(`[Persistence:Guest] 🏠 Saving to local storage: ${targetSessionId}`);
+      setChatHistory(prev => {
+        const idx = prev.findIndex(s => s.id === targetSessionId);
+        let next;
+        if (idx === -1) {
+          next = [payload, ...prev];
+        } else {
+          next = [...prev];
+          next[idx] = { ...next[idx], ...payload };
+        }
+        // Prune to 10 sessions to prevent storage bloating
+        const pruned = next.slice(0, 10);
+        localStorage.setItem('tutorboard-guest-history', JSON.stringify(pruned));
+        return next;
+      });
+      return targetSessionId;
+    }
+
+    if (!isAuthenticated || !token) return null;
+    
+    console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
     
     try {
       const res = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload)
       });
@@ -459,7 +507,7 @@ const Home = ({ isDark }) => {
             return {
               ...s,
               id: saved._id || s.id,
-              chatSessionId: saved._id || s.chatSessionId,
+              chatSessionId: saved._id || s.id,
               canvasState: canvasObjects || [],
               messages: updatedMessages,
               pinnedNotes: pinnedNotes || [],
@@ -476,6 +524,9 @@ const Home = ({ isDark }) => {
           return saved._id;
         }
         return saved._id || targetSessionId;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.code === 'DB_OFFLINE') setIsDbOffline(true);
       }
     } catch (err) {
       console.error('[Persistence] ❌ Immediate save failed:', err);
@@ -567,6 +618,7 @@ const Home = ({ isDark }) => {
     setActiveChatId(null);
     setPrompt(''); 
     endSession(); 
+    localStorage.removeItem('tutorboard-active-chat');
   };
   const handleSelectChat = async (id) => {
     setActiveChatId(id);
@@ -790,6 +842,16 @@ const Home = ({ isDark }) => {
     setActiveView('chat');
     isSubmittingRef.current = true;
 
+    // Guest Trial: Increment usage and block if exhausted
+    if (isGuest) {
+      const store = useTutorStore.getState();
+      if (store.guestTrialStatus.isLimitReached) {
+        isSubmittingRef.current = false;
+        return;
+      }
+      store.incrementGuestUsage();
+    }
+
     try {
       const workingSessionId = activeChatId || `session-${Date.now()}`;
       if (!activeChatId) setActiveChatId(workingSessionId);
@@ -877,7 +939,7 @@ const Home = ({ isDark }) => {
         onBack={handleNewChat}
         sidebar={leftPanel}
       >
-        {/* The Main Background Canvas (now inside the glass panel) */}
+        {/* 2. Main Background Canvas */}
         <div className="absolute inset-0 z-0">
           <InfiniteCanvas
             ref={canvasRef}
@@ -896,6 +958,29 @@ const Home = ({ isDark }) => {
               currentStepIndex={currentStepIndex}
             />
           </InfiniteCanvas>
+          
+          {/* Initial Load Skeleton Overlay */}
+          <AnimatePresence>
+            {pagination.loading && chatHistory.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-[5] bg-[var(--bg-primary)] flex flex-col items-center justify-center gap-4"
+              >
+                <div className="relative">
+                  <div className="w-12 h-12 border-2 border-[var(--border-color)] border-t-[var(--text-primary)] rounded-full animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 bg-[var(--text-primary)] rounded-full animate-pulse" />
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-[10px] font-normal uppercase tracking-[0.25em] text-[var(--text-primary)]">Restoring Workspace</span>
+                  <span className="text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest">Fetching your visual history...</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         {/* Connection Alert Banner */}
         <AnimatePresence>
@@ -983,51 +1068,6 @@ const Home = ({ isDark }) => {
             </motion.div>
           )}
         </AnimatePresence>
-        {/* F. Trial Watermark (Guests Only) */}
-        {isGuest && (
-          <div className="absolute bottom-10 left-10 z-[100] pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="flex flex-col gap-4 p-6 bg-[rgba(var(--bg-secondary-rgb),0.85)] backdrop-blur-2xl border-2 border-amber-500/30 rounded-[32px] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] pointer-events-auto max-w-[280px] relative overflow-hidden"
-              style={{
-                background: 'var(--bg-secondary)',
-                border: '2px solid rgba(245, 158, 11, 0.4)',
-              }}
-            >
-              {/* Amber Glow Line */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
-              
-              <div className="flex items-center gap-3">
-                <div className="relative flex items-center justify-center">
-                  <div className="w-3 h-3 rounded-full bg-amber-500 animate-ping absolute" />
-                  <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.6)]" />
-                </div>
-                <span className="text-[11px] font-normal uppercase tracking-[0.25em] text-amber-500">
-                  Trial Mode
-                </span>
-              </div>
-              
-              <div className="space-y-1.5">
-                <h3 className="text-[15px] font-normal text-[var(--text-primary)] leading-tight tracking-tight">
-                  Not an original account
-                </h3>
-                <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)] font-normal">
-                  Your work is <span className="text-[var(--text-primary)] font-normal">strictly temporary</span>. Refreshing the browser will <span className="text-amber-500 font-normal underline underline-offset-2 italic">delete all data</span>.
-                </p>
-              </div>
-
-              <div className="pt-2">
-                <button 
-                  onClick={logout}
-                  className="w-full py-3.5 bg-amber-500 text-black rounded-2xl text-[11px] font-normal uppercase tracking-[0.15em] shadow-[0_8px_20px_-4px_rgba(245,158,11,0.4)] hover:bg-amber-400 hover:scale-[1.03] active:scale-[0.97] transition-all duration-300"
-                >
-                  Create Official Account
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
 
         <QuickAskOverlay 
           isOpen={isQuickAskOpen} 

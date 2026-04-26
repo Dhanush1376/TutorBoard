@@ -155,50 +155,11 @@
     --tool-gap: 6px;
   }
 
-  /* Automatic dark mode based on device preference */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg-primary: #0b0b0a;
-      --bg-primary-rgb: 11, 11, 10;
-      --bg-secondary: #141412;
-      --bg-secondary-rgb: 20, 20, 18;
-      --bg-tertiary: #1c1c1a;
-      --text-primary: #f9f6e5;
-      --text-secondary: #a3a198;
-      --text-tertiary: #6b6a64;
-      --border-color: rgba(249, 246, 229, 0.08);
-
-      --glass-bg: rgba(20, 20, 18, 0.88);
-      --glass-border: rgba(255, 255, 255, 0.08);
-      --glass-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-      --input-glass-bg: rgba(20, 20, 18, 0.92);
-      --user-bubble-bg: #f9f6e5;
-      --ai-bubble-bg: rgba(255, 255, 255, 0.05);
-      --ai-bubble-border: rgba(255, 255, 255, 0.08);
-    }
+  /* Selection */
+  ::selection {
+    background: var(--brand);
+    color: var(--text-inverse);
   }
-
-  /* Manual dark mode override if .dark class is present */
-  .dark {
-    --bg-primary: #050505;
-    --bg-primary-rgb: 5, 5, 5;
-    --bg-secondary: #0f0f0e;
-    --bg-secondary-rgb: 15, 15, 14;
-    --bg-tertiary: #1a1a18;
-    --text-primary: #fdfaf3;
-    --text-secondary: #a3a198;
-    --text-tertiary: #6b6a64;
-    --border-color: rgba(253, 250, 243, 0.1);
-
-    --glass-bg: rgba(15, 15, 14, 0.9);
-    --glass-border: rgba(255, 255, 255, 0.12);
-    --glass-shadow: 0 16px 64px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
-    --input-glass-bg: rgba(15, 15, 14, 0.95);
-    --user-bubble-bg: #fdfaf3;
-    --ai-bubble-bg: rgba(255, 255, 255, 0.06);
-    --ai-bubble-border: rgba(255, 255, 255, 0.1);
-  }
-
 
   /* Smooth transition on theme switch as requested */
   body {
@@ -630,29 +591,15 @@ option {
 
 /* Dark mode: deeper, moodier shadows */
 .dark .canvas-floating-panel {
-  animation-name: canvas-idle-float-dark;
+  box-shadow:
+    0 20px 60px -12px rgba(0, 0, 0, 0.40),
+    0 8px 24px -8px rgba(0, 0, 0, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 0.5px var(--glass-border);
 }
 
-@keyframes canvas-idle-float-dark {
-  0%, 100% {
-    box-shadow:
-      0 20px 60px -12px rgba(0, 0, 0, 0.40),
-      0 8px 24px -8px rgba(0, 0, 0, 0.25),
-      0 2px 6px rgba(0, 0, 0, 0.15),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04),
-      inset 0 0 0 0.5px var(--glass-border);
-  }
-  50% {
-    box-shadow:
-      0 24px 68px -12px rgba(0, 0, 0, 0.50),
-      0 10px 28px -8px rgba(0, 0, 0, 0.30),
-      0 3px 8px rgba(0, 0, 0, 0.18),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      inset 0 0 0 0.5px var(--glass-border);
-  }
-}
-
-.dark .canvas-floating-panel:hover {
+.canvas-floating-panel:hover {
   box-shadow:
     0 28px 80px -12px rgba(0, 0, 0, 0.55),
     0 14px 36px -8px rgba(0, 0, 0, 0.35),

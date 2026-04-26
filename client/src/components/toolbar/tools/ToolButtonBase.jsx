@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../../store/tutorStore';
+import useWindowSize from '../../../hooks/useWindowSize';
 
 /**
  * ToolButtonBase
@@ -110,10 +111,13 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
     setIsPinned(false); // Close menu on specific selection
   };
 
+  const { isMobile } = useWindowSize();
+  const btnSize = isMobile ? 32 : 40;
+
   return (
     <div
       className="relative flex-shrink-0"
-      style={{ width: '40px', height: '40px', isolation: 'isolate' }}
+      style={{ width: `${btnSize}px`, height: `${btnSize}px`, isolation: 'isolate' }}
       onMouseEnter={() => {
         if (!disabled) {
           setIsHovered(true);
@@ -133,7 +137,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         aria-label={displayLabel}
         aria-pressed={isGroupActive}
         title=""
-        className="relative w-full h-full flex items-center justify-center rounded-2xl transition-all duration-200 outline-none"
+        className="relative w-full h-full flex items-center justify-center rounded-[12px] md:rounded-2xl transition-all duration-200 outline-none"
         style={{
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.35 : 1,
@@ -142,7 +146,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         {(isHovered || isHoveredExternally) && !isGroupActive && !isInteracting && !disabled && (
           <motion.div
             layoutId="liquid-hover-pill"
-            className="absolute inset-[1.5px] rounded-[14px] z-0"
+            className="absolute inset-[1.5px] rounded-[10px] md:rounded-[14px] z-0"
             style={{
               background: 'var(--bg-tertiary)cc',
               border: '1px solid var(--border-color)',
@@ -155,7 +159,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
         {isGroupActive && (
           <motion.div
             layoutId="active-tool-pill"
-            className="absolute inset-[1.5px] rounded-[14px] z-0"
+            className="absolute inset-[1.5px] rounded-[10px] md:rounded-[14px] z-0"
             style={{ 
               background: 'var(--text-primary)',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
@@ -176,7 +180,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
             transition: 'color 0.2s ease',
           }}
         >
-          <DisplayIcon size={18} strokeWidth={isGroupActive ? 2.2 : 2} />
+          <DisplayIcon size={isMobile ? 15 : 18} strokeWidth={isGroupActive ? 2.2 : 2} />
         </span>
 
         {/* Subtle dropdown indicator - only show if NOT active to avoid clutter */}

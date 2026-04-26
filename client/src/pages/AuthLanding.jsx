@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import VisaiLogo from '../components/layout/VisaiLogo';
+import useTutorStore from '../store/tutorStore';
 import LoginNavbar from '../components/layout/LoginNavbar';
 import CinematicTransition from '../components/auth/CinematicTransition';
 import { BASE_URL as API_URL } from '../services/api';
@@ -179,15 +180,28 @@ const AuthLanding = () => {
             </div>
             
             {/* ── LEFT COLUMN: AUTH FORM ────────────────────────────────────────── */}
-            <div className="lg:w-[45%] xl:w-[40%] flex flex-col justify-center px-6 sm:px-12 lg:px-20 py-12 relative z-10 bg-[var(--bg-primary)]">
+            <div className="lg:w-[40%] xl:w-[35%] flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-10 relative z-10 bg-[var(--bg-primary)]">
         
 
-        <div className="max-w-[340px] w-full mx-auto lg:mx-0">
-          <div className="mb-4">
-            <h1 className="text-[20px] leading-[1.1] font-serif mb-2 text-[var(--text-primary)] tracking-tight">
-              {isLogin ? 'Sign in to account' : 'Create an account'}
+        <div className="max-w-[320px] w-full mx-auto lg:mx-0">
+          {/* Mobile Hero (Value Proposition) - FO-05 */}
+          <div className="lg:hidden mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <VisaiLogo size="sm" className="text-[var(--text-primary)]" />
+              <span className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-primary)]">TutorBoard</span>
+            </div>
+            <h2 className="text-[28px] leading-[1.1] font-serif mb-3 text-[var(--text-primary)] tracking-tight">
+              Visualize your <br /> knowledge.
+            </h2>
+            <p className="text-[var(--text-secondary)] text-[14px] font-normal opacity-80 leading-relaxed">
+              TutorBoard is an AI-powered cinematic learning system that maps complex ideas into interactive visual canvases.
+            </p>
+          </div>
+          <div className="mb-6">
+            <h1 className="text-[32px] lg:text-[40px] leading-[1.05] font-serif mb-2 text-[var(--text-primary)] tracking-tight">
+              {isLogin ? 'Sign in' : 'Create an\naccount'}
             </h1>
-            <p className="text-[var(--text-secondary)] text-[13px] font-normal opacity-80">
+            <p className="text-[var(--text-secondary)] text-[12px] font-normal opacity-80 whitespace-pre-line">
               {isLogin ? 'Welcome back, please enter your details.' : 'Enter your details to get started.'}
             </p>
           </div>
@@ -217,15 +231,15 @@ const AuthLanding = () => {
                   exit={{ opacity: 0, height: 0 }}
                   className="flex flex-col gap-1.5 overflow-hidden"
                 >
-                  <label className="text-[8px] font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Full Name</label>
+                  <label className="text-[7.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] ml-1">Full Name</label>
                   <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                     <input
                       type="text"
                       placeholder="Your full name"
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
+                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
                       disabled={loading}
                     />
                   </div>
@@ -234,37 +248,44 @@ const AuthLanding = () => {
             </AnimatePresence>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[8px] font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Email Address</label>
+              <label className="text-[7.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] ml-1">Email Address</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                 <input
                   type="email"
                   placeholder="name@company.com"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
+                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
                   disabled={loading}
                 />
               </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center px-1 text-[8px]">
-                <label className="font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)]">Password</label>
+              <div className="flex justify-between items-center px-1 text-[7.5px]">
+                <label className="font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">Password</label>
                 {isLogin && (
-                  <button type="button" className="font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+                  <button 
+                    type="button" 
+                    onClick={() => useTutorStore.getState().showToast({
+                      message: "Password reset instructions have been sent to your email (Demo mode: Please check your console or contact support).",
+                      type: "info"
+                    })}
+                    className="font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                  >
                     Forgot password?
                   </button>
                 )}
               </div>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                 <input
                   type="password"
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
+                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
                   disabled={loading}
                 />
               </div>
@@ -284,15 +305,15 @@ const AuthLanding = () => {
 
             {!isLogin && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-[8px] font-normal uppercase tracking-[0.1em] text-[var(--text-tertiary)] ml-1">Confirm Password</label>
+                <label className="text-[7.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] ml-1">Confirm Password</label>
                 <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                   <input
                     type="password"
                     placeholder="••••••••"
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                    className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-3 pl-11 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[13px] font-normal"
+                    className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
                     disabled={loading}
                   />
                 </div>
@@ -302,40 +323,40 @@ const AuthLanding = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] text-[var(--bg-primary)] rounded-xl py-2.5 px-4 font-normal text-[12px] hover:opacity-95 shadow-xl shadow-[var(--border-color)] active:scale-[0.98] transition-all mt-1 flex justify-center items-center gap-2 group border border-white/5"
+              className="w-full bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] text-[var(--bg-primary)] rounded-xl py-2 px-4 font-normal text-[11.5px] hover:opacity-95 shadow-xl shadow-[var(--border-color)] active:scale-[0.98] transition-all mt-2 flex justify-center items-center gap-2 group border border-white/5"
             >
               {loading ? (
-                <div className="w-4 h-4 border-2 border-current/20 border-t-current rounded-full animate-spin"></div>
+                <div className="w-3.5 h-3.5 border-2 border-current/20 border-t-current rounded-full animate-spin"></div>
               ) : (
                 <>
-                  {isLogin ? 'Sign In to TutorBoard' : 'Create Account'}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  {isLogin ? 'Sign In' : 'Create Account'}
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </>
               )}
             </button>
           </form>
 
-          <div className="flex items-center gap-4 my-5">
+          <div className="flex items-center gap-4 my-4">
             <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
-            <span className="text-[var(--text-tertiary)] text-[8px] font-normal tracking-[0.2em] uppercase">Or continue with</span>
+            <span className="text-[var(--text-tertiary)] text-[7.5px] font-bold tracking-[0.2em] uppercase">Or continue with</span>
             <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-3 mb-4">
             <button 
               type="button" 
               onClick={() => window.location.href = `${API_URL}/api/auth/google`}
-              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-normal text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all active:scale-95 shadow-sm"
+              className="flex items-center justify-center gap-2 py-1.5 rounded-xl text-[10.5px] font-normal text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all active:scale-95 shadow-sm"
             >
-              <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-4 h-4" alt="Google" />
+              <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-3.5 h-3.5" alt="Google" />
               Google
             </button>
             <button 
               type="button" 
               onClick={() => window.location.href = `${API_URL}/api/auth/github`}
-              className="flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-normal text-white bg-[#0d1117] border border-white/10 hover:bg-[#161b22] hover:border-white/20 transition-all active:scale-95 shadow-lg"
+              className="flex items-center justify-center gap-2 py-1.5 rounded-xl text-[10.5px] font-normal text-white bg-[#0d1117] border border-white/10 hover:bg-[#161b22] hover:border-white/20 transition-all active:scale-95 shadow-lg"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
               GitHub
             </button>
           </div>
@@ -344,9 +365,9 @@ const AuthLanding = () => {
             <button
               type="button"
               onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              className="text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
-              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+              {isLogin ? "Don't have an account? Sign In" : "Already have an account? Sign In"}
             </button>
             <div className="h-[1px] w-8 bg-[var(--border-color)] opacity-20 mx-auto"></div>
             <button
@@ -359,9 +380,9 @@ const AuthLanding = () => {
                   sessionStorage.setItem('tb-welcome-played', 'true');
                 } catch (e) { /* ignore */ }
               }}
-              className="text-[12px] font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic"
+              className="text-[11px] font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic opacity-60 hover:opacity-100"
             >
-              Skip and try as guest <Sparkles className="w-3 h-3" />
+              Skip and try free — 10 messages <Sparkles className="w-2.5 h-2.5" />
             </button>
           </div>
         </div>
@@ -376,16 +397,16 @@ const AuthLanding = () => {
         <div className="absolute bottom-[10%] left-[5%] w-[450px] h-[450px] bg-orange-100/10 rounded-full blur-[120px] pointer-events-none"></div>
 
         {/* Navbar - Desktop/Laptop Only */}
-        <nav className="hidden lg:flex items-center justify-between w-full px-12 py-8 relative z-20 shrink-0">
+        <nav className="hidden lg:flex items-center justify-between w-full px-10 py-6 relative z-20 shrink-0">
           <div className="flex items-center gap-2">
-            <VisaiLogo size="md" className="text-[var(--text-primary)]" />
-            <span className="text-[12px] font-normal uppercase tracking-wider text-[var(--text-primary)]">
+            <VisaiLogo size="sm" className="text-[var(--text-primary)]" />
+            <span className="text-[11px] font-normal uppercase tracking-wider text-[var(--text-primary)]">
               TutorBoard
             </span>
           </div>
 
           <div className="flex items-center gap-8">
-            <div className="flex items-center gap-7 text-[12px] font-normal uppercase tracking-wider text-[var(--text-secondary)]">
+            <div className="flex items-center gap-7 text-[10.5px] font-normal uppercase tracking-wider text-[var(--text-secondary)]">
                <Link to="/how-it-works" className="hover:text-[var(--text-primary)] transition-colors">How it works</Link>
                <Link to="/features" className="hover:text-[var(--text-primary)] transition-colors">Features</Link>
                <Link to="/solutions" className="hover:text-[var(--text-primary)] transition-colors">Solutions</Link>
@@ -401,15 +422,15 @@ const AuthLanding = () => {
                   className="flex items-center gap-6"
                 >
                   {!user?.isGuest && (
-                    <button className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5">
-                      <User size={14} /> Profile
+                    <button className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5">
+                      <User size={13} /> Profile
                     </button>
                   )}
                   <button 
                     onClick={() => navigate('/dashboard')}
-                    className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
+                    className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
                   >
-                    Dashboard <ArrowRight className="w-3 h-3 opacity-50" />
+                    Dashboard <ArrowRight className="w-2.5 h-2.5 opacity-50" />
                   </button>
                 </motion.div>
               ) : (
@@ -421,9 +442,9 @@ const AuthLanding = () => {
                     loginGuest();
                     navigate('/dashboard');
                   }}
-                  className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
+                  className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
                 >
-                  Try TutorBoard <ArrowRight className="w-3 h-3 opacity-50" />
+                  Try Free — 10 Messages <ArrowRight className="w-2.5 h-2.5 opacity-50" />
                 </motion.button>
               )}
             </AnimatePresence>
@@ -451,14 +472,14 @@ const AuthLanding = () => {
                 </div>
               </div>
 
-              <h2 className="text-[34px] lg:text-[38px] leading-[1.05] font-serif mb-5 text-[var(--text-primary)] tracking-tight shrink-0">
+              <h2 className="text-[30px] lg:text-[34px] leading-[1.05] font-serif mb-4 text-[var(--text-primary)] tracking-tight shrink-0">
                 {currentTopic.visualization === 'bst' && "Master concepts faster with interactive models."}
                 {currentTopic.visualization === 'cell' && "Explore the building blocks of life."}
                 {currentTopic.visualization === 'orbit' && "Understand the laws of the universe."}
                 {currentTopic.visualization === 'math' && "Visualize calculations with geometric clarity."}
               </h2>
               
-              <p className="text-[var(--text-secondary)] text-[15px] leading-[1.5] mb-8 font-normal max-w-[95%] shrink-0 opacity-80">
+              <p className="text-[var(--text-secondary)] text-[14px] leading-[1.5] mb-6 font-normal max-w-[90%] shrink-0 opacity-80">
                 {currentTopic.visualization === 'bst' && "TutorBoard is your personal learning canvas. Join a community of learners pushing boundaries."}
                 {currentTopic.visualization === 'cell' && "Internal structures aren't just diagrams anymore. Experience them in 3D-like clarity."}
                 {currentTopic.visualization === 'orbit' && "From planetary orbits to atomic systems, visualize the invisible patterns of reality."}

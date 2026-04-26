@@ -29,34 +29,42 @@ let groqClient = null;
 let hfClient = null;
 
 const initClients = () => {
-  if (!openRouterClient && process.env.OPENROUTER_API_KEY) {
+  const orKey = process.env.OPENROUTER_API_KEY;
+  const gemKey = process.env.GEMINI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
+
+  if (!openRouterClient && orKey) {
     openRouterClient = new OpenAI({
-      apiKey: process.env.OPENROUTER_API_KEY,
+      apiKey: orKey,
       baseURL: 'https://openrouter.ai/api/v1',
       defaultHeaders: { 'HTTP-Referer': 'https://tutorboard.app', 'X-Title': 'TutorBoard' }
     });
     console.log('[AI] OpenRouter Client Initialized ✅');
+  } else if (!orKey) {
+    console.warn('[AI] OpenRouter key missing from process.env ⚠️');
   }
 
-  if (!geminiClient && process.env.GEMINI_API_KEY) {
+  if (!geminiClient && gemKey) {
     geminiClient = new OpenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: gemKey,
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
     });
     console.log('[AI] Gemini Client Initialized ✅');
+  } else if (!gemKey) {
+    console.warn('[AI] Gemini key missing from process.env ⚠️');
   }
 
-  if (!groqClient && process.env.GROQ_API_KEY) {
+  if (!groqClient && groqKey) {
     groqClient = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
+      apiKey: groqKey,
       baseURL: 'https://api.groq.com/openai/v1'
     });
     console.log('[AI] Groq Client Initialized ✅');
+  } else if (!groqKey) {
+    console.warn('[AI] Groq key missing from process.env ⚠️');
   }
 
   if (!hfClient && process.env.HUGGINGFACE_API_KEY) {
-    // Note: HF doesn't always have a 1:1 OpenAI-compatible endpoint for free tier,
-    // but we can initialize it if they use a dedicated Inference Endpoint.
     hfClient = { apiKey: process.env.HUGGINGFACE_API_KEY };
     console.log('[AI] HuggingFace initialized ✅');
   }

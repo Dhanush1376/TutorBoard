@@ -10,3 +10,7 @@ error.txt
 server_log.txt
 server_output.log
 test_*.log
+scratch/
+__tests__/
+test_*.js
+verify_persistence.js

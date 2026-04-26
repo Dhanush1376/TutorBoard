@@ -6,6 +6,7 @@
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useWindowSize from '../../hooks/useWindowSize';
 
 const MINIMAP_WIDTH  = 180;
 const MINIMAP_HEIGHT = 120;
@@ -32,19 +33,14 @@ const CanvasMinimap = ({
   const isLeftHand  = layoutView === 'left';
   const [dragging, setDragging] = useState(false);
 
-  // Measure actual container size from the DOM if not provided
+  const { width, height } = useWindowSize();
   const [cw, setCw] = useState(containerWidth || window.innerWidth);
   const [ch, setCh] = useState(containerHeight || window.innerHeight);
 
   useEffect(() => {
-    const update = () => {
-      setCw(containerWidth || window.innerWidth);
-      setCh(containerHeight || window.innerHeight);
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, [containerWidth, containerHeight]);
+    setCw(containerWidth || width);
+    setCh(containerHeight || height);
+  }, [containerWidth, containerHeight, width, height]);
 
   if (!transform) return null;
 

@@ -4,8 +4,7 @@ import { Check, Volume2, Bell, BellOff, ShieldAlert, Sparkles, User, Mail, Gradu
 import { useAuth } from '../../context/AuthContext';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
-  AppleToggle, RightInlineInput, RightInlineSelect,
-  TrialBadge
+  AppleToggle, RightInlineInput, RightInlineSelect
 } from './SettingsShared';
 
 const AVATAR_PALETTE = [
@@ -23,6 +22,7 @@ function getAvatarColor(name = '') {
 }
 
 function AvatarCircle({ user, size = 64 }) {
+  const [imgError, setImgError] = useState(false);
   const name = user?.name || '';
   const initials = name
     ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -40,8 +40,13 @@ function AvatarCircle({ user, size = 64 }) {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {user?.avatar && !user.isGuest ? (
-        <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectCover: 'cover' }} />
+      {user?.avatar && !user.isGuest && !imgError ? (
+        <img 
+          src={user.avatar} 
+          alt="" 
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          onError={() => setImgError(true)}
+        />
       ) : (
         initials
       )}
@@ -79,7 +84,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
   const lastSavedName = useRef(user?.name);
   const isFirstRender = useRef(true);
   const initialState = useRef({ nickname, role, preferences, notifCompletion, notifSound, displayName });
-  const isGuest = user?.isGuest;
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -154,38 +158,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
       variants={containerVariants}
       style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '20px' }}
     >
-      {/* Guest Banner */}
-      {isGuest && (
-        <motion.div
-          variants={itemVariants}
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid rgba(59,130,246,0.3)',
-            borderRadius: '20px', padding: '18px 22px', marginBottom: '32px',
-            display: 'flex', alignItems: 'center', gap: '18px',
-            boxShadow: '0 4px 20px rgba(59,130,246,0.06)',
-          }}
-        >
-          <div style={{
-            width: '44px', height: '44px', borderRadius: '14px',
-            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', flexShrink: 0,
-            boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
-          }}>
-            <ShieldAlert size={20} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px', letterSpacing: '-0.01em' }}>
-              Guest Mode Active
-            </p>
-            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.5 }}>
-              Some personalization features are limited. 
-              Sign in to unlock persistent AI preferences and cloud sync.
-            </p>
-          </div>
-        </motion.div>
-      )}
 
       {/* Profile Header Card — Premium Glassmorphism */}
       <motion.div 
@@ -218,7 +190,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
             <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
               {displayName || 'Your Name'}
             </h2>
-            {isGuest && <TrialBadge />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px', opacity: 0.8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -275,7 +246,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                 value={displayName}
                 onChange={e => setDisplayName(e.target.value)}
                 placeholder="Your full name"
-                disabled={isGuest}
               />
             }
           />
@@ -287,7 +257,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
                 placeholder="e.g. Alex"
-                disabled={isGuest}
               />
             }
           />
@@ -298,7 +267,6 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
               <RightInlineSelect
                 value={role}
                 onChange={setRole}
-                disabled={isGuest}
                 options={ROLE_OPTIONS}
               />
             }
@@ -335,18 +303,11 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                 <textarea
                   value={preferences}
                   onChange={e => setPreferences(e.target.value.slice(0, MAX_PREFS + 20))}
-                  disabled={isGuest}
-                  placeholder={
-                    isGuest
-                      ? 'Sign in to customize your AI assistant...'
-                      : 'e.g. "You are a senior software engineer who explains complex concepts using LEGO analogies. Keep responses extremely concise but include code snippets where relevant."'
-                  }
+                  placeholder='e.g. "You are a senior software engineer who explains complex concepts using LEGO analogies. Keep responses extremely concise but include code snippets where relevant."'
                   className={`w-full p-4.5 min-h-[140px] max-h-[300px] bg-[var(--bg-primary)]/50 border-1.5 rounded-2xl text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/50 leading-relaxed outline-none transition-all duration-300 resize-none ${
-                    isGuest 
-                      ? 'opacity-40 cursor-not-allowed border-[var(--border-color)]' 
-                      : prefsOverLimit 
-                        ? 'border-red-500/40 focus:border-red-500' 
-                        : 'border-[var(--border-color)] focus:border-amber-500/50 focus:bg-[var(--bg-primary)]'
+                    prefsOverLimit 
+                      ? 'border-red-500/40 focus:border-red-500' 
+                      : 'border-[var(--border-color)] focus:border-amber-500/50 focus:bg-[var(--bg-primary)]'
                   }`}
                 />
                 
@@ -356,7 +317,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                 </div>
                 
                 {/* Visual Guidelines */}
-                {!isGuest && !preferences && (
+                {!preferences && (
                   <div className="absolute top-16 left-5 right-5 pointer-events-none space-y-2 opacity-30 select-none">
                     <div className="h-2 w-3/4 bg-[var(--text-tertiary)]/20 rounded-full" />
                     <div className="h-2 w-1/2 bg-[var(--text-tertiary)]/20 rounded-full" />
@@ -365,37 +326,25 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
               </div>
 
               {/* Professional Prompt Suggestions */}
-              {!isGuest && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {[
-                    { label: 'Conceptual Focus', text: 'Prioritize conceptual understanding over direct answers.' },
-                    { label: 'Technical Depth', text: 'Provide detailed technical explanations with code.' },
-                    { label: 'Iterative Learning', text: 'Ask follow-up questions to verify my understanding.' }
-                  ].map((chip) => (
-                    <button
-                      key={chip.label}
-                      onClick={() => {
-                        const newPrefs = preferences ? `${preferences} ${chip.text}` : chip.text;
-                        if (newPrefs.length <= MAX_PREFS) setPreferences(newPrefs);
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--text-primary)]/5 border border-[var(--border-color)] text-[10px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all uppercase tracking-wider"
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[
+                  { label: 'Conceptual Focus', text: 'Prioritize conceptual understanding over direct answers.' },
+                  { label: 'Technical Depth', text: 'Provide detailed technical explanations with code.' },
+                  { label: 'Iterative Learning', text: 'Ask follow-up questions to verify my understanding.' }
+                ].map((chip) => (
+                  <button
+                    key={chip.label}
+                    onClick={() => {
+                      const newPrefs = preferences ? `${preferences} ${chip.text}` : chip.text;
+                      if (newPrefs.length <= MAX_PREFS) setPreferences(newPrefs);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--text-primary)]/5 border border-[var(--border-color)] text-[10px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all uppercase tracking-wider"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
               
-              {isGuest && (
-                <div className="mt-4 p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-center gap-3">
-                  <div className="p-1.5 bg-amber-500/10 rounded-lg text-amber-500">
-                    <Sparkles size={14} />
-                  </div>
-                  <p className="text-[11px] text-amber-500/80 font-medium leading-tight">
-                    Custom instructions are a pro feature. Create an account to save your AI persona.
-                  </p>
-                </div>
-              )}
             </div>
         </SettingsGroup>
       </motion.div>

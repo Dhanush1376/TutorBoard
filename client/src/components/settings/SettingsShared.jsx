@@ -287,53 +287,6 @@ export const ContextButton = ({ children, onClick, danger, icon: Icon, borderBot
   </button>
 );
 
-export const TrialSectionOverlay = ({ onUnlock }) => (
-  <div style={{
-    position: 'absolute', inset: 0, zIndex: 100, backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    background: 'rgba(var(--bg-primary-rgb), 0.7)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    borderRadius: '24px', padding: '40px', textAlign: 'center'
-  }}>
-      <div style={{
-        width: '64px', height: '64px', borderRadius: '20px',
-        background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px',
-        color: 'var(--text-secondary)', boxShadow: '0 12px 24px rgba(0,0,0,0.1)'
-      }}>
-        <Lock size={28} strokeWidth={1.5} />
-      </div>
-      <h3 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px', letterSpacing: '-0.02em' }}>Premium Access Required</h3>
-      <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '28px', maxWidth: '240px', lineHeight: 1.5 }}>Unlock cloud persistence and custom AI personality by signing in.</p>
-      <button
-        onClick={onUnlock}
-        style={{
-          padding: '14px 32px', borderRadius: '16px',
-          background: 'var(--text-primary)', color: 'var(--bg-primary)',
-          fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer',
-          boxShadow: '0 10px 20px rgba(0,0,0,0.2)',
-          transition: 'all 0.2s'
-        }}
-        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-      >Sign In to Unlock</button>
-  </div>
-);
-
-export const TrialBadge = () => (
-  <div style={{
-    display: 'flex', alignItems: 'center', gap: '8px',
-    padding: '6px 14px', borderRadius: '24px',
-    background: 'linear-gradient(135deg, #FFD60A, #FF9500)',
-    color: '#000', fontSize: '11px', fontWeight: 700,
-    textTransform: 'uppercase', letterSpacing: '0.08em',
-    boxShadow: '0 4px 12px rgba(255,149,0,0.3)',
-    border: '1.5px solid rgba(255,255,255,0.2)'
-  }}>
-    <Zap size={11} fill="#000" />
-    Trial Mode
-  </div>
-);
 
 export const DialogModal = ({ title, description, children, primaryAction, primaryLabel, primaryDanger, loading, onClose }) => (
   <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', isolation: 'isolate' }}>
@@ -376,7 +329,7 @@ export const useSettingsSync = () => {
   const timeoutRef = useRef(null);
 
   const syncSettings = (category, newValues, topLevel = {}) => {
-    if (!user || user.isGuest) return;
+    if (!user) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(async () => {
       try {
@@ -390,16 +343,4 @@ export const useSettingsSync = () => {
   };
 
   return syncSettings;
-};
-
-export const SectionWrapper = ({ children, isGuest, isRestricted, onUnlock }) => {
-  if (isGuest && isRestricted) {
-    return (
-      <div style={{ position: 'relative', height: '100%' }}>
-        <TrialSectionOverlay onUnlock={onUnlock} />
-        <div style={{ opacity: 0.25, pointerEvents: 'none', filter: 'blur(4px)' }}>{children}</div>
-      </div>
-    );
-  }
-  return <>{children}</>;
 };

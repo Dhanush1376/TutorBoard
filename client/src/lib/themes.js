@@ -2,6 +2,7 @@ export const themes = [
   {
     id: 'bone-obsidian',
     name: 'Bone & Obsidian',
+    displayName: { line1: 'Bone', line2: 'Obsidian' },
     description: 'Stark, near-zero saturation. Gallery-space luxury.',
     colors: {
       light: {
@@ -35,6 +36,7 @@ export const themes = [
   {
     id: 'ivory-ink',
     name: 'Ivory & Ink',
+    displayName: { line1: 'Ivory', line2: 'Ink' },
     description: 'Warm aged-parchment feel. Like a beautifully typeset book.',
     colors: {
       light: {
@@ -68,6 +70,7 @@ export const themes = [
   {
     id: 'cool-slate',
     name: 'Cool Slate',
+    displayName: { line1: 'Cool', line2: 'Slate' },
     description: 'Blue-grey undertones, polished and architectural.',
     colors: {
       light: {
@@ -101,6 +104,7 @@ export const themes = [
   {
     id: 'sage-stone',
     name: 'Sage & Stone',
+    displayName: { line1: 'Sage', line2: 'Stone' },
     description: 'Faint green tint throughout — organic, grounded, architectural.',
     colors: {
       light: {

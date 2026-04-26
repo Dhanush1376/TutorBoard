@@ -19,22 +19,23 @@ const NarrationBar = ({ text, isGenerating }) => {
   useEffect(() => {
     if (isGenerating) {
       // In generation mode, we use the streaming tokens from the store
-      // FIX: narrationTokens is an array of tokens, not a string — join first
-      const allWords = Array.isArray(narrationTokens) ? narrationTokens : (narrationTokens || '').split(' ');
+      // Filter out empty tokens to prevent empty bar from showing
+      const allWords = (Array.isArray(narrationTokens) ? narrationTokens : (narrationTokens || '').split(' '))
+        .filter(w => w.trim().length > 0);
+      
       setWords(allWords);
       setVisibleCount(allWords.length);
       return;
     }
 
-    if (!text) {
+    if (!text || text.trim().length === 0) {
       setWords([]);
       setVisibleCount(0);
       return;
     }
 
-    // Split text into words while preserving formatting tokens if possible
-    // For now, simple split is fine for the streaming effect
-    const allWords = text.split(' ');
+    // Split text into words and filter out empty ones
+    const allWords = text.split(' ').filter(w => w.trim().length > 0);
     setWords(allWords);
     setVisibleCount(0);
 
@@ -79,7 +80,7 @@ const NarrationBar = ({ text, isGenerating }) => {
 
   return (
     <AnimatePresence>
-      {(words.length > 0 || isGenerating) && (
+      {words.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 40, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -102,24 +103,6 @@ const NarrationBar = ({ text, isGenerating }) => {
                   />
                 )}
               </div>
-
-              {isGenerating && (
-                <div className="mt-4 flex items-center justify-center gap-3">
-                  <div className="flex gap-1.5">
-                    {[0, 1, 2].map(i => (
-                      <motion.div
-                        key={i}
-                        animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.2, 1] }}
-                        transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-                        className="w-1.5 h-1.5 rounded-full bg-amber-400"
-                      />
-                    ))}
-                  </div>
-                  <span className="text-[10px] font-normal uppercase tracking-[0.3em] text-white/30">
-                    AI Narration Streaming
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         </motion.div>

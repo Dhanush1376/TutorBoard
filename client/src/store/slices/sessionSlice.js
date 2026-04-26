@@ -1,3 +1,5 @@
+import { TRIAL_LIMITS } from '../../constants/trialConfig';
+
 export const STATES = {
   IDLE:            'IDLE',
   GENERATING:      'GENERATING',
@@ -34,7 +36,16 @@ export const createSessionSlice = (set, get) => ({
   isTimelineReady:    false,
   sessionManifest:    {},
   learnerProfile:     { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} },
-  guestTrialStatus:   { count: 0, limit: 50, warning: false },
+  guestTrialStatus:   { 
+    messageCount: 0, 
+    sessionCount: 0, 
+    lastMessageAt: 0, 
+    isLimitReached: false, 
+    warning: false,
+    // Server-reported values (kept for backward compat)
+    count: 0, 
+    limit: 10 
+  },
   resumeContext:      null, // { topic, stepIndex }
   activeSnapshotId:   null, // ID of message whose snapshot we are currently viewing/editing
 
@@ -53,6 +64,49 @@ export const createSessionSlice = (set, get) => ({
   setNarrationTokens: (tokens)  => set({ narrationTokens: tokens }),
   triggerSync:      ()          => set({ syncTrigger: Date.now() }),
   setGuestTrialStatus: (status) => set({ guestTrialStatus: { ...get().guestTrialStatus, ...status } }),
+
+  /** Increment guest message usage and check limits. Returns true if allowed. */
+  incrementGuestUsage: () => {
+    const { guestTrialStatus } = get();
+    const now = Date.now();
+    const newCount = guestTrialStatus.messageCount + 1;
+    const isLimitReached = newCount >= TRIAL_LIMITS.MAX_MESSAGES;
+    const warning = newCount >= TRIAL_LIMITS.WARNING_THRESHOLD;
+    
+    set({ 
+      guestTrialStatus: { 
+        ...guestTrialStatus, 
+        messageCount: newCount, 
+        lastMessageAt: now,
+        isLimitReached,
+        warning,
+        count: newCount,
+        limit: TRIAL_LIMITS.MAX_MESSAGES 
+      } 
+    });
+    return !isLimitReached;
+  },
+
+  /** Increment guest session count. Returns true if allowed. */
+  incrementGuestSession: () => {
+    const { guestTrialStatus } = get();
+    const newCount = guestTrialStatus.sessionCount + 1;
+    set({ 
+      guestTrialStatus: { 
+        ...guestTrialStatus, 
+        sessionCount: newCount 
+      } 
+    });
+    return newCount <= TRIAL_LIMITS.MAX_SESSIONS;
+  },
+
+  /** Reset guest trial state (used on logout/fresh guest) */
+  resetGuestTrial: () => set({ 
+    guestTrialStatus: { 
+      messageCount: 0, sessionCount: 0, lastMessageAt: 0, 
+      isLimitReached: false, warning: false, count: 0, limit: 10 
+    } 
+  }),
 
   takeSnapshot: () => {
     const { canvasObjects, canvasTransform, currentStepIndex, snapshots } = get();

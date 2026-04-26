@@ -5,10 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import useTutorStore from '../../store/tutorStore';
 import {
-  ChevronRight, X, Minus, Plus, Check
+  ChevronRight, X, Minus, Plus, Check, Lock
 } from 'lucide-react';
 
 import VisaiLogo from '../layout/VisaiLogo';
+import useWindowSize from '../../hooks/useWindowSize';
 
 // Domain Components
 import GeneralSection from './GeneralSection';
@@ -16,7 +17,7 @@ import AccountSection from './AccountSection';
 import AppearanceSection from './AppearanceSection';
 import APIConfigSection from './api-config/APIConfigSection';
 import AboutSection from './AboutSection';
-import { useSettingsSync, SECTIONS, SectionWrapper } from './SettingsShared';
+import { useSettingsSync, SECTIONS } from './SettingsShared';
 
 const SettingsModal = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
@@ -28,9 +29,11 @@ const SettingsModal = ({ isOpen, onClose }) => {
     showToast
   } = useTutorStore();
   
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const { isMobile } = useWindowSize();
   const activeSection = settingsActiveSection;
   const setActiveSection = setSettingsActiveSection;
+  const isGuest = !!user?.isGuest;
+  const GUEST_BLOCKED_SECTIONS = ['account', 'ai'];
   const [isTrafficHovered, setIsTrafficHovered] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const contentRef = useRef(null);
@@ -70,17 +73,28 @@ const SettingsModal = ({ isOpen, onClose }) => {
         >
           {/* Backdrop Blur */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: isSettingsMinimized ? 0 : 1 }}
-            exit={{ opacity: 0 }}
-            className={`fixed inset-0 bg-black/65 ${isSettingsMinimized ? 'pointer-events-none' : 'backdrop-blur-2xl pointer-events-auto'}`}
+            initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+            animate={{ 
+              opacity: isSettingsMinimized ? 0 : 1,
+              backdropFilter: isSettingsMinimized ? 'blur(0px)' : 'blur(24px)'
+            }}
+            exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className={`fixed inset-0 bg-black/60 dark:bg-black/75 ${isSettingsMinimized ? 'pointer-events-none' : 'pointer-events-auto'}`}
             style={{ zIndex: -1 }}
             onClick={onClose}
           />
 
           <motion.div
             layout
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            initial={{ 
+              scale: 0.9, 
+              opacity: 0, 
+              y: 20,
+              filter: 'blur(20px)',
+              transformPerspective: 1200,
+              rotateX: 2
+            }}
             animate={
               isSettingsMinimized ? {
                 position: 'fixed',
@@ -91,6 +105,8 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 width: '180px',
                 height: '44px',
                 borderRadius: '22px',
+                filter: 'blur(0px)',
+                rotateX: 0,
                 x: 0, y: 0, scale: 1, opacity: 1,
               } : (isMaximized || isMobile) ? {
                 position: 'fixed',
@@ -101,22 +117,33 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 width: '100vw',
                 height: '100vh',
                 borderRadius: '0px',
+                filter: 'blur(0px)',
+                rotateX: 0,
                 x: 0, y: 0, scale: 1, opacity: 1,
               } : {
                 position: 'relative',
                 width: 'min(840px, 95vw)',
                 height: 'min(640px, 90vh)',
                 borderRadius: '24px',
+                filter: 'blur(0px)',
+                rotateX: 0,
                 x: 0, y: 0, scale: 1, opacity: 1,
               }
             }
             exit={{ 
-              scale: 0.95, 
+              scale: 0.98, 
               opacity: 0,
-              y: 20,
-              transition: { duration: 0.2, ease: "easeOut" }
+              y: 10,
+              filter: 'blur(10px)',
+              transition: { duration: 0.2, ease: "easeIn" }
             }}
-            transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+            transition={{ 
+              type: 'spring', 
+              damping: 35, 
+              stiffness: 380,
+              mass: 0.6,
+              layout: { duration: 0.4, ease: [0.16, 1, 0.3, 1] }
+            }}
             className="pointer-events-auto flex flex-col overflow-hidden"
             style={{
               background: isSettingsMinimized ? (mode === 'dark' ? 'rgba(30, 30, 33, 0.7)' : 'rgba(255, 255, 255, 0.7)') : 'var(--bg-primary)',
@@ -205,24 +232,36 @@ const SettingsModal = ({ isOpen, onClose }) => {
                   display: 'flex', justifyContent: 'center', gap: 4, overflowX: 'auto', flexShrink: 0,
                   padding: '0 20px', position: 'relative' 
                 }} className="no-scrollbar">
-                  {SECTIONS.filter(tab => !user?.isGuest || ['appearance', 'about', 'ai'].includes(tab.id)).map(tab => {
+                  {SECTIONS.map(tab => {
                     const isTabActive = activeSection === tab.id;
+                    const isBlocked = isGuest && GUEST_BLOCKED_SECTIONS.includes(tab.id);
                     return (
                       <button 
                         key={tab.id} 
-                        onClick={() => setActiveSection(tab.id)} 
+                        onClick={() => {
+                          if (isBlocked) {
+                            showToast({ message: `"${tab.label}" requires a free account.`, type: 'info' });
+                            return;
+                          }
+                          setActiveSection(tab.id);
+                        }} 
                         style={{ 
                           padding: '0 20px', background: 'transparent', border: 'none', 
-                          color: isTabActive ? 'var(--accent-primary)' : 'var(--text-tertiary)', 
-                          fontSize: 13, fontWeight: isTabActive ? 600 : 400, cursor: 'pointer', 
+                          color: isBlocked ? 'var(--text-tertiary)' : (isTabActive ? 'var(--accent-primary)' : 'var(--text-tertiary)'), 
+                          fontSize: 13, fontWeight: isTabActive ? 600 : 400, cursor: isBlocked ? 'not-allowed' : 'pointer', 
                           display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
                           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                          position: 'relative'
+                          position: 'relative',
+                          opacity: isBlocked ? 0.4 : 1,
                         }}
                       >
-                        <tab.icon size={14} strokeWidth={isTabActive ? 2.5 : 1.5} style={{ opacity: isTabActive ? 1 : 0.7 }} />
+                        {isBlocked ? (
+                          <Lock size={14} strokeWidth={1.5} style={{ opacity: 0.7 }} />
+                        ) : (
+                          <tab.icon size={14} strokeWidth={isTabActive ? 2.5 : 1.5} style={{ opacity: isTabActive ? 1 : 0.7 }} />
+                        )}
                         {tab.label}
-                        {isTabActive && (
+                        {isTabActive && !isBlocked && (
                           <motion.div 
                             layoutId="settings-active-tab"
                             style={{ 
@@ -250,9 +289,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }} 
                         style={{ maxWidth: '840px', margin: '0 auto' }}
                       >
-                        <SectionWrapper isGuest={user?.isGuest} isRestricted={!['appearance', 'about', 'ai'].includes(activeSection)} onUnlock={onClose}>
-                          {renderSection()}
-                        </SectionWrapper>
+                        {renderSection()}
                       </motion.div>
                     </AnimatePresence>
                   </div>

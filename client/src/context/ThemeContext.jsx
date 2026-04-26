@@ -57,6 +57,13 @@ export const ThemeProvider = ({ children }) => {
       '--global-font': '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       '--glass-blur': `${((glassIntensity ?? 80) / 100) * 25}px`,
       '--glass-opacity': `${((glassIntensity ?? 80) / 100) * 0.95}`,
+      '--glass-bg': mode === 'light' 
+        ? `rgba(255, 255, 255, ${((glassIntensity ?? 80) / 100) * 0.88})` 
+        : `rgba(15, 15, 14, ${((glassIntensity ?? 80) / 100) * 0.9})`,
+      '--glass-border': mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+      '--glass-shadow': mode === 'light' 
+        ? '0 12px 48px rgba(0, 0, 0, 0.12), 0 1px 0 rgba(255, 255, 255, 0.95) inset' 
+        : '0 16px 64px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.06) inset',
       '--canvas-filter': (canvasTone || 'neutral') === 'neutral' ? 'none' : 
                          canvasTone === 'warm' ? 'sepia(0.15) saturate(1.1) brightness(1.02)' : 
                          'hue-rotate(200deg) saturate(0.2) brightness(1.05)', // Cool/Frosty

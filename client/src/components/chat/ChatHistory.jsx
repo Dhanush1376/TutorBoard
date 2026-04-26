@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Edit2, Share, Trash2, Check, X, MessageSquare, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useWindowSize from '../../hooks/useWindowSize';
 
 const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, onRenameChat }) => {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const { isMobile } = useWindowSize();
 
   const handleStartEdit = (chat) => {
     setEditingId(chat.id);
@@ -40,7 +42,7 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
             className="relative group/item px-0.5"
           >
             {editingId === chat.id ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-lg ring-2 ring-[var(--text-primary)]/10">
+              <div className={`flex items-center gap-2 ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-lg ring-2 ring-[var(--text-primary)]/10`}>
                 <input 
                   type="text"
                   value={editTitle}
@@ -51,26 +53,26 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                   className="flex-1 bg-transparent text-[var(--text-primary)] text-[13px] font-normal outline-none"
                 />
                 <div className="flex items-center gap-1">
-                  <button onClick={handleConfirmEdit} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"><Check size={14} /></button>
-                  <button onClick={() => setEditingId(null)} className="p-1 text-red-600 hover:bg-red-50 rounded-md transition-colors"><X size={14} /></button>
+                  <button onClick={handleConfirmEdit} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"><Check size={isMobile ? 18 : 14} /></button>
+                  <button onClick={() => setEditingId(null)} className="p-1 text-red-600 hover:bg-red-50 rounded-md transition-colors"><X size={isMobile ? 18 : 14} /></button>
                 </div>
               </div>
             ) : (
               <div className="relative">
                 <button
                   onClick={() => onSelectChat(chat.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center transition-all duration-200 relative overflow-hidden group/btn ${
+                  className={`w-full text-left ${isMobile ? 'px-4 py-3.5' : 'px-3 py-2.5'} rounded-xl flex items-center transition-all duration-200 relative overflow-hidden group/btn ${
                     activeChatId === chat.id 
                       ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' 
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <MessageSquare 
-                    size={15} 
+                    size={isMobile ? 18 : 15} 
                     className={`mr-3 transition-colors ${activeChatId === chat.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover/btn:text-[var(--text-secondary)]'}`} 
                   />
                   
-                  <span className="truncate text-[12px] flex-1 font-normal tracking-tight transition-colors">
+                  <span className={`truncate ${isMobile ? 'text-[13px]' : 'text-[12px]'} flex-1 font-normal tracking-tight transition-colors`}>
                     {chat.title || "Untitled Session"}
                   </span>
                   
@@ -83,27 +85,27 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                 </button>
 
                 {/* Actions Menu (revealed on hover) */}
-                <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-all duration-200 bg-gradient-to-l from-[var(--bg-tertiary)] via-[var(--bg-tertiary)] to-transparent pl-8 rounded-r-xl py-1">
+                <div className={`absolute ${isMobile ? 'right-2' : 'right-1.5'} top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-all duration-200 bg-gradient-to-l from-[var(--bg-tertiary)] via-[var(--bg-tertiary)] to-transparent pl-8 rounded-r-xl py-1`}>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleStartEdit(chat); }} 
-                    className="p-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50 rounded-lg transition-all" 
+                    className={`${isMobile ? 'p-2' : 'p-1.5'} text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50 rounded-lg transition-all`} 
                     title="Rename"
                   >
-                    <Edit2 size={13} />
+                    <Edit2 size={isMobile ? 15 : 13} />
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleShare(chat); }} 
-                    className="p-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50 rounded-lg transition-all" 
+                    className={`${isMobile ? 'p-2' : 'p-1.5'} text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50 rounded-lg transition-all`} 
                     title="Share"
                   >
-                    <Share size={13} />
+                    <Share size={isMobile ? 15 : 13} />
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onDeleteChat && onDeleteChat(chat.id); }} 
-                    className="p-1.5 text-[var(--text-tertiary)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all" 
+                    className={`${isMobile ? 'p-2' : 'p-1.5'} text-[var(--text-tertiary)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all`} 
                     title="Delete"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={isMobile ? 15 : 13} />
                   </button>
                 </div>
               </div>

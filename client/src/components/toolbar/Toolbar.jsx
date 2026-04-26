@@ -13,6 +13,7 @@ import ToolButtonBase from './tools/ToolButtonBase';
 import ActionButtonBase from './tools/ActionButtonBase';
 import useTutorStore from '../../store/tutorStore';
 import { useAuth } from '../../context/AuthContext';
+import useWindowSize from '../../hooks/useWindowSize';
 
 // Tool Components
 import TextTool from './tools/TextTool';
@@ -37,7 +38,7 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
   const [offset, setOffset] = useState(0);
   const [hoveredId, setHoveredId] = useState(null);
   const dropdownRef = useRef(null);
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const { isMobile } = useWindowSize();
 
   useEffect(() => {
     if (dropdownRef.current) {
@@ -53,27 +54,27 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
   return (
     <motion.div
       ref={dropdownRef}
-      initial={{ opacity: 0, y: isMobile ? 10 : -10, scale: 0.95 }}
+      initial={{ opacity: 0, y: -10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1, x: offset }}
-      exit={{ opacity: 0, y: isMobile ? 10 : -10, scale: 0.95 }}
-      className={`absolute ${isMobile ? 'bottom-full mb-4' : 'top-full mt-4'} z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
+      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+      className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
     >
       <div 
         className="p-1.5 rounded-2xl relative shadow-2xl"
         style={{
           background: 'var(--bg-primary)',
           border: '1px solid var(--border-color)',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.25)',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
         }}
       >
         <div
-          className={`absolute ${isMobile ? '-bottom-1.5' : '-top-1.5'} w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+          className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
           style={{
             background: 'var(--bg-primary)',
-            borderLeft: isMobile ? 'none' : '1px solid var(--border-color)',
-            borderTop: isMobile ? 'none' : '1px solid var(--border-color)',
-            borderRight: isMobile ? '1px solid var(--border-color)' : 'none',
-            borderBottom: isMobile ? '1px solid var(--border-color)' : 'none',
+            borderLeft: '1px solid var(--border-color)',
+            borderTop: '1px solid var(--border-color)',
+            borderRight: 'none',
+            borderBottom: 'none',
             zIndex: -1,
             transform: `translateX(${-offset}px) rotate(45deg)` // Counter-shift the caret
           }}
@@ -81,7 +82,7 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
 
         <div className="rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--border-color)] mb-1">
-            <p className="text-[12px] font-normal text-[var(--text-primary)]">{user?.name || (user?.isGuest ? 'Guest' : 'Account')}</p>
+            <p className="text-[12px] font-normal text-[var(--text-primary)]">{user?.name || 'Account'}</p>
             <p className="text-[10px] text-[var(--text-tertiary)]">{user?.email || 'Not signed in'}</p>
           </div>
           
@@ -128,6 +129,7 @@ const Toolbar = ({ onSettingsClick }) => {
   } = useTutorStore();
 
   const { user, logout } = useAuth();
+  const { isMobile } = useWindowSize();
   
   const isLeftHand = layoutView === 'left';
 
@@ -173,6 +175,8 @@ const Toolbar = ({ onSettingsClick }) => {
   const featureFlags = useTutorStore(state => state.featureFlags);
   const isHidden = isInteracting && !isHovered;
 
+  const [imgError, setImgError] = useState(false);
+
   return (
     <motion.div
       ref={toolbarRef}
@@ -186,9 +190,9 @@ const Toolbar = ({ onSettingsClick }) => {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
-      className={`flex items-center rounded-3xl relative transition-all duration-500 gap-0.5 ${isInteracting ? 'scale-[0.98]' : ''}`}
+      className={`flex items-center rounded-3xl relative transition-all duration-500 ${isInteracting ? 'scale-[0.98]' : ''} ${isMobile ? 'gap-0 max-w-[calc(100vw-80px)]' : 'gap-0.5'}`}
       style={{
-        padding: '7px 8px',
+        padding: isMobile ? '5px 6px' : '7px 8px',
         background: isInteracting 
           ? 'rgba(var(--bg-primary-rgb), 0.5)' 
           : 'var(--glass-bg)',
@@ -196,15 +200,15 @@ const Toolbar = ({ onSettingsClick }) => {
         WebkitBackdropFilter: 'blur(40px) saturate(200%)',
         border: '1.2px solid var(--glass-border)',
         boxShadow: isInteracting
-          ? '0 12px 40px rgba(0,0,0,0.2)'
-          : '0 24px 60px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.03)',
+          ? '0 8px 30px rgba(0,0,0,0.12)'
+          : '0 12px 40px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05)',
         userSelect: 'none',
         pointerEvents: 'auto',
       }}
     >
       <LayoutGroup id="main-toolbar">
         {/* All tools in a single seamless group */}
-        <div className="flex items-center gap-0.5">
+        <div className={`flex items-center gap-0.5 ${isMobile ? 'overflow-x-auto no-scrollbar max-w-[calc(100%-44px)]' : ''}`}>
           <TextTool {...commonToolProps} isHoveredExternally={hoveredId === 'text'} />
           <DrawTool {...commonToolProps} isHoveredExternally={hoveredId === 'draw'} />
           <NoteTool {...commonToolProps} isHoveredExternally={hoveredId === 'note'} />
@@ -242,7 +246,7 @@ const Toolbar = ({ onSettingsClick }) => {
           />
         </div>
         
-        <div className="relative ml-0.5 group/profile">
+        <div className="relative ml-1 group/profile shrink-0">
           {/* Seamless Liquid Hover Pill - Integrated with the main toolset */}
           <AnimatePresence>
             {(hoveredId === 'profile' && !isProfileOpen) && (
@@ -269,22 +273,23 @@ const Toolbar = ({ onSettingsClick }) => {
             onMouseLeave={() => {
               setHoveredId(null);
             }}
-            className="relative w-[40px] h-[40px] rounded-[14px] flex items-center justify-center transition-all overflow-hidden cursor-pointer z-10"
+            className="relative w-[32px] h-[32px] md:w-[40px] md:h-[40px] rounded-[12px] md:rounded-[14px] flex items-center justify-center transition-all overflow-hidden cursor-pointer z-10"
             style={{
               background: isProfileOpen ? 'var(--text-primary)' : 'var(--bg-tertiary)44',
               border: '1px solid var(--border-color)',
               boxShadow: isProfileOpen ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
             }}
           >
-            {user?.avatar ? (
+            {user?.avatar && !imgError ? (
               <img 
                 src={user.avatar} 
                 alt={user.name} 
                 className={`w-full h-full object-cover transition-all duration-500 ${isProfileOpen ? 'opacity-20 scale-125 blur-md' : (hoveredId === 'profile' ? 'opacity-60 scale-110 blur-[2px]' : 'opacity-100')}`}
+                onError={() => setImgError(true)}
               />
             ) : (
               <User 
-                size={18} 
+                size={isMobile ? 14 : 18} 
                 strokeWidth={2.5}
                 className="relative z-10 transition-colors"
                 style={{
@@ -295,7 +300,7 @@ const Toolbar = ({ onSettingsClick }) => {
             
             {isProfileOpen && user?.avatar && (
               <div className="absolute inset-0 flex items-center justify-center z-20">
-                <User size={16} strokeWidth={3} style={{ color: 'var(--bg-primary)' }} />
+                <User size={isMobile ? 13 : 16} strokeWidth={3} style={{ color: 'var(--bg-primary)' }} />
               </div>
             )}
           </motion.button>

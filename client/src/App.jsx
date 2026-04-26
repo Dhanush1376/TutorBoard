@@ -18,10 +18,30 @@ import IntroAnimation from './components/layout/IntroAnimation';
 import useTutorStore from './store/tutorStore';
 import GlobalOverlayManager from './components/common/GlobalOverlayManager';
 import ToastContainer from './components/layout/ToastContainer';
+import TrialLimitOverlay from './components/common/TrialLimitOverlay';
 
 function App() {
   const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
-  const { setGlobalOverlay } = useTutorStore();
+  const { setGlobalOverlay, hydrate, setSidebarOpen } = useTutorStore();
+  
+  // SEC-02 & FO-03: Initialize store from client environment and listen for resize
+  useEffect(() => {
+    hydrate();
+    
+    let lastIsMobile = window.innerWidth < 768;
+    
+    const handleResize = () => {
+      const currentIsMobile = window.innerWidth < 768;
+      // Only auto-adjust if we cross the mobile/desktop boundary
+      if (currentIsMobile !== lastIsMobile) {
+        setSidebarOpen(!currentIsMobile);
+        lastIsMobile = currentIsMobile;
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [hydrate, setSidebarOpen]);
 
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     try {
@@ -37,11 +57,13 @@ function App() {
 
   useEffect(() => {
     if (welcomeLoading) {
+      // UX-01: Set flag immediately so a quick refresh doesn't replay the intro
+      try {
+        localStorage.setItem('tb-welcome-played-v1', 'true');
+      } catch {}
+
       const timer = setTimeout(() => {
         setWelcomeLoading(false);
-        try {
-          localStorage.setItem('tb-welcome-played-v1', 'true');
-        } catch {}
       }, 5000);
       return () => clearTimeout(timer);
     }
@@ -49,7 +71,7 @@ function App() {
 
   useEffect(() => {
     if (welcomeLoading || authLoading) {
-      const timer = setTimeout(() => setShowSkip(true), 6000);
+      const timer = setTimeout(() => setShowSkip(true), 2500);
       return () => clearTimeout(timer);
     } else {
       setShowSkip(false);
@@ -151,10 +173,13 @@ function App() {
         )}
       </AnimatePresence>
 
-      <GlobalOverlayManager />
+      <AnimatePresence>
+        {!useTutorStore.getState().globalOverlay.isActive && <GlobalOverlayManager />}
+      </AnimatePresence>
       <GlobalStatusOverlay />
       <ThemedPopup />
       <ToastContainer />
+      <TrialLimitOverlay />
       
       <main className="app-main">
         <Routes>

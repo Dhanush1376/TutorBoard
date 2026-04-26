@@ -47,7 +47,6 @@ const useTutorStore = create(
       hydrate: () => {
         if (typeof window === 'undefined') return;
         set({
-          isSidebarOpen: window.innerWidth >= 768,
           selectedAgent: localStorage.getItem('tutorboard-agent') || 'Universal',
         });
       },
@@ -60,6 +59,7 @@ const useTutorStore = create(
         playbackSpeed: state.playbackSpeed,
         voiceEnabled: state.voiceEnabled,
         layoutView: state.layoutView,
+        isSidebarOpen: state.isSidebarOpen,
         recentColors: state.recentColors,
         laserWidth: state.laserWidth,
         textToolSize: state.textToolSize,
@@ -78,6 +78,7 @@ const useTutorStore = create(
           : state.sessionManifest,
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
+        guestTrialStatus: state.guestTrialStatus,
       }),
     }
   )

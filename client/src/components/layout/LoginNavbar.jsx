@@ -11,6 +11,16 @@ const LoginNavbar = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    // Lock body scroll when mobile menu is open
+    React.useEffect(() => {
+        if (isMenuOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isMenuOpen]);
+
     const links = [
         { 
             label: 'How it works', 
@@ -100,7 +110,7 @@ const LoginNavbar = () => {
                                 }}
                                 className="flex items-center gap-2 bg-[var(--text-primary)] text-[var(--bg-primary)] px-6 py-2.5 rounded-xl text-[11px] font-extrabold uppercase tracking-[0.1em] hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-[var(--text-primary)]/10 border border-white/5"
                             >
-                                Try TutorBoard <ArrowRight size={14} strokeWidth={3} />
+                                Try Free — 10 Messages <ArrowRight size={14} strokeWidth={3} />
                             </motion.button>
                         )}
                     </AnimatePresence>

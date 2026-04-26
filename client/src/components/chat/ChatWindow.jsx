@@ -4,18 +4,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../layout/VisaiLogo';
+import useWindowSize from '../../hooks/useWindowSize';
 
 // ── New premium starting interface ──
 const ChatLanding = ({ setActiveMode, activeMode }) => {
   const { user } = useAuth();
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const { isMobile } = useWindowSize();
   
   const greeting = React.useMemo(() => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return "Welcome, Early Bird,";
     if (hour >= 12 && hour < 17) return "Welcome, Day Dreamer,";
     if (hour >= 17 && hour < 21) return "Welcome, Calm Creator,";
-    return "Welcome, Night Owl,";
+    return "Welcome, Night Owl,"; // Covers 21:00 - 04:59
   }, []);
 
   const modes = [
@@ -28,25 +29,24 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`flex-1 flex flex-col justify-start ${isMobile ? 'px-4 py-8' : 'px-6 py-16'} select-none overflow-y-auto no-scrollbar`}
+      className={`flex-1 flex flex-col justify-start ${isMobile ? 'px-4 py-6' : 'px-6 py-16'} select-none overflow-y-auto no-scrollbar`}
     >
-      {/* Personalized Greeting */}
       <motion.div
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className={isMobile ? "mb-6" : "mb-8"}
+        className={isMobile ? "mb-4" : "mb-8"}
       >
-        <p className="!text-[11px] lg:!text-[12px] font-normal text-[var(--text-secondary)] mb-1 tracking-tight opacity-80">
+        <p className={`!font-normal text-[var(--text-secondary)] mb-0.5 tracking-tight opacity-80 ${isMobile ? '!text-[9px]' : '!text-[11px] lg:!text-[12px]'}`}>
           {greeting}
         </p>
-        <h1 className={`${isMobile ? '!text-[24px]' : '!text-[22px] lg:!text-[30px]'} font-normal text-[var(--text-primary)] leading-[1.2] tracking-tight`}>
+        <h1 className={`${isMobile ? '!text-[12px]' : '!text-[22px] md:!text-[24px] lg:!text-[30px]'} font-sans font-normal text-[var(--text-primary)] leading-[1.2] tracking-tight`}>
           Where should <br /> we start?
         </h1>
       </motion.div>
 
       {/* Starting Blocks (Modes) */}
-      <div className="flex flex-col gap-3 items-start">
+      <div className="flex flex-col gap-2 items-start">
         {modes.map((mode, i) => (
           <motion.button
             key={mode.id}
@@ -54,7 +54,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setActiveMode(activeMode === mode.id ? null : mode.id)}
-            className={`flex items-center ${isMobile ? 'gap-2.5 px-4 py-3' : 'gap-3 px-5 py-3.5'} rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
+            className={`flex items-center ${isMobile ? 'gap-2 px-3 py-2' : 'gap-3 px-5 py-3.5'} rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
               activeMode === mode.id 
                 ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
                 : 'bg-[var(--bg-tertiary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/90'
@@ -63,9 +63,9 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             <div className={`flex items-center justify-center transition-transform group-hover:scale-110 ${
               activeMode === mode.id ? 'opacity-100' : 'opacity-80'
             }`}>
-              <mode.icon size={isMobile ? 18 : 20} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
+              <mode.icon size={isMobile ? 15 : 20} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
             </div>
-            <span className={`${isMobile ? 'text-[14px]' : 'text-[16px]'} font-normal tracking-tight pr-1`}>
+            <span className={`${isMobile ? 'text-[12px]' : 'text-[16px]'} font-normal tracking-tight pr-1`}>
               {mode.label}
             </span>
           </motion.button>

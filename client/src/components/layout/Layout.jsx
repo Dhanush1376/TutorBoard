@@ -5,23 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Toolbar from '../toolbar/Toolbar';
 import useTutorStore from '../../store/tutorStore';
+import useWindowSize from '../../hooks/useWindowSize';
 
 const SIDEBAR_WIDTH = 320;
 const PANEL_RADIUS = 28;
 const PANEL_GAP = 0;
 
 const sidebarStyle = {
-  background: 'var(--bg-primary)',
-  borderRight: '1px solid var(--border-color)',
-  backdropFilter: 'blur(40px)',
-  WebkitBackdropFilter: 'blur(40px)',
+  background: 'transparent',
 };
 
 const sidebarStyleRight = {
-  background: 'var(--bg-primary)',
-  borderLeft: '1px solid var(--border-color)',
-  backdropFilter: 'blur(40px)',
-  WebkitBackdropFilter: 'blur(40px)',
+  background: 'transparent',
 };
 
 const miniGlass = {
@@ -37,9 +32,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   } = useTutorStore();
   const isRightHand = layoutView === 'right';
   const { user } = useAuth();
+  const sidebarRef = React.useRef(null);
 
   // Responsive logic
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const { isMobile } = useWindowSize();
   const currentSidebarWidth = isMobile ? '100%' : SIDEBAR_WIDTH;
   const sidebarVisible = isSidebarOpen && !forceCollapse;
 
@@ -51,28 +47,66 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         background: 'var(--bg-primary)',
       }}
     >
+      {/* ── MOBILE BACKDROP ── */}
+      <AnimatePresence>
+        {sidebarVisible && isMobile && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[4999] bg-black/40 md:hidden"
+            onClick={(e) => {
+              if (sidebarRef.current) {
+                const rect = sidebarRef.current.getBoundingClientRect();
+                // If click is within sidebar boundaries, ignore it
+                if (
+                  e.clientX >= rect.left &&
+                  e.clientX <= rect.right &&
+                  e.clientY >= rect.top &&
+                  e.clientY <= rect.bottom
+                ) {
+                  return;
+                }
+              }
+              // Only close if it's truly outside
+              setSidebarOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── SIDEBAR PANEL ── */}
       <AnimatePresence initial={false}>
         {sidebarVisible && (
           <motion.aside
             key="sidebar"
-            initial={{ 
-              x: isRightHand ? '100%' : '-100%', 
+            ref={sidebarRef}
+            initial={{
+              x: isRightHand ? '100%' : '-100%',
               opacity: 0.5,
               width: isMobile ? '100%' : 0
             }}
-            animate={{ 
-              x: 0, 
+            animate={{
+              x: 0,
               opacity: 1,
               width: currentSidebarWidth
             }}
-            exit={{ 
-              x: isRightHand ? '100%' : '-100%', 
+            exit={{
+              x: isRightHand ? '100%' : '-100%',
               opacity: 0,
               width: isMobile ? '100%' : 0
             }}
             transition={{ type: 'spring', damping: 30, stiffness: 350, mass: 0.8 }}
-            className="tb-sidebar flex-shrink-0 flex flex-col overflow-hidden h-full z-[5000] md:z-auto fixed md:relative"
+            onClick={(e) => {
+              // Stop propagation to prevent hitting the backdrop
+              e.stopPropagation();
+            }}
+            onPointerDown={(e) => {
+              // Safety for mobile pointer events
+              e.stopPropagation();
+            }}
+            className="tb-sidebar flex-shrink-0 flex flex-col overflow-hidden h-full z-[5000] md:z-auto fixed md:relative pointer-events-auto"
             style={{
               ...(isRightHand ? sidebarStyleRight : sidebarStyle),
               boxShadow: isMobile ? '0 0 40px rgba(0,0,0,0.2)' : 'none',
@@ -132,68 +166,55 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
         {/* ── OVERLAYS (Pills, Toolbar, etc.) ── */}
 
-        {/* Floating Top Pill (Workspace Toggle) */}
-        <AnimatePresence>
-          {!isSidebarOpen && !forceCollapse && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -10 }}
-              className={`absolute top-5 ${isRightHand ? 'right-5' : 'left-5'} z-50 flex items-center`}
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid var(--glass-border)',
-                boxShadow: 'var(--glass-shadow)',
-                borderRadius: 'var(--radius-2xl)',
-                padding: '6px 10px',
-              }}
-            >
-              <button
-                onClick={toggleSidebar}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:bg-[var(--bg-tertiary)]/40"
-              >
-                {isSidebarOpen ? <PanelRight size={15} strokeWidth={2} /> : <PanelLeft size={15} strokeWidth={2} />}
-                <span className="text-[10px] uppercase tracking-widest font-semibold opacity-70">
-                  {isSidebarOpen ? 'Close' : 'Workspace'}
-                </span>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ─── 5. UNIFIED TOP CONTROLS ─── */}
+        <div className={`absolute top-5 left-0 right-0 px-5 z-[50] pointer-events-none flex items-center justify-between gap-4 ${isRightHand ? 'flex-row-reverse' : 'flex-row'}`}>
+          {/* Workspace Toggle Pill */}
+          <div className="pointer-events-auto flex-shrink-0">
+            <AnimatePresence>
+              {!isSidebarOpen && !forceCollapse && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                  style={{
+                    background: 'var(--glass-bg)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: '1px solid var(--glass-border)',
+                    boxShadow: 'var(--glass-shadow)',
+                    borderRadius: 'var(--radius-2xl)',
+                    padding: '6px 10px',
+                  }}
+                >
+                  <button
+                    onClick={toggleSidebar}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:bg-[var(--bg-tertiary)]/40"
+                  >
+                    {isSidebarOpen ? <PanelRight size={15} strokeWidth={2} /> : <PanelLeft size={15} strokeWidth={2} />}
+                    <span className="hidden md:block text-[10px] uppercase tracking-widest font-semibold opacity-70">
+                      {isSidebarOpen ? 'Close' : 'Workspace'}
+                    </span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-        {/* Responsive Toolbar Positioning */}
-        {!forceCollapse && (
+          {/* Main Toolbar */}
           <div
-            className={`absolute z-50 flex items-center transition-all duration-500 ${
-              isMobile 
-                ? 'bottom-6 left-1/2 -translate-x-1/2 w-fit max-w-[95vw]' 
-                : `top-5 ${isRightHand ? 'left-5' : 'right-5'}`
-            } ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100'}`}
+            className={`pointer-events-auto transition-all duration-500 flex-1 flex ${isRightHand ? 'justify-start' : 'justify-end'} ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none -translate-y-10' : 'opacity-100'}`}
           >
-            <div className={`${isMobile ? 'overflow-x-auto no-scrollbar py-2 px-1' : ''}`}>
+            <div className="w-fit">
               <Toolbar
                 onShare={() => { }}
                 onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
               />
             </div>
           </div>
-        )}
+        </div>
       </main>
 
       {/* MOBILE BACKDROP */}
-      <AnimatePresence>
-        {sidebarVisible && isMobile && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[4999] bg-black/40 backdrop-blur-sm md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };

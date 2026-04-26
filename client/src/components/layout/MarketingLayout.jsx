@@ -108,7 +108,7 @@ const MarketingLayout = () => {
 
 
       {/* Main Content Area */}
-      <main className="relative z-10 pt-28 pb-16 px-6 sm:px-12 lg:px-24 max-w-7xl mx-auto flex flex-col min-h-screen">
+      <main className="relative z-10 pt-16 md:pt-28 pb-16 px-6 sm:px-12 lg:px-24 max-w-7xl mx-auto flex flex-col min-h-screen">
         <AnimatePresence mode="wait">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

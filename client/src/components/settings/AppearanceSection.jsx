@@ -33,7 +33,7 @@ const ThemePreviewCard = ({ theme, mode, isSelected, onClick }) => {
         borderRadius: '18px', overflow: 'hidden', background: t.bg,
         border: `2px solid ${isSelected ? 'var(--accent-primary)' : 'var(--border-color)'}`,
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: isSelected ? `0 12px 32px ${t.text}15` : '0 4px 12px rgba(0,0,0,0.02)',
+        boxShadow: isSelected ? '0 8px 20px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
       }}>
         {/* Sidebar */}
         <div style={{
@@ -104,7 +104,6 @@ const ThemePreviewCard = ({ theme, mode, isSelected, onClick }) => {
             width: '16px', height: '16px', borderRadius: '50%',
             background: 'var(--accent-primary)', color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 8px var(--accent-primary)33',
           }}>
             <Check size={10} strokeWidth={4} />
           </div>

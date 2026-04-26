@@ -417,11 +417,40 @@ export default function APIConfigSection({ showToast }) {
         <SectionTitle>Global Guardrails</SectionTitle>
         <SettingsGroup>
           <SettingsRow icon={DollarSign} label="Monthly Limit ($)" rightElement={
-            <input type="number" value={preferences.costControl?.monthlyLimitCents || 0} onChange={e => handleUpdateCostControl('monthlyLimitCents', parseInt(e.target.value))}
-              style={{ width: '90px', padding: '8px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: '14px', textAlign: 'right', fontWeight: 800, fontFamily: '"Geist Mono", monospace', outline: 'none', transition: 'all 0.2s', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }} 
-              onFocus={e => (e.target.style.borderColor = 'var(--accent-primary)', e.target.style.background = 'var(--bg-secondary)')}
-              onBlur={e => (e.target.style.borderColor = 'var(--border-color)', e.target.style.background = 'var(--bg-tertiary)')}
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: '12px', fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 700, opacity: 0.5 }}>$</span>
+              <input 
+                type="number" 
+                value={preferences.costControl?.monthlyLimitCents || 0} 
+                onChange={e => handleUpdateCostControl('monthlyLimitCents', parseInt(e.target.value) || 0)}
+                className="hide-arrows"
+                style={{ 
+                  width: '100px', 
+                  padding: '8px 12px 8px 24px', 
+                  borderRadius: '12px', 
+                  border: '1px solid var(--border-color)', 
+                  background: 'var(--bg-tertiary)', 
+                  color: 'var(--text-primary)', 
+                  fontSize: '14px', 
+                  textAlign: 'right', 
+                  fontWeight: 700, 
+                  fontFamily: '"Geist Mono", monospace', 
+                  outline: 'none', 
+                  transition: 'all 0.2s', 
+                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' 
+                }} 
+                onFocus={e => {
+                  e.target.style.borderColor = 'var(--accent-primary)';
+                  e.target.style.background = 'var(--bg-secondary)';
+                  e.target.style.boxShadow = '0 0 0 4px var(--accent-primary)15, inset 0 1px 2px rgba(0,0,0,0.05)';
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = 'var(--border-color)';
+                  e.target.style.background = 'var(--bg-tertiary)';
+                  e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.05)';
+                }}
+              />
+            </div>
           } />
           <SettingsRow icon={Shield} label="Hard Stop Protection" borderBottom={false} rightElement={<AppleToggle value={preferences.costControl?.hardStop !== false} onChange={v => handleUpdateCostControl('hardStop', v)} />} />
         </SettingsGroup>
@@ -503,7 +532,11 @@ export default function APIConfigSection({ showToast }) {
         )}
       </AnimatePresence>
 
-      <style>{`@keyframes pulse-ring { 0% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0; transform: scale(1.8); } 100% { opacity: 0; transform: scale(1.8); } }`}</style>
+      <style>{`
+        @keyframes pulse-ring { 0% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0; transform: scale(1.8); } 100% { opacity: 0; transform: scale(1.8); } }
+        .hide-arrows::-webkit-outer-spin-button, .hide-arrows::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .hide-arrows { -moz-appearance: textfield; }
+      `}</style>
     </div>
   );
 }
