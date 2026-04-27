@@ -1,13 +1,9 @@
 /**
- * TeachingSession v3.0 — FULL-SCREEN IMMERSIVE VISUAL LEARNING ENGINE
+ * TeachingSession v3.1 — OVERLAY-BASED IMMERSIVE VISUAL LEARNING ENGINE
  *
-* v3.0 — Cinematic Animation Engine Integration:
- *   - All 24 subject domains supported with styled badges
- *   - Close button onClick fixed
- *   - StepPanel visible in TEACHING + RESPONDING + RESUMING states
- *   - Domain badge shown even for unknown domains (graceful fallback)
- *   - Doubt input shows domain-appropriate placeholder
- *   - Progress bar segment limit (max 50 segments) prevents UI overflow
+ * Renders as an overlay on top of the existing InfiniteCanvas.
+ * All elements are dynamically generated from machine state.
+ * Nothing extends outside the canvas frame.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -70,13 +66,12 @@ const TeachingSession = ({ initialTopic }) => {
   const isTeachingActive = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
 
   const handleClose = useCallback(() => {
-    endSession(); // CLEANUP server session on close!
+    endSession();
   }, [endSession]);
 
   const [doubtInput, setDoubtInput] = useState('');
   const canvasRef = useRef(null);
   const doubtInputRef = useRef(null);
-
 
   const handleSpeedChange = useCallback((spd) => {
     storeSetSpeed(spd);
@@ -99,32 +94,23 @@ const TeachingSession = ({ initialTopic }) => {
   // Start or Resume session on open
   useEffect(() => {
     if (isOpen && initialTopic) {
-      // CASE 1: No session started yet
       if (machineState === STATES.IDLE && !timeline) {
         startSession(initialTopic, initialTopic);
         return;
       }
 
-      // CASE 2: Topic has changed while session was IDLE or exist
-      // We check if the current topic (from machine) matches initialTopic
       const isSameTopic = topic?.toLowerCase() === initialTopic.toLowerCase();
       
       if (!isSameTopic && machineState !== STATES.GENERATING) {
         console.log(`[Session] Topic changed from "${topic}" to "${initialTopic}". Resetting.`);
-        endSession(); // Clear previous topic state
-        // The next tick will trigger Case 1
+        endSession();
       }
     }
   }, [isOpen, initialTopic, machineState, startSession, timeline, topic, endSession]);
 
-
-
   // Voice narration
   useEffect(() => {
-    // BUG FIX #58: Feature detection for speechSynthesis (not available in all browsers)
     if (!window.speechSynthesis) return;
-    
-    // Force immediate cancel on any change (Bug 41 Fix)
     window.speechSynthesis.cancel();
 
     if (voiceEnabled && currentStep?.narration && PANEL_VISIBLE_STATES.has(machineState)) {
@@ -134,7 +120,6 @@ const TeachingSession = ({ initialTopic }) => {
       utterance.pitch = 1;
       utterance.volume = 0.8;
       
-      // We wrap it in a small timeout to ensure internal state of synth is ready
       const t = setTimeout(() => {
         window.speechSynthesis.speak(utterance);
       }, 50);
@@ -156,20 +141,17 @@ const TeachingSession = ({ initialTopic }) => {
     }
   }, [doubtResponse]);
 
-  // Keyboard shortcuts removed per user request
+  // Keyboard shortcuts
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e) => {
-      // Standard accessibility Escape-to-close preserved, all others stripped
       if (e.key === 'Escape') { handleClose(); }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [isOpen, handleClose]);
 
-// Redundant callback placement removed. Still using memoized versions.
-
-  // Memoized canvas callbacks to stabilize render cycle
+  // Memoized canvas callbacks
   const handleZoomChange = useCallback((scale) => {
     setCanvasTransform(prev => (prev.scale === scale ? prev : { ...prev, scale }));
   }, [setCanvasTransform]);
@@ -199,14 +181,14 @@ const TeachingSession = ({ initialTopic }) => {
 
   return (
     <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
-      {/* ─── 1. LOADING OVERLAY (Doubt Generation) ─── */}
+      {/* ─── 1. LOADING OVERLAY (Generation Phase) ─── */}
       <AnimatePresence mode="wait">
         {isGenerating && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-md"
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-md pointer-events-auto"
           >
             <div className="flex flex-col items-center gap-6">
               <div className="relative w-24 h-24">
@@ -317,12 +299,13 @@ const TeachingSession = ({ initialTopic }) => {
         )}
       </AnimatePresence>
 
-      {/* ─── HUDs & NARRATION ─── */}
+      {/* ─── 3. NARRATION BAR (Dynamic, only shows when text exists) ─── */}
       <NarrationBar 
         text={currentStep?.narration || currentStep?.explanation} 
         isGenerating={machineState === STATES.GENERATING}
       />
 
+      {/* ─── 4. HUDs (Dynamic learner data) ─── */}
       <AnimatePresence>
         {isTeachingActive && (
           <motion.div 
@@ -337,10 +320,11 @@ const TeachingSession = ({ initialTopic }) => {
         )}
       </AnimatePresence>
 
+      {/* ─── 5. FLOATING PANELS (Sidebar + Doubt Thread) ─── */}
       <FloatingSidebar />
       <DoubtThread />
 
-      {/* ─── NAVIGATION DOCK (Bottom) ─── */}
+      {/* ─── 6. NAVIGATION DOCK (Bottom, within canvas bounds) ─── */}
       <AnimatePresence>
         {isTeachingActive && (
           <div className="absolute bottom-8 inset-x-0 z-[1000] flex flex-col items-center gap-6 pointer-events-none">
@@ -358,18 +342,18 @@ const TeachingSession = ({ initialTopic }) => {
             >
               <div className="flex items-center gap-1 sm:gap-1.5 px-0.5 sm:px-1.5">
                 <button onClick={prevStep} disabled={currentStepIndex <= 0} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl sm:rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all disabled:opacity-20">
-                  <SkipBack size={16} sm:size={18} strokeWidth={2.2} />
+                  <SkipBack size={16} strokeWidth={2.2} />
                 </button>
 
                 <button
                   onClick={isPlaying ? pause : play}
                   className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-xl sm:rounded-2xl bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-xl transition-all"
                 >
-                  {isPlaying ? <Pause size={20} sm:size={24} fill="currentColor" /> : <Play size={20} sm:size={24} fill="currentColor" className="ml-1" />}
+                  {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
                 </button>
 
                 <button onClick={nextStep} className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl sm:rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] transition-all">
-                  <SkipForward size={16} sm:size={18} strokeWidth={2.2} />
+                  <SkipForward size={16} strokeWidth={2.2} />
                 </button>
               </div>
 
@@ -393,7 +377,7 @@ const TeachingSession = ({ initialTopic }) => {
                 </button>
               </div>
 
-              {/* Speed & Stats - Hidden on very small screens */}
+              {/* Speed & Stats */}
               <div className="hidden sm:flex items-center gap-2 pr-1 sm:pr-3">
                 <div className="h-8 w-px bg-[var(--border-color)] mr-2" />
                 <div className="flex items-center bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-1">

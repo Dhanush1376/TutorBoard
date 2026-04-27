@@ -1,0 +1,400 @@
+/**
+ * AlgorithmRenderer.css — Scoped styles for the Algorithm Visualization Engine
+ * 
+ * Provides:
+ * - Strict 8+4 column grid layout
+ * - State-aware color tokens
+ * - Micro-animation keyframes
+ * - Responsive scaling
+ * - Dark/light theme support via CSS custom properties
+ */
+
+/* ─── Root Container ───────────────────────────────────────────────────────── */
+.algo-renderer {
+  display: grid;
+  grid-template-columns: 8fr 4fr;
+  grid-template-rows: 1fr auto;
+  gap: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
+  position: relative;
+  background: var(--bg-primary);
+  border-radius: inherit;
+}
+
+/* ─── Main Visual Area (Left 8 columns) ───────────────────────────────────── */
+.algo-main {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  position: relative;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.algo-main__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.algo-main__step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-tertiary);
+}
+
+.algo-main__explanation {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-height: 36px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.algo-main__canvas {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ─── Array Cell ──────────────────────────────────────────────────────────── */
+.algo-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.algo-cell__box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1.5px solid;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 1;
+}
+
+.algo-cell__box::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 11px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.algo-cell--active .algo-cell__box::after,
+.algo-cell--comparing .algo-cell__box::after,
+.algo-cell--visiting .algo-cell__box::after {
+  opacity: 1;
+  box-shadow: 0 0 16px var(--algo-glow, transparent);
+}
+
+.algo-cell__index {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-tertiary);
+  opacity: 0.6;
+  transition: color 0.3s;
+}
+
+/* ─── Pointer Arrow ──────────────────────────────────────────────────────── */
+.algo-pointer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  position: absolute;
+  bottom: -32px;
+  transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s;
+  z-index: 10;
+}
+
+.algo-pointer__arrow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 8px solid;
+  transition: border-color 0.3s;
+}
+
+.algo-pointer__label {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+  transition: color 0.3s;
+}
+
+/* ─── Comparison Bridge ──────────────────────────────────────────────────── */
+.algo-bridge {
+  position: absolute;
+  top: -20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.algo-bridge__line {
+  height: 2px;
+  background: linear-gradient(90deg, #f59e0b, #ef4444, #f59e0b);
+  border-radius: 1px;
+  animation: algo-bridge-pulse 1s ease-in-out infinite;
+}
+
+.algo-bridge__label {
+  position: absolute;
+  top: -16px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #f59e0b;
+  font-family: 'JetBrains Mono', monospace;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+/* ─── Right Info Panel (4 columns) ────────────────────────────────────────── */
+.algo-info {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+.algo-info__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.algo-info__section-title {
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.algo-info__narration {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  border-left: 2px solid var(--border-color);
+  padding-left: 10px;
+  transition: border-color 0.4s;
+}
+
+.algo-info__variables {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.algo-info__var {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.algo-info__var-name {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.algo-info__var-value {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/* ─── Legend ──────────────────────────────────────────────────────────────── */
+.algo-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.algo-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.algo-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+/* ─── Progress Dots ──────────────────────────────────────────────────────── */
+.algo-progress {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 0;
+  z-index: 20;
+}
+
+.algo-progress__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-color);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.algo-progress__dot--active {
+  width: 20px;
+  border-radius: 3px;
+  background: var(--text-primary);
+}
+
+.algo-progress__dot--completed {
+  background: #22c55e;
+}
+
+/* ─── Tree Nodes ─────────────────────────────────────────────────────────── */
+.algo-tree-node {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.algo-tree-edge {
+  stroke: var(--border-color);
+  stroke-width: 1.5;
+  fill: none;
+  transition: stroke 0.4s, opacity 0.4s;
+}
+
+.algo-tree-edge--active {
+  stroke: #8b5cf6;
+  stroke-width: 2;
+}
+
+/* ─── Graph Nodes ────────────────────────────────────────────────────────── */
+.algo-graph-node {
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.algo-graph-edge {
+  stroke: rgba(148, 163, 184, 0.3);
+  stroke-width: 1.5;
+  fill: none;
+  transition: stroke 0.4s, stroke-width 0.4s;
+}
+
+.algo-graph-edge--active {
+  stroke: #8b5cf6;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.4));
+}
+
+/* ─── Keyframe Animations ────────────────────────────────────────────────── */
+@keyframes algo-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.85; }
+}
+
+@keyframes algo-bridge-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes algo-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--algo-glow, transparent); }
+  50% { box-shadow: 0 0 20px var(--algo-glow, transparent); }
+}
+
+@keyframes algo-swap-arc {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-30px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes algo-slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes algo-fade-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.algo-animate-pulse { animation: algo-pulse 1.2s ease-in-out infinite; }
+.algo-animate-glow { animation: algo-glow 1.5s ease-in-out infinite; }
+.algo-animate-slide-in { animation: algo-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.algo-animate-fade-in { animation: algo-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .algo-renderer {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  .algo-info {
+    grid-column: 1;
+    grid-row: 2;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+    max-height: 180px;
+    padding: 12px;
+  }
+}

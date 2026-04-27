@@ -66,6 +66,45 @@ export default class GSAPExecutor {
           const pointer = '[data-element-id="teacher-pointer"]';
           tl.to(pointer, { x: action.props.x * CANVAS_WIDTH, y: action.props.y * CANVAS_HEIGHT, duration, ease }, delay);
           break;
+        // ─── Algorithm-specific Actions ─────────────────────────────────────
+        case 'swap':
+          if (action.props) {
+            const fromEl = `[data-element-id="${action.props.fromId}"]`;
+            const toEl   = `[data-element-id="${action.props.toId}"]`;
+            tl.to(fromEl, { y: '-=35', duration: duration * 0.3, ease }, delay);
+            tl.to(toEl,   { y: '+=35', duration: duration * 0.3, ease }, delay);
+            tl.to(fromEl, { x: action.props.toX ?? '+=60', duration: duration * 0.4, ease }, delay + duration * 0.3);
+            tl.to(toEl,   { x: action.props.fromX ?? '-=60', duration: duration * 0.4, ease }, delay + duration * 0.3);
+            tl.to(fromEl, { y: '+=35', duration: duration * 0.3, ease }, delay + duration * 0.7);
+            tl.to(toEl,   { y: '-=35', duration: duration * 0.3, ease }, delay + duration * 0.7);
+          }
+          break;
+        case 'compare':
+          if (action.props) {
+            const elA = `[data-element-id="${action.props.a}"]`;
+            const elB = `[data-element-id="${action.props.b}"]`;
+            tl.to([elA, elB], {
+              filter: 'brightness(1.4) saturate(1.3)',
+              duration: 0.3, yoyo: true, repeat: 1, ease
+            }, delay);
+          }
+          break;
+        case 'eliminate':
+          tl.to(target, { opacity: 0.2, filter: 'grayscale(0.8)', duration, ease }, delay);
+          break;
+        case 'activate':
+          tl.to(target, {
+            opacity: 1,
+            filter: 'brightness(1.2) drop-shadow(0 0 8px rgba(139,92,246,0.5))',
+            duration, ease
+          }, delay);
+          break;
+        case 'mark_sorted':
+          tl.to(target, {
+            filter: 'brightness(1.1) drop-shadow(0 0 6px rgba(34,197,94,0.4))',
+            duration, ease
+          }, delay);
+          break;
         default:
           console.warn(`[GSAPExecutor] Unsupported action: ${action.action}`);
       }
