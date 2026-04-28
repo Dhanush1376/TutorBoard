@@ -10,8 +10,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
-  Minimize2, Maximize2, Menu, MessageCircleQuestion,
-  ArrowUp, Loader, Check, WifiOff
+  Minimize2, Maximize2, Menu,
+  Loader, Check, WifiOff
 } from 'lucide-react';
 
 import InfiniteCanvas from '../canvas/InfiniteCanvas';
@@ -19,8 +19,6 @@ import AgentCanvasRenderer from '../canvas/AgentCanvasRenderer';
 import InteractiveCanvasLayer from '../canvas/InteractiveCanvasLayer';
 import CanvasControls from '../canvas/CanvasControls';
 import FloatingSidebar from './FloatingSidebar';
-import DoubtThread from './DoubtThread';
-import DoubtTimeline from './DoubtTimeline';
 import SessionOverlay from './SessionOverlay';
 import StepPanel from './StepPanel';
 import NarrationBar from './NarrationBar';
@@ -29,6 +27,7 @@ import MasteryHUD from './MasteryHUD';
 import ShortcutsHUD from './ShortcutsHUD';
 import ProgressArc from './ProgressArc';
 import SessionResumeOverlay from './SessionResumeOverlay';
+import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
 import { DOMAIN_STYLES, DOUBT_PLACEHOLDERS, PANEL_VISIBLE_STATES as PANEL_VISIBLE_STATES_ARR } from '../../lib/teaching';
@@ -56,8 +55,7 @@ const TeachingSession = ({ initialTopic }) => {
     showFloatingSidebar,
     setCanvasMode, setCanvasTransform, toggleVoice,
     setPlaybackSpeed: storeSetSpeed,
-    openFloatingSidebar, toggleDoubtThread,
-    showDoubtThread,
+    openFloatingSidebar,
     showNotes, 
     deselectAll,
   } = useTutorStore();
@@ -69,9 +67,7 @@ const TeachingSession = ({ initialTopic }) => {
     endSession();
   }, [endSession]);
 
-  const [doubtInput, setDoubtInput] = useState('');
   const canvasRef = useRef(null);
-  const doubtInputRef = useRef(null);
 
   const handleSpeedChange = useCallback((spd) => {
     storeSetSpeed(spd);
@@ -80,12 +76,6 @@ const TeachingSession = ({ initialTopic }) => {
 
   const handleMinimize = useCallback(() => setCanvasMode(CANVAS_MODE.MINIMIZED), [setCanvasMode]);
   const handleExpand   = useCallback(() => setCanvasMode(CANVAS_MODE.FULLSCREEN), [setCanvasMode]);
-
-  const handleDoubtSubmit = useCallback(() => {
-    if (!doubtInput.trim() || isDoubtProcessing) return;
-    askDoubt(doubtInput.trim());
-    setDoubtInput('');
-  }, [doubtInput, isDoubtProcessing, askDoubt]);
 
   const handleRetry = useCallback(() => {
     if (initialTopic) startSession(initialTopic);
@@ -178,6 +168,7 @@ const TeachingSession = ({ initialTopic }) => {
   const domain = timeline?.domain?.toLowerCase() || 'general';
   const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
   const isGenerating = machineState === STATES.GENERATING;
+  const isAlgorithm = isDSAContent(timeline);
 
   return (
     <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
@@ -267,14 +258,6 @@ const TeachingSession = ({ initialTopic }) => {
 
               {/* Header Controls */}
               <div className="flex items-center gap-1 sm:gap-2">
-                <button
-                  onClick={toggleDoubtThread}
-                  className={`w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-2xl border transition-all relative group ${
-                    showDoubtThread ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'
-                  }`}
-                >
-                  <MessageCircleQuestion size={18} strokeWidth={2.2} />
-                </button>
 
                 <button
                   onClick={toggleVoice}
@@ -299,15 +282,17 @@ const TeachingSession = ({ initialTopic }) => {
         )}
       </AnimatePresence>
 
-      {/* ─── 3. NARRATION BAR (Dynamic, only shows when text exists) ─── */}
-      <NarrationBar 
-        text={currentStep?.narration || currentStep?.explanation} 
-        isGenerating={machineState === STATES.GENERATING}
-      />
+      {/* ─── 3. NARRATION BAR (Suppressed for algorithms) ─── */}
+      {!isAlgorithm && (
+        <NarrationBar 
+          text={currentStep?.narration || currentStep?.explanation} 
+          isGenerating={machineState === STATES.GENERATING}
+        />
+      )}
 
-      {/* ─── 4. HUDs (Dynamic learner data) ─── */}
+      {/* ─── 4. HUDs (Suppressed for algorithms) ─── */}
       <AnimatePresence>
-        {isTeachingActive && (
+        {isTeachingActive && !isAlgorithm && (
           <motion.div 
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
@@ -320,15 +305,14 @@ const TeachingSession = ({ initialTopic }) => {
         )}
       </AnimatePresence>
 
-      {/* ─── 5. FLOATING PANELS (Sidebar + Doubt Thread) ─── */}
+      {/* ─── 5. FLOATING PANELS (Sidebar) ─── */}
       <FloatingSidebar />
-      <DoubtThread />
 
       {/* ─── 6. NAVIGATION DOCK (Bottom, within canvas bounds) ─── */}
       <AnimatePresence>
         {isTeachingActive && (
           <div className="absolute bottom-8 inset-x-0 z-[1000] flex flex-col items-center gap-6 pointer-events-none">
-            {canvasObjects.length > 0 && (
+            {canvasObjects.length > 0 && !isAlgorithm && (
               <div className="hidden sm:block">
                 <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
               </div>
@@ -358,24 +342,6 @@ const TeachingSession = ({ initialTopic }) => {
               </div>
 
               <div className="hidden sm:block h-8 w-px bg-[var(--border-color)]" />
-
-              {/* Doubt Input Command Bar */}
-              <div className="flex items-center gap-2 sm:gap-3 bg-[var(--bg-secondary)]/50 border border-[var(--border-color)] rounded-xl sm:rounded-2xl px-3 sm:px-4 py-1 sm:py-1.5 min-w-0 sm:min-w-[300px] flex-1 sm:flex-initial">
-                <MessageCircleQuestion size={14} className="hidden xs:block text-[var(--text-tertiary)]" />
-                <input
-                  type="text"
-                  value={doubtInput}
-                  onChange={(e) => setDoubtInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleDoubtSubmit();
-                  }}
-                  placeholder="Doubt?"
-                  className="flex-1 bg-transparent text-[var(--text-primary)] text-[12px] sm:text-[13px] outline-none min-w-[60px]"
-                />
-                <button onClick={handleDoubtSubmit} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-lg sm:rounded-xl">
-                  <ArrowUp size={14} strokeWidth={2.5} />
-                </button>
-              </div>
 
               {/* Speed & Stats */}
               <div className="hidden sm:flex items-center gap-2 pr-1 sm:pr-3">

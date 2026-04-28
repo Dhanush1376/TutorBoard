@@ -149,7 +149,7 @@ export default function NarrativeRenderer({
   }, [nodes, currentStepIndex]);
 
   return (
-    <div className="relative w-[800px] h-[600px] overflow-hidden bg-[var(--bg-primary, #0f172a)] rounded-3xl border border-white/10 shadow-2xl">
+    <div className="relative w-full h-full overflow-hidden bg-[var(--bg-primary, #0f172a)] rounded-3xl border border-white/10 shadow-2xl">
       {/* Background Ambience */}
       <div className="absolute inset-0 opacity-20 pointer-events-none">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,#1e293b,transparent)]" />
@@ -176,7 +176,7 @@ export default function NarrativeRenderer({
             <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
             <span className="text-[10px] font-normal text-blue-400 uppercase tracking-[0.2em]">Narrative Thread</span>
           </div>
-          <h2 className="text-xl font-normal text-white mb-2 leading-tight">
+          <h2 className="text-xl font-medium text-white mb-2 leading-tight max-w-[280px] overflow-hidden text-ellipsis">
             {currentStep.title || "The Journey Continues"}
           </h2>
           <p className="text-sm text-white/70 leading-relaxed italic">

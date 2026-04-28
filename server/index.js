@@ -67,10 +67,10 @@ import { optionalProtect } from './middleware/auth.middleware.js';
 
 import * as Sentry from "@sentry/node";
 
-if (process.env.SENTRY_DSN) {
+if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
+    environment: 'production',
     tracesSampleRate: 1.0,
   });
   console.log('[Sentry] Backend monitoring: ACTIVE ✅');
@@ -187,6 +187,11 @@ for (const { key, critical, label } of REQUIRED_ENV) {
 }
 console.log("=====================================");
 
+if (!process.env.ENCRYPTION_KEY) {
+  console.error('FATAL: ENCRYPTION_KEY is not set. Exiting.');
+  process.exit(1);
+}
+
 if (!hasAllCritical) {
   if (process.env.NODE_ENV === 'production') {
     console.error('❌ CRITICAL ERROR: Missing required environment variables in PRODUCTION.');
@@ -215,6 +220,12 @@ const io = new SocketIO(httpServer, {
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
+});
+
+io.engine.on("connection_error", (err) => {
+  if (process.env.NODE_ENV === 'production') {
+    Sentry.captureException(err);
+  }
 });
 
 // Mount teaching WebSocket handlers
@@ -274,6 +285,8 @@ app.use('/api/ai', httpRateLimiter, optionalProtect, strictGuestLimiter, dbCheck
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
 app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
+
+Sentry.setupExpressErrorHandler(app);
 
 // --------------- Global Error Handler ---------------
 // Must be registered AFTER all routes

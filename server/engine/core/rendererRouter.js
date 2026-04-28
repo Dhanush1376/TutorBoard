@@ -1,8 +1,8 @@
 /**
- * RendererRouter (Server-side) v2.0
- * 
+ * RendererRouter (Server-side) v3.0
+ *
  * Determines the optimal renderer based on concept classification.
- * Aligned with animationPlanner.js RENDERER_MAP.
+ * DSA/algorithm topics always get the algorithm renderer.
  */
 export const RENDERER_MAP = {
   FLOW:       'd3',
@@ -10,9 +10,20 @@ export const RENDERER_MAP = {
   DATA:       'd3',
   NARRATIVE:  'narrative',
   ABSTRACT:   'katex',
-  COMPARISON: 'cinematic'
+  COMPARISON: 'cinematic',
+  DSA:        'algorithm',
+  ALGORITHM:  'algorithm',
 };
 
-export function getRendererForConcept(conceptType) {
-  return RENDERER_MAP[conceptType] || 'cinematic';
+const DSA_KEYWORDS = [
+  'sort','search','array','tree','graph','stack','queue','linked','heap',
+  'bfs','dfs','binary','bubble','merge','quick','insertion','selection','traversal',
+];
+
+export function getRendererForConcept(conceptType, topic = '') {
+  if (RENDERER_MAP[conceptType]) return RENDERER_MAP[conceptType];
+  // Fallback fuzzy detection by topic
+  const lc = (topic || '').toLowerCase();
+  if (DSA_KEYWORDS.some(k => lc.includes(k))) return 'algorithm';
+  return 'cinematic';
 }

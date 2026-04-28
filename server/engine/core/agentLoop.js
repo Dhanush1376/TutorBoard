@@ -236,22 +236,25 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
   const userContext = getUserContext(userConfig);
-  const originalMessages = [
-    { role: 'system', content: userContext + prompt },
-    { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) }
-  ];
   let lastError = null;
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const currentMessages = attempt === 1
-        ? originalMessages
-        : [...originalMessages, { 
-            role: 'user', 
-            content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation, no conversational text, and no markdown code fences.' 
-          }];
+      if (attempt > 1) {
+        console.log(`[AgentLoop] Agent retry attempt ${attempt}, rebuilding messages fresh`);
+      }
+
+      const currentMessages = [
+        { role: 'system', content: userContext + prompt },
+        { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) }
+      ];
 
       if (attempt > 1) {
+        currentMessages.push({ 
+          role: 'user', 
+          content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation, no conversational text, and no markdown code fences.' 
+        });
+
         const delay = Math.pow(2, attempt - 1) * 1000;
         console.log(`[AgentLoop] ⏳ Retrying Stage "${stageName}" (Attempt ${attempt}) in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));

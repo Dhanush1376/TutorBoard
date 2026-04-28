@@ -59,13 +59,37 @@ Available element types and their required props:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LAYOUT TEMPLATES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FOR ALGORITHMS (sorting, searching):
-  - Title orb:        x=0.5,  y=0.10
-  - Main array:       x=0.5,  y=0.35  (centered, full width)
-  - Index pointers:   x=varies, y=0.50 (below array, tracking current indices)
-  - Comparator:       x=0.5,  y=0.60  (showing current comparison)
-  - Result/status:    x=0.5,  y=0.78  (showing swap result, complexity, etc.)
-  - Code snippet:     x=0.15, y=0.90  (bottom-left, pseudocode reference)
+FOR ALGORITHMS & DSA (sorting, searching, data structures — ALWAYS use renderer: "algorithm"):
+  MANDATORY: Set renderer="algorithm" for ANY topic involving arrays, sorting, searching,
+  trees, graphs, stacks, queues, linked lists, or algorithm visualization.
+  The algorithm renderer uses a dedicated 8+4 grid layout — DO NOT use cinematic for these.
+
+  Required output schema for algorithm renderer:
+  {
+    "title": "Binary Search",
+    "renderer": "algorithm",
+    "elements": [
+      { "id": "arr_main", "type": "array", "values": [2,5,7,9,12,16,18,21,27], "label": "Input Array" }
+    ],
+    "connections": [],
+    "timeline": [
+      {
+        "title": "Check Middle Element",
+        "narration": "The middle element is 18. Since 18 > 16, we search in the left half.",
+        "explanation": "mid = (low + high) / 2 = 4",
+        "highlight": ["arr_main-6"],
+        "fade": ["arr_main-7", "arr_main-8"],
+        "pointers": [
+          { "label": "mid", "index": 6, "color": "#8b5cf6" },
+          { "label": "low", "index": 0, "color": "#22c55e" },
+          { "label": "high", "index": 5, "color": "#f59e0b" }
+        ],
+        "variables": { "target": 16, "mid": 6, "low": 0, "high": 5 },
+        "sorted": [],
+        "comparing": [4, 6]
+      }
+    ]
+  }
 
 FOR DATA STRUCTURES (trees, linked lists, stacks):
   - Title:            x=0.5,  y=0.08
@@ -103,8 +127,8 @@ OUTPUT SCHEMA
 {
   "meta": {
     "topic": "Bubble Sort",
-    "renderer": "cinematic | d3 | matter | narrative | katex",
-    "concept_type": "FLOW | PHYSICS | DATA | NARRATIVE | ABSTRACT"
+    "renderer": "cinematic | d3 | matter | narrative | katex | algorithm",
+    "concept_type": "FLOW | PHYSICS | DATA | NARRATIVE | ABSTRACT | DSA"
   },
   "visual_steps": [
     {

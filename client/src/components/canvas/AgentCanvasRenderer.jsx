@@ -1,55 +1,52 @@
 /**
- * AgentCanvasRenderer v5.0 — Universal Scene Graph Router
- * 
- * Optimized router that delegates rendering to specialized engines 
- * (Matter.js, D3.js, KaTeX, or SVG) based on the timeline metadata.
+ * AgentCanvasRenderer v6.0 — Universal Scene Graph Router
+ *
+ * Routes to AlgorithmRenderer for DSA content (8+4 grid),
+ * or to the cinematic SVG stack for everything else.
  */
 import React from 'react';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
 import SVGCanvasRenderer from './SVGCanvasRenderer.jsx';
-import { getRenderer } from '../../engine/RendererRouter';
+import { getRenderer, isDSAContent } from '../../engine/RendererRouter';
 
 export default function AgentCanvasRenderer({
   timeline, currentStepIndex,
-  elements: extElements = [], objects: extObjects = [], 
+  elements: extElements = [], objects: extObjects = [],
   connections: extConnections, steps: extSteps,
   showNotes,
 }) {
-  // Keep a separate reference to raw timeline objects for specialized renderers
   const timelineObjects = React.useMemo(() => {
     return timeline?.elements || timeline?.objects || [];
   }, [timeline?.elements, timeline?.objects]);
 
-  // Use a Map to deduplicate objects by ID, favoring manual/external objects over timeline defaults
   const combinedElements = React.useMemo(() => {
     const elementMap = new Map();
-    // 1. Add timeline objects first (lowest priority)
     timelineObjects.forEach(obj => { if (obj?.id) elementMap.set(String(obj.id), obj); });
-    // 2. Manual/external objects overwrite — these are always visible
-    const manualList = [...extElements, ...extObjects];
-    manualList.forEach(obj => { if (obj?.id) elementMap.set(String(obj.id), obj); });
+    [...extElements, ...extObjects].forEach(obj => { if (obj?.id) elementMap.set(String(obj.id), obj); });
     return Array.from(elementMap.values());
   }, [timelineObjects, extElements, extObjects]);
 
-  const rendererType = timeline?.renderer || 'cinematic';
-  
-  // 1. Resolve normalized data for renderers
+  const rendererType = (timeline?.renderer || 'cinematic').toLowerCase();
+
   const normalizedTimeline = {
     ...timeline,
-    elements: combinedElements,
+    elements:    combinedElements,
     connections: extConnections || timeline?.connections || [],
     timeline:    extSteps || timeline?.timeline || timeline?.steps || [],
   };
 
-  // 2. Resolve specialized renderer (Matter, D3, KaTeX)
-  const SpecializedRenderer = getRenderer(rendererType);
+  // ── DSA / Algorithm detection (fuzzy — works even if server returns "cinematic") ──
+  const isDSA = isDSAContent(normalizedTimeline);
+  const SpecializedRenderer = isDSA ? getRenderer('algorithm') : getRenderer(rendererType);
+  const isAlgorithm = isDSA || rendererType === 'algorithm' || rendererType === 'dsa';
 
   return (
     <ErrorBoundary key={`${rendererType}-${currentStepIndex}`} onClose={() => {}}>
-      <div className="relative w-full h-full">
-        {/* Background Layer: Specialized Engine (D3, Matter, KaTeX) */}
-        {SpecializedRenderer && rendererType !== 'cinematic' && (
-          <div className="absolute inset-0 z-0">
+      <div className="relative w-full h-full" style={{ minHeight: '100%' }}>
+
+        {/* ── ALGORITHM RENDERER: full-size, no SVG overlay on top ── */}
+        {isAlgorithm && SpecializedRenderer && (
+          <div className="absolute inset-0 z-10" style={{ minHeight: '480px' }}>
             <SpecializedRenderer
               timeline={normalizedTimeline}
               currentStepIndex={currentStepIndex}
@@ -60,19 +57,48 @@ export default function AgentCanvasRenderer({
           </div>
         )}
 
-        {/* Foreground Layer: High-fidelity SVG Renderer for Manual Annotations & Cinematic elements */}
-        <div className="absolute inset-0 z-10 pointer-events-none">
-          <SVGCanvasRenderer
-            timeline={normalizedTimeline}
-            currentStepIndex={currentStepIndex}
-            elements={combinedElements}
-            connections={extConnections}
-            steps={extSteps}
-            showNotes={showNotes}
-            // If background is specialized, SVG should only render manual/pinned stuff
-            forceManualOnly={rendererType !== 'cinematic'}
-          />
-        </div>
+        {/* ── NON-ALGORITHM: background specialized engine + SVG overlay ── */}
+        {!isAlgorithm && (
+          <>
+            {SpecializedRenderer && rendererType !== 'cinematic' && (
+              <div className="absolute inset-0 z-0">
+                <SpecializedRenderer
+                  timeline={normalizedTimeline}
+                  currentStepIndex={currentStepIndex}
+                  elements={timelineObjects}
+                  connections={extConnections}
+                  steps={extSteps}
+                />
+              </div>
+            )}
+            <div className="absolute inset-0 z-10 pointer-events-none">
+              <SVGCanvasRenderer
+                timeline={normalizedTimeline}
+                currentStepIndex={currentStepIndex}
+                elements={combinedElements}
+                connections={extConnections}
+                steps={extSteps}
+                showNotes={showNotes}
+                forceManualOnly={rendererType !== 'cinematic'}
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── Manual annotations layer always on top (for both modes) ── */}
+        {isAlgorithm && (
+          <div className="absolute inset-0 z-20 pointer-events-none">
+            <SVGCanvasRenderer
+              timeline={normalizedTimeline}
+              currentStepIndex={currentStepIndex}
+              elements={combinedElements}
+              connections={extConnections}
+              steps={extSteps}
+              showNotes={showNotes}
+              forceManualOnly={true}
+            />
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );

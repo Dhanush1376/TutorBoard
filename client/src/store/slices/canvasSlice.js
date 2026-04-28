@@ -141,7 +141,7 @@ export const createCanvasSlice = (set, get) => ({
     }
   },
 
-  setCanvasSnapshot: ({ canvasObjects, canvasSteps, totalSteps, currentStepIndex }) => {
+  setCanvasSnapshot: ({ canvasObjects, canvasSteps, totalSteps, currentStepIndex, renderer, title }) => {
     const steps = canvasSteps || [];
     const count = totalSteps  || steps.length;
 
@@ -153,14 +153,16 @@ export const createCanvasSlice = (set, get) => ({
         ? Math.min(currentStepIndex, steps.length - 1)
         : 0,
       canvasMode: get().canvasMode === CANVAS_MODE.CLOSED ? CANVAS_MODE.FULLSCREEN : get().canvasMode,
+      renderer: renderer || 'cinematic',
       timeline: {
-        title:       'Lesson Snapshot',
+        title:       title || 'Lesson Snapshot',
         domain:      'general',
         objects:     canvasObjects || [],
         elements:    canvasObjects || [],
         steps,
         timeline:    steps,
         totalSteps:  count,
+        renderer:    renderer || 'cinematic',
         render_mode: 'svg_canvas',
       },
     });

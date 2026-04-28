@@ -1,42 +1,34 @@
 /**
- * AlgorithmRenderer.css — Scoped styles for the Algorithm Visualization Engine
- * 
- * Provides:
- * - Strict 8+4 column grid layout
- * - State-aware color tokens
- * - Micro-animation keyframes
- * - Responsive scaling
- * - Dark/light theme support via CSS custom properties
+ * AlgorithmRenderer.css v2.0
+ *
+ * Strict 8+4 column grid matching Image 1.
+ * Pointers rendered ABOVE cells (no clip).
+ * Right panel: Concept, Steps, Variables, Progress, Legend.
  */
 
-/* ─── Root Container ───────────────────────────────────────────────────────── */
+/* ─── Root ──────────────────────────────────────────────────────────────────── */
 .algo-renderer {
-  display: grid;
-  grid-template-columns: 8fr 4fr;
-  grid-template-rows: 1fr auto;
-  gap: 0;
+  display: block;
   width: 100%;
   height: 100%;
-  min-height: 0;
+  min-height: 480px;
   overflow: hidden;
   font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
-  position: relative;
   background: var(--bg-primary);
   border-radius: inherit;
 }
 
-/* ─── Main Visual Area (Left 8 columns) ───────────────────────────────────── */
+/* ─── Main Visual Area (left 8 cols) ────────────────────────────────────────── */
 .algo-main {
   grid-column: 1;
-  grid-row: 1 / -1;
-  position: relative;
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  padding: 18px 20px 14px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .algo-main__header {
@@ -53,40 +45,65 @@
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 9px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   color: var(--text-tertiary);
-}
-
-.algo-main__explanation {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  max-height: 36px;
-  overflow: hidden;
+  white-space: nowrap;
   flex-shrink: 0;
 }
 
+.algo-main__step-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin: 0;
+}
+
+/* ─── Canvas Area ────────────────────────────────────────────────────────────── */
 .algo-main__canvas {
   flex: 1;
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 0;
-  overflow: hidden;
+  /* overflow VISIBLE so pointer arrows above cells are not clipped */
+  overflow: visible;
+  position: relative;
 }
 
-/* ─── Array Cell ──────────────────────────────────────────────────────────── */
+/* ─── Array wrap — positions pointer-row above cell-row ─────────────────────── */
+.algo-array-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* ─── Pointer row (sits above cells, relative so pointers can be absolute) ──── */
+.algo-pointer-row {
+  position: relative;
+  height: 40px;          /* room for label + arrow tip */
+  flex-shrink: 0;
+}
+
+/* ─── Cell row ───────────────────────────────────────────────────────────────── */
+.algo-cell-row {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+
+/* ─── Array Cell ─────────────────────────────────────────────────────────────── */
 .algo-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
@@ -98,71 +115,59 @@
   border: 1.5px solid;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   z-index: 1;
-}
-
-.algo-cell__box::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 11px;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-
-.algo-cell--active .algo-cell__box::after,
-.algo-cell--comparing .algo-cell__box::after,
-.algo-cell--visiting .algo-cell__box::after {
-  opacity: 1;
-  box-shadow: 0 0 16px var(--algo-glow, transparent);
 }
 
 .algo-cell__index {
   font-size: 9px;
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-tertiary);
-  opacity: 0.6;
-  transition: color 0.3s;
+  opacity: 0.55;
 }
 
-/* ─── Pointer Arrow ──────────────────────────────────────────────────────── */
+/* ─── Pointer Arrow (top-facing, absolutely positioned inside .algo-pointer-row) */
 .algo-pointer {
+  position: absolute;
+  bottom: 0;            /* sits at bottom of pointer-row, just above cells */
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  position: absolute;
-  bottom: -32px;
-  transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s;
-  z-index: 10;
+  transform: translateX(-50%);
+  z-index: 20;
+  pointer-events: none;
 }
 
-.algo-pointer__arrow {
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-bottom: 8px solid;
-  transition: border-color 0.3s;
+.algo-pointer--top {
+  bottom: 0;
 }
 
 .algo-pointer__label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.02em;
-  transition: color 0.3s;
+  white-space: nowrap;
+  line-height: 1;
 }
 
-/* ─── Comparison Bridge ──────────────────────────────────────────────────── */
+/* Downward-pointing triangle */
+.algo-pointer__arrow--down {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid;
+}
+
+/* ─── Comparison Bridge ──────────────────────────────────────────────────────── */
 .algo-bridge {
   position: absolute;
-  top: -20px;
+  bottom: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -179,116 +184,24 @@
 
 .algo-bridge__label {
   position: absolute;
-  top: -16px;
+  top: -15px;
   font-size: 10px;
   font-weight: 700;
   color: #f59e0b;
   font-family: 'JetBrains Mono', monospace;
-  text-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+  white-space: nowrap;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
-/* ─── Right Info Panel (4 columns) ────────────────────────────────────────── */
-.algo-info {
-  grid-column: 2;
-  grid-row: 1 / -1;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  border-left: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-width: 0;
-}
-
-.algo-info__section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.algo-info__section-title {
-  font-size: 8px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-tertiary);
-  opacity: 0.7;
-}
-
-.algo-info__narration {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.65;
-  border-left: 2px solid var(--border-color);
-  padding-left: 10px;
-  transition: border-color 0.4s;
-}
-
-.algo-info__variables {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.algo-info__var {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 10px;
-  border-radius: 8px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.algo-info__var-name {
-  color: var(--text-tertiary);
-  font-weight: 500;
-}
-
-.algo-info__var-value {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-/* ─── Legend ──────────────────────────────────────────────────────────────── */
-.algo-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.algo-legend__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 10px;
-  color: var(--text-tertiary);
-}
-
-.algo-legend__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  transition: background 0.3s, border-color 0.3s;
-}
-
-/* ─── Progress Dots ──────────────────────────────────────────────────────── */
+/* ─── Progress Dots (static, below canvas) ───────────────────────────────────── */
 .algo-progress {
-  position: absolute;
-  bottom: 12px;
-  left: 16px;
-  right: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 6px 0;
-  z-index: 20;
+  padding: 6px 0 0;
+  flex-shrink: 0;
 }
 
 .algo-progress__dot {
@@ -310,80 +223,223 @@
   background: #22c55e;
 }
 
-/* ─── Tree Nodes ─────────────────────────────────────────────────────────── */
-.algo-tree-node {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+/* ─── Right Info Panel (Pinned Sidebar) ─────────────────────────────────────── */
+.algo-info {
+  position: fixed;
+  top: 84px;
+  bottom: 110px;
+  right: 20px;
+  width: 320px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  pointer-events: auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
+.algo-info__section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.algo-info__section-title {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-tertiary);
+}
+
+/* ─── Concept narration ──────────────────────────────────────────────────────── */
+.algo-info__narration {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  border-left: 2px solid #8b5cf6;
+  padding-left: 10px;
+  margin: 0;
+}
+
+/* ─── Steps list ─────────────────────────────────────────────────────────────── */
+.algo-info__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.algo-info__step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  opacity: 0.6;
+  transition: opacity 0.25s, color 0.25s;
+}
+
+.algo-info__step--active {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.algo-info__step--done {
+  opacity: 0.45;
+}
+
+.algo-info__step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  transition: all 0.25s;
+}
+
+.algo-info__step-num--active {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  color: #fff;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+}
+
+.algo-info__step-num--done {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.algo-info__step-label {
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+/* ─── Variables ──────────────────────────────────────────────────────────────── */
+.algo-info__variables {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.algo-info__var {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.algo-info__var-name  { color: var(--text-tertiary); font-weight: 500; }
+.algo-info__var-value { color: var(--text-primary);  font-weight: 700; }
+
+/* ─── Progress bar ───────────────────────────────────────────────────────────── */
+.algo-info__progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.algo-info__progress-track {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.algo-info__progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #8b5cf6;
+}
+
+.algo-info__progress-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Legend ─────────────────────────────────────────────────────────────────── */
+.algo-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.algo-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.algo-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+/* ─── Tree / Graph edges ─────────────────────────────────────────────────────── */
 .algo-tree-edge {
   stroke: var(--border-color);
   stroke-width: 1.5;
   fill: none;
-  transition: stroke 0.4s, opacity 0.4s;
+  transition: stroke 0.4s;
 }
-
-.algo-tree-edge--active {
-  stroke: #8b5cf6;
-  stroke-width: 2;
-}
-
-/* ─── Graph Nodes ────────────────────────────────────────────────────────── */
-.algo-graph-node {
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
+.algo-tree-edge--active { stroke: #8b5cf6; stroke-width: 2.5; }
 
 .algo-graph-edge {
   stroke: rgba(148, 163, 184, 0.3);
   stroke-width: 1.5;
   fill: none;
-  transition: stroke 0.4s, stroke-width 0.4s;
+  transition: stroke 0.4s;
 }
-
 .algo-graph-edge--active {
   stroke: #8b5cf6;
   stroke-width: 2.5;
   filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.4));
 }
 
-/* ─── Keyframe Animations ────────────────────────────────────────────────── */
-@keyframes algo-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.06); opacity: 0.85; }
-}
-
+/* ─── Keyframes ──────────────────────────────────────────────────────────────── */
 @keyframes algo-bridge-pulse {
   0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-@keyframes algo-glow {
-  0%, 100% { box-shadow: 0 0 8px var(--algo-glow, transparent); }
-  50% { box-shadow: 0 0 20px var(--algo-glow, transparent); }
-}
-
-@keyframes algo-swap-arc {
-  0% { transform: translateY(0); }
-  40% { transform: translateY(-30px); }
-  100% { transform: translateY(0); }
-}
-
-@keyframes algo-slide-in {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: translateX(0); }
+  50%       { opacity: 1; }
 }
 
 @keyframes algo-fade-in {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.93); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
-.algo-animate-pulse { animation: algo-pulse 1.2s ease-in-out infinite; }
-.algo-animate-glow { animation: algo-glow 1.5s ease-in-out infinite; }
-.algo-animate-slide-in { animation: algo-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .algo-animate-fade-in { animation: algo-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* ─── Responsive ─────────────────────────────────────────────────────────── */
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .algo-renderer {
     grid-template-columns: 1fr;
@@ -391,10 +447,9 @@
   }
   .algo-info {
     grid-column: 1;
-    grid-row: 2;
     border-left: none;
     border-top: 1px solid var(--border-color);
-    max-height: 180px;
+    max-height: 200px;
     padding: 12px;
   }
 }

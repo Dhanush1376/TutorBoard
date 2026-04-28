@@ -101,7 +101,13 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       await sessionStore.initProfile(sessionId, socket.user.id);
       const s = await sessionStore.get(sessionId);
       if (s && s.learnerProfile) {
-        socket.emit('teaching:profile', s.learnerProfile);
+        const safeProfile = {
+          ...s.learnerProfile,
+          topicsMastery: s.learnerProfile.topicsMastery instanceof Map
+            ? Object.fromEntries(s.learnerProfile.topicsMastery)
+            : (s.learnerProfile.topicsMastery || {})
+        };
+        socket.emit('teaching:profile', safeProfile);
       }
     } else {
       const guestProfile = { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} };

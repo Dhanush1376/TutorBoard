@@ -81,7 +81,15 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
   const label = obj.label ? DOMPurify.sanitize(obj.label) : null;
   const shape = (obj.type || obj.shape || 'orb').toLowerCase();
 
-  const props = { ...common, x, y, color: obj.color, label, w, h, isPinned: obj.isPinned };
+  const props = { 
+    ...common, 
+    x, y, cx: x, cy: y, 
+    w, h, width: w, height: h, 
+    r: w/2, rx: w/2, ry: h/2,
+    color: obj.color, 
+    label, 
+    isPinned: obj.isPinned 
+  };
 
   const onUpdateBound = (updates) => onUpdate(obj.id, updates);
   const onDeleteBound = () => onDelete(obj.id);
@@ -92,6 +100,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
       return <GlowOrb key={obj.id} {...props} />;
     case 'rect':
     case 'box':
+    case 'block':
       return <GlassRect key={obj.id} {...props} />;
     case 'ellipse':
       return <EllipseShape key={obj.id} {...props} />;
@@ -109,6 +118,19 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'note':
     case 'sticky':
       return <StickyNoteShape key={obj.id} {...props} layoutId={obj.id} onUpdate={onUpdateBound} onDelete={onDeleteBound} isSelected={isSelected} />;
+    case 'arrow':
+    case 'connector':
+      return <FlowArrow key={obj.id} {...props} />;
+    case 'array':
+      return <DataBlock key={obj.id} {...props} values={obj.values} />;
+    case 'pointer':
+      return <FlowPointer key={obj.id} {...props} />;
+    case 'comparator':
+      return <Comparator key={obj.id} {...props} />;
+    case 'swapbridge':
+      return <SwapBridge key={obj.id} {...props} />;
+    case 'badge':
+      return <FloatingBadge key={obj.id} {...props} text={obj.label || obj.text} />;
     case 'path':
       return <FreeformShape key={obj.id} {...props} type="path" path={obj.path} strokeWidth={obj.strokeWidth} />;
     case 'label':

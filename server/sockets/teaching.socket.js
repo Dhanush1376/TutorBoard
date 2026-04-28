@@ -4,6 +4,7 @@
 
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import LearnerProfile from '../models/LearnerProfile.js';
 import { createTeachingMachine, STATES, EVENTS } from '../engine/core/teachingMachine.js';
 import sessionStore from '../engine/core/sessionStore.js';
 import tokenStore from '../utils/auth/tokenStore.js';
@@ -139,6 +140,28 @@ export function setupTeachingSocket(io) {
       if (socket.user && !socket.user.isGuest) {
         try {
           await sessionStore.persistProfile(sessionId);
+
+          // Write back the updated mastery from in-memory session to MongoDB
+          const session = await sessionStore.get(sessionId);
+          if (session?.learnerProfile?.topicsMastery) {
+            const masteryData = session.learnerProfile.topicsMastery;
+            const topicKeys = masteryData instanceof Map ? Array.from(masteryData.keys()) : Object.keys(masteryData);
+            
+            if (topicKeys.length > 0) {
+              const updateObject = {};
+              for (const key of topicKeys) {
+                const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
+                updateObject[`topicsMastery.${key}`] = value;
+                console.log(`[WS:Mastery] Topic: ${key} | New Score: ${value}`);
+              }
+              
+              await LearnerProfile.findOneAndUpdate(
+                { userId: socket.user.id },
+                { $set: updateObject },
+                { new: true }
+              );
+            }
+          }
         } catch (err) {
           console.error(`[WS] Persistence failed on disconnect for ${socket.user.id}:`, err.message);
         }

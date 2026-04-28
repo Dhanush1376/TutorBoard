@@ -8,8 +8,19 @@ import './index.css';
 import './styles/animations.css';
 import { initPostHog } from './utils/analytics';
 
+import * as Sentry from "@sentry/react";
+
 // Initialize Analytics
 initPostHog();
+
+if (import.meta.env.MODE === 'production' && import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: 'production',
+    autoSessionTracking: true,
+    tracesSampleRate: 1.0,
+  });
+}
 
 // Simple Error Boundary for Top-Level Crashes
 class ErrorBoundary extends React.Component {

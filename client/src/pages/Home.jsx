@@ -253,7 +253,13 @@ const Home = ({ isDark }) => {
         content: latest.answer,
         timestamp: new Date().toISOString(),
         hasCanvas: latest.hasVisuals,
-        canvasSnapshot: latest.hasVisuals ? { canvasObjects, canvasSteps, totalSteps } : null
+        canvasSnapshot: latest.hasVisuals ? { 
+          canvasObjects, 
+          canvasSteps, 
+          totalSteps, 
+          renderer: useTutorStore.getState().renderer,
+          title: timeline?.title || 'Doubt Response'
+        } : null
       };
       
       setChatHistory(prev => {
@@ -276,7 +282,7 @@ const Home = ({ isDark }) => {
   const lastTimelineId = useRef(null);
   useEffect(() => {
     // When a timeline is fully received for a new session, drop an introductory message into the chat
-    if (timeline && timeline.title && timeline.title !== lastTimelineId.current) {
+    if (timeline && timeline.title && timeline.title !== lastTimelineId.current && timeline.title !== 'Lesson Snapshot') {
       lastTimelineId.current = timeline.title;
       
       const assistantMessage = { 
@@ -285,7 +291,13 @@ const Home = ({ isDark }) => {
          content: `I've prepared a visual learning canvas for you on **${timeline.title}**. Dive in whenever you're ready!`,
          timestamp: new Date().toISOString(),
          hasCanvas: true,
-         canvasSnapshot: { canvasObjects, canvasSteps, totalSteps } 
+         canvasSnapshot: { 
+           canvasObjects, 
+           canvasSteps, 
+           totalSteps, 
+           renderer: timeline.renderer,
+           title: timeline.title 
+         } 
       };
       
       setChatHistory(prev => {
@@ -816,7 +828,11 @@ const Home = ({ isDark }) => {
     if (session) {
       const msg = session.messages.find(m => m.id === messageId);
       if (msg && msg.canvasSnapshot) {
-        setCanvasSnapshot(msg.canvasSnapshot);
+        // Restore full pedagogical context including renderer type and original title
+        setCanvasSnapshot({
+          ...msg.canvasSnapshot,
+          currentStepIndex: 0 // Always start snapshot at first step
+        });
         useTutorStore.getState().setActiveSnapshotId(messageId);
       }
     }
@@ -1073,6 +1089,8 @@ const Home = ({ isDark }) => {
           isOpen={isQuickAskOpen} 
           onClose={() => setIsQuickAskOpen(false)} 
         />
+        {/* Portal target for algorithm info panel */}
+        <div id="algo-sidebar-portal" className="pointer-events-none" />
       </Layout>
     </div>
   );

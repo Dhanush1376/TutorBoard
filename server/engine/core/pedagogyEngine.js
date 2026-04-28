@@ -243,7 +243,9 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
   const learnerProfile = {
     level,
     confusionIndex: confusion,
-    prior_mastery: session.learnerProfile?.topicsMastery || {},
+    prior_mastery: session.learnerProfile?.topicsMastery instanceof Map
+      ? Object.fromEntries(session.learnerProfile.topicsMastery)
+      : (session.learnerProfile?.topicsMastery || {}),
     learning_style: session.learnerProfile?.learningStyle || 'visual',
     weak_areas: (session.learnerProfile?.doubtHistory || [])
       .filter(d => d.confusionScore > 5)
