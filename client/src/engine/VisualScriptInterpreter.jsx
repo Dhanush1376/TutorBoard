@@ -11,40 +11,56 @@ import useTutorStore from '../store/tutorStore';
  */
 export default function VisualScriptInterpreter({ actions, currentStepIndex, children }) {
   const executor = useMemo(() => new GSAPExecutor(), []);
-  const snapshot = useMemo(() => new CanvasStateSnapshot(), []);
   const lastActionsRef = useRef(null);
 
-  // Read deltaState timestamp so we re-run when new deltas arrive
-  const deltaTimestamp = useTutorStore(s => s.deltaState?.timestamp);
+  // Read deltaState from store
+  const deltaState = useTutorStore(s => s.deltaState);
+  const setDeltaRunning = useTutorStore(s => s.setDeltaRunning);
+  const play = useTutorStore(s => s.play);
 
+
+  // ─── Phase 3: Surgical Delta Execution ───────────────────────────────────
+  useEffect(() => {
+    if (!deltaState || !deltaState.actions || deltaState.actions.length === 0) return;
+
+    console.log(`[VisualScript] 🚀 Executing Surgical Delta (${deltaState.actions.length} actions)`);
+
+    setDeltaRunning(true);
+    const tl = executor.runDelta(deltaState.actions);
+
+    if (tl) {
+      tl.eventCallback('onComplete', () => {
+        setDeltaRunning(false);
+        // Automatically resume the lesson after the surgical intervention
+        play();
+      });
+
+    }
+
+
+    return () => {
+      if (executor.deltaTimeline) executor.deltaTimeline.kill();
+    };
+  }, [deltaState, executor, setDeltaRunning]);
+
+  // ─── Main Timeline Execution ─────────────────────────────────────────────
   useEffect(() => {
     if (!actions || actions.length === 0) return;
-
-    // Deduplicate: don't re-run the exact same actions array reference
     if (lastActionsRef.current === actions) return;
     lastActionsRef.current = actions;
 
     console.log(`[VisualScript] 🎬 Step ${currentStepIndex}: Executing ${actions.length} actions`);
-    
-    // 1. Capture current positions for continuity
-    snapshot.capture();
 
-    // 2. Run the animation sequence
     executor.run(actions);
+  }, [actions, currentStepIndex, executor]);
 
-    // Cleanup: stop animations if step changes rapidly
-    return () => {
-      // Let current animations finish unless component unmounts
-    };
-  }, [actions, currentStepIndex, deltaTimestamp, executor, snapshot]);
 
   // Handle session reset / unmount
   useEffect(() => {
     return () => {
       executor.killAll();
-      snapshot.clear();
     };
-  }, [executor, snapshot]);
+  }, [executor]);
 
   return <>{children}</>;
 }

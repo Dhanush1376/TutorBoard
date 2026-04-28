@@ -42,13 +42,17 @@ const MutationSchema = z.object({
 
 export const VisualScriptCommandSchema = z.object({
   id: z.string().describe("ID of target element"),
+  cmd: z.string().optional().describe("Alias for action (used by agents)"),
   action: z.enum([
     'fade_in', 'fade_out', 'scale_in', 'scale_out', 
     'move', 'highlight', 'shake', 'glow_pulse',
     'draw', 'array_push', 'array_pop', 'array_swap',
-    'pointer_move', 'label_show'
-  ]),
-  duration: z.number().optional().default(0.4),
+    'pointer_move', 'label_show',
+    'array', 'pointer', 'compare', 'annotate', 'remove',
+    'highlightNode', 'movePointer', 'showTextOverlay', 'emphasizeEdge', 'pulseElement'
+  ]).optional(),
+
+  duration: z.number().optional().default(400),
   delay: z.number().optional().default(0),
   easing: z.string().optional().default('ease_out'),
   props: z.record(z.any()).optional().describe("Command-specific parameters (e.g. {x, y} for move)")

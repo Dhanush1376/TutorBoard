@@ -3,13 +3,14 @@ import { useShallow } from 'zustand/shallow';
 import useSocket from './useSocket';
 import useTutorStore, { STATES } from '../store/tutorStore';
 import { trackEvent, identifyUser } from '../utils/analytics';
+import CanvasStateSnapshot from '../engine/CanvasStateSnapshot';
 
 export { STATES };
 
 export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   const { emit, on, isConnected, connectionError } = useSocket(isAuthReady);
-  const playIntervalRef   = useRef(null);
-  const safetyTimeoutRef  = useRef(null);
+  const playIntervalRef = useRef(null);
+  const safetyTimeoutRef = useRef(null);
 
   // ─── Pull store state & actions ──────────────────────────────────────────
   const {
@@ -18,24 +19,38 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     currentStepIndex, totalSteps,
     canvasObjects, canvasConnections, canvasSteps,
     doubtResponse, isDoubtProcessing, doubtHistory, activeDoubtId,
-    error, greetingMessage,
-    isPlaying, isPaused, playbackSpeed,
+    error, greetingMessage, chatSessionId,
+
+    isPlaying, isPaused, playbackSpeed, isDeltaRunning,
+    isInteracting, activeSnapshotId, guestTrialStatus,
+    isConnected: storeIsConnected, connectionError: storeConnectionError,
+
+
+
     setMachineState, setSessionId, setConnected, setConnectionError,
     setTimeline, setCurrentStep, setError, setGreeting, setChatSessionId,
+    setLearnerProfile, setResumeContext,
+
     setDoubtProcessing, addDoubt, setDoubtResponse,
     mutateCanvasObjects, addCanvasObjects,
     setNarrationTokens,
     startSession: storeStartSession,
     endSession,
     play: storePlay, pause: storePause,
-    nextStep: storeNextStep, prevStep: storePrevStep,
     goToStep: storeGoToStep,
+
     setPlaybackSpeed,
     selectedAgent,
     setGuestTrialStatus,
+    incrementGuestUsage,
+    incrementGuestSession,
     pinDoubtToCanvas,
     jumpToDoubt,
+    showToast,
+    setTopic,
+    setCanvasObjectsWithHistory,
   } = useTutorStore(useShallow(s => ({
+
     machineState: s.machineState,
     sessionId: s.sessionId,
     topic: s.topic,
@@ -60,6 +75,15 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     isPlaying: s.isPlaying,
     isPaused: s.isPaused,
     playbackSpeed: s.playbackSpeed,
+    isDeltaRunning: s.isDeltaRunning,
+    isInteracting: s.isInteracting,
+    activeSnapshotId: s.activeSnapshotId,
+    guestTrialStatus: s.guestTrialStatus,
+    isConnected: s.isConnected,
+    connectionError: s.connectionError,
+
+
+
     setNarrationTokens: s.setNarrationTokens,
     setMachineState: s.setMachineState,
     setSessionId: s.setSessionId,
@@ -85,17 +109,50 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     setPlaybackSpeed: s.setPlaybackSpeed,
     selectedAgent: s.selectedAgent,
     setGuestTrialStatus: s.setGuestTrialStatus,
+    incrementGuestUsage: s.incrementGuestUsage,
+    incrementGuestSession: s.incrementGuestSession,
     setLearnerProfile: s.setLearnerProfile,
     setResumeContext: s.setResumeContext,
     pinDoubtToCanvas: s.pinDoubtToCanvas,
     jumpToDoubt: s.jumpToDoubt,
+    showToast: s.showToast,
+    setTopic: s.setTopic,
+    setCanvasObjectsWithHistory: s.setCanvasObjectsWithHistory,
   })));
+
+  // ─── Refs for Listener Stability ───
+  // These refs allow socket listeners to access the LATEST state without 
+  // triggering an effect re-run (which would unmount/remount the socket listener).
+  const stateRef = useRef({
+    isInteracting,
+    activeSnapshotId,
+    canvasObjects,
+    canvasConnections,
+    timeline,
+    guestTrialStatus,
+    topic
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      isInteracting,
+      activeSnapshotId,
+      canvasObjects,
+      canvasConnections,
+      timeline,
+      guestTrialStatus,
+      topic
+    };
+  }, [isInteracting, activeSnapshotId, canvasObjects, canvasConnections, timeline, guestTrialStatus, topic]);
+
+
 
   // ─── Sync connection state ────────────────────────────────────────────────
   useEffect(() => {
-    setConnected(isConnected);
-    if (connectionError) setConnectionError(connectionError);
-  }, [isConnected, connectionError, setConnected, setConnectionError]);
+    if (isConnected !== storeIsConnected) setConnected(isConnected);
+    if (connectionError !== storeConnectionError) setConnectionError(connectionError);
+  }, [isConnected, connectionError, storeIsConnected, storeConnectionError, setConnected, setConnectionError]);
+
 
   // ─── Notification Helper ──────────────────────────────────────────────────
   const notifyUser = useCallback((title, body) => {
@@ -105,11 +162,12 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     if (notifCompletion) {
       // 1. In-app Toast (Top Right)
-      useTutorStore.getState().showToast({
+      showToast({
         message: body,
         type: 'info',
         duration: 4000
       });
+
 
       // 2. System Push Notification
       if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -147,11 +205,15 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // Only apply remote session sync if we aren't actively interacting AND not in snapshot mode.
     // This prevents "disappearing items" when editing a message snapshot.
     cleanups.push(on('canvas:sync', (data) => {
-      const state = useTutorStore.getState();
-      if (!state.isInteracting && !state.activeSnapshotId) {
-        useTutorStore.getState().setCanvasObjectsWithHistory(data.objects);
+      // We check raw state here for logic, but it's safe to use hook values if we wrap correctly.
+      // But for listeners, sometimes getState() is safer to avoid stale closures.
+      // However, to fix the ReferenceError, let's use the hook values which are updated.
+      if (!stateRef.current.isInteracting && !stateRef.current.activeSnapshotId) {
+        setCanvasObjectsWithHistory(data.objects);
       }
+
     }));
+
 
     // State changes from server FSM
     cleanups.push(on('teaching:state', (data) => {
@@ -167,24 +229,24 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       setTimeline({
         ...data,
         // Guarantee the store always gets the normalized field names
-        elements:    data.elements    || data.objects || [],
+        elements: data.elements || data.objects || [],
         connections: data.connections || [],
-        timeline:    data.timeline    || data.steps   || [],
-        steps:       data.steps       || data.timeline || [],
-        objects:     data.objects     || data.elements || [],
-        renderer:    data.renderer    || 'cinematic',
-        totalSteps:  data.totalSteps  || (data.steps || data.timeline || []).length || 0,
+        timeline: data.timeline || data.steps || [],
+        steps: data.steps || data.timeline || [],
+        objects: data.objects || data.elements || [],
+        renderer: data.renderer || 'cinematic',
+        totalSteps: data.totalSteps || (data.steps || data.timeline || []).length || 0,
       });
 
-      if (data.title) useTutorStore.getState().setTopic(data.title);
+      if (data.title) setTopic(data.title);
 
       if (data.isResume) {
         setResumeContext({ topic: data.title, stepIndex: data.currentStepIndex || 0 });
       }
-      
-      trackEvent('session_timeline_received', { 
-        sessionId: data.sessionId, 
-        topic: data.title, 
+
+      trackEvent('session_timeline_received', {
+        sessionId: data.sessionId,
+        topic: data.title,
         steps: data.totalSteps,
         renderer: data.renderer
       });
@@ -233,11 +295,11 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
           addCanvasObjects(data.visualUpdate.objects);
         }
       }
-      
+
       setDoubtProcessing(false); // Bug 54 Fix: Reset spinner when response arrives
       notifyUser("New Agent Reply", "The AI has responded to your doubt.");
     }));
- 
+
     // Doubt Delta received (Phase 3)
     cleanups.push(on('teaching:doubt-delta', (data) => {
       console.log(`[Machine] Doubt Delta: ${data.actions?.length} actions`);
@@ -268,16 +330,19 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     cleanups.push(on('teaching:timeline-update', (data) => {
       console.log(`[Machine] 🔄 Timeline update received: ${data.totalSteps} steps`);
       setTimeline({
-        steps:      data.steps,
-        timeline:   data.steps,
+        steps: data.steps,
+        timeline: data.steps,
         totalSteps: data.totalSteps,
         // Preserve existing elements/connections — only steps changed
-        elements:    useTutorStore.getState().canvasObjects,
-        objects:     useTutorStore.getState().canvasObjects,
-        connections: useTutorStore.getState().canvasConnections,
-        renderer:    useTutorStore.getState().renderer || 'cinematic',
+        elements: stateRef.current.canvasObjects,
+        objects: stateRef.current.canvasObjects,
+        connections: stateRef.current.canvasConnections,
+        renderer: stateRef.current.timeline?.renderer || 'cinematic',
       });
+
     }));
+
+
 
     // MongoDB session ID feedback
     cleanups.push(on('session:db-id', (data) => {
@@ -289,25 +354,28 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Guest Trial Status
     cleanups.push(on('guest:status', (data) => {
-      const current = useTutorStore.getState().guestTrialStatus;
       // Only sync if server has a higher count (persistence safety)
-      if (data.count > current.messageCount) {
+      const currentCount = stateRef.current.guestTrialStatus?.messageCount || 0;
+      if (data.count > currentCount) {
+
         console.log(`[Machine] Syncing guest usage from server: ${data.count}`);
         setGuestTrialStatus(data);
       }
     }));
 
+
     // Guest Trial Limit Reached
     cleanups.push(on('guest:limit-reached', (data) => {
-      const current = useTutorStore.getState().guestTrialStatus;
       console.warn(`[Machine] 🚫 Guest limit reached (Server): ${data.count}/${data.limit}`);
-      setGuestTrialStatus({ 
-        isLimitReached: true, 
-        messageCount: Math.max(data.count, current.messageCount), 
+      setGuestTrialStatus({
+        isLimitReached: true,
+        messageCount: Math.max(data.count, stateRef.current.guestTrialStatus?.messageCount || 0),
         limit: data.limit,
-        warning: true 
+
+        warning: true
       });
     }));
+
 
     // Learner Profile update
     cleanups.push(on('teaching:profile', (data) => {
@@ -331,10 +399,11 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       playIntervalRef.current = null;
     }
 
-    if (isPlaying && !isPaused && machineState === STATES.TEACHING && timeline) {
-      const currentStep    = canvasSteps[currentStepIndex];
-      const stepDuration   = currentStep?.durationMs || currentStep?.duration || 4000;
-      const adjustedMs     = stepDuration / Math.max(0.25, playbackSpeed);
+    if (isPlaying && !isPaused && !isDeltaRunning && machineState === STATES.TEACHING && timeline) {
+
+      const currentStep = canvasSteps[currentStepIndex];
+      const stepDuration = currentStep?.durationMs || currentStep?.duration || 4000;
+      const adjustedMs = stepDuration / Math.max(0.25, playbackSpeed);
 
       playIntervalRef.current = setTimeout(() => {
         if (currentStepIndex < totalSteps - 1) {
@@ -372,13 +441,13 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   useEffect(() => {
     if (machineState === STATES.GENERATING) {
       safetyTimeoutRef.current = setTimeout(() => {
-        const currentState = useTutorStore.getState().machineState;
-        if (currentState === STATES.GENERATING) {
+        if (machineState === STATES.GENERATING) {
           console.warn('[Machine] ⚠️ 180s timeout — no server response. Resetting.');
           setGreeting('The AI is taking too long to respond. Please try again.');
         }
       }, 180000);
     } else {
+
       if (safetyTimeoutRef.current) {
         clearTimeout(safetyTimeoutRef.current);
         safetyTimeoutRef.current = null;
@@ -395,7 +464,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   // ─── Unmount cleanup ──────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (playIntervalRef.current)  clearTimeout(playIntervalRef.current);
+      if (playIntervalRef.current) clearTimeout(playIntervalRef.current);
       if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     };
   }, []);
@@ -410,12 +479,14 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     if (currentSig === lastSyncRef.current) return;
 
     const autoSaveMs = (parseInt(localStorage.getItem('tb-auto-save')) || 5) * 1000;
-    
+
     const timer = setTimeout(() => {
       console.log('[Machine] 🔄 Syncing board state to server...');
       emit('canvas:sync', { objects: canvasObjects });
-      lastSyncRef.current = currentSig;
     }, autoSaveMs);
+
+    lastSyncRef.current = currentSig;
+
 
     return () => clearTimeout(timer);
   }, [canvasObjects, isConnected, sessionId, emit]);
@@ -423,44 +494,45 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   const startSession = useCallback((topicStr, initialQuestion, activeMode, file = null) => {
-    const store = useTutorStore.getState();
     const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-    
+
     // Enforce Guest Limits locally
     if (isGuest) {
-      const allowed = store.incrementGuestSession();
+      const allowed = incrementGuestSession();
       if (!allowed) {
         console.warn('[Machine] Guest session limit reached.');
         return;
       }
-      store.incrementGuestUsage(); // Initial question counts as a message
+      incrementGuestUsage(); // Initial question counts as a message
     }
 
     storeStartSession(topicStr, initialQuestion);
     // Pass the existing chatSessionId (if any) so the server can resume/link
     // the correct MongoDB document instead of creating a duplicate.
-    const existingChatId = store.chatSessionId;
-    
+    const existingChatId = chatSessionId;
+
     identifyUser(topicStr, { last_topic: topicStr });
     trackEvent('session_started', { topic: topicStr, mode: activeMode, agent: selectedAgent });
-    
-    emit('session:start', { 
-      topic: topicStr, 
-      initialQuestion, 
-      selectedAgent, 
-      activeMode, 
+
+    emit('session:start', {
+      topic: topicStr,
+      initialQuestion,
+      selectedAgent,
+      activeMode,
       chatId: existingChatId || undefined,
       file // Multimodal support
     });
-  }, [emit, storeStartSession, selectedAgent]);
+  }, [emit, storeStartSession, selectedAgent, chatSessionId, incrementGuestSession, incrementGuestUsage]);
 
-  const askDoubt = useCallback((question, activeMode, file = null) => {
-    const store = useTutorStore.getState();
+
+  const askDoubt = useCallback(async (question, activeMode, file = null) => {
     const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
 
     // Enforce Guest Limits locally
     if (isGuest) {
-      const allowed = store.incrementGuestUsage();
+      // Note: we can't easily call incrementGuestUsage here if it's not destructured.
+      // But it is destructured at line 16.
+      const allowed = incrementGuestUsage();
       if (!allowed) {
         console.warn('[Machine] Guest message limit reached.');
         return;
@@ -470,13 +542,28 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     storePause();
     setDoubtProcessing(true);
     trackEvent('doubt_asked', { question, agent: selectedAgent });
-    emit('session:doubt', { 
-      question, 
-      selectedAgent, 
-      activeMode,
-      file // Multimodal support
+
+    // --- Phase 3: Surgical Snapshot ---
+    // Pass current state values from the hook directly
+    const snapshot = CanvasStateSnapshot.capture({
+      canvasObjects,
+      canvasConnections,
+      currentStepIndex,
+      timeline,
+      topic
     });
-  }, [emit, storePause, setDoubtProcessing, selectedAgent]);
+
+    emit('session:doubt', {
+      question,
+      selectedAgent,
+      activeMode,
+      file,
+      snapshot // CRITICAL: Send context-rich state to DeltaAgent
+    });
+  }, [emit, storePause, setDoubtProcessing, selectedAgent, incrementGuestUsage, canvasObjects, canvasConnections, currentStepIndex, timeline, topic]);
+
+
+
 
   const goToStep = useCallback((stepIndex) => {
     emit('session:step', { stepIndex });
@@ -541,18 +628,18 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // State (from store)
     machineState,
     sessionId,
-    isIdle:            machineState === STATES.IDLE,
-    isGenerating:      machineState === STATES.GENERATING,
-    isTeaching:        machineState === STATES.TEACHING,
-    isDoubtTriggered:  machineState === STATES.DOUBT_TRIGGERED,
-    isResponding:      machineState === STATES.RESPONDING,
-    isResuming:        machineState === STATES.RESUMING,
-    isCompleted:       machineState === STATES.COMPLETED,
-    isError:           machineState === STATES.ERROR,
+    isIdle: machineState === STATES.IDLE,
+    isGenerating: machineState === STATES.GENERATING,
+    isTeaching: machineState === STATES.TEACHING,
+    isDoubtTriggered: machineState === STATES.DOUBT_TRIGGERED,
+    isResponding: machineState === STATES.RESPONDING,
+    isResuming: machineState === STATES.RESUMING,
+    isCompleted: machineState === STATES.COMPLETED,
+    isError: machineState === STATES.ERROR,
 
     // Data (from store)
     timeline,
-    currentStep:       canvasSteps[currentStepIndex] || null,
+    currentStep: canvasSteps[currentStepIndex] || null,
     currentStepIndex,
     totalSteps,
     learningNodes,

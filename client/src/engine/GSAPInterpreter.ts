@@ -91,9 +91,6 @@ export class GSAPInterpreter {
         case 'swap':
           const swapDur = (action.duration || 1000) / 1000;
           
-          // To calculate getBoundingClientRect dynamically when the tween starts
-          // We use an onStart callback inside a dummy tween, or we can use a callback to generate the tween.
-          // Since GSAP timelines are built upfront, we add a function to the timeline that spawns the animation.
           this.masterTimeline.add(() => {
             const el1 = document.getElementById(`${action.id1}`);
             const el2 = document.getElementById(`${action.id2}`);
@@ -102,6 +99,9 @@ export class GSAPInterpreter {
               return;
             }
 
+            // We use a nested timeline or immediate tweens. 
+            // Since we are already at the 'position' in the master timeline,
+            // we can just fire these off.
             const r1 = el1.getBoundingClientRect();
             const r2 = el2.getBoundingClientRect();
             const dx = r2.left - r1.left;
@@ -114,7 +114,6 @@ export class GSAPInterpreter {
             gsap.to(el2, { y: `+=80`, duration: swapDur / 2, yoyo: true, repeat: 1, ease: 'sine.out' });
           }, position);
           
-          // Advance cursor by swap duration so subsequent animations wait
           currentCursor = position + swapDur;
           break;
 

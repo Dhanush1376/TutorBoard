@@ -89,6 +89,7 @@ const TeachingSession = ({ initialTopic }) => {
     if (isOpen && initialTopic) {
       if (machineState === STATES.IDLE && !timeline) {
         startSession(initialTopic, initialTopic);
+        setCanvasMode(CANVAS_MODE.FULLSCREEN);
         return;
       }
 
@@ -361,8 +362,8 @@ const TeachingSession = ({ initialTopic }) => {
         )}
       </AnimatePresence>
 
-      {/* ─── 3. NARRATION BAR (Suppressed for algorithms) ─── */}
-      {!isAlgorithm && (
+      {/* ─── 3. NARRATION BAR (Suppressed for non-D3 algorithms) ─── */}
+      {(!isAlgorithm || isD3) && (
         <NarrationBar
           text={currentStep?.narration || currentStep?.explanation}
           isGenerating={machineState === STATES.GENERATING}
@@ -383,12 +384,15 @@ const TeachingSession = ({ initialTopic }) => {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* ─── 4b. ALGO PORTAL (For portals from renderers) ─── */}
+      <div id="algo-sidebar-portal" className="absolute inset-0 z-[1002] pointer-events-none" />
 
       {/* ─── 5. FLOATING PANELS (Sidebar) ─── */}
       <FloatingSidebar />
 
-      {/* ─── 5b. DOUBT UX (Non-Algorithm only) ─── */}
-      {!isAlgorithm && (
+      {/* ─── 5b. DOUBT UX (Always show if not cinematic-exclusive) ─── */}
+      {(!isAlgorithm || isD3) && (
         <>
           <DoubtTimeline />
           <DoubtThread />

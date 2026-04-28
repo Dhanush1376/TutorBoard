@@ -7,11 +7,14 @@ import useTutorStore from '../../store/tutorStore';
  * Streams narration text word-by-word with a cursor blink.
  * Creates the "Manim quality" feel without GSAP.
  */
-const NarrationBar = ({ text, isGenerating }) => {
+const NarrationBar = ({ text: propText, isGenerating }) => {
   const [words, setWords] = useState([]);
   const [visibleCount, setVisibleCount] = useState(0);
-  const { narrationTokens } = useTutorStore();
+  const { narrationTokens, d3Narration } = useTutorStore();
   const timerRef = useRef(null);
+
+  // If d3Narration exists (from D3Executor), we prioritize it over propText
+  const text = d3Narration || propText;
 
   // 40 words per second is ~25ms per word
   const WORD_INTERVAL = 25;
@@ -85,7 +88,7 @@ const NarrationBar = ({ text, isGenerating }) => {
           initial={{ opacity: 0, y: 40, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
-          className="fixed bottom-[180px] left-1/2 -translate-x-1/2 z-[200] w-full max-w-4xl px-8 pointer-events-none"
+          className="fixed bottom-[180px] left-1/2 -translate-x-1/2 z-[1001] w-full max-w-4xl px-8 pointer-events-none"
         >
           <div className="relative bg-black/60 backdrop-blur-3xl border border-white/10 rounded-[32px] p-10 shadow-[0_40px_80px_-16px_rgba(0,0,0,0.7)] overflow-hidden">
             {/* Glossy overlay */}

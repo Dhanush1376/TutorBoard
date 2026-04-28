@@ -28,22 +28,19 @@ export class D3Renderer {
     this.svg.selectAll('*').remove();
   }
 
+  private getWidth() {
+    const node = this.container.node();
+    return node ? node.getBoundingClientRect().width : 800;
+  }
+
   createArray(id: string, values: (number | string)[]) {
     const totalWidth = values.length * this.CELL_WIDTH + (values.length - 1) * this.CELL_GAP;
-    // Center the array horizontally
-    const startX = `calc(50% - ${totalWidth / 2}px)`;
+    const containerWidth = this.getWidth();
+    const offsetX = (containerWidth / 2) - (totalWidth / 2);
 
     const arrayGroup = this.svg.append('g')
       .attr('id', id)
-      .attr('transform', `translate(0, ${this.ARRAY_Y})`);
-
-    // Create a container that will be centered via CSS or JS. 
-    // Since SVG calc() transform isn't broadly supported, we'll calculate absolute if we know container width,
-    // or just use 50% with text-anchor. Let's use standard group translation.
-    // Assuming a 800px wide default for centering purposes, or we can just translate dynamically.
-    // For simplicity, we'll center relative to 800px width.
-    const offsetX = 400 - (totalWidth / 2);
-    arrayGroup.attr('transform', `translate(${offsetX}, ${this.ARRAY_Y})`);
+      .attr('transform', `translate(${offsetX}, ${this.ARRAY_Y})`);
 
     const cells = arrayGroup.selectAll('g.cell')
       .data(values)
@@ -77,11 +74,15 @@ export class D3Renderer {
     (arrayGroup.node() as any)._arrayData = { offsetX, cellWidth: this.CELL_WIDTH, cellGap: this.CELL_GAP };
   }
 
-  createPointer(id: string, atIndex: number, label: string, color: string = '#ef4444') {
-    const arrayGroup = this.svg.select('g[id^="array"]'); // Assumes first array if not specified
+  createPointer(id: string, atIndex: number, label: string, color: string = '#ef4444', targetArrayId?: string) {
+    // Better selector: if targetArrayId is provided, use it, otherwise find any group with 'array' in id
+    const arrayGroup = targetArrayId 
+      ? this.svg.select(`#${targetArrayId}`) 
+      : this.svg.select('g[id*="array"]');
+    
     if (arrayGroup.empty()) return;
 
-    const meta = (arrayGroup.node() as any)._arrayData;
+    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10 };
     const x = meta.offsetX + (atIndex * (meta.cellWidth + meta.cellGap)) + (meta.cellWidth / 2);
     const y = this.ARRAY_Y + this.CELL_HEIGHT + 20;
 
@@ -105,22 +106,22 @@ export class D3Renderer {
       .text(label);
   }
 
-  updatePointer(id: string, atIndex: number) {
-    // Handled by GSAP usually, but if called directly:
-    const arrayGroup = this.svg.select('g[id^="array"]');
+  updatePointer(id: string, atIndex: number, targetArrayId?: string) {
+    const arrayGroup = targetArrayId 
+      ? this.svg.select(`#${targetArrayId}`) 
+      : this.svg.select('g[id*="array"]');
+    
     if (arrayGroup.empty()) return;
 
-    const meta = (arrayGroup.node() as any)._arrayData;
+    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10 };
     const x = meta.offsetX + (atIndex * (meta.cellWidth + meta.cellGap)) + (meta.cellWidth / 2);
     const y = this.ARRAY_Y + this.CELL_HEIGHT + 20;
 
-    // This is instant. GSAP will animate this in the executor.
     this.svg.select(`#${id}`)
       .attr('transform', `translate(${x}, ${y})`);
   }
 
   highlightCell(id: string, color: string, duration: number = 0) {
-    // If GSAP is handling color, we might not use this, but it's good for immediate updates
     const rect = this.svg.select(`#${id} rect.cell-bg`);
     if (!rect.empty()) {
       if (duration > 0) {
@@ -133,10 +134,11 @@ export class D3Renderer {
 
   createComparator(left: string | number, right: string | number, op: string) {
     this.removeElement('comparator');
+    const containerWidth = this.getWidth();
 
     const compGroup = this.svg.append('g')
       .attr('id', 'comparator')
-      .attr('transform', `translate(400, ${this.ARRAY_Y - 80})`);
+      .attr('transform', `translate(${containerWidth / 2}, ${this.ARRAY_Y - 80})`);
 
     compGroup.append('rect')
       .attr('x', -75)
@@ -163,10 +165,8 @@ export class D3Renderer {
     const target = this.svg.select(`#${id}`);
     if (target.empty()) return;
 
-    // Get transform
     const transformStr = target.attr('transform');
-    // Basic extraction
-    let x = 400;
+    let x = this.getWidth() / 2;
     let y = this.ARRAY_Y;
 
     if (transformStr) {

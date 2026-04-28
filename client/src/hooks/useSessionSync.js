@@ -193,10 +193,11 @@ export const useSessionSync = (chatMessages) => {
     if (isActive && !chatSessionId) {
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = setTimeout(() => {
-        if (!useTutorStore.getState().chatSessionId) {
+        if (!chatSessionId) {
           console.log('[Sync] ⏳ chatSessionId still missing after 10s, re-requesting...');
           emit('session:request-db-id');
         }
+
       }, 10000);
     }
 

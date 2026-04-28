@@ -148,7 +148,8 @@ export default function SVGCanvasRenderer({
   elements: extElements, objects: extObjects, 
   connections: extConnections, steps: extSteps,
   showNotes: propShowNotes,
-  forceManualOnly = false
+  forceManualOnly = false,
+  isD3 = false
 }) {
   const { 
     showNotes: storeShowNotes = true, 
@@ -159,6 +160,12 @@ export default function SVGCanvasRenderer({
   } = useTutorStore();
   
   const showNotes = propShowNotes !== undefined ? propShowNotes : storeShowNotes;
+
+  // ─── Parallel System Safety ───
+  // If we are in D3 mode, the D3Executor handles all timeline and delta animations.
+  // We disable the VisualScriptInterpreter here to prevent it from firing redundant animations
+  // on elements that don't exist in the SVG layer.
+  const isInterpreterEnabled = !isD3 && !forceManualOnly;
 
   const rawElements = useMemo(() => {
     // AgentCanvasRenderer already merged and deduplicated timeline + manual objects into extElements.
@@ -233,7 +240,32 @@ export default function SVGCanvasRenderer({
           animate={{ x: tx, y: ty, scale: Z }} 
           transition={isUserControlled ? { duration: 0 } : { duration: 0.75, ease: EASE }}
         >
-          <VisualScriptInterpreter actions={combinedActions} currentStepIndex={currentStepIndex}>
+          {isInterpreterEnabled ? (
+            <VisualScriptInterpreter actions={combinedActions} currentStepIndex={currentStepIndex}>
+              <g className="world-elements">
+                {worldElements.map(obj => (
+                  <g 
+                    key={obj.id} 
+                    data-element-id={obj.id} 
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setSelectedElements([obj.id]);
+                    }}
+                    style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                  >
+                    <RenderShape 
+                      obj={obj} 
+                      highlightIds={highlightIds} 
+                      fadeIds={fadeIds} 
+                      isSelected={selectedElementIds.includes(obj.id)}
+                      onUpdate={updateCanvasObject}
+                      onDelete={deleteCanvasObject}
+                    />
+                  </g>
+                ))}
+              </g>
+            </VisualScriptInterpreter>
+          ) : (
             <g className="world-elements">
               {worldElements.map(obj => (
                 <g 
@@ -256,7 +288,7 @@ export default function SVGCanvasRenderer({
                 </g>
               ))}
             </g>
-          </VisualScriptInterpreter>
+          )}
         </motion.g>
 
         {/* Pinned Layer (Sticky Notes, etc that follow the viewport but stay on top) */}

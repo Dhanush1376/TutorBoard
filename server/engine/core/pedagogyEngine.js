@@ -126,26 +126,26 @@ function postProcessTimeline(raw, topic, planningResult) {
 
   if (isClustered) {
     console.log(`[PostProcess] ⚠️ Spatial declutter: elements clustered in ${(xSpread * 100).toFixed(0)}% × ${(ySpread * 100).toFixed(0)}% area. Redistributing.`);
-    
+
     // Type-based Y-position assignments (top to bottom)
     const typeYMap = {
-      'orb':        0.12,
-      'badge':      0.12,
-      'equation':   0.30,
-      'array':      0.35,
+      'orb': 0.12,
+      'badge': 0.12,
+      'equation': 0.30,
+      'array': 0.35,
       'data_block': 0.35,
-      'datablock':  0.35,
-      'list':       0.35,
-      'pointer':    0.52,
-      'cursor':     0.52,
-      'index':      0.52,
+      'datablock': 0.35,
+      'list': 0.35,
+      'pointer': 0.52,
+      'cursor': 0.52,
+      'index': 0.52,
       'comparator': 0.65,
-      'compare':    0.65,
+      'compare': 0.65,
       'swapbridge': 0.55,
-      'swap':       0.55,
-      'block':      0.50,
-      'codeline':   0.82,
-      'code':       0.82,
+      'swap': 0.55,
+      'block': 0.50,
+      'codeline': 0.82,
+      'code': 0.82,
     };
 
     // Group elements by their assigned Y level
@@ -163,7 +163,7 @@ function postProcessTimeline(raw, topic, planningResult) {
       const totalWidth = 0.80; // Use 80% of canvas width
       const startX = 0.10;
       const spacing = group.length > 1 ? totalWidth / (group.length - 1) : 0;
-      
+
       group.forEach((el, i) => {
         el.y = y;
         el.x = group.length === 1 ? 0.50 : startX + (i * spacing);
@@ -180,7 +180,7 @@ function postProcessTimeline(raw, topic, planningResult) {
     // Cross-reference objectIds against real element ids
     const rawIds = t.objectIds || t.elements || t.objects || [];
     const validIds = rawIds.filter(id => elementIds.has(id));
-    
+
     // If AI explicitly provided IDs, use them. If not, fallback to ALL only if it's the first step or explicitly requested.
     // This prevents "cluttering" the canvas when the AI intended a blank or specific view.
     const finalIds = validIds.length > 0 ? validIds : (idx === 0 ? [...elementIds] : []);
@@ -193,17 +193,17 @@ function postProcessTimeline(raw, topic, planningResult) {
     const rawMutations = t.mutations || [];
     const validMutations = rawMutations.filter(m => m?.id && elementIds.has(m.id));
 
-      const rawDurationArr = t.duration || t.durationMs || 5000;
-      const parsedDuration = parseFloat(rawDurationArr);
-      const durationMs = (parsedDuration > 0 && parsedDuration < 20) ? parsedDuration * 1000 : parsedDuration;
-      
-      return {
-        ...t,
-        index: idx,
-        title: t.title || t.label || `Step ${idx + 1}`,
-        narration: t.explanation || t.narration || t.audio || '...',
-        explanation: t.explanation || t.narration || '...',
-        durationMs: isNaN(durationMs) ? 5000 : durationMs,
+    const rawDurationArr = t.duration || t.durationMs || 5000;
+    const parsedDuration = parseFloat(rawDurationArr);
+    const durationMs = (parsedDuration > 0 && parsedDuration < 20) ? parsedDuration * 1000 : parsedDuration;
+
+    return {
+      ...t,
+      index: idx,
+      title: t.title || t.label || `Step ${idx + 1}`,
+      narration: t.explanation || t.narration || t.audio || '...',
+      explanation: t.explanation || t.narration || '...',
+      durationMs: isNaN(durationMs) ? 5000 : durationMs,
       highlightIds: validHighlight,
       objectIds: finalIds,
       mutations: validMutations,
@@ -230,7 +230,7 @@ function postProcessTimeline(raw, topic, planningResult) {
 }
 
 // ─── Main Generation Entry Point ──────────────────────────────────────────────
-export async function generateTimeline(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null, file = null) {
+export async function generateTimeline(sessionId, topic, onProgress = () => { }, modelId = null, userConfig = null, file = null) {
   const session = await sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -270,7 +270,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
 
     // Stage 2: Execute Agent Loop
     onProgress('Running autonomous visual planning loop...');
-    
+
     const targetSteps = DOMAIN_MIN_STEPS[domain]?.default || 10;
     const rawSceneGraph = await runAgentLoop({
       topic,
@@ -316,7 +316,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => {}, 
   }
 }
 
-export async function generateQuiz(sessionId, topic, onProgress = () => {}, modelId = null, userConfig = null) {
+export async function generateQuiz(sessionId, topic, onProgress = () => { }, modelId = null, userConfig = null) {
   const session = await sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -379,23 +379,26 @@ export async function generateQuiz(sessionId, topic, onProgress = () => {}, mode
 }
 
 // ─── Doubt/Text Handlers ──────────────────────────────────────────────────────
-export async function handleDoubt(sessionId, question, modelId = null, userConfig = null, file = null) {
+export async function handleDoubt(sessionId, question, modelId = null, userConfig = null, file = null, snapshot = null) {
   const session = await sessionStore.get(sessionId);
   const topic = session?.topic || 'General Education';
-  const domain = session?.domain || 'general';
 
   try {
-    const currentStepIndex = session?.currentStepIndex || 0;
-    const currentStep = session?.steps?.[currentStepIndex] || {};
-
-    // 1. Gather current visible state
-    const visibleIds = new Set(currentStep.objectIds || []);
-    const canvasState = session?.canvasState || []; // Manual drawings/shapes
-    const timelineElements = session?.timeline?.elements || [];
-    const currentFrames = timelineElements.filter(e => visibleIds.has(e.id));
-    
-    // Combine for DeltaAgent context
-    const fullState = [...canvasState, ...currentFrames];
+    // If a surgical snapshot was provided by the client, use it.
+    // Otherwise, fall back to aggregating current frames from the session.
+    let canvasState = [];
+    if (snapshot) {
+      console.log(`[PedagogyEngine] 🎯 Using client-provided snapshot for doubt resolution.`);
+      canvasState = snapshot.nodes || snapshot.elements || [];
+    } else {
+      const currentStepIndex = session?.currentStepIndex || 0;
+      const currentStep = session?.steps?.[currentStepIndex] || {};
+      const visibleIds = new Set(currentStep.objectIds || []);
+      const sessionCanvas = session?.canvasState || [];
+      const timelineElements = session?.timeline?.elements || [];
+      const currentFrames = timelineElements.filter(e => visibleIds.has(e.id));
+      canvasState = [...sessionCanvas, ...currentFrames];
+    }
 
     // 2. Call specialized DeltaAgent
     const delta = await generateDelta({
@@ -420,7 +423,7 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
       answer: delta.answer,
       isRelevant: true,
       hasVisuals: (delta.commands || []).length > 0,
-      visualUpdate: { 
+      visualUpdate: {
         mutations: delta.commands || [],
         isDelta: true // Mark as delta to prevent canvas wipe
       },
@@ -428,11 +431,11 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
     };
   } catch (err) {
     console.error('[PedagogyEngine] Doubt handling failed:', err.message);
-    
+
     // Propagate custom API errors clearly
     const isCustomError = err.message?.includes('Custom API error') || err.message?.includes('Your API');
     const isSystemError = err.message?.includes('SYSTEM_NOT_CONFIGURED');
-    
+
     let answer;
     if (isSystemError) {
       answer = 'TutorBoard system APIs are not currently available. Please add your own API key in Settings → AI Configuration.';
@@ -441,7 +444,7 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
     } else {
       answer = "I'm sorry, I encountered an error while processing that. Let's try again!";
     }
-    
+
     return {
       answer,
       isRelevant: true,
@@ -481,21 +484,21 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
     if (response.error || !response.content) {
       const errorMsg = response.error || 'The AI provider returned an empty response.';
       const isCustomError = response._meta?.mode === 'custom' || response.errorType;
-      
+
       console.warn(`[PedagogyEngine] Text response failed: ${errorMsg}`);
 
       // Surface custom API errors directly — they are already user-friendly
       if (isCustomError) {
-        return { 
-          answer: errorMsg, 
+        return {
+          answer: errorMsg,
           type: 'text',
           isCustomApiError: true,
         };
       }
 
-      return { 
-        answer: `I'm having trouble generating a response. (${errorMsg}). If you're using a custom API key, please check your credits and connection in Settings.`, 
-        type: 'text' 
+      return {
+        answer: `I'm having trouble generating a response. (${errorMsg}). If you're using a custom API key, please check your credits and connection in Settings.`,
+        type: 'text'
       };
     }
 
@@ -504,7 +507,7 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
     const detail = err.message ? ` (${err.message})` : '';
     const isSystemNotConfigured = err.message?.includes('SYSTEM_NOT_CONFIGURED');
     console.error('[PedagogyEngine] Text response failed:', err.message);
-    
+
     if (isSystemNotConfigured) {
       return {
         answer: 'TutorBoard system APIs are not currently available. Please add your own API key in Settings → AI Configuration to continue learning.',
@@ -512,7 +515,7 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
         isSystemError: true,
       };
     }
-    
+
     return {
       answer: `I'm having a bit of trouble connecting${detail}. Please check your API configuration in Settings.`,
       type: 'text',

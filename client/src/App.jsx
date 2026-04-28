@@ -22,7 +22,8 @@ import TrialLimitOverlay from './components/common/TrialLimitOverlay';
 
 function App() {
   const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
-  const { setGlobalOverlay, hydrate, setSidebarOpen } = useTutorStore();
+  const { setGlobalOverlay, hydrate, setSidebarOpen, globalOverlay } = useTutorStore();
+
   
   // SEC-02 & FO-03: Initialize store from client environment and listen for resize
   useEffect(() => {
@@ -83,8 +84,7 @@ function App() {
       setGlobalOverlay({ isActive: true, type: 'network', message: "You're currently offline. Please check your internet connection." });
     };
     const handleOnline = () => {
-      const currentOverlayType = useTutorStore.getState().globalOverlay.type;
-      if (currentOverlayType === 'network') {
+      if (globalOverlay.type === 'network') {
         setGlobalOverlay({ isActive: false });
       }
     };
@@ -174,7 +174,7 @@ function App() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {!useTutorStore.getState().globalOverlay.isActive && <GlobalOverlayManager />}
+        {!globalOverlay.isActive && <GlobalOverlayManager />}
       </AnimatePresence>
       <GlobalStatusOverlay />
       <ThemedPopup />

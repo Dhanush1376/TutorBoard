@@ -6,6 +6,10 @@ import { D3Executor } from '../../engine/D3Executor';
 import { D3Renderer } from '../../renderers/D3Renderer';
 import { AlgoRightPanel } from '../teaching/AlgoRightPanel';
 import { createPortal } from 'react-dom';
+import useTutorStore from '../../store/tutorStore';
+import { useShallow } from 'zustand/shallow';
+
+
 
 export default function AgentCanvasRenderer({
   timeline, currentStepIndex,
@@ -44,7 +48,13 @@ export default function AgentCanvasRenderer({
   // D3 + GSAP refs
   const d3ContainerRef = useRef(null);
   const executorRef = useRef(null);
-  const [d3Narration, setD3Narration] = React.useState('');
+  const { deltaState, d3Narration, setD3Narration } = useTutorStore(useShallow(s => ({
+    deltaState: s.deltaState,
+    d3Narration: s.d3Narration,
+    setD3Narration: s.setD3Narration
+  })));
+
+
 
   useEffect(() => {
     if (isD3 && d3ContainerRef.current) {
@@ -58,16 +68,15 @@ export default function AgentCanvasRenderer({
         executorRef.current = executor;
       }
       
-      // Play the current step
+      // Play the current step OR deltaState actions
       const stepData = normalizedTimeline.timeline[currentStepIndex];
-      if (stepData && stepData.actions) {
-        executorRef.current.playStep(stepData.actions);
-      } else if (stepData && Array.isArray(stepData)) {
-        // Fallback if the step is directly an array of commands
-        executorRef.current.playStep(stepData);
+      const actions = deltaState?.actions || stepData?.actions || (Array.isArray(stepData) ? stepData : null);
+      
+      if (actions) {
+        executorRef.current.playStep(actions);
       }
     }
-  }, [isD3, currentStepIndex, normalizedTimeline.timeline]);
+  }, [isD3, currentStepIndex, normalizedTimeline.timeline, deltaState?.timestamp]);
 
   // Clean up
   useEffect(() => {
@@ -152,6 +161,7 @@ export default function AgentCanvasRenderer({
                 steps={extSteps}
                 showNotes={showNotes}
                 forceManualOnly={rendererType !== 'cinematic'}
+                isD3={isD3}
               />
             </div>
           </>
@@ -168,6 +178,7 @@ export default function AgentCanvasRenderer({
               steps={extSteps}
               showNotes={showNotes}
               forceManualOnly={true}
+              isD3={isD3}
             />
           </div>
         )}

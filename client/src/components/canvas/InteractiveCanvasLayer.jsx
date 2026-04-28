@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
+import { useShallow } from 'zustand/shallow';
+
 import { CanvasContext } from './CanvasContext';
 import { getToolCursor } from '../../utils/cursors';
 import { getSvgPath, getStarPoints, getHexagonPoints, getDiamondPoints } from '../../utils/geometryUtils';
@@ -22,9 +24,47 @@ const InteractiveCanvasLayer = React.memo(() => {
     selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
     drawColor, drawWidth, laserWidth, gridSize, noteColor, noteSize, shapeFill, 
     shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor,
-    addNoteToCanvas, setActiveTool, setInteracting, setEditingObjectId,
-    showNotes, setShowNotes
-  } = useTutorStore();
+    addNoteToCanvas, addCanvasObjects, setActiveTool, setInteracting, setEditingObjectId,
+    showNotes, setShowNotes, deselectAll, canvasTransform
+  } = useTutorStore(useShallow(s => ({
+    activeTool: s.activeTool, 
+    canvasObjects: s.canvasObjects, 
+    setCanvasObjectsWithHistory: s.setCanvasObjectsWithHistory,
+    selectedElementIds: s.selectedElementIds, 
+    setSelectedElements: s.setSelectedElements, 
+    undo: s.undo, 
+    redo: s.redo, 
+    isSnapToGrid: s.isSnapToGrid, 
+    drawColor: s.drawColor, 
+    drawWidth: s.drawWidth, 
+    laserWidth: s.laserWidth, 
+    gridSize: s.gridSize, 
+    noteColor: s.noteColor, 
+    noteSize: s.noteSize, 
+    shapeFill: s.shapeFill, 
+    shapeStrokeStyle: s.shapeStrokeStyle, 
+    textType: s.textType, 
+    textToolSize: s.textToolSize, 
+    textWeight: s.textWeight, 
+    textItalic: s.textItalic, 
+    textUnderline: s.textUnderline, 
+    textAlign: s.textAlign, 
+    textBgColor: s.textBgColor,
+    addNoteToCanvas: s.addNoteToCanvas, 
+    addCanvasObjects: s.addCanvasObjects, 
+    setActiveTool: s.setActiveTool, 
+    setInteracting: s.setInteracting, 
+    setEditingObjectId: s.setEditingObjectId,
+    showNotes: s.showNotes, 
+    setShowNotes: s.setShowNotes, 
+    deselectAll: s.deselectAll, 
+    canvasTransform: s.canvasTransform
+  })));
+
+
+
+
+
   
   // Use transform from context to handle "Infinite Drawing" coordinates
   const { transform } = useContext(CanvasContext);
@@ -91,11 +131,11 @@ const InteractiveCanvasLayer = React.memo(() => {
     tapCounter.current.last = now;
 
     if (tapCounter.current.count === 3) {
-      const { deselectAll } = useTutorStore.getState();
       deselectAll?.();
       tapCounter.current.count = 0;
       return;
     }
+
 
     // Only set global interaction lock for tools that involve dragging/drawing paths
     const isDragTool = activeTool.startsWith('draw:') || activeTool.startsWith('shape:');
@@ -153,8 +193,9 @@ const InteractiveCanvasLayer = React.memo(() => {
         color: drawColor || 'var(--text-primary)',
         animation: { type: 'scale', duration: 0.4 }
       };
-      const latestObjects = useTutorStore.getState().canvasObjects;
+      const latestObjects = canvasObjects;
       setCanvasObjectsWithHistory([...latestObjects, newObj]);
+
       setSelectedElements([newId]);
       setActiveTool('select');
       setTimeout(() => {
@@ -171,7 +212,9 @@ const InteractiveCanvasLayer = React.memo(() => {
   const handlePointerMove = useCallback((e) => {
     if (!isDrawing.current || (!draftStateRef.current && activeTool !== 'draw:eraser')) return;
     
-    const state = useTutorStore.getState();
+    const state = { drawColor, drawWidth, laserWidth, noteColor, noteSize, textToolSize, isSnapToGrid, gridSize, canvasTransform };
+
+
     const { scale, x: tx, y: ty } = transform || state.canvasTransform;
     const rect = cachedRect.current || layerRef.current.getBoundingClientRect();
     const worldX = (e.clientX - rect.left - tx) / scale;
@@ -197,7 +240,7 @@ const InteractiveCanvasLayer = React.memo(() => {
       setDraftObject(updated);
     } else if (activeTool.startsWith('draw:')) {
       if (activeTool === 'draw:eraser') {
-        const currentObjects = useTutorStore.getState().canvasObjects;
+        const currentObjects = canvasObjects;
         const hit = currentObjects.find(obj => {
           if (obj.points) {
             // SEC-21: Check every point (i++) rather than skipping (i+=2) 
@@ -213,9 +256,10 @@ const InteractiveCanvasLayer = React.memo(() => {
           }
           return false;
         });
-        if (hit) state.setCanvasObjectsWithHistory(currentObjects.filter(o => o.id !== hit.id));
+        if (hit) setCanvasObjectsWithHistory(currentObjects.filter(o => o.id !== hit.id));
         return;
       }
+
 
       const points = pointsRef.current;
       const lastPoint = points[points.length - 1];
@@ -228,7 +272,8 @@ const InteractiveCanvasLayer = React.memo(() => {
         setDraftObject(updated);
       }
     }
-  }, [activeTool, transform]);
+  }, [activeTool, transform, drawColor, drawWidth, laserWidth, noteColor, noteSize, textToolSize, isSnapToGrid, gridSize, canvasTransform]);
+
 
   const handlePointerUp = useCallback(() => {
     const draft = draftStateRef.current;
@@ -241,13 +286,14 @@ const InteractiveCanvasLayer = React.memo(() => {
       return;
     }
     
-    const state = useTutorStore.getState();
+    const state = { shapeFill, shapeStrokeStyle, drawColor, drawWidth };
+
 
     if (activeTool.startsWith('shape:')) {
       const isTiny = Math.abs(draft.w * CANVAS_WIDTH) < 5 && Math.abs(draft.h * CANVAS_HEIGHT) < 5;
       if (isTiny) {
         setDraftObject(null);
-        state.setActiveTool('hand'); 
+        setActiveTool('hand'); 
         return;
       }
     }
@@ -282,13 +328,15 @@ const InteractiveCanvasLayer = React.memo(() => {
     setInteracting(false);
     draftStateRef.current = null;
 
-    state.addCanvasObjects([finalizedObject]);
+    addCanvasObjects([finalizedObject]);
 
     if (activeTool.startsWith('shape:')) {
-      state.setSelectedElements([finalizedObject.id]);
-      state.setActiveTool('hand');
+      setSelectedElements([finalizedObject.id]);
+      setActiveTool('hand');
     }
-  }, [activeTool, setInteracting]);
+
+  }, [activeTool, setInteracting, addCanvasObjects, setSelectedElements, setActiveTool, shapeFill, shapeStrokeStyle, drawColor, drawWidth]);
+
 
   useEffect(() => {
     if (!isInteractionTool) return;

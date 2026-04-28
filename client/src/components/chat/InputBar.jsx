@@ -50,7 +50,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   // ─── Guest Trial State ───
   const isGuest = !!user?.isGuest;
-  const { guestTrialStatus } = useTutorStore();
+  const { guestTrialStatus, showToast } = useTutorStore();
+
   const guestRemaining = Math.max(0, TRIAL_LIMITS.MAX_MESSAGES - (guestTrialStatus.messageCount || 0));
   const isTrialExhausted = isGuest && guestTrialStatus.isLimitReached;
   const isOnCooldown = isGuest && cooldownRemaining > 0;
@@ -242,13 +243,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const handleUploadAction = (type) => {
     // BUG FIX #102: Disable uploads in production until S3/Cloudinary is integrated
     if (import.meta.env.PROD) {
-      useTutorStore.getState().showToast({
+      showToast({
         message: "File uploads are temporarily disabled in production. Cloud storage integration (S3/Cloudinary) is in progress.",
         type: "info"
       });
       setIsPlusMenuOpen(false);
       return;
     }
+
 
     if (fileInputRef.current) {
       // Accept specific types based on 'type' parameter
@@ -293,17 +295,17 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
         }
       } else {
         const errorData = JSON.parse(xhr.responseText || '{}');
-        const { showToast } = useTutorStore.getState();
         showToast({ message: errorData.error || 'Upload failed', type: 'error' });
       }
+
     };
 
     xhr.onerror = () => {
       setIsUploading(false);
       setUploadProgress(0);
-      const { showToast } = useTutorStore.getState();
       showToast({ message: 'Network error during upload', type: 'error' });
     };
+
 
     xhr.send(formData);
   };
@@ -510,7 +512,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                             key={action.label}
                             onClick={() => {
                               if (isBlocked) {
-                                useTutorStore.getState().showToast({
+                                showToast({
                                   message: `"${action.label}" requires a free account. Sign up to unlock all modes.`,
                                   type: 'info'
                                 });
@@ -519,6 +521,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                               }
                               handleQuickAction(action.mode);
                             }}
+
                             className={`flex items-center justify-between gap-3 w-full px-3 py-3 text-[14px] font-normal rounded-xl transition-all ${
                               isBlocked
                                 ? 'opacity-50 cursor-not-allowed text-[var(--text-tertiary)]'

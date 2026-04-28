@@ -27,6 +27,7 @@ export const createCanvasSlice = (set, get) => ({
   canvasSteps:       [],
   canvasTransform:   { x: 0, y: 0, scale: 1 },
   deltaState:        null, // Stores temporary doubt-driven visual interventions
+  d3Narration:       '',   // Real-time narration text for D3-based lessons
   canvasVersion:     0,
   isCanvasLocked:    false,
   isInteracting:     false,
@@ -42,8 +43,9 @@ export const createCanvasSlice = (set, get) => ({
   setCanvasTransform: (transform) => set({ canvasTransform: transform }),
   setCanvasLocked:    (locked) => set({ isCanvasLocked: locked }),
   setInteracting:     (active) => set({ isInteracting: active }),
-  setCurrentStep: (index)      => set({ currentStepIndex: index, deltaState: null }),
+  setCurrentStep: (index)      => set({ currentStepIndex: index, deltaState: null, d3Narration: '' }),
   setDeltaState:  (delta)      => set({ deltaState: delta }),
+  setD3Narration: (text)       => set({ d3Narration: text }),
 
   _syncManifest: (canvasObjects) => {
     const { sessionId, sessionManifest, pinnedNotes, canvasTransform } = get();

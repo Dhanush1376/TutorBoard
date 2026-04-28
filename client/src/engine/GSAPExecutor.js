@@ -8,7 +8,25 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants/canvas';
  */
 export default class GSAPExecutor {
   constructor() {
-    this.activeTimeline = null;
+    this.timeline = null;
+    this.deltaTimeline = null;
+  }
+
+  /**
+   * Runs a surgical visual intervention on a separate timeline 
+   * to avoid interrupting the main lesson flow.
+   */
+  runDelta(actions) {
+    if (!actions || actions.length === 0) return;
+    
+    // If a previous delta is running, kill it to prevent collision
+    if (this.deltaTimeline) {
+      this.deltaTimeline.kill();
+    }
+
+    this.deltaTimeline = gsap.timeline();
+    this._executeActions(actions, this.deltaTimeline);
+    return this.deltaTimeline;
   }
 
   /**
@@ -17,10 +35,17 @@ export default class GSAPExecutor {
    */
   async run(actions) {
     this.killAll();
-    
-    const tl = gsap.timeline();
-    this.activeTimeline = tl;
+    this.timeline = gsap.timeline();
+    this._executeActions(actions, this.timeline);
+    return this.timeline;
+  }
 
+  /**
+   * Internal logic to map VisualScript actions to GSAP tweens.
+   */
+  _executeActions(actions, tl) {
+    if (!Array.isArray(actions)) return;
+    
     actions.forEach(action => {
       const target = `[data-element-id="${action.id}"]`;
       const duration = action.duration || 0.4;
@@ -105,6 +130,27 @@ export default class GSAPExecutor {
             duration, ease
           }, delay);
           break;
+        
+        // ─── Master Delta New Schema Mappings ───────────────────────────────
+        case 'highlightNode':
+          tl.to(target, { filter: 'brightness(1.5) saturate(1.2)', duration: duration/2, yoyo: true, repeat: 1, ease }, delay);
+          break;
+        case 'movePointer':
+          const ptr = '[data-element-id="teacher-pointer"]';
+          tl.to(ptr, { x: action.props.x * CANVAS_WIDTH, y: action.props.y * CANVAS_HEIGHT, duration, ease }, delay);
+          break;
+        case 'showTextOverlay':
+          // For now, highlight with text logging if we don't have a tooltip component ready
+          console.log(`[VisualScript] Text Overlay: ${action.props.text}`);
+          tl.to(target, { scale: 1.1, duration: 0.2, yoyo: true, repeat: 1 }, delay);
+          break;
+        case 'emphasizeEdge':
+          tl.to(target, { strokeWidth: '+=2', filter: 'brightness(1.4)', duration, ease }, delay);
+          break;
+        case 'pulseElement':
+          tl.to(target, { filter: 'drop-shadow(0 0 15px rgba(255,255,255,0.8))', duration: 0.8, repeat: 3, yoyo: true, ease: 'sine.inOut' }, delay);
+          break;
+
         default:
           console.warn(`[GSAPExecutor] Unsupported action: ${action.action}`);
       }
@@ -114,12 +160,17 @@ export default class GSAPExecutor {
   }
 
   killAll() {
-    if (this.activeTimeline) {
-      this.activeTimeline.kill();
-      this.activeTimeline = null;
+    if (this.timeline) {
+      this.timeline.kill();
+      this.timeline = null;
+    }
+    if (this.deltaTimeline) {
+      this.deltaTimeline.kill();
+      this.deltaTimeline = null;
     }
     gsap.killTweensOf('[data-element-id]');
   }
+
 
   mapEase(ease) {
     const eases = {

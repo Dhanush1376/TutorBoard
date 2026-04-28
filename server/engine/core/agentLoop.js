@@ -127,17 +127,32 @@ function unwrapValidatorOutput(raw) {
     const stepNum   = vs.step ?? idx + 1;
     const anim      = animSteps.find(a => a.step === stepNum) || animSteps[idx] || {};
     const narration = narrations.find(n => n.step === stepNum) || narrations[idx] || {};
-    const firstAnim = (anim.animations || [])[0] || {};
+    
+    // Combine visualizer elements (setup) with animator actions
+    const visualActions = (vs.elements || vs.objects || vs.shapes || []).map(el => ({
+      ...el,
+      action: el.action || el.cmd || el.type,
+      duration: el.duration || 0, // Setup is usually instant
+      delay: el.delay || 0
+    }));
+
+    const rawAnimationActions = anim.actions || anim.animations || [];
+    const animationActions = rawAnimationActions.map(a => ({
+      ...a,
+      action: a.action || a.cmd
+    }));
+
+    const combinedActions = [...visualActions, ...animationActions];
+    
+    const firstAnim = animationActions[0] || {};
     const exitIds   = new Set(vs.exits || []);
     const mutations = (vs.mutations || []).map(m => ({ id: m.id, props: m.props || m.values || {} }));
     
     // Determine which elements are visible in this specific step
-    // Strategy: current step's elements PLUS inherited elements UNLESS they exit
     const stepLocalIds = (vs.elements || vs.objects || vs.shapes || []).map(e => e.id).filter(Boolean);
     const allKnownIds = [...elementMap.keys()];
     const visibleIds = allKnownIds.filter(id => {
       if (exitIds.has(id)) return false;
-      // If the element is newly introduced in this step OR was in a previous step, it's visible
       return true; // Simple "additive" visibility for now
     });
 
@@ -155,7 +170,7 @@ function unwrapValidatorOutput(raw) {
         type:     animTypeAliases[anim.global_transition || vs.transition || firstAnim.action] || 'fade',
         duration: firstAnim.duration || 0.6,
         easing:   firstAnim.easing   || 'ease_out',
-        actions:  anim.animations ? validateVisualScript(anim.animations) : [],
+        actions:  validateVisualScript(combinedActions),
       },
     };
   });

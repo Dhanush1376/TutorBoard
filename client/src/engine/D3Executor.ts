@@ -21,12 +21,15 @@ export class D3Executor {
       return;
     }
     
-    // Clear the previous stage for a fresh setup if the script begins with scene setup.
-    // Usually, the step defines the current state. Wait, if it's just delta animations,
-    // we shouldn't clear(). 
-    // The prompt says: "builds a GSAP timeline that executes them in sequence."
-    // We will let the interpreter handle it.
+    // Default behavior is to clear the renderer before a new step sequence
+    // to prevent element stacking/ghosting.
+    this.clear();
     this.interpreter.executeStep(script, this.renderer, this.onNarrate);
+  }
+
+  public clear() {
+    this.interpreter.kill();
+    this.renderer?.clear();
   }
 
   public pause() {

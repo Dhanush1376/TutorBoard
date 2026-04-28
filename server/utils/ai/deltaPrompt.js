@@ -1,53 +1,96 @@
-export const DELTA_AGENT_PROMPT = `STEP 3.1 — DELTA AGENT (Intervention Specialist)
+/**
+ * Master Delta Prompt v3.0
+ * 
+ * Specifically optimized for surgical, incremental canvas updates.
+ */
+export const MASTER_DELTA_PROMPT = ({ doubt, snapshot, topic }) => `
+CURRENT TOPIC:
+${topic}
 
-You are the DELTA AGENT. Your job is to resolve a student's doubt about the current 
-visual scene with the MINIMAL amount of friction. 
+STUDENT DOUBT:
+"${doubt}"
 
-Instead of re-explaining the whole lesson, you provide a "Delta" — a precise, 
-surgical intervention that clarifies the specific point of confusion.
+CURRENT CANVAS STATE:
+${JSON.stringify(snapshot, null, 2)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DOUBT RESOLUTION STRATEGY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. CLASSIFY THE DOUBT:
-   - "What is X?" → IDENTIFICATION delta (highlight + label)
-   - "How does X relate to Y?" → RELATIONSHIP delta (draw arrow + explanation)
-   - "Why did Z happen?" → CAUSALITY delta (pulse Z + narrate logic)
-   - "Can you show that again?" → REPLAY delta (VisualScript repeat)
+TASK:
+Generate a minimal VisualScript delta to address the student's doubt.
 
-2. VISUAL SCRIPTING (The "Delta"):
-   Instead of a full SceneGraph, you output a list of VisualScript actions 
-   that should be applied to the CURRENT canvas state.
+STRICT RULES:
+- DO NOT regenerate full animation
+- DO NOT reset the canvas
+- ONLY modify existing elements
+- Maximum 5 actions
+- Prefer highlight, pointer emphasis, or text annotation
+- Maintain timeline continuity
+- If conceptual doubt (why/how) → Use text annotations/highlights rather than complex movements.
 
-3. NARRATION:
-   Keep it brief. 1-2 sentences max. Use an encouraging, tutor-like tone.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AVAILABLE ACTIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- "highlight": Draw attention to an element.
-- "pointer_move": Move the teacher's pointer to a coordinate.
-- "label_show": Show a temporary text box or tooltip.
-- "shake": Indicate an error or "not this".
-- "glow_pulse": Indicate an active/important element.
-- "move": Shift an element slightly.
+ACTION TYPES ALLOWED:
+- highlightNode
+- movePointer
+- showTextOverlay
+- emphasizeEdge
+- pulseElement
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT SCHEMA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DISALLOWED:
+- createFullScene
+- resetCanvas
+- removeAllNodes
+
+VALIDATION RULES:
+- Every target MUST exist in the snapshot
+- Do not invent new nodes unless absolutely necessary
+- Do not exceed 5 actions
+- Do not use vague targets like "some node"
+- If unsure → annotate instead of modifying structure
+
+SELF-CHECK (Internal Verification):
+Before finalizing, verify:
+- Are you modifying existing elements only?
+- Are actions ≤ 5?
+- Are you avoiding full scene regeneration?
+- Is this the smallest possible explanation?
+If any answer is NO, you MUST fix the output before returning.
+
+VISUAL STYLE RULES:
+- highlightNode: Use for comparisons or focus (duration: 0.5–1.0s).
+- movePointer: Use only for specific markers (i, j, mid, pivot); ensure smooth motion.
+- showTextOverlay: Keep text short (max 12 words) and place near the target.
+- pulseElement: Use for emphasis; max 2 pulses.
+- Avoid: Large movements, multiple simultaneous highlights, or long text explanations.
+
+OUTPUT FORMAT:
+
+
+
 {
-  "explanation": "Brief clarification text.",
-  "delta_actions": [
+  "explanation": "Brief answer to the doubt (1-2 sentences).",
+  "actions": [
     {
-      "id": "element_id",
-      "action": "highlight | pointer_move | label_show | shake | glow_pulse",
-      "props": { "x": 0.5, "y": 0.5, "text": "This is the pivot." },
-      "duration": 0.6,
-      "delay": 0.1
+      "type": "highlightNode | movePointer | showTextOverlay | emphasizeEdge | pulseElement",
+      "target": "id of the element",
+      "duration": 0.5,
+      "meta": { "x": 0.5, "y": 0.5, "text": "optional text" }
     }
   ],
-  "pathway": "misconception | curiosity | clarification",
-  "mastery_impact": 0.05
+  "followUp": "One suggested thinking-aloud question."
 }
+`;
 
-Return ONLY raw JSON. No markdown. No preamble.`;
+/**
+ * Doubt Classifier Prompt
+ * 
+ * Used to categorize the student doubt for optimized strategy selection.
+ */
+export const DOUBT_CLASSIFIER_PROMPT = `
+Classify the student doubt into ONE category:
+
+1. CONCEPTUAL → "why", "what is"
+2. STEP_CONFUSION → "why this step", "why swap"
+3. POINTER_CONFUSION → "why mid", "why i/j"
+4. LOGIC_ERROR → misunderstanding
+5. UNCLEAR → vague doubt
+
+Return only the category name in UPPERCASE.
+`;

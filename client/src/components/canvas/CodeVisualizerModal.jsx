@@ -554,9 +554,10 @@ const DEFAULT_CODE = `console.log("Hello, World!");`;
 
 const CodeVisualizerModal = () => {
   const { 
-    activeOverlay, setOverlay, addCanvasObjects, layoutView,
+    activeOverlay, setOverlay, addCanvasObjects, addCanvasConnections, layoutView,
     isVisualizerMinimized, setVisualizerMinimized
   } = useTutorStore();
+
   const isVisualizerOpen = activeOverlay === 'code-editor';
   const setVisualizerOpen = (val) => setOverlay(val ? 'code-editor' : null);
   const { mode } = useTheme();
@@ -649,12 +650,12 @@ const CodeVisualizerModal = () => {
 
     addCanvasObjects(objects);
 
-    const store = useTutorStore.getState();
     const newConns = lines.slice(0, -1).map((_, i) => ({
       from: objects[i].id, to: objects[i + 1].id,
       type: 'arrow', color: 'var(--text-tertiary)'
     }));
-    if (newConns.length > 0) store.addCanvasConnections(newConns);
+    if (newConns.length > 0) addCanvasConnections(newConns);
+
 
     setIsDocked(true);
   }, [code, addCanvasObjects, layoutView]);

@@ -14,7 +14,9 @@ const AuthLanding = () => {
   const { login, signup, loginGuest, isAuthenticated, user } = useAuth();
   
   const [isLogin, setIsLogin] = useState(false);
+  const { showToast } = useTutorStore();
   const [formData, setFormData] = useState({    name: '',
+
     email: '',
     password: '',
     confirmPassword: '',
@@ -268,10 +270,11 @@ const AuthLanding = () => {
                 {isLogin && (
                   <button 
                     type="button" 
-                    onClick={() => useTutorStore.getState().showToast({
+                    onClick={() => showToast({
                       message: "Password reset instructions have been sent to your email (Demo mode: Please check your console or contact support).",
                       type: "info"
                     })}
+
                     className="font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                   >
                     Forgot password?

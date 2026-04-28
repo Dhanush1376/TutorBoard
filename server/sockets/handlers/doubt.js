@@ -7,19 +7,23 @@ import { checkSocketRate, checkGuestUsage, getGuestUsageCount, GUEST_MONTHLY_LIM
 import { sanitizeInput } from '../../utils/validation/sanitize.js';
 import { isGreeting } from '../../engine/agents/agentUtils.js';
 import { replanRemainingSteps } from '../../engine/core/adaptivePlanner.js';
-import { 
-  syncToDatabase, 
-  getRateKey, 
-  withTimeout, 
+import {
+  syncToDatabase,
+  getRateKey,
+  withTimeout,
   resolveUserConfig,
-  resolveModelId 
+  resolveModelId
 } from '../utils.js';
 import redis from '../../utils/core/redis.js';
 import { runDeltaAgent } from '../../engine/agents/deltaAgent.js';
 
 export function registerDoubtHandlers(socket, machine, sessionId) {
-  
-  socket.on('session:doubt', async ({ question, selectedAgent, activeMode, file }) => {
+
+  socket.on('session:doubt', async ({ question, selectedAgent, activeMode, file, snapshot }) => {
+    // ─── Phase 3: Concurrency Lock ────────────────────────────────────────
+    if (socket._isProcessingDoubt) return;
+    socket._isProcessingDoubt = true;
+
     // ─── Sliding Window Rate Limiting (5 doubts / 60s) — Redis Backed ────────
     const now = Date.now();
     const ip = socket.handshake.address;
@@ -29,104 +33,74 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
     if (redis.isConnected) {
       await redis.zremrangebyscore(rateKey, 0, now - 60000);
       const count = await redis.zcard(rateKey);
-      
+
       if (count >= 5) {
         socket.emit('teaching:error', { message: 'You are asking questions too fast. Please wait a minute.' });
+        socket._isProcessingDoubt = false;
         return;
       }
       await redis.zadd(rateKey, now, `${now}-${Math.random()}`);
       await redis.expire(rateKey, 65); // Auto-cleanup
-    } else {
-      // Fallback to in-memory if Redis is down
-      if (!socket._doubtTimestamps) socket._doubtTimestamps = [];
-      socket._doubtTimestamps = socket._doubtTimestamps.filter(t => now - t < 60000);
-      if (socket._doubtTimestamps.length >= 5) {
-        socket.emit('teaching:error', { message: 'You are asking questions too fast. Please wait a minute.' });
-        return;
-      }
-      socket._doubtTimestamps.push(now);
     }
 
     if (!(await checkSocketRate(getRateKey(socket)))) {
       socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
+      socket._isProcessingDoubt = false;
       return;
-    }
-
-    if (socket.user?.isGuest) {
-      const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
-      const isAllowed = await checkGuestUsage(ip);
-      const newCount = await getGuestUsageCount(ip);
-      socket.emit('guest:status', { count: newCount, limit: 50, warning: newCount >= 40 });
-
-      if (!isAllowed) {
-        socket.emit('teaching:error', { message: 'Trial limit exceeded (50 interactions/mo). Please sign in to continue learning.' });
-        return;
-      }
     }
 
     const cleanQuestion = sanitizeInput(question, 5000);
-    if (!cleanQuestion) {
-      socket.emit('teaching:error', { message: 'Question is required' });
-      return;
-    }
-
     machine.send(EVENTS.DOUBT_ASKED, { question: cleanQuestion });
     socket.emit('teaching:doubt-ack', { question: cleanQuestion });
 
     try {
       const userConfig = await resolveUserConfig(socket, socket.user, cleanQuestion, selectedAgent);
-      
-      let intentResult;
-      if (isGreeting(cleanQuestion)) {
-        intentResult = { intent: 'quick', renderer: 'none', confidence: 1.0 };
-      } else {
-        intentResult = await detectIntent(cleanQuestion, activeMode, selectedAgent, userConfig);
-      }
 
-      let response;
-      if (intentResult.intent === 'quick' || intentResult.intent === 'text_only') {
-        const textRes = await withTimeout(
-          generateTextResponse(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig, file),
-          45000
-        );
-        response = { answer: textRes.answer, isRelevant: true, hasVisuals: false, visualUpdate: null };
-      } else {
-        // Use the centralized handleDoubt from pedagogyEngine — it handles all state gathering and agent calls
-        response = await withTimeout(
-          handleDoubt(sessionId, cleanQuestion, userConfig?.model || resolveModelId(selectedAgent), userConfig, file),
-          60000
-        );
-      }
+      // ─── Phase 3: Surgical Delta Flow ─────────────────────────────────────
+      // We use the provided snapshot if available, otherwise fall back to session state
+      const response = await withTimeout(
+        handleDoubt(
+          sessionId,
+          cleanQuestion,
+          userConfig?.model || resolveModelId(selectedAgent),
+          userConfig,
+          file,
+          snapshot // Pass client snapshot
+        ),
+        45000
+      );
 
       machine.send(EVENTS.DOUBT_RESPONSE_READY, { response });
 
-      if (response.visualUpdate?.isDelta && response.visualUpdate?.mutations) {
+      if (response.visualUpdate?.isDelta) {
+        console.log(`[Doubt] 🚀 Emitting DELTA for "${cleanQuestion}"`);
         socket.emit('teaching:doubt-delta', {
-          _question:    cleanQuestion,
-          answer:       response.answer,
-          actions:      response.visualUpdate.mutations, // mutations is the canonical key in pedagogyEngine
-          pathway:      response.pathway
+          _question: cleanQuestion,
+          answer: response.answer,
+          actions: response.visualUpdate.mutations || [],
+          followUp: response.followUp
         });
       } else {
         socket.emit('teaching:doubt-response', {
-          _question:    cleanQuestion,
-          answer:       response.answer,
-          isRelevant:   response.isRelevant,
-          hasVisuals:   response.hasVisuals,
+          _question: cleanQuestion,
+          answer: response.answer,
+          isRelevant: response.isRelevant,
+          hasVisuals: response.hasVisuals,
           visualUpdate: response.visualUpdate,
-          followUp:     response.followUp,
+          followUp: response.followUp,
         });
       }
 
+
       // Persist interactions to conversation history
       await sessionStore.addMessage(sessionId, 'user', cleanQuestion);
-      
+
       const sessionAfterDoubt = await sessionStore.get(sessionId);
       await sessionStore.addMessage(sessionId, 'assistant', response.answer, {
         hasCanvas: !!response.hasVisuals,
         canvasSnapshot: response.hasVisuals ? {
           canvasObjects: sessionAfterDoubt?.canvasState || [],
-          canvasSteps: sessionAfterDoubt?.canvasSteps   || [],
+          canvasSteps: sessionAfterDoubt?.canvasSteps || [],
           totalSteps: sessionAfterDoubt?.canvasSteps?.length || 0
         } : null
       });
@@ -145,7 +119,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
               stepIndex: s.currentStepIndex || 0,
               stepDescription: s.topic || 'General Query',
             });
-          } catch (dbErr) {}
+          } catch (dbErr) { }
         }
 
         // Confusion Classification
@@ -153,10 +127,10 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
           const { classifyDoubt } = await import('../../engine/agents/doubtClassifier.js');
           const classification = await classifyDoubt(s.topic || '', cleanQuestion);
           const confusionPathways = ['misconception', 'wants_deeper'];
-          
+
           if (classification && confusionPathways.includes(classification.pathway)) {
             const newConfusion = Math.min(1.0, (s.learnerProfile.confusionIndex || 0) + 0.1);
-            
+
             const safeLearnerProfile = {
               ...s.learnerProfile,
               topicsMastery: s.learnerProfile.topicsMastery instanceof Map
@@ -164,26 +138,26 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
                 : (s.learnerProfile.topicsMastery || {})
             };
 
-            await sessionStore.update(sessionId, { 
-              learnerProfile: { ...safeLearnerProfile, confusionIndex: newConfusion } 
+            await sessionStore.update(sessionId, {
+              learnerProfile: { ...safeLearnerProfile, confusionIndex: newConfusion }
             });
             s.learnerProfile.confusionIndex = newConfusion;
             socket.emit('teaching:profile', { ...safeLearnerProfile, confusionIndex: newConfusion });
           }
-        } catch (e) {}
+        } catch (e) { }
 
         // History
         if (!s.doubtHistory) s.doubtHistory = [];
         s.doubtHistory.push({ question: cleanQuestion, answer: response.answer, timestamp: Date.now() });
-        
-        await sessionStore.update(sessionId, { 
+
+        await sessionStore.update(sessionId, {
           learnerProfile: {
             ...s.learnerProfile,
             topicsMastery: s.learnerProfile.topicsMastery instanceof Map
               ? Object.fromEntries(s.learnerProfile.topicsMastery)
               : (s.learnerProfile.topicsMastery || {})
           },
-          doubtHistory: s.doubtHistory 
+          doubtHistory: s.doubtHistory
         });
 
         await syncToDatabase(sessionId);
@@ -199,7 +173,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
             await sessionStore.update(sessionId, { steps: replan.mergedSteps });
             socket.emit('teaching:replan', { message: replan.notification, newTotalSteps: replan.mergedSteps.length });
             socket.emit('teaching:timeline-update', { steps: replan.mergedSteps, totalSteps: replan.mergedSteps.length });
-            await sessionStore.update(sessionId, { 
+            await sessionStore.update(sessionId, {
               learnerProfile: { ...s.learnerProfile, confusionIndex: 0 },
               _lastReplanDoubtCount: s.doubtHistory.length
             });
@@ -210,14 +184,17 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
     } catch (err) {
       console.error('[WS] session:doubt error:', err.message);
       machine.send(EVENTS.FAIL, { error: err.message });
-      
+
+      socket._isProcessingDoubt = false;
+
       // Classify error source for targeted frontend messaging
+
       const isCustomApiError = err.message?.includes('Your API') || err.message?.includes('Custom API');
       const isSystemError = err.message?.includes('SYSTEM_NOT_CONFIGURED') || err.message?.includes('SYSTEM_FAILURE');
-      
+
       let errorMessage = 'Something went wrong while processing your question.';
       let errorType = 'generic';
-      
+
       if (isCustomApiError) {
         errorMessage = err.message;
         errorType = 'custom_api_error';
@@ -225,7 +202,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         errorMessage = 'TutorBoard system APIs are not available. Please add your own API key in Settings → AI Configuration.';
         errorType = 'system_not_configured';
       }
-      
+
       socket.emit('teaching:doubt-response', {
         _question: cleanQuestion,
         answer: errorMessage,

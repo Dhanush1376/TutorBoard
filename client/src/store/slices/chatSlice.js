@@ -1,9 +1,15 @@
 export const createChatSlice = (set, get) => ({
   doubtHistory:      [],
+  deltaHistory:      [],
   activeDoubtId:     null,
   isDoubtProcessing: false,
+  isDeltaRunning:    false,
   doubtResponse:     null,
   showDoubtThread:   false,
+
+  setDeltaRunning:   (running) => set({ isDeltaRunning: running }),
+  addDelta:          (delta) => set(s => ({ deltaHistory: [...s.deltaHistory, delta] })),
+
 
   setDoubtProcessing: (processing) => set({ isDoubtProcessing: processing }),
   setDoubtResponse:  (response) => set({ doubtResponse: response }),
