@@ -6,7 +6,7 @@
 export const DELTA_TEMPLATES = {
   IDENTIFY: (id) => [
     { id, action: 'highlight', duration: 0.8, delay: 0 },
-    { id, action: 'glow_pulse', duration: 1.2, delay: 0.2 }
+    { id, action: 'pulseElement', duration: 0.6, delay: 0.2 }
   ],
   COMPARE: (idA, idB) => [
     { id: idA, action: 'highlight', duration: 0.5, delay: 0 },
@@ -15,7 +15,7 @@ export const DELTA_TEMPLATES = {
   ],
   POINTER_TO: (x, y, label) => [
     { id: 'teacher-pointer', action: 'pointer_move', props: { x, y }, duration: 0.6, delay: 0 },
-    { id: 'teacher-pointer', action: 'label_show', props: { text: label }, duration: 0.4, delay: 0.6 }
+    { id: 'teacher-pointer', action: 'annotate', text: label, duration: 0.4, delay: 0.6 }
   ],
   NOT_THIS: (id) => [
     { id, action: 'shake', duration: 0.4, delay: 0 },

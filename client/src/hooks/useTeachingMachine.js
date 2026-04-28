@@ -31,7 +31,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     setTimeline, setCurrentStep, setError, setGreeting, setChatSessionId,
     setLearnerProfile, setResumeContext,
 
-    setDoubtProcessing, addDoubt, setDoubtResponse,
+    setDoubtProcessing, addDoubt, setDoubtResponse, setDeltaState,
     mutateCanvasObjects, addCanvasObjects,
     setNarrationTokens,
     startSession: storeStartSession,
@@ -97,6 +97,8 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     setDoubtProcessing: s.setDoubtProcessing,
     addDoubt: s.addDoubt,
     setDoubtResponse: s.setDoubtResponse,
+    setDeltaState: s.setDeltaState,
+
     mutateCanvasObjects: s.mutateCanvasObjects,
     addCanvasObjects: s.addCanvasObjects,
     startSession: s.startSession,
@@ -303,10 +305,13 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // Doubt Delta received (Phase 3)
     cleanups.push(on('teaching:doubt-delta', (data) => {
       console.log(`[Machine] Doubt Delta: ${data.actions?.length} actions`);
-      if (data.actions) mutateCanvasObjects(data.actions);
-      addDoubt(data._question, data.answer, true, { actions: data.actions, isDelta: true });
+      addDoubt(data._question, data.answer, true, { 
+        actions: data.actions, 
+        isDelta: true 
+      });
       setDoubtProcessing(false);
     }));
+
 
     // Error from server
     cleanups.push(on('teaching:error', (data) => {
@@ -387,8 +392,9 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   }, [
     on, isConnected,
     setMachineState, setSessionId, setChatSessionId, setTimeline, setCurrentStep,
-    setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects,
+    setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects, setDeltaState,
     setError, setGreeting, notifyUser,
+
   ]);
 
   // ─── Auto-play logic ──────────────────────────────────────────────────────

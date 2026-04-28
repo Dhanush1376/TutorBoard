@@ -315,10 +315,18 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     // Phase 5: Semantic Retrieval
     const pastContext = await VectorStoreService.getContextForTopic(topic);
     
+
+    const pastContextStr = learnerProfile?.history 
+      ? learnerProfile.history.map(s => `[${new Date(s.timestamp).toLocaleDateString()}] ${s.topic}: ${s.summary}`).join('\n')
+      : (pastContext || "No prior sessions found for this topic.");
+
+    const learnerStyleStr = learnerProfile?.learning_style || "General (Visual-Conceptual balance)";
+
     const plannerPrompt = (systemPrompt || getPrompt('planner'))
       .replace('{{MIN_STEPS}}', minSteps.toString())
       .replace('{{MAX_STEPS}}', targetMax.toString())
-      .replace('{{PAST_CONTEXT}}', pastContext || "No prior sessions found for this topic.");
+      .replace('{{PAST_CONTEXT}}', pastContextStr)
+      .replace('{{LEARNER_STYLE}}', learnerStyleStr);
 
     const plannerOutput = planningResult || await runStage({
       stageName: '💡 Thinking deeply about the topic...',

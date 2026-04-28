@@ -1,16 +1,21 @@
 import MatterRenderer from '../components/renderers/MatterRenderer';
 import NarrativeRenderer from '../components/renderers/NarrativeRenderer';
-import KaTeXRenderer from '../renderers/KaTeXRenderer.jsx';
+import KaTeXRenderer from '../renderers/KaTeXRenderer';
 import AlgorithmRenderer from '../renderers/AlgorithmRenderer.jsx';
+import DesmosRenderer from '../components/renderers/DesmosRenderer';
 
 export const RENDERER_MAP: Record<string, any> = {
   'cinematic':  null,
   'matter':     MatterRenderer,
   'physics':    MatterRenderer,
   'narrative':  NarrativeRenderer,
+  'history':    NarrativeRenderer,
+  'biology':    NarrativeRenderer,
   'math':       KaTeXRenderer,
   'equation':   KaTeXRenderer,
   'katex':      KaTeXRenderer,
+  'desmos':     DesmosRenderer,
+  'graph':      DesmosRenderer,
   'algorithm':  AlgorithmRenderer,
   'dsa':        AlgorithmRenderer,
   'sorting':    AlgorithmRenderer,

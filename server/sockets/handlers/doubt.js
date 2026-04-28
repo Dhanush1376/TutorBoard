@@ -56,8 +56,10 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
     try {
       const userConfig = await resolveUserConfig(socket, socket.user, cleanQuestion, selectedAgent);
 
-      // ─── Phase 3: Surgical Delta Flow ─────────────────────────────────────
-      // We use the provided snapshot if available, otherwise fall back to session state
+      const s = await sessionStore.get(sessionId);
+      const confusionIndex = s?.learnerProfile?.confusionIndex || 0;
+      const mode = confusionIndex > 0.4 ? 'SIMPLIFY' : 'EXPLAIN';
+
       const response = await withTimeout(
         handleDoubt(
           sessionId,
@@ -65,7 +67,8 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
           userConfig?.model || resolveModelId(selectedAgent),
           userConfig,
           file,
-          snapshot // Pass client snapshot
+          snapshot,
+          mode
         ),
         45000
       );
@@ -77,7 +80,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         socket.emit('teaching:doubt-delta', {
           _question: cleanQuestion,
           answer: response.answer,
-          actions: response.visualUpdate.mutations || [],
+          actions: response.commands || response.visualUpdate?.mutations || [],
           followUp: response.followUp
         });
       } else {
@@ -107,17 +110,17 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
       await syncToDatabase(sessionId);  // CRITICAL: Flush to MongoDB
 
 
-      // Update Session State
-      const s = await sessionStore.get(sessionId);
-      if (s) {
+      // Update Session State (Use the snapshot we just fetched)
+      if (sessionAfterDoubt) {
+        const activeSession = sessionAfterDoubt;
         if (socket.user && !socket.user.isGuest) {
           try {
             await Doubt.create({
               user: socket.user.id || socket.user._id,
               question: cleanQuestion,
               answer: response.answer,
-              stepIndex: s.currentStepIndex || 0,
-              stepDescription: s.topic || 'General Query',
+              stepIndex: activeSession.currentStepIndex || 0,
+              stepDescription: activeSession.topic || 'General Query',
             });
           } catch (dbErr) { }
         }
@@ -125,39 +128,60 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         // Confusion Classification
         try {
           const { classifyDoubt } = await import('../../engine/agents/doubtClassifier.js');
-          const classification = await classifyDoubt(s.topic || '', cleanQuestion);
+          const classification = await classifyDoubt(activeSession.topic || '', cleanQuestion);
           const confusionPathways = ['misconception', 'wants_deeper'];
 
           if (classification && confusionPathways.includes(classification.pathway)) {
-            const newConfusion = Math.min(1.0, (s.learnerProfile.confusionIndex || 0) + 0.1);
+            const newConfusion = Math.min(1.0, (activeSession.learnerProfile.confusionIndex || 0) + 0.1);
+            const newStreak = (activeSession.learnerProfile.confusionStreak || 0) + 1;
+
+            const engagement = activeSession.learnerProfile.engagementMetrics || { visualStepsCompleted: 0, conceptualDoubtsAsked: 0, avgStepDuration: 0, styleDetected: 'unknown' };
+            engagement.conceptualDoubtsAsked += 1;
 
             const safeLearnerProfile = {
-              ...s.learnerProfile,
-              topicsMastery: s.learnerProfile.topicsMastery instanceof Map
-                ? Object.fromEntries(s.learnerProfile.topicsMastery)
-                : (s.learnerProfile.topicsMastery || {})
+              ...activeSession.learnerProfile,
+              confusionStreak: newStreak,
+              engagementMetrics: engagement,
+              topicsMastery: activeSession.learnerProfile.topicsMastery instanceof Map
+                ? Object.fromEntries(activeSession.learnerProfile.topicsMastery)
+                : (activeSession.learnerProfile.topicsMastery || {})
             };
 
             await sessionStore.update(sessionId, {
               learnerProfile: { ...safeLearnerProfile, confusionIndex: newConfusion }
             });
-            s.learnerProfile.confusionIndex = newConfusion;
+            activeSession.learnerProfile.confusionIndex = newConfusion;
+            activeSession.learnerProfile.confusionStreak = newStreak;
+
+            if (newConfusion > 0.6 && newStreak >= 3) {
+              console.log(`[Doubt] 🚨 High confusion streak detected (${newStreak}). Activating SIMPLIFY mode.`);
+              userConfig.mode = 'SIMPLIFY';
+            }
+
             socket.emit('teaching:profile', { ...safeLearnerProfile, confusionIndex: newConfusion });
+          } else {
+            // Low confusion / relevant query
+            const engagement = activeSession.learnerProfile.engagementMetrics || { visualStepsCompleted: 0, conceptualDoubtsAsked: 0, avgStepDuration: 0, styleDetected: 'unknown' };
+            engagement.visualStepsCompleted += 0.5; // Incremental visual engagement boost
+            
+            await sessionStore.update(sessionId, {
+              learnerProfile: { ...activeSession.learnerProfile, confusionStreak: 0, engagementMetrics: engagement }
+            });
           }
         } catch (e) { }
 
         // History
-        if (!s.doubtHistory) s.doubtHistory = [];
-        s.doubtHistory.push({ question: cleanQuestion, answer: response.answer, timestamp: Date.now() });
+        if (!activeSession.doubtHistory) activeSession.doubtHistory = [];
+        activeSession.doubtHistory.push({ question: cleanQuestion, answer: response.answer, timestamp: Date.now() });
 
         await sessionStore.update(sessionId, {
           learnerProfile: {
-            ...s.learnerProfile,
-            topicsMastery: s.learnerProfile.topicsMastery instanceof Map
-              ? Object.fromEntries(s.learnerProfile.topicsMastery)
-              : (s.learnerProfile.topicsMastery || {})
+            ...activeSession.learnerProfile,
+            topicsMastery: activeSession.learnerProfile.topicsMastery instanceof Map
+              ? Object.fromEntries(activeSession.learnerProfile.topicsMastery)
+              : (activeSession.learnerProfile.topicsMastery || {})
           },
-          doubtHistory: s.doubtHistory
+          doubtHistory: activeSession.doubtHistory
         });
 
         await syncToDatabase(sessionId);
@@ -166,16 +190,16 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         }
 
         // Mid-lesson Replan
-        const doubtsSinceReplan = (s.doubtHistory.length) - (s._lastReplanDoubtCount || 0);
-        if (s.learnerProfile.confusionIndex >= 0.5 && s.steps?.length > 0 && doubtsSinceReplan >= 3) {
-          const replan = await replanRemainingSteps(s, s.topic, userConfig);
+        const doubtsSinceReplan = (activeSession.doubtHistory.length) - (activeSession._lastReplanDoubtCount || 0);
+        if (activeSession.learnerProfile.confusionIndex >= 0.5 && activeSession.steps?.length > 0 && doubtsSinceReplan >= 3) {
+          const replan = await replanRemainingSteps(activeSession, activeSession.topic, userConfig);
           if (replan) {
             await sessionStore.update(sessionId, { steps: replan.mergedSteps });
             socket.emit('teaching:replan', { message: replan.notification, newTotalSteps: replan.mergedSteps.length });
             socket.emit('teaching:timeline-update', { steps: replan.mergedSteps, totalSteps: replan.mergedSteps.length });
             await sessionStore.update(sessionId, {
-              learnerProfile: { ...s.learnerProfile, confusionIndex: 0 },
-              _lastReplanDoubtCount: s.doubtHistory.length
+              learnerProfile: { ...activeSession.learnerProfile, confusionIndex: 0 },
+              _lastReplanDoubtCount: activeSession.doubtHistory.length
             });
           }
         }

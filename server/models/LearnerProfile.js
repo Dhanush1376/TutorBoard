@@ -9,7 +9,15 @@ const LearnerProfileSchema = new mongoose.Schema({
   },
   topicsMastery: {
     type: Map,
-    of: Number, // 0.0 to 1.0
+    of: new mongoose.Schema({
+      mastery:           { type: Number, default: 0 },     // 0.0 to 1.0
+      easeFactor:        { type: Number, default: 2.5 },   // SM-2 E-factor
+      interval:          { type: Number, default: 1 },     // days until next review
+      repetitions:       { type: Number, default: 0 },     // SM-2 n
+      lastTaught:        { type: Date },
+      reinforcementDue:  { type: Date },
+      prerequisites:     [String],                          // concept ids
+    }, { _id: false }),
     default: {}
   },
   doubtHistory: [
@@ -25,6 +33,13 @@ const LearnerProfileSchema = new mongoose.Schema({
     type: String,
     enum: ['visual', 'textual', 'granular', 'high-level'],
     default: 'visual'
+  },
+  engagementMetrics: {
+    visualStepsCompleted:    { type: Number, default: 0 },
+    conceptualDoubtsAsked:   { type: Number, default: 0 },
+    avgStepDuration:         { type: Number, default: 0 }, // ms
+    styleDetected:           { type: String, enum: ['visual', 'conceptual', 'balanced', 'unknown'], default: 'unknown' },
+    styleDetectedAt:         { type: Number, default: 0 }, // totalSessions when detected
   },
   lastSessionDate: {
     type: Date,

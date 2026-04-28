@@ -14,6 +14,7 @@ export const DOMAIN_KEYWORDS = {
     ['topology', 3], ['manifold', 3], ['differential geometry', 3],
     ['modular arithmetic', 3], ['prime', 1], ['factorization', 2],
     ['statistics', 1], ['hypothesis testing', 3], ['confidence interval', 3],
+    ['desmos', 3], ['graphing', 2], ['interactive graph', 3], ['equation derivation', 3],
   ],
 };
 
@@ -28,12 +29,13 @@ export const DOMAIN_NODE_TEMPLATES = {
 export const DOMAIN_ANIMATION_GUIDE = {
   mathematics: `
 ANIMATION STRATEGY — MATHEMATICS:
+  Renderer: Use "math" (KaTeX) for derivations or "desmos" for function graphing.
   Primitives: polygon, axes, dot, circle, line (connection), text, arc
   Layout rules:
-    - Geometry: ALWAYS draw explicit shapes using 'polygon' with precise 'points' (e.g., [[-0.2, 0.2], [0.2, 0.2], [-0.2, -0.2]] for a right triangle). DO NOT string circles together as a flowchart.
+    - KaTeX: Use "type": "equation" for step-by-step symbolic derivation.
+    - Desmos: For interactive graphing, include a "viewport" and "expressions" array in the step.
+    - Geometry: ALWAYS draw explicit shapes using 'polygon' with precise 'points'.
     - Graphing/Functions: Use 'axes' for the background coordinate system.
-    - Equations: Center label prominently.
-    - Connections: Use "type": "line" for non-directional geometric edges.
   MINIMUM STEPS: calculus=12 | geometry=8 | matrices=10 | statistics=8
 `,
 };

@@ -127,14 +127,13 @@ export const DOMAIN_NODE_TEMPLATES = {
 export const DOMAIN_ANIMATION_GUIDE = {
   physics: `
 ANIMATION STRATEGY — PHYSICS:
+  Renderer: Use "matter" (Matter.js) for mechanics, projectiles, or collisions.
   Primitives: circle (particles/objects), arrow (forces/velocity/fields),
               path (trajectories/waves/field lines), arc (angles), rect (components)
   Layout rules:
-    - Mechanics: center object, radiate force arrows outward/inward with labels.
+    - Mechanics: Use Matter.js bodies. Specify 'restitution', 'friction', and 'gravity' in steps.
+    - Fields: Use arrows radiating from source charges/masses.
     - Waves: path with sinusoidal d; animate wavelength/amplitude change step by step.
-    - Circuits: rect=components, line=wires, text=values; left-to-right layout.
-    - Optics: line=rays, arc=reflection angles; normal line dashed.
-    - Show BEFORE state (steps 1–3) then animate AFTER state.
   MINIMUM STEPS: mechanics=12 | waves=10 | circuits=12 | thermodynamics=10 | optics=10
 `,
   chemistry: `
@@ -152,14 +151,14 @@ ANIMATION STRATEGY — CHEMISTRY:
 `,
   biology: `
 ANIMATION STRATEGY — BIOLOGY:
+  Renderer: Use "narrative" (D3) for cellular processes or "cinematic" for anatomy.
   Primitives: circle (cells/organelles), path (membranes/DNA), arrow (signals/flow),
               badge (labels), rect (organ outlines)
   Color convention: plant cell=green | animal cell=pink | nucleus=blue |
                     mitochondria=yellow | ER=orange | vacuole=light-blue
   Layout rules:
+    - DNA/genetics: Use "narrative" mode for sequential replication steps.
     - Cell: large circle=boundary, smaller circles=organelles inside, badge=labels.
-    - DNA/genetics: path for double helix, text for base pairs (A–T, G–C).
-    - Body systems: rect/circle=organs, arrow=blood flow/nerve signals.
     - Evolution: horizontal timeline rect nodes connected by arrows.
   MINIMUM STEPS: cell division=14 | genetics=12 | body systems=10 | photosynthesis=12
 `,

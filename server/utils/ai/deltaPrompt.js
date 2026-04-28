@@ -3,9 +3,9 @@
  * 
  * Specifically optimized for surgical, incremental canvas updates.
  */
-export const MASTER_DELTA_PROMPT = ({ doubt, snapshot, topic }) => `
+export const MASTER_DELTA_PROMPT = ({ doubt, snapshot, topic, mode = 'EXPLAIN', instruction = '' }) => `
 CURRENT TOPIC:
-${topic}
+${topic} (MODE: ${mode})
 
 STUDENT DOUBT:
 "${doubt}"
@@ -14,7 +14,9 @@ CURRENT CANVAS STATE:
 ${JSON.stringify(snapshot, null, 2)}
 
 TASK:
+${instruction}
 Generate a minimal VisualScript delta to address the student's doubt.
+${mode === 'SIMPLIFY' ? 'REINFORCEMENT: The student is confused. Use extra-simple analogies and break things down further.' : ''}
 
 STRICT RULES:
 - DO NOT regenerate full animation
@@ -24,6 +26,7 @@ STRICT RULES:
 - Prefer highlight, pointer emphasis, or text annotation
 - Maintain timeline continuity
 - If conceptual doubt (why/how) → Use text annotations/highlights rather than complex movements.
+- IF MODE = "SIMPLIFY" → Automatically inject a simpler real-world analogy or a breakdown step. Do not wait for user to ask for it.
 
 
 ACTION TYPES ALLOWED:

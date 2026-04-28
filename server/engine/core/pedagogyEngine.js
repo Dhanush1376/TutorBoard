@@ -26,6 +26,9 @@ import { runAgentLoop } from './agentLoop.js';
 import { getPrimaryDomain, DOMAIN_MIN_STEPS } from '../config/domainConfig.js';
 import { calculateMastery, deriveLevel } from '../../utils/core/pedagogyHelper.js';
 import { generateDelta } from '../agents/deltaAgent.js';
+import LearnerProfile from '../../models/LearnerProfile.js';
+import SessionMemory from '../../models/SessionMemory.js';
+import SpacedRepetitionScheduler from './SpacedRepetitionScheduler.js';
 
 // ─── Raw Fail-Safe Data ───────────────────────────────────────────────────────
 // NOTE: This is raw data BEFORE postProcessTimeline. It is NEVER returned directly.
@@ -246,11 +249,45 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
     prior_mastery: session.learnerProfile?.topicsMastery instanceof Map
       ? Object.fromEntries(session.learnerProfile.topicsMastery)
       : (session.learnerProfile?.topicsMastery || {}),
-    learning_style: session.learnerProfile?.learningStyle || 'visual',
+     learning_style: session.learnerProfile?.learningStyle || 'visual',
     weak_areas: (session.learnerProfile?.doubtHistory || [])
       .filter(d => d.confusionScore > 5)
       .map(d => d.topic)
   };
+
+  // Phase 4: Retrieve Session History and Fingerprint
+  if (userConfig?.userId) {
+    const history = await SessionMemory.findOne({ userId: userConfig.userId });
+    if (history && history.sessions.length > 0) {
+      learnerProfile.history = history.sessions.map(s => ({
+        topic: s.topic,
+        summary: s.summary,
+        concepts: s.keyConcepts,
+        timestamp: s.timestamp
+      }));
+    }
+
+    const profile = await LearnerProfile.findOne({ userId: userConfig.userId });
+    if (profile) {
+      // 1. Spaced Repetition Reinforcement
+      const dueConcepts = await SpacedRepetitionScheduler.getDueConcepts(userConfig.userId);
+      if (dueConcepts.length > 0) {
+        learnerProfile.reinforcementTopics = dueConcepts;
+        console.log(`[PedagogyEngine] 🧠 Found ${dueConcepts.length} concepts due for reinforcement: ${dueConcepts.join(", ")}`);
+      }
+
+      // 2. Learning Style Fingerprinting
+      if (profile.engagementMetrics?.styleDetected && profile.engagementMetrics.styleDetected !== 'unknown') {
+        learnerProfile.learning_style = profile.engagementMetrics.styleDetected;
+        console.log(`[PedagogyEngine] 🕵️ Using Persistent Learner Style: ${learnerProfile.learning_style.toUpperCase()}`);
+      } else if (profile.totalSessions >= 3) {
+        const { visualStepsCompleted, conceptualDoubtsAsked } = profile.engagementMetrics;
+        const style = visualStepsCompleted > conceptualDoubtsAsked ? 'visual' : 'conceptual';
+        learnerProfile.learning_style = style;
+        console.log(`[PedagogyEngine] 🕵️ Using Live Calculated Style: ${style.toUpperCase()} (v:${visualStepsCompleted} c:${conceptualDoubtsAsked})`);
+      }
+    }
+  }
 
   const userProfile = `Target Level = ${level}, Confusion Level = ${confusion}/10 (Mastery Score: ${mastery})`;
 
@@ -379,16 +416,13 @@ export async function generateQuiz(sessionId, topic, onProgress = () => { }, mod
 }
 
 // ─── Doubt/Text Handlers ──────────────────────────────────────────────────────
-export async function handleDoubt(sessionId, question, modelId = null, userConfig = null, file = null, snapshot = null) {
+export async function handleDoubt(sessionId, question, modelId = null, userConfig = null, file = null, snapshot = null, mode = 'EXPLAIN') {
   const session = await sessionStore.get(sessionId);
   const topic = session?.topic || 'General Education';
 
   try {
-    // If a surgical snapshot was provided by the client, use it.
-    // Otherwise, fall back to aggregating current frames from the session.
     let canvasState = [];
     if (snapshot) {
-      console.log(`[PedagogyEngine] 🎯 Using client-provided snapshot for doubt resolution.`);
       canvasState = snapshot.nodes || snapshot.elements || [];
     } else {
       const currentStepIndex = session?.currentStepIndex || 0;
@@ -403,11 +437,12 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
     // 2. Call specialized DeltaAgent
     const delta = await generateDelta({
       topic,
-      canvasState: fullState,
+      canvasState,
       question,
       modelId,
       userConfig,
-      file
+      file,
+      mode
     });
 
     if (delta.isError) {

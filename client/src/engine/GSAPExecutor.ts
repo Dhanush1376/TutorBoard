@@ -21,7 +21,7 @@ export interface Command {
   [key: string]: any;
 }
 
-export class GSAPInterpreter {
+export class GSAPExecutor {
   private masterTimeline: gsap.core.Timeline | null = null;
 
   constructor() {
@@ -88,34 +88,42 @@ export class GSAPInterpreter {
           currentCursor = position + dur;
           break;
 
-        case 'swap':
+        case 'swap': {
           const swapDur = (action.duration || 1000) / 1000;
+          const nestedTl = gsap.timeline();
           
-          this.masterTimeline.add(() => {
-            const el1 = document.getElementById(`${action.id1}`);
-            const el2 = document.getElementById(`${action.id2}`);
-            if (!el1 || !el2) {
-              console.warn(`[GSAP] Swap elements not found: ${action.id1}, ${action.id2}`);
-              return;
-            }
+          // Get elements BEFORE adding to timeline
+          const el1 = document.getElementById(action.id1!);
+          const el2 = document.getElementById(action.id2!);
+          if (!el1 || el2 === null) break;
 
-            // We use a nested timeline or immediate tweens. 
-            // Since we are already at the 'position' in the master timeline,
-            // we can just fire these off.
-            const r1 = el1.getBoundingClientRect();
-            const r2 = el2.getBoundingClientRect();
-            const dx = r2.left - r1.left;
+          const bbox1 = (el1 as any).getBBox ? (el1 as any).getBBox() : el1.getBoundingClientRect();
+          const bbox2 = (el2 as any).getBBox ? (el2 as any).getBBox() : el2.getBoundingClientRect();
+          const x1 = typeof bbox1.x === 'number' ? bbox1.x : bbox1.left;
+          const x2 = typeof bbox2.x === 'number' ? bbox2.x : bbox2.left;
+          const dx = x2 - x1;
 
-            // Arc 80px above and below
-            gsap.to(el1, { x: `+=${dx}`, duration: swapDur, ease: 'power1.inOut' });
-            gsap.to(el1, { y: `-=80`, duration: swapDur / 2, yoyo: true, repeat: 1, ease: 'sine.out' });
-            
-            gsap.to(el2, { x: `-=${dx}`, duration: swapDur, ease: 'power1.inOut' });
-            gsap.to(el2, { y: `+=80`, duration: swapDur / 2, yoyo: true, repeat: 1, ease: 'sine.out' });
-          }, position);
-          
+          nestedTl
+            .to(el1, { x: `+=${dx}`, y: '-=60', duration: swapDur/2, ease: 'sine.out' }, 0)
+            .to(el1, { y: '+=60', duration: swapDur/2, ease: 'sine.in' }, swapDur/2)
+            .to(el2, { x: `-=${dx}`, y: '+=60', duration: swapDur/2, ease: 'sine.out' }, 0)
+            .to(el2, { y: '-=60', duration: swapDur/2, ease: 'sine.in' }, swapDur/2);
+
+          this.masterTimeline.add(nestedTl, position);
           currentCursor = position + swapDur;
           break;
+        }
+
+        case 'update_pointer':
+        case 'move_pointer': {
+          const moveDur = (action.duration || 400) / 1000;
+          this.masterTimeline.call(() => {
+            renderer.updatePointer(action.id!, action.atIndex!, action.targetArrayId);
+          }, [], position);
+          // Then animate the translation — renderer updates the transform attribute
+          currentCursor = position + moveDur;
+          break;
+        }
 
         case 'wait':
           const waitSecs = (action.ms || action.duration || 1000) / 1000;

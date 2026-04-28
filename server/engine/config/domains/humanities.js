@@ -114,11 +114,12 @@ export const DOMAIN_NODE_TEMPLATES = {
 export const DOMAIN_ANIMATION_GUIDE = {
   history: `
 ANIMATION STRATEGY — HISTORY:
+  Renderer: Use "narrative" (D3) for chronological timelines and sequence-heavy topics.
   Primitives: rect (events/periods), arrow (causation/influence/timeline),
               text (dates/names), badge (key figures/outcomes)
   Layout rules:
-    - Timeline: horizontal sequence of rect events at y=280; arrows connecting cause→effect.
-    - साम्राज्यों/geography: spatial layout, regions as rect; mark compass positions.
+    - Timeline: Use the D3 axis at the center. Each step maps to a labeled marker.
+    - Cause-Effect: Animate arrows connecting markers to indicate historical links.
   MINIMUM STEPS: timeline=10 | cause-effect=10 | battles=12
 `,
   psychology: `

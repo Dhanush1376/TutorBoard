@@ -28,6 +28,8 @@ let geminiClient = null;
 let groqClient = null;
 let hfClient = null;
 
+
+
 const initClients = () => {
   const orKey = process.env.OPENROUTER_API_KEY;
   const gemKey = process.env.GEMINI_API_KEY;
@@ -63,12 +65,12 @@ const initClients = () => {
   } else if (!groqKey) {
     console.warn('[AI] Groq key missing from process.env ⚠️');
   }
-
   if (!hfClient && process.env.HUGGINGFACE_API_KEY) {
     hfClient = { apiKey: process.env.HUGGINGFACE_API_KEY };
     console.log('[AI] HuggingFace initialized ✅');
   }
 };
+
 
 // ── Response Cache (LRU) ──────────────────────────────────────────────────────
 const CACHE_MAX = 50;
@@ -553,7 +555,8 @@ async function _executeSystemPath(params, ctx) {
   initClients();
 
   // ── Guard: Check if ANY system client is available ──
-  const hasAnySystemClient = !!(openRouterClient || geminiClient || groqClient);
+  const hasAnySystemClient = !!(openRouterClient || geminiClient || groqClient || hfClient);
+
   if (!hasAnySystemClient) {
     console.error('[AI:System] ⛔ No system API keys configured in .env');
     throw new Error('SYSTEM_NOT_CONFIGURED: TutorBoard system APIs are not available. Please add your own API key in Settings → AI Configuration.');
@@ -572,8 +575,10 @@ async function _executeSystemPath(params, ctx) {
   const platformChain = [
     { id: 'openrouter', client: openRouterClient, defaultModel: getModel() },
     { id: 'google', client: geminiClient, defaultModel: 'gemini-2.0-flash' },
-    { id: 'groq', client: groqClient, defaultModel: 'llama-3.3-70b-versatile' }
+    { id: 'groq', client: groqClient, defaultModel: 'llama-3.3-70b-versatile' },
+    { id: 'huggingface', client: hfClient, defaultModel: 'mistralai/Mixtral-8x7B-Instruct-v0.1' }
   ];
+
 
   let lastError = null;
 

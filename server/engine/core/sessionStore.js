@@ -4,6 +4,8 @@
 import LearnerProfile from '../../models/LearnerProfile.js';
 import redis from '../../utils/core/redis.js';
 import VectorStoreService from './vectorStore.js';
+import SessionMemory from '../../models/SessionMemory.js';
+import SpacedRepetitionScheduler from './SpacedRepetitionScheduler.js';
 
 const SESSION_TTL_SEC = 20 * 60; // 20 minutes (Redis uses seconds for EX)
 const IDLE_TTL_SEC = 5 * 60;     // 5 minutes
@@ -45,7 +47,10 @@ class SessionStore {
         level: 'beginner',
         pace: 'normal',
         confusionIndex: 0,
+        confusionStreak: 0, // NEW: Track high confusion streaks
+        lowConfusionStreak: 0, // NEW: Track low confusion streaks
         topicsMastery: {},
+        engagementMetrics: { visual: 0, conceptual: 0, doubtsAfterNarration: 0, fastThroughVisuals: 0 }
       },
       chatSessionId: null,
       learnerProfileId: null,
@@ -167,8 +172,11 @@ class SessionStore {
         level: profile.level || 'beginner',
         pace: profile.pace || 'normal',
         confusionIndex: 0,
+        confusionStreak: 0,
+        lowConfusionStreak: 0,
         learningStyle: profile.learningStyle || 'visual',
         topicsMastery: profile.topicsMastery instanceof Map ? Object.fromEntries(profile.topicsMastery) : (profile.topicsMastery || {}),
+        engagementMetrics: profile.engagementMetrics || { visual: 0, conceptual: 0, doubtsAfterNarration: 0, fastThroughVisuals: 0 }
       };
 
       // We update the local object directly first, then persist
@@ -229,6 +237,10 @@ class SessionStore {
         s._sessionCounted = true; // set in-memory first
         await this.update(id, { _sessionCounted: true }, s); // then persist
         profile.totalSessions = (profile.totalSessions || 0) + 1;
+        
+        // 3. SM-2 Integration: Update Spaced Repetition mastery on session count
+        const masteryDeltas = [{ concept: s.topic, mastery: profile.topicsMastery.get(s.topic) || 0.5 }];
+        await SpacedRepetitionScheduler.updateMastery(s.userId, masteryDeltas);
       }
 
       await profile.save();
@@ -238,22 +250,65 @@ class SessionStore {
     }
   }
 
-  async finalizeSessionMemory(id, summary) {
+  async finalizeSessionMemory(sessionId, summary) {
     try {
-      const s = await this.get(id);
-      if (!s || !s.topic) return;
+      const s = await this.get(sessionId);
+      if (!s?.userId) return;
 
-      const metadata = {
-        userId: s.userId,
-        topic: s.topic,
-        mastery: s.learnerProfile?.topicsMastery?.[s.topic] || 0,
-        confusionIndex: s.learnerProfile?.confusionIndex || 0
-      };
+      // Existing VectorStore call (stubbed, fine)
+      await VectorStoreService.addSession(sessionId, summary, { topic: s.topic });
 
-      await VectorStoreService.addSession(id, summary, metadata);
+      // NEW: persist to MongoDB for style detection + planner context
+      const memory = await SessionMemory.findOneAndUpdate(
+        { userId: s.userId },
+        { 
+          $push: { 
+            sessions: {
+              topic:       s.topic,
+              domain:      s.domain || 'general',
+              keyConcepts: summary?.keyConcepts || [],
+              doubts:      s.doubtHistory?.map(d => ({ question: d.question, pathway: d.pathway })) || [],
+              masteryDelta: summary?.masteryDelta || {},
+              stepCount:   (s.currentStepIndex || 0) + 1,
+            }
+          }
+        },
+        { upsert: true, new: true }
+      );
+
+      // --- Learner Style Detection ---
+      if (memory.sessions.length >= 3) {
+        const style = this.constructor.detectStyle(memory.sessions);
+        await LearnerProfile.updateOne(
+          { userId: s.userId },
+          { 
+            $set: { 
+              'engagementMetrics.styleDetected': style,
+              'engagementMetrics.styleDetectedAt': memory.sessions.length
+            }
+          }
+        );
+        console.log(`[SessionStore:Style] 🕵️ Style Detected: ${style.toUpperCase()} for user ${s.userId}`);
+      }
+      
+      console.log(`[SessionStore:Memory] 🧠 Session memory persisted for user ${s.userId}`);
     } catch (err) {
       console.error(`[SessionStore:Memory] Failed to finalize memory:`, err.message);
     }
+  }
+
+  /**
+   * Classify after 3 sessions based on ratio of visual steps vs conceptual doubts
+   */
+  static detectStyle(sessions) {
+    if (!sessions || sessions.length < 3) return 'unknown';
+    const avgVisual = sessions.reduce((s, x) => s + (x.stepCount || 0), 0) / sessions.length;
+    const avgDoubts = sessions.reduce((s, x) => s + (x.doubts?.length || 0), 0) / sessions.length;
+    const ratio = avgDoubts / Math.max(avgVisual, 1);
+    
+    if (ratio > 0.4) return 'conceptual'; // many doubts per step = wants text
+    if (ratio < 0.1) return 'visual';     // few doubts per step = visual learner
+    return 'balanced';
   }
 
   /**

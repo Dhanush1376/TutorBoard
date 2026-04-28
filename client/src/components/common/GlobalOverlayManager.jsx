@@ -1,6 +1,5 @@
 import React from 'react';
 import useTutorStore from '../../store/tutorStore';
-import ExplainSolutionOverlay from '../canvas/ExplainSolutionOverlay';
 import SettingsModal from '../settings/SettingsModal';
 import CodeVisualizerModal from '../canvas/CodeVisualizerModal';
 
@@ -11,11 +10,8 @@ const GlobalOverlayManager = () => {
 
   return (
     <>
-      <ExplainSolutionOverlay 
-        isOpen={activeOverlay === 'scene-visualizer'} 
-        onClose={closeOverlay} 
-      />
       <CodeVisualizerModal />
+
       <SettingsModal 
         isOpen={activeOverlay === 'settings'} 
         onClose={closeOverlay} 

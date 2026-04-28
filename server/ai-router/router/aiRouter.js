@@ -7,9 +7,9 @@ import { resolveModel } from '../../utils/ai/modelResolver.js';
 import * as gemini from '../providers/gemini.js';
 import * as groq from '../providers/groq.js';
 import * as openrouter from '../providers/openrouter.js';
-import * as huggingface from '../providers/huggingface.js';
 
-const providers = { gemini, groq, openrouter, huggingface };
+const providers = { gemini, groq, openrouter };
+
 
 /**
  * Intelligent AI Router with fallback logic

@@ -4,9 +4,9 @@ import { MASTER_DELTA_PROMPT, DOUBT_CLASSIFIER_PROMPT } from '../../utils/ai/del
 /**
  * DeltaAgent v3.0 — Intelligent Classification & Master Delta
  */
-export async function runDeltaAgent({ question, canvasState, topic, modelId, userConfig, file = null }) {
+export async function runDeltaAgent({ question, canvasState, topic, modelId, userConfig, mode = 'EXPLAIN', file = null }) {
   try {
-    console.log(`[DeltaAgent] Resolving doubt: "${question}"`);
+    console.log(`[DeltaAgent] Resolving doubt: "${question}" (Mode: ${mode})`);
 
     // --- Phase 1: Classification ---
     const classificationRes = await requestCompletion({
@@ -22,11 +22,17 @@ export async function runDeltaAgent({ question, canvasState, topic, modelId, use
     const category = classificationRes.content?.trim() || 'UNCLEAR';
     console.log(`[DeltaAgent] Doubt Category: ${category}`);
 
+    const modeInstruction = mode === 'SIMPLIFY'
+      ? 'The student is confused. Use the simplest possible language. Add a concrete real-world analogy. Avoid abstract notation.'
+      : 'Clarify the student\'s question directly and precisely.';
+
     // --- Phase 2: Delta Generation ---
     const prompt = MASTER_DELTA_PROMPT({
       doubt: question,
       snapshot: canvasState || [],
-      topic: `${topic} (Category: ${category})`
+      topic: `${topic} (Category: ${category})`,
+      mode: mode || userConfig?.mode || 'EXPLAIN',
+      instruction: modeInstruction
     });
 
 

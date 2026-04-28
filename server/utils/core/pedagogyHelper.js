@@ -14,10 +14,10 @@ export function calculateMastery(topicsMastery, topic) {
   if (!topicsMastery || !topic) return 0.5;
 
   const t = topic.toLowerCase();
-  
+
   // Handle both Map (Mongoose) and plain Object (session)
-  const entries = topicsMastery instanceof Map 
-    ? Array.from(topicsMastery.entries()) 
+  const entries = topicsMastery instanceof Map
+    ? Array.from(topicsMastery.entries())
     : Object.entries(topicsMastery);
 
   for (const [key, val] of entries) {
@@ -39,4 +39,14 @@ export function deriveLevel(score) {
   if (score < 0.4) return 'beginner';
   if (score < 0.8) return 'intermediate';
   return 'advanced';
+}
+
+/**
+ * Returns the next pedagogical level
+ * @param {string} level - current level
+ * @returns {string} next level
+ */
+export function deriveNextLevel(level) {
+  const flow = { 'beginner': 'intermediate', 'intermediate': 'advanced', 'advanced': 'advanced' };
+  return flow[level] || 'intermediate';
 }

@@ -21,10 +21,12 @@ export const AW = ({
   onDelete,
   rotation: initialRotation = 0,
   isLocked = false,
+  isPulsing = false,
+  textAnnotation = null,
   ...props
 }) => {
   const opacity = attentionLevel === 2 ? 1 : attentionLevel === 0 ? 0.12 : 1.0;
-  const scale = attentionLevel === 2 ? 1.07 : attentionLevel === 0 ? 0.97 : 1;
+  const baseScale = attentionLevel === 2 ? 1.07 : attentionLevel === 0 ? 0.97 : 1;
   const blur = attentionLevel === 0 ? "blur(2px)" : "none";
 
   const [rotation, setRotation] = useState(initialRotation);
@@ -38,17 +40,25 @@ export const AW = ({
   const dur = animation?.duration || 0.5;
   const delay = animation?.delay || 0;
 
+  const pulseTransition = {
+    duration: 0.8,
+    repeat: Infinity,
+    repeatType: "reverse",
+    ease: "easeInOut"
+  };
+
   const animate = props.animate || {
     x: cx * CW,
     y: cy * CH,
     opacity,
-    scale,
+    scale: isPulsing ? [baseScale, baseScale * 1.12, baseScale] : baseScale,
     rotate: rotation,
     filter: blur,
-    transition:
-      aType === "bounce"
-        ? { type: "spring", stiffness: 500, damping: 15, delay }
-        : { duration: dur, delay, ease: EASE_CINEMATIC },
+    transition: isPulsing 
+      ? { scale: pulseTransition, default: { duration: dur, delay, ease: EASE_CINEMATIC } }
+      : (aType === "bounce"
+          ? { type: "spring", stiffness: 500, damping: 15, delay }
+          : { duration: dur, delay, ease: EASE_CINEMATIC }),
   };
 
   const initial =
@@ -187,7 +197,7 @@ export const AW = ({
       initial={initial}
       animate={{
         ...animate,
-        scale: isDragging ? scale * 1.05 : scale,
+        scale: isDragging ? baseScale * 1.05 : (isPulsing ? [baseScale, baseScale * 1.12, baseScale] : baseScale),
       }}
       exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}
       onPointerDown={handleMovePointerDown}
@@ -200,6 +210,30 @@ export const AW = ({
       }}
       {...props}
     >
+      {/* ─── Phase 3: Text Annotation Callout ─── */}
+      <AnimatePresence>
+        {textAnnotation && (
+          <motion.g
+            initial={{ opacity: 0, y: 10, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.8 }}
+            transform={`translate(0, ${-h / 2 - 30})`}
+          >
+             <rect 
+               x="-80" y="-20" width="160" height="30" rx="15" 
+               fill="rgba(30, 41, 59, 0.85)" stroke="rgba(255,255,255,0.2)"
+               style={{ backdropFilter: 'blur(8px)' }}
+             />
+             <text 
+               textAnchor="middle" dy="0" fontSize="11" fontWeight="600" fill="#fff"
+               style={{ pointerEvents: 'none' }}
+             >
+               {textAnnotation}
+             </text>
+          </motion.g>
+        )}
+      </AnimatePresence>
+
       <g style={{ pointerEvents: onUpdate ? "visiblePainted" : "auto" }}>
         {children}
       </g>

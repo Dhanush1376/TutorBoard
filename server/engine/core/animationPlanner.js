@@ -17,8 +17,10 @@ import { getAnimationGuide, getDomainMeta, DOMAIN_SCENE_SCAFFOLDS } from '../con
 const CONCEPT_PATTERNS = {
   FLOW:       /\b(sort|search|traversal|bfs|dfs|linked list|pipeline|process|flow|pathway|cycle|digestion|circulation|step.?by.?step)\b/i,
   PHYSICS:    /\b(force|motion|wave|orbit|gravity|solar|planet|star|astronomy|oscillat|pendulum|projectile|field|electromagnetic|optic|refract|diffract|energy|momentum|velocity|acceleration|spring|collision|circuit|satellite)\b/i,
+  MATH:       /\b(calculus|algebra|equation|derivative|integral|limit|trigonometry|derivation|solve|polynomial|theorem|proof|formula|summation|identity)\b/i,
+  GRAPH:      /\b(desmos|graph|function|plot|curve|parabola|sine|cosine|tangent|coordinate|axis|axes)\b/i,
   DATA:       /\b(array|matrix|table|graph|tree|heap|stack|queue|hash|set|map|database|schema|data.?struct|network|neural|cluster)\b/i,
-  NARRATIVE:  /\b(history|war|battle|revolution|empire|timeline|era|century|dynasty|evolution|cause.?effect|civil.?rights|independence|colonialism|biography|movement|politics|civilization)\b/i,
+  NARRATIVE:  /\b(history|war|battle|revolution|empire|timeline|era|century|dynasty|evolution|cause.?effect|civil.?rights|independence|colonialism|biography|movement|politics|civilization|dna replication|protein synthesis)\b/i,
   COMPARISON: /\b(vs|versus|compare|comparison|difference|between|contrast|pros.?cons|advantage|disadvantage|tradeoff)\b/i,
   ABSTRACT:   /\b(theory|theorem|proof|principle|concept|law|definition|axiom|postulate|hypothesis|philosophy|logic|ethics|epistemology)\b/i,
 };
@@ -28,8 +30,10 @@ const RENDERER_MAP = {
   PHYSICS:    'matter',
   DATA:       'd3',
   NARRATIVE:  'narrative',
+  MATH:       'math',
+  GRAPH:      'desmos',
   COMPARISON: 'cinematic',
-  ABSTRACT:   'cinematic', // katex reserved for explicit math/equation topics via intentEngine
+  ABSTRACT:   'cinematic',
 };
 
 const STYLE_MAP = {
@@ -37,6 +41,8 @@ const STYLE_MAP = {
   PHYSICS:    'simulation',
   DATA:       'radial',
   NARRATIVE:  'timeline',
+  MATH:       'derivation',
+  GRAPH:      'interactive',
   COMPARISON: 'comparison',
   ABSTRACT:   'radial',
 };

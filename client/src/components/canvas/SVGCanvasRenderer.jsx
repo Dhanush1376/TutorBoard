@@ -27,10 +27,10 @@ const CH = CANVAS_HEIGHT;
 const EASE = [0.16, 1, 0.3, 1];
 
 // ─── Camera Director ──────────────────────────────────────────────────────────
-function useStepDirector(elements, timelineSteps, currentStepIndex) {
+function useStepDirector(elements, timelineSteps, currentStepIndex, deltaState = null) {
   return useMemo(() => {
     const step = timelineSteps?.[currentStepIndex];
-    if (!step || !elements?.length) {
+    if (!step && !deltaState && !elements?.length) {
       return {
         highlightIds: new Set(),
         fadeIds: new Set(),
@@ -38,9 +38,19 @@ function useStepDirector(elements, timelineSteps, currentStepIndex) {
       };
     }
 
-    const highlightIds = new Set(step.highlight || step.highlightIds || []);
-    const fadeIds      = new Set(step.fade || step.fadeIds || []);
-    const cf           = step.cameraFocus;
+    const highlightIds = new Set(step?.highlight || step?.highlightIds || []);
+    const fadeIds      = new Set(step?.fade || step?.fadeIds || []);
+    
+    // ─── Phase 3: Delta Highlights ───
+    if (deltaState?.actions) {
+      deltaState.actions.forEach(action => {
+        if (action.action === 'highlightNode' || action.type === 'highlightNode') {
+          highlightIds.add(String(action.id || action.target));
+        }
+      });
+    }
+
+    const cf           = step?.cameraFocus;
     const camera = {
       x:    (cf?.x    ?? 0.5) * CANVAS_WIDTH,
       y:    (cf?.y    ?? 0.5) * CANVAS_HEIGHT,
@@ -48,11 +58,11 @@ function useStepDirector(elements, timelineSteps, currentStepIndex) {
     };
 
     return { highlightIds, fadeIds, camera };
-  }, [elements, timelineSteps, currentStepIndex]);
+  }, [elements, timelineSteps, currentStepIndex, deltaState]);
 }
 
 // ─── Shape Dispatcher ─────────────────────────────────────────────────────────
-function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpdate, onDelete }) {
+function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpdate, onDelete, isPulsing, textAnnotation }) {
   const isHighlighted  = highlightIds.has(obj.id);
   const isFaded        = fadeIds.has(obj.id);
   const attentionLevel = isHighlighted ? 2 : isFaded ? 0 : 1;
@@ -67,6 +77,8 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     animation:    finalAnimation,
     content:      obj.content,
     styles:       obj.styles || {},
+    isPulsing:    isPulsing || obj.isPulsing,
+    textAnnotation: textAnnotation || obj.textAnnotation
   };
   
   // ALL objects in TutorBoard store normalized (0.0-1.0) x,y coordinates
@@ -201,9 +213,17 @@ export default function SVGCanvasRenderer({
       })
       .map(el => {
         const mutation = (currentStep.mutations || []).find(m => m.id === el.id);
-        return mutation ? { ...el, ...mutation.props } : el;
+        const deltaPulse = deltaState?.actions?.find(a => (a.action === 'pulseElement' || a.type === 'pulseElement') && (a.id === el.id || a.target === el.id));
+        const deltaAnnotate = deltaState?.actions?.find(a => (a.action === 'showTextOverlay' || a.type === 'showTextOverlay') && (a.id === el.id || a.target === el.id));
+
+        return {
+          ...el,
+          ...(mutation ? mutation.props : {}),
+          isPulsing: !!deltaPulse,
+          textAnnotation: deltaAnnotate?.meta?.text || deltaAnnotate?.text || null
+        };
       });
-  }, [rawElements, stepObjectIds, currentStep.mutations]);
+  }, [rawElements, stepObjectIds, currentStep.mutations, deltaState]);
 
   const worldElements = useMemo(() => {
     // World elements are anything NOT pinned
@@ -214,7 +234,7 @@ export default function SVGCanvasRenderer({
     return elements.filter(el => el.isPinned || el.pinned);
   }, [elements]);
 
-  const { highlightIds, fadeIds, camera } = useStepDirector(worldElements, timelineSteps, currentStepIndex);
+  const { highlightIds, fadeIds, camera } = useStepDirector(worldElements, timelineSteps, currentStepIndex, deltaState);
   
   const { transform: manualTransform } = useContext(CanvasContext) || {};
   const isUserControlled = !!manualTransform;
@@ -260,6 +280,8 @@ export default function SVGCanvasRenderer({
                       isSelected={selectedElementIds.includes(obj.id)}
                       onUpdate={updateCanvasObject}
                       onDelete={deleteCanvasObject}
+                      isPulsing={obj.isPulsing}
+                      textAnnotation={obj.textAnnotation}
                     />
                   </g>
                 ))}
@@ -309,6 +331,8 @@ export default function SVGCanvasRenderer({
               isSelected={selectedElementIds.includes(obj.id)}
               onUpdate={updateCanvasObject}
               onDelete={deleteCanvasObject}
+              isPulsing={obj.isPulsing}
+              textAnnotation={obj.textAnnotation}
             />
           </g>
         ))}

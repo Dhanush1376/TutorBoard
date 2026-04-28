@@ -1,6 +1,7 @@
 import { STATES, EVENTS } from '../../engine/core/teachingMachine.js';
 import sessionStore from '../../engine/core/sessionStore.js';
 import { syncToDatabase } from '../utils.js';
+import { deriveNextLevel } from '../../utils/core/pedagogyHelper.js';
 
 export function registerNavigationHandlers(socket, machine, sessionId) {
   
@@ -16,17 +17,36 @@ export function registerNavigationHandlers(socket, machine, sessionId) {
     // BUG-08: Decrement confusion index on forward progress
     if (s.learnerProfile) {
       const currentConfusion = s.learnerProfile.confusionIndex || 0;
-      // Decay confusion on forward progress, even if it's already 0 (track momentum)
       const newerConfusion = Math.max(0, currentConfusion - 0.05);
       
+      // Track Engagement
+      const engagement = s.learnerProfile.engagementMetrics || { visualStepsCompleted: 0, conceptualDoubtsAsked: 0, avgStepDuration: 0, styleDetected: 'unknown' };
+      engagement.visualStepsCompleted += 1;
+
+      // Track "Consecutive Clear Steps" for Level Up
+      let consecutiveClearSteps = (s.consecutiveClearSteps || 0) + 1;
+      if (newerConfusion >= 0.1) consecutiveClearSteps = 0; // Reset if confusion peaks
+
       const safeLearnerProfile = {
         ...s.learnerProfile,
+        engagementMetrics: engagement,
         topicsMastery: s.learnerProfile.topicsMastery instanceof Map
           ? Object.fromEntries(s.learnerProfile.topicsMastery)
           : (s.learnerProfile.topicsMastery || {})
       };
 
+      if (newerConfusion < 0.1 && consecutiveClearSteps >= 5) {
+        console.log(`[Navigation] 🏆 Level Up! Streak: ${consecutiveClearSteps}`);
+        socket.emit('teaching:level-up', { 
+          message: "You're on a roll — moving to more advanced concepts!",
+          newLevel: deriveNextLevel(s.learnerProfile.level)
+        });
+        consecutiveClearSteps = 0; // Reset after level up
+        safeLearnerProfile.level = deriveNextLevel(s.learnerProfile.level);
+      }
+
       await sessionStore.update(sessionId, { 
+        consecutiveClearSteps,
         learnerProfile: { ...safeLearnerProfile, confusionIndex: newerConfusion } 
       });
     }

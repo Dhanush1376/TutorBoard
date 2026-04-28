@@ -3,6 +3,8 @@ import { STATES, EVENTS } from '../../engine/core/teachingMachine.js';
 import sessionStore from '../../engine/core/sessionStore.js';
 import LearnerProfile from '../../models/LearnerProfile.js';
 import ChatSession from '../../models/ChatSession.js';
+import SessionMemory from '../../models/SessionMemory.js';
+import SpacedRepetitionScheduler from '../../engine/core/SpacedRepetitionScheduler.js';
 import { generateTimeline, generateTextResponse, generateQuiz } from '../../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
 import { checkSocketRate, checkGuestUsage, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../../middleware/rateLimiter.js';
@@ -343,6 +345,38 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       const summary = await generateSessionSummary(sessionId);
       if (summary) {
         await sessionStore.finalizeSessionMemory(sessionId, summary);
+        
+        // Phase 4: Persistent Memory & Learning Graph
+        try {
+          const session = await sessionStore.get(sessionId);
+          if (session && socket.user) {
+            // 1. Update Session Memory
+            const keyConcepts = session.steps?.map(s => s.title) || [];
+            const doubtsAsked = session.doubtHistory?.map(d => d.question) || [];
+            const masteryDelta = 0.1; // Estimated delta for completed session
+
+            let sessionMem = await SessionMemory.findOne({ userId: socket.user.id });
+            if (!sessionMem) sessionMem = new SessionMemory({ userId: socket.user.id, sessions: [] });
+            
+            sessionMem.sessions.push({
+              topic: session.topic,
+              keyConcepts,
+              doubtsAsked,
+              masteryDelta,
+              summary,
+              timestamp: new Date()
+            });
+            await sessionMem.save();
+
+            // 2. Update Learning Graph (Mastery & SM-2)
+            const masteryDeltas = [{ concept: session.topic, mastery: session.learnerProfile?.topicsMastery?.[session.topic] || 0.5 }];
+            await SpacedRepetitionScheduler.updateMastery(socket.user.id, masteryDeltas);
+            
+            console.log(`[Session:Finish] 🧠 Memory & Graph updated for user ${socket.user.id}`);
+          }
+        } catch (err) {
+          console.error(`[Session:Finish] Phase 4 update failed: ${err.message}`);
+        }
       }
     }
   });
