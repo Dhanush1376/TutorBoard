@@ -212,8 +212,8 @@ function postProcessTimeline(raw, topic, planningResult) {
 
   const processed = {
     mode: 'explain',
-    title: raw.scene?.title || raw.title || `Understanding ${topic}`,
-    scene: raw.scene || { title: topic, type: planningResult?.animationStyle || 'linear' },
+    title: raw.meta?.topic || raw.scene?.title || raw.title || `Understanding ${topic}`,
+    scene: raw.scene || { title: raw.meta?.topic || topic, type: planningResult?.animationStyle || 'linear' },
     elements,
     connections: (raw.connections || []).filter(Boolean),
     timeline,

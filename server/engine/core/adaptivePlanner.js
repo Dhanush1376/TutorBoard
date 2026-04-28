@@ -48,6 +48,11 @@ INSTRUCTIONS:
       systemPrompt,
       maxSteps: remainingStepsContext.length * 2,
       userConfig,
+      learnerProfile: {
+        level: session.learnerProfile?.level || 'beginner',
+        confusionIndex: session.learnerProfile?.confusionIndex || 0,
+        topicsMastery: session.learnerProfile?.topicsMastery || {},
+      },
     });
 
     if (data && (Array.isArray(data.steps) || Array.isArray(data.timeline))) {

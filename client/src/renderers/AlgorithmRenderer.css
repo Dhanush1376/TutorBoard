@@ -14,8 +14,8 @@
   min-height: 480px;
   overflow: hidden;
   font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
-  background: var(--bg-primary);
-  border-radius: inherit;
+  background: transparent;
+  border-radius: 0;
 }
 
 /* ─── Main Visual Area (left 8 cols) ────────────────────────────────────────── */
@@ -32,23 +32,29 @@
 }
 
 .algo-main__header {
+  position: fixed;
+  top: 130px;
+  /* Offset to sit below the main minimalist title */
+  left: 120px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  gap: 14px;
+  z-index: 1000;
+  pointer-events: none;
 }
 
 .algo-main__step-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 9px;
-  font-weight: 600;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  background: var(--bg-tertiary);
+  letter-spacing: 0.15em;
+  background: rgba(var(--bg-secondary-rgb), 0.2);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
   color: var(--text-tertiary);
   white-space: nowrap;
@@ -56,12 +62,14 @@
 }
 
 .algo-main__step-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
   color: var(--text-primary);
   letter-spacing: -0.01em;
-  line-height: 1.3;
+  line-height: 1.2;
   margin: 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* ─── Canvas Area ────────────────────────────────────────────────────────────── */
@@ -87,7 +95,8 @@
 /* ─── Pointer row (sits above cells, relative so pointers can be absolute) ──── */
 .algo-pointer-row {
   position: relative;
-  height: 40px;          /* room for label + arrow tip */
+  height: 40px;
+  /* room for label + arrow tip */
   flex-shrink: 0;
 }
 
@@ -123,16 +132,19 @@
 }
 
 .algo-cell__index {
-  font-size: 9px;
-  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
   color: var(--text-tertiary);
-  opacity: 0.55;
+  opacity: 0.7;
+  margin-top: 4px;
 }
 
 /* ─── Pointer Arrow (top-facing, absolutely positioned inside .algo-pointer-row) */
 .algo-pointer {
   position: absolute;
-  bottom: 0;            /* sits at bottom of pointer-row, just above cells */
+  bottom: 0;
+  /* sits at bottom of pointer-row, just above cells */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -205,18 +217,19 @@
 }
 
 .algo-progress__dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--border-color);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.4s var(--ease-spring);
   cursor: pointer;
 }
 
 .algo-progress__dot--active {
-  width: 20px;
-  border-radius: 3px;
+  width: 24px;
+  border-radius: 4px;
   background: var(--text-primary);
+  box-shadow: 0 0 10px rgba(var(--bg-primary-rgb), 0.3);
 }
 
 .algo-progress__dot--completed {
@@ -226,24 +239,308 @@
 /* ─── Right Info Panel (Pinned Sidebar) ─────────────────────────────────────── */
 .algo-info {
   position: fixed;
-  top: 84px;
-  bottom: 110px;
-  right: 20px;
-  width: 320px;
-  padding: 20px;
+  top: 100px;
+  bottom: 120px;
+  right: 48px;
+  width: 340px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  gap: 32px;
+  background: transparent;
+  backdrop-filter: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   z-index: 1000;
   pointer-events: auto;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  /* Hide scrollbar for HUD feel */
+}
+
+.algo-info::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(var(--text-tertiary) 0.5px, transparent 0.5px),
+    linear-gradient(rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+  background-size: 24px 24px, 100% 4px;
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: -1;
+  animation: algo-scanline 10s linear infinite;
+}
+
+@keyframes algo-scanline {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 0 0, 0 100%;
+  }
+}
+
+/* ─── Integrated Tabs (Doubts Integration) ────────────────────────────────── */
+.algo-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  pointer-events: auto;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  backdrop-filter: blur(20px);
+  padding: 0 4px;
+}
+
+.algo-tab {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary);
+  padding: 12px 0;
+  position: relative;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.algo-tab:hover {
+  color: var(--text-secondary);
+}
+
+.algo-tab--active {
+  color: var(--text-primary);
+}
+
+.algo-tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -9px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 2px;
+}
+
+.algo-doubt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  pointer-events: auto;
+  padding-right: 8px;
+}
+
+.algo-doubt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.algo-doubt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px;
+  position: relative;
+  transition: all 0.3s var(--ease-smooth);
+}
+
+.algo-doubt-item--active {
+  background: var(--text-primary)/5;
+  border-radius: 20px;
+  padding: 16px;
+  margin: -12px;
+  box-shadow:
+    inset 0 0 20px var(--text-primary)/2,
+    0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.algo-doubt-item__q-bubble {
+  align-self: flex-end;
+  max-width: 88%;
+  background: linear-gradient(135deg, var(--text-primary) 0%, #a1a1aa 100%);
+  color: var(--bg-primary);
+  padding: 12px 16px;
+  border-radius: 18px 18px 4px 18px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.algo-doubt-item__q-label,
+.algo-doubt-item__a-label {
+  display: block;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  margin-bottom: 6px;
+  opacity: 0.6;
+}
+
+.algo-doubt-item__q-label {
+  color: var(--bg-primary);
+}
+
+.algo-doubt-item__a-label {
+  color: var(--text-tertiary);
+}
+
+.algo-doubt-item__a-bubble {
+  align-self: flex-start;
+  max-width: 92%;
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  animation: algo-msg-in 0.5s var(--ease-smooth) backwards;
+}
+
+@keyframes algo-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.algo-doubt-item__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px var(--text-primary)/4;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 4px;
+}
+
+.algo-doubt-item__a-bubble .flex-1 {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.7;
+  background: var(--bg-secondary)/60;
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border-color);
+  padding: 16px 20px;
+  border-radius: 4px 22px 22px 22px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.algo-doubt-item__a-bubble .flex-1::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.algo-doubt-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-secondary)/40;
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  padding: 8px 8px 8px 18px;
+  pointer-events: auto;
+  transition: all 0.4s var(--ease-smooth);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+}
+
+.algo-doubt-input-wrapper:focus-within {
+  border-color: var(--text-tertiary)/60;
+  background: var(--bg-tertiary)/60;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+.algo-doubt-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.algo-doubt-input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.algo-doubt-send {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s var(--ease-smooth);
+  box-shadow: 0 4px 12px var(--text-primary)/4;
+}
+
+.algo-doubt-send:disabled {
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+.algo-doubt-send:not(:disabled):hover {
+  transform: scale(1.05);
+}
+
+.algo-resume-btn {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  pointer-events: auto;
+}
+
+.algo-resume-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(var(--bg-primary-rgb), 0.3);
+}
+
+.algo-info::-webkit-scrollbar {
+  display: none;
+}
+
+.algo-info__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
 }
 
 .algo-info__section {
@@ -253,21 +550,32 @@
 }
 
 .algo-info__section-title {
-  font-size: 8px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.2em;
   color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.algo-info__section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-color), transparent);
 }
 
 /* ─── Concept narration ──────────────────────────────────────────────────────── */
 .algo-info__narration {
-  font-size: 11.5px;
-  color: var(--text-secondary);
-  line-height: 1.65;
-  border-left: 2px solid #8b5cf6;
-  padding-left: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  border-left: 2px solid var(--text-primary);
+  padding-left: 16px;
   margin: 0;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* ─── Steps list ─────────────────────────────────────────────────────────────── */
@@ -297,27 +605,28 @@
 }
 
 .algo-info__step-num {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
-  font-weight: 700;
-  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   color: var(--text-tertiary);
   flex-shrink: 0;
-  transition: all 0.25s;
+  transition: all 0.3s var(--ease-smooth);
 }
 
 .algo-info__step-num--active {
-  background: #8b5cf6;
-  border-color: #8b5cf6;
-  color: #fff;
-  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+  box-shadow: 0 8px 24px rgba(var(--bg-primary-rgb), 0.2);
+  transform: scale(1.1);
 }
 
 .algo-info__step-num--done {
@@ -342,16 +651,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 10px;
-  border-radius: 7px;
-  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-secondary)/40;
+  backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-family: var(--font-mono);
 }
 
-.algo-info__var-name  { color: var(--text-tertiary); font-weight: 500; }
-.algo-info__var-value { color: var(--text-primary);  font-weight: 700; }
+.algo-info__var-name {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.algo-info__var-value {
+  color: var(--text-primary);
+  font-weight: 700;
+}
 
 /* ─── Progress bar ───────────────────────────────────────────────────────────── */
 .algo-info__progress-row {
@@ -371,7 +688,7 @@
 .algo-info__progress-fill {
   height: 100%;
   border-radius: 2px;
-  background: #8b5cf6;
+  background: var(--text-primary);
 }
 
 .algo-info__progress-label {
@@ -412,7 +729,11 @@
   fill: none;
   transition: stroke 0.4s;
 }
-.algo-tree-edge--active { stroke: #8b5cf6; stroke-width: 2.5; }
+
+.algo-tree-edge--active {
+  stroke: #8b5cf6;
+  stroke-width: 2.5;
+}
 
 .algo-graph-edge {
   stroke: rgba(148, 163, 184, 0.3);
@@ -420,6 +741,7 @@
   fill: none;
   transition: stroke 0.4s;
 }
+
 .algo-graph-edge--active {
   stroke: #8b5cf6;
   stroke-width: 2.5;
@@ -428,23 +750,104 @@
 
 /* ─── Keyframes ──────────────────────────────────────────────────────────────── */
 @keyframes algo-bridge-pulse {
-  0%, 100% { opacity: 0.6; }
-  50%       { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes algo-fade-in {
-  from { opacity: 0; transform: scale(0.93); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.algo-animate-fade-in { animation: algo-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.algo-animate-fade-in {
+  animation: algo-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 
-/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+.algo-doubt-item__q-bubble {
+  position: relative;
+  transition: all 0.3s var(--ease-smooth);
+}
+
+.algo-doubt-item__q-bubble:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.algo-doubt-item__a-bubble {
+  transition: all 0.3s var(--ease-smooth);
+}
+
+.algo-doubt-item__a-bubble:hover .flex-1 {
+  border-color: var(--text-tertiary)/40;
+  background: var(--bg-secondary)/50;
+}
+
+.algo-resume-tab-action {
+  margin-left: auto;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.3s var(--ease-smooth);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.algo-resume-tab-action:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--text-tertiary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.algo-resume-tab-action span {
+  opacity: 0.8;
+}
+
 @media (max-width: 768px) {
   .algo-renderer {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr auto;
   }
+
   .algo-info {
     grid-column: 1;
     border-left: none;

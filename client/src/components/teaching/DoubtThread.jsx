@@ -55,9 +55,9 @@ const DoubtThread = () => {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 360, opacity: 0 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed top-0 right-0 z-[10002] h-full w-[85vw] sm:w-[340px] flex flex-col glass"
+          className="fixed top-0 right-0 z-[10002] h-full w-[85vw] sm:w-[340px] flex flex-col glass backdrop-blur-3xl"
           style={{
-            background: 'var(--bg-secondary)',
+            background: 'var(--glass-bg)',
             borderLeft: '1px solid var(--glass-border)',
             boxShadow: 'var(--glass-shadow)',
           }}
@@ -74,7 +74,7 @@ const DoubtThread = () => {
               </span>
             </div>
 
-            <button 
+            <button
               onClick={() => setShowGuide(true)}
               className="px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-[8px] font-normal text-blue-400 uppercase tracking-widest hover:bg-blue-500/20 transition-all ml-4 mr-auto flex items-center gap-1.5"
             >
@@ -108,41 +108,37 @@ const DoubtThread = () => {
                         transition={{ delay: i * 0.05, duration: 0.4 }}
                         className="relative pl-8"
                       >
-                        {/* Timeline dot */}
-                        <div className={`absolute left-0 top-2 w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center transition-all ${
-                          isActive
-                            ? 'text-[var(--bg-primary)]'
-                            : 'border-white/15 bg-[var(--bg-primary)]/50 text-[var(--text-tertiary)]'
-                        }`}
-                        style={isActive ? { borderColor: domainStyle.color, backgroundColor: domainStyle.color } : {}}>
-                          <span className="text-[8px] font-normal">{i + 1}</span>
+                        {/* Timeline dot with Pulsing Effect */}
+                        <div className={`absolute left-0 top-3 w-6 h-6 rounded-lg flex items-center justify-center transition-all shadow-lg ${isActive
+                            ? 'scale-110'
+                            : 'bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-tertiary)] opacity-40'
+                          }`}
+                          style={isActive ? { backgroundColor: domainStyle.color, color: 'var(--bg-primary)', boxShadow: `0 0 15px ${domainStyle.color}40` } : {}}>
+                          <span className="text-[10px] font-bold">{i + 1}</span>
                         </div>
 
                         {/* Doubt card */}
-                        <div className={`rounded-2xl border transition-all cursor-pointer ${
-                          isActive
+                        <div className={`rounded-2xl border transition-all cursor-pointer ${isActive
                             ? 'bg-[var(--bg-secondary)] border-[var(--border-strong)] shadow-lg'
                             : 'bg-[var(--bg-tertiary)]/30 border-[var(--border-color)] hover:bg-[var(--bg-tertiary)]/50'
-                        }`}
-                        onClick={() => toggleExpand(doubt.id)}>
-                          {/* Question */}
-                          <div className="p-3 pb-2">
-                            <div className="flex items-center justify-between mb-1.5">
+                          }`}
+                          onClick={() => toggleExpand(doubt.id)}>
+                          {/* Question Bubble */}
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-normal uppercase tracking-wider text-[var(--text-tertiary)]">
-                                  Question
+                                <div className="w-5 h-5 rounded-md bg-[var(--text-primary)]/10 flex items-center justify-center">
+                                  <MessageCircleQuestion size={10} className="text-[var(--text-primary)]" />
+                                </div>
+                                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] opacity-60">
+                                  User Inquiry
                                 </span>
-                                {expandedIds.has(doubt.id) ? (
-                                  <motion.div initial={{ rotate: 0 }} animate={{ rotate: 180 }}><ChevronLeft size={10} className="rotate-90 text-[var(--text-tertiary)]" /></motion.div>
-                                ) : (
-                                  <motion.div initial={{ rotate: 180 }} animate={{ rotate: 0 }}><ChevronLeft size={10} className="-rotate-90 text-[var(--text-tertiary)]" /></motion.div>
-                                )}
                               </div>
-                              <span className="text-[9px] text-[var(--text-tertiary)] opacity-60">
+                              <span className="text-[8px] font-medium text-[var(--text-tertiary)] opacity-40 tabular-nums">
                                 {formatTime(doubt.timestamp)}
                               </span>
                             </div>
-                            <p className="text-[12px] font-normal text-[var(--text-primary)] leading-relaxed">
+                            <p className="text-[12px] font-medium text-[var(--text-primary)] leading-relaxed">
                               {doubt.question}
                             </p>
                           </div>
@@ -157,19 +153,32 @@ const DoubtThread = () => {
                                 className="overflow-hidden"
                               >
                                 {doubt.answer && (
-                                  <div className="px-3 pb-2 space-y-2">
-                                    <div className="h-px bg-[var(--border-color)] opacity-20 mb-2" />
-                                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                                      {doubt.answer}
-                                    </p>
-                                    {doubt.followUp && (
-                                      <div 
-                                        className="p-2 rounded-xl border bg-blue-500/5 border-blue-500/10 text-[10px] text-blue-400 italic"
-                                      >
-                                        <span className="not-italic font-extrabold text-[8px] uppercase tracking-tighter opacity-50 mr-1.5">Guiding Question:</span>
-                                        {doubt.followUp}
+                                  <div className="px-4 pb-4">
+                                    <div className="relative p-4 rounded-2xl bg-gradient-to-br from-[var(--bg-secondary)] to-[var(--bg-tertiary)] border border-[var(--border-color)] shadow-inner overflow-hidden">
+                                      {/* AI Glow Effect */}
+                                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-[var(--text-primary)]/5 blur-3xl rounded-full pointer-events-none" />
+                                      
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-5 h-5 rounded-md bg-[var(--text-primary)] flex items-center justify-center">
+                                          <Brain size={10} className="text-[var(--bg-primary)]" />
+                                        </div>
+                                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]">
+                                          Tutor Analysis
+                                        </span>
                                       </div>
-                                    )}
+
+                                      <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed relative z-10">
+                                        {doubt.answer}
+                                      </p>
+                                      
+                                      {doubt.followUp && (
+                                        <div className="mt-4 p-3 rounded-xl bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10 text-[10px] text-[var(--text-secondary)] relative z-10 overflow-hidden">
+                                          <div className="absolute top-0 left-0 w-1 h-full bg-[var(--text-primary)] opacity-20" />
+                                          <span className="block font-black text-[7px] uppercase tracking-widest opacity-40 mb-1">Deep Dive Integration:</span>
+                                          <span className="italic">"{doubt.followUp}"</span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
 

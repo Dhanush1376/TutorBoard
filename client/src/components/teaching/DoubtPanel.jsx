@@ -80,7 +80,7 @@ const DoubtPanel = ({
               setTimeout(() => inputRef.current?.focus(), 100);
             }}
             disabled={disabled}
-            className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-full text-xs font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all disabled:opacity-40"
+            className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-full text-xs font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all shadow-[var(--glass-shadow)] disabled:opacity-40"
           >
             <MessageCircleQuestion size={14} />
             Ask a doubt about this step
@@ -97,7 +97,7 @@ const DoubtPanel = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl overflow-hidden shadow-2xl"
+            className="bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] rounded-2xl overflow-hidden shadow-[var(--glass-shadow)]"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)]">

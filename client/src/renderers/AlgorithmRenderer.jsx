@@ -13,6 +13,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ALGO_COLORS, ALGO_STATES, ALGO_GRID } from '../constants/canvas';
+import { AlgoRightPanel, getStateColor } from '../components/teaching/AlgoRightPanel';
 import './AlgorithmRenderer.css';
 
 const EASE = [0.16, 1, 0.3, 1];
@@ -29,24 +30,7 @@ function detectMode(elements) {
   return 'array';
 }
 
-function getStateColor(state) {
-  return ALGO_COLORS[state] || ALGO_COLORS.default;
-}
-
-// ─── Typewriter ───────────────────────────────────────────────────────────────
-function useTypewriter(text = '', speed = 28, resetKey = 0) {
-  const [count, setCount] = useState(0);
-  const ref = useRef(null);
-  useEffect(() => {
-    setCount(0);
-    if (!text) return;
-    let i = 0;
-    const tick = () => { i++; setCount(i); if (i < text.length) ref.current = setTimeout(tick, speed); };
-    ref.current = setTimeout(tick, speed);
-    return () => clearTimeout(ref.current);
-  }, [text, speed, resetKey]);
-  return { displayed: text.slice(0, count), done: count >= text.length };
-}
+// useTypewriter moved to AlgoRightPanel.jsx
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ARRAY CELL — with swap arc animation
@@ -190,148 +174,17 @@ function TreeVisualization({ elements, connections, stepHighlights, stepFades, w
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// LEGEND
-// ═══════════════════════════════════════════════════════════════════════════════
-function AlgoLegend({ activeStates }) {
-  const LABELS = {
-    active: 'Current / Active', comparing: 'Comparing', eliminated: 'Eliminated',
-    sorted: 'Sorted', pivot: 'Pivot', found: 'Found',
-    visiting: 'Visiting', visited: 'Visited', swapping: 'Swapping', default: 'Unvisited',
-  };
-  const states = activeStates.length > 0 ? activeStates : ['default', 'active'];
-  return (
-    <div className="algo-legend">
-      {states.map(s => {
-        const c = getStateColor(s);
-        return (
-          <motion.div key={s} className="algo-legend__item"
-            initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            <div className="algo-legend__dot" style={{ background: c.border }} />
-            <span>{LABELS[s] || s}</span>
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// RIGHT PANEL — mirrors Image 1: Concept, Steps, Controls, Result
-// ═══════════════════════════════════════════════════════════════════════════════
-function RightPanel({ step, stepIndex, totalSteps, variables, activeStates, algorithmName, timeline }) {
-  const narration = step?.narration || step?.explanation || step?.description || '';
-  const { displayed, done } = useTypewriter(narration, 22, stepIndex);
-
-  // Extract steps list from timeline
-  const stepTitles = useMemo(() => {
-    const t = timeline?.timeline || timeline?.steps || [];
-    return t.map((s, i) => s.title || `Step ${i + 1}`);
-  }, [timeline]);
-
-  return (
-    <div className="algo-info">
-
-      {/* ── Concept ── */}
-      <div className="algo-info__section">
-        <span className="algo-info__section-title">💡 Concept</span>
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={`narr-${stepIndex}`}
-            className="algo-info__narration"
-            initial={{ opacity: 0, x: -4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            {displayed}
-            {!done && (
-              <motion.span
-                animate={{ opacity: [1, 0, 1] }}
-                transition={{ duration: 0.5, repeat: Infinity }}
-                style={{ display: 'inline-block', width: 2, height: 11, background: '#8b5cf6', marginLeft: 2, verticalAlign: 'middle', borderRadius: 1 }}
-              />
-            )}
-          </motion.p>
-        </AnimatePresence>
-      </div>
-
-      {/* ── Steps list ── */}
-      {stepTitles.length > 0 && (
-        <div className="algo-info__section">
-          <span className="algo-info__section-title">📋 Steps</span>
-          <div className="algo-info__steps">
-            {stepTitles.slice(0, 8).map((title, i) => (
-              <motion.div
-                key={i}
-                className={`algo-info__step ${i === stepIndex ? 'algo-info__step--active' : i < stepIndex ? 'algo-info__step--done' : ''}`}
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2, delay: i * 0.03 }}
-              >
-                <div className={`algo-info__step-num ${i === stepIndex ? 'algo-info__step-num--active' : i < stepIndex ? 'algo-info__step-num--done' : ''}`}>
-                  {i + 1}
-                </div>
-                <span className="algo-info__step-label">{title}</span>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Variables / Controls ── */}
-      {variables && Object.keys(variables).length > 0 && (
-        <div className="algo-info__section">
-          <span className="algo-info__section-title">🔧 Variables</span>
-          <div className="algo-info__variables">
-            {Object.entries(variables).map(([k, v]) => (
-              <motion.div key={k} className="algo-info__var"
-                initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <span className="algo-info__var-name">{k}</span>
-                <motion.span className="algo-info__var-value"
-                  key={`${k}-${v}`}
-                  initial={{ scale: 1.2, color: '#8b5cf6' }}
-                  animate={{ scale: 1, color: 'var(--text-primary)' }}
-                  transition={{ duration: 0.35 }}
-                >{String(v)}</motion.span>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Progress ── */}
-      <div className="algo-info__section">
-        <span className="algo-info__section-title">Progress</span>
-        <div className="algo-info__progress-row">
-          <div className="algo-info__progress-track">
-            <motion.div
-              className="algo-info__progress-fill"
-              animate={{ width: `${((stepIndex + 1) / Math.max(totalSteps, 1)) * 100}%` }}
-              transition={{ duration: 0.5, ease: EASE }}
-            />
-          </div>
-          <span className="algo-info__progress-label">{stepIndex + 1}/{totalSteps}</span>
-        </div>
-      </div>
-
-      {/* ── Legend ── */}
-      <div className="algo-info__section">
-        <span className="algo-info__section-title">Legend</span>
-        <AlgoLegend activeStates={activeStates} />
-      </div>
-    </div>
-  );
-}
+// AlgoLegend and RightPanel moved to AlgoRightPanel.jsx
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN RENDERER
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function AlgorithmRenderer({ timeline, currentStepIndex }) {
+export default function AlgorithmRenderer({ 
+  timeline, currentStepIndex, 
+  // Doubt Props
+  doubtHistory, isDoubtProcessing, activeDoubtId, onJumpToDoubt, onResume, onAskDoubt, onPinDoubt,
+  onGoToStep,
+}) {
   const elements    = timeline?.elements || timeline?.objects || [];
   const connections = timeline?.connections || [];
   const steps       = timeline?.timeline || timeline?.steps || [];
@@ -430,36 +283,7 @@ export default function AlgorithmRenderer({ timeline, currentStepIndex }) {
 
       {/* ═══ LEFT: MAIN VISUAL AREA (8 cols) ═══ */}
       <div className="algo-main">
-
-        {/* Step badge + title */}
-        <div className="algo-main__header">
-          <motion.div className="algo-main__step-badge"
-            key={currentStepIndex}
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <motion.div
-              style={{ width: 5, height: 5, borderRadius: '50%', background: '#8b5cf6' }}
-              animate={{ scale: [1, 1.4, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-            Step {currentStepIndex + 1} of {steps.length}
-          </motion.div>
-
-          <AnimatePresence mode="wait">
-            <motion.h3
-              key={stepTitle}
-              className="algo-main__step-title"
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 6 }}
-              transition={{ duration: 0.22 }}
-            >
-              {stepTitle}
-            </motion.h3>
-          </AnimatePresence>
-        </div>
+        {/* Step Header moved to TeachingSession.jsx for HUD mode */}
 
         {/* Visual Canvas — overflow:visible so pointers show above cells */}
         <div className="algo-main__canvas" ref={containerRef}>
@@ -533,6 +357,7 @@ export default function AlgorithmRenderer({ timeline, currentStepIndex }) {
             {steps.slice(0, 20).map((_, i) => (
               <motion.div
                 key={i}
+                onClick={() => onGoToStep?.(i)}
                 className={`algo-progress__dot ${i === currentStepIndex ? 'algo-progress__dot--active' : i < currentStepIndex ? 'algo-progress__dot--completed' : ''}`}
                 whileHover={{ scale: 1.4 }}
                 layout
@@ -544,7 +369,7 @@ export default function AlgorithmRenderer({ timeline, currentStepIndex }) {
 
       {/* ═══ RIGHT: INFO PANEL (Portaled to fixed sidebar) ═══ */}
       {createPortal(
-        <RightPanel
+        <AlgoRightPanel
           step={currentStep}
           stepIndex={currentStepIndex}
           totalSteps={steps.length}
@@ -552,6 +377,14 @@ export default function AlgorithmRenderer({ timeline, currentStepIndex }) {
           activeStates={activeStates}
           algorithmName={timeline?.title || ''}
           timeline={timeline}
+          onGoToStep={onGoToStep}
+          doubtHistory={doubtHistory}
+          isDoubtProcessing={isDoubtProcessing}
+          activeDoubtId={activeDoubtId}
+          onJumpToDoubt={onJumpToDoubt}
+          onPinDoubt={onPinDoubt}
+          onResume={onResume}
+          onAskDoubt={onAskDoubt}
         />,
         document.getElementById('algo-sidebar-portal') || document.body
       )}

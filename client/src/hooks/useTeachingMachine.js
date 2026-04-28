@@ -6,7 +6,7 @@ import { trackEvent, identifyUser } from '../utils/analytics';
 
 export { STATES };
 
-export function useTeachingMachine(isAuthReady = true) {
+export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   const { emit, on, isConnected, connectionError } = useSocket(isAuthReady);
   const playIntervalRef   = useRef(null);
   const safetyTimeoutRef  = useRef(null);
@@ -33,6 +33,8 @@ export function useTeachingMachine(isAuthReady = true) {
     setPlaybackSpeed,
     selectedAgent,
     setGuestTrialStatus,
+    pinDoubtToCanvas,
+    jumpToDoubt,
   } = useTutorStore(useShallow(s => ({
     machineState: s.machineState,
     sessionId: s.sessionId,
@@ -85,6 +87,8 @@ export function useTeachingMachine(isAuthReady = true) {
     setGuestTrialStatus: s.setGuestTrialStatus,
     setLearnerProfile: s.setLearnerProfile,
     setResumeContext: s.setResumeContext,
+    pinDoubtToCanvas: s.pinDoubtToCanvas,
+    jumpToDoubt: s.jumpToDoubt,
   })));
 
   // ─── Sync connection state ────────────────────────────────────────────────
@@ -136,6 +140,7 @@ export function useTeachingMachine(isAuthReady = true) {
 
   // ─── Socket Event Listeners ───────────────────────────────────────────────
   useEffect(() => {
+    if (!isMaster) return;
     const cleanups = [];
 
     // ─── Phase 2 Fix: Snapshot-Aware Sync ───
@@ -170,6 +175,8 @@ export function useTeachingMachine(isAuthReady = true) {
         renderer:    data.renderer    || 'cinematic',
         totalSteps:  data.totalSteps  || (data.steps || data.timeline || []).length || 0,
       });
+
+      if (data.title) useTutorStore.getState().setTopic(data.title);
 
       if (data.isResume) {
         setResumeContext({ topic: data.title, stepIndex: data.currentStepIndex || 0 });
@@ -563,6 +570,7 @@ export function useTeachingMachine(isAuthReady = true) {
     error,
     greetingMessage,
     topic,
+    activeDoubtId,
 
     // Playback
     isPlaying,
@@ -580,6 +588,8 @@ export function useTeachingMachine(isAuthReady = true) {
     finish,
     setSpeed,
     endSession,
+    pinDoubtToCanvas,
+    jumpToDoubt,
   };
 }
 

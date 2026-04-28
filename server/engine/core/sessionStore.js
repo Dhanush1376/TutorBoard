@@ -140,6 +140,7 @@ class SessionStore {
       timeline,
       steps: timeline.steps || timeline.timeline || [],
       currentStepIndex: 0,
+      topic: timeline.title || timeline.topic,
     };
     return await this.update(id, data);
   }
@@ -225,8 +226,9 @@ class SessionStore {
       profile.lastSessionDate = new Date();
       // Ensure we don't increment totalSessions multiple times per "active" session
       if (!s._sessionCounted) {
+        s._sessionCounted = true; // set in-memory first
+        await this.update(id, { _sessionCounted: true }, s); // then persist
         profile.totalSessions = (profile.totalSessions || 0) + 1;
-        await this.update(id, { _sessionCounted: true }, s);
       }
 
       await profile.save();

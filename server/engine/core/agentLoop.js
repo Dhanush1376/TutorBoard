@@ -311,7 +311,10 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       input: { topic, domain, maxSteps: targetMax, learnerProfile, file },
       model, onProgress, userConfig
     });
-    console.log(`[AgentLoop] ✅ Stage 1 (Planner) COMPLETE — ${plannerOutput.flow?.length || 0} steps planned`);
+
+    // Capture normalized topic from planner if available
+    const normalizedTopic = plannerOutput.topic || topic;
+    console.log(`[AgentLoop] ✅ Stage 1 (Planner) COMPLETE — ${plannerOutput.flow?.length || 0} steps planned | Topic: ${normalizedTopic}`);
 
     // Stages 2 & 3: PARALLEL EXECUTION (Narration & Visualization)
     console.log('[AgentLoop] ⚡ Starting Stages 2 (Narrator) & 3 (Visualizer) in PARALLEL...');
@@ -350,7 +353,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       narrations:      narratorOutput.narrations || [],
       visual_steps:    visualizerOutput.visual_steps || [],
       animation_steps: animatorOutput.animation_steps || [],
-      topic,
+      topic:           normalizedTopic,
       domain,
       learnerProfile,
       stepCount:       plannerOutput.flow?.length || 0,
@@ -397,6 +400,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       narrations:      narratorOutput.narrations || [],
       visual_steps:    visualizerOutput.visual_steps || [],
       animation_steps: animatorOutput.animation_steps || [],
+      topic:           normalizedTopic,
       learnerProfile,
     };
     const validatorRaw = await runStage({
@@ -421,7 +425,6 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     }
 
     const output = validated.data || unwrapped;
-    fixObjectIds(output);
 
     console.log(`[AgentLoop] ✅ Pipeline SUCCESS — ${output.elements?.length || 0} elements, ${output.timeline?.length || 0} steps`);
     return output;

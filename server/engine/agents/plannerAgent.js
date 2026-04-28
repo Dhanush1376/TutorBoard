@@ -90,7 +90,7 @@ STEP TYPES
 OUTPUT SCHEMA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
-  "topic": "Exact topic name",
+  "topic": "Professional, title-case name for the lesson (e.g., 'Binary Search Fundamentals' instead of 'Explain binary search')",
   "concept_type": "Algorithm | Data Structure | Math | Physics | History | Logic | System | Code",
   "level": "beginner | intermediate | advanced",
   "core_insight": "The single sentence the learner must internalize",

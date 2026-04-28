@@ -58,12 +58,12 @@ const DoubtTimeline = () => {
             animate={{ opacity: 1, x: 0, width: 'auto' }}
             exit={{ opacity: 0, x: 10, width: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col items-stretch mr-2 overflow-hidden glass"
+            className="flex flex-col items-stretch mr-2 overflow-hidden glass backdrop-blur-2xl"
             style={{
-              background: 'var(--bg-secondary)',
+              background: 'var(--glass-bg)',
               borderRadius: '14px',
-              border: '1px solid var(--border-color)',
-              boxShadow: 'var(--shadow-lg)',
+              border: '1px solid var(--glass-border)',
+              boxShadow: 'var(--glass-shadow)',
             }}
           >
             <div className="px-3 py-2 border-b border-white/5">

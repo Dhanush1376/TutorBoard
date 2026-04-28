@@ -14,8 +14,10 @@ export function registerNavigationHandlers(socket, machine, sessionId) {
     await sessionStore.goToStep(sessionId, stepIndex);
 
     // BUG-08: Decrement confusion index on forward progress
-    if (s.learnerProfile && s.learnerProfile.confusionIndex > 0) {
-      const newerConfusion = Math.max(0, s.learnerProfile.confusionIndex - 0.05);
+    if (s.learnerProfile) {
+      const currentConfusion = s.learnerProfile.confusionIndex || 0;
+      // Decay confusion on forward progress, even if it's already 0 (track momentum)
+      const newerConfusion = Math.max(0, currentConfusion - 0.05);
       
       const safeLearnerProfile = {
         ...s.learnerProfile,

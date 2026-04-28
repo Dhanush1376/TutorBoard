@@ -329,9 +329,9 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
               console.log(`[Session:Finish] Mastery write → ${key}: ${value}`);
             }
             await LearnerProfile.findOneAndUpdate(
-              { userId: socket.user.id || socket.user._id },
+              { userId: socket.user.id },
               { $set: updateObject },
-              { new: true, upsert: true }
+              { new: true }
             );
           }
         }
@@ -350,31 +350,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
   // ─── END SESSION ─────────────────────────────────────────────────────
   socket.on('session:end', async () => {
     if (socket.user && !socket.user.isGuest) {
-      // Write back mastery to MongoDB (last chance)
-      try {
-        const session = await sessionStore.get(sessionId);
-        if (session?.learnerProfile?.topicsMastery) {
-          const masteryData = session.learnerProfile.topicsMastery;
-          const topicKeys = masteryData instanceof Map 
-            ? Array.from(masteryData.keys()) 
-            : Object.keys(masteryData);
-
-          if (topicKeys.length > 0) {
-            const updateObject = {};
-            for (const key of topicKeys) {
-              const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
-              updateObject[`topicsMastery.${key}`] = value;
-            }
-            await LearnerProfile.findOneAndUpdate(
-              { userId: socket.user.id || socket.user._id },
-              { $set: updateObject },
-              { new: true, upsert: true }
-            );
-          }
-        }
-      } catch (err) {
-        console.error(`[Session:End] Mastery write failed: ${err.message}`);
-      }
+      await sessionStore.persistProfile(sessionId);
 
       // Phase 5: Semantic Finalization (last chance)
       const summary = await generateSessionSummary(sessionId);

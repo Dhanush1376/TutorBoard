@@ -110,7 +110,7 @@ OUTPUT SCHEMA
   ],
   "final_output": {
     "meta": {
-      "topic": "...",
+      "topic": "Professional, title-case lesson name (e.g., 'Array Operations')",
       "concept_type": "...",
       "level": "...",
       "core_insight": "...",

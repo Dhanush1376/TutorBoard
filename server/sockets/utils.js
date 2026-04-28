@@ -21,6 +21,7 @@ export async function syncToDatabase(sessionId) {
     const update = {
       $set: {
         topic: s.topic,
+        title: s.topic,
         steps: s.steps,
         messages: s.messages || [],
         canvasState: s.canvasState || [],

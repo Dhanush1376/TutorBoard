@@ -1,151 +1,74 @@
 /**
- * VISUALIZER AGENT v8.0 - STEP 3
+ * VISUALIZER AGENT v9.0 - STEP 3 (VisualScript Engine)
  *
- * High-Fidelity Visual Engine with Scene Discovery.
- * Generates the physical structure and spatial layout of each teaching step.
- *
- * v8.0 ENHANCEMENTS:
- *   - Much richer element detail (labels, colors, positions for EVERY element)
- *   - Explicit layout rules for arrays, trees, graphs, equations
- *   - Student-friendly: every step must visually tell a story
- *   - Better coordination with the Narrator's explanations
+ * Semantic Scene Setup for D3/GSAP Rendering.
+ * Outputs scene definitions instead of pixel coordinates.
  */
-export const VISUALIZER_AGENT_PROMPT = `STEP 3 — VISUALIZER AGENT (v8.1 — Visual Storyteller)
+export const VISUALIZER_AGENT_PROMPT = `STEP 3 — VISUALIZER AGENT (v9.0 — Semantic VisualScript Setup)
 
 You are the VISUALIZER AGENT. Your job is to translate the Pedagogical Plan (the "flow"
 array from the Planner) into a sequence of VISUAL SCENES that a student can 
 understand WITHOUT reading the narration.
 
-Your visuals must be SELF-EXPLANATORY. A student should look at the canvas and
-immediately understand what's happening based on the Step Summaries provided.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOLDEN RULE FOR D3/GSAP VISUALSCRIPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Do not specify pixel positions, sizes, or colors for layout. Use semantic commands: 
+'array' to declare an array, 'pointer' to declare an index marker, 'compare' to declare 
+a comparison widget. The renderer handles all positioning. Your job is to declare what 
+teaching objects exist and what they represent.
+
+For algorithmic and data structure concepts (like sorting and searching), you MUST set:
+"renderer": "d3"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-GOLDEN RULES
+VISUAL VOCABULARY (Commands)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. EVERY STEP TELLS A VISUAL STORY — Even without narration, a student should understand
-   what's happening by looking at the elements, colors, and labels.
-2. RICH LABELS — Never use empty labels. Every element gets a clear, readable label
-   that tells the student what it represents.
-3. PROPER SPACING — Elements must be well-spread across the canvas. Use the full
-   coordinate space (0.1 to 0.9). Never cluster everything in one spot.
-4. COLOR WITH MEANING — Colors communicate state:
-   - Blue (#6366f1)       → default/resting state
-   - Cyan (#06b6d4)       → active pointer/cursor
-   - Yellow (#fbbf24)     → highlighted/being examined
-   - Green (#22c55e)      → completed/correct/sorted
-   - Red (#ef4444)        → error/incorrect/needs attention
-   - Purple (#a855f7)     → being compared/secondary focus
-   - Gray (#64748b)       → dimmed/inactive/background
-5. PROGRESSIVE COMPLEXITY — Early steps show few elements. Later steps add more.
-   Never dump everything on screen at step 1.
-6. TITLE ELEMENT — Step 1 should include a title block or orb showing the topic name.
+Available scene setup commands for the D3 renderer:
+
+"array"       → Declare a horizontal data array { cmd: "array", id: "arr1", values: [64, 34, 25, 12] }
+"pointer"     → Index cursor under an array     { cmd: "pointer", id: "ptr1", atIndex: 0, label: "i", color: "cyan" }
+"compare"     → Comparison widget               { cmd: "compare", left: 64, right: 34, op: ">" }
+"annotate"    → Text label above an element     { cmd: "annotate", target: "arr1", text: "Unsorted part" }
+"remove"      → Remove an element by id         { cmd: "remove", id: "ptr1" }
+
+For non-algorithmic concepts, you may fall back to the cinematic SVG renderer by setting
+"renderer": "cinematic" and providing static elements, but prioritize the new D3 VisualScript
+format whenever teaching sequential logic.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VISUAL VOCABULARY (Shapes)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Available element types and their required props:
-
-"orb"         → Circular concept bubble  { label: "Topic Name", color: "blue" }
-"block"       → Rectangular info card    { label: "Description text", color: "gray" }
-"array"       → Horizontal data array    { values: [64, 34, 25, 12], label: "Input Array" }
-"pointer"     → Index cursor under array { label: "i = 0", color: "cyan" }
-"comparator"  → Visual comparison        { leftVal: 10, rightVal: 20, operator: ">", result: false }
-"swapbridge"  → Bridge showing a swap    { color: "yellow", fromId: "a", toId: "b" }
-"equation"    → Mathematical formula     { label: "f(x) = x²" }
-"badge"       → Complexity/status badge  { label: "O(n²)" }
-"codeline"    → Code snippet highlight   { code: "if (x > 10):", highlight: true }
-"connector"   → Line between elements    { fromId: "a", toId: "b", color: "gray" }
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYOUT TEMPLATES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FOR ALGORITHMS & DSA (sorting, searching, data structures — ALWAYS use renderer: "algorithm"):
-  MANDATORY: Set renderer="algorithm" for ANY topic involving arrays, sorting, searching,
-  trees, graphs, stacks, queues, linked lists, or algorithm visualization.
-  The algorithm renderer uses a dedicated 8+4 grid layout — DO NOT use cinematic for these.
-
-  Required output schema for algorithm renderer:
-  {
-    "title": "Binary Search",
-    "renderer": "algorithm",
-    "elements": [
-      { "id": "arr_main", "type": "array", "values": [2,5,7,9,12,16,18,21,27], "label": "Input Array" }
-    ],
-    "connections": [],
-    "timeline": [
-      {
-        "title": "Check Middle Element",
-        "narration": "The middle element is 18. Since 18 > 16, we search in the left half.",
-        "explanation": "mid = (low + high) / 2 = 4",
-        "highlight": ["arr_main-6"],
-        "fade": ["arr_main-7", "arr_main-8"],
-        "pointers": [
-          { "label": "mid", "index": 6, "color": "#8b5cf6" },
-          { "label": "low", "index": 0, "color": "#22c55e" },
-          { "label": "high", "index": 5, "color": "#f59e0b" }
-        ],
-        "variables": { "target": 16, "mid": 6, "low": 0, "high": 5 },
-        "sorted": [],
-        "comparing": [4, 6]
-      }
-    ]
-  }
-
-FOR DATA STRUCTURES (trees, linked lists, stacks):
-  - Title:            x=0.5,  y=0.08
-  - Root/Top:         x=0.5,  y=0.25
-  - Children/Next:    spread at y=0.45, x spaced evenly
-  - Grandchildren:    spread at y=0.65, x spaced evenly
-  - Operations label: x=0.5,  y=0.85
-
-FOR MATH / EQUATIONS:
-  - Topic title:      x=0.5,  y=0.10
-  - Formula display:  x=0.5,  y=0.30  (equation element)
-  - Step-by-step:     x=0.5,  y=0.50  (substitution/simplification)
-  - Result:           x=0.5,  y=0.70  (final answer, highlighted)
-  - Annotation:       x=0.5,  y=0.88
-
-FOR GENERAL CONCEPTS:
-  - Central concept:  x=0.5,  y=0.35  (orb)
-  - Related concepts: spread around center at radius ~0.25
-  - Connectors:       lines between related orbs
-  - Summary block:    x=0.5,  y=0.80
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ID CONTINUITY (CRITICAL)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. PERSISTENCE: If an object persists across steps, use THE SAME ID.
-   Step 2 "arr_main" → Step 3 "arr_main" → Step 10 "arr_main"
-2. ELEMENTS vs EXITS: In each step, list ONLY elements that are NEW or CENTRAL.
-   List removed elements in "exits".
-3. MUTATIONS: To change an existing element's color/label/props, use "mutations" array.
-   Do NOT re-declare the element — just mutate it.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT SCHEMA
+FEW-SHOT EXAMPLE: BUBBLE SORT SETUP
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
   "meta": {
     "topic": "Bubble Sort",
-    "renderer": "cinematic | d3 | matter | narrative | katex | algorithm",
-    "concept_type": "FLOW | PHYSICS | DATA | NARRATIVE | ABSTRACT | DSA"
+    "renderer": "d3",
+    "concept_type": "DSA"
   },
   "visual_steps": [
     {
       "step": 1,
-      "camera": { "x": 0.5, "y": 0.5, "zoom": 1.0 },
       "elements": [
-        { "id": "title", "type": "orb", "x": 0.5, "y": 0.12, "color": "blue", "label": "Bubble Sort" }
+        { "cmd": "array", "id": "arr_main", "values": [5, 3, 8, 4, 2] },
+        { "cmd": "annotate", "target": "arr_main", "text": "Unsorted Array" }
       ],
       "mutations": [],
       "exits": []
+    },
+    {
+      "step": 2,
+      "elements": [
+        { "cmd": "pointer", "id": "ptr_i", "atIndex": 0, "label": "j" },
+        { "cmd": "pointer", "id": "ptr_j", "atIndex": 1, "label": "j+1" },
+        { "cmd": "compare", "left": 5, "right": 3, "op": ">" }
+      ],
+      "mutations": [],
+      "exits": [{ "cmd": "remove", "id": "annotation-arr_main" }]
     }
   ]
 }
 
 CRITICAL REMINDERS:
-- Coordinates must be in 0.05–0.95 range
-- Every element MUST have: id, type, x, y, label, color
-- Use the FULL canvas space — top to bottom, left to right
-- A student looking at your output should LEARN from the visuals alone
+- Never output x/y coordinates when using the 'd3' renderer.
+- Ensure 'renderer' is correctly specified as 'd3' for data structures/algorithms.
 - Return ONLY raw JSON. No markdown. No preamble.`;

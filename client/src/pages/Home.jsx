@@ -266,9 +266,9 @@ const Home = ({ isDark }) => {
         const idx = prev.findIndex(s => s.id === activeChatId);
         if (idx === -1) return prev;
         const next = [...prev];
-        // Avoid duplicates if somehow triggered twice
-        if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
-        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        // Avoid duplicates by content and role
+        if (next[idx].messages.some(m => m.role === 'assistant' && m.content === assistantMessage.content)) return prev;
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] }; 
         
         // ── PERSISTENCE: Save AI response IMMEDIATELY ──
         saveCurrentSession(next[idx].messages);
@@ -304,9 +304,9 @@ const Home = ({ isDark }) => {
         const idx = prev.findIndex(s => s.id === activeChatId);
         if (idx === -1) return prev;
         const next = [...prev];
-        // Only append if it doesn't already exist
-        if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
-        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        // Only append if it doesn't already exist (deduplicate by content)
+        if (next[idx].messages.some(m => m.role === 'assistant' && m.content === assistantMessage.content)) return prev;
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] }; 
         
         // ── PERSISTENCE: Save AI timeline response IMMEDIATELY ──
         saveCurrentSession(next[idx].messages);
@@ -334,8 +334,8 @@ const Home = ({ isDark }) => {
         const idx = prev.findIndex(s => s.id === activeChatId);
         if (idx === -1) return prev;
         const next = [...prev];
-        if (next[idx].messages.some(m => m.id === assistantMessage.id)) return prev;
-        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] };
+        if (next[idx].messages.some(m => m.role === 'assistant' && m.content === assistantMessage.content)) return prev;
+        next[idx] = { ...next[idx], messages: [...next[idx].messages, assistantMessage] }; 
         
         // ── PERSISTENCE: Save greeting persistence IMMEDIATELY ──
         saveCurrentSession(next[idx].messages);
@@ -972,6 +972,14 @@ const Home = ({ isDark }) => {
               objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
               steps={canvasSteps}
               currentStepIndex={currentStepIndex}
+              onGoToStep={goToStep}
+              doubtHistory={doubtHistory}
+              isDoubtProcessing={isDoubtProcessing}
+              activeDoubtId={machine.activeDoubtId}
+              onJumpToDoubt={machine.jumpToDoubt}
+              onPinDoubt={machine.pinDoubtToCanvas}
+              onResume={resume}
+              onAskDoubt={askDoubt}
             />
           </InfiniteCanvas>
           

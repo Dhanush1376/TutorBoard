@@ -47,7 +47,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
       socket._doubtTimestamps.push(now);
     }
 
-    if (!checkSocketRate(getRateKey(socket))) {
+    if (!(await checkSocketRate(getRateKey(socket)))) {
       socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });
       return;
     }
