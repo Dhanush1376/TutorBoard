@@ -61,6 +61,8 @@ const TeachingSession = ({ initialTopic }) => {
     openFloatingSidebar,
     showNotes,
     deselectAll,
+    levelUpEvent, setLevelUpEvent,
+    showToast,
   } = useTutorStore();
 
   const isOpen = machineState !== STATES.IDLE;
@@ -144,6 +146,20 @@ const TeachingSession = ({ initialTopic }) => {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [isOpen, handleClose]);
+  
+  // Level Up Adaptive Notification
+  useEffect(() => {
+    if (levelUpEvent) {
+      showToast({
+        message: levelUpEvent.message,
+        type: 'success',
+        duration: 4000
+      });
+      // Auto-clear after 4s
+      const t = setTimeout(() => setLevelUpEvent(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [levelUpEvent, showToast, setLevelUpEvent]);
 
   // Memoized canvas callbacks
   const handleZoomChange = useCallback((scale) => {
@@ -284,7 +300,7 @@ const TeachingSession = ({ initialTopic }) => {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: -20, opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200, delay: 0.2 }}
-              className="flex items-center gap-1.5 p-1.5 rounded-[28px] bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] shadow-[var(--glass-shadow)] pointer-events-auto"
+              className="flex items-center gap-1.5 p-2 rounded-[32px] liquid-glass pointer-events-auto"
             >
               <button
                 onClick={openFloatingSidebar}

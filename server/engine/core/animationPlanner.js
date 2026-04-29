@@ -23,6 +23,7 @@ const CONCEPT_PATTERNS = {
   NARRATIVE:  /\b(history|war|battle|revolution|empire|timeline|era|century|dynasty|evolution|cause.?effect|civil.?rights|independence|colonialism|biography|movement|politics|civilization|dna replication|protein synthesis)\b/i,
   COMPARISON: /\b(vs|versus|compare|comparison|difference|between|contrast|pros.?cons|advantage|disadvantage|tradeoff)\b/i,
   ABSTRACT:   /\b(theory|theorem|proof|principle|concept|law|definition|axiom|postulate|hypothesis|philosophy|logic|ethics|epistemology)\b/i,
+  PROGRAMMING:/\b(code|programming|algorithm|variable|loop|function|class|object|compile|debug|syntax|javascript|python|c\+\+|java)\b/i,
 };
 
 const RENDERER_MAP = {
@@ -34,6 +35,7 @@ const RENDERER_MAP = {
   GRAPH:      'desmos',
   COMPARISON: 'cinematic',
   ABSTRACT:   'cinematic',
+  PROGRAMMING:'programming',
 };
 
 const STYLE_MAP = {
@@ -45,6 +47,7 @@ const STYLE_MAP = {
   GRAPH:      'interactive',
   COMPARISON: 'comparison',
   ABSTRACT:   'radial',
+  PROGRAMMING:'code_trace',
 };
 
 /**
@@ -84,6 +87,7 @@ Concept types:
 - NARRATIVE: Historical events, timelines, cause-effect chains, evolution stories
 - COMPARISON: Comparing two or more things, trade-offs, vs analysis
 - ABSTRACT: Pure theory, proofs, philosophical concepts, definitions, axioms
+- PROGRAMMING: Code snippets, tracing execution, programming concepts, debugging
 
 Return ONLY a JSON: { "conceptType": "TYPE", "confidence": 0.0-1.0, "reason": "one sentence" }`
       }],

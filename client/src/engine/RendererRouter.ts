@@ -1,26 +1,45 @@
-import MatterRenderer from '../components/renderers/MatterRenderer';
-import NarrativeRenderer from '../components/renderers/NarrativeRenderer';
 import KaTeXRenderer from '../renderers/KaTeXRenderer';
-import AlgorithmRenderer from '../renderers/AlgorithmRenderer.jsx';
-import DesmosRenderer from '../components/renderers/DesmosRenderer';
+import React from 'react';
+
+// Heavy renderers are lazy-loaded to prevent crashing the initial bundle
+// (Three.js / Matter.js module-level code can fail without WebGL context)
+const MatterRenderer     = React.lazy(() => import('../components/renderers/MatterRenderer'));
+const NarrativeRenderer  = React.lazy(() => import('../components/renderers/NarrativeRenderer'));
+const DesmosRenderer     = React.lazy(() => import('../components/renderers/DesmosRenderer'));
+const ThreeRenderer      = React.lazy(() => import('../components/renderers/ThreeRenderer'));
+const MonacoRenderer     = React.lazy(() => import('../components/renderers/MonacoRenderer'));
 
 export const RENDERER_MAP: Record<string, any> = {
   'cinematic':  null,
   'matter':     MatterRenderer,
   'physics':    MatterRenderer,
+  'mechanics':  MatterRenderer,
   'narrative':  NarrativeRenderer,
-  'history':    NarrativeRenderer,
-  'biology':    NarrativeRenderer,
+  'history':    'd3',
+  'social':     'd3',
+  'biology':    'd3',
+  'chemistry':  'd3',
+  'statistics': 'd3',
+  'stats':      'd3',
+  'data':       'd3',
   'math':       KaTeXRenderer,
   'equation':   KaTeXRenderer,
   'katex':      KaTeXRenderer,
+  'calculus':   KaTeXRenderer,
   'desmos':     DesmosRenderer,
   'graph':      DesmosRenderer,
-  'algorithm':  AlgorithmRenderer,
-  'dsa':        AlgorithmRenderer,
-  'sorting':    AlgorithmRenderer,
-  'searching':  AlgorithmRenderer,
-  'd3':         null, // handled specially in AgentCanvasRenderer
+  'algorithm':  'd3',
+  'dsa':        'd3',
+  'sorting':    'd3',
+  'searching':  'd3',
+  'd3':         'd3',
+  'three':      ThreeRenderer,
+  '3d':         ThreeRenderer,
+  'advanced':   ThreeRenderer,
+  'programming': MonacoRenderer,
+  'code':        MonacoRenderer,
+  'software':    MonacoRenderer,
+  'computer_science': MonacoRenderer,
 };
 
 const DSA_KEYWORDS = [

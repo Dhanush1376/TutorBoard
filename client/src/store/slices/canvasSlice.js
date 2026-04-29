@@ -35,17 +35,24 @@ export const createCanvasSlice = (set, get) => ({
   selectedElementIds: [],
   history: { past: [], future: [] },
 
-  setCanvasMode: (mode) => set({ canvasMode: mode }),
-  openCanvas:    ()     => set({ canvasMode: CANVAS_MODE.FULLSCREEN }),
-  minimizeCanvas:()     => set({ canvasMode: CANVAS_MODE.MINIMIZED }),
-  closeCanvas:   ()     => set({ canvasMode: CANVAS_MODE.CLOSED, activeTool: 'select' }),
-  expandCanvas:  ()     => set({ canvasMode: CANVAS_MODE.FULLSCREEN }),
-  setCanvasTransform: (transform) => set({ canvasTransform: transform }),
-  setCanvasLocked:    (locked) => set({ isCanvasLocked: locked }),
-  setInteracting:     (active) => set({ isInteracting: active }),
-  setCurrentStep: (index)      => set({ currentStepIndex: index, deltaState: null, d3Narration: '' }),
-  setDeltaState:  (delta)      => set({ deltaState: delta }),
-  setD3Narration: (text)       => set({ d3Narration: text }),
+  setCanvasMode: (mode) => set((state) => { state.canvasMode = mode; }),
+  openCanvas:    ()     => set((state) => { state.canvasMode = CANVAS_MODE.FULLSCREEN; }),
+  minimizeCanvas:()     => set((state) => { state.canvasMode = CANVAS_MODE.MINIMIZED; }),
+  closeCanvas:   ()     => set((state) => { 
+    state.canvasMode = CANVAS_MODE.CLOSED; 
+    state.activeTool = 'select'; 
+  }),
+  expandCanvas:  ()     => set((state) => { state.canvasMode = CANVAS_MODE.FULLSCREEN; }),
+  setCanvasTransform: (transform) => set((state) => { state.canvasTransform = transform; }),
+  setCanvasLocked:    (locked) => set((state) => { state.isCanvasLocked = locked; }),
+  setInteracting:     (active) => set((state) => { state.isInteracting = active; }),
+  setCurrentStep: (index)      => set((state) => {
+    state.currentStepIndex = index;
+    state.deltaState = null;
+    state.d3Narration = '';
+  }),
+  setDeltaState:  (delta)      => set((state) => { state.deltaState = delta; }),
+  setD3Narration: (text)       => set((state) => { state.d3Narration = text; }),
 
   _syncManifest: (canvasObjects) => {
     const { sessionId, sessionManifest, pinnedNotes, canvasTransform } = get();
@@ -318,30 +325,42 @@ export const createCanvasSlice = (set, get) => ({
     return lastAddedIndex;
   },
 
-  updateCanvasObjectSilently: (id, updates) => set(state => ({
-    canvasObjects: state.canvasObjects.map(o =>
-      o.id === id ? { ...o, ...updates, styles: { ...(o.styles || {}), ...(updates?.styles || {}) } } : o
-    )
-  })),
+  updateCanvasObjectSilently: (id, updates) => set(state => {
+    const obj = state.canvasObjects.find(o => o.id === id);
+    if (obj) {
+      Object.assign(obj, updates);
+      if (updates.styles) {
+        obj.styles = { ...(obj.styles || {}), ...updates.styles };
+      }
+    }
+  }),
 
   updateCanvasObject: (id, updates) => {
-    const { canvasObjects } = get();
-    const newObjects = canvasObjects.map(o =>
-      o.id === id ? { ...o, ...updates, styles: { ...(o.styles || {}), ...(updates?.styles || {}) } } : o
-    );
-    get().setCanvasObjectsWithHistory(newObjects);
-    get()._syncManifest(newObjects);
+    set((state) => {
+      const obj = state.canvasObjects.find(o => o.id === id);
+      if (obj) {
+        state.history.past.push([...state.canvasObjects]);
+        if (state.history.past.length > MAX_HISTORY) state.history.past.shift();
+        state.history.future = [];
+
+        Object.assign(obj, updates);
+        if (updates.styles) {
+          obj.styles = { ...(obj.styles || {}), ...updates.styles };
+        }
+        state.canvasVersion += 1;
+      }
+    });
+    get()._syncManifest(get().canvasObjects);
   },
 
-  deleteCanvasObject: (id) => set(state => ({
-    canvasObjects: state.canvasObjects.filter(o => o.id !== id)
-  })),
+  deleteCanvasObject: (id) => set(state => {
+    state.canvasObjects = state.canvasObjects.filter(o => o.id !== id);
+  }),
 
-  toggleNotePin: (id) => set(state => ({
-    canvasObjects: state.canvasObjects.map(o =>
-      o.id === id ? { ...o, isPinned: !o.isPinned } : o
-    )
-  })),
+  toggleNotePin: (id) => set(state => {
+    const obj = state.canvasObjects.find(o => o.id === id);
+    if (obj) obj.isPinned = !obj.isPinned;
+  }),
 
   commitHistory: () => {
     const { canvasObjects, history } = get();

@@ -60,19 +60,17 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
       className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
     >
       <div 
-        className="p-1.5 rounded-2xl relative shadow-2xl"
+        className="p-1.5 rounded-2xl relative shadow-2xl liquid-glass"
         style={{
-          background: 'var(--bg-primary)',
-          border: '1px solid var(--border-color)',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+          borderRadius: '20px',
         }}
       >
         <div
-          className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'}`}
+          className={`absolute -top-1.5 w-3 h-3 rotate-45 ${isLeftHand ? 'left-4' : 'right-4'} liquid-glass`}
           style={{
             background: 'var(--bg-primary)',
-            borderLeft: '1px solid var(--border-color)',
-            borderTop: '1px solid var(--border-color)',
+            borderLeft: '1px solid var(--glass-border)',
+            borderTop: '1px solid var(--glass-border)',
             borderRight: 'none',
             borderBottom: 'none',
             zIndex: -1,
@@ -190,18 +188,9 @@ const Toolbar = ({ onSettingsClick }) => {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.8 }}
-      className={`flex items-center rounded-3xl relative transition-all duration-500 ${isInteracting ? 'scale-[0.98]' : ''} ${isMobile ? 'gap-0 max-w-[calc(100vw-80px)]' : 'gap-0.5'}`}
+      className={`flex items-center rounded-[28px] relative transition-all duration-500 liquid-glass ${isInteracting ? 'scale-[0.98]' : ''} ${isMobile ? 'gap-0 max-w-[calc(100vw-80px)]' : 'gap-0.5'}`}
       style={{
         padding: isMobile ? '5px 6px' : '7px 8px',
-        background: isInteracting 
-          ? 'rgba(var(--bg-primary-rgb), 0.5)' 
-          : 'var(--glass-bg)',
-        backdropFilter: 'blur(40px) saturate(200%)',
-        WebkitBackdropFilter: 'blur(40px) saturate(200%)',
-        border: '1.2px solid var(--glass-border)',
-        boxShadow: isInteracting
-          ? '0 8px 30px rgba(0,0,0,0.12)'
-          : '0 12px 40px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05)',
         userSelect: 'none',
         pointerEvents: 'auto',
       }}

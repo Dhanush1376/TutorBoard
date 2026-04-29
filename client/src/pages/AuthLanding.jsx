@@ -37,7 +37,7 @@ const AuthLanding = () => {
       }
 
       // RETURNING USER (Already logged in previously): Skip the cinematic transition for speed
-      navigate('/dashboard', { replace: true });
+      navigate('/session', { replace: true });
     }
   }, [isAuthenticated, isSuccess, loading, navigate]);
 
@@ -167,7 +167,7 @@ const AuthLanding = () => {
             key="cinematic"
             userName={user?.name || formData.name || (formData.email ? formData.email.split('@')[0] : 'Explorer')}
             isLogin={isLogin}
-            onComplete={() => navigate('/dashboard')}
+            onComplete={() => navigate('/session')}
           />
         ) : (
           <motion.div 
@@ -430,7 +430,7 @@ const AuthLanding = () => {
                     </button>
                   )}
                   <button 
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => navigate('/session')}
                     className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
                   >
                     Dashboard <ArrowRight className="w-2.5 h-2.5 opacity-50" />
@@ -443,7 +443,7 @@ const AuthLanding = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   onClick={() => {
                     loginGuest();
-                    navigate('/dashboard');
+                    navigate('/session');
                   }}
                   className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
                 >

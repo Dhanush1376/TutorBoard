@@ -67,7 +67,7 @@ export default class SpacedRepetitionScheduler {
   /**
    * Updates the LearnerProfile after a session
    * @param {string} userId 
-   * @param {Array} masteryDeltas - Array of { concept, mastery }
+   * @param {Array} masteryDeltas - Array of { concept, quality (0-5) or mastery (0-1) }
    */
   static async updateMastery(userId, masteryDeltas) {
     const profile = await LearnerProfile.findOne({ userId });
@@ -76,21 +76,24 @@ export default class SpacedRepetitionScheduler {
     for (const delta of masteryDeltas) {
       let node = profile.topicsMastery.get(delta.concept);
       
+      // Determine quality (0-5)
+      let quality = delta.quality;
+      if (quality === undefined) {
+        quality = Math.round((delta.mastery || 0.5) * 5);
+      }
+      
       // Migration/Initialization
       if (!node || typeof node === 'number') {
         const initial = typeof node === 'number' ? this.migrate(node) : {
-          mastery: delta.mastery,
+          mastery: delta.mastery || 0.5,
           easeFactor: 2.5,
           interval: 1,
           repetitions: 0,
           prerequisites: this.inferDependencies(delta.concept)
         };
-        // Map mastery (0-1) to quality (0-5)
-        const quality = Math.round(delta.mastery * 5);
         this.sm2Update(initial, quality);
         node = initial;
       } else {
-        const quality = Math.round(delta.mastery * 5);
         this.sm2Update(node, quality);
       }
       

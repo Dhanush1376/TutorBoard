@@ -14,7 +14,7 @@ const StepController = ({
   const speeds = [0.5, 1, 1.5, 2];
 
   return (
-    <div className="flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl px-2 py-1.5 shadow-2xl">
+    <div className="flex items-center gap-1 liquid-glass rounded-[24px] px-3 py-2">
       
       {/* Prev */}
       <button

@@ -18,88 +18,62 @@ class TopicCache {
     return `${REDIS_PREFIX}${normalized}:::${stableProfile}`;
   }
 
-  constructor() {
-    this.localFallback = new Map(); // Dev/Offline fallback
-  }
-
   async get(topic, userProfile) {
+    if (!redis.isConnected) return null;
     const key = this._getKey(topic, userProfile);
 
-    if (redis.isConnected) {
-      try {
-        const cached = await redis.get(key);
-        if (cached) {
-          console.log(`[Cache] ❄️ HIT (Redis) for: ${topic}`);
-          return JSON.parse(cached);
-        }
-      } catch (e) {
-        console.warn(`[Cache] Redis get error: ${e.message}`);
+    try {
+      const cached = await redis.get(key);
+      if (cached) {
+        console.log(`[Cache] ❄️ HIT (Redis) for: ${topic}`);
+        return JSON.parse(cached);
       }
-    } else {
-      const local = this.localFallback.get(key);
-      if (local) {
-        console.log(`[Cache] 🍃 HIT (Local) for: ${topic}`);
-        return local;
-      }
+    } catch (e) {
+      console.warn(`[Cache] Redis get error: ${e.message}`);
     }
-
     return null;
   }
 
   async set(topic, userProfile, data) {
+    if (!redis.isConnected) return;
     const key = this._getKey(topic, userProfile);
 
-    if (redis.isConnected) {
-      try {
-        await redis.set(key, JSON.stringify(data), CACHE_TTL_SEC);
-        console.log(`[Cache] 📦 STORED (Redis) for: ${topic}`);
-      } catch (e) {
-        console.warn(`[Cache] Redis set error: ${e.message}`);
-      }
-    } else {
-      this.localFallback.set(key, data);
-      // Prune local if too large
-      if (this.localFallback.size > 100) {
-        const firstKey = this.localFallback.keys().next().value;
-        this.localFallback.delete(firstKey);
-      }
+    try {
+      await redis.set(key, JSON.stringify(data), CACHE_TTL_SEC);
+      console.log(`[Cache] 📦 STORED (Redis) for: ${topic}`);
+    } catch (e) {
+      console.warn(`[Cache] Redis set error: ${e.message}`);
     }
   }
 
   async has(topic, userProfile) {
+    if (!redis.isConnected) return false;
     const key = this._getKey(topic, userProfile);
 
-    if (redis.isConnected) {
-      try {
-        const cached = await redis.get(key);
-        return cached !== null;
-      } catch (e) {
-        console.warn(`[Cache] Redis has error: ${e.message}`);
-        return false;
-      }
+    try {
+      const cached = await redis.get(key);
+      return cached !== null;
+    } catch (e) {
+      console.warn(`[Cache] Redis has error: ${e.message}`);
+      return false;
     }
-    return this.localFallback.has(key);
   }
 
   async delete(topic, userProfile) {
+    if (!redis.isConnected) return;
     const key = this._getKey(topic, userProfile);
 
-    if (redis.isConnected) {
-      try {
-        await redis.del(key);
-        console.log(`[Cache] 🗑️ DELETED (Redis) for: ${topic}`);
-      } catch (e) {
-        console.warn(`[Cache] Redis delete error: ${e.message}`);
-      }
+    try {
+      await redis.del(key);
+      console.log(`[Cache] 🗑️ DELETED (Redis) for: ${topic}`);
+    } catch (e) {
+      console.warn(`[Cache] Redis delete error: ${e.message}`);
     }
-    this.localFallback.delete(key);
   }
 
   async clear() {
-    this.localFallback.clear();
-    
     if (!redis.isConnected) {
-      console.log('[Cache] Local cache cleared. Redis unavailable.');
+      console.log('[Cache] Redis unavailable. Cannot clear cache.');
       return;
     }
 

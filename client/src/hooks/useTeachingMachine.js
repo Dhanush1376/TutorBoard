@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { useShallow } from 'zustand/shallow';
+import { useShallow } from 'zustand/react/shallow';
 import useSocket from './useSocket';
 import useTutorStore, { STATES } from '../store/tutorStore';
 import { trackEvent, identifyUser } from '../utils/analytics';
@@ -29,7 +29,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     setMachineState, setSessionId, setConnected, setConnectionError,
     setTimeline, setCurrentStep, setError, setGreeting, setChatSessionId,
-    setLearnerProfile, setResumeContext,
+    setLearnerProfile, setResumeContext, setLevelUpEvent,
 
     setDoubtProcessing, addDoubt, setDoubtResponse, setDeltaState,
     mutateCanvasObjects, addCanvasObjects,
@@ -115,6 +115,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     incrementGuestSession: s.incrementGuestSession,
     setLearnerProfile: s.setLearnerProfile,
     setResumeContext: s.setResumeContext,
+    setLevelUpEvent: s.setLevelUpEvent,
     pinDoubtToCanvas: s.pinDoubtToCanvas,
     jumpToDoubt: s.jumpToDoubt,
     showToast: s.showToast,
@@ -387,13 +388,19 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       console.log(`[Machine] Learner Profile sync:`, data);
       setLearnerProfile(data);
     }));
+    
+    // Level Up Event
+    cleanups.push(on('teaching:level-up', (data) => {
+      console.log(`[Machine] 🏆 LEVEL UP: ${data.newLevel}`);
+      setLevelUpEvent({ message: data.message, newLevel: data.newLevel, ts: Date.now() });
+    }));
 
     return () => cleanups.forEach(cleanup => cleanup());
   }, [
     on, isConnected,
     setMachineState, setSessionId, setChatSessionId, setTimeline, setCurrentStep,
     setDoubtProcessing, addDoubt, mutateCanvasObjects, addCanvasObjects, setDeltaState,
-    setError, setGreeting, notifyUser,
+    setError, setGreeting, notifyUser, setLevelUpEvent
 
   ]);
 

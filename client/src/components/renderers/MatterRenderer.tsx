@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import Matter from 'matter-js';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -13,12 +13,12 @@ interface MatterRendererProps {
     steps?: any[];
   };
   currentStepIndex: number;
+  onRegister?: (instance: any) => void;
 }
 
-export default function MatterRenderer({ 
-  timeline, 
-  currentStepIndex 
-}: MatterRendererProps) {
+const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
+  const { timeline, currentStepIndex, onRegister } = props;
+
   const elements = timeline?.elements || [];
   const connections = timeline?.connections || [];
   const steps = timeline?.timeline || timeline?.steps || [];
@@ -69,6 +69,37 @@ export default function MatterRenderer({
       Matter.Composite.clear(world, false);
     };
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    addBody: (config: any) => {
+      if (!engineRef.current) return;
+      const x = (config.x ?? 0.5) * CW;
+      const y = (config.y ?? 0.1) * CH;
+      const mass = config.mass || 1;
+      const body = Matter.Bodies.circle(x, y, 20 * mass, { 
+        label: config.id || 'spawned',
+        restitution: 0.8 
+      });
+      Matter.World.add(engineRef.current.world, body);
+    },
+    applyForce: (id: string, fx: number = 0, fy: number = 0) => {
+      if (!engineRef.current) return;
+      const body = engineRef.current.world.bodies.find(b => b.label === id);
+      if (body) {
+        Matter.Body.applyForce(body, body.position, { x: fx * 0.01, y: fy * 0.01 });
+      }
+    },
+    clear: () => {
+      if (!engineRef.current) return;
+      const world = engineRef.current.world;
+      const bodies = world.bodies.filter(b => b.label !== 'Wall');
+      Matter.World.remove(world, bodies);
+    }
+  }));
+
+  useEffect(() => {
+    if (onRegister) onRegister(ref);
+  }, [onRegister, ref]);
 
   // 1.1 Update Gravity dynamically
   useEffect(() => {
@@ -251,4 +282,6 @@ export default function MatterRenderer({
       </AnimatePresence>
     </div>
   );
-}
+});
+
+export default MatterRenderer;

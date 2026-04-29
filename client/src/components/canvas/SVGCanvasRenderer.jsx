@@ -7,24 +7,43 @@ import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
 import { CanvasContext } from './CanvasContext';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
-import {
-  GlowOrb, GlassRect, GlassEllipse, FlowArrow, DataBlock,
-  FlowPointer, CodePanel, FloatingBadge,
-  Comparator, SwapBridge, CinematicFilters, FreeformShape,
-  DataDot, CartesianAxes, GeometryPolygon, RawLine,
-  EquationBlock, TreeNode, BarShape, VennCircle,
-  FlowStep, MoleculeNode, LabelText, StickyNoteShape,
-  EllipseShape, DiamondShape, StarShape, HexagonShape, CalloutShape, CloudShape
-} from '../renderers/CinematicShapes.jsx';
+import { resolve } from '../renderers/shapes/ShapeUtils.js';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 import InlineEditor from './InlineEditor.jsx';
 import PremiumTextBox from './PremiumTextBox.jsx';
 import useTutorStore from '../../store/tutorStore.js';
-import VisualScriptInterpreter from '../../engine/VisualScriptInterpreter.jsx';
 
 const CW = CANVAS_WIDTH;
 const CH = CANVAS_HEIGHT;
 const EASE = [0.16, 1, 0.3, 1];
+
+// ─── Minimal Fallback Shape ──────────────────────────────────────────────────
+function FreeformShape({ type, x, y, w, h, color, label, attentionLevel, path, strokeWidth, animation }) {
+  const c = resolve(color || 'blue');
+  
+  if (type === 'path' && path) {
+    return (
+      <g transform={`translate(${x * CANVAS_WIDTH}, ${y * CANVAS_HEIGHT})`}>
+        <motion.path 
+          d={path} fill="none" stroke={c.stroke} strokeWidth={strokeWidth || 2} 
+          strokeLinecap="round" strokeLinejoin="round"
+          initial={animation?.type === "draw" ? { pathLength: 0 } : {}}
+          animate={animation?.type === "draw" ? { pathLength: 1 } : {}}
+        />
+      </g>
+    );
+  }
+
+  return (
+    <g transform={`translate(${x * CANVAS_WIDTH}, ${y * CANVAS_HEIGHT})`}>
+      <rect 
+        x={-w/2} y={-h/2} width={w} height={h} rx={8} 
+        fill={c.glass} stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 3 : 1.5} 
+      />
+      {label && <text textAnchor="middle" dominantBaseline="middle" fill={c.text} fontSize={12} fontWeight="600">{label}</text>}
+    </g>
+  );
+}
 
 // ─── Camera Director ──────────────────────────────────────────────────────────
 function useStepDirector(elements, timelineSteps, currentStepIndex, deltaState = null) {
@@ -107,44 +126,6 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
   const onDeleteBound = () => onDelete(obj.id);
 
   switch (shape) {
-    case 'orb':
-    case 'circle':
-      return <GlowOrb key={obj.id} {...props} />;
-    case 'rect':
-    case 'box':
-    case 'block':
-      return <GlassRect key={obj.id} {...props} />;
-    case 'ellipse':
-      return <EllipseShape key={obj.id} {...props} />;
-    case 'diamond':
-      return <DiamondShape key={obj.id} {...props} />;
-    case 'star':
-      return <StarShape key={obj.id} {...props} />;
-    case 'hexagon':
-      return <HexagonShape key={obj.id} {...props} />;
-    case 'callout':
-    case 'speech':
-      return <CalloutShape key={obj.id} {...props} />;
-    case 'cloud':
-      return <CloudShape key={obj.id} {...props} />;
-    case 'note':
-    case 'sticky':
-      return <StickyNoteShape key={obj.id} {...props} layoutId={obj.id} onUpdate={onUpdateBound} onDelete={onDeleteBound} isSelected={isSelected} />;
-    case 'arrow':
-    case 'connector':
-      return <FlowArrow key={obj.id} {...props} />;
-    case 'array':
-      return <DataBlock key={obj.id} {...props} values={obj.values} />;
-    case 'pointer':
-      return <FlowPointer key={obj.id} {...props} />;
-    case 'comparator':
-      return <Comparator key={obj.id} {...props} />;
-    case 'swapbridge':
-      return <SwapBridge key={obj.id} {...props} />;
-    case 'badge':
-      return <FloatingBadge key={obj.id} {...props} text={obj.label || obj.text} />;
-    case 'path':
-      return <FreeformShape key={obj.id} {...props} type="path" path={obj.path} strokeWidth={obj.strokeWidth} />;
     case 'label':
     case 'text':
     case 'code':
@@ -173,11 +154,9 @@ export default function SVGCanvasRenderer({
   
   const showNotes = propShowNotes !== undefined ? propShowNotes : storeShowNotes;
 
-  // ─── Parallel System Safety ───
-  // If we are in D3 mode, the D3Executor handles all timeline and delta animations.
-  // We disable the VisualScriptInterpreter here to prevent it from firing redundant animations
-  // on elements that don't exist in the SVG layer.
-  const isInterpreterEnabled = !isD3 && !forceManualOnly;
+  // SVGCanvasRenderer handles static elements and manual annotations.
+  // VisualScript animations are handled by the D3Renderer/AgentCanvasRenderer pipeline.
+  
 
   const rawElements = useMemo(() => {
     // AgentCanvasRenderer already merged and deduplicated timeline + manual objects into extElements.
@@ -243,10 +222,7 @@ export default function SVGCanvasRenderer({
   const tx = isUserControlled ? 0 : (CANVAS_WIDTH / 2 - camera.x * CANVAS_WIDTH * Z);
   const ty = isUserControlled ? 0 : (CANVAS_HEIGHT / 2 - camera.y * CANVAS_HEIGHT * Z);
 
-  const combinedActions = useMemo(() => [
-    ...(currentStep.animation?.actions || []),
-    ...(deltaState?.actions || [])
-  ], [currentStep.animation?.actions, deltaState?.actions]);
+  // Step animations are handled by the specialized D3/AgentCanvasRenderer pipeline.
 
   return (
     <div className="relative w-full h-full overflow-hidden select-none">
@@ -255,39 +231,10 @@ export default function SVGCanvasRenderer({
         viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
         className="block overflow-visible pointer-events-none"
       >
-        <CinematicFilters />
         <motion.g 
           animate={{ x: tx, y: ty, scale: Z }} 
           transition={isUserControlled ? { duration: 0 } : { duration: 0.75, ease: EASE }}
         >
-          {isInterpreterEnabled ? (
-            <VisualScriptInterpreter actions={combinedActions} currentStepIndex={currentStepIndex}>
-              <g className="world-elements">
-                {worldElements.map(obj => (
-                  <g 
-                    key={obj.id} 
-                    data-element-id={obj.id} 
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setSelectedElements([obj.id]);
-                    }}
-                    style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-                  >
-                    <RenderShape 
-                      obj={obj} 
-                      highlightIds={highlightIds} 
-                      fadeIds={fadeIds} 
-                      isSelected={selectedElementIds.includes(obj.id)}
-                      onUpdate={updateCanvasObject}
-                      onDelete={deleteCanvasObject}
-                      isPulsing={obj.isPulsing}
-                      textAnnotation={obj.textAnnotation}
-                    />
-                  </g>
-                ))}
-              </g>
-            </VisualScriptInterpreter>
-          ) : (
             <g className="world-elements">
               {worldElements.map(obj => (
                 <g 
@@ -306,11 +253,12 @@ export default function SVGCanvasRenderer({
                     isSelected={selectedElementIds.includes(obj.id)}
                     onUpdate={updateCanvasObject}
                     onDelete={deleteCanvasObject}
+                    isPulsing={obj.isPulsing}
+                    textAnnotation={obj.textAnnotation}
                   />
                 </g>
               ))}
             </g>
-          )}
         </motion.g>
 
         {/* Pinned Layer (Sticky Notes, etc that follow the viewport but stay on top) */}

@@ -201,21 +201,7 @@ class SessionStore {
       const profile = await LearnerProfile.findById(s.learnerProfileId);
       if (!profile) return;
 
-      // Update Mastery if topic exists
-      if (s.topic) {
-        const currentMastery = profile.topicsMastery.get(s.topic) || 0;
-        
-        // Refined Mastery: +0.1 * progress * (1 - confusion), min 0.01 per interaction
-        const totalSteps = s.steps?.length || 5; // Default to 5 if unknown
-        const progressRatio = totalSteps > 0 ? (s.currentStepIndex + 1) / totalSteps : 0.5;
-        const confusionFactor = 1 - (s.learnerProfile.confusionIndex || 0); // confusionIndex is 0..1
-        
-        const increment = Math.max(0.01, 0.1 * progressRatio * confusionFactor);
-        
-        profile.topicsMastery.set(s.topic, Math.min(1.0, currentMastery + increment));
-      }
-
-      // Append interaction history if provided (Doubt handling)
+      // Interaction history tracking (Doubt handling)
       if (interaction && interaction.question) {
         profile.doubtHistory.push({
           topic: s.topic,
@@ -234,13 +220,20 @@ class SessionStore {
       profile.lastSessionDate = new Date();
       // Ensure we don't increment totalSessions multiple times per "active" session
       if (!s._sessionCounted) {
-        s._sessionCounted = true; // set in-memory first
-        await this.update(id, { _sessionCounted: true }, s); // then persist
+        s._sessionCounted = true;
+        await this.update(id, { _sessionCounted: true }, s);
         profile.totalSessions = (profile.totalSessions || 0) + 1;
         
-        // 3. SM-2 Integration: Update Spaced Repetition mastery on session count
-        const masteryDeltas = [{ concept: s.topic, mastery: profile.topicsMastery.get(s.topic) || 0.5 }];
-        await SpacedRepetitionScheduler.updateMastery(s.userId, masteryDeltas);
+        // Compute quality (0-5) from session performance
+        const progressRatio = (s.currentStepIndex + 1) / Math.max(s.steps?.length || 5, 1);
+        const confusionFactor = 1 - (s.learnerProfile?.confusionIndex || 0);
+        const quality = Math.round(progressRatio * confusionFactor * 5); // 0–5
+        
+        // SM-2 owns the mastery write — no plain-number write before this
+        await SpacedRepetitionScheduler.updateMastery(s.userId, [{
+          concept: s.topic,
+          quality  // pass quality directly, not mastery float
+        }]);
       }
 
       await profile.save();
@@ -255,8 +248,11 @@ class SessionStore {
       const s = await this.get(sessionId);
       if (!s?.userId) return;
 
-      // Existing VectorStore call (stubbed, fine)
-      await VectorStoreService.addSession(sessionId, summary, { topic: s.topic });
+      // Existing VectorStore call (Now real in Phase 5)
+      await VectorStoreService.addSession(sessionId, summary, { 
+        topic: s.topic, 
+        userId: s.userId 
+      });
 
       // NEW: persist to MongoDB for style detection + planner context
       const memory = await SessionMemory.findOneAndUpdate(

@@ -54,13 +54,10 @@ export default function FloatingFormatBar({ element, updateCanvasObject, rotatio
         rotate: rotation
       }}
       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-      className="flex items-center gap-1 p-0.5 rounded-lg shadow-[0_15px_35px_rgba(0,0,0,0.25)] pointer-events-auto border backdrop-blur-md"
+      className="flex items-center gap-1 p-1 rounded-xl liquid-glass pointer-events-auto"
       style={{
-        background: 'var(--bg-primary)',
-        borderColor: 'var(--border-color)',
+        rotate: rotation,
         minWidth: 'max-content',
-        boxShadow: '0 8px 20px -8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.03)',
-        opacity: 0.98
       }}
       onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }} 
     >

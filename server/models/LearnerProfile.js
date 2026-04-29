@@ -51,5 +51,27 @@ const LearnerProfileSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+LearnerProfileSchema.statics.updateMasteryFromSession = async function(userId, session) {
+  if (!session?.learnerProfile?.topicsMastery) return null;
+  
+  const masteryData = session.learnerProfile.topicsMastery;
+  const topicKeys = masteryData instanceof Map ? Array.from(masteryData.keys()) : Object.keys(masteryData);
+  
+  if (topicKeys.length === 0) return null;
+
+  const updateObject = {};
+  for (const key of topicKeys) {
+    const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
+    updateObject[`topicsMastery.${key}`] = value;
+    console.log(`[DB:Mastery] Topic: ${key} | New Score: ${value}`);
+  }
+  
+  return this.findOneAndUpdate(
+    { userId },
+    { $set: updateObject },
+    { new: true }
+  );
+};
+
 const LearnerProfile = mongoose.model('LearnerProfile', LearnerProfileSchema);
 export default LearnerProfile;

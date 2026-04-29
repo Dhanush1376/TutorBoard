@@ -314,32 +314,44 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     if (socket.user && !socket.user.isGuest) {
       await sessionStore.persistProfile(sessionId);
 
-      // Write back mastery to MongoDB (same as disconnect handler)
+      // Write back mastery to MongoDB using the static method
       try {
         const session = await sessionStore.get(sessionId);
-        if (session?.learnerProfile?.topicsMastery) {
-          const masteryData = session.learnerProfile.topicsMastery;
-          const topicKeys = masteryData instanceof Map 
-            ? Array.from(masteryData.keys()) 
-            : Object.keys(masteryData);
 
-          if (topicKeys.length > 0) {
-            const updateObject = {};
-            for (const key of topicKeys) {
-              const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
-              updateObject[`topicsMastery.${key}`] = value;
-              console.log(`[Session:Finish] Mastery write → ${key}: ${value}`);
-            }
-            await LearnerProfile.findOneAndUpdate(
-              { userId: socket.user.id || socket.user._id },
-              { $set: updateObject },
-              { new: true, upsert: true }
-            );
+        // Increment mastery for the completed topic (+0.15 for a full lesson)
+        if (session?.topic && session?.learnerProfile) {
+          const topicKey = session.topic.toLowerCase().replace(/\s+/g, '_');
+          const existingMastery = session.learnerProfile.topicsMastery instanceof Map
+            ? (session.learnerProfile.topicsMastery.get(topicKey)?.mastery || 0)
+            : (session.learnerProfile.topicsMastery?.[topicKey]?.mastery || 0);
+
+          const newMastery = Math.min(1.0, existingMastery + 0.15);
+          const masteryEntry = {
+            mastery: newMastery,
+            lastTaught: new Date(),
+            repetitions: (session.learnerProfile.topicsMastery instanceof Map
+              ? session.learnerProfile.topicsMastery.get(topicKey)?.repetitions
+              : session.learnerProfile.topicsMastery?.[topicKey]?.repetitions) + 1 || 1
+          };
+
+          // Merge into session profile before write-back
+          if (session.learnerProfile.topicsMastery instanceof Map) {
+            session.learnerProfile.topicsMastery.set(topicKey, masteryEntry);
+          } else {
+            session.learnerProfile.topicsMastery = {
+              ...(session.learnerProfile.topicsMastery || {}),
+              [topicKey]: masteryEntry
+            };
           }
+          await sessionStore.update(sessionId, { learnerProfile: session.learnerProfile });
+          console.log(`[Session:Finish] Mastery write → ${topicKey}: ${newMastery.toFixed(2)}`);
         }
+
+        await LearnerProfile.updateMasteryFromSession(socket.user.id || socket.user._id, await sessionStore.get(sessionId));
       } catch (err) {
         console.error(`[Session:Finish] Mastery write failed: ${err.message}`);
       }
+
       
       // Phase 5: Semantic Finalization
       const summary = await generateSessionSummary(sessionId);
@@ -394,16 +406,16 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
             : Object.keys(masteryData);
 
           if (topicKeys.length > 0) {
-            const updateObject = {};
+            let profile = await LearnerProfile.findOne({ userId: socket.user.id || socket.user._id });
+            if (!profile) {
+              profile = new LearnerProfile({ userId: socket.user.id || socket.user._id, topicsMastery: {} });
+            }
+
             for (const key of topicKeys) {
               const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
-              updateObject[`topicsMastery.${key}`] = value;
+              profile.topicsMastery.set(key, value);
             }
-            await LearnerProfile.findOneAndUpdate(
-              { userId: socket.user.id || socket.user._id },
-              { $set: updateObject },
-              { new: true, upsert: true }
-            );
+            await profile.save();
           }
         }
       } catch (err) {

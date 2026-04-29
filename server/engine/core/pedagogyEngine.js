@@ -242,6 +242,13 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
   const level = deriveLevel(mastery);
   const confusion = session.learnerProfile?.confusionIndex || 0;
 
+  // Phase 5: Retrieve Semantically Similar Past Sessions
+  let pastContext = "";
+  if (userConfig?.userId) {
+    const VectorStoreService = (await import('./vectorStore.js')).default;
+    pastContext = await VectorStoreService.getContextForTopic(topic, 3, userConfig.userId);
+  }
+
   // Resolve learner profile for cross-session "shared memory"
   const learnerProfile = {
     level,
@@ -250,6 +257,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
       ? Object.fromEntries(session.learnerProfile.topicsMastery)
       : (session.learnerProfile?.topicsMastery || {}),
      learning_style: session.learnerProfile?.learningStyle || 'visual',
+     past_context: pastContext, // NEW: Injected into Planner
     weak_areas: (session.learnerProfile?.doubtHistory || [])
       .filter(d => d.confusionScore > 5)
       .map(d => d.topic)

@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node dist/index.js",
+    "dev": "nodemon --exec ts-node-esm index.ts",
+    "build": "tsc",
     "test": "echo 'No tests yet' && exit 0"
   },
   "keywords": [],
@@ -30,12 +31,21 @@
     "passport": "^0.7.0",
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
+    "pg": "^8.20.0",
+    "posthog-node": "^5.21.2",
     "rate-limit-redis": "^4.3.1",
     "socket.io": "^4.8.3",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^2.0.1",
+    "@types/node": "^20.14.2",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
   }
 }

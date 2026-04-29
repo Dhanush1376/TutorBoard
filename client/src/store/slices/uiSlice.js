@@ -15,6 +15,7 @@ export const createUiSlice = (set, get) => ({
   isExplainMinimized:  false,
   isVisualizerMinimized: false,
   isSettingsMinimized: false,
+  isMasteryOpen:        false,
   
   drawColor:           'var(--text-primary)',
   drawWidth:           3,
@@ -139,6 +140,7 @@ export const createUiSlice = (set, get) => ({
   setExplainMinimized:   (min)  => set({ isExplainMinimized: min }),
   setVisualizerMinimized: (min) => set({ isVisualizerMinimized: min }),
   setSettingsMinimized: (min) => set({ isSettingsMinimized: min }),
+  setMasteryOpen: (open) => set({ isMasteryOpen: open }),
 
   setDrawColor:          (color) => set({ drawColor: color }),
   setDrawWidth:          (width) => set({ drawWidth: width }),

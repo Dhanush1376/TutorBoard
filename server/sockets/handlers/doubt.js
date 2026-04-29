@@ -16,6 +16,7 @@ import {
 } from '../utils.js';
 import redis from '../../utils/core/redis.js';
 import { runDeltaAgent } from '../../engine/agents/deltaAgent.js';
+import { trackEvent } from '../../utils/core/analytics.js';
 
 export function registerDoubtHandlers(socket, machine, sessionId) {
 
@@ -57,6 +58,18 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
       const userConfig = await resolveUserConfig(socket, socket.user, cleanQuestion, selectedAgent);
 
       const s = await sessionStore.get(sessionId);
+      
+      // NEW: Track that a doubt was asked on this step to prevent confusionIndex reward
+      await sessionStore.update(sessionId, { hasAskedDoubtOnStep: true });
+
+      // PHASE 5: PostHog Analytics
+      trackEvent(userId, 'Doubt Asked', {
+        topic: s?.topic || 'General',
+        stepIndex: s?.currentStepIndex || 0,
+        question: cleanQuestion,
+        confusionIndex: s?.learnerProfile?.confusionIndex || 0
+      });
+      
       const confusionIndex = s?.learnerProfile?.confusionIndex || 0;
       const mode = confusionIndex > 0.4 ? 'SIMPLIFY' : 'EXPLAIN';
 

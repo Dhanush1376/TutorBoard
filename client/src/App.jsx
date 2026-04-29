@@ -180,6 +180,7 @@ function App() {
       <ThemedPopup />
       <ToastContainer />
       <TrialLimitOverlay />
+      <MasteryDashboard />
       
       <main className="app-main">
         <Routes>
@@ -194,8 +195,7 @@ function App() {
             <Route path="/about" element={<About />} />
           </Route>
 
-          <Route path="/dashboard" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="/mastery" element={<ProtectedRoute><MasteryDashboard /></ProtectedRoute>} />
+          <Route path="/session" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

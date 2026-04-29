@@ -113,15 +113,10 @@ const CanvasControls = ({
       initial={{ opacity: 0, y: 20, scale: 0.9, x: isLeftHand ? 20 : -20 }}
       animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
       transition={{ duration: 0.4, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`tb-canvas-controls absolute ${isMobile ? 'bottom-24' : 'bottom-6'} ${isLeftHand ? 'right-6' : 'left-6'} z-50 flex items-center gap-1 pointer-events-auto`}
+      className={`tb-canvas-controls absolute ${isMobile ? 'bottom-24' : 'bottom-6'} ${isLeftHand ? 'right-6' : 'left-6'} z-50 flex items-center gap-1 pointer-events-auto liquid-glass`}
       style={{
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid var(--glass-border)',
-        borderRadius: '16px',
-        padding: '5px',
-        boxShadow: 'var(--glass-shadow)',
+        borderRadius: '20px',
+        padding: '6px',
       }}
     >
       {/* Zoom Out */}

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
-import { useShallow } from 'zustand/shallow';
+import { useShallow } from 'zustand/react/shallow';
 
 import { CanvasContext } from './CanvasContext';
 import { getToolCursor } from '../../utils/cursors';

@@ -313,12 +313,10 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     const targetMax = maxSteps || 16;
     
     // Phase 5: Semantic Retrieval
-    const pastContext = await VectorStoreService.getContextForTopic(topic);
-    
+    const userId = userConfig?.userId || learnerProfile?.userId || null;
+    const pastContext = await VectorStoreService.getContextForTopic(topic, 3, userId);
 
-    const pastContextStr = learnerProfile?.history 
-      ? learnerProfile.history.map(s => `[${new Date(s.timestamp).toLocaleDateString()}] ${s.topic}: ${s.summary}`).join('\n')
-      : (pastContext || "No prior sessions found for this topic.");
+    const pastContextStr = learnerProfile?.past_context || pastContext || "No prior sessions found for this topic.";
 
     const learnerStyleStr = learnerProfile?.learning_style || "General (Visual-Conceptual balance)";
 

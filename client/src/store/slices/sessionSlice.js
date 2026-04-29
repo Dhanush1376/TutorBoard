@@ -48,10 +48,12 @@ export const createSessionSlice = (set, get) => ({
   },
   resumeContext:      null, // { topic, stepIndex }
   activeSnapshotId:   null, // ID of message whose snapshot we are currently viewing/editing
+  levelUpEvent:       null, // { message, newLevel, ts }
 
   setLearnerProfile: (profile) => set({ learnerProfile: { ...get().learnerProfile, ...profile } }),
   setResumeContext: (ctx) => set({ resumeContext: ctx }),
   setActiveSnapshotId: (id) => set({ activeSnapshotId: id }),
+  setLevelUpEvent: (evt) => set({ levelUpEvent: evt }),
 
 
   setMachineState:  (state) => set({ machineState: state, error: null }),

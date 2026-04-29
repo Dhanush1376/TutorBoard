@@ -57,9 +57,14 @@ Also suggest a renderer if the intent is 'deep':
 - cinematic: For general abstract concepts, science, or logic.
 - physics: For mechanical systems, orbits, pendulums, or force-based systems.
 - narrative: For history, timelines, story-driven logic, or sequential events.
+- d3: For arrays, trees, graphs, charts, and data structures.
+- matter: For 2D physics simulations, collisions, and gravity.
+- katex: For pure mathematical equations and formulas.
+- three: For 3D geometry, molecules, and astronomy.
+- programming: For code execution, algorithms, and software topics.
 
 Return ONLY a JSON object:
-{ "intent": "deep"|"quick"|"test_me", "renderer": "cinematic"|"physics"|"narrative", "confidence": 0-1 }`
+{ "intent": "deep"|"quick"|"test_me", "renderer": "cinematic"|"physics"|"narrative"|"d3"|"matter"|"katex"|"three"|"programming", "confidence": 0-1 }`
         },
         {
           role: 'user',

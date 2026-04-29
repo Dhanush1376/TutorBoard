@@ -28,14 +28,24 @@ export class D3Renderer {
     this.svg.selectAll('*').remove();
   }
 
-  private getWidth() {
+  private getWidth(): number {
     const node = this.container.node();
-    return node ? node.getBoundingClientRect().width : 800;
+    if (!node) return 800;
+    const w = node.getBoundingClientRect().width;
+    // Fallback to offsetWidth, then to a safe default
+    return w > 0 ? w : (node as HTMLElement).offsetWidth || 800;
   }
 
   createArray(id: string, values: (number | string)[]) {
-    const totalWidth = values.length * this.CELL_WIDTH + (values.length - 1) * this.CELL_GAP;
     const containerWidth = this.getWidth();
+    
+    // Defer one frame if container not yet painted (width is 0)
+    if (containerWidth === 0) {
+      requestAnimationFrame(() => this.createArray(id, values));
+      return;
+    }
+
+    const totalWidth = values.length * this.CELL_WIDTH + (values.length - 1) * this.CELL_GAP;
     const offsetX = (containerWidth / 2) - (totalWidth / 2);
 
     const arrayGroup = this.svg.append('g')
@@ -47,7 +57,7 @@ export class D3Renderer {
       .enter()
       .append('g')
       .attr('class', 'cell')
-      .attr('id', (d, i) => `${id}-cell-${i}`)
+      .attr('id', (d, i) => `${id}[${i}]`)
       .attr('transform', (d, i) => `translate(${i * (this.CELL_WIDTH + this.CELL_GAP)}, 0)`);
 
     cells.append('rect')
@@ -69,6 +79,26 @@ export class D3Renderer {
       .attr('font-weight', '600')
       .attr('fill', '#1e293b')
       .text(d => d);
+
+    // Staggered cell reveal — each cell fades in and slides up, 60ms apart
+    cells.style('opacity', '0')
+         .style('transform', 'translateY(20px)');
+
+    // Use requestAnimationFrame to ensure DOM is ready before GSAP targets it
+    requestAnimationFrame(() => {
+      import('gsap').then((m) => {
+        const gsap = m.gsap || m.default;
+        if (!gsap) return;
+        gsap.to(arrayGroup.selectAll('g.cell').nodes(), {
+          opacity: 1,
+          y: 0,
+          duration: 0.35,
+          ease: 'back.out(1.4)',
+          stagger: 0.06,
+          clearProps: 'transform',
+        });
+      });
+    });
 
     // Store array metadata on the node for pointer calculations
     (arrayGroup.node() as any)._arrayData = { offsetX, cellWidth: this.CELL_WIDTH, cellGap: this.CELL_GAP };
@@ -122,7 +152,7 @@ export class D3Renderer {
   }
 
   highlightCell(id: string, color: string, duration: number = 0) {
-    const rect = this.svg.select(`#${id} rect.cell-bg`);
+    const rect = this.svg.select(`#${id}`).select('.cell-bg');
     if (!rect.empty()) {
       if (duration > 0) {
         rect.transition().duration(duration).attr('fill', color);
@@ -160,6 +190,150 @@ export class D3Renderer {
       .text(`${left} ${op} ${right}`);
   }
 
+  createTimeline(id: string, events: { date: string; label: string; description?: string }[]) {
+    const width = this.getWidth();
+    const height = 400;
+    const padding = 100;
+    const timelineY = height / 2;
+
+    const group = this.svg.append('g')
+      .attr('id', id)
+      .attr('transform', `translate(0, 0)`);
+
+    // Main line
+    group.append('line')
+      .attr('x1', padding)
+      .attr('y1', timelineY)
+      .attr('x2', width - padding)
+      .attr('y2', timelineY)
+      .attr('stroke', '#cbd5e1')
+      .attr('stroke-width', 4)
+      .attr('stroke-linecap', 'round');
+
+    const xScale = d3.scalePoint()
+      .domain(events.map(e => e.date))
+      .range([padding, width - padding]);
+
+    const eventGroups = group.selectAll('g.event')
+      .data(events)
+      .enter()
+      .append('g')
+      .attr('class', 'event')
+      .attr('transform', d => `translate(${xScale(d.date)}, ${timelineY})`);
+
+    eventGroups.append('circle')
+      .attr('r', 8)
+      .attr('fill', '#3b82f6')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 3);
+
+    eventGroups.append('text')
+      .attr('y', 30)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '14px')
+      .attr('font-weight', 'bold')
+      .attr('fill', '#1e293b')
+      .text(d => d.date);
+
+    eventGroups.append('text')
+      .attr('y', -30)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '12px')
+      .attr('fill', '#64748b')
+      .text(d => d.label);
+  }
+
+  createChart(id: string, data: { label: string; value: number }[], type: 'bar' | 'line' = 'bar') {
+    const width = this.getWidth();
+    const height = 400;
+    const margin = { top: 40, right: 40, bottom: 60, left: 60 };
+
+    const x = d3.scaleBand()
+      .range([margin.left, width - margin.right])
+      .domain(data.map(d => d.label))
+      .padding(0.3);
+
+    const y = d3.scaleLinear()
+      .range([height - margin.bottom, margin.top])
+      .domain([0, d3.max(data, d => d.value) || 100]);
+
+    const group = this.svg.append('g').attr('id', id);
+
+    if (type === 'bar') {
+      group.selectAll('rect')
+        .data(data)
+        .enter()
+        .append('rect')
+        .attr('x', d => x(d.label)!)
+        .attr('y', d => y(d.value))
+        .attr('width', x.bandwidth())
+        .attr('height', d => height - margin.bottom - y(d.value))
+        .attr('fill', '#6366f1')
+        .attr('rx', 4);
+    } else {
+      const line = d3.line<any>()
+        .x(d => x(d.label)! + x.bandwidth() / 2)
+        .y(d => y(d.value))
+        .curve(d3.curveMonotoneX);
+
+      group.append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', '#6366f1')
+        .attr('stroke-width', 3)
+        .attr('d', line);
+    }
+
+    // Axes
+    group.append('g')
+      .attr('transform', `translate(0, ${height - margin.bottom})`)
+      .call(d3.axisBottom(x));
+
+    group.append('g')
+      .attr('transform', `translate(${margin.left}, 0)`)
+      .call(d3.axisLeft(y));
+  }
+
+  createTree(id: string, data: any) {
+    const width = this.getWidth();
+    const height = 500;
+    const margin = { top: 40, right: 90, bottom: 40, left: 90 };
+
+    const treemap = d3.tree().size([height - margin.top - margin.bottom, width - margin.left - margin.right]);
+    const nodes = treemap(d3.hierarchy(data));
+
+    const group = this.svg.append('g')
+      .attr('id', id)
+      .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
+    group.selectAll('.link')
+      .data(nodes.descendants().slice(1))
+      .enter().append('path')
+      .attr('class', 'link')
+      .attr('fill', 'none')
+      .attr('stroke', '#e2e8f0')
+      .attr('stroke-width', 2)
+      .attr('d', (d: any) => `M${d.y},${d.x}C${(d.y + d.parent.y) / 2},${d.x} ${(d.y + d.parent.y) / 2},${d.parent.x} ${d.parent.y},${d.parent.x}`);
+
+    const node = group.selectAll('.node')
+      .data(nodes.descendants())
+      .enter().append('g')
+      .attr('class', 'node')
+      .attr('transform', (d: any) => `translate(${d.y}, ${d.x})`);
+
+    node.append('circle')
+      .attr('r', 20)
+      .attr('fill', '#fff')
+      .attr('stroke', '#3b82f6')
+      .attr('stroke-width', 2);
+
+    node.append('text')
+      .attr('dy', '.35em')
+      .attr('x', (d: any) => d.children ? -25 : 25)
+      .attr('text-anchor', (d: any) => d.children ? 'end' : 'start')
+      .text((d: any) => d.data.name || d.data.value);
+  }
+
   annotate(id: string, text: string) {
     this.removeElement(`annotation-${id}`);
     const target = this.svg.select(`#${id}`);
@@ -189,7 +363,59 @@ export class D3Renderer {
       .text(text);
   }
 
+  drawBoundary(atIndex: number, label?: string, targetArrayId?: string) {
+    const arrayGroup = targetArrayId 
+      ? this.svg.select(`#${targetArrayId}`) 
+      : this.svg.select('g[id*="array"]');
+    
+    if (arrayGroup.empty()) return;
+
+    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10 };
+    const x = meta.offsetX + (atIndex * (meta.cellWidth + meta.cellGap)) - (meta.cellGap / 2);
+    
+    const boundaryId = `boundary-${atIndex}`;
+    this.removeElement(boundaryId);
+
+    const group = this.svg.append('g').attr('id', boundaryId);
+
+    group.append('line')
+      .attr('x1', x)
+      .attr('y1', this.ARRAY_Y - 20)
+      .attr('x2', x)
+      .attr('y2', this.ARRAY_Y + this.CELL_HEIGHT + 20)
+      .attr('stroke', '#f43f5e')
+      .attr('stroke-width', 3)
+      .attr('stroke-dasharray', '4 2');
+
+    if (label) {
+      group.append('text')
+        .attr('x', x)
+        .attr('y', this.ARRAY_Y - 30)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '12px')
+        .attr('font-weight', 'bold')
+        .attr('fill', '#f43f5e')
+        .text(label);
+    }
+  }
+
+  /**
+   * Swaps the text content of two cell elements after the arc animation finishes.
+   * Keeps D3's rendered labels in sync with the new logical order.
+   */
+  swapCells(id1: string, id2: string) {
+    const cell1 = this.svg.select(`#${CSS.escape(id1)}`);
+    const cell2 = this.svg.select(`#${CSS.escape(id2)}`);
+    if (cell1.empty() || cell2.empty()) return;
+
+    const text1 = cell1.select('text').text();
+    const text2 = cell2.select('text').text();
+    cell1.select('text').text(text2);
+    cell2.select('text').text(text1);
+  }
+
   removeElement(id: string) {
     this.svg.select(`#${id}`).remove();
   }
 }
+

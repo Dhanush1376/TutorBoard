@@ -9,6 +9,7 @@ const messageSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true,
+    maxlength: [10000, 'Message content cannot exceed 10000 characters'],
   },
   timestamp: {
     type: Date,

@@ -1,14 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { GlowOrb, GlassRect } from './CinematicShapes.jsx';
+import { resolve } from './shapes/ShapeUtils.js';
 
 /**
  * GenericShape — Universal fallback for unrecognized shape types in specialized renderers.
- * Wraps cinematic SVG components in a positioned div for compatibility with 
+ * Wraps basic SVG geometries in a positioned div for compatibility with 
  * PhysicsRenderer and NarrativeRenderer.
  */
 export default function GenericShape({ obj, common, CW, CH }) {
   const type = obj.type?.toLowerCase() || 'orb';
+  const c = resolve(obj.color || 'blue');
   
   // Decide which base geometry to use for the unknown type
   const isBlocky = ['block', 'rect', 'array', 'data', 'container', 'box', 'step'].some(k => type.includes(k));
@@ -30,17 +31,27 @@ export default function GenericShape({ obj, common, CW, CH }) {
         style={{ overflow: 'visible' }}
       >
         {isBlocky ? (
-          <GlassRect 
-            x={20} y={20} w={w} h={h} 
-            color={obj.color} label={obj.label} 
-            attentionLevel={common.attentionLevel || 1}
+          <rect 
+            x={20} y={20} width={w} height={h} rx={12}
+            fill={c.glass} stroke={c.stroke} 
+            strokeWidth={common.attentionLevel === 2 ? 3 : 1.5}
           />
         ) : (
-          <GlowOrb 
+          <circle 
             cx={(r * 2 + 40) / 2} cy={(r * 2 + 40) / 2} r={r} 
-            color={obj.color} label={obj.label} 
-            attentionLevel={common.attentionLevel || 1}
+            fill={c.glass} stroke={c.stroke} 
+            strokeWidth={common.attentionLevel === 2 ? 3 : 1.5}
           />
+        )}
+        {obj.label && (
+          <text 
+            x={isBlocky ? w/2 + 20 : (r * 2 + 40) / 2} 
+            y={isBlocky ? h/2 + 20 : (r * 2 + 40) / 2}
+            textAnchor="middle" dominantBaseline="middle" 
+            fill={c.text} fontSize={12} fontWeight="600"
+          >
+            {obj.label}
+          </text>
         )}
       </svg>
     </motion.div>

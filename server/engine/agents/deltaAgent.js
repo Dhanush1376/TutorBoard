@@ -52,41 +52,27 @@ export async function runDeltaAgent({ question, canvasState, topic, modelId, use
 
     const parsed = JSON.parse(res.content || '{}');
     
-    // ─── Phase 2: Map actions to VisualScript commands ───
-    let actions = parsed.actions || parsed.delta_actions || parsed.commands || [];
+    // Use the new deltaScript field directly
+    let actions = parsed.deltaScript || parsed.actions || [];
     
-    // Map new schema (type/target) to internal schema (action/id) for validator & interpreter
-    actions = actions.map(a => ({
-      id: a.target || a.id,
-      action: a.type || a.action,
-      duration: a.duration ?? 0.5,
-      props: a.meta || a.props || {},
-      delay: a.delay ?? 0
-    }));
-
     // --- Phase 3: Strict Validation ---
-    if (actions.length > 5) {
-      console.warn(`[DeltaAgent] ⚠️ Too many actions (${actions.length}). Truncating to 5.`);
-      actions = actions.slice(0, 5);
+    if (actions.length > 10) {
+      console.warn(`[DeltaAgent] ⚠️ Too many actions (${actions.length}). Truncating to 10.`);
+      actions = actions.slice(0, 10);
     }
 
-    const destructive = actions.some(a => ['removeAllNodes', 'resetCanvas'].includes(a.action));
+    const destructive = actions.some(a => ['reset', 'clear'].includes(a.cmd));
     if (destructive) {
-      console.error(`[DeltaAgent] ❌ Destructive operations detected. Blocking delta.`);
+      console.error(`[DeltaAgent] ❌ Destructive operations detected in delta. Blocking.`);
       actions = [];
     }
-
-    if (actions.length > 0) {
-      const { validateVisualScript } = await import('../core/visualScriptValidator.js');
-      actions = validateVisualScript(actions);
-    }
-
 
     return {
       answer: parsed.explanation || parsed.answer || "I'm looking into that...",
       commands: actions,
       followUp: parsed.followUp || parsed.nextQuestion
     };
+
 
   } catch (err) {
     console.error(`[DeltaAgent] ❌ Execution failed:`, err);

@@ -320,7 +320,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   return (
     <div className="w-full">
-      <div className={`flex flex-col bg-[var(--bg-secondary)] ${isMobile ? 'rounded-t-2xl' : 'rounded-t-[32px]'} pt-2 px-1.5 pb-1 shadow-2xl relative transition-all duration-300 group`}>
+      <div className={`flex flex-col liquid-glass ${isMobile ? 'rounded-t-2xl' : 'rounded-t-[32px]'} pt-2 px-2 pb-1 relative transition-all duration-300 group`}>
         
         {/* Upload Progress Bar */}
         <AnimatePresence>

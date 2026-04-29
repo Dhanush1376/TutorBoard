@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { immer } from 'zustand/middleware/immer';
 
 // Slices
 import { createSessionSlice } from './slices/sessionSlice.js';
@@ -35,7 +36,7 @@ const safeStorage = {
 
 const useTutorStore = create(
   persist(
-    (set, get) => ({
+    immer((set, get) => ({
       // Merge all slices into one store
       ...createSessionSlice(set, get),
       ...createCanvasSlice(set, get),
@@ -46,11 +47,11 @@ const useTutorStore = create(
       // Global Actions / Hydration
       hydrate: () => {
         if (typeof window === 'undefined') return;
-        set({
-          selectedAgent: localStorage.getItem('tutorboard-agent') || 'Universal',
+        set((state) => {
+          state.selectedAgent = localStorage.getItem('tutorboard-agent') || 'Universal';
         });
       },
-    }),
+    })),
     {
       name: 'tutorboard-session',
       storage: safeStorage,

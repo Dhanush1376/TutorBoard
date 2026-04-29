@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
-  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, Loader
+  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, Loader, LayoutDashboard
 } from 'lucide-react';
 import VisaiLogo from './VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
@@ -76,7 +76,7 @@ const LeftPanel = ({
         <div className="flex flex-col gap-2 relative min-h-full">
           {/* Compact Back Button for Sidebar Chat */}
           {/* Sticky Header with Back Button - Fixed overlap */}
-          <div className="sticky top-0 z-[15] pt-1 pb-2.5 -mx-1 px-1 bg-[var(--bg-primary)]/95 backdrop-blur-sm shadow-[0_4px_12px_-4px_rgba(0,0,0,0.1)]">
+          <div className="sticky top-0 z-[15] pt-1 pb-2.5 -mx-1 px-1 bg-[var(--bg-primary)]/80 backdrop-blur-md">
             <button
               onClick={() => { setActiveView('history'); }}
               className="flex items-center gap-1.5 px-1 py-1 text-[13px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
@@ -104,7 +104,7 @@ const LeftPanel = ({
       <div className="flex flex-col gap-0 w-full relative h-full">
         {/* Sticky Header for Recents - Show for guests if they have history */}
         {(!isGuest || chatHistory.length > 0) && (
-          <div className="sticky top-0 z-[15] pt-0 pb-1.5 -mx-1 px-1 bg-[var(--bg-primary)]/95 backdrop-blur-sm shadow-[0_4px_12px_-4px_rgba(0,0,0,0.1)]">
+          <div className="sticky top-0 z-[15] pt-0 pb-1.5 -mx-1 px-1 bg-[var(--bg-primary)]/80 backdrop-blur-md">
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] px-1.5 py-2 text-[var(--text-tertiary)] opacity-60">Recents</p>
           </div>
         )}
@@ -247,6 +247,13 @@ const LeftPanel = ({
           </div>
 
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => useTutorStore.getState().setMasteryOpen(true)}
+              className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
+              title="Learner Dashboard"
+            >
+              <LayoutDashboard size={isMobile ? 22 : 20} strokeWidth={1.8} className="group-hover:scale-110 transition-transform" />
+            </button>
             <button
               onClick={() => setOverlay('settings')}
               className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}

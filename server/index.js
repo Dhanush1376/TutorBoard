@@ -24,8 +24,9 @@ process.on('uncaughtException', async (err) => {
     console.log('[Graceful] Closing HTTP server...');
     httpServer.close(() => {
       console.log('[Graceful] HTTP server closed.');
-      mongoose.connection.close(false).then(() => {
+      mongoose.connection.close(false).then(async () => {
         console.log('[Graceful] Mongoose connection closed.');
+        await flushAnalytics();
         process.exit(1);
       });
     });
@@ -58,6 +59,7 @@ import apikeyRoutes from './routes/apikeys.js';
 import userRoutes from './routes/user.js';
 import uploadRoutes from './routes/upload.js';
 import aiRouter from './ai-router/index.js';
+import learnerRoutes from './routes/learner.routes.js';
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
 import { httpRateLimiter, strictGuestLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
@@ -66,6 +68,8 @@ import passport from './utils/auth/passport.js';
 import { optionalProtect } from './middleware/auth.middleware.js';
 
 import * as Sentry from "@sentry/node";
+import { initPostgres } from './utils/core/postgres.js';
+import { flushAnalytics } from './utils/core/analytics.js';
 
 if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
   Sentry.init({
@@ -284,6 +288,7 @@ app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
 app.use('/api/ai', httpRateLimiter, optionalProtect, strictGuestLimiter, dbCheck, aiRouter);
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
+app.use('/api/learner', httpRateLimiter, dbCheck, learnerRoutes);
 app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
 
 Sentry.setupExpressErrorHandler(app);
@@ -313,6 +318,11 @@ const startServer = async () => {
       family: 4 
     });
     console.log(`[DB] Connected to MongoDB ✅`);
+
+    // Initialize Postgres + pgvector for Phase 5
+    if (process.env.POSTGRES_URL) {
+      await initPostgres();
+    }
   } catch (err) {
     console.error(`[DB] FAILED TO CONNECT AT STARTUP: ${err.message}`);
     console.error(`[DB] The server will continue running in offline mode.`);
