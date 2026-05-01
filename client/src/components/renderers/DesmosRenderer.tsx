@@ -61,8 +61,17 @@ export default function DesmosRenderer({ timeline, currentStepIndex }: DesmosRen
   const syncExpressions = () => {
     if (!calculatorRef.current) return;
 
-    // Get all expressions up to current step
-    const allExpressions = steps.slice(0, currentStepIndex + 1).flatMap(s => s.expressions || []);
+    // Get all expressions up to current step (Legacy + VisualScript actions)
+    const allExpressions = steps.slice(0, currentStepIndex + 1).flatMap(s => {
+      const legacy = s.expressions || [];
+      const fromActions = (s.actions || [])
+        .filter((a: any) => a.cmd === 'graph' || a.action === 'graph' || a.cmd === 'expression')
+        .map((a: any) => ({
+          latex: a.latex || a.content || a.formula,
+          color: a.color || '#3b82f6'
+        }));
+      return [...legacy, ...fromActions];
+    });
     
     calculatorRef.current.setExpressions(allExpressions.map((exp: any, i: number) => ({
       id: exp.id || `exp-${i}`,
@@ -70,7 +79,11 @@ export default function DesmosRenderer({ timeline, currentStepIndex }: DesmosRen
       color: exp.color || '#3b82f6'
     })));
 
-    if (currentStep.viewport) {
+    // Viewport support from actions
+    const viewportAction = (currentStep.actions || []).find((a: any) => a.cmd === 'camera' || a.action === 'viewport');
+    if (viewportAction?.viewport) {
+      calculatorRef.current.setMathBounds(viewportAction.viewport);
+    } else if (currentStep.viewport) {
       calculatorRef.current.setMathBounds(currentStep.viewport);
     }
   };

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node-esm index.ts",
+    "dev": "nodemon index.js",
     "build": "tsc",
     "test": "echo 'No tests yet' && exit 0"
   },

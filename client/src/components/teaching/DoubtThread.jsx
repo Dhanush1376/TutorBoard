@@ -50,12 +50,22 @@ const DoubtThread = () => {
   return (
     <AnimatePresence>
       {showDoubtThread && (
-        <motion.div
-          initial={{ x: 360, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: 360, opacity: 0 }}
-          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed top-0 right-0 z-[10002] h-full w-[85vw] sm:w-[340px] flex flex-col glass backdrop-blur-3xl"
+        <>
+          {/* Thread backdrop (dismissible) */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeDoubtThread}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[75] pointer-events-auto"
+          />
+
+          <motion.div
+            initial={{ x: 360, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 360, opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed top-0 right-0 z-[80] h-full w-[85vw] sm:w-[340px] flex flex-col glass backdrop-blur-3xl"
           style={{
             background: 'var(--glass-bg)',
             borderLeft: '1px solid var(--glass-border)',
@@ -228,7 +238,8 @@ const DoubtThread = () => {
             )}
           </div>
         </motion.div>
-      )}
+      </>
+    )}
       {/* Advanced Teaching Guide Overlay */}
       <TeachingGuide isOpen={showGuide} onClose={() => setShowGuide(false)} />
     </AnimatePresence>

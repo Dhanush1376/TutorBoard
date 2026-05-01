@@ -245,7 +245,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
             lastProgressAt = Date.now();
             if (chunk) socket.emit('teaching:progress-tokens', { stage, token: chunk });
             else socket.emit('teaching:progress', { message: stage });
-          }, resolveModelId(selectedAgent), userConfig, file),
+          }, resolveModelId(selectedAgent), userConfig, file, intentResult),
           240000
         );
 

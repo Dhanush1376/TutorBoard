@@ -63,6 +63,8 @@ const TeachingSession = ({ initialTopic }) => {
     deselectAll,
     levelUpEvent, setLevelUpEvent,
     showToast,
+    isExplainMinimized: isMinimized,
+    setExplainMinimized: setIsMinimized,
   } = useTutorStore();
 
   const isOpen = machineState !== STATES.IDLE;
@@ -233,7 +235,7 @@ const TeachingSession = ({ initialTopic }) => {
 
       {/* ─── 2. TOP COMMAND HEADER ─── */}
       {isTeachingActive && (
-        <div className={`fixed top-12 z-[9999] pointer-events-none ${hideHUDs ? 'left-12' : 'inset-x-0 flex justify-center px-8'}`}>
+        <div className={`absolute top-4 z-[100] pointer-events-none ${hideHUDs ? 'left-12' : 'inset-x-0 flex justify-center px-8'}`}>
           {hideHUDs ? (
             /* Minimalist Algorithm Title (Top Left) */
             <div
@@ -242,9 +244,17 @@ const TeachingSession = ({ initialTopic }) => {
             >
               <button
                 onClick={openFloatingSidebar}
-                className="mt-2 w-10 h-10 flex items-center justify-center rounded-xl bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all shadow-sm"
+                className="mt-2 w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all shadow-sm"
               >
                 <Menu size={18} strokeWidth={2.5} />
+              </button>
+
+              <button
+                onClick={() => setIsMinimized(true)}
+                className="mt-2 w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all shadow-sm"
+                title="Minimize (M)"
+              >
+                <Minimize2 size={18} strokeWidth={2.5} />
               </button>
 
               <div className="flex flex-col gap-1.5">
@@ -341,10 +351,18 @@ const TeachingSession = ({ initialTopic }) => {
               <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   onClick={toggleVoice}
-                  className={`hidden sm:flex w-11 h-11 items-center justify-center rounded-2xl border transition-all ${voiceEnabled ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)] border-[var(--border-color)]'
+                  className={`hidden sm:flex w-11 h-11 items-center justify-center rounded-2xl border transition-all ${voiceEnabled ? 'bg-white text-black' : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
                     }`}
                 >
                   {voiceEnabled ? <Volume2 size={18} strokeWidth={2.2} /> : <VolumeX size={18} strokeWidth={2.2} />}
+                </button>
+
+                <button
+                  onClick={() => setIsMinimized(true)}
+                  className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 text-white/50 hover:text-white transition-all"
+                  title="Minimize"
+                >
+                  <Minimize2 size={18} strokeWidth={2.5} />
                 </button>
 
                 <div className="h-6 w-px bg-[var(--border-color)] mx-0.5 sm:mx-1" />
@@ -378,114 +396,147 @@ const TeachingSession = ({ initialTopic }) => {
         )}
       </AnimatePresence>
 
-      {/* ─── 3. NARRATION BAR (Suppressed for non-D3 algorithms) ─── */}
-      {(!isAlgorithm || isD3) && (
-        <NarrationBar
-          text={currentStep?.narration || currentStep?.explanation}
-          isGenerating={machineState === STATES.GENERATING}
-        />
-      )}
-
-      {/* ─── 4. HUDs (Suppressed for algorithms) ─── */}
+      {/* ─── 7. MINIMIZED RESUME PILL ─── */}
       <AnimatePresence>
-        {isTeachingActive && !hideHUDs && (
+        {isMinimized && isTeachingActive && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="hidden lg:block"
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 right-8 z-[10005] pointer-events-auto"
           >
-            <MasteryHUD />
-            <ProgressArc />
+            <button
+              onClick={() => setIsMinimized(false)}
+              className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-blue-500 text-white shadow-[0_10px_40px_rgba(59,130,246,0.5)] hover:scale-105 active:scale-95 transition-all group"
+            >
+              <div className="flex flex-col items-start leading-none">
+                <span className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">Resume Lesson</span>
+                <span className="text-sm font-medium truncate max-w-[150px]">{topic}</span>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-all">
+                <Maximize2 size={16} strokeWidth={3} />
+              </div>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* ─── 4b. ALGO PORTAL (For portals from renderers) ─── */}
-      <div id="algo-sidebar-portal" className="absolute inset-0 z-[1002] pointer-events-none" />
 
-      {/* ─── 5. FLOATING PANELS (Sidebar) ─── */}
-      <FloatingSidebar />
-
-      {/* ─── 5b. DOUBT UX (Always show if not cinematic-exclusive) ─── */}
-      {(!isAlgorithm || isD3) && (
+      {/* ─── 8. CONDITIONAL HUD RENDERING ─── */}
+      {/* If minimized, we hide everything else */}
+      {!isMinimized && (
         <>
-          <DoubtTimeline />
-          <DoubtThread />
-          <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-[1000] w-full px-8 pointer-events-none">
-            <div className="max-w-2xl mx-auto pointer-events-auto">
-              <DoubtPanel
-                onAskDoubt={askDoubt}
-                isProcessing={isDoubtProcessing}
-                doubtHistory={doubtHistory}
-                currentStepTitle={currentStep?.title}
+          {/* ─── 3. NARRATION BAR ─── */}
+          {(!isAlgorithm || isD3) && (
+            <div className="absolute top-[100px] md:top-[120px] inset-x-0 z-[90] pointer-events-none flex justify-center px-[380px]">
+              <NarrationBar
+                text={currentStep?.narration || currentStep?.explanation}
+                isGenerating={machineState === STATES.GENERATING}
               />
             </div>
-          </div>
-        </>
-      )}
+          )}
 
-      {/* ─── 6. NAVIGATION DOCK (Bottom, within canvas bounds) ─── */}
-      <AnimatePresence>
-        {isTeachingActive && (
-          <div className="absolute bottom-8 inset-x-0 z-[1000] flex flex-col items-center gap-6 pointer-events-none">
-            {canvasObjects.length > 0 && !hideHUDs && (
-              <div className="hidden sm:block">
-                <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
+          {/* ─── 4. HUDs ─── */}
+          <AnimatePresence>
+            {isTeachingActive && !hideHUDs && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="hidden lg:block"
+              >
+                <MasteryHUD />
+                <ProgressArc />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {/* ─── 4b. ALGO PORTAL ─── */}
+          <div id="algo-sidebar-portal" className="relative z-80 pointer-events-auto" />
+
+          {/* ─── 5. FLOATING PANELS ─── */}
+          <FloatingSidebar />
+
+          {/* ─── 5b. DOUBT UX ─── */}
+          {(!isAlgorithm || isD3) && (
+            <>
+              <DoubtTimeline />
+              <DoubtThread />
+              <div className="absolute bottom-[200px] inset-x-0 z-[80] pointer-events-none flex justify-center px-[380px]">
+                <div className="w-full max-w-2xl pointer-events-auto">
+                  <DoubtPanel
+                    onAskDoubt={askDoubt}
+                    isProcessing={isDoubtProcessing}
+                    doubtHistory={doubtHistory}
+                    currentStepTitle={currentStep?.title}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ─── 6. NAVIGATION DOCK ─── */}
+          <AnimatePresence>
+            {isTeachingActive && (
+              <div className="absolute bottom-4 inset-x-0 z-[70] flex flex-col items-center gap-6 pointer-events-none px-[380px]">
+                {canvasObjects.length > 0 && !hideHUDs && (
+                  <div className="hidden sm:block">
+                    <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
+                  </div>
+                )}
+
+                <motion.footer
+                  initial={{ y: 40, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 40, opacity: 0 }}
+                  className="flex items-center gap-4 p-2 rounded-[32px] bg-[#0d0d14]/60 backdrop-blur-3xl border border-white/10 shadow-2xl pointer-events-auto max-w-[95vw]"
+                >
+                  <div className="flex items-center gap-2 px-1">
+                    <button
+                      onClick={prevStep}
+                      disabled={currentStepIndex <= 0}
+                      className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all disabled:opacity-20 active:scale-95"
+                    >
+                      <SkipBack size={18} strokeWidth={2.5} />
+                    </button>
+
+                    <button
+                      onClick={isPlaying ? pause : play}
+                      className="w-16 h-16 flex items-center justify-center rounded-[22px] bg-blue-500 text-white shadow-[0_10px_30px_rgba(59,130,246,0.4)] hover:scale-105 active:scale-95 transition-all"
+                    >
+                      {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                    </button>
+
+                    <button
+                      onClick={nextStep}
+                      className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+                    >
+                      <SkipForward size={18} strokeWidth={2.5} />
+                    </button>
+                  </div>
+
+                  <div className="h-10 w-px bg-white/10 mx-1" />
+
+                  {/* Speed Segmented Control */}
+                  <div className="hidden sm:flex items-center bg-white/5 border border-white/10 rounded-2xl p-1.5 gap-1">
+                    {[1, 1.5, 2].map(spd => (
+                      <button
+                        key={spd}
+                        onClick={() => handleSpeedChange(spd)}
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight transition-all ${playbackSpeed === spd
+                            ? 'bg-white text-black shadow-md'
+                            : 'text-white/40 hover:text-white'
+                          }`}
+                      >
+                        {spd}×
+                      </button>
+                    ))}
+                  </div>
+                </motion.footer>
               </div>
             )}
-
-            <motion.footer
-              initial={{ y: 40, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 40, opacity: 0 }}
-              className="flex items-center gap-4 p-2 rounded-[32px] bg-[var(--glass-bg)] backdrop-blur-3xl border border-[var(--glass-border)] shadow-[var(--glass-shadow)] pointer-events-auto max-w-[95vw]"
-            >
-              <div className="flex items-center gap-2 px-1">
-                <button
-                  onClick={prevStep}
-                  disabled={currentStepIndex <= 0}
-                  className="w-12 h-12 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)]/50 border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all disabled:opacity-20 active:scale-95"
-                >
-                  <SkipBack size={18} strokeWidth={2.5} />
-                </button>
-
-                <button
-                  onClick={isPlaying ? pause : play}
-                  className="w-16 h-16 flex items-center justify-center rounded-[22px] bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-2xl hover:scale-105 active:scale-95 transition-all"
-                >
-                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
-                </button>
-
-                <button
-                  onClick={nextStep}
-                  className="w-12 h-12 flex items-center justify-center rounded-2xl bg-[var(--bg-secondary)]/50 border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all active:scale-95"
-                >
-                  <SkipForward size={18} strokeWidth={2.5} />
-                </button>
-              </div>
-
-              <div className="h-10 w-px bg-[var(--border-color)]/50 mx-1" />
-
-              {/* Speed Segmented Control */}
-              <div className="hidden sm:flex items-center bg-[var(--bg-tertiary)]/40 border border-[var(--border-color)]/30 rounded-2xl p-1.5 gap-1">
-                {[1, 1.5, 2].map(spd => (
-                  <button
-                    key={spd}
-                    onClick={() => handleSpeedChange(spd)}
-                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight transition-all ${playbackSpeed === spd
-                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-md'
-                        : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
-                      }`}
-                  >
-                    {spd}×
-                  </button>
-                ))}
-              </div>
-            </motion.footer>
-          </div>
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </>
+      )}
     </div>
   );
 };

@@ -62,9 +62,10 @@ Also suggest a renderer if the intent is 'deep':
 - katex: For pure mathematical equations and formulas.
 - three: For 3D geometry, molecules, and astronomy.
 - programming: For code execution, algorithms, and software topics.
+- simulator: For physics, mechanics, motion, waves, circuits, optics, or ANY topic where the student would benefit from interactive sliders and live numerical readouts. Use this for projectile motion, pendulum, waves, Ohm's law, Newton's laws, circular motion, harmonic motion, and similar topics.
 
 Return ONLY a JSON object:
-{ "intent": "deep"|"quick"|"test_me", "renderer": "cinematic"|"physics"|"narrative"|"d3"|"matter"|"katex"|"three"|"programming", "confidence": 0-1 }`
+{ "intent": "deep"|"quick"|"test_me", "renderer": "cinematic"|"physics"|"narrative"|"d3"|"matter"|"katex"|"three"|"programming"|"simulator", "confidence": 0-1 }`
         },
         {
           role: 'user',

@@ -112,6 +112,12 @@ export class VisualScriptInterpreter {
 
   public pause()  { this.masterTimeline?.pause(); }
   public resume() { this.masterTimeline?.resume(); }
+  
+  public setPlaybackSpeed(speed: number) {
+    if (this.masterTimeline) {
+      this.masterTimeline.timeScale(speed);
+    }
+  }
 
   public kill() {
     if (this.masterTimeline) {
@@ -334,45 +340,71 @@ export class VisualScriptInterpreter {
       const el2 = document.getElementById(cmd.id2!);
       if (!el1 || !el2) return;
 
-      const r1 = el1.getBoundingClientRect();
-      const r2 = el2.getBoundingClientRect();
+      const svg = (el1 as any).ownerSVGElement as SVGSVGElement;
+      if (!svg) return;
 
-      // Distance between the two element centres
-      const dx = r2.left - r1.left;
-      const arcHeight = -Math.min(90, Math.abs(dx) * 0.4); // proportional arc
+      // ─── Coordinate Conversion (Zoom/Pan Safe) ─────────────────────
+      // We convert viewport-relative bounding boxes into the SVG's root coordinate system.
+      // This ensures swaps work correctly regardless of InfiniteCanvas scale/pan.
+      const getSvgPos = (el: HTMLElement) => {
+        const rect = el.getBoundingClientRect();
+        const pt = svg.createSVGPoint();
+        // Use the center of the element
+        pt.x = rect.left + rect.width / 2;
+        pt.y = rect.top + rect.height / 2;
+        return pt.matrixTransform(svg.getScreenCTM()!.inverse());
+      };
 
-      const nestedTl = gsap.timeline();
+      const p1 = getSvgPos(el1);
+      const p2 = getSvgPos(el2);
 
-      // el1 arcs UP over el2 (above the elements)
-      nestedTl.to(el1, {
+      // Delta in SVG root units
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+
+      // ─── Animation Strategy ─────────────────────────────────────────
+      const arcHeight = -Math.min(100, Math.abs(dx) * 0.4);
+
+      const tl = gsap.timeline();
+
+      // Element 1: Arcs UP and right with Z-axis lift
+      tl.to(el1, {
         motionPath: {
           path: [
             { x: 0,      y: 0 },
             { x: dx / 2, y: arcHeight },
-            { x: dx,     y: 0 },
+            { x: dx,     y: dy }
           ],
-          type: 'cubic',
+          type: 'cubic'
         },
+        scale: 1.15,
+        filter: 'drop-shadow(0 15px 15px rgba(0,0,0,0.3))',
+        zIndex: 100,
         duration: swapDur,
-        ease: 'power2.inOut',
+        ease: 'power2.inOut'
       }, 0);
 
-      // el2 arcs DOWN beneath el1 (mirror path, slightly lower)
-      nestedTl.to(el2, {
+      // Element 2: Arcs DOWN and left (mirror) with slight recess
+      tl.to(el2, {
         motionPath: {
           path: [
             { x: 0,       y: 0 },
-            { x: -dx / 2, y: -arcHeight }, // positive y = downward arc
-            { x: -dx,     y: 0 },
+            { x: -dx / 2, y: -arcHeight },
+            { x: -dx,     y: -dy }
           ],
-          type: 'cubic',
+          type: 'cubic'
         },
+        scale: 0.95,
+        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+        zIndex: 10,
         duration: swapDur,
-        ease: 'power2.inOut',
+        ease: 'power2.inOut'
       }, 0);
 
-      // After swap, also update the D3 internal data to reflect new positions
-      nestedTl.call(() => {
+      // ─── Sync Back to D3 ────────────────────────────────────────────
+      tl.call(() => {
+        // Reset GSAP transforms and filters so they don't persist
+        gsap.set([el1, el2], { x: 0, y: 0, scale: 1, filter: 'none', zIndex: 'auto', clearProps: 'transform,filter,scale,zIndex' });
         this.renderers?.d3?.swapCells?.(cmd.id1!, cmd.id2!);
       });
 

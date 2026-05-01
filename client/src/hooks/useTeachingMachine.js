@@ -436,7 +436,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
         playIntervalRef.current = null;
       }
     };
-  }, [isPlaying, isPaused, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
+  }, [isPlaying, isPaused, isDeltaRunning, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
 
   // ─── Cleanup on socket disconnect ─────────────────────────────────────────
   // This clears ghost timers when the connection drops, preventing stale emits

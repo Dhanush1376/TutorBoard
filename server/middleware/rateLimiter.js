@@ -1,12 +1,7 @@
 import { rateLimit } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import redisClient from '../utils/core/redis.js';
-
-/**
- * rateLimiter.js — Professional production-grade rate limiter
- * SEC-06: Hardened with Redis-backed socket rate limiting for multi-instance support.
- */
 
 // ─── 1. HTTP Rate Limiter (Redis-backed) ───
 let httpStore;
@@ -14,17 +9,16 @@ if (process.env.REDIS_URL) {
   try {
     const client = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
     httpStore = new RedisStore({
-      // @ts-ignore
       sendCommand: (...args) => client.call(...args),
     });
-  } catch (e) { 
-    console.error('[RateLimit] CRITICAL: Redis unavailable. Rate limiting degraded to in-memory (insecure in multi-instance).');
+  } catch (e) {
+    console.error('[RateLimit] CRITICAL: Redis unavailable.');
   }
 }
 
 export const httpRateLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100, // Hardened for production (100 req/min per IP)
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   store: httpStore,
@@ -34,70 +28,48 @@ export const httpRateLimiter = rateLimit({
   },
   handler: (req, res) => {
     res.status(429).json({
-      error: 'Too many requests from this IP. Please try again after a minute.',
+      error: 'Too many requests. Please try again later.',
       code: 'RATE_LIMIT_EXCEEDED',
       retryAfterSeconds: 60,
     });
   },
 });
 
-// ─── 1.5. Auth Sign-in Rate Limiter (Tight: 5 attempts per 15 min) ───
+// ─── Auth Rate Limiters ───
 export const authSigninRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, 
+  max: 20, // Limit each IP to 20 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  store: httpStore,
-  skip: (req) => {
-    const ip = req.ip || req.connection.remoteAddress;
-    return ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
-  },
-  handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many sign-in attempts from this IP. Please try again after 15 minutes.',
-      code: 'AUTH_RATE_LIMIT_EXCEEDED',
-      retryAfterSeconds: 15 * 60,
-    });
-  },
+  message: {
+    error: 'Too many sign-in attempts. Please try again in 15 minutes.',
+    code: 'AUTH_RATE_LIMIT_EXCEEDED'
+  }
 });
 
-// ─── 1.6. Auth Sign-up Rate Limiter (Relaxed: 10 attempts per 30 min) ───
 export const authSignupRateLimiter = rateLimit({
-  windowMs: 30 * 60 * 1000, // 30 minutes
-  max: 10, 
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit each IP to 10 signup attempts per hour
   standardHeaders: true,
   legacyHeaders: false,
-  store: httpStore,
-  skip: (req) => {
-    const ip = req.ip || req.connection.remoteAddress;
-    return ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
-  },
-  handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many account creation attempts from this IP. Please try again after 30 minutes.',
-      code: 'AUTH_SIGNUP_LIMIT_EXCEEDED',
-      retryAfterSeconds: 30 * 60,
-    });
-  },
+  message: {
+    error: 'Too many accounts created. Please try again in an hour.',
+    code: 'AUTH_RATE_LIMIT_EXCEEDED'
+  }
 });
 
-
-// ─── 2. Socket Rate Limiter (Redis-backed with Memory Fallback) ───
+// ─── 2. Socket Rate Limiter ───
 const hitsBySocket = new Map();
-const guestMonthlyHits = new Map(); // Fallback for month-level guest usage
+const guestMonthlyHits = new Map();
 const SOCKET_WINDOW_MS = 60_000;
-const AUTH_SOCKET_MAX_HITS = 2000; // 2k/min for authenticated users
-const GUEST_SOCKET_MAX_HITS = 200;  // 200/min for guests (canvas/doubt spam protection)
-export const GUEST_MONTHLY_LIMIT = 1000; 
+const AUTH_SOCKET_MAX_HITS = 2000;
+const GUEST_SOCKET_MAX_HITS = 200;
+export const GUEST_MONTHLY_LIMIT = 1000;
 
-/**
- * SEC-06: Global Rate Limit Check (Differentiated by auth status)
- */
 export async function checkSocketRate(key) {
   const now = Date.now();
   const limit = key.startsWith('auth:') ? AUTH_SOCKET_MAX_HITS : GUEST_SOCKET_MAX_HITS;
-  
-  // 1. Try Redis for global instance-wide limiting
+
   if (redisClient.isConnected) {
     const redisKey = `ratelimit:socket:${key}`;
     try {
@@ -105,17 +77,19 @@ export async function checkSocketRate(key) {
       multi.zremrangebyscore(redisKey, 0, now - SOCKET_WINDOW_MS);
       multi.zadd(redisKey, now, now.toString());
       multi.zcard(redisKey);
-      multi.expire(redisKey, 65); // Just over 1 minute
-      
+      multi.expire(redisKey, 65);
+
       const results = await multi.exec();
-      const count = results[2][1];
-      return count <= limit;
+      if (results) {
+        const count = results[2][1];
+        return count <= limit;
+      }
     } catch (err) {
-      console.warn('[RateLimit] Redis socket check failed, falling back to memory:', err.message);
+      console.warn('[RateLimit] Redis failed:', err.message);
     }
   }
 
-  // 2. Fallback to Local Memory (Safe for single instance or if Redis is down)
+  // Fallback to memory
   if (!hitsBySocket.has(key)) hitsBySocket.set(key, []);
   const timestamps = hitsBySocket.get(key);
   const fresh = timestamps.filter(t => now - t < SOCKET_WINDOW_MS);
@@ -125,9 +99,23 @@ export async function checkSocketRate(key) {
   return fresh.length <= limit;
 }
 
-/**
- * SEC-10: Monthly Guest Usage Enforcement with Redis + Memory Fallback
- */
+export async function getGuestUsageCount(ip) {
+  const monthKey = new Date().toISOString().substring(0, 7);
+  const usageKey = `usage:guest:ip:${ip}:${monthKey}`;
+
+  if (redisClient.isConnected) {
+    try {
+      const current = await redisClient.client.get(usageKey);
+      return parseInt(current || '0', 10);
+    } catch (err) {
+      console.warn('[RateLimit] Redis failed:', err.message);
+    }
+  }
+
+  const localKey = `${ip}:${monthKey}`;
+  return guestMonthlyHits.get(localKey) || 0;
+}
+
 export async function checkGuestUsage(ip) {
   const monthKey = new Date().toISOString().substring(0, 7);
   const usageKey = `usage:guest:ip:${ip}:${monthKey}`;
@@ -138,11 +126,10 @@ export async function checkGuestUsage(ip) {
       if (current === 1) await redisClient.client.expire(usageKey, 32 * 24 * 3600);
       return current <= GUEST_MONTHLY_LIMIT;
     } catch (err) {
-      console.warn('[RateLimit] Redis guest usage check failed, falling back to memory:', err.message);
+      console.warn('[RateLimit] Redis failed:', err.message);
     }
   }
 
-  // Fallback to in-memory map
   const localKey = `${ip}:${monthKey}`;
   const currentCount = guestMonthlyHits.get(localKey) || 0;
   const newCount = currentCount + 1;
@@ -151,63 +138,20 @@ export async function checkGuestUsage(ip) {
   return newCount <= GUEST_MONTHLY_LIMIT;
 }
 
-/**
- * Returns current count for a guest IP
- */
-export async function getGuestUsageCount(ip) {
-  const monthKey = new Date().toISOString().substring(0, 7);
-  const usageKey = `usage:guest:ip:${ip}:${monthKey}`;
-
-  if (redisClient.isConnected) {
-    try {
-      const current = await redisClient.client.get(usageKey);
-      return parseInt(current || '0', 10);
-    } catch (err) {
-      console.warn('[RateLimit] Redis guest usage get failed:', err.message);
-    }
-  }
-
-  const localKey = `${ip}:${monthKey}`;
-  return guestMonthlyHits.get(localKey) || 0;
-}
-
 export function cleanupSocket(key) {
   hitsBySocket.delete(key);
   if (redisClient.isConnected) {
-    redisClient.client.del(`ratelimit:socket:${key}`).catch(() => {});
+    redisClient.client.del(`ratelimit:socket:${key}`).catch(() => { });
   }
 }
 
-// Cleanup local memory map periodically
-setInterval(() => {
-  const now = Date.now();
-  const currentMonth = new Date().toISOString().substring(0, 7);
-
-  // Cleanup short-term socket rate limits
-  for (const [key, timestamps] of hitsBySocket) {
-    const fresh = timestamps.filter(t => now - t < SOCKET_WINDOW_MS);
-    if (fresh.length === 0) hitsBySocket.delete(key);
-    else hitsBySocket.set(key, fresh);
-  }
-
-  // Cleanup guest usage for past months
-  for (const [key] of guestMonthlyHits) {
-    if (!key.endsWith(currentMonth)) guestMonthlyHits.delete(key);
-  }
-}, 5 * 60_000);
-
-/**
- * SEC-10: Strict Guest Limiter for expensive operations
- * Differentiates between authenticated users and guests using req.user.
- */
 export const strictGuestLimiter = async (req, res, next) => {
-  // If user is identifies, skip strict guest limit (global rate limiter still applies)
   if (req.user) return next();
 
   const isAllowed = await checkSocketRate(`guest:${req.ip}`);
   if (!isAllowed) {
     return res.status(429).json({
-      error: 'Guest limit exceeded. Please sign in to continue using this feature.',
+      error: 'Guest limit exceeded.',
       retryAfterSeconds: 60,
     });
   }

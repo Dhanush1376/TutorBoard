@@ -85,17 +85,17 @@ const NarrationBar = ({ text: propText, isGenerating }) => {
     <AnimatePresence>
       {words.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 40, scale: 0.95 }}
+          initial={{ opacity: 0, y: -20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.95 }}
-          className="fixed bottom-[180px] left-1/2 -translate-x-1/2 z-[1001] w-full max-w-4xl px-8 pointer-events-none"
+          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+          className="absolute top-[100px] md:top-[120px] left-1/2 -translate-x-1/2 z-[90] w-full max-w-3xl px-4 pointer-events-none"
         >
-          <div className="relative bg-black/60 backdrop-blur-3xl border border-white/10 rounded-[32px] p-10 shadow-[0_40px_80px_-16px_rgba(0,0,0,0.7)] overflow-hidden">
-            {/* Glossy overlay */}
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+          <div className="relative bg-black/50 backdrop-blur-2xl border border-white/10 rounded-2xl px-6 py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] overflow-hidden text-center">
+            {/* Subtle glow edge */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent pointer-events-none" />
             
-            <div className="relative text-center">
-              <div className="text-xl md:text-3xl font-normal leading-relaxed tracking-tight">
+            <div className="relative inline-block">
+              <div className="text-base md:text-lg font-light leading-relaxed tracking-wide text-white/95">
                 {words.slice(0, visibleCount).map((word, i) => renderWord(word, i))}
                 
                 {visibleCount < words.length && (

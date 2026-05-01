@@ -1,11 +1,8 @@
-/**
- * TeachingSocket v5.0 — Modular Handler Architecture
- */
-
+import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import LearnerProfile from '../models/LearnerProfile.js';
-import { createTeachingMachine, STATES, EVENTS } from '../engine/core/teachingMachine.js';
+import { createTeachingMachine, STATES } from '../engine/core/teachingMachine.js';
 import sessionStore from '../engine/core/sessionStore.js';
 import tokenStore from '../utils/auth/tokenStore.js';
 import { checkSocketRate, cleanupSocket, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../middleware/rateLimiter.js';
@@ -26,37 +23,20 @@ export function setupTeachingSocket(io) {
       const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
       const token = socket.handshake.auth?.token;
       
-      // Allow guests to connect for Trial Mode
       if (token === 'guest' || !token) {
-        console.log(`[WS] Guest connection accepted from ${ip}`);
         socket.user = { id: 'guest', isGuest: true };
         return next();
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // DIAGNOSTIC: Log successful decode and payload structure
-      console.log(`[WS:Auth] ✅ Token verified. Payload:`, { 
-        id: decoded.id, 
-        email: decoded.email, 
-        jti: decoded.jti,
-        hasId: !!decoded.id,
-        hasUnderlineId: !!decoded._id 
-      });
-
-      // CRITICAL: Check if token has been revoked (e.g., after logout)
       if (await tokenStore.isTokenRevoked(decoded.jti)) {
-        console.warn(`[WS:Auth] 🚨 Token REVOKED for ${ip}: ${decoded.jti}`);
         return next(new Error('Authentication error: Token has been revoked'));
       }
 
-      // Standardize identity for the session
       const userId = decoded.id || decoded._id;
-      
-      // SEC-15: Ensure the user still exists in the database
       const user = await User.findById(userId);
       if (!user) {
-        console.warn(`[WS:Auth] 🚨 User NOT FOUND in DB for ${ip}: ${userId}`);
         return next(new Error('Authentication error: User account no longer exists'));
       }
 
@@ -65,10 +45,8 @@ export function setupTeachingSocket(io) {
         id: userId
       };
       
-      console.log(`[WS:Auth] User assigned to socket: ${socket.user.id}`);
       next();
     } catch (err) {
-      console.error(`[WS:Auth] ❌ Failure [Token: ${socket.handshake.auth?.token?.substring(0, 15)}...]:`, err.message);
       next(new Error(`Authentication error: ${err.message}`));
     }
   });
@@ -76,17 +54,14 @@ export function setupTeachingSocket(io) {
   // ─── Global Rate Limiter Middleware ─────────────────────────────────────
   teachingIO.use(async (socket, next) => {
     socket.use(async ([event, ...args], nextEvent) => {
-      // Internal events like disconnect are skipped
       if (['disconnect', 'error'].includes(event)) return nextEvent();
       
       const isAllowed = await checkSocketRate(getRateKey(socket));
       if (!isAllowed) {
-        console.warn(`[WS:RateLimit] 🚨 ABUSER BLOCKED: ${getRateKey(socket)} on event: ${event}`);
         socket.emit('error:ratelimit', { 
           message: 'Too many requests. Please slow down.',
           event 
         });
-        // Block the event by NOT calling nextEvent()
         return;
       }
       nextEvent();
@@ -97,20 +72,17 @@ export function setupTeachingSocket(io) {
   teachingIO.on('connection', async (socket) => {
     const requestId = getOrCreateRequestId(socket);
     const sessionId = createTrackedSessionId(socket.id, requestId);
-    console.log(`[${requestId}] [WS] Client connected: ${socket.id} → Session: ${sessionId}`);
 
     // Initialize Session
     try {
       await sessionStore.create(sessionId, socket.id);
       
-      // Emit Guest Trial Status
       if (socket.user?.isGuest) {
         const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
         const count = await getGuestUsageCount(ip);
         socket.emit('guest:status', { count, limit: GUEST_MONTHLY_LIMIT, warning: count >= 40 });
       }
     } catch (err) {
-      console.error(`[WS] Failed to create session: ${err.message}`);
       socket.emit('session:error', { error: 'SESSION_LIMIT_REACHED' });
       return socket.disconnect();
     }
@@ -134,20 +106,31 @@ export function setupTeachingSocket(io) {
 
     // ─── Cleanup on Disconnect ───────────────────────────────────────────────
     socket.on('disconnect', async (reason) => {
-      console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
-      
-      // BUG-02: Ensure profile is persisted even if student just closes the tab
       if (socket.user && !socket.user.isGuest) {
         try {
           await sessionStore.persistProfile(sessionId);
 
-          // Write back the updated mastery from in-memory session to MongoDB
           const session = await sessionStore.get(sessionId);
-          if (session) {
-            await LearnerProfile.updateMasteryFromSession(socket.user.id, session);
+          if (session?.learnerProfile?.topicsMastery) {
+            const masteryData = session.learnerProfile.topicsMastery;
+            const topicKeys = masteryData instanceof Map ? Array.from(masteryData.keys()) : Object.keys(masteryData);
+            
+            if (topicKeys.length > 0) {
+              const updateObject = {};
+              for (const key of topicKeys) {
+                const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
+                updateObject[`topicsMastery.${key}`] = value;
+              }
+              
+              await LearnerProfile.findOneAndUpdate(
+                { userId: socket.user.id },
+                { $set: updateObject },
+                { new: true }
+              );
+            }
           }
         } catch (err) {
-          console.error(`[WS] Persistence failed on disconnect for ${socket.user.id}:`, err.message);
+          console.error(`[WS] Persistence failed on disconnect:`, err.message);
         }
       }
 
@@ -165,6 +148,5 @@ export function setupTeachingSocket(io) {
     });
   });
 
-  console.log('[WS] Teaching socket handlers registered on /teaching namespace');
   return teachingIO;
 }

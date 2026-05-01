@@ -233,7 +233,7 @@ function postProcessTimeline(raw, topic, planningResult) {
 }
 
 // ─── Main Generation Entry Point ──────────────────────────────────────────────
-export async function generateTimeline(sessionId, topic, onProgress = () => { }, modelId = null, userConfig = null, file = null) {
+export async function generateTimeline(sessionId, topic, onProgress = () => { }, modelId = null, userConfig = null, file = null, intent = null) {
   const session = await sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -308,6 +308,40 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
   }
 
   try {
+    // ─── SimulatorAgent Early Exit ────────────────────────────────────────────
+    // If the intent engine chose 'simulator', skip the 6-agent pipeline entirely.
+    // Generate the simulation HTML directly and return it in a special timeline format.
+    if (intent?.renderer === 'simulator') {
+      console.log('[PedagogyEngine] 🎮 Simulator renderer detected — routing to SimulatorAgent');
+      
+      const { runSimulatorAgent } = await import('../agents/simulatorAgent.js');
+      const simulationHtml = await runSimulatorAgent({
+        topic,
+        domain: intent.domain || 'science',
+        modelId,
+        userConfig
+      });
+
+      if (simulationHtml) {
+        return {
+          title: topic,
+          renderer: 'simulator',
+          simulationHtml,          // The full HTML string
+          steps: [{ 
+            title: topic, 
+            narration: `Interactive simulation for ${topic}. Use the sliders to explore.`,
+            index: 0 
+          }],
+          elements: [],
+          totalSteps: 1,
+          domain: intent.domain || 'science'
+        };
+      }
+      // If simulator fails, fall through to normal pipeline
+      console.warn('[PedagogyEngine] SimulatorAgent returned null — falling back to normal pipeline');
+    }
+    // ─── End SimulatorAgent Early Exit ───────────────────────────────────────────
+
     // Stage 1: Animation Planner
     onProgress('Classifying concept & selecting renderer...');
     const domain = getPrimaryDomain(topic);

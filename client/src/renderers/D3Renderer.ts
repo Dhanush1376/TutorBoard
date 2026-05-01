@@ -7,17 +7,52 @@ export class D3Renderer {
   private readonly CELL_WIDTH = 60;
   private readonly CELL_HEIGHT = 60;
   private readonly CELL_GAP = 10;
-  private readonly ARRAY_Y = 150;
+  private retryCount = 0;
 
   constructor(containerElement: HTMLDivElement) {
     this.container = d3.select(containerElement);
-    // Ensure container has relative positioning for absolute children if needed,
-    // though SVG is usually better. We will use a main SVG element.
     this.container.selectAll('*').remove();
-    this.container.append('svg')
+    const svg = this.container.append('svg')
       .attr('width', '100%')
       .attr('height', '100%')
-      .style('overflow', 'visible');
+      .style('overflow', 'visible')
+      .style('display', 'block');
+
+    // SaaS-Quality Definitions
+    const defs = svg.append('defs');
+    
+    // Glossy overlay for 3D cells
+    const cellGradient = defs.append('linearGradient')
+      .attr('id', 'cell-gradient')
+      .attr('x1', '0%').attr('y1', '0%')
+      .attr('x2', '0%').attr('y2', '100%');
+    cellGradient.append('stop').attr('offset', '0%').attr('stop-color', 'rgba(255, 255, 255, 0.15)');
+    cellGradient.append('stop').attr('offset', '100%').attr('stop-color', 'rgba(255, 255, 255, 0.0)');
+
+    // Neon Glow filter
+    const glowFilter = defs.append('filter')
+      .attr('id', 'neon-glow')
+      .attr('x', '-20%').attr('y', '-20%')
+      .attr('width', '140%').attr('height', '140%');
+    glowFilter.append('feGaussianBlur').attr('stdDeviation', '4').attr('result', 'blur');
+    const feMerge = glowFilter.append('feMerge');
+    feMerge.append('feMergeNode').attr('in', 'blur');
+    feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    // Chart Bar Gradient
+    const barGradient = defs.append('linearGradient')
+      .attr('id', 'bar-gradient')
+      .attr('x1', '0%').attr('y1', '100%')
+      .attr('x2', '0%').attr('y2', '0%');
+    barGradient.append('stop').attr('offset', '0%').attr('stop-color', 'var(--accent-secondary, rgba(59,130,246,0.6))');
+    barGradient.append('stop').attr('offset', '100%').attr('stop-color', 'var(--accent-primary)');
+  }
+
+  private get ARRAY_Y() {
+    const h = this.getHeight();
+    // SaaS-Quality Responsive Anchor:
+    // Ensures the array never falls off-screen on mobile/small containers.
+    return Math.min(150, h * 0.35);
   }
 
   private get svg() {
@@ -31,20 +66,31 @@ export class D3Renderer {
   private getWidth(): number {
     const node = this.container.node();
     if (!node) return 800;
-    const w = node.getBoundingClientRect().width;
-    // Fallback to offsetWidth, then to a safe default
-    return w > 0 ? w : (node as HTMLElement).offsetWidth || 800;
+    const rect = node.getBoundingClientRect();
+    return rect.width || (node as HTMLElement).offsetWidth || 800;
+  }
+
+  private getHeight(): number {
+    const node = this.container.node();
+    if (!node) return 600;
+    const rect = node.getBoundingClientRect();
+    return rect.height || (node as HTMLElement).offsetHeight || 600;
+  }
+
+  private async animate(selector: string, stagger = 0.05) {
+    const m = await import('gsap');
+    const gsap = m.gsap || m.default;
+    if (!gsap) return;
+    
+    gsap.fromTo(this.svg.selectAll(selector).nodes(), 
+      { opacity: 0, scale: 0.8, y: 15 },
+      { opacity: 1, scale: 1, y: 0, duration: 0.4, stagger, ease: 'back.out(1.4)' }
+    );
   }
 
   createArray(id: string, values: (number | string)[]) {
-    const containerWidth = this.getWidth();
+    const containerWidth = this.getWidth() || 800; // Fallback to 800 if 0
     
-    // Defer one frame if container not yet painted (width is 0)
-    if (containerWidth === 0) {
-      requestAnimationFrame(() => this.createArray(id, values));
-      return;
-    }
-
     const totalWidth = values.length * this.CELL_WIDTH + (values.length - 1) * this.CELL_GAP;
     const offsetX = (containerWidth / 2) - (totalWidth / 2);
 
@@ -63,11 +109,20 @@ export class D3Renderer {
     cells.append('rect')
       .attr('width', this.CELL_WIDTH)
       .attr('height', this.CELL_HEIGHT)
-      .attr('rx', 8) // rounded corners
-      .attr('fill', '#ffffff')
-      .attr('stroke', '#e2e8f0')
+      .attr('rx', 12)
+      .attr('fill', 'var(--bg-secondary)')
+      .attr('stroke', 'var(--border-color)')
       .attr('stroke-width', 2)
-      .attr('class', 'cell-bg');
+      .attr('class', 'cell-bg shadow-sm')
+      .style('filter', 'drop-shadow(0 10px 15px rgba(0,0,0,0.4))'); // 3D Depth
+
+    // Glossy Overlay
+    cells.append('rect')
+      .attr('width', this.CELL_WIDTH)
+      .attr('height', this.CELL_HEIGHT)
+      .attr('rx', 12)
+      .attr('fill', 'url(#cell-gradient)')
+      .style('pointer-events', 'none');
 
     cells.append('text')
       .attr('x', this.CELL_WIDTH / 2)
@@ -75,36 +130,20 @@ export class D3Renderer {
       .attr('dy', '0.35em')
       .attr('text-anchor', 'middle')
       .attr('font-size', '20px')
-      .attr('font-family', 'sans-serif')
-      .attr('font-weight', '600')
-      .attr('fill', '#1e293b')
+      .attr('font-family', 'var(--font-mono, monospace)')
+      .attr('font-weight', '700')
+      .attr('fill', 'var(--text-primary)')
       .text(d => d);
 
-    // Staggered cell reveal — each cell fades in and slides up, 60ms apart
-    cells.style('opacity', '0')
-         .style('transform', 'translateY(20px)');
+    this.animate(`#${id} .cell`, 0.06);
 
-    // Use requestAnimationFrame to ensure DOM is ready before GSAP targets it
-    requestAnimationFrame(() => {
-      import('gsap').then((m) => {
-        const gsap = m.gsap || m.default;
-        if (!gsap) return;
-        gsap.to(arrayGroup.selectAll('g.cell').nodes(), {
-          opacity: 1,
-          y: 0,
-          duration: 0.35,
-          ease: 'back.out(1.4)',
-          stagger: 0.06,
-          clearProps: 'transform',
-        });
-      });
-    });
+    // Metadata storage removed - not needed for now
 
     // Store array metadata on the node for pointer calculations
     (arrayGroup.node() as any)._arrayData = { offsetX, cellWidth: this.CELL_WIDTH, cellGap: this.CELL_GAP };
   }
 
-  createPointer(id: string, atIndex: number, label: string, color: string = '#ef4444', targetArrayId?: string) {
+  createPointer(id: string, atIndex: number, label: string, color: string = 'var(--accent-danger, #ef4444)', targetArrayId?: string) {
     // Better selector: if targetArrayId is provided, use it, otherwise find any group with 'array' in id
     const arrayGroup = targetArrayId 
       ? this.svg.select(`#${targetArrayId}`) 
@@ -171,23 +210,39 @@ export class D3Renderer {
       .attr('transform', `translate(${containerWidth / 2}, ${this.ARRAY_Y - 80})`);
 
     compGroup.append('rect')
-      .attr('x', -75)
-      .attr('y', -25)
-      .attr('width', 150)
-      .attr('height', 50)
-      .attr('rx', 25)
-      .attr('fill', '#f8fafc')
-      .attr('stroke', '#cbd5e1')
-      .attr('stroke-width', 2);
+      .attr('x', -80)
+      .attr('y', -30)
+      .attr('width', 160)
+      .attr('height', 60)
+      .attr('rx', 30)
+      .attr('fill', 'var(--bg-tertiary)')
+      .attr('stroke', 'var(--accent-primary)')
+      .attr('stroke-width', 2)
+      .style('filter', 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))');
 
     compGroup.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
-      .attr('font-size', '18px')
-      .attr('font-family', 'sans-serif')
-      .attr('font-weight', 'bold')
-      .attr('fill', '#334155')
+      .attr('font-size', '20px')
+      .attr('font-family', 'var(--font-mono, monospace)')
+      .attr('font-weight', '800')
+      .attr('fill', 'var(--text-primary)')
       .text(`${left} ${op} ${right}`);
+
+    // ─── Entrance Animation (GSAP) ───
+    (async () => {
+      const m = await import('gsap');
+      const gsap = m.gsap || m.default;
+      if (gsap) {
+        gsap.from('#comparator', {
+          opacity: 0,
+          scale: 0.5,
+          y: -50,
+          duration: 0.5,
+          ease: 'back.out(1.7)'
+        });
+      }
+    })();
   }
 
   createTimeline(id: string, events: { date: string; label: string; description?: string }[]) {
@@ -206,7 +261,7 @@ export class D3Renderer {
       .attr('y1', timelineY)
       .attr('x2', width - padding)
       .attr('y2', timelineY)
-      .attr('stroke', '#cbd5e1')
+      .attr('stroke', 'var(--border-color)')
       .attr('stroke-width', 4)
       .attr('stroke-linecap', 'round');
 
@@ -223,24 +278,35 @@ export class D3Renderer {
 
     eventGroups.append('circle')
       .attr('r', 8)
-      .attr('fill', '#3b82f6')
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 3);
+      .attr('fill', 'var(--accent-primary)')
+      .attr('stroke', 'var(--bg-primary)')
+      .attr('stroke-width', 3)
+      .style('filter', 'drop-shadow(0 0 8px var(--accent-primary))');
 
     eventGroups.append('text')
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('font-size', '14px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#1e293b')
+      .attr('fill', 'var(--text-primary)')
+      .style('filter', 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))')
       .text(d => d.date);
 
-    eventGroups.append('text')
-      .attr('y', -30)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', '12px')
-      .attr('fill', '#64748b')
-      .text(d => d.label);
+    // Add Interactive Tooltips
+    eventGroups.on('mouseenter', function(event, d) {
+      d3.select(this).select('circle')
+        .transition().duration(200)
+        .attr('r', 12)
+        .attr('filter', 'drop-shadow(0 0 10px var(--accent-primary))');
+    })
+    .on('mouseleave', function(event, d) {
+      d3.select(this).select('circle')
+        .transition().duration(200)
+        .attr('r', 8)
+        .attr('filter', 'none');
+    });
+
+    this.animate(`#${id} .event`, 0.1);
   }
 
   createChart(id: string, data: { label: string; value: number }[], type: 'bar' | 'line' = 'bar') {
@@ -268,8 +334,15 @@ export class D3Renderer {
         .attr('y', d => y(d.value))
         .attr('width', x.bandwidth())
         .attr('height', d => height - margin.bottom - y(d.value))
-        .attr('fill', '#6366f1')
-        .attr('rx', 4);
+        .attr('fill', 'url(#bar-gradient)')
+        .attr('rx', 6)
+        .style('filter', 'drop-shadow(0 6px 12px rgba(59,130,246,0.3))')
+        .on('mouseenter', function(event, d) {
+          d3.select(this).transition().duration(200).attr('fill', 'var(--accent-primary)').attr('filter', 'brightness(1.2)');
+        })
+        .on('mouseleave', function(event, d) {
+          d3.select(this).transition().duration(200).attr('fill', 'var(--accent-secondary)').attr('filter', 'none');
+        });
     } else {
       const line = d3.line<any>()
         .x(d => x(d.label)! + x.bandwidth() / 2)
@@ -279,8 +352,9 @@ export class D3Renderer {
       group.append('path')
         .datum(data)
         .attr('fill', 'none')
-        .attr('stroke', '#6366f1')
-        .attr('stroke-width', 3)
+        .attr('stroke', 'var(--accent-primary)')
+        .attr('stroke-width', 4)
+        .style('filter', 'url(#neon-glow)')
         .attr('d', line);
     }
 
@@ -299,39 +373,65 @@ export class D3Renderer {
     const height = 500;
     const margin = { top: 40, right: 90, bottom: 40, left: 90 };
 
-    const treemap = d3.tree().size([height - margin.top - margin.bottom, width - margin.left - margin.right]);
+    const treemap = d3.tree().size([width - margin.left - margin.right, height - margin.top - margin.bottom]);
     const nodes = treemap(d3.hierarchy(data));
 
     const group = this.svg.append('g')
       .attr('id', id)
       .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-    group.selectAll('.link')
+    const paths = group.selectAll('.link')
       .data(nodes.descendants().slice(1))
       .enter().append('path')
       .attr('class', 'link')
       .attr('fill', 'none')
-      .attr('stroke', '#e2e8f0')
-      .attr('stroke-width', 2)
-      .attr('d', (d: any) => `M${d.y},${d.x}C${(d.y + d.parent.y) / 2},${d.x} ${(d.y + d.parent.y) / 2},${d.parent.x} ${d.parent.y},${d.parent.x}`);
+      .attr('stroke', 'var(--accent-primary)')
+      .attr('stroke-width', 3)
+      .style('filter', 'url(#neon-glow)')
+      .attr('d', (d: any) => `M${d.x},${d.y}C${d.x},${(d.y + d.parent.y) / 2} ${d.parent.x},${(d.y + d.parent.y) / 2} ${d.parent.x},${d.parent.y}`);
+
+    // Path drawing animation (SaaS Quality)
+    paths.each(function() {
+      const pathNode = this as SVGPathElement;
+      const length = pathNode.getTotalLength();
+      d3.select(this)
+        .attr('stroke-dasharray', length + ' ' + length)
+        .attr('stroke-dashoffset', length)
+        .transition()
+        .duration(800)
+        .ease(d3.easeCubicInOut)
+        .attr('stroke-dashoffset', 0);
+    });
 
     const node = group.selectAll('.node')
       .data(nodes.descendants())
       .enter().append('g')
       .attr('class', 'node')
-      .attr('transform', (d: any) => `translate(${d.y}, ${d.x})`);
+      .attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
 
     node.append('circle')
-      .attr('r', 20)
-      .attr('fill', '#fff')
-      .attr('stroke', '#3b82f6')
-      .attr('stroke-width', 2);
+      .attr('r', 24)
+      .attr('fill', 'var(--bg-secondary)')
+      .attr('stroke', 'var(--accent-primary)')
+      .attr('stroke-width', 3)
+      .style('filter', 'drop-shadow(0 8px 12px rgba(0,0,0,0.5))')
+      .on('mouseenter', function() {
+        d3.select(this).transition().duration(200).attr('stroke-width', 5).attr('r', 24);
+      })
+      .on('mouseleave', function() {
+        d3.select(this).transition().duration(200).attr('stroke-width', 3).attr('r', 22);
+      });
 
     node.append('text')
       .attr('dy', '.35em')
-      .attr('x', (d: any) => d.children ? -25 : 25)
-      .attr('text-anchor', (d: any) => d.children ? 'end' : 'start')
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '14px')
+      .attr('font-weight', 'bold')
+      .attr('fill', 'var(--text-primary)')
       .text((d: any) => d.data.name || d.data.value);
+
+    // Staggered node appearance
+    this.animate(`#${id} .node`, 0.15);
   }
 
   annotate(id: string, text: string) {
@@ -359,7 +459,7 @@ export class D3Renderer {
       .attr('text-anchor', 'middle')
       .attr('font-size', '14px')
       .attr('font-family', 'sans-serif')
-      .attr('fill', '#64748b')
+      .attr('fill', 'var(--text-secondary)')
       .text(text);
   }
 
@@ -383,7 +483,7 @@ export class D3Renderer {
       .attr('y1', this.ARRAY_Y - 20)
       .attr('x2', x)
       .attr('y2', this.ARRAY_Y + this.CELL_HEIGHT + 20)
-      .attr('stroke', '#f43f5e')
+      .attr('stroke', 'var(--accent-danger, #f43f5e)')
       .attr('stroke-width', 3)
       .attr('stroke-dasharray', '4 2');
 
@@ -394,7 +494,7 @@ export class D3Renderer {
         .attr('text-anchor', 'middle')
         .attr('font-size', '12px')
         .attr('font-weight', 'bold')
-        .attr('fill', '#f43f5e')
+        .attr('fill', 'var(--accent-danger, #f43f5e)')
         .text(label);
     }
   }

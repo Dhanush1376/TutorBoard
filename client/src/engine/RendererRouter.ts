@@ -8,9 +8,11 @@ const NarrativeRenderer  = React.lazy(() => import('../components/renderers/Narr
 const DesmosRenderer     = React.lazy(() => import('../components/renderers/DesmosRenderer'));
 const ThreeRenderer      = React.lazy(() => import('../components/renderers/ThreeRenderer'));
 const MonacoRenderer     = React.lazy(() => import('../components/renderers/MonacoRenderer'));
+const SimulatorRenderer  = React.lazy(() => import('../components/renderers/SimulatorRenderer'));
 
 export const RENDERER_MAP: Record<string, any> = {
   'cinematic':  null,
+  'simulator':  SimulatorRenderer,
   'matter':     MatterRenderer,
   'physics':    MatterRenderer,
   'mechanics':  MatterRenderer,
@@ -52,8 +54,7 @@ export function isDSAContent(timeline: any) {
   if (!timeline) return false;
   const rendererType = (timeline.renderer || '').toLowerCase();
   
-  // If it specifically asks for D3, it is NOT legacy DSA AlgorithmRenderer
-  if (rendererType === 'd3') return false; 
+  if (rendererType === 'd3') return true; 
 
   if (DSA_KEYWORDS.some(k => rendererType.includes(k))) return true;
   const title = (timeline.title || timeline.topic || '').toLowerCase();

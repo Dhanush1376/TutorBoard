@@ -19,9 +19,19 @@ export default function MonacoRenderer({ timeline, currentStepIndex }: MonacoRen
   const currentStep = steps[currentStepIndex] || {};
   const language = timeline.language || currentStep.language || 'javascript';
   
-  // Simulation: Highlight lines or show terminal output based on step
-  const highlightedLines = currentStep.highlightLines || [];
-  const terminalOutput = currentStep.terminalOutput || [];
+  // Extract code from step actions (VisualScript) or legacy fields
+  const codeAction = (currentStep.actions || []).find((a: any) => a.cmd === 'code' || a.action === 'code');
+  const displayCode = codeAction?.code || codeAction?.content || currentStep.code || timeline.elements?.[0]?.code || '';
+
+  // Extract variables from actions
+  const actionVariables = (currentStep.actions || [])
+    .filter((a: any) => a.cmd === 'variable' || a.action === 'variable')
+    .reduce((acc: any, a: any) => ({ ...acc, [a.name || a.id]: a.value }), {});
+  
+  const displayVariables = { ...(currentStep.variables || {}), ...actionVariables };
+
+  const highlightedLines = currentStep.highlightLines || codeAction?.highlightLines || [];
+  const terminalOutput = currentStep.terminalOutput || codeAction?.terminalOutput || [];
 
   return (
     <div className="relative w-full h-full flex flex-col bg-[#1e1e1e] p-8 rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
@@ -54,7 +64,7 @@ export default function MonacoRenderer({ timeline, currentStepIndex }: MonacoRen
             height="100%"
             language={language}
             theme="vs-dark"
-            value={currentStep.code || timeline.elements?.[0]?.code || ''}
+            value={displayCode}
             options={{
               readOnly: true,
               minimap: { enabled: false },
@@ -85,7 +95,7 @@ export default function MonacoRenderer({ timeline, currentStepIndex }: MonacoRen
           <div className="flex-[2] bg-black/40 rounded-2xl border border-white/5 p-5 overflow-y-auto">
             <h3 className="text-[10px] font-mono text-white/40 uppercase tracking-widest mb-4">Variable Watch</h3>
             <div className="space-y-3">
-              {Object.entries(currentStep.variables || {}).map(([key, val]) => (
+              {Object.entries(displayVariables).map(([key, val]) => (
                 <div key={key} className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
                   <span className="text-blue-400 font-mono text-sm">{key}</span>
                   <span className="text-orange-400 font-mono text-sm">{JSON.stringify(val)}</span>

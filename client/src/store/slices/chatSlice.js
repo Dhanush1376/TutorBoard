@@ -39,6 +39,7 @@ export const createChatSlice = (set, get) => ({
         actions:   visualUpdate.actions,
         timestamp: Date.now()
       });
+      set({ isDeltaRunning: true });
     }
 
     set(state => ({
