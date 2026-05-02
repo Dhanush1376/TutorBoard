@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Volume2, Bell, BellOff, ShieldAlert, Sparkles, User, Mail, GraduationCap } from 'lucide-react';
+import { Check, Volume2, Bell, BellOff, Sparkles, User, Mail, GraduationCap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
@@ -21,7 +21,7 @@ function getAvatarColor(name = '') {
   return AVATAR_PALETTE[idx] || AVATAR_PALETTE[0];
 }
 
-function AvatarCircle({ user, size = 64 }) {
+function AvatarCircle({ user, size = 48 }) {
   const [imgError, setImgError] = useState(false);
   const name = user?.name || '';
   const initials = name
@@ -30,14 +30,12 @@ function AvatarCircle({ user, size = 64 }) {
   const [bg, fg] = getAvatarColor(name);
   return (
     <div style={{
-      width: size, height: size, borderRadius: '18px',
+      width: size, height: size, borderRadius: '14px',
       background: bg, color: fg,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.35, fontWeight: 500, letterSpacing: '-0.02em',
       flexShrink: 0, userSelect: 'none',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      border: `1.5px solid var(--border-color)`,
-      position: 'relative',
+      transition: 'all 0.2s ease',
       overflow: 'hidden',
     }}>
       {user?.avatar && !user.isGuest && !imgError ? (
@@ -141,67 +139,36 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
   const prefsLeft = MAX_PREFS - preferences.length;
   const prefsOverLimit = prefsLeft < 0;
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.08 } }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 12 },
-    visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 260, damping: 20 } }
-  };
-
   return (
-    <motion.div 
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-      style={{ maxWidth: '640px', margin: '0 auto', paddingBottom: '20px' }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-      {/* Profile Header Card — Premium Glassmorphism */}
-      <motion.div 
-        variants={itemVariants}
+      {/* Profile Header */}
+      <div 
         style={{
-          display: 'flex', alignItems: 'center', gap: '20px',
-          marginBottom: '24px', padding: '20px',
-          background: 'var(--bg-secondary)', borderRadius: '24px',
+          display: 'flex', alignItems: 'center', gap: '14px',
+          padding: '16px',
+          background: 'var(--bg-secondary)', borderRadius: '14px',
           border: '1px solid var(--border-color)',
-          position: 'relative', overflow: 'hidden',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+          position: 'relative',
         }}
       >
-        <div style={{ position: 'absolute', top: -100, right: -100, width: '300px', height: '300px', background: 'radial-gradient(circle, var(--accent-primary)08, transparent 70%)', pointerEvents: 'none' }} />
-        
-        <div style={{ position: 'relative' }}>
-          <AvatarCircle user={user} size={64} />
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.5, type: 'spring' }}
-            style={{ position: 'absolute', bottom: -2, right: -2, width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg-primary)', border: '1.5px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-          >
-            <Check size={14} strokeWidth={3} />
-          </motion.div>
-        </div>
+        <AvatarCircle user={user} size={48} />
 
-        <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
-              {displayName || 'Your Name'}
-            </h2>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px', opacity: 0.8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Mail size={13} style={{ color: 'var(--text-tertiary)' }} />
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+            {displayName || 'Your Name'}
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Mail size={11} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
+              <span style={{ fontSize: '11.5px', color: 'var(--text-tertiary)', fontWeight: 400 }}>
                 {user?.email || 'guest@tutorboard.ai'}
               </span>
             </div>
-            <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.4 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <GraduationCap size={13} style={{ color: 'var(--text-tertiary)' }} />
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+            <span style={{ width: '2px', height: '2px', borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.3 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <GraduationCap size={11} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
+              <span style={{ fontSize: '11.5px', color: 'var(--text-tertiary)', fontWeight: 400 }}>
                 {ROLE_OPTIONS.find(o => o.value === role)?.label.split(' ').pop() || 'Learner'}
               </span>
             </div>
@@ -211,32 +178,27 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         <AnimatePresence>
           {saveStatus && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               style={{
-                position: 'absolute', top: '24px', right: '24px',
-                display: 'flex', alignItems: 'center', gap: '8px',
-                fontSize: '11px', fontWeight: 600,
-                color: saveStatus === 'saved' ? '#10b981' : '#007AFF',
-                padding: '6px 14px', borderRadius: '12px',
-                background: saveStatus === 'saved' ? 'rgba(16,185,129,0.08)' : 'rgba(0,122,255,0.08)',
-                border: '1px solid',
-                borderColor: saveStatus === 'saved' ? 'rgba(16,185,129,0.2)' : 'rgba(0,122,255,0.2)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-                letterSpacing: '0.02em', textTransform: 'uppercase'
+                display: 'flex', alignItems: 'center', gap: '5px',
+                fontSize: '10px', fontWeight: 500,
+                color: saveStatus === 'saved' ? '#10b981' : 'var(--text-tertiary)',
+                padding: '4px 10px', borderRadius: '8px',
+                background: saveStatus === 'saved' ? 'rgba(16,185,129,0.08)' : 'var(--bg-tertiary)',
               }}
             >
-              {saveStatus === 'saved' ? <Check size={12} strokeWidth={3.5} /> : <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} style={{ width: 10, height: 10, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%' }} />}
-              {saveStatus === 'saving' ? 'Syncing' : 'Synced'}
+              {saveStatus === 'saved' ? <Check size={10} strokeWidth={3} /> : null}
+              {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
 
       {/* Profile Details */}
-      <motion.div variants={itemVariants}>
-        <SectionTitle>Profile Details</SectionTitle>
+      <div>
+        <SectionTitle>Profile</SectionTitle>
         <SettingsGroup>
           <SettingsRow
             label="Full Name"
@@ -251,7 +213,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
           />
           <SettingsRow
             label="Preferred Name"
-            description="How the AI assistant addresses you"
+            description="How the AI addresses you"
             rightElement={
               <RightInlineInput
                 value={nickname}
@@ -272,102 +234,108 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
             }
           />
         </SettingsGroup>
-      </motion.div>
+      </div>
 
-      {/* AI Instructions */}
-      <motion.div variants={itemVariants}>
-        <SectionTitle>AI Configuration</SectionTitle>
-        <SettingsGroup className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[24px]">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                    <Sparkles size={20} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <label className="text-[14px] font-semibold text-[var(--text-primary)] block tracking-tight leading-tight mb-0.5">
-                      Custom Personal & Behaviour
-                    </label>
-                    <span className="text-[11px] text-[var(--text-tertiary)] font-medium opacity-80">
-                      Define your AI's global identity and response style
-                    </span>
-                  </div>
-                </div>
-                
-                <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all duration-300 ${prefsOverLimit ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] border border-[var(--border-color)]'}`}>
-                  {prefsLeft} <span className="opacity-40 font-normal">chars left</span>
-                </div>
-              </div>
-
-              <div className="relative">
-                <textarea
-                  value={preferences}
-                  onChange={e => setPreferences(e.target.value.slice(0, MAX_PREFS + 20))}
-                  placeholder='e.g. "You are a senior software engineer who explains complex concepts using LEGO analogies. Keep responses extremely concise but include code snippets where relevant."'
-                  className={`w-full p-4.5 min-h-[140px] max-h-[300px] bg-[var(--bg-primary)]/50 border-1.5 rounded-2xl text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/50 leading-relaxed outline-none transition-all duration-300 resize-none ${
-                    prefsOverLimit 
-                      ? 'border-red-500/40 focus:border-red-500' 
-                      : 'border-[var(--border-color)] focus:border-amber-500/50 focus:bg-[var(--bg-primary)]'
-                  }`}
-                />
-                
-                {/* Floating Decoration */}
-                <div className="absolute bottom-4 right-4 pointer-events-none transition-opacity duration-500 opacity-10 group-focus-within:opacity-30">
-                  <Sparkles size={24} className="text-amber-500" />
-                </div>
-                
-                {/* Visual Guidelines */}
-                {!preferences && (
-                  <div className="absolute top-16 left-5 right-5 pointer-events-none space-y-2 opacity-30 select-none">
-                    <div className="h-2 w-3/4 bg-[var(--text-tertiary)]/20 rounded-full" />
-                    <div className="h-2 w-1/2 bg-[var(--text-tertiary)]/20 rounded-full" />
-                  </div>
-                )}
-              </div>
-
-              {/* Professional Prompt Suggestions */}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {[
-                  { label: 'Conceptual Focus', text: 'Prioritize conceptual understanding over direct answers.' },
-                  { label: 'Technical Depth', text: 'Provide detailed technical explanations with code.' },
-                  { label: 'Iterative Learning', text: 'Ask follow-up questions to verify my understanding.' }
-                ].map((chip) => (
-                  <button
-                    key={chip.label}
-                    onClick={() => {
-                      const newPrefs = preferences ? `${preferences} ${chip.text}` : chip.text;
-                      if (newPrefs.length <= MAX_PREFS) setPreferences(newPrefs);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--text-primary)]/5 border border-[var(--border-color)] text-[10px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all uppercase tracking-wider"
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-              
+      {/* AI Preferences */}
+      <div>
+        <SectionTitle>Custom Instructions</SectionTitle>
+        <div style={{
+          background: 'var(--bg-secondary)',
+          borderRadius: '12px',
+          border: '1px solid var(--border-color)',
+          padding: '16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={14} strokeWidth={2} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
+              <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                Behavior & Personality
+              </span>
             </div>
-        </SettingsGroup>
-      </motion.div>
+            <span style={{
+              fontSize: '10px', fontWeight: 500,
+              color: prefsOverLimit ? '#ef4444' : 'var(--text-tertiary)',
+              opacity: 0.6,
+            }}>
+              {prefsLeft} left
+            </span>
+          </div>
+
+          <textarea
+            value={preferences}
+            onChange={e => setPreferences(e.target.value.slice(0, MAX_PREFS + 20))}
+            placeholder='e.g. "Explain concepts using analogies. Keep responses concise but include code snippets."'
+            style={{
+              width: '100%',
+              padding: '12px',
+              minHeight: '100px',
+              maxHeight: '240px',
+              background: 'var(--bg-primary)',
+              border: `1px solid ${prefsOverLimit ? 'rgba(239,68,68,0.3)' : 'var(--border-color)'}`,
+              borderRadius: '10px',
+              color: 'var(--text-primary)',
+              fontSize: '12.5px',
+              lineHeight: '1.6',
+              outline: 'none',
+              resize: 'vertical',
+              fontFamily: 'inherit',
+              transition: 'border-color 0.15s',
+              boxSizing: 'border-box',
+            }}
+          />
+
+          {/* Quick chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+            {[
+              { label: 'Conceptual', text: 'Prioritize conceptual understanding over direct answers.' },
+              { label: 'Technical', text: 'Provide detailed technical explanations with code.' },
+              { label: 'Iterative', text: 'Ask follow-up questions to verify my understanding.' }
+            ].map((chip) => (
+              <button
+                key={chip.label}
+                onClick={() => {
+                  const newPrefs = preferences ? `${preferences} ${chip.text}` : chip.text;
+                  if (newPrefs.length <= MAX_PREFS) setPreferences(newPrefs);
+                }}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '10px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.12s',
+                  letterSpacing: '0.02em',
+                }}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Notifications */}
-      <motion.div variants={itemVariants}>
-        <SectionTitle>Experience</SectionTitle>
+      <div>
+        <SectionTitle>Notifications</SectionTitle>
         <SettingsGroup>
           <SettingsRow
             icon={notifCompletion ? Bell : BellOff}
             label="Push Notifications"
-            description="Get real-time updates when an agent finishes a task"
+            description="Updates when an agent finishes a task"
             rightElement={<AppleToggle value={notifCompletion} onChange={handleNotifToggle} />}
           />
           <SettingsRow
             icon={Volume2}
-            label="Audio Feedback"
-            description="Enable subtle sound effects for pedagogical transitions"
+            label="Sound Effects"
+            description="Subtle audio feedback for transitions"
             borderBottom={false}
             rightElement={<AppleToggle value={notifSound} onChange={setNotifSound} />}
           />
         </SettingsGroup>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

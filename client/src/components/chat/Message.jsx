@@ -1,95 +1,173 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Copy, Edit2, Trash2, Check, RefreshCw, ThumbsUp, ThumbsDown, X, Layers } from 'lucide-react';
+import { User, Copy, Edit2, Trash2, Check, RefreshCw, X, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import VisaiLogo from '../layout/VisaiLogo';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// ─── Markdown Renderers ─────────────────────────────────────────────────────
+// ─── Markdown Renderers (Premium Notes-App Typography) ──────────────────────
 
 const MarkdownComponents = {
   p: ({ children }) => (
-    <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>
+    <p className="mb-2.5 last:mb-0 leading-[1.7] text-[13px] text-[var(--text-primary)]/90 break-words">{children}</p>
   ),
   strong: ({ children }) => (
-    <span className="font-semibold text-[var(--text-primary)]">{children}</span>
+    <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>
   ),
   em: ({ children }) => (
-    <em className="italic opacity-80">{children}</em>
+    <em className="italic opacity-85">{children}</em>
   ),
   h1: ({ children }) => (
-    <h1 className="text-[15px] font-semibold mb-2 mt-3">{children}</h1>
+    <h1 className="!text-[18px] !font-bold !mb-4 !mt-6 first:!mt-0 !tracking-tight !text-[var(--text-primary)] !leading-tight !border-b !border-[var(--border-color)]/30 !pb-2">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="text-[14px] font-semibold mb-1.5 mt-2">{children}</h2>
+    <h2 className="!text-[14.5px] !font-semibold !mb-2 !mt-3.5 first:!mt-0 !tracking-[-0.01em] !text-[var(--text-primary)] !leading-tight">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-[13px] font-semibold mb-1 mt-1.5">{children}</h3>
+    <h3 className="!text-[13.5px] !font-medium !mb-1.5 !mt-3 first:!mt-0 !text-[var(--text-primary)] !leading-snug">{children}</h3>
   ),
   ul: ({ children }) => (
-    <ul className="my-1.5 pl-4 space-y-1 list-disc marker:text-[var(--text-tertiary)]">{children}</ul>
+    <ul className="my-2 pl-4 space-y-1 list-disc marker:text-[var(--text-tertiary)]/60 text-[13px]">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="my-1.5 pl-4 space-y-1 list-decimal marker:text-[var(--text-tertiary)]">{children}</ol>
+    <ol className="my-2 pl-4 space-y-1 list-decimal marker:text-[var(--text-tertiary)]/60 text-[13px]">{children}</ol>
   ),
   li: ({ children }) => (
-    <li className="leading-relaxed">{children}</li>
+    <li className="leading-[1.65] pl-0.5">{children}</li>
   ),
   code: ({ inline, children }) =>
     inline ? (
-      <code className="px-1.5 py-0.5 rounded-md text-[11px] font-mono bg-black/10 dark:bg-white/10 text-[var(--text-primary)]">
+      <code className="px-1 py-[1px] rounded text-[11.5px] font-mono bg-[var(--text-primary)]/[0.06] text-[var(--text-primary)] border border-[var(--border-color)]/20">
         {children}
       </code>
     ) : (
-      <pre className="my-2 p-3 rounded-xl text-[11px] font-mono bg-black/10 dark:bg-white/10 overflow-x-auto leading-relaxed">
+      <pre className="my-3 p-3.5 rounded-lg text-[11.5px] font-mono bg-[var(--text-primary)]/[0.04] overflow-x-auto leading-relaxed border border-[var(--border-color)]/15">
         <code>{children}</code>
       </pre>
     ),
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-[var(--text-tertiary)]/40 pl-3 my-2 italic opacity-80">
+    <blockquote className="border-l-[3px] border-[var(--text-tertiary)]/25 pl-3.5 my-3 text-[13px] text-[var(--text-secondary)] italic">
       {children}
     </blockquote>
   ),
   hr: () => (
-    <hr className="my-3 border-[var(--border-color)]" />
+    <hr className="my-5 border-[var(--border-color)]/40" />
   ),
   a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noreferrer" className="underline opacity-70 hover:opacity-100 transition-opacity">
+    <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2 text-[var(--text-primary)] font-medium hover:opacity-60 transition-opacity decoration-[var(--text-tertiary)]/30">
       {children}
     </a>
   ),
   table: ({ children }) => (
-    <div className="overflow-x-auto my-2">
-      <table className="text-[11px] border-collapse w-full">{children}</table>
+    <div className="overflow-x-auto my-3 rounded-lg border border-[var(--border-color)]/30">
+      <table className="text-[12px] border-collapse w-full">{children}</table>
     </div>
   ),
   th: ({ children }) => (
-    <th className="px-2 py-1.5 text-left font-semibold border border-[var(--border-color)] bg-black/5 dark:bg-white/5">{children}</th>
+    <th className="px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide border-b border-[var(--border-color)]/30 bg-[var(--text-primary)]/[0.03]">{children}</th>
   ),
   td: ({ children }) => (
-    <td className="px-2 py-1.5 border border-[var(--border-color)]">{children}</td>
+    <td className="px-3 py-1.5 border-b border-[var(--border-color)]/15 text-[12.5px]">{children}</td>
   ),
 };
 
-// ─── Streaming Cursor ───────────────────────────────────────────────────────
+// ─── Thinking Dropdown ──────────────────────────────────────────────────────
 
-const StreamingCursor = () => (
-  <motion.span
-    animate={{ opacity: [1, 0] }}
-    transition={{ duration: 0.6, repeat: Infinity, repeatType: 'reverse' }}
-    className="inline-block w-[2px] h-[1em] bg-[var(--text-primary)] ml-0.5 align-middle rounded-full"
-  />
-);
+const ThoughtDropdown = ({ content, isStreaming }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  if (!content && !isStreaming) return null;
+
+  return (
+    <div className="mb-3 w-full max-w-[90%]">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--text-primary)]/[0.04] hover:bg-[var(--text-primary)]/[0.08] border border-[var(--border-color)]/20 transition-all group"
+      >
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] animate-pulse" />
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors">
+            {isStreaming ? 'Agent is thinking...' : 'View Reasoning'}
+          </span>
+        </div>
+        <ChevronRight size={12} className={`text-[var(--text-tertiary)] transition-transform duration-300 ${isOpen ? 'rotate-90' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 p-3 rounded-xl bg-[var(--text-primary)]/[0.02] border border-[var(--border-color)]/10 text-[12px] leading-relaxed text-[var(--text-secondary)] italic font-light border-l-2 border-l-[var(--text-tertiary)]/30">
+              {content}
+              {isStreaming && <span className="animate-pulse ml-0.5">▍</span>}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// ─── Source Cards ──────────────────────────────────────────────────────────
+
+const SourceGrid = ({ sources }) => {
+  if (!sources || sources.length === 0) return null;
+
+  return (
+    <div className="mb-4 w-full">
+      <div className="flex items-center gap-2 mb-2.5 px-0.5">
+        <div className="w-4 h-4 rounded-full bg-[var(--text-primary)]/[0.05] flex items-center justify-center">
+          <BookOpen size={10} className="text-[var(--text-tertiary)]" />
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">Sources</span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-0.5">
+        {sources.map((source, idx) => (
+          <a
+            key={idx}
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 w-36 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/20 hover:border-[var(--text-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-all group"
+          >
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                <img 
+                  src={`https://www.google.com/s2/favicons?domain=${new URL(source.url).hostname}&sz=32`} 
+                  alt="" 
+                  className="w-3 h-3 rounded-sm opacity-70 group-hover:opacity-100 transition-opacity"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+                <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider truncate">
+                  {new URL(source.url).hostname.replace('www.', '')}
+                </span>
+              </div>
+              <h4 className="text-[11px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 group-hover:text-[var(--text-primary)] transition-colors">
+                {source.title}
+              </h4>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // ─── Message Component ──────────────────────────────────────────────────────
 
 const Message = ({
   role, content, messageId, timestamp,
   isStreaming, streamingContent,
+  isStreamingThought, streamingThought,
+  streamingSources,
   onEditMessage, onDeleteMessage, onRegenerateMessage, onFeedback,
   onOpenCanvas, hasCanvas, elements, objects, steps, stepTitle, domain,
   visualizationType, motion: motionData, connections, sequence,
-  metadata,
+  metadata, onSwitchVersion,
 }) => {
   const isAssistant = role === 'assistant';
   const [copied, setCopied] = useState(false);
@@ -98,7 +176,7 @@ const Message = ({
   const [editContent, setEditContent] = useState('');
   const editRef = useRef(null);
 
-  const displayContent = isStreaming ? streamingContent : content;
+  const displayContent = isStreaming ? streamingContent + ' ▍' : content;
 
   const formatTime = (ts) => {
     try {
@@ -154,99 +232,11 @@ const Message = ({
   }, [isEditing, editContent]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
-      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
-      className={`w-full px-4 py-2 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
-      onMouseEnter={() => !isStreaming && setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+    <div
+      className={`w-full py-1 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
     >
-      {/* ── Header: Avatar + Label + Actions ── */}
-      <div className={`flex items-center gap-1.5 mb-1.5 ${isAssistant ? '' : 'flex-row-reverse'}`}>
-        {isAssistant ? (
-          <VisaiLogo size="xxs" />
-        ) : (
-          <div className="w-5 h-5 rounded-full bg-[var(--text-secondary)]/20 border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
-            <User size={10} className="text-[var(--text-secondary)]" />
-          </div>
-        )}
-        <span className="text-[10px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)] opacity-60">
-          {isAssistant ? 'TutorBoard' : 'You'}
-        </span>
-        <span className="text-[9px] text-[var(--text-tertiary)]/40 font-normal tabular-nums tracking-wider">
-          {formatTime(timestamp)}
-        </span>
-
-        {/* Edited badge */}
-        {metadata?.edited && (
-          <span className="text-[8px] text-[var(--text-tertiary)]/50 font-normal italic ml-1">edited</span>
-        )}
-
-        {/* ── Hover Action Bar ── */}
-        <AnimatePresence>
-          {showActions && !isEditing && !isStreaming && (
-            <motion.div
-              initial={{ opacity: 0, x: isAssistant ? -4 : 4, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: isAssistant ? -4 : 4, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className={`flex items-center gap-0.5 ${isAssistant ? 'ml-1' : 'mr-1'} 
-                bg-[var(--bg-secondary)]/90 backdrop-blur-xl border border-[var(--border-color)]/50 
-                rounded-lg px-1 py-0.5 shadow-lg`}
-            >
-              {/* Copy */}
-              <button onClick={handleCopy} title="Copy" className="chat-action-btn">
-                {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-              </button>
-
-              {/* Edit (user messages only) */}
-              {!isAssistant && onEditMessage && (
-                <button onClick={handleStartEdit} title="Edit" className="chat-action-btn">
-                  <Edit2 size={11} />
-                </button>
-              )}
-
-              {/* Regenerate (assistant messages only) */}
-              {isAssistant && onRegenerateMessage && (
-                <button onClick={() => onRegenerateMessage(messageId)} title="Regenerate" className="chat-action-btn">
-                  <RefreshCw size={11} />
-                </button>
-              )}
-
-              {/* Feedback (assistant messages only) */}
-              {isAssistant && onFeedback && (
-                <>
-                  <button
-                    onClick={() => onFeedback(messageId, 'positive')}
-                    title="Good response"
-                    className={`chat-action-btn ${metadata?.feedback === 'positive' ? '!text-emerald-500' : ''}`}
-                  >
-                    <ThumbsUp size={11} />
-                  </button>
-                  <button
-                    onClick={() => onFeedback(messageId, 'negative')}
-                    title="Bad response"
-                    className={`chat-action-btn ${metadata?.feedback === 'negative' ? '!text-red-400' : ''}`}
-                  >
-                    <ThumbsDown size={11} />
-                  </button>
-                </>
-              )}
-
-              {/* Delete */}
-              {onDeleteMessage && (
-                <button onClick={() => onDeleteMessage(messageId)} title="Delete" className="chat-action-btn hover:!text-red-400">
-                  <Trash2 size={11} />
-                </button>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
       {/* ── Message Bubble ── */}
-      <div className="relative group max-w-[90%]">
+      <div className={`relative group min-w-0 ${isAssistant ? 'max-w-[95%] w-full' : 'max-w-[85%]'}`}>
         <AnimatePresence mode="wait">
           {isEditing ? (
             /* ── EDIT MODE ── */
@@ -255,79 +245,162 @@ const Message = ({
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
-              className="w-full min-w-[280px]"
+              className="w-full min-w-[240px]"
             >
-              <div className="rounded-2xl border-2 border-[var(--text-primary)]/30 overflow-hidden bg-[var(--bg-secondary)]">
+              <div className="rounded-2xl border border-[var(--text-primary)]/20 overflow-hidden bg-[var(--bg-secondary)]">
                 <textarea
                   ref={editRef}
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   onKeyDown={handleEditKeyDown}
-                  className="w-full bg-transparent text-[var(--text-primary)] text-[14px] leading-relaxed px-4 py-3 outline-none resize-none font-normal"
+                  className="w-full bg-transparent text-[var(--text-primary)] text-[13.5px] leading-[1.65] px-4 py-3 outline-none resize-none font-normal"
                   rows={2}
                 />
-                <div className="flex items-center justify-end gap-2 px-3 pb-2.5">
+                <div className="flex items-center justify-end gap-1.5 px-3 pb-2">
                   <button
                     onClick={handleCancelEdit}
-                    className="flex items-center gap-1 px-3 py-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-tertiary)] transition-all"
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--bg-tertiary)] transition-all"
                   >
-                    <X size={11} /> Cancel
+                    Cancel
                   </button>
                   <button
                     onClick={handleSaveEdit}
                     disabled={!editContent.trim() || editContent === content}
-                    className="flex items-center gap-1 px-3 py-1.5 text-[11px] bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-lg hover:opacity-90 transition-all disabled:opacity-30"
+                    className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-lg hover:opacity-90 transition-all disabled:opacity-20"
                   >
-                    <Check size={11} /> Save & Submit
+                    <Check size={10} /> Save
                   </button>
                 </div>
               </div>
             </motion.div>
           ) : (
             /* ── DISPLAY MODE ── */
-            <motion.div
-              key="display"
-              initial={false}
-              className={`relative px-4 py-3 text-[14px] leading-relaxed transition-all duration-300 ${
-                isAssistant
-                  ? 'rounded-2xl rounded-tl-sm'
-                  : 'rounded-2xl rounded-tr-sm'
-              }`}
-              style={{
-                backgroundColor: isAssistant ? 'var(--bg-secondary)' : 'var(--text-primary)',
-                color: isAssistant ? 'var(--text-primary)' : 'var(--bg-primary)',
-                boxShadow: isAssistant ? 'none' : '0 8px 30px rgba(0,0,0,0.1)',
-              }}
-            >
-              {isAssistant ? (
-                <>
+            <div className={`flex flex-col gap-0 ${isAssistant ? 'items-start' : 'items-end'} min-w-0 w-full`}>
+                {isAssistant && (metadata?.sources || streamingSources) && (
+                  <SourceGrid sources={metadata?.sources || streamingSources} />
+                )}
+                
+                {isAssistant && (metadata?.thought || streamingThought) && (
+                  <ThoughtDropdown 
+                    content={metadata?.thought || streamingThought} 
+                    isStreaming={isStreaming && !!streamingThought} 
+                  />
+                )}
+                
+                <motion.div
+                  key="display"
+                  initial={isStreaming ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={isStreaming ? { duration: 0 } : { duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className={`relative min-w-0 max-w-full break-words overflow-hidden ${
+                  isAssistant
+                    ? 'px-1 py-1 text-[13px]'
+                    : 'px-4 py-2.5 rounded-2xl rounded-tr-md text-[13.5px]'
+                }`}
+                style={
+                  isAssistant ? {} : {
+                    backgroundColor: 'var(--text-primary)',
+                    color: 'var(--bg-primary)',
+                  }
+                }
+              >
+                {isAssistant ? (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={MarkdownComponents}
                   >
                     {displayContent || ''}
                   </ReactMarkdown>
-                  {isStreaming && <StreamingCursor />}
+                ) : (
+                  <p style={{ color: 'inherit' }} className="whitespace-pre-wrap leading-[1.65]">{displayContent}</p>
+                )}
+              </motion.div>
 
-                  {/* Canvas button */}
-                  {hasCanvas && !isStreaming && (
-                    <button
-                      onClick={() => onOpenCanvas?.(messageId)}
-                      className="mt-4 w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl transition-all shadow-lg hover:scale-[1.02] active:scale-[0.98] group font-normal tracking-widest text-[10px] uppercase"
-                    >
-                      <Layers size={13} className="text-[var(--bg-primary)] group-hover:scale-110 transition-transform" />
-                      Deep Visual Dive
+              {/* ── Inline Action Bar (below bubble) ── */}
+              <AnimatePresence>
+                {!isEditing && !isStreaming && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -2 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -2 }}
+                    transition={{ duration: 0.12 }}
+                    className={`flex items-center gap-0 mt-0.5 ${isAssistant ? '' : 'flex-row-reverse'}`}
+                  >
+                    {/* Copy */}
+                    <button onClick={handleCopy} title="Copy" className="chat-action-btn">
+                      {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                     </button>
-                  )}
-                </>
-              ) : (
-                <p style={{ color: 'inherit' }} className="whitespace-pre-wrap leading-relaxed">{displayContent}</p>
+
+                    {/* Edit (user only) */}
+                    {!isAssistant && onEditMessage && (
+                      <button onClick={handleStartEdit} title="Edit" className="chat-action-btn">
+                        <Edit2 size={12} />
+                      </button>
+                    )}
+
+                    {/* Regenerate (assistant only) */}
+                    {isAssistant && onRegenerateMessage && (
+                      <button onClick={() => onRegenerateMessage(messageId)} title="Regenerate" className="chat-action-btn">
+                        <RefreshCw size={12} />
+                      </button>
+                    )}
+
+                    {/* Delete */}
+                    {onDeleteMessage && (
+                      <button onClick={() => onDeleteMessage(messageId)} title="Delete" className="chat-action-btn hover:!text-red-400">
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+
+                    {/* Timestamp */}
+                    <span className={`text-[9px] text-[var(--text-tertiary)]/40 tabular-nums tracking-wide px-1 ${isAssistant ? '' : 'order-first'}`}>
+                      {formatTime(timestamp)}
+                      {metadata?.edited && <span className="ml-1 italic opacity-60">· edited</span>}
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* ── Canvas CTA ── */}
+              {isAssistant && hasCanvas && !isStreaming && (
+                <button
+                  onClick={() => onOpenCanvas?.(messageId)}
+                  className="mt-2 flex items-center gap-2 px-3.5 py-2 bg-[var(--text-primary)]/[0.06] hover:bg-[var(--text-primary)]/[0.1] border border-[var(--border-color)]/30 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.98] text-[11px] font-medium text-[var(--text-secondary)] tracking-wide uppercase"
+                >
+                  <Layers size={13} strokeWidth={2} />
+                  Open Canvas
+                </button>
               )}
-            </motion.div>
+
+              {/* ── Version Switcher ── */}
+              {metadata?.versions?.length > 1 && (
+                <div className={`flex items-center gap-1 mt-1 text-[10px] font-medium tracking-wide text-[var(--text-tertiary)]/60 hover:text-[var(--text-tertiary)] transition-colors`}>
+                  <button
+                    onClick={() => onSwitchVersion?.(messageId, Math.max(0, metadata.activeVersionIndex - 1))}
+                    disabled={metadata.activeVersionIndex === 0}
+                    className="p-0.5 hover:text-[var(--text-primary)] rounded disabled:opacity-20 transition-colors"
+                  >
+                    <ChevronLeft size={11} strokeWidth={2.5} />
+                  </button>
+                  
+                  <span className="tabular-nums">
+                    {metadata.activeVersionIndex + 1}/{metadata.versions.length}
+                  </span>
+
+                  <button
+                    onClick={() => onSwitchVersion?.(messageId, Math.min(metadata.versions.length - 1, metadata.activeVersionIndex + 1))}
+                    disabled={metadata.activeVersionIndex === metadata.versions.length - 1}
+                    className="p-0.5 hover:text-[var(--text-primary)] rounded disabled:opacity-20 transition-colors"
+                  >
+                    <ChevronRight size={11} strokeWidth={2.5} />
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import ChatSession from '../models/ChatSession.js';
 import ActivityLog from '../models/ActivityLog.js';
 
@@ -122,6 +123,11 @@ export const saveSession = async (req, res) => {
       const updateFields = { lastUpdated: Date.now() };
       if (title !== undefined) updateFields.title = title;
       
+      // Always sync top-level canvas state if provided
+      if (canvasState !== undefined) updateFields.canvasState = canvasState;
+      if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
+      if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
+
       // If we're editing a specific message's snapshot, inject the state there
       if (activeSnapshotId && messages) {
         const msgIndex = messages.findIndex(m => m.id === activeSnapshotId);
@@ -137,11 +143,8 @@ export const saveSession = async (req, res) => {
         }
         updateFields.messages = messages;
       } else {
-        // Normal session-wide update
+        // Normal session-wide message update
         if (messages !== undefined) updateFields.messages = messages;
-        if (canvasState !== undefined) updateFields.canvasState = canvasState;
-        if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
-        if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
       }
 
       if (preferences !== undefined) updateFields.preferences = preferences;
@@ -218,8 +221,7 @@ export const beaconSave = async (req, res) => {
     }
 
     // Verify token manually
-    const jwt = await import('jsonwebtoken');
-    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (!decoded?.id) {
       return res.status(401).json({ error: 'Invalid token' });
     }

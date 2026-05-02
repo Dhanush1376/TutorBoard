@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import useTutorStore from '../store/tutorStore';
 import { useAuth } from '../context/AuthContext';
 import useSocket from './useSocket';
@@ -147,6 +147,8 @@ export const useSessionSync = (chatMessages) => {
   };
 
   // 1. Debounced Auto-Sync
+  const fingerprint = useMemo(() => getCanvasFingerprint(canvasObjects), [canvasObjects]);
+
   useEffect(() => {
     if (!user || user.isGuest || !token) return;
 
@@ -165,7 +167,7 @@ export const useSessionSync = (chatMessages) => {
   }, [
     chatSessionId, topic, 
     canvasObjects?.length, 
-    getCanvasFingerprint(canvasObjects),
+    fingerprint,
     pinnedNotes?.length,
     canvasVersion, 
     doubtHistory?.length, 

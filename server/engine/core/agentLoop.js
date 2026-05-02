@@ -22,6 +22,9 @@ import { getPrompt } from '../config/promptRegistry.js';
 import { SceneGraphSchema } from '../validators/timelineSchema.js';
 import VectorStoreService from './vectorStore.js';
 import { validateVisualScript } from './visualScriptValidator.js';
+import { searchWeb } from '../../utils/ai/webSearchService.js';
+import { shouldSearch, detectTools } from '../../utils/ai/searchGate.js';
+import { formatForPrompt, extractSources } from '../../utils/ai/searchContextFormatter.js';
 
 // ─── Robust JSON Extractor ────────────────────────────────────────────────────
 // FIX 1: Old code had a regex that only matched JSON with "elements"/"timeline" 
@@ -321,6 +324,26 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
   throw lastError;
 }
 
+// ─── Failsafe Fallback Generator ───────────────────────────────────────────
+function createFallbackTimeline(topic, errorMsg = 'Pedagogical validation failed') {
+  console.log(`[AgentLoop] 🛡️ Creating fallback timeline for: "${topic}"`);
+  return {
+    scene: { title: topic || 'Learning Session', type: 'linear' },
+    meta: { topic: topic || 'Learning Session', concept_type: 'general', level: 'intermediate' },
+    elements: [
+      { id: 'fallback-orb', type: 'orb', x: 0.5, y: 0.4, radius: 0.1, color: '#4F46E5', label: topic || 'Topic' }
+    ],
+    timeline: [
+      {
+        title: 'Introduction',
+        explanation: `I've prepared a foundational overview for **${topic}**. While the advanced visual simulation encountered a technical glitch (${errorMsg}), we can still explore the core concepts through interactive dialogue.`,
+        objectIds: ['fallback-orb'],
+        animation: { type: 'fade', duration: 0.8, actions: [{ id: 'fallback-orb', cmd: 'fade_in' }] }
+      }
+    ]
+  };
+}
+
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
 export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null, file = null }) {
   console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
@@ -330,19 +353,32 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     const minSteps = Math.max(4, Math.floor((maxSteps || 16) / 2));
     const targetMax = maxSteps || 16;
     
-    // Phase 5: Semantic Retrieval
+    // Phase 5: Semantic Retrieval + Web Search (Parallel)
     const userId = userConfig?.userId || learnerProfile?.userId || null;
-    const pastContext = await VectorStoreService.getContextForTopic(topic, 3, userId);
+
+    const toolDecision = detectTools(topic);
+    const doSearch = toolDecision.useWebSearch || shouldSearch(topic, domain);
+
+    const [pastContext, webResults] = await Promise.all([
+      VectorStoreService.getContextForTopic(topic, 3, userId),
+      doSearch ? searchWeb(topic, { count: 5 }) : Promise.resolve([])
+    ]);
 
     const pastContextStr = learnerProfile?.past_context || pastContext || "No prior sessions found for this topic.";
-
     const learnerStyleStr = learnerProfile?.learning_style || "General (Visual-Conceptual balance)";
+    const webContextStr = formatForPrompt(webResults);
+    const sources = extractSources(webResults);
+
+    if (sources.length > 0) {
+      console.log(`[AgentLoop] 🌐 Web search returned ${sources.length} sources for: "${topic.substring(0, 40)}..."`);
+    }
 
     const plannerPrompt = (systemPrompt || getPrompt('planner'))
       .replace(/{{MIN_STEPS}}/g, String(minSteps))
       .replace(/{{MAX_STEPS}}/g, String(targetMax))
       .replace(/{{PAST_CONTEXT}}/g, String(pastContextStr))
-      .replace(/{{LEARNER_STYLE}}/g, String(learnerStyleStr));
+      .replace(/{{LEARNER_STYLE}}/g, String(learnerStyleStr))
+      .replace(/{{WEB_CONTEXT}}/g, webContextStr || 'No recent web data available.');
 
     const plannerOutput = planningResult || await runStage({
       stageName: '💡 Thinking deeply about the topic...',
@@ -454,22 +490,29 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     const unwrapped = unwrapValidatorOutput(validatorRaw);
     if (!unwrapped) {
       console.warn('[AgentLoop] ⚠️ unwrapValidatorOutput returned null — triggering failsafe.');
-      return null;
+      return createFallbackTimeline(normalizedTopic, 'Unwrap failed');
     }
 
     const validated = validateSceneGraph(unwrapped);
     if (!validated.valid) {
-      if (validated.fatal) return null;
+      if (validated.fatal) {
+        return createFallbackTimeline(normalizedTopic, validated.errors[0] || 'Fatal validation error');
+      }
       console.warn('[AgentLoop] ⚠️ Validation issues (non-fatal):', validated.errors.join(', '));
     }
 
     const output = validated.data || unwrapped;
+
+    // Attach web sources to the output for citation display
+    if (sources && sources.length > 0) {
+      output.sources = sources;
+    }
 
     console.log(`[AgentLoop] ✅ Pipeline SUCCESS — ${output.elements?.length || 0} elements, ${output.timeline?.length || 0} steps`);
     return output;
 
   } catch (err) {
     console.error(`[AgentLoop] ❌ Critical failure: ${err.message}`);
-    return null;
+    return createFallbackTimeline(topic, err.message);
   }
 }

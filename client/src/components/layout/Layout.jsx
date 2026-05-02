@@ -7,7 +7,7 @@ import Toolbar from '../toolbar/Toolbar';
 import useTutorStore from '../../store/tutorStore';
 import useWindowSize from '../../hooks/useWindowSize';
 
-const SIDEBAR_WIDTH = 320;
+const SIDEBAR_WIDTH = 350;
 const PANEL_RADIUS = 28;
 const PANEL_GAP = 0;
 

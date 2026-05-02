@@ -15,60 +15,61 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
   
   const greeting = React.useMemo(() => {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return "Welcome, Early Bird,";
-    if (hour >= 12 && hour < 17) return "Welcome, Day Dreamer,";
-    if (hour >= 17 && hour < 21) return "Welcome, Calm Creator,";
-    return "Welcome, Night Owl,";
+    if (hour >= 5 && hour < 12) return "Good morning,";
+    if (hour >= 12 && hour < 17) return "Good afternoon,";
+    if (hour >= 17 && hour < 21) return "Good evening,";
+    return "Good evening,";
   }, []);
 
   const modes = [
-    { id: 'quick', label: 'Quick Answer', icon: BookOpen, color: '#60a5fa' },
-    { id: 'deep', label: 'Deep Visual Dive', icon: Layers, color: '#f87171' },
-    { id: 'test_me', label: 'Test Me', icon: ClipboardCheck, color: '#fbbf24' },
+    { id: 'quick', label: 'Quick Answer', icon: BookOpen, desc: 'Concise explanations' },
+    { id: 'deep', label: 'Visual Dive', icon: Layers, desc: 'Step-by-step canvas' },
+    { id: 'test_me', label: 'Test Me', icon: ClipboardCheck, desc: 'Interactive quiz' },
   ];
 
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`flex-1 flex flex-col justify-start ${isMobile ? 'px-4 py-6' : 'px-6 py-16'} select-none overflow-y-auto no-scrollbar`}
+      className={`flex-1 flex flex-col justify-center ${isMobile ? 'px-5 py-6' : 'px-6 py-12'} select-none overflow-y-auto no-scrollbar`}
     >
       <motion.div
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className={isMobile ? "mb-4" : "mb-8"}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className={isMobile ? "mb-6" : "mb-10"}
       >
-        <p className={`!font-normal text-[var(--text-secondary)] mb-0.5 tracking-tight opacity-80 ${isMobile ? '!text-[9px]' : '!text-[11px] lg:!text-[12px]'}`}>
+        <p className={`text-[var(--text-tertiary)] mb-1.5 font-normal ${isMobile ? 'text-[11px]' : 'text-[12px]'}`}>
           {greeting}
         </p>
-        <h1 className={`${isMobile ? '!text-[12px]' : '!text-[22px] md:!text-[24px] lg:!text-[30px]'} font-sans font-normal text-[var(--text-primary)] leading-[1.2] tracking-tight`}>
-          Where should <br /> we start?
+        <h1 className={`${isMobile ? '!text-[18px]' : '!text-[26px]'} font-normal text-[var(--text-primary)] leading-[1.25] tracking-tight`}>
+          What would you like<br />to learn today?
         </h1>
       </motion.div>
 
-      <div className="flex flex-col gap-2 items-start">
+      <div className="flex flex-col gap-2">
         {modes.map((mode, i) => (
           <motion.button
             key={mode.id}
-            initial={{ opacity: 0, x: -15 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.15 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 + i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setActiveMode(activeMode === mode.id ? null : mode.id)}
-            className={`flex items-center ${isMobile ? 'gap-2 px-3 py-2' : 'gap-3 px-5 py-3.5'} rounded-full border transition-all active:scale-[0.96] shadow-sm hover:shadow-md group ${
+            className={`flex items-center ${isMobile ? 'gap-2.5 px-3.5 py-2.5' : 'gap-3 px-4 py-3'} rounded-xl border transition-all active:scale-[0.97] group ${
               activeMode === mode.id 
                 ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
-                : 'bg-[var(--bg-tertiary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/90'
+                : 'bg-[var(--bg-secondary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)]/30'
             }`}
           >
-            <div className={`flex items-center justify-center transition-transform group-hover:scale-110 ${
-              activeMode === mode.id ? 'opacity-100' : 'opacity-80'
-            }`}>
-              <mode.icon size={isMobile ? 15 : 20} strokeWidth={2.5} style={{ color: activeMode === mode.id ? '#fff' : mode.color }} />
+            <mode.icon size={isMobile ? 15 : 17} strokeWidth={2} className={activeMode === mode.id ? 'opacity-100' : 'opacity-50'} />
+            <div className="flex flex-col items-start gap-0">
+              <span className={`${isMobile ? 'text-[12.5px]' : 'text-[13.5px]'} font-medium tracking-tight`}>
+                {mode.label}
+              </span>
+              <span className={`text-[10px] font-normal ${activeMode === mode.id ? 'opacity-60' : 'opacity-40'}`}>
+                {mode.desc}
+              </span>
             </div>
-            <span className={`${isMobile ? 'text-[12px]' : 'text-[16px]'} font-normal tracking-tight pr-1`}>
-              {mode.label}
-            </span>
           </motion.button>
         ))}
       </div>
@@ -113,8 +114,8 @@ const ThinkingIndicator = () => (
             <motion.div
               key={i}
               animate={{ 
-                scale: [1, 1.5, 1],
-                opacity: [0.3, 1, 0.3]
+                opacity: [0.2, 1, 0.2],
+                scale: [0.8, 1.2, 0.8]
               }}
               transition={{ 
                 duration: 1, 
@@ -137,7 +138,7 @@ const ThinkingIndicator = () => (
 
 const ChatWindow = ({
   messages, isGenerating,
-  onOpenCanvas, onDeleteMessage, onEditMessage, onRegenerateMessage, onFeedback,
+  onOpenCanvas, onDeleteMessage, onEditMessage, onRegenerateMessage, onFeedback, onSwitchVersion,
   activeMode, setActiveMode,
 }) => {
   const bottomRef = useRef(null);
@@ -147,8 +148,17 @@ const ChatWindow = ({
   // Read streaming state from store
   const isStreaming = useTutorStore((s) => s.isStreaming);
   const streamingContent = useTutorStore((s) => s.streamingContent);
+  const streamingThought = useTutorStore((s) => s.streamingThought);
   const streamingMessageId = useTutorStore((s) => s.streamingMessageId);
+  const streamingSessionId = useTutorStore((s) => s.streamingSessionId);
+  const streamingSources = useTutorStore((s) => s.conversationSources);
   const isWaitingForAI = useTutorStore((s) => s.isWaitingForAI);
+  const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
+  const currentSessionId = useTutorStore((s) => s.chatSessionId || s.sessionId);
+
+  // Filter streaming/waiting status by session ID to prevent cross-chat UI bleed
+  const isCurrentlyStreaming = isStreaming && streamingSessionId === currentSessionId;
+  const isCurrentlyWaiting = isWaitingForAI && waitingSessionId === currentSessionId;
 
   // ── Smart Auto-Scroll ──
   // Only auto-scroll if user hasn't manually scrolled up
@@ -170,11 +180,13 @@ const ChatWindow = ({
   // Scroll to bottom on new messages or streaming content
   useEffect(() => {
     if (!userScrolledRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Use 'auto' behavior during streaming for perfect smoothness, 'smooth' for static messages
+      const behavior = isStreaming ? 'auto' : 'smooth';
+      bottomRef.current?.scrollIntoView({ behavior });
     }
-  }, [messages.length, streamingContent, isWaitingForAI]);
+  }, [messages.length, streamingContent, isWaitingForAI, isStreaming]);
 
-  const isEmpty = messages.length === 0 && !isGenerating && !isWaitingForAI && !isStreaming;
+  const isEmpty = messages.length === 0 && !isGenerating && !isCurrentlyWaiting && !isCurrentlyStreaming;
 
   return (
     <div ref={containerRef} className="flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar">
@@ -186,7 +198,7 @@ const ChatWindow = ({
             key="messages"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-col py-2"
+            className="flex flex-col px-3 py-3 gap-1"
           >
             {messages.map((msg) => {
               const msgKey = msg.id || `msg-idx-${msg.role}-${msg.timestamp}`;
@@ -203,6 +215,7 @@ const ChatWindow = ({
                   onEditMessage={onEditMessage}
                   onRegenerateMessage={onRegenerateMessage}
                   onFeedback={onFeedback}
+                  onSwitchVersion={onSwitchVersion}
                   steps={msg.steps}
                   stepTitle={msg.stepTitle}
                   domain={msg.domain}
@@ -218,7 +231,7 @@ const ChatWindow = ({
             })}
 
             {/* ── Streaming Message (live typing) ── */}
-            {isStreaming && streamingContent && (
+            {isCurrentlyStreaming && streamingContent && (
               <Message
                 key="streaming-msg"
                 role="assistant"
@@ -227,12 +240,14 @@ const ChatWindow = ({
                 timestamp={new Date().toISOString()}
                 isStreaming={true}
                 streamingContent={streamingContent}
+                streamingThought={streamingThought}
+                streamingSources={streamingSources}
               />
             )}
 
             {/* ── Thinking Indicator (waiting for AI) ── */}
             <AnimatePresence>
-              {(isWaitingForAI || (isGenerating && !isStreaming)) && (
+              {(isCurrentlyWaiting || (isGenerating && !isCurrentlyStreaming)) && (
                 <ThinkingIndicator key="thinking" />
               )}
             </AnimatePresence>

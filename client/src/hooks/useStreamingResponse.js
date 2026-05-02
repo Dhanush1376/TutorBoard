@@ -12,7 +12,7 @@ export default function useStreamingResponse() {
   const abortedRef = useRef(false);
   const isActiveRef = useRef(false);
 
-  const startStreaming = useCallback((fullContent, messageId) => {
+  const startStreaming = useCallback((fullContent, messageId, onComplete = null) => {
     const store = useTutorStore.getState();
     abortedRef.current = false;
     isActiveRef.current = true;
@@ -32,6 +32,7 @@ export default function useStreamingResponse() {
         isActiveRef.current = false;
         if (!abortedRef.current) {
           store.finishStreaming(fullContent);
+          if (onComplete) onComplete(fullContent);
         }
         return;
       }

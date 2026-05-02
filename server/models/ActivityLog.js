@@ -29,7 +29,8 @@ const activityLogSchema = new mongoose.Schema({
       'ai_retry',
       'doubt_asked',
       'doubt_resolved',
-      'navigation'
+      'navigation',
+      'chat_message'
     ],
     required: true,
   },
@@ -45,7 +46,6 @@ const activityLogSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now,
-    index: true,
   },
 });
 

@@ -187,11 +187,13 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   // Auto-resize textarea
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 200);
+      textarea.style.height = `${newHeight}px`;
     }
-  }, [value]);
+  }, [value, activeMode]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -319,9 +321,11 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   const { isMobile } = useWindowSize();
 
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
-    <div className="w-full">
-      <div className={`flex flex-col liquid-glass ${isMobile ? 'rounded-t-2xl' : 'rounded-t-[32px]'} pt-2 px-2 pb-1 relative transition-all duration-300 group`}>
+    <div className={`w-full max-w-4xl mx-auto transition-transform duration-500 ${isFocused ? 'scale-[1.005]' : 'scale-100'}`}>
+      <div className={`flex flex-col h-auto glass-strong ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[28px] mx-4 mb-4'} p-1.5 relative shadow-2xl transition-shadow duration-500 ${isFocused ? 'shadow-[0_20px_60px_rgba(0,0,0,0.2)] ring-[var(--text-primary)]/20' : 'ring-[var(--border-color)]'} ring-1`}>
         
         {/* Upload Progress Bar */}
         <AnimatePresence>
@@ -330,72 +334,73 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               initial={{ scaleX: 0, opacity: 0 }}
               animate={{ scaleX: uploadProgress / 100, opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute top-0 left-0 right-0 h-[2.5px] bg-[#10b981] origin-left z-50 rounded-t-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-              transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+              className="absolute top-0 left-0 right-0 h-[3px] bg-[#10b981] origin-left z-50 rounded-t-full shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
             />
           )}
         </AnimatePresence>
 
         {/* ── Textarea Area (Top Box) ── */}
-        <div className="bg-transparent transition-all flex flex-col">
+        <div className={`bg-[var(--bg-secondary)]/30 rounded-[22px] flex flex-col h-auto flex-shrink-0 transition-colors duration-300 ring-1 ring-inset ${isFocused ? 'ring-[var(--text-primary)]/10 bg-[var(--bg-secondary)]/60' : 'ring-[var(--border-color)]/20 hover:bg-[var(--bg-secondary)]/50'}`}>
           
-          {/* Active Mode Chip */}
+          {/* Active Mode/File Chips */}
           <AnimatePresence>
             {(activeMode || attachedFile || isUploading) && (
               <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="flex items-center gap-1.5 pl-2 pt-2 flex-wrap"
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex items-center gap-2 pl-3 pt-3 flex-wrap"
               >
                 {activeMode && (
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg shadow-sm">
+                  <motion.div 
+                    layoutId="activeMode"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl shadow-md ring-1 ring-white/10"
+                  >
                     {(() => {
                       const action = quickActions.find(a => a.mode === activeMode);
                       if (!action) return null;
                       const Icon = action.icon;
                       return (
                         <>
-                          <div className="p-1 bg-[var(--text-primary)]/10 rounded-md text-[var(--text-primary)]">
-                            <Icon size={10} strokeWidth={3} />
-                          </div>
-                          <span className="text-[10px] font-normal tracking-tight">{action.label}</span>
+                          <Icon size={12} strokeWidth={2} className="opacity-90" />
+                          <span className="text-[10px] font-medium tracking-tight">{action.label}</span>
                         </>
                       );
                     })()}
                     <button
                       onClick={() => setActiveMode(null)}
-                      className="ml-0.5 p-0.5 hover:bg-[var(--bg-quaternary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-full transition-colors"
+                      className="ml-1 p-0.5 hover:bg-white/20 rounded-full transition-colors"
                     >
                       <X size={10} strokeWidth={3} />
                     </button>
-                  </div>
+                  </motion.div>
                 )}
 
                 {isUploading && (
-                  <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)] rounded-lg">
-                    <Loader2 size={10} className="animate-spin" />
-                    <span className="text-[9px] uppercase tracking-widest">Uploading</span>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)] rounded-xl">
+                    <Loader2 size={11} className="animate-spin" />
+                    <span className="text-[9px] font-medium uppercase tracking-widest">Uploading</span>
                   </div>
                 )}
 
                 {attachedFile && (
-                  <div className="flex items-center gap-2 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg shadow-sm">
+                  <div className="flex items-center gap-2 px-2 py-1.5 bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl shadow-sm pr-1.5">
                     {attachedFile.type.startsWith('image/') ? (
-                      <div className="w-5 h-5 rounded-sm overflow-hidden border border-[var(--border-color)]">
+                      <div className="w-6 h-6 rounded-lg overflow-hidden ring-1 ring-[var(--border-color)]">
                         <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className="p-1 bg-blue-500/10 rounded-md text-blue-500">
-                        <FileText size={10} strokeWidth={3} />
+                      <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500">
+                        <FileText size={12} strokeWidth={2.5} />
                       </div>
                     )}
-                    <span className="text-[10px] font-normal tracking-tight max-w-[80px] truncate">{attachedFile.name}</span>
+                    <span className="text-[10px] font-medium tracking-tight max-w-[100px] truncate">{attachedFile.name}</span>
                     <button
                       onClick={() => setAttachedFile(null)}
-                      className="ml-0.5 p-0.5 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-full transition-colors"
+                      className="ml-1 p-1 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-lg transition-all"
                     >
-                      <X size={10} strokeWidth={3} />
+                      <X size={12} strokeWidth={2.5} />
                     </button>
                   </div>
                 )}
@@ -403,22 +408,26 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             )}
           </AnimatePresence>
 
-          {/* Guest Trial: Limit-reached block or cooldown overlay */}
+          {/* Input Field Area */}
           {isTrialExhausted ? (
-            <div className={`w-full px-3 ${isMobile ? 'pt-3 pb-2' : 'pt-4 pb-3'} flex flex-col items-center gap-2`}>
-              <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
-                <Lock size={14} strokeWidth={2.5} />
-                <span className="text-[13px] font-medium">Trial limit reached</span>
+            <div className={`w-full px-6 ${isMobile ? 'pt-6 pb-4' : 'pt-8 pb-6'} flex flex-col items-center gap-3 animate-fade-in`}>
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
+                <Lock size={20} strokeWidth={2} />
               </div>
-              <p className="text-[11px] text-[var(--text-tertiary)] text-center opacity-70">
-                Create a free account to continue learning
-              </p>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[14px] font-medium text-[var(--text-primary)]">Trial limit reached</span>
+                <p className="text-[12px] text-[var(--text-tertiary)] text-center max-w-[200px]">
+                  Sign up for a free account to continue your learning journey
+                </p>
+              </div>
             </div>
           ) : (
             <div className="relative w-full">
               <textarea
                 ref={textareaRef}
                 value={value}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 onChange={(e) => {
                   const maxLen = isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000;
                   if (e.target.value.length <= maxLen) onChange(e.target.value);
@@ -427,13 +436,13 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 placeholder={isOnCooldown ? `Wait ${cooldownRemaining}s...` : getPlaceholder()}
                 maxLength={isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000}
                 disabled={isOnCooldown}
-                className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)] resize-none px-3 ${isMobile ? 'pt-4 pb-2' : 'pt-5 pb-3'} outline-none text-[17px] transition-colors duration-250 font-normal leading-relaxed ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
+                className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/60 resize-none px-4 ${isMobile ? 'py-2.5' : 'py-3.5'} outline-none text-[15px] transition-all duration-300 font-normal leading-relaxed ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
                 rows={1}
-                style={{ minHeight: isMobile ? '56px' : '64px' }}
+                style={{ minHeight: isMobile ? '44px' : '48px' }}
               />
-              {/* Guest character counter */}
+              {/* Counter */}
               {isGuest && value.length > 0 && (
-                <div className="absolute right-2 bottom-1 text-[9px] font-medium text-[var(--text-tertiary)] opacity-50">
+                <div className="absolute right-4 bottom-2 text-[9px] font-medium text-[var(--text-tertiary)]/40 tabular-nums">
                   {value.length}/{TRIAL_LIMITS.MAX_INPUT_LENGTH}
                 </div>
               )}
@@ -442,42 +451,43 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
         </div>
 
         {/* ── Action Bar (Bottom Row) ── */}
-        <div className="flex items-center justify-between px-1.5 pt-0.5 pb-0.5">
+        <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
           
-          <div className="flex items-center gap-1">
-            {/* 1. Plus Menu (Uploads) */}
+          <div className="flex items-center gap-0.5">
+            {/* 1. Plus Menu */}
             <div className="relative">
               <button
-                onClick={() => { setIsPlusMenuOpen(!isPlusMenuOpen); setIsToolsMenuOpen(false); }}
-                className={`p-2 rounded-full transition-colors hover:bg-[var(--bg-tertiary)] ${isPlusMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-tertiary)]'}`}
+                onClick={() => { setIsPlusMenuOpen(!isPlusMenuOpen); setIsToolsMenuOpen(false); setIsAgentMenuOpen(false); }}
+                className={`p-2.5 rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isPlusMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
               >
-                <Plus size={isMobile ? 20 : 17} strokeWidth={2.5} />
+                <Plus size={isMobile ? 22 : 19} strokeWidth={2} />
               </button>
               <AnimatePresence>
                 {isPlusMenuOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-40' : 'w-48'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] shadow-xl`}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-44' : 'w-52'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5`}
                   >
-                    <div className="p-1.5 flex flex-col gap-0.5">
+                    <div className="flex flex-col gap-1">
                       {uploadActions.map((action) => (
                         <button
                           key={action.label}
                           onClick={() => handleUploadAction(action.type)}
-                          className={`flex items-center justify-between w-full px-3 py-3 text-[14px] font-normal rounded-xl transition-all ${
+                          className={`flex items-center justify-between w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all ${
                             import.meta.env.PROD 
-                              ? 'opacity-60 cursor-not-allowed text-[var(--text-tertiary)]' 
+                              ? 'opacity-50 cursor-not-allowed text-[var(--text-tertiary)] bg-[var(--bg-secondary)]/30' 
                               : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <action.icon size={16} />
+                            <action.icon size={17} strokeWidth={2} />
                             <span>{action.label}</span>
                           </div>
                           {import.meta.env.PROD && (
-                            <span className="text-[7px] uppercase tracking-tighter font-bold bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded-md border border-[var(--border-color)]">
+                            <span className="text-[7.5px] uppercase font-bold bg-[var(--text-tertiary)]/10 text-[var(--text-tertiary)] px-1.5 py-0.5 rounded-md">
                               Soon
                             </span>
                           )}
@@ -489,63 +499,61 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </AnimatePresence>
             </div>
 
-            {/* 2. Tools Menu (Teaching Modes) */}
+            {/* 2. Tools Menu */}
             <div className="relative">
               <button
-                onClick={() => { setIsToolsMenuOpen(!isToolsMenuOpen); setIsPlusMenuOpen(false); }}
-                className={`p-2 rounded-full transition-colors hover:bg-[var(--bg-tertiary)] ${isToolsMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-tertiary)]'}`}
+                onClick={() => { setIsToolsMenuOpen(!isToolsMenuOpen); setIsPlusMenuOpen(false); setIsAgentMenuOpen(false); }}
+                className={`p-2.5 rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isToolsMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
               >
-                <Settings2 size={isMobile ? 20 : 17} strokeWidth={2.5} />
+                <Settings2 size={isMobile ? 22 : 19} strokeWidth={2} />
               </button>
               <AnimatePresence>
                 {isToolsMenuOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-52' : 'w-56'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] shadow-xl`}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-56' : 'w-64'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5`}
                   >
-                    <div className="p-1.5 flex flex-col gap-0.5">
+                    <div className="flex flex-col gap-1">
                       {quickActions.map((action) => {
                         const isBlocked = isGuest && !action.guestAllowed;
+                        const isActive = activeMode === action.mode;
                         return (
                           <button
                             key={action.label}
                             onClick={() => {
                               if (isBlocked) {
-                                showToast({
-                                  message: `"${action.label}" requires a free account. Sign up to unlock all modes.`,
-                                  type: 'info'
-                                });
+                                showToast({ message: `"${action.label}" requires a free account.`, type: 'info' });
                                 setIsToolsMenuOpen(false);
                                 return;
                               }
                               handleQuickAction(action.mode);
                             }}
-
-                            className={`flex items-center justify-between gap-3 w-full px-3 py-3 text-[14px] font-normal rounded-xl transition-all ${
+                            className={`flex items-center justify-between gap-3 w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all ${
                               isBlocked
-                                ? 'opacity-50 cursor-not-allowed text-[var(--text-tertiary)]'
-                                : activeMode === action.mode 
-                                  ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' 
+                                ? 'opacity-40 cursor-not-allowed text-[var(--text-tertiary)]'
+                                : isActive 
+                                  ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' 
                                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <action.icon size={16} />
+                              <action.icon size={17} strokeWidth={2} />
                               <span>{action.label}</span>
                             </div>
-                            {isBlocked && <Lock size={12} strokeWidth={2.5} className="text-[var(--text-tertiary)] opacity-60" />}
+                            {isBlocked && <Lock size={12} strokeWidth={2.5} className="opacity-50" />}
                           </button>
                         );
                       })}
-                      <div className="h-[1px] bg-[var(--border-color)] my-1" />
-                      <button
+                      <div className="h-[1px] bg-[var(--border-color)]/40 my-1 mx-2" />
+                        <button
                         onClick={() => { onQuickAsk?.(); setIsToolsMenuOpen(false); }}
-                        className="flex items-center gap-3 w-full px-3 py-3 text-[14px] font-normal rounded-xl transition-all text-[#8b5cf6] hover:bg-[#8b5cf6]/10"
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all text-[#8b5cf6] hover:bg-[#8b5cf6]/10"
                       >
-                        <Sparkles size={16} />
-                        <span>AI Quick Assistant</span>
+                        <Sparkles size={17} strokeWidth={2.5} />
+                        <span>AI Assistant</span>
                       </button>
                     </div>
                   </motion.div>
@@ -553,76 +561,64 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </AnimatePresence>
             </div>
 
-            {/* 3. Agent Selector (Compact) */}
+            {/* 3. Agent Selector */}
             <div className="relative">
               <button
-                onClick={() => setIsAgentMenuOpen(!isAgentMenuOpen)}
-                className={`p-1 rounded-full transition-all hover:bg-[var(--bg-tertiary)] ${isAgentMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)]' : 'text-[var(--text-tertiary)]'}`}
-                title="Change AI Agent"
+                onClick={() => { setIsAgentMenuOpen(!isAgentMenuOpen); setIsPlusMenuOpen(false); setIsToolsMenuOpen(false); }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] group active:scale-95 ${isAgentMenuOpen ? 'bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : ''}`}
               >
                 {(() => {
                   const agent = agents.find(a => a.id === selectedAgent) || agents[0];
                   const Icon = agent.icon;
                   return (
-                    <div className="flex items-center gap-1.5 px-1.5">
-                      <Icon size={isMobile ? 20 : 16} strokeWidth={2.5} />
+                    <>
+                      <Icon size={17} strokeWidth={2} className={`${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`} />
                       {!isMobile && (
-                        <span className="text-[11px] text-[var(--text-tertiary)] font-normal whitespace-nowrap overflow-hidden max-w-[80px] truncate">
+                        <span className={`text-[11px] font-medium tracking-tight uppercase ${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
                           {agent.name}
                         </span>
                       )}
-                    </div>
+                      <ChevronDown size={10} strokeWidth={2} className={`transition-transform duration-300 ${isAgentMenuOpen ? 'rotate-180 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]/50 group-hover:text-[var(--text-tertiary)]'}`} />
+                    </>
                   );
                 })()}
               </button>
               <AnimatePresence>
                 {isAgentMenuOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-44' : 'w-48'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl overflow-hidden z-[100] p-1.5 flex flex-col gap-0.5 shadow-xl`}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-48' : 'w-56'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] p-1.5 shadow-2xl flex flex-col gap-1`}
                   >
                     {agents.map((agent, idx) => {
                       const Icon = agent.icon;
-                      const isActive = isAgentActive(agent.id);
+                      const isActive = selectedAgent === agent.id;
                       const isFirstCustom = agent.isCustom && !agents[idx - 1]?.isCustom;
 
                       return (
                         <React.Fragment key={agent.id}>
                           {isFirstCustom && (
-                            <div className="pt-2 pb-1 flex items-center gap-2 pr-2">
-                              <span className="pl-3 text-[9px] uppercase tracking-widest text-[var(--text-tertiary)] font-bold opacity-70 whitespace-nowrap">
-                                APIs
-                              </span>
-                              <div className="flex-1 h-[1px] bg-[var(--border-color)] opacity-40" />
+                            <div className="pt-2 pb-1 px-3 flex items-center gap-3">
+                              <span className="text-[9px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]/60">APIs</span>
+                              <div className="flex-1 h-[1px] bg-[var(--border-color)]/30" />
                             </div>
                           )}
                           <button
-                            onClick={() => { 
-                              setSelectedAgent(agent.id); 
-                              setIsAgentMenuOpen(false); 
-                            }}
-                            className={`flex items-center justify-between w-full px-3 py-3 text-[13px] rounded-xl transition-all font-normal ${
+                            onClick={() => { setSelectedAgent(agent.id); setIsAgentMenuOpen(false); }}
+                            className={`flex items-center justify-between w-full px-3 py-2.5 text-[13.5px] rounded-xl transition-all font-medium ${
                               isActive
-                                ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
-                                : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                                ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                             }`}
                           >
-                            <div className="flex items-center gap-2.5">
-                              <Icon size={15} />
-                              <span className="truncate max-w-[110px]">{agent.name}</span>
+                            <div className="flex items-center gap-3">
+                              <Icon size={16} strokeWidth={2} />
+                              <span className="truncate max-w-[120px]">{agent.name}</span>
                             </div>
-                            
                             {isActive && (
-                              <div className="flex items-center">
-                                 <motion.div 
-                                   initial={{ scale: 0.8 }}
-                                   animate={{ scale: [1, 1.2, 1] }}
-                                   transition={{ duration: 2, repeat: Infinity }}
-                                   className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_6px_rgba(16,185,129,0.5)]" 
-                                 />
-                              </div>
+                              <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-white/20" />
                             )}
                           </button>
                         </React.Fragment>
@@ -636,14 +632,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
           <div className="flex-1" />
 
-          <div className="flex items-center gap-1">
-            {/* Voice */}
+          <div className="flex items-center gap-1.5">
+            {/* Voice Input */}
             {isSpeechSupported && (
-              <div className="relative flex items-center justify-center">
+              <div className="relative">
                 <AnimatePresence>
                   {isListening && (
                     <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 2, opacity: 0 }} exit={{ opacity: 0 }}
+                      initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 2.2, opacity: 0 }} exit={{ opacity: 0 }}
                       transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
                       className="absolute inset-0 rounded-full bg-red-500/20"
                     />
@@ -651,52 +647,42 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 </AnimatePresence>
                 <button
                   onClick={startListening}
-                  title="Voice Input"
-                  className={`p-2 rounded-full transition-all ${
+                  className={`p-2.5 rounded-xl transition-all duration-200 ${
                     isListening
-                      ? 'text-red-500 bg-red-500/10'
+                      ? 'text-red-500 bg-red-500/15 ring-1 ring-red-500/20'
                       : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                   }`}
                 >
-                  <Mic size={isMobile ? 22 : 18} strokeWidth={2.2} />
+                  <Mic size={isMobile ? 22 : 19} strokeWidth={2} />
                 </button>
               </div>
             )}
 
-            {/* Guest remaining count badge */}
+            {/* Trial Badge */}
             {isGuest && !isTrialExhausted && (
-              <div 
-                className="flex items-center gap-1 px-2 py-1 rounded-lg"
-                style={{
-                  background: guestRemaining <= 3 ? 'rgba(239,68,68,0.08)' : 'var(--bg-tertiary)',
-                  border: `1px solid ${guestRemaining <= 3 ? 'rgba(239,68,68,0.15)' : 'var(--border-color)'}`,
-                }}
-                title={`${guestRemaining} trial messages remaining`}
-              >
-                <span className={`text-[10px] font-bold tracking-tight ${
-                  guestRemaining <= 3 ? 'text-red-400' : 'text-[var(--text-tertiary)]'
-                }`}>
-                  {guestRemaining}/{TRIAL_LIMITS.MAX_MESSAGES}
-                </span>
+              <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border tabular-nums transition-all duration-500 ${
+                guestRemaining <= 3 ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-tertiary)]'
+              }`}>
+                <Activity size={11} strokeWidth={2} className={guestRemaining <= 3 ? 'animate-pulse' : ''} />
+                <span className="text-[10px] font-medium tracking-tight">{guestRemaining}</span>
               </div>
             )}
 
-            {/* Cooldown indicator */}
+            {/* Cooldown */}
             {isOnCooldown && (
-              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
-                <Timer size={10} strokeWidth={2.5} className="text-[var(--text-tertiary)] animate-pulse" />
-                <span className="text-[10px] font-bold text-[var(--text-tertiary)]">{cooldownRemaining}s</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)]">
+                <Timer size={11} strokeWidth={2} className="animate-pulse" />
+                <span className="text-[10px] font-medium tabular-nums">{cooldownRemaining}s</span>
               </div>
             )}
 
-            {/* Send / Stop Button */}
+            {/* Primary Action Button (Send/Stop) */}
             {isGenerating ? (
               <button
                 onClick={onStopGeneration}
-                title="Stop generating"
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all active:scale-90 group"
+                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-red-500/15 text-red-500 hover:bg-red-500/25 transition-all active:scale-90 group shadow-lg shadow-red-500/10 ring-1 ring-red-500/20"
               >
-                <Square size={16} strokeWidth={3} className="group-hover:scale-110 transition-transform" fill="currentColor" />
+                <Square size={16} strokeWidth={2} className="fill-current group-hover:scale-110 transition-transform" />
               </button>
             ) : (
               <button
@@ -708,30 +694,22 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   }
                 }}
                 disabled={(!value.trim() && !attachedFile) || isTrialExhausted || isOnCooldown}
-                className={`${isMobile ? 'w-10 h-10' : 'w-9 h-9'} flex items-center justify-center rounded-full transition-all focus:outline-none ${
-                  isTrialExhausted || isOnCooldown
-                    ? 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/30 cursor-not-allowed'
-                    : activeMode === 'teach' && (value.trim() || attachedFile)
-                      ? 'bg-emerald-600 text-white shadow-md hover:scale-105 active:scale-95'
-                      : (value.trim() || attachedFile)
-                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-md hover:scale-105 active:scale-95 transition-transform'
-                        : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/50 cursor-not-allowed disabled:opacity-40'
+                className={`w-10 h-10 flex items-center justify-center rounded-2xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${
+                  activeMode === 'teach' && (value.trim() || attachedFile)
+                    ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
+                    : (value.trim() || attachedFile)
+                      ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20 hover:shadow-[var(--text-primary)]/30 hover:-translate-y-0.5'
+                      : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/40 shadow-none cursor-not-allowed'
                 }`}
               >
-                {activeMode === 'teach' ? <GraduationCap size={isMobile ? 20 : 18} /> : <ArrowUp size={isMobile ? 20 : 18} strokeWidth={2.5} />}
+                {activeMode === 'teach' ? <GraduationCap size={22} strokeWidth={2} /> : <ArrowUp size={22} strokeWidth={2} />}
               </button>
             )}
           </div>
         </div>
       </div>
       
-      {/* Hidden File Input */}
-      <input 
-        ref={fileInputRef}
-        type="file"
-        onChange={onFileChange}
-        className="hidden"
-      />
+      <input ref={fileInputRef} type="file" onChange={onFileChange} className="hidden" />
     </div>
   );
 };

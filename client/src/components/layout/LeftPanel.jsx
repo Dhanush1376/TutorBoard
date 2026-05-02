@@ -32,7 +32,8 @@ const LeftPanel = ({
   isLoadingHistory,
   hasMore, isLoadingMore, onLoadMore,
   onQuickAsk,
-  onRegenerateMessage, onFeedback, onStopGeneration
+  onRegenerateMessage, onFeedback, onStopGeneration,
+  onSwitchVersion
 }) => {
   const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
@@ -46,12 +47,12 @@ const LeftPanel = ({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (isMobile) return;
-      
+
       // 1. "/" focuses search
-      if (e.key === '/' && 
-          document.activeElement.tagName !== 'INPUT' && 
-          document.activeElement.tagName !== 'TEXTAREA' &&
-          !document.activeElement.isContentEditable) {
+      if (e.key === '/' &&
+        document.activeElement.tagName !== 'INPUT' &&
+        document.activeElement.tagName !== 'TEXTAREA' &&
+        !document.activeElement.isContentEditable) {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
@@ -77,13 +78,13 @@ const LeftPanel = ({
         <div className="flex flex-col gap-2 relative min-h-full">
           {/* Compact Back Button for Sidebar Chat */}
           {/* Sticky Header with Back Button - Fixed overlap */}
-          <div className="sticky top-0 z-[15] pt-1 pb-2.5 -mx-1 px-1 bg-[var(--bg-primary)]/80 backdrop-blur-md">
+          <div className="sticky top-0 z-[15] pt-1 pb-2.5 -mx-1 px-1 bg-[var(--bg-primary)]">
             <button
               onClick={() => { setActiveView('history'); }}
-              className="flex items-center gap-1.5 px-1 py-1 text-[13px] font-normal uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors group"
+              className="flex items-center gap-1.5 px-1 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all group"
             >
-              <ChevronLeft size={16} strokeWidth={3.5} className="text-[13px] font-normal uppercase tracking-[0.15em] px-1 text-[var(--text-tertiary)]" />
-              <p className="text-[13px] font-bold uppercase tracking-[0.2em] px-1.5 py-1 text-[var(--text-tertiary)] opacity-80">All Sessions</p>
+              <ChevronLeft size={12} strokeWidth={2} className="text-[var(--text-tertiary)]" />
+              <p className="px-0.5 tracking-[0.1em]">All Sessions</p>
             </button>
           </div>
           <div className="pt-1">
@@ -95,6 +96,7 @@ const LeftPanel = ({
               onEditMessage={onEditMessage}
               onRegenerateMessage={onRegenerateMessage}
               onFeedback={onFeedback}
+              onSwitchVersion={onSwitchVersion}
               activeMode={activeMode}
               setActiveMode={setActiveMode}
             />
@@ -107,8 +109,8 @@ const LeftPanel = ({
       <div className="flex flex-col gap-0 w-full relative h-full">
         {/* Sticky Header for Recents - Show for guests if they have history */}
         {(!isGuest || chatHistory.length > 0) && (
-          <div className="sticky top-0 z-[15] pt-0 pb-1.5 -mx-1 px-1 bg-[var(--bg-primary)]/80 backdrop-blur-md">
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] px-1.5 py-2 text-[var(--text-tertiary)] opacity-60">Recents</p>
+          <div className="sticky top-0 z-[15] pt-0 pb-1.5 -mx-1 px-1 bg-[var(--bg-primary)]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.15em] px-2 py-2 text-[var(--text-tertiary)]">Recents</p>
           </div>
         )}
         <div className="flex flex-col w-full pt-1">
@@ -155,7 +157,7 @@ const LeftPanel = ({
 
   const renderEmptyState = () => {
     if (isLoadingHistory || chatHistory.length > 0 || activeView !== 'history') return null;
-    
+
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-0.5 select-none animate-fade-in py-8">
         {/* 1. Empty State Illustration - Hidden for guests */}
@@ -215,7 +217,7 @@ const LeftPanel = ({
                 </button>
               ))}
             </div>
-            
+
             {/* Subtle scroll indicator hint */}
             <div className="flex justify-center mt-2 opacity-30">
               <div className="flex gap-1">
@@ -285,22 +287,22 @@ const LeftPanel = ({
 
               {/* 1. New Chat (Primary Hero Action) */}
               <button
-                onClick={() => { 
-                  onNewChat(); 
-                  setActiveView('chat'); 
+                onClick={() => {
+                  onNewChat();
+                  setActiveView('chat');
                 }}
                 className={`relative group w-full flex items-center justify-between gap-3 ${isMobile ? 'px-3.5 py-2.5 rounded-xl' : 'px-4 py-3 rounded-2xl'} bg-gradient-to-br from-[var(--text-primary)] to-[var(--text-primary)]/90 text-[var(--bg-primary)] shadow-lg shadow-[var(--text-primary)]/10 hover:shadow-[var(--text-primary)]/20 active:scale-[0.98] transition-all duration-300 overflow-hidden`}
               >
                 {/* Subtle Inner Glow */}
                 <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                
+
                 <div className="flex items-center gap-3">
                   <div className={`${isMobile ? 'w-7 h-7' : 'w-6 h-6'} rounded-lg bg-[var(--bg-primary)]/15 border border-white/10 flex items-center justify-center group-hover:rotate-90 transition-transform duration-500`}>
                     <Plus size={isMobile ? 16 : 14} strokeWidth={3} />
                   </div>
                   <span className={`${isMobile ? 'text-[13px]' : 'text-[13px]'} font-medium tracking-tight`}>New session</span>
                 </div>
-                
+
                 {!isMobile && (
                   <div className="text-[10px] font-medium opacity-40 px-1.5 py-0.5 rounded-md border border-white/20 uppercase tracking-[0.1em] bg-white/5 group-hover:opacity-100 transition-opacity">
                     Alt N
@@ -322,11 +324,11 @@ const LeftPanel = ({
                     placeholder="Search sessions..."
                     className={`w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] focus:bg-[var(--bg-primary)] border border-[var(--border-color)] focus:border-[var(--text-tertiary)] ${isMobile ? 'rounded-xl pl-10 pr-9 py-2.5' : 'rounded-2xl pl-10 pr-10 py-2.5'} text-[13px] outline-none transition-all placeholder:text-[var(--text-tertiary)]/60 placeholder:font-normal shadow-sm`}
                   />
-                  
+
                   {/* Clear search or Keyboard Hint */}
                   <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
                     {searchQuery ? (
-                      <button 
+                      <button
                         onClick={() => setSearchQuery('')}
                         className="p-1 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
                       >

@@ -23,6 +23,7 @@ export async function syncToDatabase(sessionId) {
         topic: s.topic,
         title: s.topic,
         steps: s.steps,
+        canvasSteps: s.steps,
         messages: s.messages || [],
         canvasState: s.canvasState || [],
         currentStepIndex: s.currentStepIndex,

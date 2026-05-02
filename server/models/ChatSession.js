@@ -115,11 +115,10 @@ const chatSessionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // INFRA-12: Cap messages at 200 entries to prevent MongoDB document size limits.
-chatSessionSchema.pre('save', function(next) {
+chatSessionSchema.pre('save', function() {
   if (this.messages && this.messages.length > 200) {
     this.messages = this.messages.slice(-200);
   }
-  next();
 });
 
 const ChatSession = mongoose.model('ChatSession', chatSessionSchema);

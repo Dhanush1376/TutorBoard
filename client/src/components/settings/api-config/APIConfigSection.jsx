@@ -3,20 +3,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Brain, Key, Shield, GitBranch,
   Activity, Globe2, Sparkles, Gauge, DollarSign,
-  AlertCircle, Plus, X
+  AlertCircle, Plus, X, Globe, ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
   AppleToggle, RightInlineSelect, API_URL
 } from '../SettingsShared';
-import { MODEL_LABELS } from './ProviderRegistry';
+import { MODEL_LABELS, PROVIDERS } from './ProviderRegistry';
 import UnifiedAPIForm from './UnifiedAPIForm';
 import KeyCard from './KeyCard';
 
-// ─── Universal usage bar ──────────────────────────────────────────────────────
+// ─── Shared Components ────────────────────────────────────────────────────────
 
-const UniversalUsageCard = ({ usage }) => {
+const ProviderDot = ({ color }) => (
+  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+);
+
+// ─── Usage Card ───────────────────────────────────────────────────────────────
+
+const UsageCard = ({ usage }) => {
   if (!usage) return null;
   const isWarning = usage.percent >= 80;
   const isExceeded = usage.percent >= 100;
@@ -25,94 +31,53 @@ const UniversalUsageCard = ({ usage }) => {
     <div style={{ 
       background: 'var(--bg-secondary)', 
       border: '1px solid var(--border-color)', 
-      borderRadius: '16px', 
-      padding: '12px', 
-      marginBottom: '20px', 
-      position: 'relative', 
-      overflow: 'hidden',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.02)'
+      borderRadius: '12px', 
+      padding: '14px', 
+      marginBottom: '16px', 
     }}>
-      <div style={{ 
-        position: 'absolute', top: 0, right: 0, padding: '6px 12px', 
-        background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', 
-        fontSize: '9px', fontWeight: 800, borderRadius: '0 18px 0 16px', 
-        letterSpacing: '0.08em', textTransform: 'uppercase' 
-      }}>System Quota</div>
-      
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-        <div style={{ 
-          width: '32px', height: '32px', borderRadius: '8px', 
-          background: 'rgba(139,92,246,0.08)', display: 'flex', alignItems: 'center', 
-          justifyContent: 'center', color: '#8b5cf6', boxShadow: '0 2px 8px rgba(139,92,246,0.08)' 
-        }}>
-          <Sparkles size={16} strokeWidth={2.5} />
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+        <Sparkles size={13} strokeWidth={2} style={{ color: '#8b5cf6', opacity: 0.7 }} />
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.02em' }}>TutorBoard Edge Engine</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500, opacity: 0.8 }}>Shared credits — automatically optimized</div>
+          <div style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '-0.01em' }}>Platform Credits</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 400 }}>Shared quota, auto-managed</div>
         </div>
       </div>
 
-      {/* Main progress bar */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', fontWeight: 600 }}>
-          <span style={{ color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monthly Capacity</span>
-          <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-primary)' }}>{usage.requests} / {usage.limit}</span>
+      {/* Progress bar */}
+      <div style={{ marginBottom: '4px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '4px', fontWeight: 400 }}>
+          <span style={{ color: 'var(--text-tertiary)' }}>Monthly usage</span>
+          <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-secondary)', fontFamily: '"Geist Mono", monospace', fontWeight: 500 }}>
+            {usage.requests} / {usage.limit}
+          </span>
         </div>
-        <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden', padding: '1.2px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
+        <div style={{ height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
           <motion.div 
             initial={{ width: 0 }} 
-            animate={{ width: `${usage.percent}%` }} 
-            transition={{ duration: 1.2, ease: [0.34, 1.56, 0.64, 1] }} 
+            animate={{ width: `${Math.min(100, usage.percent)}%` }} 
+            transition={{ duration: 0.8, ease: 'easeOut' }} 
             style={{ 
               height: '100%', 
-              background: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'linear-gradient(90deg, #8b5cf6, #d946ef)', 
-              borderRadius: '4px',
-              boxShadow: '0 0 16px rgba(139,92,246,0.4)'
+              background: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : '#8b5cf6', 
+              borderRadius: '2px',
             }} 
           />
         </div>
       </div>
 
-      {/* Breakdown per model if available */}
+      {/* Model breakdown */}
       {usage.breakdown && usage.breakdown.length > 0 && (
         <div style={{ 
-          display: 'flex', flexDirection: 'column', gap: '20px', 
-          paddingTop: '24px', borderTop: '1px solid var(--border-color)', 
-          opacity: 0.95 
+          paddingTop: '10px', marginTop: '10px',
+          borderTop: '1px solid var(--border-color)', 
+          display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '4px' }}>Model Allocation</div>
           {usage.breakdown.map((m, i) => {
             const mLabel = MODEL_LABELS[m.model] || m.model;
-            const mWarning = m.percent >= 80;
             return (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{mLabel}</span>
-                  <span style={{ color: 'var(--text-tertiary)', fontSize: '11px', fontWeight: 700, fontFamily: '"Geist Mono", monospace' }}>{m.requests} / {m.limit}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '4px', height: '6px' }}>
-                  {[1, 2, 3, 4, 5].map(seg => {
-                    const threshold = seg * 20;
-                    const isActive = m.percent >= threshold;
-                    return (
-                      <div 
-                        key={seg} 
-                        style={{ 
-                          flex: 1, 
-                          height: '100%', 
-                          background: isActive 
-                            ? (mWarning ? '#f59e0b' : '#8b5cf6') 
-                            : 'var(--bg-tertiary)', 
-                          borderRadius: '3px',
-                          opacity: isActive ? 1 : 0.25,
-                          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                          boxShadow: isActive ? `0 2px 6px ${mWarning ? '#f59e0b' : '#8b5cf6'}33` : 'none'
-                        }} 
-                      />
-                    );
-                  })}
-                </div>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{mLabel}</span>
+                <span style={{ color: 'var(--text-tertiary)', fontFamily: '"Geist Mono", monospace', fontSize: '10px' }}>{m.requests}/{m.limit}</span>
               </div>
             );
           })}
@@ -131,6 +96,7 @@ export default function APIConfigSection({ showToast }) {
   const [usageStats, setUsageStats]       = useState(null);
   const [universalUsage, setUniversalUsage] = useState(null);
   const [showAddForm, setShowAddForm]     = useState(false);
+  const [showDirectory, setShowDirectory] = useState(false);
   const [testingKeyId, setTestingKeyId]   = useState(null);
   const [testResults, setTestResults]     = useState({});
   const [error, setError]                 = useState(null);
@@ -185,7 +151,7 @@ export default function APIConfigSection({ showToast }) {
   const handleDelete = async (keyId) => {
     try {
       const r = await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (r.ok) { fetchDashboardData(); showToast?.('API key removed', 'info'); }
+      if (r.ok) { fetchDashboardData(); showToast?.('Key removed', 'info'); }
     } catch (err) {
       console.error(err);
     }
@@ -208,8 +174,8 @@ export default function APIConfigSection({ showToast }) {
       const res = await fetch(`${API_URL}/api/apikeys/${keyId}/test`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
       setTestResults(prev => ({ ...prev, [keyId]: data }));
-      if (data.valid) showToast?.(`Connection OK (${data.latencyMs}ms)`, 'success');
-      else showToast?.(data.error || 'Validation failed', 'error');
+      if (data.valid) showToast?.(`OK (${data.latencyMs}ms)`, 'success');
+      else showToast?.(data.error || 'Failed', 'error');
       fetchDashboardData();
     } catch {
       setTestResults(prev => ({ ...prev, [keyId]: { valid: false, error: 'Network error' } }));
@@ -222,114 +188,92 @@ export default function APIConfigSection({ showToast }) {
   const hasActiveCustom   = preferences.useCustomApi && hasActiveKey;
   const keyAddedNotActive = hasActiveKey && !preferences.useCustomApi;
 
-  // ─── Status banner colour ─────────────────────────────────────────────────
-  const bannerBg    = hasActiveCustom ? 'rgba(16,185,129,0.08)' : keyAddedNotActive ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.06)';
-  const bannerDot   = hasActiveCustom ? '#10b981' : keyAddedNotActive ? '#f59e0b' : '#3b82f6';
-  const bannerTitle = hasActiveCustom ? 'Custom API Mode — Active' : keyAddedNotActive ? 'Key Added — Enable Toggle Below' : 'TutorBoard Platform API';
-  const bannerSub   = hasActiveCustom ? 'All requests use your API key exclusively' : keyAddedNotActive ? 'Turn on "Use Custom API" to activate your key' : 'Shared platform credits — add your own key for full independence';
+  // Status
+  const statusColor = hasActiveCustom ? '#10b981' : keyAddedNotActive ? '#f59e0b' : '#3b82f6';
+  const statusText = hasActiveCustom ? 'Custom API active' : keyAddedNotActive ? 'Key added — enable below' : 'Using platform credits';
 
-  // Analytics accent colors
   const statColors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', paddingBottom: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-      {/* Status banner — elevated with gradient accent */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        style={{ 
-          background: bannerBg, 
-          border: '1px solid var(--border-color)', 
-          borderRadius: '16px', 
-          padding: '14px 18px', 
-          marginBottom: '24px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          position: 'relative', 
-          overflow: 'hidden',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
-        }}
-      >
-        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '4px', background: `linear-gradient(90deg, ${bannerDot}, ${bannerDot}50, transparent)` }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ position: 'relative' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: bannerDot, boxShadow: `0 0 10px ${bannerDot}66` }} />
-            <div style={{ position: 'absolute', inset: '-4px', borderRadius: '50%', border: `2.5px solid ${bannerDot}30`, animation: hasActiveCustom ? 'pulse-ring 2s infinite' : 'none' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>{bannerTitle}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', lineHeight: 1.4, fontWeight: 500 }}>{bannerSub}</div>
-          </div>
-        </div>
-        {keyAddedNotActive && (
-          <motion.button 
-            whileHover={{ scale: 1.05, filter: 'brightness(1.1)' }} 
-            whileTap={{ scale: 0.95 }} 
-            onClick={() => handleUpdatePref('useCustomApi', true)} 
+      {/* Status indicator */}
+      <div style={{ 
+        display: 'flex', alignItems: 'center', gap: '8px',
+        padding: '8px 12px', borderRadius: '8px',
+        background: `${statusColor}08`,
+        border: '1px solid var(--border-color)',
+      }}>
+        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
+        <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-secondary)' }}>{statusText}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button 
+            onClick={() => setShowDirectory(true)}
             style={{ 
-              padding: '8px 18px', borderRadius: '12px', background: '#f59e0b', color: '#fff', 
-              border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer', 
-              boxShadow: '0 4px 12px rgba(245,158,11,0.4)', letterSpacing: '0.02em' 
+              padding: '4px 10px', borderRadius: '6px', 
+              background: 'transparent', border: '1px solid var(--border-color)', 
+              color: 'var(--text-tertiary)', fontSize: '10px', fontWeight: 500, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '4px'
             }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}
           >
-            ACTIVATE
-          </motion.button>
-        )}
-      </motion.div>
+            <Globe2 size={12} />
+            Supported Providers
+          </button>
+          {keyAddedNotActive && (
+            <button 
+              onClick={() => handleUpdatePref('useCustomApi', true)} 
+              style={{ 
+                padding: '6px 14px', borderRadius: '8px', 
+                background: '#f59e0b', color: '#fff', border: 'none', 
+                fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              Enable
+            </button>
+          )}
+        </div>
+      </div>
 
-      {/* API Configuration toggles */}
-      <SectionTitle>API Configuration</SectionTitle>
-      <SettingsGroup>
-        <SettingsRow icon={Key}       label="Use Custom API"    rightElement={<AppleToggle value={preferences.useCustomApi}    onChange={v => handleUpdatePref('useCustomApi', v)} />} />
-        <SettingsRow icon={Brain}     label="Smart Routing"     rightElement={<AppleToggle value={preferences.smartRouting}    onChange={v => handleUpdatePref('smartRouting', v)} />} />
-        <SettingsRow icon={GitBranch} label="Adaptive Learning" rightElement={<AppleToggle value={preferences.enableAdaptive}  onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
-        <SettingsRow icon={Activity}  label="Parallel Racing"   rightElement={<AppleToggle value={preferences.enableRacing}    onChange={v => handleUpdatePref('enableRacing', v)} />} />
-        <SettingsRow icon={Globe2}    label="Routing Mode" borderBottom={false} rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
-      </SettingsGroup>
-
-      {preferences.routingMode === 'manual' && apiKeys.length > 0 && (
+      {/* Toggles */}
+      <div>
+        <SectionTitle>Configuration</SectionTitle>
         <SettingsGroup>
-          <SettingsRow icon={Brain} label="Model Override" borderBottom={false} rightElement={<RightInlineSelect value={preferences.modelOverride || ''} onChange={v => handleUpdatePref('modelOverride', v)} options={[{ value: '', label: 'None' }, ...Array.from(new Set(apiKeys.map(k => k.model))).map(m => ({ value: m, label: MODEL_LABELS[m] || m }))]} />} />
+          <SettingsRow icon={Key}       label="Use Custom API"    rightElement={<AppleToggle value={preferences.useCustomApi}    onChange={v => handleUpdatePref('useCustomApi', v)} />} />
+          <SettingsRow icon={Brain}     label="Smart Routing"     rightElement={<AppleToggle value={preferences.smartRouting}    onChange={v => handleUpdatePref('smartRouting', v)} />} />
+          <SettingsRow icon={GitBranch} label="Adaptive Learning" rightElement={<AppleToggle value={preferences.enableAdaptive}  onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
+          <SettingsRow icon={Activity}  label="Parallel Racing"   rightElement={<AppleToggle value={preferences.enableRacing}    onChange={v => handleUpdatePref('enableRacing', v)} />} />
+          <SettingsRow icon={Globe2}    label="Routing" borderBottom={false} rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
         </SettingsGroup>
-      )}
 
-      {/* API Keys section */}
-      <div style={{ marginTop: '40px' }}>
-        {!preferences.useCustomApi && universalUsage && <UniversalUsageCard usage={universalUsage} />}
+        {preferences.routingMode === 'manual' && apiKeys.length > 0 && (
+          <SettingsGroup>
+            <SettingsRow icon={Brain} label="Model Override" borderBottom={false} rightElement={<RightInlineSelect value={preferences.modelOverride || ''} onChange={v => handleUpdatePref('modelOverride', v)} options={[{ value: '', label: 'None' }, ...Array.from(new Set(apiKeys.map(k => k.model))).map(m => ({ value: m, label: MODEL_LABELS[m] || m }))]} />} />
+          </SettingsGroup>
+        )}
+      </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', padding: '0 8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '4px', height: '18px', borderRadius: '4px', background: 'var(--accent-primary)' }} />
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Identity Credentials</span>
-            {apiKeys.length > 0 && (
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-tertiary)', background: 'var(--bg-tertiary)', padding: '3px 10px', borderRadius: '10px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>{apiKeys.length}</span>
-            )}
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+      {/* Keys section */}
+      <div>
+        {!preferences.useCustomApi && universalUsage && <UsageCard usage={universalUsage} />}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <SectionTitle style={{ margin: 0 }}>API Keys</SectionTitle>
+          <button
             onClick={() => setShowAddForm(s => !s)}
             style={{ 
-              padding: '8px 18px', borderRadius: '14px', 
-              background: showAddForm ? 'var(--bg-secondary)' : 'var(--text-primary)', 
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 16px', borderRadius: '10px', 
+              background: showAddForm ? 'var(--bg-tertiary)' : 'var(--text-primary)', 
               color: showAddForm ? 'var(--text-primary)' : 'var(--bg-primary)', 
               border: '1px solid var(--border-color)', 
-              cursor: 'pointer', fontSize: '11px', fontWeight: 700,
-              boxShadow: showAddForm ? 'none' : '0 8px 20px rgba(0,0,0,0.15)',
-              display: 'flex', alignItems: 'center', gap: '8px',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              letterSpacing: '0.02em',
+              cursor: 'pointer', fontSize: '11px', fontWeight: 600,
+              transition: 'all 0.12s',
             }}
           >
-            {showAddForm ? (
-              <><X size={16} strokeWidth={3} /><span>CANCEL</span></>
-            ) : (
-              <><Plus size={16} strokeWidth={3} /><span>ADD KEY</span></>
-            )}
-          </motion.button>
+            {showAddForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> Add New Key</>}
+          </button>
         </div>
 
         <AnimatePresence>
@@ -339,62 +283,35 @@ export default function APIConfigSection({ showToast }) {
               onSave={() => { setShowAddForm(false); fetchDashboardData(); }}
               onCancel={() => setShowAddForm(false)}
               showToast={showToast}
+              openDirectory={() => setShowDirectory(true)}
             />
           )}
         </AnimatePresence>
 
         {/* Key list */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {apiKeys.length === 0 && !showAddForm && (
-            <motion.div 
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              style={{ 
-                textAlign: 'center', padding: '48px 24px', 
-                background: 'var(--bg-secondary)',
-                borderRadius: '32px', border: '1px solid var(--border-color)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px',
-                position: 'relative', overflow: 'hidden',
-                marginTop: '8px',
-                boxShadow: '0 12px 40px rgba(0,0,0,0.03)'
-              }}
-            >
-              <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '240px', height: '140px', background: 'radial-gradient(ellipse, var(--bg-tertiary), transparent)', pointerEvents: 'none', opacity: 0.5 }} />
-              <motion.div
-                animate={{ y: [0, -6, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                style={{ 
-                  width: '60px', height: '60px', borderRadius: '20px', 
-                  background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-tertiary))', border: '1px solid var(--border-color)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 12px 32px rgba(0,0,0,0.08)',
-                  color: 'var(--text-tertiary)', position: 'relative', zIndex: 1,
-                }}
-              >
-                <Key size={26} strokeWidth={1.5} />
-              </motion.div>
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px', letterSpacing: '-0.02em' }}>No API credentials</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', maxWidth: '280px', lineHeight: 1.6, fontWeight: 500 }}>
-                  Add your provider keys to unlock independent, ultra-high-performance AI models.
-                </div>
+            <div style={{ 
+              textAlign: 'center', padding: '32px 20px', 
+              background: 'var(--bg-secondary)', borderRadius: '12px', 
+              border: '1px solid var(--border-color)',
+            }}>
+              <Key size={20} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', opacity: 0.4, marginBottom: '10px' }} />
+              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>No API keys</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 400, marginBottom: '14px' }}>
+                Add your own keys for independent AI access.
               </div>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 onClick={() => setShowAddForm(true)}
                 style={{ 
-                  marginTop: '8px', padding: '10px 28px', borderRadius: '14px', 
+                  padding: '8px 20px', borderRadius: '8px', 
                   background: 'var(--text-primary)', color: 'var(--bg-primary)', 
-                  border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700,
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.2)', letterSpacing: '0.02em',
-                  position: 'relative', zIndex: 1,
+                  border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 500,
                 }}
               >
-                Connect First Key
-              </motion.button>
-            </motion.div>
+                Add First Key
+              </button>
+            </div>
           )}
           {apiKeys.map(key => (
             <KeyCard
@@ -413,127 +330,180 @@ export default function APIConfigSection({ showToast }) {
       </div>
 
       {/* Cost control */}
-      <div style={{ marginTop: '48px' }}>
-        <SectionTitle>Global Guardrails</SectionTitle>
+      <div>
+        <SectionTitle>Limits</SectionTitle>
         <SettingsGroup>
-          <SettingsRow icon={DollarSign} label="Monthly Limit ($)" rightElement={
+          <SettingsRow icon={DollarSign} label="Monthly Limit" rightElement={
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <span style={{ position: 'absolute', left: '12px', fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 700, opacity: 0.5 }}>$</span>
+              <span style={{ position: 'absolute', left: '8px', fontSize: '11px', color: 'var(--text-tertiary)', opacity: 0.5 }}>$</span>
               <input 
                 type="number" 
                 value={preferences.costControl?.monthlyLimitCents || 0} 
                 onChange={e => handleUpdateCostControl('monthlyLimitCents', parseInt(e.target.value) || 0)}
                 className="hide-arrows"
                 style={{ 
-                  width: '100px', 
-                  padding: '8px 12px 8px 24px', 
-                  borderRadius: '12px', 
-                  border: '1px solid var(--border-color)', 
-                  background: 'var(--bg-tertiary)', 
-                  color: 'var(--text-primary)', 
-                  fontSize: '14px', 
-                  textAlign: 'right', 
-                  fontWeight: 700, 
-                  fontFamily: '"Geist Mono", monospace', 
-                  outline: 'none', 
-                  transition: 'all 0.2s', 
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' 
+                  width: '80px', padding: '6px 8px 6px 20px', borderRadius: '8px', 
+                  border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', 
+                  color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right', 
+                  fontWeight: 500, fontFamily: '"Geist Mono", monospace', outline: 'none',
                 }} 
-                onFocus={e => {
-                  e.target.style.borderColor = 'var(--accent-primary)';
-                  e.target.style.background = 'var(--bg-secondary)';
-                  e.target.style.boxShadow = '0 0 0 4px var(--accent-primary)15, inset 0 1px 2px rgba(0,0,0,0.05)';
-                }}
-                onBlur={e => {
-                  e.target.style.borderColor = 'var(--border-color)';
-                  e.target.style.background = 'var(--bg-tertiary)';
-                  e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.05)';
-                }}
               />
             </div>
           } />
-          <SettingsRow icon={Shield} label="Hard Stop Protection" borderBottom={false} rightElement={<AppleToggle value={preferences.costControl?.hardStop !== false} onChange={v => handleUpdateCostControl('hardStop', v)} />} />
+          <SettingsRow icon={Shield} label="Hard Stop" description="Pause when limit reached" borderBottom={false} rightElement={<AppleToggle value={preferences.costControl?.hardStop !== false} onChange={v => handleUpdateCostControl('hardStop', v)} />} />
         </SettingsGroup>
       </div>
 
       {/* Analytics */}
       {usageStats && (
-        <div style={{ marginTop: '48px' }}>
-          <SectionTitle>Performance Analytics</SectionTitle>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
+        <div>
+          <SectionTitle>Analytics</SectionTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
             {[
               { label: 'Requests', value: usageStats.totalRequests || 0, icon: Zap },
               { label: 'Tokens',   value: usageStats.totalTokens   || 0, icon: Brain },
               { label: 'Latency',  value: `${Math.round(usageStats.avgResponseTime || 0)}ms`, icon: Gauge },
-              { label: 'Total Cost', value: `$${((usageStats.totalCost || 0) / 100).toFixed(2)}`, icon: DollarSign },
+              { label: 'Cost', value: `$${((usageStats.totalCost || 0) / 100).toFixed(2)}`, icon: DollarSign },
             ].map((s, i) => (
-              <motion.div
+              <div
                 key={i}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08, duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
-                whileHover={{ y: -4, boxShadow: `0 12px 32px ${statColors[i]}22`, background: 'var(--bg-tertiary)33' }}
                 style={{ 
-                  background: 'var(--bg-secondary)', padding: '12px 8px', borderRadius: '16px', 
-                  textAlign: 'center', border: '1px solid var(--border-color)', 
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', 
-                  cursor: 'default', transition: 'all 0.3s', position: 'relative', overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                  background: 'var(--bg-secondary)', padding: '12px', borderRadius: '10px', 
+                  border: '1px solid var(--border-color)', 
+                  display: 'flex', flexDirection: 'column', gap: '6px',
                 }}
               >
-                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '3px', background: `linear-gradient(90deg, ${statColors[i]}, transparent)` }} />
-                <div style={{ 
-                  width: '28px', height: '28px', borderRadius: '8px', 
-                  background: `${statColors[i]}15`, display: 'flex', alignItems: 'center', 
-                  justifyContent: 'center', color: statColors[i],
-                  boxShadow: `0 2px 8px ${statColors[i]}22`
-                }}>
-                  <s.icon size={14} strokeWidth={2.5} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <s.icon size={12} strokeWidth={2} style={{ color: statColors[i], opacity: 0.7 }} />
+                  <span style={{ fontSize: '10px', fontWeight: 400, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</span>
                 </div>
-                <div style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.03em', fontFamily: '"Geist Mono", monospace', color: 'var(--text-primary)' }}>{s.value}</div>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.7 }}>{s.label}</div>
-              </motion.div>
+                <div style={{ fontSize: '16px', fontWeight: 600, fontFamily: '"Geist Mono", monospace', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{s.value}</div>
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Sync Error Banner */}
+      {/* Error */}
       <AnimatePresence>
         {error && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             style={{ 
-              marginTop: '28px', padding: '16px 20px', 
-              background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', 
-              borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '12px', 
-              color: '#ef4444', fontSize: '13px', overflow: 'hidden',
-              boxShadow: '0 8px 24px rgba(239,68,68,0.1)'
+              padding: '10px 14px', background: 'rgba(239,68,68,0.05)', 
+              border: '1px solid rgba(239,68,68,0.12)', borderRadius: '10px', 
+              display: 'flex', alignItems: 'center', gap: '8px', 
+              color: '#ef4444', fontSize: '12px',
             }}
           >
-            <AlertCircle size={18} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1, lineHeight: 1.5, fontWeight: 500 }}>{error}</span>
-            <motion.button 
-              whileHover={{ scale: 1.05, background: 'rgba(239,68,68,0.15)' }} 
-              whileTap={{ scale: 0.95 }} 
+            <AlertCircle size={14} strokeWidth={2} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontWeight: 400 }}>{error}</span>
+            <button 
               onClick={fetchDashboardData} 
               style={{ 
-                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', 
-                color: '#ef4444', fontWeight: 800, cursor: 'pointer', 
-                padding: '7px 18px', borderRadius: '12px', fontSize: '12px',
-                letterSpacing: '0.02em'
+                background: 'rgba(239,68,68,0.08)', border: 'none', 
+                color: '#ef4444', fontWeight: 500, cursor: 'pointer', 
+                padding: '4px 10px', borderRadius: '6px', fontSize: '10px',
               }}
             >
-              RETRY
-            </motion.button>
+              Retry
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDirectory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 100005,
+              background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+            }}
+            onClick={() => setShowDirectory(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                background: 'var(--bg-primary)', borderRadius: '16px',
+                width: '100%', maxWidth: '480px', maxHeight: '80vh',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                border: '1px solid var(--border-color)',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ 
+                padding: '16px 20px', borderBottom: '1px solid var(--border-color)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Providers</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontWeight: 400 }}>Supported AI providers</div>
+                </div>
+                <button 
+                  onClick={() => setShowDirectory(false)} 
+                  style={{ background: 'none', border: 'none', padding: '6px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex' }}
+                >
+                  <X size={16} strokeWidth={2} />
+                </button>
+              </div>
+
+              <div style={{ overflowY: 'auto', padding: '12px 16px 20px', display: 'flex', flexDirection: 'column', gap: '6px' }} className="no-scrollbar">
+                {[...PROVIDERS]
+                  .filter(p => p.id !== 'custom')
+                  .sort((a, b) => (a.price || 0) - (b.price || 0))
+                  .map(p => (
+                    <div 
+                      key={p.id} 
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '12px',
+                        padding: '12px 14px', borderRadius: '10px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                      }}
+                    >
+                      <ProviderDot color={p.color} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{p.name}</div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '3px', alignItems: 'center' }}>
+                          {p.price === 0 ? (
+                            <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: '#10b98110', color: '#10b981', fontWeight: 500 }}>Free</span>
+                          ) : (
+                            <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500 }}>Paid</span>
+                          )}
+                          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: '"Geist Mono", monospace', fontWeight: 400 }}>{p.hint}</span>
+                        </div>
+                      </div>
+                      {p.link && (
+                        <a 
+                          href={p.link} target="_blank" rel="noopener noreferrer" 
+                          style={{
+                            padding: '6px 12px', borderRadius: '6px', background: 'var(--bg-tertiary)',
+                            color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '10px', fontWeight: 500,
+                            display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--border-color)',
+                          }}
+                        >
+                          Keys <ExternalLink size={10} />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
       <style>{`
-        @keyframes pulse-ring { 0% { opacity: 0.4; transform: scale(1); } 50% { opacity: 0; transform: scale(1.8); } 100% { opacity: 0; transform: scale(1.8); } }
         .hide-arrows::-webkit-outer-spin-button, .hide-arrows::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .hide-arrows { -moz-appearance: textfield; }
       `}</style>

@@ -19,11 +19,11 @@ export const SECTIONS = [
 
 export const SectionTitle = ({ children, style = {} }) => (
   <h2 style={{
-    fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em',
+    fontSize: '10px', fontWeight: 600, letterSpacing: '0.08em',
     color: 'var(--text-tertiary)', textTransform: 'uppercase',
-    marginBottom: '8px', marginLeft: '16px',
+    marginBottom: '6px', marginLeft: '2px',
     fontFamily: '"Inter", sans-serif',
-    opacity: 0.8,
+    opacity: 0.6,
     ...style
   }}>{children}</h2>
 );
@@ -33,18 +33,17 @@ export const SettingsGroup = ({ children, className = '', style = {} }) => (
     className={`settings-group ${className}`} 
     style={{
       background: 'var(--bg-secondary)',
-      borderRadius: '14px',
-      marginBottom: '20px',
+      borderRadius: '12px',
+      marginBottom: '16px',
       border: '1px solid var(--border-color)',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.02)',
-      padding: '2px 0',
+      padding: '1px 0',
       position: 'relative',
       ...style
     }}
   >
     <style>{`
-      .settings-group > *:first-child { border-top-left-radius: 14px; border-top-right-radius: 14px; }
-      .settings-group > *:last-child { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; border-bottom: none !important; }
+      .settings-group > *:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+      .settings-group > *:last-child { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; border-bottom: none !important; }
     `}</style>
     {children}
   </div>
@@ -74,28 +73,27 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
       <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1, position: 'relative', zIndex: 10 }}>
         {Icon && (
           <div style={{
-            width: '26px', height: '26px', borderRadius: '7px',
-            background: danger ? 'rgba(239,68,68,0.1)' : 'var(--text-primary)',
+            width: '24px', height: '24px', borderRadius: '6px',
+            background: danger ? 'rgba(239,68,68,0.08)' : 'var(--text-primary)',
             color: danger ? '#ef4444' : 'var(--bg-primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            boxShadow: danger ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
           }}>
-            <Icon size={14} strokeWidth={2.5} />
+            <Icon size={12} strokeWidth={2.5} />
           </div>
         )}
         <div style={{ flex: 1 }}>
           <div style={{
-            fontSize: '13.5px', fontWeight: 500,
+            fontSize: '13px', fontWeight: 500,
             color: danger ? '#ef4444' : 'var(--text-primary)',
             fontFamily: '"Inter", sans-serif',
             letterSpacing: '-0.01em',
           }}>{label}</div>
           {description && (
             <div style={{
-              fontSize: '11.5px', color: 'var(--text-tertiary)',
-              marginTop: '2px', lineHeight: 1.4,
+              fontSize: '11px', color: 'var(--text-tertiary)',
+              marginTop: '1px', lineHeight: 1.4,
               fontFamily: '"Inter", sans-serif',
-              fontWeight: 500,
+              fontWeight: 400,
             }}>{description}</div>
           )}
         </div>
@@ -114,7 +112,7 @@ export const AppleToggle = ({ value, onChange }) => (
   <button
     onClick={() => onChange(!value)}
     style={{
-      width: '36px', height: '20px', borderRadius: '10px',
+      width: '42px', height: '24px', borderRadius: '12px',
       background: value ? '#10b981' : 'var(--bg-tertiary)',
       border: `none`,
       position: 'relative', cursor: 'pointer',
@@ -124,15 +122,15 @@ export const AppleToggle = ({ value, onChange }) => (
       alignItems: 'center',
       padding: '0 2px',
       boxSizing: 'border-box',
-      boxShadow: value ? '0 2px 6px rgba(16,185,129,0.2)' : 'inset 0 1px 2px rgba(0,0,0,0.05)',
+      boxShadow: value ? '0 2px 8px rgba(16,185,129,0.25)' : 'inset 0 1px 2px rgba(0,0,0,0.05)',
     }}
   >
     <motion.div
       initial={false}
-      animate={{ x: value ? 16 : 0 }}
+      animate={{ x: value ? 18 : 0 }}
       transition={{ type: 'spring', stiffness: 600, damping: 35 }}
       style={{
-        width: '16px', height: '16px', borderRadius: '50%',
+        width: '20px', height: '20px', borderRadius: '50%',
         background: '#fff',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         flexShrink: 0,
@@ -316,9 +314,9 @@ export const DialogModal = ({ title, description, children, primaryAction, prima
       <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px', letterSpacing: '-0.03em' }}>{title}</h2>
       {description && <p style={{ fontSize: '15px', color: 'var(--text-tertiary)', marginBottom: '32px', lineHeight: 1.6, fontWeight: 500 }}>{description}</p>}
       {children && <div style={{ marginBottom: '32px' }}>{children}</div>}
-      <div style={{ display: 'flex', gap: '12px' }}>
-        <button onClick={onClose} disabled={loading} style={{ flex: 1, padding: '16px', borderRadius: '18px', background: 'var(--bg-tertiary)', border: 'none', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>Cancel</button>
-        <button onClick={primaryAction} disabled={loading} style={{ flex: 1, padding: '16px', borderRadius: '18px', background: primaryDanger ? '#ef4444' : 'var(--text-primary)', color: primaryDanger ? '#fff' : 'var(--bg-primary)', fontSize: '13px', fontWeight: 600, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', boxShadow: primaryDanger ? '0 8px 24px rgba(239,68,68,0.25)' : '0 8px 24px rgba(0,0,0,0.15)' }}>{loading ? 'Processing...' : primaryLabel}</button>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button onClick={onClose} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'var(--bg-tertiary)', border: 'none', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>Cancel</button>
+        <button onClick={primaryAction} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: primaryDanger ? '#ef4444' : 'var(--text-primary)', color: primaryDanger ? '#fff' : 'var(--bg-primary)', fontSize: '13px', fontWeight: 500, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>{loading ? 'Processing...' : primaryLabel}</button>
       </div>
     </motion.div>
   </div>

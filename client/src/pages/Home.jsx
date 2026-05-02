@@ -62,7 +62,20 @@ const Home = ({ isDark }) => {
     // Manual interaction states
     activeTool, setActiveTool, addCanvasObjects,
     drawColor, noteColor, noteSize, notePinned, noteToolSize,
-    textToolSize, shapeStrokeStyle
+    textToolSize, shapeStrokeStyle,
+    drawWidth, gridType, gridSize, showGrid
+  } = useTutorStore();
+
+  // ── Conversation Store Bindings ──
+  const {
+    conversationMessages, isStreaming, isWaitingForAI,
+    addUserMessage, finishStreaming, abortStreaming,
+    setConversationMessages, clearConversation,
+    applyEdit, removeLastAssistantMessage,
+    deleteMessageById, setMessageFeedback,
+    setWaitingForAI, setLastAIError, conversationTopic,
+    switchMessageVersion, setSources, clearSources, startStreaming: storeStartStreaming,
+    appendStreamChunk, appendStreamThought, lastStreamSources
   } = useTutorStore();
 
 
@@ -223,19 +236,25 @@ const Home = ({ isDark }) => {
       if (session) {
         console.log('[Home] Hydrating active chat:', savedActiveId);
         hasHydratedActive.current = true;
+        // Restore active chat ID
         setActiveChatId(savedActiveId);
         
+        // Optimistic hydration: Populate chat and canvas from local history BEFORE cloud fetch
+        if (session.messages && session.messages.length > 0) {
+          setConversationMessages(session.messages);
+        }
+
         // Restore canvas snapshot if we have one
         if (session.canvasState && session.canvasState.length > 0) {
           useTutorStore.getState().setCanvasSnapshot({ 
             canvasObjects: session.canvasState, 
-            canvasSteps: [], 
-            totalSteps: 0 
+            canvasSteps: session.canvasSteps || session.steps || [], 
+            totalSteps: (session.canvasSteps || session.steps)?.length || 0 
           });
         }
       }
     }
-  }, [activeChatId, chatHistory, setActiveChatId, authLoading]);
+  }, [activeChatId, chatHistory, setActiveChatId, setConversationMessages, authLoading]);
 
   // ── Sync Doubt Responses to Chat ──
   const lastDoubtId = useRef(null);
@@ -247,6 +266,7 @@ const Home = ({ isDark }) => {
     if (latest.answer && latest.id !== lastDoubtId.current) {
       lastDoubtId.current = latest.id;
       
+      const store = useTutorStore.getState();
       const assistantMessage = { 
         id: getMsgId('doubt-ans'), 
         role: 'assistant', 
@@ -254,10 +274,11 @@ const Home = ({ isDark }) => {
         timestamp: new Date().toISOString(),
         hasCanvas: latest.hasVisuals,
         canvasSnapshot: latest.hasVisuals ? { 
-          canvasObjects, 
-          canvasSteps, 
-          totalSteps, 
-          renderer: useTutorStore.getState().renderer,
+          canvasObjects: store.canvasObjects, 
+          canvasSteps: store.canvasSteps, 
+          totalSteps: store.canvasSteps?.length || 0,
+          currentStepIndex: store.currentStepIndex || 0,
+          renderer: store.renderer,
           title: timeline?.title || 'Doubt Response'
         } : null
       };
@@ -285,6 +306,7 @@ const Home = ({ isDark }) => {
     if (timeline && timeline.title && timeline.title !== lastTimelineId.current && timeline.title !== 'Lesson Snapshot') {
       lastTimelineId.current = timeline.title;
       
+      const store = useTutorStore.getState();
       const assistantMessage = { 
          id: getMsgId('session-ans'), 
          role: 'assistant', 
@@ -292,9 +314,9 @@ const Home = ({ isDark }) => {
          timestamp: new Date().toISOString(),
          hasCanvas: true,
          canvasSnapshot: { 
-           canvasObjects, 
-           canvasSteps, 
-           totalSteps, 
+           canvasObjects: store.canvasObjects, 
+           canvasSteps: store.canvasSteps, 
+           totalSteps: store.canvasSteps?.length || 0, 
            renderer: timeline.renderer,
            title: timeline.title 
          } 
@@ -407,18 +429,12 @@ const Home = ({ isDark }) => {
 
   const canvasRef = useRef(null);
   const isSubmittingRef = useRef(false);
+  const fetchAbortControllerRef = useRef(null);
   const msgIdCounter = useRef(0);
   const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
-  // ── Conversation Store Bindings ──
-  const {
-    conversationMessages, isStreaming, isWaitingForAI,
-    addUserMessage, finishStreaming, abortStreaming,
-    setConversationMessages, clearConversation,
-    applyEdit, removeLastAssistantMessage,
-    deleteMessageById, setMessageFeedback,
-    setWaitingForAI, setLastAIError, conversationTopic,
-  } = useTutorStore();
+
+
   const { startStreaming: streamResponse, stopStreaming } = useStreamingResponse();
 
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
@@ -466,7 +482,7 @@ const Home = ({ isDark }) => {
     if (!hasUserContent) return null;
 
     const payload = {
-      id: targetSessionId,
+      sessionId: targetSessionId,
       title: overrideTitle || activeSession?.title || timeline?.title || (updatedMessages && updatedMessages.find(m => m.role === 'user')?.content?.substring(0, 40)) || 'Untitled Session',
       messages: updatedMessages,
       canvasState: canvasObjects || [],
@@ -665,8 +681,8 @@ const Home = ({ isDark }) => {
       if (localSession.canvasState) {
         useTutorStore.getState().setCanvasSnapshot({ 
           canvasObjects: localSession.canvasState, 
-          canvasSteps: localSession.steps || [], 
-          totalSteps: localSession.steps?.length || 0 
+          canvasSteps: localSession.canvasSteps || localSession.steps || [], 
+          totalSteps: (localSession.canvasSteps || localSession.steps)?.length || 0 
         });
         useTutorStore.setState({ pinnedNotes: localSession.pinnedNotes || [] });
       }
@@ -691,14 +707,15 @@ const Home = ({ isDark }) => {
         if (res.ok) {
           const fullData = await res.json();
           if (fullData) {
-            console.log(`[Home] ✅ Full state fetched. Restoring timeline (${fullData.steps?.length || 0} steps)...`);
+            const steps = fullData.canvasSteps || fullData.steps || [];
+            console.log(`[Home] ✅ Full state fetched. Restoring timeline (${steps.length} steps)...`);
             
             // Restore actual pedagogical timeline
-            if (fullData.steps?.length > 0) {
+            if (steps.length > 0) {
               useTutorStore.getState().setTimeline({
                 ...fullData,
                 title: fullData.title || localSession?.title || 'Saved Session',
-                timeline: fullData.steps,
+                timeline: steps,
                 objects: fullData.canvasState
               });
             }
@@ -714,7 +731,7 @@ const Home = ({ isDark }) => {
               title: fullData.title,
               messages: fullData.messages,
               canvasState: fullData.canvasState,
-              steps: fullData.steps,
+              canvasSteps: fullData.canvasSteps || fullData.steps || [],
               chatSessionId: fullData._id,
               updatedAt: new Date(fullData.updatedAt || fullData.lastUpdated || Date.now()).getTime()
             } : s));
@@ -924,7 +941,7 @@ const Home = ({ isDark }) => {
         return;
       }
 
-      // ── 3. Call the new Chat API for conversational responses ──
+      // ── 3. Call the SSE Streaming Chat API ──
       const headers = { 'Content-Type': 'application/json' };
       if (token && token !== 'guest') {
         headers['Authorization'] = `Bearer ${token}`;
@@ -941,42 +958,100 @@ const Home = ({ isDark }) => {
         },
       };
 
-      const res = await fetch(`${API_URL}/api/chat`, {
+      fetchAbortControllerRef.current = new AbortController();
+
+      const res = await fetch(`${API_URL}/api/chat/stream`, {
         method: 'POST',
         headers,
         body: JSON.stringify(chatPayload),
+        signal: fetchAbortControllerRef.current.signal,
       });
+
+      fetchAbortControllerRef.current = null;
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || errData.fallbackMessage || 'AI request failed');
       }
 
-      const data = await res.json();
+      // ── 4. Real SSE Streaming ──
+      clearSources();
+      const assistantMsgId = getMsgId('assistant');
+      storeStartStreaming(assistantMsgId);
 
-      // ── 4. Stream the response with typing effect ──
-      const assistantMsgId = data.assistantMessageId || getMsgId('assistant');
-      streamResponse(data.response, assistantMsgId);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+      let thoughtContent = '';
+      let receivedSessionId = null;
 
-      // ── 5. Update sidebar history + persist to cloud ──
-      if (data.sessionId && data.sessionId !== workingSessionId) {
-        // Adopt the MongoDB session ID
-        setActiveChatId(data.sessionId);
-        setChatHistory(prev => prev.map(s => 
-          s.id === workingSessionId ? { ...s, id: data.sessionId, chatSessionId: data.sessionId } : s
-        ));
-        useTutorStore.getState().setChatSessionId(data.sessionId);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const dataStr = trimmed.slice(6);
+
+          try {
+            const event = JSON.parse(dataStr);
+
+            if (event.type === 'chunk') {
+              fullContent += event.chunk;
+              appendStreamChunk(event.chunk);
+            } else if (event.type === 'thought') {
+              thoughtContent += event.thought;
+              appendStreamThought(event.thought);
+            } else if (event.type === 'sources') {
+              setSources(event.sources);
+            } else if (event.type === 'meta') {
+              receivedSessionId = event.sessionId;
+            } else if (event.type === 'done') {
+              // Streaming complete
+            } else if (event.type === 'error') {
+              throw new Error(event.error);
+            }
+          } catch (parseErr) {
+            if (parseErr.message && !parseErr.message.includes('JSON')) {
+              throw parseErr;
+            }
+            // Skip malformed SSE lines
+          }
+        }
       }
+
+      // ── 5. Finalize streaming ──
+      finishStreaming(fullContent, thoughtContent, lastStreamSources);
 
       // Background persist for sidebar sync
       if (isAuthenticated && !user?.isGuest && token) {
         saveCurrentSession(
-          [...(useTutorStore.getState().conversationMessages), { id: assistantMsgId, role: 'assistant', content: data.response, timestamp: new Date().toISOString() }],
-          data.sessionId || workingSessionId,
+          useTutorStore.getState().conversationMessages,
+          receivedSessionId || workingSessionId,
           sessionTitle
         ).catch(err => console.error('[Home] Background persistence failed:', err));
       }
+
+      // ── 6. Update sidebar history with session ID ──
+      if (receivedSessionId && receivedSessionId !== workingSessionId) {
+        setActiveChatId(receivedSessionId);
+        setChatHistory(prev => prev.map(s => 
+          s.id === workingSessionId ? { ...s, id: receivedSessionId, chatSessionId: receivedSessionId } : s
+        ));
+        useTutorStore.getState().setChatSessionId(receivedSessionId);
+      }
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('[Home] AI request aborted by user.');
+        useTutorStore.getState().setWaitingForAI(false);
+        return;
+      }
       console.error('[Home] handleSubmit failed:', err);
       setLastAIError(err.message);
       const store = useTutorStore.getState();
@@ -1100,6 +1175,11 @@ const Home = ({ isDark }) => {
   // ── Stop Generation Handler ──
   const handleStopGeneration = () => {
     stopStreaming();
+    if (fetchAbortControllerRef.current) {
+      fetchAbortControllerRef.current.abort();
+      fetchAbortControllerRef.current = null;
+    }
+    useTutorStore.getState().setWaitingForAI(false);
   };
 
   // ── Manual Canvas Interaction ──
@@ -1119,6 +1199,7 @@ const Home = ({ isDark }) => {
       messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing || isStreaming || isWaitingForAI}
       onOpenCanvas={handleOpenCanvas} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage}
       onRegenerateMessage={handleRegenerateMessage} onFeedback={handleFeedback} onStopGeneration={handleStopGeneration}
+      onSwitchVersion={switchMessageVersion}
       getMsgId={getMsgId}
       prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit}
       activeMode={activeMode} setActiveMode={setActiveMode}

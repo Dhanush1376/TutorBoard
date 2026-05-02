@@ -85,7 +85,7 @@ export default function AgentCanvasRenderer({
 
   // 1. Core Interpreter & Renderer Initialization
   useEffect(() => {
-    if ((isD3 || isKaTeX || SpecializedRenderer) && d3ContainerRef.current && layoutReady) {
+    if (d3ContainerRef.current && layoutReady) {
       if (!interpreterRef.current) {
         console.log('[AgentCanvasRenderer] 🏗️ Initializing VisualScriptInterpreter');
         const d3Renderer = new D3Renderer(d3ContainerRef.current);
@@ -129,9 +129,12 @@ export default function AgentCanvasRenderer({
       console.log('[AgentCanvasRenderer] 🚀 Playing Doubt Delta');
       setDeltaRunning(true);
       interpreterRef.current.playDelta(deltaState.actions, onDeltaComplete);
-    } else if (step?.actions) {
-      console.log(`[AgentCanvasRenderer] 🎬 Playing Step ${currentStepIndex}`);
-      interpreterRef.current.playStep(step.actions);
+    } else {
+      const actions = step?.actions || step?.animation?.actions;
+      if (actions) {
+        console.log(`[AgentCanvasRenderer] 🎬 Playing Step ${currentStepIndex}`);
+        interpreterRef.current.playStep(actions);
+      }
     }
   }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, onDeltaComplete, setDeltaRunning, layoutReady]);
 
@@ -166,8 +169,8 @@ export default function AgentCanvasRenderer({
     <ErrorBoundary key={rendererType} onClose={() => {}}>
       <div className={`relative w-full h-full ${rendererType === 'simulator' ? 'min-h-[600px]' : 'min-h-[480px]'}`}>
 
-        {/* D3 Layer (Primary for D3 subjects, Overlay for KaTeX/Doubt Deltas) */}
-        {(isD3 || isKaTeX || !!deltaState) && (
+        {/* D3 Layer (Primary for D3 subjects, Overlay for KaTeX/Doubt Deltas/Cinematic) */}
+        {(isD3 || isKaTeX || !!deltaState || rendererType === 'cinematic') && (
           <div 
             ref={d3ContainerRef} 
             className="absolute inset-0 z-10 w-full h-full overflow-visible" 

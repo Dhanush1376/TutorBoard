@@ -325,7 +325,7 @@ class SessionStore {
       engineSessionId: id,
       topic: mongoSession.topic,
       messages: mongoSession.messages || [],
-      steps: mongoSession.steps || [],
+      steps: mongoSession.canvasSteps || mongoSession.steps || [],
       currentStepIndex: mongoSession.currentStepIndex || 0,
       canvasState: mongoSession.canvasState || [],
       canvasVersion: mongoSession.canvasVersion || 0,

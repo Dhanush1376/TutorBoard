@@ -9,25 +9,35 @@ export const createConversationSlice = (set, get) => ({
   conversationMessages: [],
   isStreaming: false,
   streamingContent: '',
+  streamingThought: '', // Internal reasoning/planning
   streamingMessageId: null,
+  streamingSessionId: null, // Track which session is streaming
   isWaitingForAI: false,
+  waitingSessionId: null, // Track which session is waiting for AI
   lastAIError: null,
   conversationTopic: null,
   conversationMode: 'basic',
   conversationIntent: null,
   editingMessageId: null,
   editingContent: '',
+  conversationSources: [],   // Web search sources for citation display
+  lastStreamSources: [],     // Sources from the last streaming response
 
   addUserMessage: (content) => {
     const id = generateId('user');
     const msg = {
       id, role: 'user', content,
       timestamp: new Date().toISOString(),
-      metadata: { edited: false, regenerated: false, feedback: null },
+      metadata: { 
+        edited: false, regenerated: false, feedback: null,
+        versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0 
+      },
     };
     set((state) => ({
       conversationMessages: [...state.conversationMessages, msg],
-      isWaitingForAI: true, lastAIError: null,
+      isWaitingForAI: true, 
+      waitingSessionId: get().chatSessionId || get().sessionId || 'temp', 
+      lastAIError: null,
     }));
     const { conversationTopic, conversationMessages } = get();
     if (!conversationTopic && conversationMessages.length <= 1) {
@@ -41,33 +51,67 @@ export const createConversationSlice = (set, get) => ({
     const msg = {
       id: msgId, role: 'assistant', content,
       timestamp: new Date().toISOString(),
-      metadata: { edited: false, regenerated: false, feedback: null },
+      metadata: { 
+        edited: false, regenerated: false, feedback: null,
+        versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0
+      },
     };
     set((state) => ({
       conversationMessages: [...state.conversationMessages, msg],
       isWaitingForAI: false, isStreaming: false,
+      waitingSessionId: null, streamingSessionId: null,
       streamingContent: '', streamingMessageId: null,
     }));
     return msgId;
   },
 
   startStreaming: (messageId) => {
-    set({ isStreaming: true, isWaitingForAI: false, streamingContent: '', streamingMessageId: messageId });
+    set({ 
+      isStreaming: true, 
+      isWaitingForAI: false, 
+      waitingSessionId: null,
+      streamingSessionId: get().chatSessionId || get().sessionId || 'temp',
+      streamingContent: '', 
+      streamingThought: '',
+      streamingMessageId: messageId 
+    });
   },
 
   updateStreamingContent: (content) => set({ streamingContent: content }),
 
-  finishStreaming: (finalContent) => {
+  // Efficient append for real SSE streaming (avoids full string replacement)
+  appendStreamChunk: (chunk) => set((state) => ({
+    streamingContent: state.streamingContent + chunk
+  })),
+
+  appendStreamThought: (thought) => set((state) => ({
+    streamingThought: state.streamingThought + thought
+  })),
+
+  // Set web search sources for citation display
+  setSources: (sources) => set({ conversationSources: sources, lastStreamSources: sources }),
+
+  // Clear sources
+  clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
+
+  finishStreaming: (finalContent, thoughtContent = '', sources = []) => {
     const { streamingMessageId } = get();
     const msg = {
       id: streamingMessageId || generateId('assistant'),
       role: 'assistant', content: finalContent,
       timestamp: new Date().toISOString(),
-      metadata: { edited: false, regenerated: false, feedback: null },
+      metadata: { 
+        edited: false, regenerated: false, feedback: null,
+        thought: thoughtContent,
+        sources: sources,
+        versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0
+      },
     };
     set((state) => ({
       conversationMessages: [...state.conversationMessages, msg],
-      isStreaming: false, streamingContent: '', streamingMessageId: null, isWaitingForAI: false,
+      isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
+      isWaitingForAI: false, waitingSessionId: null,
+      conversationSources: [],
     }));
   },
 
@@ -78,7 +122,10 @@ export const createConversationSlice = (set, get) => ({
         id: streamingMessageId || generateId('assistant'),
         role: 'assistant', content: streamingContent + '\n\n*[Response stopped]*',
         timestamp: new Date().toISOString(),
-        metadata: { edited: false, regenerated: false, feedback: null },
+        metadata: { 
+          edited: false, regenerated: false, feedback: null,
+          versions: [{ text: streamingContent + '\n\n*[Response stopped]*', subsequentMessages: [] }], activeVersionIndex: 0
+        },
       };
       set((state) => ({
         conversationMessages: [...state.conversationMessages, msg],
@@ -105,10 +152,76 @@ export const createConversationSlice = (set, get) => ({
     const { conversationMessages } = get();
     const idx = conversationMessages.findIndex((m) => m.id === messageId);
     if (idx === -1) return conversationMessages;
+    const targetMsg = conversationMessages[idx];
+    const subsequentMessages = conversationMessages.slice(idx + 1);
+    
+    // Ensure the current active version has the subsequent messages saved
+    const currentVersions = targetMsg.metadata.versions || [{ text: targetMsg.content, subsequentMessages: [] }];
+    const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
+    
+    // Save current branch to the active version BEFORE creating the new one
+    const updatedCurrentVersions = currentVersions.map((v, i) => 
+      i === activeIdx ? { ...v, subsequentMessages } : v
+    );
+    
+    // Append the new edit as a new version
+    const newVersions = [
+      ...updatedCurrentVersions,
+      { text: newContent, subsequentMessages: [] }
+    ];
+    
+    const newActiveIdx = newVersions.length - 1;
+    
+    // The new conversation stops at this message
     const updated = conversationMessages.slice(0, idx + 1);
-    updated[idx] = { ...updated[idx], content: newContent, metadata: { ...updated[idx].metadata, edited: true } };
+    
+    updated[idx] = { 
+      ...targetMsg, 
+      content: newContent, 
+      metadata: { 
+        ...targetMsg.metadata, 
+        edited: true,
+        versions: newVersions,
+        activeVersionIndex: newActiveIdx
+      } 
+    };
     set({ conversationMessages: updated, editingMessageId: null, editingContent: '', isWaitingForAI: true });
     return updated;
+  },
+
+  switchMessageVersion: (messageId, versionIndex) => {
+    const { conversationMessages } = get();
+    const idx = conversationMessages.findIndex((m) => m.id === messageId);
+    if (idx === -1) return;
+    
+    const targetMsg = conversationMessages[idx];
+    if (!targetMsg.metadata.versions) return;
+    
+    // Save current branch to the current active version before switching
+    const currentSubsequent = conversationMessages.slice(idx + 1);
+    const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
+    
+    const updatedVersions = targetMsg.metadata.versions.map((v, i) => 
+      i === activeIdx ? { ...v, subsequentMessages: currentSubsequent } : v
+    );
+    
+    // Now switch to the requested version
+    const targetVersion = updatedVersions[versionIndex];
+    
+    const updatedMsg = {
+      ...targetMsg,
+      content: targetVersion.text,
+      metadata: { ...targetMsg.metadata, versions: updatedVersions, activeVersionIndex: versionIndex }
+    };
+    
+    // Reconstruct the conversation array: messages before this + this message + saved subsequent messages
+    const newConversation = [
+      ...conversationMessages.slice(0, idx),
+      updatedMsg,
+      ...(targetVersion.subsequentMessages || [])
+    ];
+    
+    set({ conversationMessages: newConversation });
   },
 
   deleteMessageById: (messageId) => {
@@ -127,12 +240,18 @@ export const createConversationSlice = (set, get) => ({
 
   setConversationMessages: (messages) => {
     set({
-      conversationMessages: messages.map((m) => ({
-        id: m.id || m._id?.toString() || generateId(m.role),
-        role: m.role, content: m.content,
-        timestamp: m.timestamp || new Date().toISOString(),
-        metadata: m.metadata || { edited: false, regenerated: false, feedback: null },
-      })),
+      conversationMessages: messages.map((m) => {
+        const content = m.content || '';
+        return {
+          id: m.id || m._id?.toString() || generateId(m.role),
+          role: m.role, content,
+          timestamp: m.timestamp || new Date().toISOString(),
+          metadata: m.metadata || { 
+            edited: false, regenerated: false, feedback: null,
+            versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0
+          },
+        };
+      }),
     });
   },
 
@@ -141,6 +260,7 @@ export const createConversationSlice = (set, get) => ({
       conversationMessages: [], isStreaming: false, streamingContent: '', streamingMessageId: null,
       isWaitingForAI: false, lastAIError: null, conversationTopic: null,
       conversationMode: 'basic', conversationIntent: null, editingMessageId: null, editingContent: '',
+      conversationSources: [], lastStreamSources: [],
     });
   },
 

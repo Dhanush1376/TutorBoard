@@ -241,12 +241,12 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   letter-spacing: -0.02em;
-  line-height: 1.15;
+  line-height: 1.25;
   color: var(--text-primary);
   margin: 0;
-  font-weight: 400;
+  font-weight: 600;
 }
 
 h1 {
@@ -1290,10 +1290,11 @@ option {
 
 /* Chat message action buttons (hover bar) */
 .chat-action-btn {
-  padding: 4px;
+  padding: 5px;
   border-radius: 6px;
   color: var(--text-tertiary);
-  transition: all 150ms ease;
+  opacity: 0.5;
+  transition: all 120ms ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1301,12 +1302,12 @@ option {
 
 .chat-action-btn:hover {
   color: var(--text-primary);
+  opacity: 1;
   background-color: var(--bg-tertiary);
-  transform: scale(1.1);
 }
 
 .chat-action-btn:active {
-  transform: scale(0.9);
+  transform: scale(0.88);
 }
 
 /* Streaming cursor blink */
