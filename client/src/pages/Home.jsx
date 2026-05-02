@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Layout from '../components/layout/Layout';
 import ChatWindow from '../components/chat/ChatWindow';
 import InputBar from '../components/chat/InputBar';
-import TeachingModal from '../components/teaching/TeachingModal';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { AnimatePresence, motion } from 'framer-motion';
 import LeftPanel from '../components/layout/LeftPanel';
 import useTutorStore, { STATES as STORE_STATES, CANVAS_MODE } from '../store/tutorStore';
 import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
 import TeachingSession from '../components/teaching/TeachingSession';
+import useStreamingResponse from '../hooks/useStreamingResponse';
 
 import { BASE_URL as API_URL } from '../services/api';
 
@@ -410,8 +410,20 @@ const Home = ({ isDark }) => {
   const msgIdCounter = useRef(0);
   const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
+  // ── Conversation Store Bindings ──
+  const {
+    conversationMessages, isStreaming, isWaitingForAI,
+    addUserMessage, finishStreaming, abortStreaming,
+    setConversationMessages, clearConversation,
+    applyEdit, removeLastAssistantMessage,
+    deleteMessageById, setMessageFeedback,
+    setWaitingForAI, setLastAIError, conversationTopic,
+  } = useTutorStore();
+  const { startStreaming: streamResponse, stopStreaming } = useStreamingResponse();
+
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
-  const messages = activeSession?.messages || [];
+  // Use conversationMessages as the primary source for the chat UI
+  const messages = conversationMessages.length > 0 ? conversationMessages : (activeSession?.messages || []);
 
   // ── Canvas-First Session Creation ──
   // If the user draws on the canvas without starting a chat, we create a "Canvas Session"
@@ -627,6 +639,7 @@ const Home = ({ isDark }) => {
   const handleNewChat = () => { 
     useTutorStore.getState().triggerSync();
     useTutorStore.getState().setChatSessionId(null);
+    clearConversation();
     setActiveChatId(null);
     setPrompt(''); 
     endSession(); 
@@ -640,6 +653,15 @@ const Home = ({ isDark }) => {
     const localSession = chatHistory.find(s => s.id === id);
     if (localSession) {
       console.log(`[Home] Restoring local session: ${id} (${localSession.messages?.length || 0} messages)`);
+      
+      // Populate conversation slice with session messages
+      if (localSession.messages?.length > 0) {
+        setConversationMessages(localSession.messages);
+      } else {
+        clearConversation();
+      }
+
+      // Restore canvas state
       if (localSession.canvasState) {
         useTutorStore.getState().setCanvasSnapshot({ 
           canvasObjects: localSession.canvasState, 
@@ -649,7 +671,6 @@ const Home = ({ isDark }) => {
         useTutorStore.setState({ pinnedNotes: localSession.pinnedNotes || [] });
       }
       if (localSession.messages) {
-        // Sync the store's doubtHistory so AI context is restored for sequels
         useTutorStore.setState({ doubtHistory: localSession.messages });
       }
       
@@ -872,17 +893,17 @@ const Home = ({ isDark }) => {
       const workingSessionId = activeChatId || `session-${Date.now()}`;
       if (!activeChatId) setActiveChatId(workingSessionId);
 
-      const userMessage = { 
-        id: getMsgId('user'), 
-        role: 'user', 
-        content: userPrompt, 
-        timestamp: new Date().toISOString(),
-        file: fileData
-      };
-      
+      // ── 1. Add user message to conversation slice ──
+      const userMsgId = addUserMessage(userPrompt);
+
       const sessionTitle = userPrompt.substring(0, 40) || 'Untitled Session';
       
-      // Update local history immediately for UI responsiveness
+      // Update local chat history for sidebar display
+      const userMessage = { 
+        id: userMsgId, role: 'user', content: userPrompt, 
+        timestamp: new Date().toISOString(), file: fileData,
+        metadata: { edited: false, regenerated: false, feedback: null },
+      };
       setChatHistory(prev => {
         const idx = prev.findIndex(s => s.id === workingSessionId);
         if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
@@ -891,30 +912,194 @@ const Home = ({ isDark }) => {
         return next;
       });
 
-      // ── PERSISTENCE (Backgrounded): Save to MongoDB ──
-      // We do NOT 'await' this so that the AI response can start immediately.
-      // This solves the 'ignored AI' issue when DB latency is high.
-      if (isAuthenticated && !user?.isGuest && token) {
-        saveCurrentSession([userMessage], workingSessionId, sessionTitle)
-          .catch(err => console.error('[Home] Background persistence failed:', err));
+      // ── 2. Determine if this is a "Deep Visual Dive" (uses existing teaching pipeline) ──
+      if (activeMode === 'deep') {
+        const history = chatHistory.find(s => s.id === workingSessionId)?.messages || [];
+        const isFollowUp = activeChatId && history.length > 0;
+        if (isFollowUp) {
+          askDoubt(userPrompt, activeMode, fileData);
+        } else {
+          startSession(userPrompt, userPrompt, activeMode, fileData);
+        }
+        return;
       }
 
-      // ── AI ENGINE: Trigger immediately ──
-      const history = chatHistory.find(s => s.id === workingSessionId)?.messages || [];
-      const isFollowUp = activeChatId && history.length > 0;
-      
-      if (isFollowUp) {
-        askDoubt(userPrompt, activeMode, fileData);
-      } else {
-        startSession(userPrompt, userPrompt, activeMode, fileData);
+      // ── 3. Call the new Chat API for conversational responses ──
+      const headers = { 'Content-Type': 'application/json' };
+      if (token && token !== 'guest') {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const chatPayload = {
+        sessionId: /^[0-9a-fA-F]{24}$/.test(workingSessionId) ? workingSessionId : undefined,
+        userMessage: userPrompt,
+        mode: activeMode || 'quick',
+        teachingContext: {
+          currentTopic: conversationTopic || undefined,
+          explanationMode: 'basic',
+          learnerLevel: 'intermediate',
+        },
+      };
+
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(chatPayload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || errData.fallbackMessage || 'AI request failed');
+      }
+
+      const data = await res.json();
+
+      // ── 4. Stream the response with typing effect ──
+      const assistantMsgId = data.assistantMessageId || getMsgId('assistant');
+      streamResponse(data.response, assistantMsgId);
+
+      // ── 5. Update sidebar history + persist to cloud ──
+      if (data.sessionId && data.sessionId !== workingSessionId) {
+        // Adopt the MongoDB session ID
+        setActiveChatId(data.sessionId);
+        setChatHistory(prev => prev.map(s => 
+          s.id === workingSessionId ? { ...s, id: data.sessionId, chatSessionId: data.sessionId } : s
+        ));
+        useTutorStore.getState().setChatSessionId(data.sessionId);
+      }
+
+      // Background persist for sidebar sync
+      if (isAuthenticated && !user?.isGuest && token) {
+        saveCurrentSession(
+          [...(useTutorStore.getState().conversationMessages), { id: assistantMsgId, role: 'assistant', content: data.response, timestamp: new Date().toISOString() }],
+          data.sessionId || workingSessionId,
+          sessionTitle
+        ).catch(err => console.error('[Home] Background persistence failed:', err));
       }
     } catch (err) {
       console.error('[Home] handleSubmit failed:', err);
-      showAlert?.('Something went wrong. Please try again.');
+      setLastAIError(err.message);
+      const store = useTutorStore.getState();
+      store.finishStreaming(err.message.includes('unavailable') 
+        ? "I'm having trouble connecting right now. Please try again in a moment."
+        : `⚠️ ${err.message}`);
     } finally {
-      // Small delay to prevent double-submission if the user clicks rapidly
       setTimeout(() => { isSubmittingRef.current = false; }, 500);
     }
+  };
+
+  // ── Edit Message Handler (ChatGPT-style) ──
+  const handleEditMessage = async (messageId, newContent) => {
+    const updatedMessages = applyEdit(messageId, newContent);
+    if (!updatedMessages) return;
+
+    // If we have a persisted session, call the edit API
+    const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+
+    try {
+      if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+        const res = await fetch(`${API_URL}/api/chat/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ sessionId: dbSessionId, messageId, newContent }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const assistantMsgId = data.assistantMessageId || getMsgId('assistant');
+          streamResponse(data.response, assistantMsgId);
+          return;
+        }
+      }
+
+      // Fallback: call the regular chat API with truncated context
+      const headers = { 'Content-Type': 'application/json' };
+      if (token && token !== 'guest') headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          sessionId: isMongoId ? dbSessionId : undefined,
+          userMessage: newContent,
+          mode: activeMode || 'quick',
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
+      }
+    } catch (err) {
+      console.error('[Home] Edit failed:', err);
+      setLastAIError(err.message);
+    }
+  };
+
+  // ── Regenerate Handler ──
+  const handleRegenerateMessage = async () => {
+    removeLastAssistantMessage();
+
+    const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+
+    try {
+      if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+        const res = await fetch(`${API_URL}/api/chat/regenerate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ sessionId: dbSessionId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
+          return;
+        }
+      }
+
+      // Fallback: re-send last user message
+      const lastUserMsg = useTutorStore.getState().conversationMessages
+        .filter(m => m.role === 'user').pop();
+      if (lastUserMsg) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token && token !== 'guest') headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${API_URL}/api/chat`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ userMessage: lastUserMsg.content, mode: activeMode || 'quick' }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
+        }
+      }
+    } catch (err) {
+      console.error('[Home] Regenerate failed:', err);
+      setLastAIError(err.message);
+    }
+  };
+
+  // ── Delete Message Handler ──
+  const handleDeleteMessage = async (messageId) => {
+    deleteMessageById(messageId);
+    const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+    if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+      fetch(`${API_URL}/api/chat/message`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ sessionId: dbSessionId, messageId }),
+      }).catch(err => console.error('[Home] Delete sync failed:', err));
+    }
+  };
+
+  // ── Feedback Handler ──
+  const handleFeedback = (messageId, feedback) => {
+    setMessageFeedback(messageId, feedback);
+  };
+
+  // ── Stop Generation Handler ──
+  const handleStopGeneration = () => {
+    stopStreaming();
   };
 
   // ── Manual Canvas Interaction ──
@@ -931,8 +1116,9 @@ const Home = ({ isDark }) => {
       chatHistory={chatHistory} activeChatId={activeChatId}
       onNewChat={handleNewChat} onSelectChat={handleSelectChat}
       onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
-      messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing}
-      onOpenCanvas={handleOpenCanvas} onDeleteMessage={() => {}} onEditMessage={() => {}}
+      messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing || isStreaming || isWaitingForAI}
+      onOpenCanvas={handleOpenCanvas} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage}
+      onRegenerateMessage={handleRegenerateMessage} onFeedback={handleFeedback} onStopGeneration={handleStopGeneration}
       getMsgId={getMsgId}
       prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit}
       activeMode={activeMode} setActiveMode={setActiveMode}
@@ -1097,8 +1283,6 @@ const Home = ({ isDark }) => {
           isOpen={isQuickAskOpen} 
           onClose={() => setIsQuickAskOpen(false)} 
         />
-        {/* Portal target for algorithm info panel */}
-        <div id="algo-sidebar-portal" className="pointer-events-none" />
       </Layout>
     </div>
   );

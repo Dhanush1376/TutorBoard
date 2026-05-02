@@ -20,9 +20,9 @@ export function registerNavigationHandlers(socket, machine, sessionId) {
       const currentConfusion = s.learnerProfile.confusionIndex || 0;
       
       // ONLY decrement if the student advanced WITHOUT asking a doubt on this step
-      const wasClearStep = !s.hasAskedDoubtOnStep;
+      const wasClearStep = s.hasAskedDoubtOnStep === false; 
       const newerConfusion = wasClearStep 
-        ? Math.max(0, currentConfusion - 0.08) // More aggressive reward for clear steps
+        ? Math.max(0, currentConfusion - 0.05) // Stable reward for clear steps
         : currentConfusion; // No penalty, but no reward either
       
       // Track Engagement

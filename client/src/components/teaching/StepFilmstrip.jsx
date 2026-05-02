@@ -26,14 +26,14 @@ const StepFilmstrip = ({ steps, currentStepIndex, goToStep }) => {
               whileHover={{ scale: 1.1, y: -2 }}
               whileTap={{ scale: 0.9 }}
               className={`
-                w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-bold transition-all duration-300
-                ${isCurrent 
-                  ? 'bg-blue-500 text-white shadow-[0_10px_25px_rgba(59,130,246,0.5)]' 
-                  : isCompleted
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-white/5 text-white/40 border border-white/5 hover:bg-white/10 hover:text-white/80'
-                }
+                w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-medium transition-all duration-300
               `}
+              style={isCurrent
+                ? { background: 'var(--text-primary)', color: 'var(--bg-primary)' }
+                : isCompleted
+                ? { background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)' }
+                : { background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', border: '1px solid var(--border-color)' }
+              }
             >
               {isCompleted ? <Check size={16} strokeWidth={3} /> : index + 1}
               
@@ -41,7 +41,8 @@ const StepFilmstrip = ({ steps, currentStepIndex, goToStep }) => {
               {isCurrent && (
                 <motion.div
                   layoutId="step-glow"
-                  className="absolute -inset-1.5 rounded-[18px] border-2 border-blue-500/30"
+                  className="absolute -inset-1.5 rounded-[18px]"
+                  style={{ border: '2px solid var(--text-primary)', opacity: 0.2 }}
                   animate={{ opacity: [0.2, 0.5, 0.2] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 />
@@ -50,7 +51,8 @@ const StepFilmstrip = ({ steps, currentStepIndex, goToStep }) => {
 
             {/* Tooltip on hover */}
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-[10010] scale-90 group-hover:scale-100 translate-y-2 group-hover:translate-y-0">
-              <div className="bg-[#0d0d14]/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-white whitespace-nowrap shadow-2xl">
+              <div className="px-3 py-1.5 rounded-lg text-[10px] font-medium uppercase tracking-widest whitespace-nowrap shadow-xl"
+                style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', backdropFilter: 'blur(12px)' }}>
                 {step.title || `Step ${index + 1}`}
               </div>
             </div>

@@ -57,3 +57,31 @@ export const DOUBT_PLACEHOLDERS = {
 };
 
 export const PANEL_VISIBLE_STATES = ['TEACHING', 'RESPONDING', 'RESUMING'];
+
+export const formatTopicTitle = (raw) => {
+  if (!raw) return 'Session';
+  let title = raw.trim();
+  
+  let prev;
+  do {
+    prev = title;
+    title = title.replace(/^(can you|could you|please|explain|tell|show|teach|help|i want to learn|understanding|understand|me|to me|about|what|how|why|is|are|does|do|a|an|the)\s+/i, '');
+  } while (title !== prev);
+  
+  title = title.replace(/\?+$/, '');
+  
+  title = title.split(' ')
+    .filter(w => w.length > 0)
+    .map(w => {
+      const smallWords = ['a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'and', 'or'];
+      if (smallWords.includes(w.toLowerCase())) return w.toLowerCase();
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    })
+    .join(' ');
+    
+  if (title.length > 0) {
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+  }
+  
+  return title.trim() || 'Session';
+};

@@ -1,10 +1,9 @@
+// Server boot — LLM Chat System v2
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import crypto from 'crypto';
-import fs from 'fs';
-import express from 'express';
-import { createServer } from 'http';
+import express, { Application, Request, Response, NextFunction } from 'express';
+import { createServer, Server as HttpServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import { Redis } from 'ioredis';
 import cors from 'cors';
@@ -12,25 +11,43 @@ import helmet from 'helmet';
 import mongoose from 'mongoose';
 import * as Sentry from "@sentry/node";
 
-// Component imports
+// Component imports (Assuming .js extensions remain for now due to ESM/TS compatibility in transitions)
+// @ts-ignore
 import { setupTeachingSocket } from './sockets/teaching.socket.js';
+// @ts-ignore
 import { httpRateLimiter, strictGuestLimiter } from './middleware/rateLimiter.js';
+// @ts-ignore
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
+// @ts-ignore
 import passport from './utils/auth/passport.js';
+// @ts-ignore
 import { optionalProtect } from './middleware/auth.middleware.js';
+// @ts-ignore
 import { initPostgres } from './utils/core/postgres.js';
+// @ts-ignore
 import { flushAnalytics } from './utils/core/analytics.js';
 
 // Route imports
+// @ts-ignore
 import generateRoutes from './routes/generate.js';
+// @ts-ignore
 import doubtRoutes from './routes/doubt.js';
+// @ts-ignore
 import authRoutes from './routes/auth.js';
+// @ts-ignore
 import sessionRoutes from './routes/session.js';
+// @ts-ignore
 import apikeyRoutes from './routes/apikeys.js';
+// @ts-ignore
 import userRoutes from './routes/user.js';
+// @ts-ignore
 import uploadRoutes from './routes/upload.js';
+// @ts-ignore
 import aiRouter from './ai-router/index.js';
+// @ts-ignore
 import learnerRoutes from './routes/learner.routes.js';
+// @ts-ignore
+import chatRoutes from './routes/chat.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,10 +57,10 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 process.stdout.setEncoding('utf8');
 
-let httpServer;
+let httpServer: HttpServer;
 
 // Global crash logging
-process.on('uncaughtException', async (err) => {
+process.on('uncaughtException', async (err: Error) => {
   const msg = `[CRITICAL] Uncaught Exception at ${new Date().toISOString()}:\n${err.stack}\n\n`;
   console.error(msg);
   
@@ -75,6 +92,7 @@ process.on('unhandledRejection', (reason, promise) => {
 if (process.env.REDIS_URL) {
   try {
     const client = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
+    console.log('[Redis] Initializing connection...');
   } catch (err) {
     console.error('Redis connection error:', err);
   }
@@ -89,7 +107,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
   console.log('[Sentry] Backend monitoring: ACTIVE ✅');
 }
 
-const app = express();
+const app: Application = express();
 app.set('trust proxy', 1);
 
 app.use(helmet({
@@ -121,7 +139,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
   : DEFAULT_ORIGINS;
 
-function isOriginAllowed(origin, callback) {
+function isOriginAllowed(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
   if (!origin) return callback(null, true);
   
   const isAllowed = allowedOrigins.includes(origin) ||
@@ -137,18 +155,18 @@ function isOriginAllowed(origin, callback) {
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cors({
-  origin: isOriginAllowed,
+  origin: isOriginAllowed as any,
   credentials: true,
 }));
 
 app.use('/uploads', express.static('uploads', {
-  setHeaders: (res) => {
-    res.set('X-Content-Type-Options', 'nosniff');
-    res.set('Content-Disposition', 'attachment');
+  setHeaders: (res: any) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'attachment');
   }
 }));
 
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
@@ -199,7 +217,7 @@ const port = process.env.PORT || 5000;
 
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: isOriginAllowed,
+    origin: isOriginAllowed as any,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -208,7 +226,7 @@ const io = new SocketIO(httpServer, {
   pingInterval: 25000,
 });
 
-io.engine.on("connection_error", (err) => {
+io.engine.on("connection_error", (err: any) => {
   if (process.env.NODE_ENV === 'production') {
     Sentry.captureException(err);
   }
@@ -218,7 +236,7 @@ setupTeachingSocket(io);
 
 app.use(passport.initialize());
 
-const dbCheck = (req, res, next) => {
+const dbCheck = (req: Request, res: Response, next: NextFunction) => {
   const state = mongoose.connection.readyState;
   if (state !== 1) {
     return res.status(503).json({ 
@@ -229,11 +247,11 @@ const dbCheck = (req, res, next) => {
   next();
 };
 
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'TutorBoard API is running 🚀' });
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
@@ -245,11 +263,13 @@ app.use('/api/ai', httpRateLimiter, optionalProtect, strictGuestLimiter, dbCheck
 app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
 app.use('/api/learner', httpRateLimiter, dbCheck, learnerRoutes);
+app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
 app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
 
+// @ts-ignore
 Sentry.setupExpressErrorHandler(app);
 
-app.use((err, req, res, next) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(err.status || 500).json({
     error: err.message || 'Internal Server Error',
@@ -259,7 +279,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     httpServer.listen(port, () => {
-      console.log(`Server running on port ${port} in JS Mode 🚀`);
+      console.log(`Server running on port ${port} in TS Mode 🚀`);
     });
 
     await mongoose.connect(MONGODB_URI, {
@@ -271,7 +291,7 @@ const startServer = async () => {
     if (process.env.POSTGRES_URL) {
       await initPostgres();
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[DB] FAILED TO CONNECT: ${err.message}`);
   }
 };

@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import useTutorStore from '../store/tutorStore';
 
 interface KaTeXRendererProps {
   timeline: {
@@ -14,12 +15,34 @@ interface KaTeXRendererProps {
   currentStepIndex: number;
 }
 
-export default function KaTeXRenderer({ timeline, currentStepIndex }: KaTeXRendererProps) {
+const KaTeXRenderer = forwardRef((props: KaTeXRendererProps, ref) => {
+  const { timeline, currentStepIndex } = props;
   const steps = timeline?.timeline || timeline?.steps || [];
   const currentStep = steps[currentStepIndex] || {};
+  const interactiveValues = useTutorStore(state => state.interactiveValues);
+  const [formulaOverride, setFormulaOverride] = useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    setFormula: (tex: string) => setFormulaOverride(tex),
+    reset: () => setFormulaOverride(null)
+  }));
+
+  // Reset override when step changes
+  useEffect(() => {
+    setFormulaOverride(null);
+  }, [currentStepIndex]);
 
   // ─── Phase 4 Final Fix: Use new VisualScript format (step.actions) ───
   const visibleElements = useMemo(() => {
+    // If an override is active, we render ONLY the override
+    if (formulaOverride) {
+      return [{
+        id: 'vs-override',
+        content: formulaOverride,
+        highlight: true
+      }];
+    }
+
     const arr = currentStep.actions?.length ? currentStep.actions : timeline?.elements;
     return (arr || [])
       .filter((a: any) => a.cmd === 'equation' || a.type === 'equation')
@@ -30,7 +53,7 @@ export default function KaTeXRenderer({ timeline, currentStepIndex }: KaTeXRende
         highlightTerms: a.highlightTerms || [],
         annotation: a.annotation || a.text
       }));
-  }, [currentStep.actions, currentStepIndex, timeline?.elements]);
+  }, [currentStep.actions, currentStepIndex, timeline?.elements, formulaOverride]);
 
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center bg-[var(--bg-primary)] p-8 overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
@@ -60,6 +83,7 @@ export default function KaTeXRenderer({ timeline, currentStepIndex }: KaTeXRende
                   tex={el.content || el.label || ''}
                   displayMode={true}
                   highlightTerms={el.highlightTerms}
+                  overrides={interactiveValues}
                 />
                 {el.annotation && (
                   <motion.p
@@ -96,32 +120,44 @@ export default function KaTeXRenderer({ timeline, currentStepIndex }: KaTeXRende
       </motion.div>
     </div>
   );
-}
+});
+
+export default KaTeXRenderer;
 
 interface EquationProps {
   tex: string;
   displayMode?: boolean;
   highlightTerms?: string[];
+  overrides?: Record<string, number>;
 }
 
-function Equation({ tex, displayMode = false, highlightTerms = [] }: EquationProps) {
+function Equation({ tex, displayMode = false, highlightTerms = [], overrides = {} }: EquationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const processedTex = useMemo(() => {
     let finalTex = tex;
+
+    // 1. Apply Interactive Overrides
+    // If tex contains variables (e.g. "a", "b", "x"), replace them with current slider values
+    const sortedKeys = Object.keys(overrides).sort((a, b) => b.length - a.length);
+    sortedKeys.forEach(k => {
+      const val = overrides[k];
+      // Regex to match variable NOT inside a LaTeX command or { }
+      // This is a heuristic: match \bvar\b but avoid things like \frac or \sqrt
+      const regex = new RegExp(`\\b${k}\\b`, 'g');
+      finalTex = finalTex.replace(regex, val.toFixed(val % 1 === 0 ? 0 : 2));
+    });
+
+    // 2. Apply Dynamic Highlighting
     if (highlightTerms && highlightTerms.length > 0) {
-      // Dynamic highlighting: wrap matched terms in KaTeX \textcolor
-      // Note: This is a simple string replacement. Complex overlapping LaTeX might need AST parsing, 
-      // but this handles 95% of standard visual interventions (e.g. highlighting an 'x' or 'dx').
       highlightTerms.forEach(term => {
-        // Escape special regex chars
         const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`(?<!\\\\text{.*)(${escapedTerm})(?!.*})`, 'g');
-        finalTex = finalTex.replace(regex, `\\textcolor{#60a5fa}{$1}`); // Brighter blue/neon
+        finalTex = finalTex.replace(regex, `\\textcolor{#60a5fa}{$1}`);
       });
     }
     return finalTex;
-  }, [tex, highlightTerms]);
+  }, [tex, highlightTerms, overrides]);
 
   useEffect(() => {
     if (containerRef.current) {

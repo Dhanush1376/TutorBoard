@@ -66,7 +66,7 @@ const DoubtTimeline = () => {
               boxShadow: 'var(--glass-shadow)',
             }}
           >
-            <div className="px-3 py-2 border-b border-white/5">
+            <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
               <span className="text-[8px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
                 Doubts
               </span>
@@ -78,9 +78,8 @@ const DoubtTimeline = () => {
                   <button
                     key={doubt.id}
                     onClick={() => jumpToDoubt(doubt.id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-all hover:bg-white/5 ${
-                      isActive ? 'bg-white/[0.06]' : ''
-                    }`}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left transition-all"
+                    style={{ background: isActive ? 'var(--bg-tertiary)' : 'transparent' }}
                   >
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                       isActive ? 'bg-[var(--text-primary)]' : 'bg-[var(--text-tertiary)] opacity-40'
@@ -94,7 +93,8 @@ const DoubtTimeline = () => {
             </div>
             <button
               onClick={openDoubtThread}
-              className="px-3 py-2 border-t border-white/5 text-[9px] font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all text-center uppercase tracking-wider"
+              className="px-3 py-2 text-[9px] font-normal transition-all text-center uppercase tracking-wider"
+              style={{ borderTop: '1px solid var(--border-color)', color: 'var(--text-tertiary)' }}
             >
               Open Full Thread →
             </button>

@@ -16,12 +16,16 @@ interface NarrativeRendererProps {
 export default function NarrativeRenderer({ timeline, currentStepIndex }: NarrativeRendererProps) {
   const steps = timeline?.timeline || timeline?.steps || [];
   const currentStep = steps[currentStepIndex] || {};
-  const elements = elementsFromSteps(steps, currentStepIndex);
+
+  // NEW: Prioritize VisualScript 'timeline' commands over legacy 'steps'
+  const timelineCommands = (currentStep.actions || []).filter((a: any) => a.cmd === 'timeline' || a.type === 'timeline');
+  const displaySteps = timelineCommands.length > 0 ? timelineCommands : steps;
+  const activeStep = displaySteps[currentStepIndex] || displaySteps[0] || {};
   
   const d3Container = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    if (!d3Container.current || steps.length === 0) return;
+    if (!d3Container.current || displaySteps.length === 0) return;
 
     const svg = d3.select(d3Container.current);
     svg.selectAll("*").remove();
@@ -31,7 +35,7 @@ export default function NarrativeRenderer({ timeline, currentStepIndex }: Narrat
     const margin = { top: 50, right: 100, bottom: 50, left: 100 };
 
     const x = d3.scaleLinear()
-      .domain([0, steps.length - 1])
+      .domain([0, Math.max(1, displaySteps.length - 1)])
       .range([margin.left, width - margin.right]);
 
     // Draw Main Axis Line
@@ -55,7 +59,7 @@ export default function NarrativeRenderer({ timeline, currentStepIndex }: Narrat
 
     // Draw Event Markers
     const markers = svg.selectAll(".marker")
-      .data(steps)
+      .data(displaySteps)
       .enter()
       .append("g")
       .attr("class", "marker")
@@ -74,9 +78,9 @@ export default function NarrativeRenderer({ timeline, currentStepIndex }: Narrat
       .attr("fill", (d, i) => i <= currentStepIndex ? "white" : "rgba(255,255,255,0.2)")
       .attr("font-size", "10px")
       .attr("font-weight", (d, i) => i === currentStepIndex ? "600" : "400")
-      .text((d: any) => d.label || d.date || `Event ${steps.indexOf(d) + 1}`);
+      .text((d: any) => d.label || d.date || `Event ${displaySteps.indexOf(d) + 1}`);
 
-  }, [steps, currentStepIndex]);
+  }, [displaySteps, currentStepIndex]);
 
   return (
     <div className="relative w-full h-full flex flex-col bg-[var(--bg-primary)] p-8 rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
@@ -120,23 +124,18 @@ export default function NarrativeRenderer({ timeline, currentStepIndex }: Narrat
           <div className="flex justify-between items-start mb-4">
             <div>
               <h4 className="text-blue-400 text-xs font-bold uppercase tracking-[0.2em] mb-1">Current Focus</h4>
-              <h3 className="text-xl font-semibold text-white">{currentStep.label || "Key Event"}</h3>
+              <h3 className="text-xl font-semibold text-white">{activeStep.label || activeStep.title || "Key Event"}</h3>
             </div>
             <div className="text-right">
               <span className="text-[10px] font-mono text-white/30 uppercase">Temporal Index</span>
-              <p className="text-lg font-bold text-white/50">{currentStepIndex + 1} / {steps.length}</p>
+              <p className="text-lg font-bold text-white/50">{currentStepIndex + 1} / {displaySteps.length}</p>
             </div>
           </div>
           <p className="text-lg text-white/80 leading-relaxed font-light">
-            {currentStep.narration || currentStep.explanation}
+            {activeStep.narration || activeStep.explanation || activeStep.text || currentStep.narration || currentStep.explanation}
           </p>
         </motion.div>
       </AnimatePresence>
     </div>
   );
-}
-
-function elementsFromSteps(steps: any[], index: number) {
-  // Aggregate elements from start to current index if they are meant to persist
-  return steps.slice(0, index + 1).flatMap(s => s.elements || []);
 }

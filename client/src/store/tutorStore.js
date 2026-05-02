@@ -13,6 +13,7 @@ import { createCanvasSlice } from './slices/canvasSlice.js';
 import { createChatSlice } from './slices/chatSlice.js';
 import { createUiSlice } from './slices/uiSlice.js';
 import { createControlSlice } from './slices/controlSlice.js';
+import { createConversationSlice } from './slices/conversationSlice.js';
 
 const safeStorage = {
   getItem: (name) => {
@@ -43,6 +44,7 @@ const useTutorStore = create(
       ...createChatSlice(set, get),
       ...createUiSlice(set, get),
       ...createControlSlice(set, get),
+      ...createConversationSlice(set, get),
 
       // Global Actions / Hydration
       hydrate: () => {
@@ -80,6 +82,12 @@ const useTutorStore = create(
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
         guestTrialStatus: state.guestTrialStatus,
+        // Explicitly exclude conversation state from persistence
+        conversationMessages: [],
+        isStreaming: false,
+        streamingContent: '',
+        streamingMessageId: null,
+        isWaitingForAI: false,
       }),
     }
   )

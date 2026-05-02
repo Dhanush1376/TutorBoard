@@ -305,12 +305,26 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Doubt Delta received (Phase 3)
     cleanups.push(on('teaching:doubt-delta', (data) => {
-      console.log(`[Machine] Doubt Delta: ${data.actions?.length} actions`);
+      console.log(`[Machine] 🚀 Doubt Delta received: ${data.actions?.length || 0} actions`);
+      
+      if (!data.actions || data.actions.length === 0) {
+        console.warn('[Machine] ⚠️ Received doubt-delta with 0 actions. Checking visualUpdate fallback...');
+      }
+
+      // CRITICAL FIX: Ensure the socket data immediately triggers the delta state
+      // even if addDoubt hasn't finished its async store updates.
+      setDeltaState({ 
+        actions: data.actions || [], 
+        timestamp: Date.now() 
+      });
+
       addDoubt(data._question, data.answer, true, { 
-        actions: data.actions, 
+        actions: data.actions || [], 
         isDelta: true 
       });
+      
       setDoubtProcessing(false);
+      notifyUser("Adaptive Support", "The AI has updated the visuals to answer your doubt.");
     }));
 
 

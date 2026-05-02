@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { motion } from 'framer-motion';
 
 interface DesmosRendererProps {
@@ -18,11 +18,25 @@ declare global {
   }
 }
 
-export default function DesmosRenderer({ timeline, currentStepIndex }: DesmosRendererProps) {
+const DesmosRenderer = forwardRef((props: DesmosRendererProps, ref) => {
+  const { timeline, currentStepIndex } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const calculatorRef = useRef<any>(null);
   const steps = timeline?.timeline || timeline?.steps || [];
   const currentStep = steps[currentStepIndex] || {};
+  const [expressionOverride, setExpressionOverride] = useState<any[] | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    setExpression: (latex: string, color?: string) => {
+      setExpressionOverride([{ id: 'vs-override', latex, color: color || '#3b82f6' }]);
+    },
+    reset: () => setExpressionOverride(null)
+  }));
+
+  // Reset override when step changes
+  useEffect(() => {
+    setExpressionOverride(null);
+  }, [currentStepIndex]);
 
   useEffect(() => {
     // Load Desmos API script if not present
@@ -61,8 +75,8 @@ export default function DesmosRenderer({ timeline, currentStepIndex }: DesmosRen
   const syncExpressions = () => {
     if (!calculatorRef.current) return;
 
-    // Get all expressions up to current step (Legacy + VisualScript actions)
-    const allExpressions = steps.slice(0, currentStepIndex + 1).flatMap(s => {
+    // If an override is active, use it instead of step data
+    const allExpressions = expressionOverride || steps.slice(0, currentStepIndex + 1).flatMap(s => {
       const legacy = s.expressions || [];
       const fromActions = (s.actions || [])
         .filter((a: any) => a.cmd === 'graph' || a.action === 'graph' || a.cmd === 'expression')
@@ -90,7 +104,7 @@ export default function DesmosRenderer({ timeline, currentStepIndex }: DesmosRen
 
   useEffect(() => {
     syncExpressions();
-  }, [currentStepIndex, steps]);
+  }, [currentStepIndex, steps, expressionOverride]);
 
   return (
     <div className="relative w-full h-full flex flex-col bg-[var(--bg-primary)] p-8 rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
@@ -127,4 +141,6 @@ export default function DesmosRenderer({ timeline, currentStepIndex }: DesmosRen
       </motion.div>
     </div>
   );
-}
+});
+
+export default DesmosRenderer;

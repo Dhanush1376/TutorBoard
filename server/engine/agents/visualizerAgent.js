@@ -34,11 +34,13 @@ COMMAND REFERENCE
 D3 RENDERER (Algorithms / Data Structures / Charts / History):
   array(id, values)                       — Create a horizontal data array.
   pointer(id, atIndex, label, color)      — Create an index marker below the array.
-  draw_boundary(atIndex, label)           — Draw a partition line (e.g., sorted region).
+  draw_boundary(atIndex, label, endIndex)  — Draw a partition line or range box.
+                                             If endIndex is provided, draws a dashed rectangle.
   tree(id, data)                          — Render a tree structure from a JSON hierarchy.
   chart(id, data, type)                   — Bar or line chart.
   timeline(id, events)                    — Horizontal timeline with dated events.
   annotate(id, text)                      — Attach a text label to any element.
+  result(text)                            — Display a large success/found banner at the bottom.
   narrate(text)                           — Set the narration bar text for this step.
 
 PHYSICS RENDERER (Mechanics / Forces / Collisions):
@@ -49,6 +51,9 @@ PHYSICS RENDERER (Mechanics / Forces / Collisions):
 
 MATH RENDERER (Equations / Calculus / Proofs):
   equation(formula)                       — Render a LaTeX formula with KaTeX.
+  interactive_controls(formula, controls)  — Create labeled sliders for the right panel.
+    formula: "sqrt(a^2 + b^2)"
+    controls: [{ "id": "a", "label": "Side a", "min": 1, "max": 10, "initial": 3, "step": 1, "formula_var": "a" }]
   narrate(text)                           — Set the narration bar text.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -83,9 +88,10 @@ EXAMPLE 2 — Merge Sort (D3, Partitioned Array)
   "scene": "merge_sort_divide",
   "script": [
     { "cmd": "array", "id": "arr", "values": [38, 27, 43, 3, 9, 82, 10] },
-    { "cmd": "draw_boundary", "atIndex": 3, "label": "mid" },
+    { "cmd": "draw_boundary", "atIndex": 0, "endIndex": 4, "label": "Search Range" },
     { "cmd": "pointer", "id": "ptr_left", "atIndex": 0, "label": "L", "color": "violet" },
     { "cmd": "pointer", "id": "ptr_right", "atIndex": 4, "label": "R", "color": "teal" },
+    { "cmd": "result", "text": "Partition complete at index 3" },
     { "cmd": "narrate", "text": "Merge Sort divides the array at the midpoint. We recursively sort the left and right halves." }
   ]
 }

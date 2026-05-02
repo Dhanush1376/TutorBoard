@@ -9,7 +9,6 @@ import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageCircleQuestion, ArrowUpRight, Eye, FlaskConical, Binary, Sigma, Zap, Leaf, Stethoscope, Briefcase, Scale, History, Settings, Brain, TrendingUp, Palette, Plane, BookOpen, ChevronLeft } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import TeachingGuide from './TeachingGuide';
 import { DOMAIN_STYLES } from '../../lib/teaching';
 
 const DoubtThread = () => {
@@ -24,7 +23,6 @@ const DoubtThread = () => {
   const domain = timeline?.domain?.toLowerCase();
   const domainStyle = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
 
-  const [showGuide, setShowGuide] = React.useState(false);
   const [expandedIds, setExpandedIds] = React.useState(new Set());
   const scrollRef = useRef(null);
 
@@ -57,7 +55,8 @@ const DoubtThread = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeDoubtThread}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[75] pointer-events-auto"
+            className="fixed inset-0 z-[75] pointer-events-auto"
+            style={{ background: 'rgba(0,0,0,0.1)', backdropFilter: 'blur(2px)' }}
           />
 
           <motion.div
@@ -84,17 +83,12 @@ const DoubtThread = () => {
               </span>
             </div>
 
-            <button
-              onClick={() => setShowGuide(true)}
-              className="px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-[8px] font-normal text-blue-400 uppercase tracking-widest hover:bg-blue-500/20 transition-all ml-4 mr-auto flex items-center gap-1.5"
-            >
-              <BookOpen size={10} />
-              Guide
-            </button>
+
 
             <button
               onClick={closeDoubtThread}
-              className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-all"
+              className="p-1.5 rounded-lg transition-all"
+              style={{ color: 'var(--text-tertiary)' }}
             >
               <X size={14} />
             </button>
@@ -196,7 +190,8 @@ const DoubtThread = () => {
                                 <div className="flex items-center gap-1.5 px-3 pb-2.5" onClick={(e) => e.stopPropagation()}>
                                   <button
                                     onClick={() => jumpToDoubt(doubt.id)}
-                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[10px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-all"
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-normal transition-all"
+                                    style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}
                                   >
                                     <Eye size={10} />
                                     View State
@@ -204,7 +199,8 @@ const DoubtThread = () => {
                                   {doubt.answer && (
                                     <button
                                       onClick={() => pinDoubtToCanvas(doubt.id)}
-                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-normal text-amber-400 hover:bg-amber-500/20 transition-all"
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-normal transition-all"
+                                      style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b' }}
                                     >
                                       <Zap size={10} />
                                       Pin to Canvas
@@ -240,8 +236,7 @@ const DoubtThread = () => {
         </motion.div>
       </>
     )}
-      {/* Advanced Teaching Guide Overlay */}
-      <TeachingGuide isOpen={showGuide} onClose={() => setShowGuide(false)} />
+
     </AnimatePresence>
   );
 };

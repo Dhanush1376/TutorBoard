@@ -26,7 +26,8 @@ const SessionResumeOverlay = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-[10000] flex items-center justify-center bg-black/40 backdrop-blur-md pointer-events-none"
+          className="absolute inset-0 z-[10000] flex items-center justify-center pointer-events-none"
+          style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(8px)' }}
         >
           <motion.div
             initial={{ scale: 0.9, y: 20, opacity: 0 }}
@@ -34,8 +35,9 @@ const SessionResumeOverlay = () => {
             exit={{ scale: 1.1, opacity: 0 }}
             className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-4 max-w-sm text-center"
           >
-            <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-2">
-              <History size={32} className="text-blue-400" />
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-2"
+              style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+              <History size={32} style={{ color: 'var(--text-tertiary)' }} />
             </div>
             
             <div>

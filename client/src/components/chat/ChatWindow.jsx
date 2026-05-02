@@ -1,12 +1,14 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, MessageSquare, BookOpen, Wrench, ClipboardCheck, Image } from 'lucide-react';
+import { Layers, BookOpen, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../layout/VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
+import useTutorStore from '../../store/tutorStore';
 
-// ── New premium starting interface ──
+// ── Premium Landing Interface ──────────────────────────────────────────────
+
 const ChatLanding = ({ setActiveMode, activeMode }) => {
   const { user } = useAuth();
   const { isMobile } = useWindowSize();
@@ -16,7 +18,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
     if (hour >= 5 && hour < 12) return "Welcome, Early Bird,";
     if (hour >= 12 && hour < 17) return "Welcome, Day Dreamer,";
     if (hour >= 17 && hour < 21) return "Welcome, Calm Creator,";
-    return "Welcome, Night Owl,"; // Covers 21:00 - 04:59
+    return "Welcome, Night Owl,";
   }, []);
 
   const modes = [
@@ -45,7 +47,6 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
         </h1>
       </motion.div>
 
-      {/* Starting Blocks (Modes) */}
       <div className="flex flex-col gap-2 items-start">
         {modes.map((mode, i) => (
           <motion.button
@@ -75,7 +76,8 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
   );
 };
 
-// ── Thinking / Typing indicator ──
+// ── Thinking / Typing Indicator ─────────────────────────────────────────────
+
 const ThinkingIndicator = () => (
   <motion.div
     initial={{ opacity: 0, y: 12, scale: 0.95 }}
@@ -129,18 +131,53 @@ const ThinkingIndicator = () => (
   </motion.div>
 );
 
-const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onEditMessage, activeMode, setActiveMode }) => {
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHATWINDOW — Stream-aware, conversation-first rendering
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ChatWindow = ({
+  messages, isGenerating,
+  onOpenCanvas, onDeleteMessage, onEditMessage, onRegenerateMessage, onFeedback,
+  activeMode, setActiveMode,
+}) => {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
+  const userScrolledRef = useRef(false);
+
+  // Read streaming state from store
+  const isStreaming = useTutorStore((s) => s.isStreaming);
+  const streamingContent = useTutorStore((s) => s.streamingContent);
+  const streamingMessageId = useTutorStore((s) => s.streamingMessageId);
+  const isWaitingForAI = useTutorStore((s) => s.isWaitingForAI);
+
+  // ── Smart Auto-Scroll ──
+  // Only auto-scroll if user hasn't manually scrolled up
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    userScrolledRef.current = !isNearBottom;
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, isGenerating]);
+    const el = containerRef.current;
+    if (el) {
+      el.addEventListener('scroll', handleScroll, { passive: true });
+      return () => el.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
 
-  const isEmpty = messages.length === 0 && !isGenerating;
+  // Scroll to bottom on new messages or streaming content
+  useEffect(() => {
+    if (!userScrolledRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages.length, streamingContent, isWaitingForAI]);
+
+  const isEmpty = messages.length === 0 && !isGenerating && !isWaitingForAI && !isStreaming;
 
   return (
-    <div ref={containerRef} className="flex-1 flex flex-col min-h-0">
+    <div ref={containerRef} className="flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar">
       <AnimatePresence mode="wait">
         {isEmpty ? (
           <ChatLanding key="empty" activeMode={activeMode} setActiveMode={setActiveMode} />
@@ -151,23 +188,25 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
             animate={{ opacity: 1 }}
             className="flex flex-col py-2"
           >
-            {messages.map((msg, index) => {
-              // Ensure we have a bulletproof unique key, even on remounts
-              const msgKey = msg.id || `msg-idx-${index}-${msg.role}`;
+            {messages.map((msg) => {
+              const msgKey = msg.id || `msg-idx-${msg.role}-${msg.timestamp}`;
               return (
                 <Message
                   key={msgKey}
                   role={msg.role}
                   content={msg.content}
+                  messageId={msg.id}
+                  timestamp={msg.timestamp}
+                  metadata={msg.metadata}
+                  onOpenCanvas={onOpenCanvas}
+                  onDeleteMessage={onDeleteMessage}
+                  onEditMessage={onEditMessage}
+                  onRegenerateMessage={onRegenerateMessage}
+                  onFeedback={onFeedback}
                   steps={msg.steps}
                   stepTitle={msg.stepTitle}
                   domain={msg.domain}
                   visualizationType={msg.visualizationType}
-                  onOpenCanvas={onOpenCanvas}
-                  onDeleteMessage={onDeleteMessage}
-                  onEditMessage={onEditMessage}
-                  messageId={msg.id}
-                  timestamp={msg.timestamp}
                   elements={msg.elements || msg.objects}
                   motion={msg.motion}
                   connections={msg.connections}
@@ -178,9 +217,24 @@ const ChatWindow = ({ messages, isGenerating, onOpenCanvas, onDeleteMessage, onE
               );
             })}
 
-            {/* Typing indicator */}
+            {/* ── Streaming Message (live typing) ── */}
+            {isStreaming && streamingContent && (
+              <Message
+                key="streaming-msg"
+                role="assistant"
+                content={streamingContent}
+                messageId={streamingMessageId}
+                timestamp={new Date().toISOString()}
+                isStreaming={true}
+                streamingContent={streamingContent}
+              />
+            )}
+
+            {/* ── Thinking Indicator (waiting for AI) ── */}
             <AnimatePresence>
-              {isGenerating && <ThinkingIndicator key="thinking" />}
+              {(isWaitingForAI || (isGenerating && !isStreaming)) && (
+                <ThinkingIndicator key="thinking" />
+              )}
             </AnimatePresence>
 
             <div ref={bottomRef} className="h-2" />

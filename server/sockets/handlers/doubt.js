@@ -211,7 +211,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
             socket.emit('teaching:replan', { message: replan.notification, newTotalSteps: replan.mergedSteps.length });
             socket.emit('teaching:timeline-update', { steps: replan.mergedSteps, totalSteps: replan.mergedSteps.length });
             await sessionStore.update(sessionId, {
-              learnerProfile: { ...activeSession.learnerProfile, confusionIndex: 0 },
+              learnerProfile: { ...activeSession.learnerProfile, confusionIndex: 0.25 },
               _lastReplanDoubtCount: activeSession.doubtHistory.length
             });
           }

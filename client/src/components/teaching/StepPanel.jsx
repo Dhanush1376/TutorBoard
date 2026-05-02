@@ -531,15 +531,12 @@ const StepPanel = ({
         animate={{ opacity: 1, x: 0,   scale: 1 }}
         exit={{   opacity: 0, x: -16,  scale: 0.97 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="glass-strong"
         style={{
           background: 'var(--bg-secondary)',
           border: `1px solid ${cfg.border}`,
-          borderRadius: 18,
-          padding: '16px 18px',
-          maxWidth: 310,
+          borderRadius: 14,
+          padding: '14px 16px',
           width: '100%',
-          boxShadow: `var(--glass-shadow), 0 0 80px ${cfg.accent}09`,
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -614,7 +611,7 @@ const StepPanel = ({
 
         {/* Hint */}
         {cfg.hint && (
-          <p style={{ fontSize: 9.5, color: 'rgba(100,116,139,0.55)', fontStyle: 'italic', margin: '0 0 8px' }}>
+          <p style={{ fontSize: 9.5, color: 'var(--text-tertiary)', fontStyle: 'italic', margin: '0 0 8px', opacity: 0.7 }}>
             {cfg.hint}
           </p>
         )}
@@ -642,21 +639,45 @@ const StepPanel = ({
           </p>
         )}
 
-        {/* Key formula */}
+        {/* Key formula or Pseudocode */}
         <AnimatePresence>
-          {(currentStep?.keyFormula || (isLast && keyFormula)) && (
+          {(currentStep?.pseudocode || currentStep?.keyFormula || (isLast && keyFormula)) && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: done ? 0.05 : 0.55 }}
               style={{
                 marginTop: 12, padding: '9px 14px',
                 background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
-                borderRadius: 10, fontSize: 12.5,
+                borderRadius: 10, fontSize: 10.5,
                 fontFamily: "'JetBrains Mono','Fira Code',monospace",
-                color: 'var(--text-secondary)', textAlign: 'center', letterSpacing: '0.02em', wordBreak: 'break-all',
+                color: 'var(--text-primary)', textAlign: 'left', letterSpacing: '0.02em', 
+                whiteSpace: 'pre-wrap', overflowX: 'auto'
               }}
             >
-              {currentStep?.keyFormula || keyFormula}
+              {currentStep?.pseudocode || currentStep?.keyFormula || keyFormula}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Complexity Analysis */}
+        <AnimatePresence>
+          {(currentStep?.timeComplexity || currentStep?.spaceComplexity) && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              style={{ display: 'flex', gap: 6, marginTop: 10 }}
+            >
+              {currentStep.timeComplexity && (
+                <div style={{ flex: 1, padding: '6px 8px', borderRadius: 8, background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.15)', fontSize: 9 }}>
+                  <span style={{ color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>TIME</span>
+                  <span style={{ color: '#f43f5e' }}>{currentStep.timeComplexity}</span>
+                </div>
+              )}
+              {currentStep.spaceComplexity && (
+                <div style={{ flex: 1, padding: '6px 8px', borderRadius: 8, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)', fontSize: 9 }}>
+                  <span style={{ color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>SPACE</span>
+                  <span style={{ color: '#3b82f6' }}>{currentStep.spaceComplexity}</span>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -669,14 +690,14 @@ const StepPanel = ({
               transition={{ delay: 0.45, duration: 0.48 }}
               style={{
                 marginTop: 14, padding: '11px 14px',
-                background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.22)',
+                background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
                 borderRadius: 12,
               }}
             >
-              <span style={{ display: 'block', fontSize: 8, fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#fbbf24', marginBottom: 5 }}>
+              <span style={{ display: 'block', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--text-tertiary)', marginBottom: 5 }}>
                 Memory Anchor ★
               </span>
-              <p style={{ fontSize: 11, fontStyle: 'italic', color: '#fcd34d', lineHeight: 1.55, margin: 0 }}>
+              <p style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--text-primary)', lineHeight: 1.55, margin: 0 }}>
                 {memoryAnchor}
               </p>
             </motion.div>

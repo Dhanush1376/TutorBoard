@@ -1,11 +1,10 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
 import SVGCanvasRenderer from './SVGCanvasRenderer.jsx';
 import KaTeXRenderer from '../../renderers/KaTeXRenderer';
 import { isDSAContent, getRenderer } from '../../engine/RendererRouter';
 import { VisualScriptInterpreter } from '../../engine/VisualScriptInterpreter';
 import { D3Renderer } from '../../renderers/D3Renderer';
-import { createPortal } from 'react-dom';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -13,7 +12,8 @@ export default function AgentCanvasRenderer({
   timeline, currentStepIndex,
   elements: extElements = [], objects: extObjects = [],
   connections: extConnections, steps: extSteps,
-  showNotes, onGoToStep, 
+  showNotes, onGoToStep,
+  hideAlgoPanel = false,
   ...doubtProps
 }) {
   const rendererType = (timeline?.renderer || 'cinematic').toLowerCase();
@@ -43,7 +43,30 @@ export default function AgentCanvasRenderer({
 
   const d3ContainerRef = useRef(null);
   const physicsRef = useRef(null);
+  const equationRef = useRef(null);
+  const graphRef = useRef(null);
+  const codeRef = useRef(null);
   const interpreterRef = useRef(null);
+  const [layoutReady, setLayoutReady] = useState(false);
+
+  // Wait for layout to prevent zero-dimension rendering
+  useEffect(() => {
+    const node = d3ContainerRef.current;
+    if (!node) return;
+    
+    if (node.clientWidth > 0 && node.clientHeight > 0) {
+      setLayoutReady(true);
+    }
+    
+    const observer = new ResizeObserver((entries) => {
+      if (entries[0].contentRect.width > 0 && entries[0].contentRect.height > 0) {
+        setLayoutReady(true);
+      }
+    });
+    observer.observe(node);
+    
+    return () => observer.disconnect();
+  }, [isD3, isKaTeX, deltaState]);
 
   // Stable ref to avoid stale closures inside GSAP onComplete
   const setDeltaStateRef = useRef(setDeltaState);
@@ -54,35 +77,64 @@ export default function AgentCanvasRenderer({
     console.log('[AgentCanvasRenderer] ✅ Delta complete — resuming lesson step.');
     setDeltaRunning(false);
     setDeltaStateRef.current(null);
-  }, [setDeltaRunning]);
+    // CRITICAL FIX: Signal the server to resume the lesson FSM
+    if (doubtProps.onResume) {
+      doubtProps.onResume();
+    }
+  }, [setDeltaRunning, doubtProps.onResume]);
 
-  // Initialize and update D3/Animation pipeline
+  // 1. Core Interpreter & Renderer Initialization
   useEffect(() => {
-    const hasDelta = deltaState?.actions?.length > 0;
-    
-    // We need the interpreter if we are in D3/KaTeX mode OR if a delta is playing
-    if ((isD3 || isKaTeX || hasDelta) && d3ContainerRef.current) {
+    if ((isD3 || isKaTeX || SpecializedRenderer) && d3ContainerRef.current && layoutReady) {
       if (!interpreterRef.current) {
+        console.log('[AgentCanvasRenderer] 🏗️ Initializing VisualScriptInterpreter');
         const d3Renderer = new D3Renderer(d3ContainerRef.current);
-        interpreterRef.current = new VisualScriptInterpreter(setD3Narration);
+        interpreterRef.current = new VisualScriptInterpreter(setD3Narration, d3ContainerRef.current);
         interpreterRef.current.setRenderers({ d3: d3Renderer });
       }
-      
-      if (physicsRef.current) {
-        interpreterRef.current.registerSpecializedRenderer('physics', physicsRef.current);
-      }
-
-      const step = timeline?.steps?.[currentStepIndex];
-      
-      if (hasDelta) {
-        console.log('[AgentCanvasRenderer] 🚀 Playing Doubt Delta animation sequence.');
-        setDeltaRunning(true);
-        interpreterRef.current.playDelta(deltaState.actions, onDeltaComplete);
-      } else if (step?.actions) {
-        interpreterRef.current.playStep(step.actions);
-      }
     }
-  }, [isD3, isKaTeX, currentStepIndex, timeline?.steps, deltaState?.timestamp, physicsRef.current, onDeltaComplete, setDeltaRunning]);
+
+    return () => {
+      if (interpreterRef.current) {
+        interpreterRef.current.kill();
+        interpreterRef.current = null;
+      }
+    };
+  }, [isD3, isKaTeX, SpecializedRenderer, layoutReady, setD3Narration]);
+
+  // 2. Specialized Renderer Registration (Physics/Equation/Graph/Code)
+  useEffect(() => {
+    // Poll for specialized renderers that may mount later (especially Suspense components)
+    const interval = setInterval(() => {
+      const interpreter = interpreterRef.current;
+      if (!interpreter) return;
+
+      if (physicsRef.current) interpreter.registerSpecializedRenderer('physics', physicsRef.current);
+      if (equationRef.current) interpreter.registerSpecializedRenderer('equation', equationRef.current);
+      if (graphRef.current) interpreter.registerSpecializedRenderer('graph', graphRef.current);
+      if (codeRef.current) interpreter.registerSpecializedRenderer('code', codeRef.current);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 3. Playback Orchestration (Step/Delta)
+  useEffect(() => {
+    if (!interpreterRef.current || !layoutReady) return;
+
+    const hasDelta = deltaState?.actions?.length > 0;
+    const step = timeline?.steps?.[currentStepIndex];
+
+    if (hasDelta) {
+      console.log('[AgentCanvasRenderer] 🚀 Playing Doubt Delta');
+      setDeltaRunning(true);
+      interpreterRef.current.playDelta(deltaState.actions, onDeltaComplete);
+    } else if (step?.actions) {
+      console.log(`[AgentCanvasRenderer] 🎬 Playing Step ${currentStepIndex}`);
+      interpreterRef.current.playStep(step.actions);
+    }
+  }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, onDeltaComplete, setDeltaRunning, layoutReady]);
+
 
   // Sync Playback State (Pause/Resume)
   useEffect(() => {
@@ -116,30 +168,18 @@ export default function AgentCanvasRenderer({
 
         {/* D3 Layer (Primary for D3 subjects, Overlay for KaTeX/Doubt Deltas) */}
         {(isD3 || isKaTeX || !!deltaState) && (
-          <>
-            <div 
-              ref={d3ContainerRef} 
-              className="absolute inset-0 z-10 w-full h-full overflow-visible" 
-              style={{ pointerEvents: (isD3 || !!deltaState) ? 'auto' : 'none' }} 
-            />
-            {(isD3 || (deltaState && d3Narration)) && createPortal(
-              <AlgoRightPanel 
-                step={{ narration: d3Narration }} 
-                stepIndex={currentStepIndex} 
-                totalSteps={timeline?.steps?.length || 0}
-                timeline={timeline}
-                onGoToStep={onGoToStep}
-                {...doubtProps}
-              />,
-              document.getElementById('algo-sidebar-portal') || document.body
-            )}
-          </>
+          <div 
+            ref={d3ContainerRef} 
+            className="absolute inset-0 z-10 w-full h-full overflow-visible" 
+            style={{ pointerEvents: (isD3 || !!deltaState) ? 'auto' : 'none' }} 
+          />
         )}
 
         {/* KaTeX Content */}
         {isKaTeX && (
           <div className="absolute inset-0 z-0 flex items-center justify-center p-8">
             <KaTeXRenderer 
+              ref={equationRef}
               timeline={timeline} 
               currentStepIndex={currentStepIndex} 
             />
@@ -155,7 +195,13 @@ export default function AgentCanvasRenderer({
               </div>
             }>
               <SpecializedRenderer
-                ref={['physics', 'matter', 'mechanics'].includes(rendererType) ? physicsRef : null}
+                ref={(node) => {
+                  if (!node) return;
+                  if (['physics', 'matter', 'mechanics'].includes(rendererType)) physicsRef.current = node;
+                  if (['graph', 'desmos'].includes(rendererType)) graphRef.current = node;
+                  if (['code', 'monaco', 'algorithm'].includes(rendererType)) codeRef.current = node;
+                  if (['math', 'equation'].includes(rendererType)) equationRef.current = node;
+                }}
                 timeline={timeline}
                 currentStepIndex={currentStepIndex}
                 elements={combinedElements}

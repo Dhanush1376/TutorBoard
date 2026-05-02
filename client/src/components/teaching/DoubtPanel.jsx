@@ -140,9 +140,10 @@ const DoubtPanel = ({
                             <motion.div 
                               initial={{ opacity: 0, y: 5 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="px-3.5 py-2.5 rounded-2xl bg-blue-500/5 text-blue-400 text-[11px] leading-relaxed border border-blue-500/10 italic"
+                              className="px-3.5 py-2.5 rounded-2xl text-[11px] leading-relaxed italic"
+                              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}
                             >
-                              <span className="not-italic font-normal text-[9px] uppercase tracking-wider opacity-60 mr-2">Try thinking:</span>
+                              <span className="not-italic font-normal text-[9px] uppercase tracking-wider mr-2" style={{ color: 'var(--text-tertiary)' }}>Try thinking:</span>
                               "{entry.followUp}"
                             </motion.div>
                           )}

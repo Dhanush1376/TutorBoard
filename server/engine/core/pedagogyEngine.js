@@ -35,7 +35,7 @@ import SpacedRepetitionScheduler from './SpacedRepetitionScheduler.js';
 // It always flows through postProcessTimeline first.
 function buildRawFailSafe(topic) {
   return {
-    scene: { title: `Understanding ${topic}`, type: 'linear' },
+    scene: { title: topic, type: 'linear' },
     elements: [
       { id: 'core', type: 'orb', x: 0.5, y: 0.35, color: 'blue', label: topic },
       { id: 'note', type: 'block', x: 0.5, y: 0.65, color: 'gray', label: 'Let\'s break this down step by step.' },
@@ -215,7 +215,7 @@ function postProcessTimeline(raw, topic, planningResult) {
 
   const processed = {
     mode: 'explain',
-    title: raw.meta?.topic || raw.scene?.title || raw.title || `Understanding ${topic}`,
+    title: raw.meta?.topic || raw.scene?.title || raw.title || topic,
     scene: raw.scene || { title: raw.meta?.topic || topic, type: planningResult?.animationStyle || 'linear' },
     elements,
     connections: (raw.connections || []).filter(Boolean),

@@ -168,6 +168,9 @@ class SessionStore {
         profile = await LearnerProfile.create({ userId });
       }
 
+      // Fetch due concepts for spaced repetition reinforcement
+      const dueConcepts = await SpacedRepetitionScheduler.getDueConcepts(userId);
+
       const learnerProfile = {
         level: profile.level || 'beginner',
         pace: profile.pace || 'normal',
@@ -176,7 +179,8 @@ class SessionStore {
         lowConfusionStreak: 0,
         learningStyle: profile.learningStyle || 'visual',
         topicsMastery: profile.topicsMastery instanceof Map ? Object.fromEntries(profile.topicsMastery) : (profile.topicsMastery || {}),
-        engagementMetrics: profile.engagementMetrics || { visual: 0, conceptual: 0, doubtsAfterNarration: 0, fastThroughVisuals: 0 }
+        engagementMetrics: profile.engagementMetrics || { visual: 0, conceptual: 0, doubtsAfterNarration: 0, fastThroughVisuals: 0 },
+        dueConcepts: dueConcepts || []
       };
 
       // We update the local object directly first, then persist

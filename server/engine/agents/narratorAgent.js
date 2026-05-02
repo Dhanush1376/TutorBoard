@@ -58,9 +58,15 @@ OUTPUT SCHEMA
     {
       "step": 1,
       "title": "Short punchy title (3-5 words max)",
-      "text": "Teaching narration. Max 3 sentences. References what's on screen. Uses analogies and concrete values. Highlights **key terms**.",
+      "text": "Teaching narration. Max 3 sentences. References what's on screen.",
+      "howItWorks": ["Atomic numbered step 1", "Atomic numbered step 2"],
+      "pseudocode": "// optional code block for this step",
+      "timeComplexity": "O(n log n)",
+      "spaceComplexity": "O(1)",
+      "variables": { "i": 0, "j": 1, "min_idx": 0 },
+      "activeStates": ["searching", "comparing"],
       "highlight_terms": ["bubble sort", "adjacent", "swap"],
-      "callout": "Optional 1-line insight box. Example: 'KEY INSIGHT: Bubble sort makes n-1 passes through the array'"
+      "callout": "Optional 1-line insight box."
     }
   ]
 }

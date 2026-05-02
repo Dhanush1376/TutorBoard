@@ -23,6 +23,11 @@ const messageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: null,
   },
+  metadata: {
+    edited: { type: Boolean, default: false },
+    regenerated: { type: Boolean, default: false },
+    feedback: { type: String, enum: ['positive', 'negative', null], default: null },
+  },
 });
 
 const chatSessionSchema = new mongoose.Schema({
@@ -68,6 +73,19 @@ const chatSessionSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  currentTopic: {
+    type: String,
+    default: null,
+  },
+  explanationMode: {
+    type: String,
+    enum: ['basic', 'advanced'],
+    default: 'basic',
+  },
+  userIntent: {
+    type: String,
+    default: null,
+  },
   steps: {
     type: [mongoose.Schema.Types.Mixed],
     default: [],
@@ -95,6 +113,14 @@ const chatSessionSchema = new mongoose.Schema({
     default: [],
   },
 }, { timestamps: true });
+
+// INFRA-12: Cap messages at 200 entries to prevent MongoDB document size limits.
+chatSessionSchema.pre('save', function(next) {
+  if (this.messages && this.messages.length > 200) {
+    this.messages = this.messages.slice(-200);
+  }
+  next();
+});
 
 const ChatSession = mongoose.model('ChatSession', chatSessionSchema);
 

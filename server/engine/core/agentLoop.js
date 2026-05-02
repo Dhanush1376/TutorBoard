@@ -92,11 +92,21 @@ function unwrapValidatorOutput(raw) {
     console.warn('[AgentLoop] ⚠️ inner final_output is not an object. Unwrap failed.');
     return null;
   }
-  
+
+  // FORCE NORMALIZATION: Always check for alternate field names like visual_steps vs steps
   const meta        = inner.meta || {};
-  const narrations  = inner.narrations    || inner.explanation_steps || inner.narration_steps || inner.narrative_steps || inner.steps || inner.sequence || inner.roadmap || [];
-  const visualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || inner.visual_timeline || inner.visualization || inner.frames || [];
-  const animSteps   = inner.animation_steps || inner.animations || inner.transitions || inner.motion_steps || inner.animation_timeline || [];
+  const rawNarrations  = inner.narrations    || inner.explanation_steps || inner.narration_steps || inner.narrative_steps || inner.steps || inner.sequence || inner.roadmap || [];
+  const rawVisualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || inner.visual_timeline || inner.visualization || inner.frames || [];
+  const rawAnimSteps   = inner.animation_steps || inner.animations || inner.transitions || inner.motion_steps || inner.animation_timeline || [];
+
+  // If the Validator output was already in legacy format (raw.steps), 
+  // but those steps had "elements" instead of "actions", we need to normalize them.
+  const narrations = rawNarrations.map(n => typeof n === 'string' ? { text: n } : n);
+  const visualSteps = rawVisualSteps.map(v => ({
+    ...v,
+    elements: v.elements || v.objects || v.shapes || v.visuals || v.script || []
+  }));
+  const animSteps = rawAnimSteps;
 
   if (visualSteps.length === 0 && narrations.length === 0 && animSteps.length === 0) {
     console.warn('[AgentLoop] ⚠️ Checked all aliases (visual_steps, narrations, animation_steps, etc.) and found 0 content. Unwrap failed.');
@@ -131,7 +141,7 @@ function unwrapValidatorOutput(raw) {
     // Combine visualizer elements (setup) with animator actions
     const visualActions = (vs.elements || vs.objects || vs.shapes || []).map(el => ({
       ...el,
-      action: el.action || el.cmd || el.type,
+      cmd: el.cmd || el.action || el.type,
       duration: el.duration || 0, // Setup is usually instant
       delay: el.delay || 0
     }));
@@ -139,7 +149,7 @@ function unwrapValidatorOutput(raw) {
     const rawAnimationActions = anim.actions || anim.animations || [];
     const animationActions = rawAnimationActions.map(a => ({
       ...a,
-      action: a.action || a.cmd
+      cmd: a.cmd || a.action
     }));
 
     const combinedActions = [...visualActions, ...animationActions];
@@ -160,6 +170,13 @@ function unwrapValidatorOutput(raw) {
       title:           narration.title || vs.title || `Step ${stepNum}`,
       explanation:     narration.text  || narration.explanation || narration.narration || vs.description || `Step ${stepNum}.`,
       narration:       narration.text  || narration.explanation || '',
+      howItWorks:      narration.howItWorks || [],
+      pseudocode:      narration.pseudocode || '',
+      timeComplexity:  narration.timeComplexity || '',
+      spaceComplexity: narration.spaceComplexity || '',
+      variables:       narration.variables || vs.variables || {},
+      activeStates:    narration.activeStates || vs.activeStates || [],
+      interactiveControls: vs.interactive_controls || vs.interactiveControls || visualActions.find(a => a.action === 'interactive_controls' || a.cmd === 'interactive_controls') || null,
       callout:         narration.callout || null,
       highlight_terms: narration.highlight_terms || narration.keywords || [],
       objectIds:       visibleIds,
@@ -259,6 +276,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         console.log(`[AgentLoop] Agent retry attempt ${attempt}, rebuilding messages fresh`);
       }
 
+      // BUG-04: Rebuild messages fresh on each attempt to prevent context poisoning from failed JSON parses.
       const currentMessages = [
         { role: 'system', content: userContext + prompt },
         { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) }
@@ -321,10 +339,10 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     const learnerStyleStr = learnerProfile?.learning_style || "General (Visual-Conceptual balance)";
 
     const plannerPrompt = (systemPrompt || getPrompt('planner'))
-      .replace('{{MIN_STEPS}}', minSteps.toString())
-      .replace('{{MAX_STEPS}}', targetMax.toString())
-      .replace('{{PAST_CONTEXT}}', pastContextStr)
-      .replace('{{LEARNER_STYLE}}', learnerStyleStr);
+      .replace(/{{MIN_STEPS}}/g, String(minSteps))
+      .replace(/{{MAX_STEPS}}/g, String(targetMax))
+      .replace(/{{PAST_CONTEXT}}/g, String(pastContextStr))
+      .replace(/{{LEARNER_STYLE}}/g, String(learnerStyleStr));
 
     const plannerOutput = planningResult || await runStage({
       stageName: '💡 Thinking deeply about the topic...',

@@ -31,7 +31,8 @@ const LeftPanel = ({
   selectedAgent, setSelectedAgent,
   isLoadingHistory,
   hasMore, isLoadingMore, onLoadMore,
-  onQuickAsk
+  onQuickAsk,
+  onRegenerateMessage, onFeedback, onStopGeneration
 }) => {
   const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
@@ -92,6 +93,8 @@ const LeftPanel = ({
               onOpenCanvas={onOpenCanvas}
               onDeleteMessage={onDeleteMessage}
               onEditMessage={onEditMessage}
+              onRegenerateMessage={onRegenerateMessage}
+              onFeedback={onFeedback}
               activeMode={activeMode}
               setActiveMode={setActiveMode}
             />
@@ -364,6 +367,7 @@ const LeftPanel = ({
           selectedAgent={selectedAgent}
           setSelectedAgent={setSelectedAgent}
           onQuickAsk={onQuickAsk}
+          onStopGeneration={onStopGeneration}
         />
       </div>
     </div>

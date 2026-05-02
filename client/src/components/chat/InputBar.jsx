@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import {
   ArrowUp,
   Loader2,
+  Square,
   Plus,
   ChevronDown,
   Mic,
@@ -32,7 +33,7 @@ import { TRIAL_LIMITS, isFeatureBlocked } from '../../constants/trialConfig';
 
 import { BASE_URL as API_URL } from '../../services/api';
 
-const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk }) => {
+const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk, onStopGeneration }) => {
   const { apiPrefs, switchApi, user } = useAuth();
   const textareaRef = useRef(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
@@ -688,11 +689,15 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </div>
             )}
 
-            {/* Send Button */}
+            {/* Send / Stop Button */}
             {isGenerating ? (
-              <div className="p-2 text-[var(--text-primary)]">
-                <Loader2 size={20} className="animate-spin" />
-              </div>
+              <button
+                onClick={onStopGeneration}
+                title="Stop generating"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all active:scale-90 group"
+              >
+                <Square size={16} strokeWidth={3} className="group-hover:scale-110 transition-transform" fill="currentColor" />
+              </button>
             ) : (
               <button
                 onClick={() => {

@@ -57,12 +57,12 @@ const ProgressArc = () => {
                 key={i}
                 d={seg.path}
                 fill="none"
-                stroke={isActive ? (isComplete ? '#fbbf24' : 'var(--text-primary)') : 'var(--bg-tertiary)'}
+                stroke={isActive ? (isComplete ? 'var(--text-primary)' : 'var(--text-primary)') : 'var(--bg-tertiary)'}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 initial={false}
                 animate={{
-                  stroke: isActive ? (isComplete ? '#fbbf24' : 'var(--text-primary)') : 'var(--bg-tertiary)',
+                  stroke: isActive ? (isComplete ? 'var(--text-primary)' : 'var(--text-primary)') : 'var(--bg-tertiary)',
                   opacity: isActive ? 1 : 0.3,
                   scale: isActive ? 1.02 : 1,
                 }}
@@ -76,7 +76,7 @@ const ProgressArc = () => {
             <motion.circle
               cx={center} cy={center} r={radius}
               fill="none"
-              stroke="#fbbf24"
+              stroke="var(--text-primary)"
               strokeWidth={strokeWidth + 2}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: [0, 1, 0], scale: [0.8, 1.2, 1.4] }}

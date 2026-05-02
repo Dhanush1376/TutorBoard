@@ -14,14 +14,26 @@ interface MonacoRendererProps {
   currentStepIndex: number;
 }
 
-export default function MonacoRenderer({ timeline, currentStepIndex }: MonacoRendererProps) {
+const MonacoRenderer = forwardRef((props: MonacoRendererProps, ref) => {
+  const { timeline, currentStepIndex } = props;
   const steps = timeline?.timeline || timeline?.steps || [];
   const currentStep = steps[currentStepIndex] || {};
   const language = timeline.language || currentStep.language || 'javascript';
+  const [codeOverride, setCodeOverride] = useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    setCode: (code: string) => setCodeOverride(code),
+    reset: () => setCodeOverride(null)
+  }));
+
+  // Reset override when step changes
+  useEffect(() => {
+    setCodeOverride(null);
+  }, [currentStepIndex]);
   
   // Extract code from step actions (VisualScript) or legacy fields
   const codeAction = (currentStep.actions || []).find((a: any) => a.cmd === 'code' || a.action === 'code');
-  const displayCode = codeAction?.code || codeAction?.content || currentStep.code || timeline.elements?.[0]?.code || '';
+  const displayCode = codeOverride || codeAction?.code || codeAction?.content || currentStep.code || timeline.elements?.[0]?.code || '';
 
   // Extract variables from actions
   const actionVariables = (currentStep.actions || [])
@@ -79,14 +91,6 @@ export default function MonacoRenderer({ timeline, currentStepIndex }: MonacoRen
               selectionHighlight: true,
             }}
           />
-          
-          {/* Visual Overlay for Line Highlights */}
-          {highlightedLines.length > 0 && (
-            <div className="absolute inset-0 pointer-events-none">
-              {/* Note: In a real implementation, we'd use Monaco's decorations API. 
-                  This is a simplified visual aid for the demo state. */}
-            </div>
-          )}
         </div>
 
         {/* Console / Variables Side */}
@@ -146,4 +150,6 @@ export default function MonacoRenderer({ timeline, currentStepIndex }: MonacoRen
       `}</style>
     </div>
   );
-}
+});
+
+export default MonacoRenderer;

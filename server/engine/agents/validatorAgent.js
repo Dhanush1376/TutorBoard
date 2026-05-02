@@ -43,8 +43,12 @@ OUTPUT SCHEMA
   ],
   "final_output": {
     "meta": { "topic": "...", "renderer": "d3 | cinematic", "concept_type": "...", "step_count": X },
-    "narrations": [ { "step": 1, "text": "..." } ],
-    "visual_steps": [ { "step": 1, "elements": [...], "exits": [...] } ],
+    "narration_steps": [ { 
+      "step": 1, "text": "...", "howItWorks": [], "pseudocode": "", 
+      "timeComplexity": "", "spaceComplexity": "",
+      "variables": {}, "activeStates": [] 
+    } ],
+    "visual_steps": [ { "step": 1, "elements": [...], "exits": [...], "interactive_controls": { "formula": "...", "controls": [...] } } ],
     "animation_steps": [ { "step": 1, "actions": [...] } ]
   }
 }

@@ -125,4 +125,11 @@ export const createControlSlice = (set, get) => ({
     };
     addCanvasObjects([note]);
   },
+
+  // --- INTERACTIVE SIMULATOR STATE (KaTeX/Physics) ---
+  interactiveValues: {},
+  setInteractiveValue: (id, val) => set((state) => {
+    state.interactiveValues[id] = val;
+  }),
+  resetInteractiveValues: () => set({ interactiveValues: {} }),
 });

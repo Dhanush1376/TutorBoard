@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Settings, CreditCard, User, Sparkles, ShieldCheck, ChevronRight } from 'lucide-react';
+import { LogOut, Settings, CreditCard, User, Sparkles, ShieldCheck, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import useTutorStore from '../../store/tutorStore';
 
@@ -92,6 +92,14 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
             
             <div className="p-1 space-y-0.5">
               <button 
+                onClick={() => { setIsOpen(false); useTutorStore.getState().setMasteryOpen(true); }}
+                className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
+              >
+                <LayoutDashboard size={15} />
+                Mastery Dashboard
+              </button>
+
+              <button 
                 onClick={() => { setIsOpen(false); onSettingsClick('appearance'); }}
                 className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
               >
@@ -159,6 +167,14 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
             
             <div className="h-[1px] bg-[var(--border-color)] my-1.5 mx-2" />
             
+            <button 
+              onClick={() => { setIsOpen(false); useTutorStore.getState().setMasteryOpen(true); }}
+              className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
+            >
+              <LayoutDashboard size={15} />
+              Mastery Dashboard
+            </button>
+
             <button 
               onClick={() => { setIsOpen(false); handleLogout(); }} 
               className="w-full flex items-center gap-3 p-2.5 hover:bg-red-500/10 rounded-xl text-[13px] font-normal text-red-500 transition-colors text-left"

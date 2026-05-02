@@ -7,16 +7,34 @@ export class D3Renderer {
   private readonly CELL_WIDTH = 60;
   private readonly CELL_HEIGHT = 60;
   private readonly CELL_GAP = 10;
-  private retryCount = 0;
+  private currentWidth = 800;
+  private currentHeight = 600;
+  private nextY = 120;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(containerElement: HTMLDivElement) {
     this.container = d3.select(containerElement);
     this.container.selectAll('*').remove();
+    
     const svg = this.container.append('svg')
+      .attr('id', 'teaching-canvas-svg')
       .attr('width', '100%')
       .attr('height', '100%')
       .style('overflow', 'visible')
       .style('display', 'block');
+
+    // INFRA-05: Handle dynamic resizing to prevent zero-width rendering artifacts
+    this.resizeObserver = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          this.currentWidth = width;
+          this.currentHeight = height;
+          svg.attr('viewBox', `0 0 ${width} ${height}`);
+        }
+      }
+    });
+    this.resizeObserver.observe(containerElement);
 
     // SaaS-Quality Definitions
     const defs = svg.append('defs');
@@ -48,33 +66,34 @@ export class D3Renderer {
     barGradient.append('stop').attr('offset', '100%').attr('stop-color', 'var(--accent-primary)');
   }
 
+  public destroy() {
+    this.resizeObserver?.disconnect();
+  }
+
   private get ARRAY_Y() {
-    const h = this.getHeight();
-    // SaaS-Quality Responsive Anchor:
-    // Ensures the array never falls off-screen on mobile/small containers.
-    return Math.min(150, h * 0.35);
+    return this.nextY;
   }
 
   private get svg() {
     return this.container.select('svg');
   }
 
+  getElement(id: string): Element | null {
+    const node = this.container.node();
+    return node ? node.querySelector(`#${CSS.escape(id)}`) : null;
+  }
+
   clear() {
     this.svg.selectAll('*').remove();
+    this.nextY = 120; // Reset for next step
   }
 
   private getWidth(): number {
-    const node = this.container.node();
-    if (!node) return 800;
-    const rect = node.getBoundingClientRect();
-    return rect.width || (node as HTMLElement).offsetWidth || 800;
+    return this.currentWidth;
   }
 
   private getHeight(): number {
-    const node = this.container.node();
-    if (!node) return 600;
-    const rect = node.getBoundingClientRect();
-    return rect.height || (node as HTMLElement).offsetHeight || 600;
+    return this.currentHeight;
   }
 
   private async animate(selector: string, stagger = 0.05) {
@@ -89,14 +108,19 @@ export class D3Renderer {
   }
 
   createArray(id: string, values: (number | string)[]) {
-    const containerWidth = this.getWidth() || 800; // Fallback to 800 if 0
+    const containerWidth = this.getWidth() || 800;
     
-    const totalWidth = values.length * this.CELL_WIDTH + (values.length - 1) * this.CELL_GAP;
+    // Bug 07 Fix: Responsive CELL_WIDTH
+    const cellWidth = Math.min(72, (containerWidth - 100) / values.length);
+    const cellGap = Math.min(10, cellWidth / 6);
+    
+    const totalWidth = values.length * cellWidth + (values.length - 1) * cellGap;
     const offsetX = (containerWidth / 2) - (totalWidth / 2);
+    const currentY = this.nextY;
 
     const arrayGroup = this.svg.append('g')
       .attr('id', id)
-      .attr('transform', `translate(${offsetX}, ${this.ARRAY_Y})`);
+      .attr('transform', `translate(${offsetX}, ${currentY})`);
 
     const cells = arrayGroup.selectAll('g.cell')
       .data(values)
@@ -104,56 +128,69 @@ export class D3Renderer {
       .append('g')
       .attr('class', 'cell')
       .attr('id', (d, i) => `${id}[${i}]`)
-      .attr('transform', (d, i) => `translate(${i * (this.CELL_WIDTH + this.CELL_GAP)}, 0)`);
+      .attr('transform', (d, i) => `translate(${i * (cellWidth + cellGap)}, 0)`);
 
     cells.append('rect')
-      .attr('width', this.CELL_WIDTH)
+      .attr('width', cellWidth)
       .attr('height', this.CELL_HEIGHT)
       .attr('rx', 12)
       .attr('fill', 'var(--bg-secondary)')
       .attr('stroke', 'var(--border-color)')
       .attr('stroke-width', 2)
       .attr('class', 'cell-bg shadow-sm')
-      .style('filter', 'drop-shadow(0 10px 15px rgba(0,0,0,0.4))'); // 3D Depth
+      .style('filter', 'drop-shadow(0 10px 15px rgba(0,0,0,0.4))'); 
 
     // Glossy Overlay
     cells.append('rect')
-      .attr('width', this.CELL_WIDTH)
+      .attr('width', cellWidth)
       .attr('height', this.CELL_HEIGHT)
       .attr('rx', 12)
       .attr('fill', 'url(#cell-gradient)')
       .style('pointer-events', 'none');
 
+    // Value Text
     cells.append('text')
-      .attr('x', this.CELL_WIDTH / 2)
+      .attr('x', cellWidth / 2)
       .attr('y', this.CELL_HEIGHT / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'middle')
-      .attr('font-size', '20px')
+      .attr('font-size', `${Math.min(20, cellWidth / 2.5)}px`)
       .attr('font-family', 'var(--font-mono, monospace)')
       .attr('font-weight', '700')
       .attr('fill', 'var(--text-primary)')
       .text(d => d);
 
+    // Bug 07 Fix: Index Text below
+    cells.append('text')
+      .attr('x', cellWidth / 2)
+      .attr('y', this.CELL_HEIGHT + 22)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '11px')
+      .attr('font-family', 'var(--font-sans)')
+      .attr('font-weight', '600')
+      .attr('fill', 'var(--text-tertiary)')
+      .attr('opacity', 0.6)
+      .text((d, i) => i);
+
     this.animate(`#${id} .cell`, 0.06);
 
-    // Metadata storage removed - not needed for now
-
-    // Store array metadata on the node for pointer calculations
-    (arrayGroup.node() as any)._arrayData = { offsetX, cellWidth: this.CELL_WIDTH, cellGap: this.CELL_GAP };
+    // Store metadata for pointers and boundaries
+    (arrayGroup.node() as any)._arrayData = { offsetX, cellWidth, cellGap, y: currentY };
+    
+    // Advance Y for next array
+    this.nextY += this.CELL_HEIGHT + 100;
   }
 
   createPointer(id: string, atIndex: number, label: string, color: string = 'var(--accent-danger, #ef4444)', targetArrayId?: string) {
-    // Better selector: if targetArrayId is provided, use it, otherwise find any group with 'array' in id
     const arrayGroup = targetArrayId 
       ? this.svg.select(`#${targetArrayId}`) 
       : this.svg.select('g[id*="array"]');
     
     if (arrayGroup.empty()) return;
 
-    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10 };
+    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10, y: 120 };
     const x = meta.offsetX + (atIndex * (meta.cellWidth + meta.cellGap)) + (meta.cellWidth / 2);
-    const y = this.ARRAY_Y + this.CELL_HEIGHT + 20;
+    const y = meta.y + this.CELL_HEIGHT + 40; // index labels take space now
 
     const pointerGroup = this.svg.append('g')
       .attr('id', id)
@@ -182,11 +219,13 @@ export class D3Renderer {
     
     if (arrayGroup.empty()) return;
 
-    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10 };
+    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10, y: 120 };
     const x = meta.offsetX + (atIndex * (meta.cellWidth + meta.cellGap)) + (meta.cellWidth / 2);
-    const y = this.ARRAY_Y + this.CELL_HEIGHT + 20;
+    const y = meta.y + this.CELL_HEIGHT + 40;
 
     this.svg.select(`#${id}`)
+      .transition()
+      .duration(300)
       .attr('transform', `translate(${x}, ${y})`);
   }
 
@@ -330,6 +369,8 @@ export class D3Renderer {
         .data(data)
         .enter()
         .append('rect')
+        .attr('class', 'chart-bar')
+        .attr('data-type', 'bar')
         .attr('x', d => x(d.label)!)
         .attr('y', d => y(d.value))
         .attr('width', x.bandwidth())
@@ -407,6 +448,7 @@ export class D3Renderer {
       .data(nodes.descendants())
       .enter().append('g')
       .attr('class', 'node')
+      .attr('data-type', 'tree-node')
       .attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
 
     node.append('circle')
@@ -463,14 +505,19 @@ export class D3Renderer {
       .text(text);
   }
 
-  drawBoundary(atIndex: number, label?: string, targetArrayId?: string) {
+  drawBoundary(atIndex: number, label?: string, targetArrayId?: string, endIndex?: number) {
+    if (endIndex !== undefined && endIndex !== null) {
+      this.createRange(`range-${atIndex}-${endIndex}`, atIndex, endIndex, label, 'var(--accent-primary)', targetArrayId);
+      return;
+    }
+
     const arrayGroup = targetArrayId 
       ? this.svg.select(`#${targetArrayId}`) 
       : this.svg.select('g[id*="array"]');
     
     if (arrayGroup.empty()) return;
 
-    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10 };
+    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10, y: 120 };
     const x = meta.offsetX + (atIndex * (meta.cellWidth + meta.cellGap)) - (meta.cellGap / 2);
     
     const boundaryId = `boundary-${atIndex}`;
@@ -480,9 +527,9 @@ export class D3Renderer {
 
     group.append('line')
       .attr('x1', x)
-      .attr('y1', this.ARRAY_Y - 20)
+      .attr('y1', meta.y - 20)
       .attr('x2', x)
-      .attr('y2', this.ARRAY_Y + this.CELL_HEIGHT + 20)
+      .attr('y2', meta.y + this.CELL_HEIGHT + 40)
       .attr('stroke', 'var(--accent-danger, #f43f5e)')
       .attr('stroke-width', 3)
       .attr('stroke-dasharray', '4 2');
@@ -490,11 +537,56 @@ export class D3Renderer {
     if (label) {
       group.append('text')
         .attr('x', x)
-        .attr('y', this.ARRAY_Y - 30)
+        .attr('y', meta.y - 30)
         .attr('text-anchor', 'middle')
         .attr('font-size', '12px')
         .attr('font-weight', 'bold')
         .attr('fill', 'var(--accent-danger, #f43f5e)')
+        .text(label);
+    }
+  }
+
+  /**
+   * Bug 07 Fix: Create a dashed rectangle around a range of cells.
+   */
+  createRange(id: string, startIndex: number, endIndex: number, label?: string, color: string = 'var(--accent-primary)', targetArrayId?: string) {
+    const arrayGroup = targetArrayId 
+      ? this.svg.select(`#${targetArrayId}`) 
+      : this.svg.select('g[id*="array"]');
+    
+    if (arrayGroup.empty()) return;
+
+    const meta = (arrayGroup.node() as any)._arrayData || { offsetX: 0, cellWidth: 60, cellGap: 10, y: 120 };
+    const x1 = meta.offsetX + (startIndex * (meta.cellWidth + meta.cellGap)) - (meta.cellGap / 2);
+    const x2 = meta.offsetX + (endIndex * (meta.cellWidth + meta.cellGap)) + meta.cellWidth + (meta.cellGap / 2);
+    const width = x2 - x1;
+
+    this.removeElement(id);
+    const group = this.svg.append('g').attr('id', id);
+
+    group.append('rect')
+      .attr('x', x1)
+      .attr('y', meta.y - 15)
+      .attr('width', width)
+      .attr('height', this.CELL_HEIGHT + 55)
+      .attr('rx', 12)
+      .attr('fill', `${color}08`) // Very subtle background
+      .attr('stroke', color)
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', '8 4')
+      .attr('opacity', 0)
+      .transition().duration(400).attr('opacity', 1);
+
+    if (label) {
+      group.append('text')
+        .attr('x', x1 + width / 2)
+        .attr('y', meta.y - 25)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '10px')
+        .attr('font-weight', 'bold')
+        .attr('text-transform', 'uppercase')
+        .attr('letter-spacing', '0.1em')
+        .attr('fill', color)
         .text(label);
     }
   }
@@ -514,8 +606,54 @@ export class D3Renderer {
     cell2.select('text').text(text1);
   }
 
+  showResult(text: string) {
+    this.removeElement('step-result');
+    const width = this.getWidth();
+    const height = this.getHeight();
+
+    const group = this.svg.append('g')
+      .attr('id', 'step-result')
+      .attr('transform', `translate(${width / 2}, ${height - 100})`);
+
+    // Banner Background
+    group.append('rect')
+      .attr('x', -200)
+      .attr('y', -25)
+      .attr('width', 400)
+      .attr('height', 50)
+      .attr('rx', 25)
+      .attr('fill', 'rgba(16, 185, 129, 0.1)') // emerald-500/10
+      .attr('stroke', '#10b981')
+      .attr('stroke-width', 2)
+      .style('filter', 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.4))');
+
+    // Text
+    group.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.35em')
+      .attr('font-size', '16px')
+      .attr('font-family', 'var(--font-sans)')
+      .attr('font-weight', '700')
+      .attr('fill', '#10b981')
+      .text(text);
+
+    // Animation
+    (async () => {
+      const m = await import('gsap');
+      const gsap = m.gsap || m.default;
+      if (gsap) {
+        gsap.from('#step-result', {
+          opacity: 0,
+          y: '+=30',
+          duration: 0.6,
+          ease: 'power3.out'
+        });
+      }
+    })();
+  }
+
   removeElement(id: string) {
-    this.svg.select(`#${id}`).remove();
+    this.svg.select(`#${CSS.escape(id)}`).remove();
   }
 }
 

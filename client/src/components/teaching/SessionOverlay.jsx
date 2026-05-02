@@ -110,7 +110,8 @@ const SessionOverlay = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-md"
+          className="absolute inset-0 z-[150] flex items-center justify-center backdrop-blur-md"
+          style={{ background: 'var(--glass-bg)' }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -143,7 +144,7 @@ const SessionOverlay = ({
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-2xl font-normal text-white">Thinking about your question...</h3>
+              <h3 className="text-2xl font-normal" style={{ color: 'var(--text-primary)' }}>Thinking about your question...</h3>
               
               {/* Floating question card */}
               <motion.div
@@ -153,7 +154,7 @@ const SessionOverlay = ({
                 className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl shadow-2xl"
               >
                 <p className="text-white/60 text-[10px] uppercase tracking-widest font-normal mb-2">Your Doubt</p>
-                <p className="text-white text-lg font-normal italic">
+                <p className="text-lg font-normal italic" style={{ color: 'var(--text-primary)' }}>
                   "{store.doubtHistory?.[store.doubtHistory.length - 1]?.question || 'Thinking...'}"
                 </p>
               </motion.div>
@@ -331,8 +332,9 @@ const SessionOverlay = ({
                 onClick={() => { if (onReplay) onReplay(); }}
                 className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
               >
-                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-                  <RotateCcw size={16} className="text-blue-400" />
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+                  <RotateCcw size={16} style={{ color: 'var(--text-tertiary)' }} />
                 </div>
                 <div>
                   <span className="text-[12px] font-normal text-[var(--text-primary)] block">Replay</span>

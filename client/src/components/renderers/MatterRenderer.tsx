@@ -133,9 +133,30 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
     const oldConstraints = world.constraints.filter(c => c.label !== 'Mouse Constraint');
     Matter.World.remove(world, [...oldBodies, ...oldConstraints]);
 
+    // NEW: Prioritize VisualScript 'physics_body' commands over legacy 'elements'
+    const stepActions = currentStep.actions || [];
+    const physicsCommands = stepActions.filter((a: any) => a.cmd === 'physics_body' || a.type === 'physics_body');
+    
+    const elementsToRender = physicsCommands.length > 0 
+      ? physicsCommands.map((c: any) => ({
+          id: c.id,
+          x: c.x,
+          y: c.y,
+          r: c.r,
+          w: c.w,
+          h: c.h,
+          type: c.shape || c.type || 'circle',
+          isStatic: c.isStatic,
+          color: c.color,
+          mass: c.mass,
+          restitution: c.restitution,
+          friction: c.friction
+        }))
+      : (elements || []);
+
     const newBodiesMap = new Map();
 
-    const bodies = (elements || []).map(el => {
+    const bodies = elementsToRender.map(el => {
       const x = (el.x ?? 0.5) * CW;
       const y = (el.y ?? 0.5) * CH;
       const scale = el.scale || 1;
