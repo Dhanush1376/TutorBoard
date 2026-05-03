@@ -40,7 +40,7 @@ const safeStorage = {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => safeStorage.getItem('tb-token'));
+  const [token, setToken] = useState(null); // No longer from localStorage
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(IS_API_MISSING ? 'VITE_API_BASE_URL_MISSING' : null);
   const [dbOffline, setDbOffline] = useState(false);
@@ -156,12 +156,11 @@ export const AuthProvider = ({ children }) => {
         const exchangeCode = urlParams.get('code');
 
         if (exchangeCode) {
-          // Exchange one-time code for real JWT
+          // Exchange one-time code for real JWT (now in cookie)
           console.log('[Auth] Exchange code detected, trading for session...');
             const res = await API.get(`/api/auth/exchange?code=${exchangeCode}`);
             
-            if (res.data?.token) {
-              safeStorage.setItem('tb-token', res.data.token);
+            if (res.data?.success) {
               sessionStorage.setItem('tb-just-logged-in', 'true');
               console.log('[Auth] Exchange successful ✨');
             }
@@ -169,27 +168,24 @@ export const AuthProvider = ({ children }) => {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
 
-        const storedToken = safeStorage.getItem('tb-token');
         const isHydrated = sessionStorage.getItem('tb-settings-hydrated') === 'true';
 
         // Guest flow restoration (Must check before the storedToken early return)
         const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-        if (isGuest && !storedToken) {
+        if (isGuest) {
           console.log('[Auth] Restoring Guest session');
           setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
           setToken(null);
           return;
         }
 
-        if (!storedToken) {
-          // AI Automation: If there's a prompt in the URL, auto-login as guest
-          const prompt = urlParams.get('prompt');
-          if (prompt) {
-            console.log('[Auth] Prompt detected in URL, auto-logging in as Guest...');
-            sessionStorage.setItem('tb-is-guest', 'true');
-            setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
-            setToken(null);
-          }
+        // AI Automation: If there's a prompt in the URL, auto-login as guest
+        const prompt = urlParams.get('prompt');
+        if (prompt && !user) {
+          console.log('[Auth] Prompt detected in URL, auto-logging in as Guest...');
+          sessionStorage.setItem('tb-is-guest', 'true');
+          setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
+          setToken(null);
           return;
         }
 
@@ -198,7 +194,7 @@ export const AuthProvider = ({ children }) => {
           // Parallelize profile and API prefs fetch for high performance
           const [meRes, apiRes] = await Promise.all([
             API.get('/api/auth/me').catch(e => e.response),
-            storedToken !== 'guest' ? API.get('/api/apikeys').catch(() => null) : Promise.resolve(null)
+            API.get('/api/apikeys').catch(() => null)
           ]);
 
           if (meRes && meRes.data) {
@@ -206,7 +202,7 @@ export const AuthProvider = ({ children }) => {
             console.log('[Auth] Session verified for:', data.user?.email);
             sessionStorage.removeItem('tb-is-guest'); // Clear guest flag if real token verified
             setUser(data.user);
-            setToken(storedToken);
+            setToken('verified'); // Flag that we are logged in
             setDbOffline(false); // Reset if it was offline
             
             hydrateSettings(data.user, isHydrated);
@@ -242,7 +238,6 @@ export const AuthProvider = ({ children }) => {
             }
 
             console.warn('[Auth] Session invalid or expired.');
-            safeStorage.removeItem('tb-token');
             setToken(null);
             setUser(null);
             setApiPrefs({ useCustomApi: false, activeProvider: null, activeLabel: null, activeId: null, allKeys: [], status: 'stable' });
@@ -273,11 +268,10 @@ export const AuthProvider = ({ children }) => {
   // preventing "Guest" status for logged-in users on slow server cold starts.
   useEffect(() => {
     if (isAuthResolved) {
-      const activeToken = safeStorage.getItem('tb-token');
-      console.log(`[Auth] Resolving socket identity: ${activeToken ? 'User (Token)' : 'Guest'}`);
-      syncSocketAuth(activeToken || 'guest');
+      console.log(`[Auth] Resolving socket identity: ${user ? (user.isGuest ? 'Guest' : 'User') : 'Anonymous'}`);
+      syncSocketAuth(user && !user.isGuest ? 'verified' : 'guest');
     }
-  }, [isAuthResolved]);
+  }, [isAuthResolved, user]);
 
 
   const login = useCallback(async (email, password) => {
@@ -286,15 +280,14 @@ export const AuthProvider = ({ children }) => {
       const data = res.data;
 
       sessionStorage.removeItem('tb-is-guest'); // Promote to real user
-      safeStorage.setItem('tb-token', data.token);
-      setToken(data.token);
+      setToken('verified');
       setUser(data.user);
       
       // Immediate hydration after login
       hydrateSettings(data.user, false);
 
       // BUG FIX: Immediate socket sync after login
-      try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after login'); }
+      try { syncSocketAuth('verified'); } catch (e) { console.warn('[Auth] Socket sync failed after login'); }
 
       return data;
     } catch (err) {
@@ -308,15 +301,14 @@ export const AuthProvider = ({ children }) => {
       const data = res.data;
 
       sessionStorage.removeItem('tb-is-guest'); // Promote to real user
-      safeStorage.setItem('tb-token', data.token);
-      setToken(data.token);
+      setToken('verified');
       setUser(data.user);
       
       // Immediate hydration after signup
       hydrateSettings(data.user, false);
 
       // BUG FIX: Immediate socket sync after signup
-      try { syncSocketAuth(data.token); } catch (e) { console.warn('[Auth] Socket sync failed after signup'); }
+      try { syncSocketAuth('verified'); } catch (e) { console.warn('[Auth] Socket sync failed after signup'); }
 
       return data;
     } catch (err) {
@@ -325,7 +317,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const loginGuest = useCallback(() => {
-    safeStorage.removeItem('tb-token');
     sessionStorage.setItem('tb-is-guest', 'true');
     setToken(null);
     setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
@@ -350,11 +341,7 @@ export const AuthProvider = ({ children }) => {
       
       // BUG FIX: Revoke token server-side before clearing client state
       // Using the API instance ensures headers are correctly set
-      if (safeStorage.getItem('tb-token')) {
-        API.post('/api/auth/logout').catch(err => console.warn('[Auth] Server-side logout failed:', err));
-      }
-      // 1. Clear Auth Tokens
-      safeStorage.removeItem('tb-token');
+      API.post('/api/auth/logout').catch(err => console.warn('[Auth] Server-side logout failed:', err));
       
       // 2. Clear Session History & Cache
       localStorage.removeItem('tutorboard-history');
@@ -407,11 +394,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const refreshApiPrefs = useCallback(async () => {
-    if (!token || user?.isGuest) return;
+    if (user?.isGuest) return;
     try {
-      const res = await fetch(`${API_URL}/api/apikeys`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
+      const res = await API.get('/api/apikeys');
+      if (res.status === 200) {
+        const data = res.data;
         const activeKeys = (data.keys || []).filter(k => k.isActive && k.isValid);
         const firstActive = activeKeys[0];
         const status = firstActive?.isExpired ? 'expired' : (firstActive?.isLowCredits ? 'low' : (firstActive?.isValid ? 'active' : 'stable'));
@@ -439,15 +426,11 @@ export const AuthProvider = ({ children }) => {
   }, [refreshApiPrefs]);
 
   const switchApi = useCallback(async (keyId, forceState = null) => {
-    if (!token || user?.isGuest) return;
+    if (user?.isGuest) return;
     try {
       if (keyId === 'Universal') {
-        const res = await fetch(`${API_URL}/api/apikeys/preferences`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ useCustomApi: false })
-        });
-        if (res.ok) refreshApiPrefs();
+        const res = await API.put('/api/apikeys/preferences', { useCustomApi: false });
+        if (res.status === 200) refreshApiPrefs();
         return;
       }
 
@@ -455,24 +438,16 @@ export const AuthProvider = ({ children }) => {
       const key = apiPrefs.allKeys.find(k => (k.id || k._id) === keyId);
       const newState = forceState !== null ? forceState : !key?.isActive;
 
-      const res = await fetch(`${API_URL}/api/apikeys/${keyId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isActive: newState })
-      });
+      const res = await API.put(`/api/apikeys/${keyId}`, { isActive: newState });
       
-      if (res.ok) {
+      if (res.status === 200) {
         if (newState) {
-          await fetch(`${API_URL}/api/apikeys/preferences`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ useCustomApi: true })
-          });
+          await API.put('/api/apikeys/preferences', { useCustomApi: true });
         }
         refreshApiPrefs();
       }
     } catch (e) { /* silent */ }
-  }, [token, user, refreshApiPrefs, apiPrefs.allKeys]);
+  }, [user, refreshApiPrefs, apiPrefs.allKeys]);
 
   const isAuthenticated = !!user;
 

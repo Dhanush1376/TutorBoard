@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Loader2, MessageCircleQuestion } from 'lucide-react';
-
-import { BASE_URL as API_URL } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import API, { BASE_URL as API_URL } from '../../services/api';
 
 const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -13,18 +14,13 @@ const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) 
   // Fetch history on mount
   useEffect(() => {
     const fetchHistory = async () => {
-      const token = localStorage.getItem('tb-token');
-      if (!token || token === 'guest') return;
+      if (!user || user.isGuest) return;
 
       try {
-        const res = await fetch(`${API_URL}/api/doubts/history`, {
-          headers: { 
-            'Authorization': `Bearer ${token}` 
-          }
-        });
+        const res = await API.get('/api/doubts/history');
 
-        if (res.ok) {
-          const data = await res.json();
+        if (res.status === 200) {
+          const data = res.data;
           const historyMessages = data.history.flatMap(d => ([
             { role: 'user', content: d.question },
             { role: 'assistant', content: d.answer }
@@ -37,7 +33,7 @@ const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) 
     };
 
     fetchHistory();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -54,26 +50,15 @@ const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) 
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('tb-token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (token && token !== 'guest') {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${API_URL}/doubt`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          question: userQuestion,
-          history: messages, // Send multi-turn history
-          stepDescription: stepDescription || '',
-          stepData: stepData || {},
-          stepIndex: currentStep
-        }),
+      const response = await API.post('/doubt', {
+        question: userQuestion,
+        history: messages, // Send multi-turn history
+        stepDescription: stepDescription || '',
+        stepData: stepData || {},
+        stepIndex: currentStep
       });
 
-      if (!response.ok) throw new Error('Failed to get answer');
-      const data = await response.json();
+      const data = response.data;
       
       setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
 

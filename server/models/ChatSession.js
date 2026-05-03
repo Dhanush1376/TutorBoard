@@ -29,7 +29,9 @@ const messageSchema = new mongoose.Schema({
     feedback: { type: String, enum: ['positive', 'negative', null], default: null },
     thought: { type: String, default: null },
     sources: [{ title: String, url: String, snippet: String }],
-    versions: { type: [mongoose.Schema.Types.Mixed], default: [] }, // Array of { text, subsequentMessages }
+    searchPerformed: { type: Boolean, default: false },
+    artifactId: { type: String, default: null },
+    versions: { type: [mongoose.Schema.Types.Mixed], default: [] },
     activeVersionIndex: { type: Number, default: 0 }
   },
 });

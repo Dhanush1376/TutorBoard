@@ -15,7 +15,9 @@ export const ThemeProvider = ({ children }) => {
   });
 
   const currentTheme = themes.find(t => t.id === currentThemeId) || themes[0];
-  const { globalFont, glassIntensity, canvasTone } = useTutorStore();
+  const globalFont = useTutorStore(state => state.globalFont);
+  const glassIntensity = useTutorStore(state => state.glassIntensity);
+  const canvasTone = useTutorStore(state => state.canvasTone);
 
   useEffect(() => {
     const root = document.documentElement;

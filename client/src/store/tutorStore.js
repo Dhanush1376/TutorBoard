@@ -14,6 +14,7 @@ import { createChatSlice } from './slices/chatSlice.js';
 import { createUiSlice } from './slices/uiSlice.js';
 import { createControlSlice } from './slices/controlSlice.js';
 import { createConversationSlice } from './slices/conversationSlice.js';
+import { createArtifactSlice } from './slices/artifactSlice.js';
 
 const safeStorage = {
   getItem: (name) => {
@@ -45,6 +46,7 @@ const useTutorStore = create(
       ...createUiSlice(set, get),
       ...createControlSlice(set, get),
       ...createConversationSlice(set, get),
+      ...createArtifactSlice(set, get),
 
       // Global Actions / Hydration
       hydrate: () => {
@@ -82,6 +84,7 @@ const useTutorStore = create(
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
         guestTrialStatus: state.guestTrialStatus,
+        isArtifactPanelOpen: false,
         // Explicitly exclude conversation state from persistence
         conversationMessages: [],
         isStreaming: false,

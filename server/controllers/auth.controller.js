@@ -69,6 +69,16 @@ export const signup = async (req, res) => {
     });
 
     if (user) {
+      const token = generateToken(user._id);
+      
+      // Set httpOnly cookie for security
+      res.cookie('tb-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
       res.status(201).json({
         user: {
           id: user._id,
@@ -77,8 +87,7 @@ export const signup = async (req, res) => {
           googleId: user.googleId,
           githubId: user.githubId,
           avatar: user.avatar,
-        },
-        token: generateToken(user._id),
+        }
       });
     } else {
       res.status(400).json({ error: 'Invalid user data' });
@@ -116,6 +125,16 @@ export const signin = async (req, res) => {
       const userObj = user.toObject();
       delete userObj.password;
       
+      const token = generateToken(user._id);
+
+      // Set httpOnly cookie for security
+      res.cookie('tb-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
       res.json({
         user: {
           id: userObj._id,
@@ -126,8 +145,7 @@ export const signin = async (req, res) => {
           googleId: userObj.googleId,
           githubId: userObj.githubId,
           avatar: userObj.avatar,
-        },
-        token: generateToken(user._id),
+        }
       });
     } else {
       res.status(401).json({ error: 'Invalid email or password' });
@@ -205,7 +223,15 @@ export const exchangeToken = async (req, res) => {
     return res.status(400).json({ error: 'Invalid or expired token' });
   }
 
-  res.json({ token });
+  // Set httpOnly cookie for security
+  res.cookie('tb-token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  });
+
+  res.json({ success: true });
 };
 
 /**
@@ -233,6 +259,9 @@ export const logout = async (req, res) => {
       await tokenStore.revokeToken(tokenJti, exp);
       console.log(`[Auth] User ${req.user?._id} logged out, token ${tokenJti} revoked`);
     }
+
+    // Clear the cookie on logout
+    res.clearCookie('tb-token');
 
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {

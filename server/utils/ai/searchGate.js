@@ -35,9 +35,10 @@ const ALWAYS_SEARCH_DOMAINS = new Set([
   'market_trends', 'research_papers',
 ]);
 
-// ─── Evergreen Topic Patterns (skip search even without domain) ───────────────
+  // ─── Evergreen Topic Patterns (skip search even without domain) ───────────────
+const EVERGREEN_TOPICS = /^(what\s+is|explain|define|how\s+does|difference\s+between)\s+(binary\s+search|bubble\s+sort|merge\s+sort|quick\s+sort|linked\s+list|stack|queue|tree|graph|hash\s+map|array|recursion|dynamic\s+programming|newton|gravity|photosynthesis|mitosis|meiosis|pythagorean|quadratic\s+formula|derivative|integral|matrix|vector|boolean|oop|encapsulation|polymorphism|inheritance|bfs|dfs|tcp|udp|client\s+server|rest\s+api)\b/i;
 
-const EVERGREEN_TOPICS = /^(what\s+is|explain|define|how\s+does)\s+(binary\s+search|bubble\s+sort|merge\s+sort|quick\s+sort|linked\s+list|stack|queue|tree|graph|hash\s+map|array|recursion|dynamic\s+programming|newton|gravity|photosynthesis|mitosis|meiosis|pythagorean|quadratic\s+formula|derivative|integral|matrix|vector|boolean|oop|encapsulation|polymorphism|inheritance)\b/i;
+const EVERGREEN_COMPARISON = /\b(bfs\s*(?:vs|versus|and)\s*dfs|dfs\s*(?:vs|versus|and)\s*bfs|tcp\s*(?:vs|versus|and)\s*udp|udp\s*(?:vs|versus|and)\s*tcp|stack\s*(?:vs|versus|and)\s*queue|queue\s*(?:vs|versus|and)\s*stack|array\s*(?:vs|versus|and)\s*linked\s+list|linked\s+list\s*(?:vs|versus|and)\s*array)\b/i;
 
 /**
  * Detect whether query + domain combination should trigger a web search.
@@ -68,9 +69,10 @@ export function shouldSearch(query, domain = '') {
     return true;
   }
 
-  if (COMPARISON_TRIGGERS.test(q)) {
-    console.log(`[SearchGate] ✅ Comparison query detected.`);
-    return true;
+  // Evergreen topic/comparison patterns — skip search BEFORE generic comparison check
+  if (EVERGREEN_TOPICS.test(q) || EVERGREEN_COMPARISON.test(q)) {
+    console.log(`[SearchGate] ⏭️ Evergreen topic/comparison detected — skipping search.`);
+    return false;
   }
 
   if (TOOL_TRIGGERS.test(q)) {
@@ -81,12 +83,6 @@ export function shouldSearch(query, domain = '') {
   // Evergreen domain — skip search
   if (EVERGREEN_DOMAINS.has(normalizedDomain)) {
     console.log(`[SearchGate] ⏭️ Evergreen domain "${normalizedDomain}" — skipping search.`);
-    return false;
-  }
-
-  // Evergreen topic pattern — skip search
-  if (EVERGREEN_TOPICS.test(q)) {
-    console.log(`[SearchGate] ⏭️ Evergreen topic detected — skipping search.`);
     return false;
   }
 
@@ -110,6 +106,11 @@ export function detectTools(query) {
   // Check for explicit freshness signals
   if (FRESHNESS_TRIGGERS.test(query)) {
     return { useWebSearch: true };
+  }
+
+  // Skip search for evergreen comparisons even in tool detection
+  if (EVERGREEN_COMPARISON.test(query) || EVERGREEN_TOPICS.test(query)) {
+    return { useWebSearch: false };
   }
 
   // Check for comparison/tool queries

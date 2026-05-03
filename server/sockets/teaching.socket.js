@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import cookie from 'cookie';
 import User from '../models/User.js';
 import LearnerProfile from '../models/LearnerProfile.js';
 import { createTeachingMachine, STATES } from '../engine/core/teachingMachine.js';
@@ -21,7 +22,10 @@ export function setupTeachingSocket(io) {
   teachingIO.use(async (socket, next) => {
     try {
       const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
-      const token = socket.handshake.auth?.token;
+      
+      // Parse cookies from handshake headers
+      const cookies = cookie.parse(socket.handshake.headers.cookie || '');
+      const token = cookies['tb-token'] || socket.handshake.auth?.token;
       
       if (token === 'guest' || !token) {
         socket.user = { id: 'guest', isGuest: true };

@@ -120,6 +120,29 @@ Choose tone:
 - technical
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: ARTIFACT DECISION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Decide if the response should include standalone artifact(s):
+
+- generate_artifact → true/false
+- artifact_type → "code" | "ui" | "document" | "table" | "diagram" | null (primary type)
+- artifact_count → 1-4 (how many artifacts to generate; default 1)
+- artifact_types → array of types if multiple artifacts (e.g. ["code", "ui"])
+
+Rules:
+- If the user asks to write/implement/build code → generate_artifact: true, artifact_type: "code"
+- If the user asks for a UI/layout/component design → generate_artifact: true, artifact_type: "ui"
+- If the user asks for notes/summary/document → generate_artifact: true, artifact_type: "document"
+- If the query requires a comparison table or dataset → generate_artifact: true, artifact_type: "table"
+- If the user asks for a flowchart/diagram/visualization → generate_artifact: true, artifact_type: "diagram"
+- If the user asks for code WITH a preview/demo → artifact_count: 2, artifact_types: ["code", "ui"]
+- If the user asks for notes WITH a diagram → artifact_count: 2, artifact_types: ["document", "diagram"]
+- If the query is a simple question/explanation → generate_artifact: false
+- Only generate artifacts for substantial, structured content
+- Maximum 4 artifacts per response
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT (STRICT JSON)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -135,7 +158,11 @@ OUTPUT FORMAT (STRICT JSON)
     "visual": false
   },
   "sections": [],
-  "tone": ""
+  "tone": "",
+  "generate_artifact": false,
+  "artifact_type": null,
+  "artifact_count": 1,
+  "artifact_types": []
 }
 
 DO NOT explain anything.
@@ -144,7 +171,7 @@ ONLY return JSON.`;
 
 // ─── Regex-Based Fallback Heuristics ──────────────────────────────────────────
 
-const CODING_PATTERNS = /\b(implement|code|program|function|algorithm|debug|javascript|python|java|react|node|api|class|loop|array|sort|search|leetcode|compile|syntax|variable|recursion|stack|queue|linked\s*list|tree|graph|hash)\b/i;
+const CODING_PATTERNS = /\b(implement|code|program|function|algorithm|debug|javascript|python|java|react|node|api|class|loop|array|sort|search|leetcode|compile|syntax|variable|recursion|stack|queue|linked\s*list|tree|graph|hash|fibonacci|factorial|prime|sorting|complexity)\b/i;
 const MATH_PATTERNS = /\b(derivative|integral|equation|formula|calculus|algebra|geometry|trigonometry|matrix|vector|probability|statistics|theorem|proof|solve|calculate|compute)\b/i;
 const COMPARISON_PATTERNS = /\b(vs\.?|versus|compared?\s+to|difference\s+between|better\s+than|alternative|pros?\s+and\s+cons?|advantages?\s+and\s+disadvantages?)\b/i;
 const UI_DESIGN_PATTERNS = /\b(ui|ux|design|layout|component|responsive|css|tailwind|figma|wireframe|prototype|mockup|animation|transition)\b/i;
@@ -201,7 +228,45 @@ function buildFallbackPlan(query, hasWebContext) {
   else if (complexity === 'beginner') tone = 'intuitive';
   else if (content_type === 'concept') tone = 'storytelling';
 
-  return { content_type, complexity, intent, tools, sections, tone };
+  // Artifact detection
+  let generate_artifact = false;
+  let artifact_type = null;
+  let artifact_count = 1;
+  let artifact_types = [];
+
+  if (content_type === 'coding' && intent === 'implementation') {
+    generate_artifact = true;
+    artifact_type = 'code';
+    artifact_types = ['code'];
+    // Multi-artifact: code + preview if UI-related
+    if (/\b(preview|demo|ui|component|html|css|web\s*page|landing)\b/i.test(q)) {
+      artifact_count = 2;
+      artifact_types = ['code', 'ui'];
+    }
+  } else if (content_type === 'ui_design') {
+    generate_artifact = true;
+    artifact_type = 'ui';
+    artifact_types = ['ui'];
+  } else if (content_type === 'comparison' && tools.table) {
+    generate_artifact = true;
+    artifact_type = 'table';
+    artifact_types = ['table'];
+  } else if (/\b(flowchart|diagram|sequence\s+diagram|mind\s*map|mermaid|graph\s+td|graph\s+lr)\b/i.test(q)) {
+    generate_artifact = true;
+    artifact_type = 'diagram';
+    artifact_types = ['diagram'];
+  } else if (/\b(notes|summary|document|generate\s+doc|study\s+guide|cheat\s*sheet)\b/i.test(q)) {
+    generate_artifact = true;
+    artifact_type = 'document';
+    artifact_types = ['document'];
+    // Multi-artifact: notes + diagram
+    if (/\b(diagram|flowchart|visual|chart)\b/i.test(q)) {
+      artifact_count = 2;
+      artifact_types = ['document', 'diagram'];
+    }
+  }
+
+  return { content_type, complexity, intent, tools, sections, tone, generate_artifact, artifact_type, artifact_count, artifact_types };
 }
 
 // ─── Main Runner ──────────────────────────────────────────────────────────────

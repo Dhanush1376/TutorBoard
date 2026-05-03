@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import Toolbar from '../toolbar/Toolbar';
 import useTutorStore from '../../store/tutorStore';
 import useWindowSize from '../../hooks/useWindowSize';
+import ArtifactPanel from '../artifact/ArtifactPanel';
+import { useTheme } from '../../context/ThemeContext';
 
 const SIDEBAR_WIDTH = 350;
 const PANEL_RADIUS = 28;
@@ -27,9 +29,13 @@ const miniGlass = {
 
 const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse = false }) => {
   const navigate = useNavigate();
-  const {
-    isSidebarOpen, setSidebarOpen, toggleSidebar, layoutView,
-  } = useTutorStore();
+  const isSidebarOpen = useTutorStore(state => state.isSidebarOpen);
+  const setSidebarOpen = useTutorStore(state => state.setSidebarOpen);
+  const toggleSidebar = useTutorStore(state => state.toggleSidebar);
+  const layoutView = useTutorStore(state => state.layoutView);
+  const isArtifactPanelOpen = useTutorStore(state => state.isArtifactPanelOpen);
+  const { mode } = useTheme();
+  const isDark = mode === 'dark';
   const isRightHand = layoutView === 'right';
   const { user } = useAuth();
   const sidebarRef = React.useRef(null);
@@ -149,9 +155,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           }}
         />
 
-        {/* The Actual Interactive Canvas */}
+        {/* The Actual Interactive Canvas + Artifact Panel */}
         <div
-          className="relative w-full h-full z-10"
+          className="relative w-full h-full z-10 flex"
           style={{
             borderRadius: 0,
             borderTopLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
@@ -161,7 +167,14 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             overflow: 'hidden'
           }}
         >
-          {children}
+          <div className={`relative h-full overflow-hidden transition-all duration-300 ${isArtifactPanelOpen && !isMobile ? 'flex-1 min-w-0' : 'w-full'}`}>
+            {children}
+          </div>
+          {isArtifactPanelOpen && !isMobile && (
+            <div className="h-full" style={{ width: '50%', maxWidth: 700, minWidth: 340 }}>
+              <ArtifactPanel isDark={isDark} />
+            </div>
+          )}
         </div>
 
         {/* ── OVERLAYS (Pills, Toolbar, etc.) ── */}

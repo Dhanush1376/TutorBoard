@@ -17,13 +17,9 @@ const API = axios.create({
   },
 });
 
-// Request Interceptor
+// Request Interceptor (currently unused as we moved to secure cookies, but kept for logging/extensibility)
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('tb-token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     return config;
   },
   (error) => {

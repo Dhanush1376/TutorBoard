@@ -8,6 +8,7 @@ import { Server as SocketIO } from 'socket.io';
 import { Redis } from 'ioredis';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import * as Sentry from "@sentry/node";
 
@@ -48,6 +49,8 @@ import aiRouter from './ai-router/index.js';
 import learnerRoutes from './routes/learner.routes.js';
 // @ts-ignore
 import chatRoutes from './routes/chat.routes.js';
+// @ts-ignore
+import artifactRoutes from './routes/artifact.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -158,6 +161,7 @@ app.use(cors({
   origin: isOriginAllowed as any,
   credentials: true,
 }));
+app.use(cookieParser());
 
 app.use('/uploads', express.static('uploads', {
   setHeaders: (res: any) => {
@@ -264,6 +268,7 @@ app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
 app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
 app.use('/api/learner', httpRateLimiter, dbCheck, learnerRoutes);
 app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
+app.use('/api/artifact', httpRateLimiter, dbCheck, artifactRoutes);
 app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
 
 // @ts-ignore

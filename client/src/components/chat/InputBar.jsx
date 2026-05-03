@@ -284,8 +284,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     formData.append('file', file);
 
     const xhr = new XMLHttpRequest();
+    xhr.withCredentials = true; // Crucial for cookies
     xhr.open('POST', `${API_URL}/api/upload`, true);
-    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('tb-token')}`);
+    // Authorization header removed — browser sends httpOnly cookie automatically
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {

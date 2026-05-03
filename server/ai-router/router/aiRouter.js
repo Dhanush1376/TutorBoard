@@ -254,7 +254,7 @@ export async function routeConversation(messages, options = {}) {
  * @returns {AsyncGenerator<{ chunk: string, provider?: string, done?: boolean }>}
  */
 export async function* routeConversationStream(messages, options = {}) {
-  const { timeout = 60000 } = options;
+  const { timeout = 60000, maxTokens, responseMimeType } = options;
 
   logger.info(`[Chat:Stream] Routing streaming conversation (${messages.length} messages)...`);
 
@@ -290,7 +290,13 @@ export async function* routeConversationStream(messages, options = {}) {
 
         try {
           const stream = await or.chat.completions.create(
-            { messages, model: config.model, stream: true },
+            { 
+              messages, 
+              model: config.model, 
+              stream: true,
+              max_tokens: maxTokens || undefined,
+              response_format: responseMimeType === 'application/json' ? { type: 'json_object' } : undefined
+            },
             { signal: controller.signal }
           );
 
@@ -322,7 +328,13 @@ export async function* routeConversationStream(messages, options = {}) {
               'Authorization': `Bearer ${apiKey}`,
             },
             signal: controller.signal,
-            body: JSON.stringify({ messages, model: config.model, stream: true }),
+            body: JSON.stringify({ 
+              messages, 
+              model: config.model, 
+              stream: true,
+              max_tokens: maxTokens || undefined,
+              response_format: responseMimeType === 'application/json' ? { type: 'json_object' } : undefined
+            }),
           });
 
           if (!response.ok) {
@@ -384,6 +396,10 @@ export async function* routeConversationStream(messages, options = {}) {
             signal: controller.signal,
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                maxOutputTokens: maxTokens || undefined,
+                responseMimeType: responseMimeType || 'text/plain'
+              }
             }),
           });
 

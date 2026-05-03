@@ -152,6 +152,7 @@ const ChatWindow = ({
   const streamingMessageId = useTutorStore((s) => s.streamingMessageId);
   const streamingSessionId = useTutorStore((s) => s.streamingSessionId);
   const streamingSources = useTutorStore((s) => s.conversationSources);
+  const isSearchPerformed = useTutorStore((s) => s.isSearchPerformed);
   const isWaitingForAI = useTutorStore((s) => s.isWaitingForAI);
   const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
   const currentSessionId = useTutorStore((s) => s.chatSessionId || s.sessionId);
@@ -231,6 +232,7 @@ const ChatWindow = ({
                   sequence={msg.sequence}
                   objects={msg.objects || msg.elements}
                   hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
+                  isSearchPerformed={isSearchPerformed}
                 />
               );
             })}
@@ -247,6 +249,7 @@ const ChatWindow = ({
                 streamingContent={streamingContent}
                 streamingThought={streamingThought}
                 streamingSources={streamingSources}
+                isSearchPerformed={isSearchPerformed}
               />
             )}
 

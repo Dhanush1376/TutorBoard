@@ -1,9 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Copy, Edit2, Trash2, Check, RefreshCw, X, Layers, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { User, Copy, Edit2, Trash2, Check, RefreshCw, X, Layers, ChevronLeft, ChevronRight, BookOpen, Code, Globe, FileText, Table2, GitBranch } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import VisaiLogo from '../layout/VisaiLogo';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import useTutorStore from '../../store/tutorStore';
+
+// Artifact type config
+const ARTIFACT_TYPE_CONFIG = {
+  code: { icon: Code, label: 'Code', color: '#3b82f6' },
+  ui: { icon: Globe, label: 'UI Preview', color: '#8b5cf6' },
+  document: { icon: FileText, label: 'Document', color: '#10b981' },
+  table: { icon: Table2, label: 'Table', color: '#f59e0b' },
+  diagram: { icon: GitBranch, label: 'Diagram', color: '#ec4899' },
+};
 
 // ─── Markdown Renderers (Premium Notes-App Typography) ──────────────────────
 
@@ -71,6 +81,43 @@ const MarkdownComponents = {
   ),
 };
 
+// ─── Artifact Chip (shown in assistant messages when artifact exists) ────────
+
+const ArtifactChipForMessage = ({ artifactId }) => {
+  const { artifacts, setActiveArtifact, openArtifactPanel } = useTutorStore();
+  
+  const artifact = artifacts.find(a => a.id === artifactId);
+  if (!artifact) return null;
+
+  const config = ARTIFACT_TYPE_CONFIG[artifact.type] || ARTIFACT_TYPE_CONFIG.code;
+  const Icon = config.icon;
+
+  return (
+    <button
+      onClick={() => {
+        setActiveArtifact(artifact.id);
+        openArtifactPanel();
+      }}
+      className="mt-3 flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/30 hover:border-[var(--text-tertiary)]/50 hover:bg-[var(--bg-tertiary)] transition-all group w-full max-w-sm text-left"
+    >
+      <div 
+        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ background: `${config.color}15` }}
+      >
+        <Icon size={16} style={{ color: config.color }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-semibold text-[var(--text-primary)] truncate">
+          {artifact.title}
+        </div>
+        <div className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider">
+          Click to open {config.label}
+        </div>
+      </div>
+    </button>
+  );
+};
+
 // ─── Thinking Dropdown ──────────────────────────────────────────────────────
 
 const ThoughtDropdown = ({ content, isStreaming }) => {
@@ -114,8 +161,8 @@ const ThoughtDropdown = ({ content, isStreaming }) => {
 
 // ─── Source Cards ──────────────────────────────────────────────────────────
 
-const SourceGrid = ({ sources }) => {
-  if (!sources || sources.length === 0) return null;
+const SourceGrid = ({ sources, searchPerformed }) => {
+  if (!searchPerformed && (!sources || sources.length === 0)) return null;
 
   return (
     <div className="mb-4 w-full">
@@ -123,51 +170,61 @@ const SourceGrid = ({ sources }) => {
         <div className="w-4 h-4 rounded-full bg-[var(--text-primary)]/[0.05] flex items-center justify-center">
           <BookOpen size={10} className="text-[var(--text-tertiary)]" />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">Sources</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
+          {sources && sources.length > 0 ? 'Sources' : 'Searched the web'}
+        </span>
+        {(!sources || sources.length === 0) && searchPerformed && (
+          <span className="text-[9px] text-[var(--text-tertiary)]/40 font-normal normal-case tracking-normal">
+            (No direct links found)
+          </span>
+        )}
       </div>
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-0.5">
-        {sources.map((source, idx) => {
-          let hostname = '';
-          let favicon = '';
-          try {
-            const url = new URL(source.url);
-            hostname = url.hostname.replace('www.', '');
-            favicon = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
-          } catch (e) {
-            hostname = 'Link';
-            favicon = '';
-          }
+      
+      {sources && sources.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-0.5">
+          {sources.map((source, idx) => {
+            let hostname = '';
+            let favicon = '';
+            try {
+              const url = new URL(source.url);
+              hostname = url.hostname.replace('www.', '');
+              favicon = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
+            } catch (e) {
+              hostname = 'Link';
+              favicon = '';
+            }
 
-          return (
-            <a
-              key={idx}
-              href={source.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 w-36 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/20 hover:border-[var(--text-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-all group"
-            >
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-1.5 overflow-hidden">
-                  {favicon && (
-                    <img 
-                      src={favicon} 
-                      alt="" 
-                      className="w-3 h-3 rounded-sm opacity-70 group-hover:opacity-100 transition-opacity"
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                  )}
-                  <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider truncate">
-                    {hostname}
-                  </span>
+            return (
+              <a
+                key={idx}
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 w-36 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/20 hover:border-[var(--text-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-all group"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    {favicon && (
+                      <img 
+                        src={favicon} 
+                        alt="" 
+                        className="w-3 h-3 rounded-sm opacity-70 group-hover:opacity-100 transition-opacity"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    )}
+                    <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider truncate">
+                      {hostname}
+                    </span>
+                  </div>
+                  <h4 className="text-[11px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 group-hover:text-[var(--text-primary)] transition-colors">
+                    {source.title}
+                  </h4>
                 </div>
-                <h4 className="text-[11px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 group-hover:text-[var(--text-primary)] transition-colors">
-                  {source.title}
-                </h4>
-              </div>
-            </a>
-          );
-        })}
-      </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -179,6 +236,7 @@ const Message = ({
   isStreaming, streamingContent,
   isStreamingThought, streamingThought,
   streamingSources,
+  isSearchPerformed: streamingSearchPerformed,
   onEditMessage, onDeleteMessage, onRegenerateMessage, onFeedback,
   onOpenCanvas, hasCanvas, elements, objects, steps, stepTitle, domain,
   visualizationType, motion: motionData, connections, sequence,
@@ -291,8 +349,11 @@ const Message = ({
           ) : (
             /* ── DISPLAY MODE ── */
             <div className={`flex flex-col gap-0 ${isAssistant ? 'items-start' : 'items-end'} min-w-0 w-full`}>
-                {isAssistant && (metadata?.sources || streamingSources) && (
-                  <SourceGrid sources={metadata?.sources || streamingSources} />
+                {isAssistant && (metadata?.sources || streamingSources || metadata?.searchPerformed || (isStreaming && streamingSearchPerformed)) && (
+                  <SourceGrid 
+                    sources={metadata?.sources || streamingSources} 
+                    searchPerformed={metadata?.searchPerformed || (isStreaming && streamingSearchPerformed)}
+                  />
                 )}
                 
                 {isAssistant && (metadata?.thought || streamingThought) && (
@@ -390,6 +451,11 @@ const Message = ({
                   <Layers size={13} strokeWidth={2} />
                   Open Canvas
                 </button>
+              )}
+
+              {/* ── Artifact Chip ── */}
+              {isAssistant && metadata?.artifactId && (
+                <ArtifactChipForMessage artifactId={metadata.artifactId} />
               )}
 
               {/* ── Version Switcher ── */}

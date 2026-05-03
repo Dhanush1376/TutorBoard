@@ -5,16 +5,33 @@ dotenv.config();
 
 const { Pool } = pg;
 
-const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+const POSTGRES_URL = process.env.POSTGRES_URL;
+let pool = null;
+
+if (POSTGRES_URL) {
+  pool = new Pool({
+    connectionString: POSTGRES_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+  
+  pool.on('error', (err) => {
+    console.error('[Postgres] ❌ Unexpected error on idle client', err.message);
+  });
+} else {
+  console.warn('[Postgres] ⚠️ POSTGRES_URL is not set. Memory and RAG features will be disabled.');
+}
+
 
 /**
  * Initialize the database schema for pgvector
  */
 export async function initPostgres() {
+  if (!pool) {
+    console.warn('[Postgres] ⚠️ Skipping initialization as connection pool is not configured.');
+    return;
+  }
   const client = await pool.connect();
+
   try {
     console.log('[Postgres] Initializing schema...');
     

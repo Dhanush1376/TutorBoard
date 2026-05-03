@@ -66,7 +66,6 @@ const Home = ({ isDark }) => {
     drawWidth, gridType, gridSize, showGrid
   } = useTutorStore();
 
-  // ── Conversation Store Bindings ──
   const {
     conversationMessages, isStreaming, isWaitingForAI,
     addUserMessage, finishStreaming, abortStreaming,
@@ -75,7 +74,9 @@ const Home = ({ isDark }) => {
     deleteMessageById, setMessageFeedback,
     setWaitingForAI, setLastAIError, conversationTopic,
     switchMessageVersion, setSources, clearSources, startStreaming: storeStartStreaming,
-    appendStreamChunk, appendStreamThought, lastStreamSources
+    appendStreamChunk, appendStreamThought, updateStreamingContent, lastStreamSources,
+    // Artifact system
+    addArtifact, setArtifactDbId, setActiveArtifact, openArtifactPanel,
   } = useTutorStore();
 
 
@@ -217,6 +218,8 @@ const Home = ({ isDark }) => {
 
   // Restore Active Chat on Mount (fixes "chat disappearing on refresh")
   const hasHydratedActive = useRef(false);
+  const lastArtifactIdRef = useRef(null);
+  const isArtifactExpectedRef = useRef(false);
   useEffect(() => {
     // Wait for auth to finish deciding if we are guest or user
     if (authLoading) return;
@@ -911,13 +914,13 @@ const Home = ({ isDark }) => {
       if (!activeChatId) setActiveChatId(workingSessionId);
 
       // ── 1. Add user message to conversation slice ──
-      const userMsgId = addUserMessage(userPrompt);
+      const { userId, assistantId } = addUserMessage(userPrompt);
 
       const sessionTitle = userPrompt.substring(0, 40) || 'Untitled Session';
       
       // Update local chat history for sidebar display
       const userMessage = { 
-        id: userMsgId, role: 'user', content: userPrompt, 
+        id: userId, role: 'user', content: userPrompt, 
         timestamp: new Date().toISOString(), file: fileData,
         metadata: { edited: false, regenerated: false, feedback: null },
       };
@@ -958,6 +961,7 @@ const Home = ({ isDark }) => {
         },
       };
 
+      isArtifactExpectedRef.current = false;
       fetchAbortControllerRef.current = new AbortController();
 
       const res = await fetch(`${API_URL}/api/chat/stream`, {
@@ -985,6 +989,8 @@ const Home = ({ isDark }) => {
       let fullContent = '';
       let thoughtContent = '';
       let receivedSessionId = null;
+      let lastArtifactLocalId = null;
+      let lastEventType = 'message';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -996,23 +1002,44 @@ const Home = ({ isDark }) => {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          if (!trimmed) continue;
+
+          if (trimmed.startsWith('event: ')) {
+            lastEventType = trimmed.slice(7).trim();
+            continue;
+          }
+
+          if (!trimmed.startsWith('data: ')) continue;
           const dataStr = trimmed.slice(6);
 
           try {
-            const event = JSON.parse(dataStr);
+            const eventData = JSON.parse(dataStr);
+            const eventType = eventData.type || lastEventType;
 
-            if (event.type === 'chunk') {
-              fullContent += event.chunk;
-              appendStreamChunk(event.chunk);
-            } else if (event.type === 'thought') {
-              thoughtContent += event.thought;
-              appendStreamThought(event.thought);
-            } else if (event.type === 'sources') {
-              setSources(event.sources);
-            } else if (event.type === 'message_ids') {
+            if (eventType === 'chunk' || eventType === 'message') {
+              const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
+              
+              // FAIL-SAFE: If we expect an artifact, or if the text looks like raw JSON, suppress it from the UI
+              // We only want to show the clean 'chat_override' content or non-JSON conversational text.
+              const looksLikeJson = typeof text === 'string' && (text.trim().startsWith('{') || text.trim().startsWith('['));
+              const isLikelyJsonChunk = isArtifactExpectedRef.current && (looksLikeJson || fullContent.trim().startsWith('{'));
+
+              if (!isLikelyJsonChunk && text) {
+                fullContent += text;
+                appendStreamChunk(text);
+              } else if (text) {
+                // Still accumulate it locally for parsing at the end, just don't show it
+                fullContent += text;
+              }
+            } else if (eventType === 'thought') {
+              const thought = eventData.thought || eventData.content || '';
+              thoughtContent += thought;
+              appendStreamThought(thought);
+            } else if (eventType === 'sources') {
+              setSources(eventData.sources || []);
+            } else if (eventType === 'message_ids') {
               // Sync local ephemeral IDs with real MongoDB IDs (Fixed: Bug 2)
-              const { userMessageId, assistantMessageId } = event;
+              const { userMessageId, assistantMessageId } = eventData;
               setChatHistory(prev => prev.map(s => {
                 if (s.id === workingSessionId || s.id === receivedSessionId) {
                   const msgs = [...s.messages];
@@ -1025,24 +1052,92 @@ const Home = ({ isDark }) => {
                 }
                 return s;
               }));
-            } else if (event.type === 'meta') {
-              receivedSessionId = event.sessionId;
-            } else if (event.type === 'done') {
+            } else if (eventType === 'plan') {
+              if (eventData.plan?.generate_artifact) {
+                isArtifactExpectedRef.current = true;
+              }
+            } else if (eventType === 'status') {
+              console.log('[Home] AI Status:', eventData.message);
+              appendStreamThought(`*${eventData.message}* `);
+            } else if (eventType === 'meta' || eventType === 'message_ids') {
+              receivedSessionId = eventData.sessionId || eventData.receivedSessionId;
+            } else if (eventType === 'artifact') {
+              const art = eventData.artifact || eventData;
+              if (art.type && art.content) {
+                const localId = addArtifact({
+                  id: art.id || `art-${Date.now()}`,
+                  type: art.type,
+                  title: art.title,
+                  content: art.content,
+                  language: art.language,
+                  metadata: art.metadata || {},
+                });
+
+                // Only open the panel for the FIRST artifact in a multi-artifact response
+                if (!lastArtifactLocalId) {
+                  setActiveArtifact(localId);
+                  openArtifactPanel();
+                }
+
+                lastArtifactLocalId = localId;
+
+                // Store artifact ID for later linkage to the assistant message
+                lastArtifactIdRef.current = localId;
+
+                // Attach this artifact ID to the CURRENT assistant message metadata if it exists
+                setChatHistory(prev => prev.map(s => {
+                  if (s.id === workingSessionId || s.id === receivedSessionId) {
+                    const msgs = [...s.messages];
+                    if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
+                      msgs[msgs.length - 1] = { 
+                        ...msgs[msgs.length - 1], 
+                        metadata: { ...msgs[msgs.length - 1].metadata, artifactId: localId } 
+                      };
+                    }
+                    return { ...s, messages: msgs };
+                  }
+                  return s;
+                }));
+              }
+            } else if (eventType === 'artifact_saved') {
+              // Link the local artifact to its DB ID
+              const savedLocalId = eventData.localId || lastArtifactLocalId;
+              if (savedLocalId && eventData.artifactId) {
+                setArtifactDbId(savedLocalId, eventData.artifactId);
+              }
+            } else if (eventType === 'chat_override') {
+              updateStreamingContent(eventData.content);
+              fullContent = eventData.content;
+              setChatHistory(prev => prev.map(s => {
+                if (s.id === (receivedSessionId || workingSessionId)) {
+                  const msgs = [...s.messages];
+                  if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
+                    msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: eventData.content };
+                  }
+                  return { ...s, messages: msgs };
+                }
+                return s;
+              }));
+            } else if (eventType === 'done') {
               // Streaming complete
-            } else if (event.type === 'error') {
-              throw new Error(event.error);
+            } else if (eventType === 'error') {
+              throw new Error(eventData.error || 'Streaming error');
             }
           } catch (parseErr) {
-            if (parseErr.message && !parseErr.message.includes('JSON')) {
-              throw parseErr;
+            // Not JSON data, could be raw string
+            if (lastEventType === 'message' && !dataStr.startsWith('{')) {
+              fullContent += dataStr;
+              appendStreamChunk(dataStr);
             }
-            // Skip malformed SSE lines
           }
         }
       }
 
+      console.log("FULL RESPONSE (Client):", fullContent);
+
       // ── 5. Finalize streaming ──
-      finishStreaming(fullContent, thoughtContent, lastStreamSources);
+      finishStreaming(fullContent, thoughtContent, lastStreamSources, lastArtifactIdRef.current);
+      lastArtifactIdRef.current = null; // Reset for next turn
 
       // Background persist for sidebar sync
       if (isAuthenticated && !user?.isGuest && token) {

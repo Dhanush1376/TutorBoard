@@ -8,12 +8,15 @@ import { shouldSearch, detectTools, applyPlannerOverride } from '../utils/ai/sea
 import { formatForPrompt, extractSources } from '../utils/ai/searchContextFormatter.js';
 import VectorStoreService from '../engine/core/vectorStore.js';
 import { runChatPlanner } from '../engine/agents/chatPlannerAgent.js';
+import Artifact from '../models/Artifact.js';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
 const sendMessageSchema = z.object({
   sessionId: z.string().optional().nullable(),
   userMessage: z.string().min(1).max(10000),
+  userMessageId: z.string().optional(),
+  assistantMessageId: z.string().optional(),
   mode: z.enum(['quick', 'deep', 'test_me', 'explain']).optional().default('quick'),
   teachingContext: z.object({
     currentTopic: z.string().optional(),
@@ -103,21 +106,24 @@ export const sendMessage = async (req, res) => {
     const existingMessages = session?.messages || [];
     const allMessages = [...existingMessages, userMsg];
 
-    // ── 3. RAG + Web Search + Planner Fusion (Parallel Execution) ──
+    // ── 3. Intelligence Pipeline: RAG + Web Search + Planner Fusion ──
     const topic = session?.currentTopic || teachingContext?.currentTopic || detectTopic(userMessage);
-
     const toolDecision = detectTools(userMessage);
     const gateSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
 
-    // Run planner, RAG, and initial web search in parallel
-    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+    // Run RAG and Initial Search first to provide context for the planner
+    const [pastContext, initialWebResults] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
       gateSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
-      runChatPlanner(userMessage, '', '', null).catch(err => {
-        console.warn(`[Chat] Planner failed: ${err.message}`);
-        return null;
-      }),
     ]);
+
+    let webContextStr = formatForPrompt(initialWebResults);
+
+    // Run planner with actual context for deep understanding
+    const plannerPlan = await runChatPlanner(userMessage, pastContext, webContextStr, null).catch(err => {
+      console.warn(`[Chat] Planner failed: ${err.message}`);
+      return null;
+    });
 
     // Apply planner override to search decision
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
@@ -129,7 +135,7 @@ export const sendMessage = async (req, res) => {
       webResults = await searchWeb(userMessage, { count: 5 });
     }
 
-    const webContextStr = formatForPrompt(webResults);
+    webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
 
     if (sources.length > 0) {
@@ -156,7 +162,15 @@ export const sendMessage = async (req, res) => {
       ? `Session has ${session.messages.length} messages. Topic: ${session.currentTopic || 'General'}.`
       : '';
 
-    const systemPrompt = buildSystemPrompt(effectiveContext, mode, webContextStr, pastContext, recentMsgsSummary, memorySummary, plannerPlan);
+    const systemPrompt = buildSystemPrompt({
+      currentTopic: topic,
+      explanationMode: effectiveContext.explanationMode,
+      learnerLevel: effectiveContext.learnerLevel,
+      mode,
+      webContext: webContextStr,
+      pastContext,
+      planner: plannerPlan
+    });
     const llmMessages = buildLLMMessages(allMessages, systemPrompt, 20);
 
     // ── 5. Call AI Router ──
@@ -239,6 +253,15 @@ export const sendMessage = async (req, res) => {
         eventType: 'chat_message',
         eventData: { mode, messageCount: session.messages.length },
       });
+
+      // Background: Persist to long-term memory (RAG)
+      if (cleanContent) {
+        const memorySummary = summarizeForMemory(userMessage, cleanContent);
+        VectorStoreService.addSession(savedSessionId, memorySummary, {
+          userId,
+          topic: topic || 'General'
+        }).catch(err => console.error('[Memory] Background persistence failed:', err.message));
+      }
     }
 
     // ── 8. Return Response with Sources ──
@@ -254,6 +277,7 @@ export const sendMessage = async (req, res) => {
       model: aiResponse.model,
       latency: aiResponse.latency,
       sources: sources.length > 0 ? sources : undefined,
+      searchPerformed: gateSearch || finalSearchNeeded,
     });
   } catch (err) {
     console.error('[Chat] sendMessage error:', err);
@@ -324,18 +348,34 @@ export const streamMessage = async (req, res) => {
     // ── 3. RAG + Web Search + Planner Fusion (Parallel) ──
     const topic = session?.currentTopic || teachingContext?.currentTopic || detectTopic(userMessage);
 
+    // ── 5. Set SSE Headers IMMEDIATELY to prevent client-side timeouts ──
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); 
+    res.flushHeaders();
+
+    // Send session ID and "Thinking" state early
+    const savedSessionId = session?._id?.toString() || sessionId;
+    res.write(`data: ${JSON.stringify({ type: 'meta', sessionId: savedSessionId })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'status', message: 'Planning lesson...' })}\n\n`);
+
     const toolDecision = detectTools(userMessage);
     const gateSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
 
-    // Run planner, RAG, and initial web search in parallel
-    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+    // Run RAG and Initial Search first to provide context for the planner
+    const [pastContext, initialWebResults] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
       gateSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
-      runChatPlanner(userMessage, '', '', null).catch(err => {
-        console.warn(`[Chat:Stream] Planner failed: ${err.message}`);
-        return null;
-      }),
     ]);
+
+    let webContextStr = formatForPrompt(initialWebResults);
+
+    // Run planner with actual context
+    const plannerPlan = await runChatPlanner(userMessage, pastContext, webContextStr, null).catch(err => {
+      console.warn(`[Chat:Stream] Planner failed: ${err.message}`);
+      return null;
+    });
 
     // Apply planner override to search decision
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
@@ -344,10 +384,11 @@ export const streamMessage = async (req, res) => {
     let webResults = initialWebResults;
     if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
       console.log('[Chat:Stream] Planner requested web search — executing late search...');
+      res.write(`data: ${JSON.stringify({ type: 'status', message: 'Searching web...' })}\n\n`);
       webResults = await searchWeb(userMessage, { count: 5 });
     }
 
-    const webContextStr = formatForPrompt(webResults);
+    webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
 
     if (plannerPlan) {
@@ -361,16 +402,6 @@ export const streamMessage = async (req, res) => {
       learnerLevel: teachingContext?.learnerLevel || 'intermediate',
     };
 
-    // Build recent messages summary for prompt context
-    const recentMsgsSummary = allMessages.slice(-6).map(m =>
-      `[${m.role.toUpperCase()}]: ${m.content.substring(0, 200)}`
-    ).join('\n');
-
-    // Build memory summary from session history
-    const memorySummary = session?.messages?.length > 2
-      ? `Session has ${session.messages.length} messages. Topic: ${session.currentTopic || 'General'}.`
-      : '';
-
     const systemPrompt = buildSystemPrompt({
       currentTopic: topic,
       explanationMode: effectiveContext.explanationMode,
@@ -382,108 +413,228 @@ export const streamMessage = async (req, res) => {
     });
     const llmMessages = buildLLMMessages(allMessages, systemPrompt, 20);
 
-    // ── 5. Set SSE Headers ──
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-    res.flushHeaders();
-
-    // Send sources immediately if available
-    if (sources.length > 0) {
-      res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
+    // Send sources and planner result
+    if (sources.length > 0 || gateSearch || finalSearchNeeded) {
+      res.write(`data: ${JSON.stringify({ 
+        type: 'sources', 
+        sources,
+        searchPerformed: !!(gateSearch || finalSearchNeeded)
+      })}\n\n`);
     }
 
-    // Send planner result so frontend can show classification/planning state
     if (plannerPlan) {
       res.write(`data: ${JSON.stringify({ type: 'plan', plan: plannerPlan })}\n\n`);
     }
 
-    // Send session ID
-    const savedSessionId = session?._id?.toString() || sessionId;
-    res.write(`data: ${JSON.stringify({ type: 'meta', sessionId: savedSessionId })}\n\n`);
+    const isArtifactExpected = !!(plannerPlan?.generate_artifact);
+    if (isArtifactExpected) {
+      res.write(`data: ${JSON.stringify({ type: 'status', message: `Generating ${plannerPlan.artifact_type} artifact...` })}\n\n`);
+    }
 
     // ── 6. Stream AI Response ──
     let fullContent = '';
     let streamProvider = null;
     let clientDisconnected = false;
-    let tagBuffer = ''; // Buffer to handle tags split across chunks
+    let lastStreamProvider = '';
+    let cleanContent = '';
+    let thoughtContent = '';
+
+    // Heartbeat to keep connection alive
+    const heartbeat = setInterval(() => {
+      if (!clientDisconnected) {
+        res.write(': keep-alive\n\n');
+      }
+    }, 15000);
 
     req.on('close', () => {
       clientDisconnected = true;
+      clearInterval(heartbeat);
     });
 
     try {
-      const stream = routeConversationStream(llmMessages, { timeout: 60000 });
-      let isThinking = false;
-      let thoughtContent = '';
-      let cleanContent = '';
+      const stream = routeConversationStream(llmMessages, { 
+        timeout: 90000, 
+        maxTokens: isArtifactExpected ? 4000 : 1500,
+        responseMimeType: isArtifactExpected ? 'application/json' : 'text/plain'
+      });
 
-      for await (const { chunk, provider } of stream) {
+      for await (const streamChunk of stream) {
         if (clientDisconnected) break;
 
-        fullContent += chunk;
-        streamProvider = provider;
+        const { chunk, provider } = streamChunk;
+        if (chunk) {
+          fullContent += chunk;
+          lastStreamProvider = provider;
 
-        // ── Chain of Thought Extraction with split tag handling ──
-        let remainingChunk = tagBuffer + chunk;
-        tagBuffer = '';
+          // If NOT an artifact, stream chunks immediately
+          if (!isArtifactExpected) {
+            res.write(`event: message\n`);
+            res.write(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
+          }
 
-        // If the chunk ends with a partial tag, buffer it
-        const partialTagMatch = remainingChunk.match(/<[^>]*$/);
-        if (partialTagMatch) {
-          tagBuffer = partialTagMatch[0];
-          remainingChunk = remainingChunk.substring(0, partialTagMatch.index);
-        }
-
-        // Processing remainingChunk which is now guaranteed to have complete tags (or no tags)
-        while (remainingChunk.length > 0) {
-          if (!isThinking) {
-            const thoughtStartIdx = remainingChunk.indexOf('<thought>');
-            if (thoughtStartIdx !== -1) {
-              // Part before <thought>
-              const before = remainingChunk.substring(0, thoughtStartIdx);
-              if (before) {
-                cleanContent += before;
-                res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: before })}\n\n`);
-              }
-              isThinking = true;
-              remainingChunk = remainingChunk.substring(thoughtStartIdx + 9);
-            } else {
-              // No <thought> tag in this piece
-              cleanContent += remainingChunk;
-              res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: remainingChunk })}\n\n`);
-              remainingChunk = '';
-            }
-          } else {
-            const thoughtEndIdx = remainingChunk.indexOf('</thought>');
-            if (thoughtEndIdx !== -1) {
-              // Part before </thought>
-              const thought = remainingChunk.substring(0, thoughtEndIdx);
-              if (thought) {
-                thoughtContent += thought;
-                res.write(`data: ${JSON.stringify({ type: 'thought', thought })}\n\n`);
-              }
-              isThinking = false;
-              remainingChunk = remainingChunk.substring(thoughtEndIdx + 10);
-            } else {
-              // Still thinking
-              thoughtContent += remainingChunk;
-              res.write(`data: ${JSON.stringify({ type: 'thought', thought: remainingChunk })}\n\n`);
-              remainingChunk = '';
-            }
+          // Extract and send thoughts immediately even if buffering the rest
+          const thoughtMatch = chunk.match(/<thought>([\s\S]*?)<\/thought>/) || 
+                             chunk.match(/<thought>([\s\S]*)$/) ||
+                             (fullContent.includes('<thought>') && !fullContent.includes('</thought>') ? { 1: chunk } : null);
+          
+          if (thoughtMatch) {
+            const thought = thoughtMatch[1] || '';
+            res.write(`event: thought\n`);
+            res.write(`data: ${JSON.stringify({ thought })}\n\n`);
           }
         }
       }
+
+      console.log("FULL RESPONSE:", fullContent);
+      // For artifact parsing, we'll use fullContent.
+      // We need to clean fullContent of thought tags for the robust parser if it's mixed
+      cleanContent = fullContent.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
+      thoughtContent = (fullContent.match(/<thought>([\s\S]*?)<\/thought>/g) || [])
+        .map(t => t.replace(/<\/?thought>/g, '')).join('\n');
+
     } catch (streamErr) {
       console.error('[Chat:Stream] Streaming failed:', streamErr.message);
       if (!clientDisconnected) {
-        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Streaming failed. Please try again.' })}\n\n`);
+        res.write(`event: message\n`);
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Streaming failed.' })}\n\n`);
       }
     }
 
-    // ── 7. Finalize ──
+    // ── 7. Finalize: Check for JSON artifact(s) in response ──
+    let chatResponseText = cleanContent;
+    let artifactsArray = []; // Unified array for both single and multi-artifact
+    const planWantsArtifact = plannerPlan && plannerPlan.generate_artifact;
+
+    if (planWantsArtifact && cleanContent) {
+      const cleanArtifactContent = (content, title) => {
+        if (typeof content !== 'string') return content;
+        let cleaned = content.replace(/\r\n/g, '\n').trim();
+        
+        let lines = cleaned.split('\n');
+        let linesToSkip = 0;
+
+        for (let i = 0; i < Math.min(lines.length, 5); i++) {
+          const stripped = lines[i].trim().replace(/[#\s\*_:]/g, '');
+          if (stripped.toLowerCase() === 'title' || stripped.toLowerCase() === 'introduction') {
+            linesToSkip = i + 1; 
+            while (linesToSkip < lines.length && lines[linesToSkip].trim() === '') {
+              linesToSkip++;
+            }
+            break;
+          }
+        }
+
+        if (linesToSkip > 0) {
+          cleaned = lines.slice(linesToSkip).join('\n').trim();
+        }
+
+        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Title:?\s*/i, '$1');
+        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Introduction:?\s*/i, '$1');
+
+        return cleaned;
+      };
+
+      const cleanChatResponse = (text) => {
+        if (!text) return text;
+        let cleaned = text.trim();
+        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Title:?\s*/i, '$1');
+        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Introduction:?\s*/i, '$1');
+        return cleaned;
+      };
+
+      const robustParse = (str) => {
+        try {
+          return JSON.parse(str);
+        } catch (e) {
+          try {
+            const sanitized = str.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (match, p1) => {
+              return '"' + p1.replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"';
+            });
+            return JSON.parse(sanitized);
+          } catch (e2) {
+            return null;
+          }
+        }
+      };
+
+      /** Normalize parsed JSON into an array of artifacts */
+      const extractArtifacts = (parsed) => {
+        if (!parsed) return [];
+        // Multi-artifact format: { artifacts: [...] }
+        if (Array.isArray(parsed.artifacts) && parsed.artifacts.length > 0) {
+          return parsed.artifacts.filter(a => a && a.type && a.content);
+        }
+        // Single artifact format: { artifact: {...} }
+        if (parsed.artifact && parsed.artifact.type && parsed.artifact.content) {
+          return [parsed.artifact];
+        }
+        return [];
+      };
+
+      const tryParse = (str) => {
+        const jsonStr = str.replace(/^```json\s*|```\s*$/g, '').trim();
+        let parsed = robustParse(jsonStr);
+        let arts = extractArtifacts(parsed);
+
+        // Fallback: try to extract embedded JSON
+        if (arts.length === 0) {
+          const jsonMatch = str.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            parsed = robustParse(jsonMatch[0]);
+            arts = extractArtifacts(parsed);
+          }
+        }
+
+        return { parsed, arts };
+      };
+
+      try {
+        const { parsed, arts } = tryParse(cleanContent);
+
+        if (arts.length > 0 && parsed) {
+          chatResponseText = cleanChatResponse(parsed.chat_response || 'Here is what I created.');
+
+          // Emit SSE events for each artifact
+          arts.forEach((art, idx) => {
+            art.content = cleanArtifactContent(art.content, art.title);
+            const artLocalId = `art-${Date.now()}-${idx}`;
+
+            if (!clientDisconnected) {
+              res.write(`event: artifact\n`);
+              res.write(`data: ${JSON.stringify({
+                id: artLocalId,
+                type: art.type,
+                title: art.title || 'Untitled',
+                content: art.content,
+                language: art.language || null,
+                metadata: art.metadata || {},
+              })}\n\n`);
+            }
+
+            artifactsArray.push({ ...art, localId: artLocalId });
+          });
+
+          // Send clean chat override
+          if (!clientDisconnected) {
+            res.write(`event: message\n`);
+            res.write(`data: ${JSON.stringify({ 
+              type: 'chat_override',
+              content: chatResponseText 
+            })}\n\n`);
+          }
+
+          fullContent = chatResponseText;
+          cleanContent = chatResponseText;
+        } else {
+          console.warn('[Chat:Stream] Parsed JSON missing required artifact fields');
+        }
+      } catch (parseErr) {
+        console.warn('[Chat:Stream] Artifact JSON parse failed:', parseErr.message);
+      }
+    }
+
     if (!clientDisconnected) {
+      clearInterval(heartbeat);
       res.write(`data: ${JSON.stringify({ type: 'done', provider: streamProvider })}\n\n`);
       res.end();
     }
@@ -502,6 +653,7 @@ export const streamMessage = async (req, res) => {
           regenerated: false, 
           feedback: null,
           sources: sources || [],
+          searchPerformed: gateSearch || finalSearchNeeded,
           thought: thoughtContent || undefined,
           versions: [{ text: fullContent, subsequentMessages: [] }],
           activeVersionIndex: 0
@@ -539,6 +691,63 @@ export const streamMessage = async (req, res) => {
         eventType: 'chat_message_stream',
         eventData: { mode, messageCount: session.messages.length, provider: streamProvider },
       });
+
+      // Background: Persist to long-term memory (RAG)
+      if (fullContent) {
+        const memorySummary = summarizeForMemory(userMessage, fullContent);
+        VectorStoreService.addSession(session._id.toString(), memorySummary, {
+          userId,
+          topic: topic || 'General'
+        }).catch(err => console.error('[Memory] Background persistence failed:', err.message));
+      }
+
+      // Background: Persist artifact(s) to DB if any were generated
+      if (artifactsArray.length > 0) {
+        const savedArtifactIds = [];
+        for (const artData of artifactsArray) {
+          try {
+            const savedArtifact = await Artifact.create({
+              userId: userId || null,
+              sessionId: session._id.toString(),
+              messageId: assistantMessageId || null,
+              type: artData.type,
+              title: artData.title || 'Untitled',
+              content: artData.content,
+              language: artData.language || null,
+              metadata: artData.metadata || {},
+              version: 1,
+            });
+
+            savedArtifactIds.push(savedArtifact._id.toString());
+
+            // Send artifact ID to client for future reference
+            if (!clientDisconnected) {
+              res.write(`data: ${JSON.stringify({
+                type: 'artifact_saved',
+                artifactId: savedArtifact._id.toString(),
+                localId: artData.localId,
+              })}\n\n`);
+            }
+
+            console.log(`[Chat:Stream] ✨ Artifact saved: ${savedArtifact._id} (${artData.type})`);
+          } catch (artErr) {
+            console.error('[Chat:Stream] Artifact persistence failed:', artErr.message);
+          }
+        }
+
+        // CRITICAL: Link all artifact IDs back to the assistant message
+        if (savedArtifactIds.length > 0 && session.messages.length > 0) {
+          const lastMsg = session.messages[session.messages.length - 1];
+          if (lastMsg.role === 'assistant') {
+            lastMsg.metadata = { 
+              ...lastMsg.metadata, 
+              artifactId: savedArtifactIds[0], // backward compat
+              artifactIds: savedArtifactIds,    // new multi-artifact field
+            };
+            await session.save().catch(e => console.error('[Artifact] Failed to link to message:', e.message));
+          }
+        }
+      }
     }
   } catch (err) {
     console.error('[Chat:Stream] streamMessage error:', err);
@@ -607,14 +816,19 @@ export const editMessage = async (req, res) => {
     const toolDecision = detectTools(newContent);
     const gateSearch = toolDecision.useWebSearch || shouldSearch(newContent);
 
-    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+    // Run RAG and Initial Search first to provide context for the planner
+    const [pastContext, initialWebResults] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
       gateSearch ? searchWeb(newContent, { count: 5 }) : Promise.resolve([]),
-      runChatPlanner(newContent, '', '', null).catch(err => {
-        console.warn(`[Chat:Edit] Planner failed: ${err.message}`);
-        return null;
-      }),
     ]);
+
+    let webContextStr = formatForPrompt(initialWebResults);
+
+    // Run planner with actual context
+    const plannerPlan = await runChatPlanner(newContent, pastContext, webContextStr, null).catch(err => {
+      console.warn(`[Chat:Edit] Planner failed: ${err.message}`);
+      return null;
+    });
 
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
     let webResults = initialWebResults;
@@ -622,7 +836,7 @@ export const editMessage = async (req, res) => {
       webResults = await searchWeb(newContent, { count: 5 });
     }
 
-    const webContextStr = formatForPrompt(webResults);
+    webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
 
     // ── 5. Build Final Prompt & Regenerate AI Response ──
@@ -671,6 +885,7 @@ export const editMessage = async (req, res) => {
         regenerated: false, 
         feedback: null,
         sources: aiResponse.sources || [],
+        searchPerformed: gateSearch || finalSearchNeeded,
         thought: thoughtContent || undefined,
         versions: [{ text: cleanContent, subsequentMessages: [] }],
         activeVersionIndex: 0
@@ -744,14 +959,19 @@ export const regenerate = async (req, res) => {
     const toolDecision = detectTools(query);
     const gateSearch = toolDecision.useWebSearch || shouldSearch(query);
 
-    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+    // Run RAG and Initial Search first to provide context for the planner
+    const [pastContext, initialWebResults] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
       gateSearch ? searchWeb(query, { count: 5 }) : Promise.resolve([]),
-      runChatPlanner(query, '', '', null).catch(err => {
-        console.warn(`[Chat:Regen] Planner failed: ${err.message}`);
-        return null;
-      }),
     ]);
+
+    let webContextStr = formatForPrompt(initialWebResults);
+
+    // Run planner with actual context
+    const plannerPlan = await runChatPlanner(query, pastContext, webContextStr, null).catch(err => {
+      console.warn(`[Chat:Regen] Planner failed: ${err.message}`);
+      return null;
+    });
 
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
     let webResults = initialWebResults;
@@ -759,7 +979,7 @@ export const regenerate = async (req, res) => {
       webResults = await searchWeb(query, { count: 5 });
     }
 
-    const webContextStr = formatForPrompt(webResults);
+    webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
 
     // ── 4. Build Final Prompt & Regenerate AI Response ──
@@ -806,6 +1026,7 @@ export const regenerate = async (req, res) => {
         ...targetMsg.metadata,
         regenerated: true,
         sources: aiResponse.sources || [],
+        searchPerformed: gateSearch || finalSearchNeeded,
         thought: thoughtContent || undefined,
         versions: updatedVersions,
         activeVersionIndex: updatedVersions.length - 1
@@ -821,6 +1042,7 @@ export const regenerate = async (req, res) => {
           regenerated: true, 
           feedback: null,
           sources: aiResponse.sources || [],
+          searchPerformed: gateSearch || finalSearchNeeded,
           thought: thoughtContent || undefined,
           versions: [{ text: cleanContent, subsequentMessages: [] }],
           activeVersionIndex: 0
@@ -920,42 +1142,21 @@ export const updateMessageFeedback = async (req, res) => {
 };
 
 /**
- * generateSessionTitle: Use AI to create a short, relevant title for the session
+ * summarizeForMemory: Creates a concise summary for the VectorStore
  */
-const generateSessionTitle = async (userMsg, aiMsg) => {
-  try {
-    const prompt = [
-      { role: 'system', content: 'Generate a 2-4 word title for this chat based on the first exchange. Return ONLY the title text, no quotes or prefix.' },
-      { role: 'user', content: `User: ${userMsg}\nAI: ${aiMsg}` }
-    ];
-    const res = await routeConversation(prompt, { timeout: 10000 });
-    return res.content.trim() || 'New Session';
-  } catch (err) {
-    console.error('[TitleGen] Error:', err);
-    return 'New Session';
-  }
-};
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 /**
- * detectTopic: Extracts a short topic from a message
+ * summarizeForMemory: Creates a concise summary for the VectorStore
  */
-const detectTopic = (text) => {
-  if (!text) return 'General';
-  const clean = text.trim();
-  // Simple heuristic: first 5 words or first sentence
-  const sentence = clean.split(/[.!?]/)[0];
-  const words = sentence.split(/\s+/).slice(0, 5).join(' ');
-  return words.length > 3 ? words : 'General Chat';
-};
+function summarizeForMemory(userMsg, aiMsg) {
+  const cleanAi = aiMsg.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
+  const summary = `User asked about ${userMsg.slice(0, 100)}. AI explained: ${cleanAi.slice(0, 200)}...`;
+  return summary;
+}
 
 /**
  * buildSystemPrompt: Construct the primary instructions for the AI
  */
-const buildSystemPrompt = (args) => {
-  // Support both object and positional (legacy-ish) arguments if needed, 
-  // but object is safer for our multi-mode controller.
+function buildSystemPrompt(args) {
   const { 
     currentTopic, 
     explanationMode, 
@@ -966,42 +1167,135 @@ const buildSystemPrompt = (args) => {
     planner 
   } = args;
   
-  let prompt = `You are TutorBoard AI, a professional tutor. 
-Topic: ${currentTopic || 'General Education'}
-Level: ${learnerLevel}
-Mode: ${explanationMode || 'Standard'}
+  // 1. Core Identity & Voice
+  let prompt = `You are TutorBoard AI, a knowledgeable and engaging personal tutor. 
+Your goal is to guide students through complex topics with clarity, patience, and a touch of intellectual curiosity.
 
-INSTRUCTIONS:
-1. Provide visually structured learning notes.
-2. Use bolding, bullet points, and clear sections.
-3. Keep the tone professional but encouraging.
-4. DO NOT use emojis.
-5. If web context is provided, cite sources using [1], [2], etc.
+TOPIC: ${currentTopic || 'General Education'}
+LEARNER LEVEL: ${learnerLevel}
+EXPLANATION STYLE: ${explanationMode || 'Standard'}
 `;
 
-  if (planner) {
-    prompt += `\nPLANNER GUIDANCE:
-- Tone: ${planner.tone || 'Professional'}
-- Depth: ${planner.complexity || 'Appropriate'}
-- Focus: ${planner.focus_areas?.join(', ') || 'General'}
-`;
+  // 2. Structural Guidance (from Planner)
+  if (planner && planner.sections && planner.sections.length > 0) {
+    prompt += `\nRESPONSE SECTIONS (Include these in order): ${planner.sections.join(', ')}\n`;
   }
 
+  // 3. Tool usage (from Planner)
+  if (planner) {
+    if (planner.use_table) prompt += `- Use a Markdown table for comparisons or structured data.\n`;
+    if (planner.use_code) prompt += `- Include clear, commented code snippets where relevant.\n`;
+    if (planner.use_diagram) prompt += `- Describe visual concepts clearly so they can be easily imagined or drawn.\n`;
+  }
+
+  // 4. Tone & Narrative Instructions
+  prompt += `\nINSTRUCTIONS:
+1. NARRATIVE FLOW: Do not provide dry, documentation-style notes. Write in natural prose that flows logically from one concept to the next.
+2. VISUAL HIERARCHY: Use bolding for key terms and bullet points for lists, but embed them within a conversational narrative.
+3. PEDAGOGY: Use "we" and "us" to make the learning feel like a shared journey (e.g., "Now, let's look at how this applies...").
+4. EMOJI POLICY: Strictly NO emojis.
+5. NO REDUNDANT LABELS: Strictly DO NOT start your response with labels like "Title:", "Introduction:", "Topic:", or "Subject:". Just start with the content or a bold heading.
+`;
+
+  // 5. Tone-Specific Blocks
+  if (planner && planner.tone) {
+    const tone = planner.tone.toLowerCase();
+    if (tone.includes('storytelling')) {
+      prompt += `\nTONE - STORYTELLING: Use metaphors, analogies, and a narrative arc to explain concepts. Make it immersive.\n`;
+    } else if (tone.includes('technical') || tone.includes('rigorous')) {
+      prompt += `\nTONE - TECHNICAL: Focus on precision, formal definitions, and underlying mechanisms. Prioritize accuracy over simplicity.\n`;
+    } else if (tone.includes('intuitive') || tone.includes('simple')) {
+      prompt += `\nTONE - INTUITIVE: Focus on "the vibe" and high-level concepts before diving into details. Use relatable everyday examples.\n`;
+    } else if (tone.includes('encouraging') || tone.includes('supportive')) {
+      prompt += `\nTONE - ENCOURAGING: Use positive reinforcement and break things down into very manageable steps to build confidence.\n`;
+    } else {
+      prompt += `\nTONE: ${planner.tone}. Maintain this specific personality throughout the response.\n`;
+    }
+  }
+
+  // 6. Contextual Data
   if (webContext) {
-    prompt += `\nWEB RESEARCH CONTEXT:\n${webContext}`;
+    prompt += `\nWEB RESEARCH CONTEXT (Cite sources as [1], [2], etc.):\n${webContext}\n`;
   }
 
   if (pastContext) {
-    prompt += `\nLONG-TERM MEMORY (RAG):\n${pastContext}`;
+    prompt += `\nLONG-TERM MEMORY (Previous context about this student/topic):\n${pastContext}\n`;
+  }
+
+  // 7. Artifact Generation Instructions
+  if (planner && planner.generate_artifact && planner.artifact_type) {
+    const artifactCount = planner.artifact_count || 1;
+    const artifactTypes = planner.artifact_types || [planner.artifact_type];
+
+    prompt += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ARTIFACT GENERATION REQUIRED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You MUST generate ${artifactCount > 1 ? artifactCount + ' interactive artifacts' : 'an interactive artifact'}. 
+${artifactCount > 1 ? `Types: ${artifactTypes.join(', ')}` : `Type: ${planner.artifact_type}`}
+
+Rules per artifact type:
+- code: Content MUST be raw source code only. No markdown headers. No chat-style text inside.
+- document: Content MUST be rich Markdown with headers, lists, and tables.
+- ui: Content MUST be a single HTML file with Tailwind CSS and JS.
+- table: Content MUST be Markdown table syntax.
+- diagram: Content MUST be valid Mermaid syntax (e.g. graph TD; A-->B;).
+`;
+
+    if (artifactCount > 1) {
+      prompt += `
+You MUST return your response as valid JSON with this exact structure:
+{
+  "chat_response": "**Query Topic**\\n\\nA short, professional explanation of what you created.",
+  "artifacts": [
+${artifactTypes.map((t, i) => `    {
+      "type": "${t}",
+      "title": "Descriptive Title for artifact ${i + 1}",
+      "content": "Full artifact content here...",
+      "language": "${t === 'code' ? 'js' : t === 'ui' ? 'html' : ''}",
+      "metadata": {}
+    }`).join(',\n')}
+  ]
+}
+`;
+    } else {
+      prompt += `
+You MUST return your response as valid JSON with this exact structure:
+{
+  "chat_response": "**Query Topic**\\n\\nA short, professional explanation of what you created.",
+  "artifact": {
+    "type": "${planner.artifact_type}",
+    "title": "Descriptive Title",
+    "content": "Full artifact content here...",
+    "language": "js/py/html/etc",
+    "metadata": {}
+  }
+`;
+    }
+
+    prompt += `
+STRICT RULE: Respond ONLY with the JSON. Do NOT add any text before or after the JSON.
+IF AN ARTIFACT IS NEEDED:
+1. DO NOT show JSON to the user directly in the chat.
+2. Respond ONLY with a short explanation in plain text (the chat_response field).
+3. The artifact data will be handled separately by the system.
+4. DO NOT include any redundant labels or headers (like "Title:") inside the artifact content itself.
+5. In your "chat_response", ALWAYS start with the topic of the query as a bold heading on its own line (e.g. **Introduction to DSA**).
+`;
   }
 
   return prompt;
 };
 
+
 /**
  * buildLLMMessages: Format history for the AI Router
  */
-const buildLLMMessages = (messages, systemPrompt, limit = 20) => {
+/**
+ * buildLLMMessages: Format history for the AI Router
+ */
+function buildLLMMessages(messages, systemPrompt, limit = 20) {
   const history = messages.slice(-limit).map(m => ({
     role: m.role,
     content: m.content
@@ -1011,5 +1305,41 @@ const buildLLMMessages = (messages, systemPrompt, limit = 20) => {
     { role: 'system', content: systemPrompt },
     ...history
   ];
-};
+}
+
+/**
+ * detectTopic: Extract a short topic label from user message
+ */
+/**
+ * detectTopic: Extract a short topic label from user message
+ */
+function detectTopic(text) {
+  if (!text) return 'General';
+  // Strip common filler and extract first few significant words
+  const clean = text.replace(/^(hi|hello|hey|can you help me with|tell me about|what is|how does|explain)\s+/i, '');
+  const words = clean.split(/\s+/).slice(0, 4).join(' ');
+  return words.length > 20 ? words.substring(0, 17) + '...' : words || 'General';
+}
+
+/**
+ * generateSessionTitle: Use LLM to create a better title after first turn
+ */
+/**
+ * generateSessionTitle: Use LLM to create a better title after first turn
+ */
+async function generateSessionTitle(userMsg, aiMsg) {
+  try {
+    const prompt = `Based on this first turn of conversation, generate a 2-4 word title for the chat.
+User: ${userMsg.substring(0, 200)}
+AI: ${aiMsg.substring(0, 200)}
+
+Response ONLY with the title. No quotes.`;
+    
+    const response = await routeConversation([{ role: 'user', content: prompt }], { timeout: 10000 });
+    return response.content.replace(/^["']|["']$/g, '').trim() || 'New Session';
+  } catch (err) {
+    console.warn('[Chat] Title generation failed:', err.message);
+    return 'New Session';
+  }
+}
 

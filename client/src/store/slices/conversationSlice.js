@@ -22,11 +22,13 @@ export const createConversationSlice = (set, get) => ({
   editingContent: '',
   conversationSources: [],   // Web search sources for citation display
   lastStreamSources: [],     // Sources from the last streaming response
+  isSearchPerformed: false,  // Track if a search was attempted in the current turn
 
   addUserMessage: (content) => {
-    const id = generateId('user');
+    const userId = generateId('user');
+    const assistantId = generateId('assistant');
     const msg = {
-      id, role: 'user', content,
+      id: userId, role: 'user', content,
       timestamp: new Date().toISOString(),
       metadata: { 
         edited: false, regenerated: false, feedback: null,
@@ -43,7 +45,7 @@ export const createConversationSlice = (set, get) => ({
     if (!conversationTopic && conversationMessages.length <= 1) {
       set({ conversationTopic: content.substring(0, 60).replace(/[?\n]/g, '').trim() });
     }
-    return id;
+    return { userId, assistantId };
   },
 
   addAssistantMessage: (content, id = null) => {
@@ -73,7 +75,8 @@ export const createConversationSlice = (set, get) => ({
       streamingSessionId: get().chatSessionId || get().sessionId || 'temp',
       streamingContent: '', 
       streamingThought: '',
-      streamingMessageId: messageId 
+      streamingMessageId: messageId,
+      isSearchPerformed: false // Reset for new turn
     });
   },
 
@@ -89,12 +92,16 @@ export const createConversationSlice = (set, get) => ({
   })),
 
   // Set web search sources for citation display
-  setSources: (sources) => set({ conversationSources: sources, lastStreamSources: sources }),
+  setSources: (sources) => set({ 
+    conversationSources: sources, 
+    lastStreamSources: sources,
+    isSearchPerformed: true 
+  }),
 
   // Clear sources
   clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
 
-  finishStreaming: (finalContent, thoughtContent = '', sources = []) => {
+  finishStreaming: (finalContent, thoughtContent = '', sources = [], artifactId = null) => {
     const { streamingMessageId, conversationMessages } = get();
     
     const existingIdx = conversationMessages.findIndex(m => m.id === streamingMessageId);
@@ -118,6 +125,8 @@ export const createConversationSlice = (set, get) => ({
               regenerated: true,
               thought: thoughtContent || m.metadata.thought,
               sources: sources.length > 0 ? sources : m.metadata.sources,
+              searchPerformed: get().isSearchPerformed || m.metadata.searchPerformed,
+              artifactId: artifactId || m.metadata.artifactId,
               versions: updatedVersions,
               activeVersionIndex: activeIdx
             }
@@ -136,6 +145,8 @@ export const createConversationSlice = (set, get) => ({
           edited: false, regenerated: false, feedback: null,
           thought: thoughtContent,
           sources: sources,
+          searchPerformed: get().isSearchPerformed,
+          artifactId: artifactId,
           versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0
         },
       };
@@ -144,6 +155,7 @@ export const createConversationSlice = (set, get) => ({
         isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
         isWaitingForAI: false, waitingSessionId: null,
         conversationSources: [],
+        isSearchPerformed: false,
       }));
     }
   },

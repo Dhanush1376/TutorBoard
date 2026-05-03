@@ -16,6 +16,12 @@ const SEARCH_TIMEOUT_MS = 5000;
 const MAX_RESULTS = 5;
 const MAX_SNIPPET_LENGTH = 300;
 
+// Startup check
+if (!process.env.BRAVE_SEARCH_API_KEY) {
+  console.warn('[WebSearch] ⚠️ BRAVE_SEARCH_API_KEY is not set. Web search features will be disabled.');
+}
+
+
 /**
  * Sanitize a snippet: strip HTML tags and truncate.
  * @param {string} text 

@@ -11,8 +11,10 @@ export const protect = async (req, res, next) => {
   try {
     let token;
 
-    // Extract token from Authorization header or Query Param (_auth)
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    // Extract token from Cookie, Authorization header, or Query Param (_auth)
+    if (req.cookies && req.cookies['tb-token']) {
+      token = req.cookies['tb-token'];
+    } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
     } else if (req.query._auth) {
       token = req.query._auth;
@@ -79,7 +81,9 @@ export const protect = async (req, res, next) => {
 export const optionalProtect = async (req, res, next) => {
   try {
     let token;
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    if (req.cookies && req.cookies['tb-token']) {
+      token = req.cookies['tb-token'];
+    } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
     }
 

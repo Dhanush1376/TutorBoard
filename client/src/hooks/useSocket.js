@@ -30,24 +30,9 @@ export function useSocket(isAuthReady = true) {
     // BUG FIX #37 & Persistence Hardening:
     // Handle Auth Refresh immediately on login/logout
     const checkToken = () => {
-      const currentToken = localStorage.getItem('tb-token') || 'guest';
-      if (socket.auth?.token !== currentToken) {
-        console.log(`[Socket] Auth transition detected (${socket.auth?.token || 'none'} -> ${currentToken}). Reconnecting...`);
-        socket.auth = { token: currentToken };
-        // Clean disconnect/connect cycle to ensure fresh session
-        if (socket.connected) {
-          socket.disconnect().connect();
-        } else {
-          socket.connect();
-        }
-      }
+      // Token management is now handled via secure cookies (withCredentials: true)
+      // and explicit syncSocketAuth('verified' | 'guest') calls from AuthContext.
     };
-
-    // Immediate check on hook mount
-    checkToken();
-
-    // Listen for storage changes (e.g., login in another tab or same tab state update)
-    window.addEventListener('storage', checkToken);
 
     const onConnect = () => {
       console.log('[Socket] Connected:', socket.id);
@@ -70,16 +55,8 @@ export function useSocket(isAuthReady = true) {
     };
 
     const onRetry = () => {
-      console.log('[Socket] Refreshing auth token for reconnect attempt...');
-      const freshToken = localStorage.getItem('tb-token') || 'guest';
-      socket.auth = { token: freshToken };
+      console.log('[Socket] Reconnect attempt...');
     };
-
-    // BUG FIX #37: Check token immediately and on every mount
-    checkToken();
-
-    // BUG FIX #37: Periodic interval removed to reduce network load (BUG-25).
-    // Token refresh is now handled on reconnection events.
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -93,7 +70,6 @@ export function useSocket(isAuthReady = true) {
 
     return () => {
       // BUG FIX #38: Clean up listeners on unmount
-      window.removeEventListener('storage', checkToken);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onError);

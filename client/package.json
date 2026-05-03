@@ -28,6 +28,7 @@
     "katex": "^0.16.45",
     "lucide-react": "^0.475.0",
     "matter-js": "^0.20.0",
+    "mermaid": "^11.14.0",
     "posthog-js": "^1.372.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
