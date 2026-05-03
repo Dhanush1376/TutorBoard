@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendMessage, editMessage, regenerate, deleteMessage, streamMessage } from '../controllers/chat.controller.js';
+import { sendMessage, editMessage, regenerate, deleteMessage, streamMessage, updateMessageFeedback } from '../controllers/chat.controller.js';
 import { protect, optionalProtect } from '../middleware/auth.middleware.js';
 import { strictGuestLimiter } from '../middleware/rateLimiter.js';
 
@@ -15,5 +15,6 @@ router.post('/stream', optionalProtect, strictGuestLimiter, streamMessage);
 router.post('/edit', protect, editMessage);
 router.post('/regenerate', protect, regenerate);
 router.delete('/message', protect, deleteMessage);
+router.post('/feedback', protect, updateMessageFeedback);
 
 export default router;

@@ -120,4 +120,27 @@ export function detectTools(query) {
   return { useWebSearch: false };
 }
 
-export default { shouldSearch, detectTools };
+/**
+ * Apply the Chat Planner Agent's web search decision as an override.
+ * The planner has full semantic understanding, so it takes precedence.
+ * 
+ * @param {object} plannerPlan — The structured plan from runChatPlanner
+ * @param {boolean} gateDecision — The original shouldSearch/detectTools result
+ * @returns {boolean} — Final search decision
+ */
+export function applyPlannerOverride(plannerPlan, gateDecision) {
+  if (!plannerPlan || !plannerPlan.tools) {
+    return gateDecision; // No planner result — use gate decision
+  }
+
+  const plannerWantsSearch = plannerPlan.tools.web_search === true;
+
+  if (plannerWantsSearch !== gateDecision) {
+    console.log(`[SearchGate] Planner override: gate=${gateDecision} → planner=${plannerWantsSearch}`);
+  }
+
+  // Planner wins — it has deeper semantic understanding
+  return plannerWantsSearch;
+}
+
+export default { shouldSearch, detectTools, applyPlannerOverride };

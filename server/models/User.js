@@ -51,11 +51,13 @@ const userSchema = new mongoose.Schema({
       notifSound: { type: Boolean, default: true }
     },
     appearance: {
-      theme: { type: String, default: 'system' },
-      themeId: { type: String, default: 'default' },
+      theme: { type: String, default: 'dark' },
+      themeId: { type: String, default: 'bone-obsidian' },
       showMinimap: { type: Boolean, default: true },
       showGrid: { type: Boolean, default: true },
-      layoutView: { type: String, default: 'left' }
+      layoutView: { type: String, default: 'left' },
+      motionMode: { type: String, default: 'fluid' },
+      glassIntensity: { type: Number, default: 80 }
     },
     canvas: {
       drawWidth: { type: Number, default: 4 },
@@ -104,6 +106,11 @@ const userSchema = new mongoose.Schema({
       warningThresholdPct: { type: Number, default: 80 },
       hardStop: { type: Boolean, default: true },
     },
+  },
+  lastActiveSessionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ChatSession',
+    default: null
   },
 }, { 
   timestamps: true,

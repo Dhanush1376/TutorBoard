@@ -138,17 +138,23 @@ export default function AppearanceSection({ syncSettings }) {
   // Persist changes with debounce
   useEffect(() => {
     const timeout = setTimeout(() => {
-      syncSettings('appearance', {
-        themeId: currentThemeId, mode,
-        showMinimap: store.showMinimap,
-        showGrid: store.showGrid,
-        layoutView: store.layoutView,
-        gridType: store.gridType,
-        motionMode: store.motionMode,
+      syncSettings({
+        appearance: {
+          theme: mode, // Map 'mode' to 'theme' for DB
+          themeId: currentThemeId,
+          showMinimap: store.showMinimap,
+          showGrid: store.showGrid,
+          layoutView: store.layoutView,
+          motionMode: store.motionMode,
+          glassIntensity: store.glassIntensity,
+        },
+        canvas: {
+          gridType: store.gridType,
+        }
       });
     }, 300);
     return () => clearTimeout(timeout);
-  }, [currentThemeId, mode, store.showMinimap, store.showGrid, store.layoutView, store.gridType, store.motionMode]);
+  }, [currentThemeId, mode, store.showMinimap, store.showGrid, store.layoutView, store.gridType, store.motionMode, store.glassIntensity]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

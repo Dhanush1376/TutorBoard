@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Geist&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Fira+Code&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&family=Geist:wght@100..900&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@100..900&family=Fira+Code&display=swap");
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
@@ -8,9 +8,10 @@
 @theme {
 
   /* Typography */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Outfit", sans-serif;
   --font-serif: "DM Serif Display", Georgia, serif;
-  --font-mono: "Inter", monospace;
+  --font-mono: "Fira Code", "Inter", monospace;
 
   /* Spacing scale */
   --space-px: 1px;

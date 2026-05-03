@@ -329,9 +329,9 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           const masteryEntry = {
             mastery: newMastery,
             lastTaught: new Date(),
-            repetitions: (session.learnerProfile.topicsMastery instanceof Map
+            repetitions: ((session.learnerProfile.topicsMastery instanceof Map
               ? session.learnerProfile.topicsMastery.get(topicKey)?.repetitions
-              : session.learnerProfile.topicsMastery?.[topicKey]?.repetitions) + 1 || 1
+              : session.learnerProfile.topicsMastery?.[topicKey]?.repetitions) || 0) + 1
           };
 
           // Merge into session profile before write-back
@@ -373,15 +373,18 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
             sessionMem.sessions.push({
               topic: session.topic,
               keyConcepts,
-              doubtsAsked,
-              masteryDelta,
-              summary,
+              doubts: session.doubtHistory?.map(d => ({ 
+                question: d.question, 
+                pathway: d.pathway || 'general' 
+              })) || [],
+              masteryDelta: { [session.topic]: 0.1 },
               timestamp: new Date()
             });
             await sessionMem.save();
 
             // 2. Update Learning Graph (Mastery & SM-2)
-            const masteryDeltas = [{ concept: session.topic, mastery: session.learnerProfile?.topicsMastery?.[session.topic] || 0.5 }];
+            const topicKey = session.topic.toLowerCase().replace(/\s+/g, '_');
+            const masteryDeltas = [{ concept: topicKey, mastery: session.learnerProfile?.topicsMastery?.[topicKey] || 0.5 }];
             await SpacedRepetitionScheduler.updateMastery(socket.user.id, masteryDeltas);
             
             console.log(`[Session:Finish] 🧠 Memory & Graph updated for user ${socket.user.id}`);
@@ -438,11 +441,11 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     await sessionStore.updateCanvasState(sessionId, objects);
     // Debounced sync to DB is usually handled by the caller or periodic sync, 
     // but we'll do an immediate sync for manual interactions
-    await syncToDatabase(sessionId);
-
-    // LOG ACTIVITY: Canvas Action
     const s = await sessionStore.get(sessionId);
     if (s && s.chatSessionId) {
+      await syncToDatabase(sessionId);
+      
+      // LOG ACTIVITY: Canvas Action
       logActivity({
         userId: socket.user?.id || socket.user?._id,
         sessionId: s.chatSessionId.toString(),

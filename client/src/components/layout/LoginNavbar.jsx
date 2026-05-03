@@ -64,7 +64,7 @@ const LoginNavbar = () => {
                         <VisaiLogo size="sm" className="text-[var(--text-primary)] transition-transform duration-500 group-hover:rotate-[360deg]" />
                         <div className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--text-primary)] rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    <span className="text-[12px] font-extrabold uppercase tracking-[0.3em] text-[var(--text-primary)]">
+                    <span className="text-[12px] font-heading font-extrabold uppercase tracking-[0.3em] text-[var(--text-primary)]">
                         TutorBoard
                     </span>
                 </Link>
@@ -172,7 +172,7 @@ const LoginNavbar = () => {
                                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--text-primary)] rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[12px] font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)] group-hover:text-[var(--text-secondary)] transition-colors">TutorBoard</span>
+                                    <span className="text-[12px] font-heading font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)] group-hover:text-[var(--text-secondary)] transition-colors">TutorBoard</span>
                                     <span className="text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest">Visual Learning System</span>
                                 </div>
                             </Link>
@@ -233,8 +233,8 @@ const LoginNavbar = () => {
                                 </div>
                                 <div className="relative z-10 flex flex-col gap-4">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)]">Take the leap</span>
-                                        <span className="text-[14px] font-serif tracking-tight text-[var(--text-secondary)] mt-1">Start your visual journey today.</span>
+                                        <span className="text-[10px] font-heading font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)]">Take the leap</span>
+                                        <span className="text-[14px] font-heading font-medium tracking-tight text-[var(--text-secondary)] mt-1">Start your visual journey today.</span>
                                     </div>
                                     <button
                                         onClick={() => {

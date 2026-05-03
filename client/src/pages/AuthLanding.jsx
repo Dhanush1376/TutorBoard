@@ -192,7 +192,7 @@ const AuthLanding = () => {
               <VisaiLogo size="sm" className="text-[var(--text-primary)]" />
               <span className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-primary)]">TutorBoard</span>
             </div>
-            <h2 className="text-[28px] leading-[1.1] font-serif mb-3 text-[var(--text-primary)] tracking-tight">
+            <h2 className="text-[28px] leading-[1.1] font-heading font-semibold mb-3 text-[var(--text-primary)] tracking-tight">
               Visualize your <br /> knowledge.
             </h2>
             <p className="text-[var(--text-secondary)] text-[14px] font-normal opacity-80 leading-relaxed">
@@ -200,7 +200,7 @@ const AuthLanding = () => {
             </p>
           </div>
           <div className="mb-6">
-            <h1 className="text-[32px] lg:text-[40px] leading-[1.05] font-serif mb-2 text-[var(--text-primary)] tracking-tight">
+            <h1 className="text-[32px] lg:text-[40px] leading-[1.05] font-heading font-semibold mb-2 text-[var(--text-primary)] tracking-tight">
               {isLogin ? 'Sign in' : 'Create an\naccount'}
             </h1>
             <p className="text-[var(--text-secondary)] text-[12px] font-normal opacity-80 whitespace-pre-line">
@@ -475,7 +475,7 @@ const AuthLanding = () => {
                 </div>
               </div>
 
-              <h2 className="text-[30px] lg:text-[34px] leading-[1.05] font-serif mb-4 text-[var(--text-primary)] tracking-tight shrink-0">
+              <h2 className="text-[30px] lg:text-[34px] leading-[1.05] font-heading font-semibold mb-4 text-[var(--text-primary)] tracking-tight shrink-0">
                 {currentTopic.visualization === 'bst' && "Master concepts faster with interactive models."}
                 {currentTopic.visualization === 'cell' && "Explore the building blocks of life."}
                 {currentTopic.visualization === 'orbit' && "Understand the laws of the universe."}

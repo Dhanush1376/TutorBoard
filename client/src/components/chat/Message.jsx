@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Copy, Edit2, Trash2, Check, RefreshCw, X, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, Copy, Edit2, Trash2, Check, RefreshCw, X, Layers, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import VisaiLogo from '../layout/VisaiLogo';
 import ReactMarkdown from 'react-markdown';
@@ -126,32 +126,47 @@ const SourceGrid = ({ sources }) => {
         <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">Sources</span>
       </div>
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-0.5">
-        {sources.map((source, idx) => (
-          <a
-            key={idx}
-            href={source.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-shrink-0 w-36 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/20 hover:border-[var(--text-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-all group"
-          >
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-1.5 overflow-hidden">
-                <img 
-                  src={`https://www.google.com/s2/favicons?domain=${new URL(source.url).hostname}&sz=32`} 
-                  alt="" 
-                  className="w-3 h-3 rounded-sm opacity-70 group-hover:opacity-100 transition-opacity"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-                <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider truncate">
-                  {new URL(source.url).hostname.replace('www.', '')}
-                </span>
+        {sources.map((source, idx) => {
+          let hostname = '';
+          let favicon = '';
+          try {
+            const url = new URL(source.url);
+            hostname = url.hostname.replace('www.', '');
+            favicon = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
+          } catch (e) {
+            hostname = 'Link';
+            favicon = '';
+          }
+
+          return (
+            <a
+              key={idx}
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 w-36 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/20 hover:border-[var(--text-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-all group"
+            >
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  {favicon && (
+                    <img 
+                      src={favicon} 
+                      alt="" 
+                      className="w-3 h-3 rounded-sm opacity-70 group-hover:opacity-100 transition-opacity"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  )}
+                  <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider truncate">
+                    {hostname}
+                  </span>
+                </div>
+                <h4 className="text-[11px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 group-hover:text-[var(--text-primary)] transition-colors">
+                  {source.title}
+                </h4>
               </div>
-              <h4 className="text-[11px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 group-hover:text-[var(--text-primary)] transition-colors">
-                {source.title}
-              </h4>
-            </div>
-          </a>
-        ))}
+            </a>
+          );
+        })}
       </div>
     </div>
   );
@@ -176,7 +191,7 @@ const Message = ({
   const [editContent, setEditContent] = useState('');
   const editRef = useRef(null);
 
-  const displayContent = isStreaming ? streamingContent + ' ▍' : content;
+  const displayContent = isStreaming ? streamingContent : content;
 
   const formatTime = (ts) => {
     try {
@@ -305,12 +320,17 @@ const Message = ({
                 }
               >
                 {isAssistant ? (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={MarkdownComponents}
-                  >
-                    {displayContent || ''}
-                  </ReactMarkdown>
+                  <div className="relative">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={MarkdownComponents}
+                    >
+                      {displayContent || ''}
+                    </ReactMarkdown>
+                    {isStreaming && (
+                      <span className="inline-block w-[3px] h-[15px] bg-[var(--text-primary)] ml-1 animate-[pulse_0.8s_infinite] align-middle" />
+                    )}
+                  </div>
                 ) : (
                   <p style={{ color: 'inherit' }} className="whitespace-pre-wrap leading-[1.65]">{displayContent}</p>
                 )}

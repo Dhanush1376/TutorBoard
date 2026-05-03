@@ -27,6 +27,10 @@ const messageSchema = new mongoose.Schema({
     edited: { type: Boolean, default: false },
     regenerated: { type: Boolean, default: false },
     feedback: { type: String, enum: ['positive', 'negative', null], default: null },
+    thought: { type: String, default: null },
+    sources: [{ title: String, url: String, snippet: String }],
+    versions: { type: [mongoose.Schema.Types.Mixed], default: [] }, // Array of { text, subsequentMessages }
+    activeVersionIndex: { type: Number, default: 0 }
   },
 });
 
@@ -34,7 +38,7 @@ const chatSessionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: false,
     index: true,
   },
   title: {

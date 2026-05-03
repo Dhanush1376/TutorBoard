@@ -40,7 +40,7 @@ const MarketingLayout = () => {
           {/* Logo Section */}
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity pl-3">
             <VisaiLogo size="md" className="text-[var(--text-primary)]" />
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)]">
+            <span className="text-[11px] font-heading font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)]">
               TutorBoard
             </span>
           </Link>

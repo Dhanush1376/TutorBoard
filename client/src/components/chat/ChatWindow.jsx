@@ -202,6 +202,8 @@ const ChatWindow = ({
           >
             {messages.map((msg) => {
               const msgKey = msg.id || `msg-idx-${msg.role}-${msg.timestamp}`;
+              const isThisMessageStreaming = isCurrentlyStreaming && streamingMessageId === msg.id;
+
               return (
                 <Message
                   key={msgKey}
@@ -210,6 +212,9 @@ const ChatWindow = ({
                   messageId={msg.id}
                   timestamp={msg.timestamp}
                   metadata={msg.metadata}
+                  isStreaming={isThisMessageStreaming}
+                  streamingContent={streamingContent}
+                  streamingThought={streamingThought}
                   onOpenCanvas={onOpenCanvas}
                   onDeleteMessage={onDeleteMessage}
                   onEditMessage={onEditMessage}
@@ -230,8 +235,8 @@ const ChatWindow = ({
               );
             })}
 
-            {/* ── Streaming Message (live typing) ── */}
-            {isCurrentlyStreaming && streamingContent && (
+            {/* ── Streaming Message (only for NEW messages not in list) ── */}
+            {isCurrentlyStreaming && !messages.some(m => m.id === streamingMessageId) && (
               <Message
                 key="streaming-msg"
                 role="assistant"

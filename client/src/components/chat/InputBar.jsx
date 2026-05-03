@@ -59,17 +59,28 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   // ─── Guest Cooldown Timer ───
   useEffect(() => {
-    if (!isGuest) return;
+    // SEC-UX-03: Immediately clear timer if user is no longer a guest (login mid-cooldown)
+    if (!isGuest) {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+      setCooldownRemaining(0);
+      return;
+    }
+
     const lastMsg = guestTrialStatus.lastMessageAt || 0;
     if (!lastMsg) return;
     const elapsed = Math.floor((Date.now() - lastMsg) / 1000);
     const remaining = TRIAL_LIMITS.COOLDOWN_SECONDS - elapsed;
     if (remaining > 0) {
       setCooldownRemaining(remaining);
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
       cooldownTimerRef.current = setInterval(() => {
         setCooldownRemaining(prev => {
           if (prev <= 1) {
             clearInterval(cooldownTimerRef.current);
+            cooldownTimerRef.current = null;
             return 0;
           }
           return prev - 1;
@@ -132,7 +143,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     }
 
     return () => clearTimeout(timeout);
-  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isLanding, isGenerating]);
+  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isLanding, isGenerating, document.visibilityState]);
 
   // SEC-UX-02: Manage visibility separately to avoid adding/removing listener every frame
   useEffect(() => {

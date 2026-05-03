@@ -228,7 +228,7 @@ const Home = ({ isDark }) => {
       return;
     }
 
-    const savedActiveId = localStorage.getItem('tutorboard-active-chat');
+    const savedActiveId = user?.lastActiveSessionId || localStorage.getItem('tutorboard-active-chat');
     
     // Only attempt hydration if we actually have history loaded (from local or cloud)
     if (!activeChatId && savedActiveId && chatHistory.length > 0) {
@@ -1010,6 +1010,21 @@ const Home = ({ isDark }) => {
               appendStreamThought(event.thought);
             } else if (event.type === 'sources') {
               setSources(event.sources);
+            } else if (event.type === 'message_ids') {
+              // Sync local ephemeral IDs with real MongoDB IDs (Fixed: Bug 2)
+              const { userMessageId, assistantMessageId } = event;
+              setChatHistory(prev => prev.map(s => {
+                if (s.id === workingSessionId || s.id === receivedSessionId) {
+                  const msgs = [...s.messages];
+                  // Update last two messages (user and assistant)
+                  if (msgs.length >= 2) {
+                    msgs[msgs.length - 2] = { ...msgs[msgs.length - 2], id: userMessageId };
+                    msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
+                  }
+                  return { ...s, messages: msgs };
+                }
+                return s;
+              }));
             } else if (event.type === 'meta') {
               receivedSessionId = event.sessionId;
             } else if (event.type === 'done') {
@@ -1112,8 +1127,15 @@ const Home = ({ isDark }) => {
   };
 
   // ── Regenerate Handler ──
-  const handleRegenerateMessage = async () => {
-    removeLastAssistantMessage();
+  const handleRegenerateMessage = async (targetMsgId = null) => {
+    // If no target provided, use the last assistant message ID
+    let finalTargetId = targetMsgId;
+    if (!finalTargetId) {
+      const lastAssistant = [...conversationMessages].reverse().find(m => m.role === 'assistant');
+      finalTargetId = lastAssistant?.id;
+    }
+
+    if (!finalTargetId) return;
 
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
@@ -1127,12 +1149,17 @@ const Home = ({ isDark }) => {
         });
         if (res.ok) {
           const data = await res.json();
-          streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
+          // ── OPTIMISTIC UPDATE: Add a new version placeholder immediately ──
+          // This makes the UI version counter (e.g. 1/1 -> 2/2) update instantly
+          useTutorStore.getState().addMessageVersion(finalTargetId, '', { regenerated: true });
+          
+          streamResponse(data.response, finalTargetId);
           return;
         }
       }
 
-      // Fallback: re-send last user message
+      // Fallback: re-send last user message (destructive fallback)
+      removeLastAssistantMessage();
       const lastUserMsg = useTutorStore.getState().conversationMessages
         .filter(m => m.role === 'user').pop();
       if (lastUserMsg) {
@@ -1168,9 +1195,24 @@ const Home = ({ isDark }) => {
   };
 
   // ── Feedback Handler ──
-  const handleFeedback = (messageId, feedback) => {
-    setMessageFeedback(messageId, feedback);
-  };
+    const handleFeedback = async (messageId, feedback) => {
+      setMessageFeedback(messageId, feedback);
+
+      const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+
+      if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+        try {
+          await fetch(`${API_URL}/api/chat/feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ sessionId: dbSessionId, messageId, feedback }),
+          });
+        } catch (err) {
+          console.error('[Home] Feedback sync failed:', err);
+        }
+      }
+    };
 
   // ── Stop Generation Handler ──
   const handleStopGeneration = () => {

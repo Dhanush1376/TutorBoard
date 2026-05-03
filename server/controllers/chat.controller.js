@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import ChatSession from '../models/ChatSession.js';
+import User from '../models/User.js';
 import { routeConversation, routeConversationStream } from '../ai-router/router/aiRouter.js';
 import { logActivity } from './session.controller.js';
 import { searchWeb } from '../utils/ai/webSearchService.js';
-import { shouldSearch, detectTools } from '../utils/ai/searchGate.js';
+import { shouldSearch, detectTools, applyPlannerOverride } from '../utils/ai/searchGate.js';
 import { formatForPrompt, extractSources } from '../utils/ai/searchContextFormatter.js';
 import VectorStoreService from '../engine/core/vectorStore.js';
+import { runChatPlanner } from '../engine/agents/chatPlannerAgent.js';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -35,250 +37,6 @@ const deleteMessageSchema = z.object({
   messageId: z.string(),
 }).passthrough();
 
-// ─── System Prompt Builder ────────────────────────────────────────────────────
-
-function buildSystemPrompt(teachingContext = {}, mode = 'quick', webContext = '', pastContext = '', recentMessages = '', memorySummary = '') {
-  const { currentTopic, explanationMode = 'basic', learnerLevel = 'intermediate' } = teachingContext;
-
-  // Determine learner style string
-  const learnerStyleMap = {
-    beginner: 'Visual learner, prefers simple analogies and step-by-step breakdowns',
-    intermediate: 'Balanced learner, comfortable with concepts and code examples',
-    advanced: 'Deep learner, prefers edge cases, performance analysis, and architectural patterns',
-  };
-  const learnerStyle = learnerStyleMap[learnerLevel] || learnerStyleMap.intermediate;
-
-  return `You are TutorBoard AI — an advanced intelligent tutor.
-
-Your job is to generate high-quality, professional, well-structured notes that adapt to the user's query.
-
-You combine:
-- Your own LLM knowledge
-- Retrieved context (RAG memory)
-- Live web data (if available)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INPUT CONTEXT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-User Query:
-(Will be provided as the latest user message)
-
-Past Context (RAG):
-${pastContext || 'No prior sessions found for this topic.'}
-
-Web Data:
-${webContext || 'No web data available for this query.'}
-
-Memory Summary:
-${memorySummary || 'No memory summary available.'}
-
-Recent Messages:
-${recentMessages || 'This is the start of the conversation.'}
-
-User Style:
-${learnerStyle}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CORE RULE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-DO NOT follow a fixed template.
-
-Instead:
-→ Dynamically decide the best structure based on the query.
-
-Each response must feel:
-- Natural
-- Clean
-- Professionally written
-- Not repetitive or robotic
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STYLE RULES (STRICT)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- No emojis
-- No forced labels like: "Topic Overview", "Key Points", etc.
-- No unnecessary sections
-- No repeated structure across different answers
-
-Write like:
-→ A professor explaining clearly
-→ A well-written notebook
-→ A structured article
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STRUCTURE INTELLIGENCE (VERY IMPORTANT)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-You must decide structure based on query type:
-
-1. If concept-based (e.g., "What is linear regression?")
-→ Use:
-- Title
-- Explanation flow
-- Formula (if needed)
-- Example
-
-2. If informational/topic-based (e.g., "Kelley Blue Book")
-→ Use:
-- Title
-- What it is
-- How it works
-- Real-world usage
-
-3. If comparison-based
-→ Use table
-
-4. If mathematical
-→ Use formula box
-
-5. If coding
-→ Use code block + explanation
-
-6. If no formula/code needed
-→ DO NOT create those sections artificially
-
-❗ NEVER include sections that are not relevant
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FORMATTING RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. Always start with a clean title (e.g., # **Topic Name**)
-
-2. Use short paragraphs (not long walls)
-
-3. Use spacing between sections
-
-4. Use these only when needed:
-
-[ Formula ]
-(for math)
-
-[ Code ]
-(for programming)
-
-Tables → only if useful
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXPLANATION STYLE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- Smooth storytelling flow
-- Each paragraph builds on the previous one
-- Explain "why" and "how", not just "what"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Include examples ONLY when helpful
-
-Make them:
-- Natural
-- Real-world
-- Not forced
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WEB + RAG USAGE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- If web data exists → include latest insights naturally
-- If RAG exists → maintain continuity
-- Do NOT mention "web context" or "RAG"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FAIL-SAFE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-If some elements are not relevant:
-→ Skip them
-
-Do NOT force:
-- formulas
-- tables
-- code
-- sections
-
-- Custom-written for THIS query
-- Not reusable template
-- Clean, structured, and easy to read
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-THINKING PROCESS (INTERNAL)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-If the query is complex, requires web search, or involves visual generation (Canvas), wrap your internal planning and reasoning in <thought>...</thought> tags before your final response. 
-- Keep thoughts concise but insightful.
-- Final response should be direct, clean, and not mention the internal thoughts.
-
-The user should feel:
-“This was written specifically for my question.”`;
-}
-
-// ─── Helper: Build LLM Messages Array ─────────────────────────────────────────
-
-function buildLLMMessages(sessionMessages, systemPrompt, maxMessages = 20) {
-  // Always include the system prompt first
-  const llmMessages = [{ role: 'system', content: systemPrompt }];
-
-  // Take the last N messages for context window management
-  const recentMessages = sessionMessages.slice(-maxMessages);
-
-  for (const msg of recentMessages) {
-    if (msg.role === 'user' || msg.role === 'assistant') {
-      llmMessages.push({ role: msg.role, content: msg.content });
-    }
-  }
-
-  return llmMessages;
-}
-
-// ─── Helper: Generate Message ID ──────────────────────────────────────────────
-
-function generateMessageId(prefix = 'msg') {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-}
-
-// ─── Helper: Detect Topic from First Message ─────────────────────────────────
-
-function detectTopic(content) {
-  // Simple heuristic: use first 60 chars of first user message as topic
-  return content.substring(0, 60).replace(/[?\n]/g, '').trim();
-}
-
-/**
- * Generate a clean, summarized title for the session using AI output.
- * Tries to extract the bolded heading first, then falls back to AI summarization.
- */
-async function generateSessionTitle(userMessage, aiResponse = '') {
-  try {
-    // 1. Try to extract from the AI's bolded heading (as enforced in system prompt)
-    const headingMatch = aiResponse.match(/# \*\*([^*]+)\*\*/);
-    if (headingMatch && headingMatch[1]) {
-      let title = headingMatch[1].trim();
-      if (title.length > 5 && title.length < 50) return title;
-    }
-
-    // 2. Fallback to AI summarization if heading extraction fails
-    const prompt = `Based on this AI response, provide a professional 2-4 word title for the session. No emojis, no quotes. 
-AI Response: "${aiResponse.substring(0, 500)}"
-Title:`;
-
-    const response = await routeConversation([{ role: 'user', content: prompt }], { 
-      timeout: 4000, 
-      maxRetries: 0 
-    });
-    
-    let title = response.content.trim().replace(/^["']|["']$/g, '');
-    if (title.length > 60) title = title.substring(0, 57) + '...';
-    return title;
-  } catch (err) {
-    return detectTopic(userMessage);
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -302,20 +60,29 @@ export const sendMessage = async (req, res) => {
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
 
-    if (sessionId && isMongoId && !isGuest) {
-      session = await ChatSession.findOne({ _id: sessionId, userId: userId.toString() });
+    if (sessionId && isMongoId) {
+      // For guests, we don't check userId ownership since sessions are essentially public/ephemeral-but-stored
+      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      session = await ChatSession.findOne(query);
     }
 
-    if (!session && !isGuest) {
+    if (!session) {
       const initialTopic = detectTopic(userMessage);
       session = await ChatSession.create({
-        userId,
+        userId: isGuest ? null : userId,
         title: initialTopic, // Temporary title
         messages: [],
         currentTopic: teachingContext?.currentTopic || initialTopic,
         explanationMode: teachingContext?.explanationMode || 'basic',
       });
-      console.log(`[Chat] ✨ Created new session: ${session._id}`);
+      console.log(`[Chat] ✨ Created new session: ${session._id} (Guest: ${isGuest})`);
+    }
+
+    // ── 1.5 Update User Last Active Session ──
+    if (!isGuest && userId) {
+      User.updateOne({ _id: userId }, { lastActiveSessionId: session._id }).catch(e => 
+        console.error('[Chat] Failed to update lastActiveSessionId:', e.message)
+      );
     }
 
     // ── 2. Build User Message Object ──
@@ -323,23 +90,44 @@ export const sendMessage = async (req, res) => {
       role: 'user',
       content: userMessage,
       timestamp: new Date(),
-      metadata: { edited: false, regenerated: false, feedback: null },
+      metadata: { 
+        edited: false, 
+        regenerated: false, 
+        feedback: null,
+        versions: [{ text: userMessage, subsequentMessages: [] }],
+        activeVersionIndex: 0
+      },
     };
 
     // For guests without DB sessions, work with in-memory messages
     const existingMessages = session?.messages || [];
     const allMessages = [...existingMessages, userMsg];
 
-    // ── 3. RAG + Web Search Fusion (Parallel Execution) ──
+    // ── 3. RAG + Web Search + Planner Fusion (Parallel Execution) ──
     const topic = session?.currentTopic || teachingContext?.currentTopic || detectTopic(userMessage);
 
     const toolDecision = detectTools(userMessage);
-    const doSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
+    const gateSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
 
-    const [pastContext, webResults] = await Promise.all([
+    // Run planner, RAG, and initial web search in parallel
+    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
-      doSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
+      gateSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
+      runChatPlanner(userMessage, '', '', null).catch(err => {
+        console.warn(`[Chat] Planner failed: ${err.message}`);
+        return null;
+      }),
     ]);
+
+    // Apply planner override to search decision
+    const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
+
+    // If planner wants search but gate didn't trigger it, do a late search
+    let webResults = initialWebResults;
+    if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
+      console.log('[Chat] Planner requested web search — executing late search...');
+      webResults = await searchWeb(userMessage, { count: 5 });
+    }
 
     const webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
@@ -347,8 +135,11 @@ export const sendMessage = async (req, res) => {
     if (sources.length > 0) {
       console.log(`[Chat] 🌐 Web search returned ${sources.length} sources for: "${userMessage.substring(0, 40)}..."`);
     }
+    if (plannerPlan) {
+      console.log(`[Chat] 🧠 Planner: ${plannerPlan.content_type}/${plannerPlan.complexity} | tone: ${plannerPlan.tone}`);
+    }
 
-    // ── 4. Build LLM Context with Fusion ──
+    // ── 4. Build LLM Context with Fusion + Planner ──
     const effectiveContext = {
       currentTopic: topic,
       explanationMode: session?.explanationMode || teachingContext?.explanationMode || 'basic',
@@ -365,7 +156,7 @@ export const sendMessage = async (req, res) => {
       ? `Session has ${session.messages.length} messages. Topic: ${session.currentTopic || 'General'}.`
       : '';
 
-    const systemPrompt = buildSystemPrompt(effectiveContext, mode, webContextStr, pastContext, recentMsgsSummary, memorySummary);
+    const systemPrompt = buildSystemPrompt(effectiveContext, mode, webContextStr, pastContext, recentMsgsSummary, memorySummary, plannerPlan);
     const llmMessages = buildLLMMessages(allMessages, systemPrompt, 20);
 
     // ── 5. Call AI Router ──
@@ -393,12 +184,31 @@ export const sendMessage = async (req, res) => {
       }
     }
 
-    // ── 6. Build Assistant Message ──
+    // ── 6. Build Assistant Message (extract thought if present) ──
+    let cleanContent = aiResponse.content;
+    let thoughtContent = '';
+    
+    if (cleanContent.includes('<thought>')) {
+      const parts = cleanContent.split(/<\/?thought>/);
+      if (parts.length >= 3) {
+        thoughtContent = parts[1].trim();
+        cleanContent = (parts[0] + parts[2]).trim();
+      }
+    }
+
     const assistantMsg = {
       role: 'assistant',
-      content: aiResponse.content,
+      content: cleanContent,
       timestamp: new Date(),
-      metadata: { edited: false, regenerated: false, feedback: null },
+      metadata: { 
+        edited: false, 
+        regenerated: false, 
+        feedback: null,
+        sources: sources || [],
+        thought: thoughtContent || undefined,
+        versions: [{ text: cleanContent, subsequentMessages: [] }],
+        activeVersionIndex: 0
+      },
     };
 
     // ── 7. Persist to DB ──
@@ -410,14 +220,13 @@ export const sendMessage = async (req, res) => {
 
       // Update title using AI output if it's the first message
       if (session.messages.length <= 2) {
-        generateSessionTitle(userMessage, aiResponse.content).then(async (aiTitle) => {
-          try {
-            await ChatSession.updateOne({ _id: session._id }, { title: aiTitle });
-            console.log(`[Chat] 🏷️ AI generated title from output: "${aiTitle}"`);
-          } catch (e) {
-            console.error('[Chat] Failed to update AI title:', e.message);
-          }
-        });
+        try {
+          const aiTitle = await generateSessionTitle(userMessage, cleanContent);
+          session.title = aiTitle;
+          console.log(`[Chat] 🏷️ AI generated title: "${aiTitle}"`);
+        } catch (e) {
+          console.error('[Chat] Failed to generate AI title:', e.message);
+        }
       }
 
       session.lastUpdated = Date.now();
@@ -433,11 +242,14 @@ export const sendMessage = async (req, res) => {
     }
 
     // ── 8. Return Response with Sources ──
+    const userMessageId = session?.messages[session.messages.length - 2]?._id?.toString() || generateMessageId('user');
+    const assistantMessageId = session?.messages[session.messages.length - 1]?._id?.toString() || generateMessageId('assistant');
+
     res.json({
       response: aiResponse.content,
       sessionId: savedSessionId || null,
-      userMessageId: generateMessageId('user'),
-      assistantMessageId: generateMessageId('assistant'),
+      userMessageId,
+      assistantMessageId,
       provider: aiResponse.provider,
       model: aiResponse.model,
       latency: aiResponse.latency,
@@ -468,19 +280,28 @@ export const streamMessage = async (req, res) => {
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
 
-    if (sessionId && isMongoId && !isGuest) {
-      session = await ChatSession.findOne({ _id: sessionId, userId: userId.toString() });
+    if (sessionId && isMongoId) {
+      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      session = await ChatSession.findOne(query);
     }
 
-    if (!session && !isGuest) {
+    if (!session) {
       const initialTopic = detectTopic(userMessage);
       session = await ChatSession.create({
-        userId,
+        userId: isGuest ? null : userId,
         title: initialTopic,
         messages: [],
         currentTopic: teachingContext?.currentTopic || initialTopic,
         explanationMode: teachingContext?.explanationMode || 'basic',
       });
+      console.log(`[Chat:Stream] ✨ Created new session: ${session._id} (Guest: ${isGuest})`);
+    }
+
+    // ── 1.5 Update User Last Active Session ──
+    if (!isGuest && userId) {
+      User.updateOne({ _id: userId }, { lastActiveSessionId: session._id }).catch(e => 
+        console.error('[Chat:Stream] Failed to update lastActiveSessionId:', e.message)
+      );
     }
 
     // ── 2. Build User Message ──
@@ -488,27 +309,52 @@ export const streamMessage = async (req, res) => {
       role: 'user',
       content: userMessage,
       timestamp: new Date(),
-      metadata: { edited: false, regenerated: false, feedback: null },
+      metadata: { 
+        edited: false, 
+        regenerated: false, 
+        feedback: null,
+        versions: [{ text: userMessage, subsequentMessages: [] }],
+        activeVersionIndex: 0
+      },
     };
 
     const existingMessages = session?.messages || [];
     const allMessages = [...existingMessages, userMsg];
 
-    // ── 3. RAG + Web Search Fusion (Parallel) ──
+    // ── 3. RAG + Web Search + Planner Fusion (Parallel) ──
     const topic = session?.currentTopic || teachingContext?.currentTopic || detectTopic(userMessage);
 
     const toolDecision = detectTools(userMessage);
-    const doSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
+    const gateSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
 
-    const [pastContext, webResults] = await Promise.all([
+    // Run planner, RAG, and initial web search in parallel
+    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
-      doSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
+      gateSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
+      runChatPlanner(userMessage, '', '', null).catch(err => {
+        console.warn(`[Chat:Stream] Planner failed: ${err.message}`);
+        return null;
+      }),
     ]);
+
+    // Apply planner override to search decision
+    const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
+
+    // If planner wants search but gate didn't trigger it, do a late search
+    let webResults = initialWebResults;
+    if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
+      console.log('[Chat:Stream] Planner requested web search — executing late search...');
+      webResults = await searchWeb(userMessage, { count: 5 });
+    }
 
     const webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
 
-    // ── 4. Build LLM Context ──
+    if (plannerPlan) {
+      console.log(`[Chat:Stream] 🧠 Planner: ${plannerPlan.content_type}/${plannerPlan.complexity} | tone: ${plannerPlan.tone}`);
+    }
+
+    // ── 4. Build LLM Context with Planner ──
     const effectiveContext = {
       currentTopic: topic,
       explanationMode: session?.explanationMode || teachingContext?.explanationMode || 'basic',
@@ -525,7 +371,15 @@ export const streamMessage = async (req, res) => {
       ? `Session has ${session.messages.length} messages. Topic: ${session.currentTopic || 'General'}.`
       : '';
 
-    const systemPrompt = buildSystemPrompt(effectiveContext, mode, webContextStr, pastContext, recentMsgsSummary, memorySummary);
+    const systemPrompt = buildSystemPrompt({
+      currentTopic: topic,
+      explanationMode: effectiveContext.explanationMode,
+      learnerLevel: effectiveContext.learnerLevel,
+      mode,
+      webContext: webContextStr,
+      pastContext,
+      planner: plannerPlan
+    });
     const llmMessages = buildLLMMessages(allMessages, systemPrompt, 20);
 
     // ── 5. Set SSE Headers ──
@@ -540,6 +394,11 @@ export const streamMessage = async (req, res) => {
       res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
     }
 
+    // Send planner result so frontend can show classification/planning state
+    if (plannerPlan) {
+      res.write(`data: ${JSON.stringify({ type: 'plan', plan: plannerPlan })}\n\n`);
+    }
+
     // Send session ID
     const savedSessionId = session?._id?.toString() || sessionId;
     res.write(`data: ${JSON.stringify({ type: 'meta', sessionId: savedSessionId })}\n\n`);
@@ -548,6 +407,7 @@ export const streamMessage = async (req, res) => {
     let fullContent = '';
     let streamProvider = null;
     let clientDisconnected = false;
+    let tagBuffer = ''; // Buffer to handle tags split across chunks
 
     req.on('close', () => {
       clientDisconnected = true;
@@ -565,41 +425,54 @@ export const streamMessage = async (req, res) => {
         fullContent += chunk;
         streamProvider = provider;
 
-        // ── Chain of Thought Extraction ──
-        let remainingChunk = chunk;
-        
-        // Handle start of thought
-        if (remainingChunk.includes('<thought>')) {
-          const parts = remainingChunk.split('<thought>');
-          if (parts[0]) {
-            cleanContent += parts[0];
-            res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: parts[0] })}\n\n`);
-          }
-          isThinking = true;
-          remainingChunk = parts[1] || '';
+        // ── Chain of Thought Extraction with split tag handling ──
+        let remainingChunk = tagBuffer + chunk;
+        tagBuffer = '';
+
+        // If the chunk ends with a partial tag, buffer it
+        const partialTagMatch = remainingChunk.match(/<[^>]*$/);
+        if (partialTagMatch) {
+          tagBuffer = partialTagMatch[0];
+          remainingChunk = remainingChunk.substring(0, partialTagMatch.index);
         }
 
-        // Handle end of thought
-        if (isThinking && remainingChunk.includes('</thought>')) {
-          const parts = remainingChunk.split('</thought>');
-          thoughtContent += parts[0];
-          res.write(`data: ${JSON.stringify({ type: 'thought', thought: parts[0] })}\n\n`);
-          isThinking = false;
-          remainingChunk = parts[1] || '';
-          if (remainingChunk) {
-            cleanContent += remainingChunk;
-            res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: remainingChunk })}\n\n`);
+        // Processing remainingChunk which is now guaranteed to have complete tags (or no tags)
+        while (remainingChunk.length > 0) {
+          if (!isThinking) {
+            const thoughtStartIdx = remainingChunk.indexOf('<thought>');
+            if (thoughtStartIdx !== -1) {
+              // Part before <thought>
+              const before = remainingChunk.substring(0, thoughtStartIdx);
+              if (before) {
+                cleanContent += before;
+                res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: before })}\n\n`);
+              }
+              isThinking = true;
+              remainingChunk = remainingChunk.substring(thoughtStartIdx + 9);
+            } else {
+              // No <thought> tag in this piece
+              cleanContent += remainingChunk;
+              res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: remainingChunk })}\n\n`);
+              remainingChunk = '';
+            }
+          } else {
+            const thoughtEndIdx = remainingChunk.indexOf('</thought>');
+            if (thoughtEndIdx !== -1) {
+              // Part before </thought>
+              const thought = remainingChunk.substring(0, thoughtEndIdx);
+              if (thought) {
+                thoughtContent += thought;
+                res.write(`data: ${JSON.stringify({ type: 'thought', thought })}\n\n`);
+              }
+              isThinking = false;
+              remainingChunk = remainingChunk.substring(thoughtEndIdx + 10);
+            } else {
+              // Still thinking
+              thoughtContent += remainingChunk;
+              res.write(`data: ${JSON.stringify({ type: 'thought', thought: remainingChunk })}\n\n`);
+              remainingChunk = '';
+            }
           }
-          continue;
-        }
-
-        // Route content based on current state
-        if (isThinking) {
-          thoughtContent += remainingChunk;
-          res.write(`data: ${JSON.stringify({ type: 'thought', thought: remainingChunk })}\n\n`);
-        } else {
-          cleanContent += remainingChunk;
-          res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: remainingChunk })}\n\n`);
         }
       }
     } catch (streamErr) {
@@ -617,6 +490,9 @@ export const streamMessage = async (req, res) => {
 
     // ── 8. Persist to DB (background, after stream ends) ──
     if (session && fullContent) {
+      // PERSIST USER MESSAGE (Fixed: was being lost)
+      session.messages.push(userMsg);
+
       const assistantMsg = {
         role: 'assistant',
         content: fullContent,
@@ -625,23 +501,37 @@ export const streamMessage = async (req, res) => {
           edited: false, 
           regenerated: false, 
           feedback: null,
-          sources: sources || []
+          sources: sources || [],
+          thought: thoughtContent || undefined,
+          versions: [{ text: fullContent, subsequentMessages: [] }],
+          activeVersionIndex: 0
         },
       };
 
+      // PERSIST ASSISTANT MESSAGE
+      session.messages.push(assistantMsg);
+
       // Update title using AI output if it's the first message
       if (session.messages.length <= 2) {
-        generateSessionTitle(userMessage, fullContent).then(async (aiTitle) => {
-          try {
-            await ChatSession.updateOne({ _id: session._id }, { title: aiTitle });
-          } catch (e) {
-            console.error('[Chat:Stream] Failed to update AI title:', e.message);
-          }
-        });
+        try {
+          const aiTitle = await generateSessionTitle(userMessage, fullContent);
+          session.title = aiTitle;
+          console.log(`[Chat:Stream] 🏷️ AI generated title: "${aiTitle}"`);
+        } catch (e) {
+          console.error('[Chat:Stream] Failed to generate AI title:', e.message);
+        }
       }
 
       session.lastUpdated = Date.now();
-      session.save().catch(err => console.error('[Chat:Stream] DB persist failed:', err.message));
+      await session.save().catch(err => console.error('[Chat:Stream] DB persist failed:', err.message));
+
+      // After saving, we have real MongoDB IDs — send them to client
+      const userMessageId = session.messages[session.messages.length - 2]?._id?.toString();
+      const assistantMessageId = session.messages[session.messages.length - 1]?._id?.toString();
+      
+      if (!clientDisconnected) {
+        res.write(`data: ${JSON.stringify({ type: 'message_ids', userMessageId, assistantMessageId })}\n\n`);
+      }
 
       logActivity({
         userId,
@@ -685,26 +575,71 @@ export const editMessage = async (req, res) => {
       return res.status(404).json({ error: 'Message not found' });
     }
 
-    // ── 3. Replace Content & Cascade Delete ──
-    session.messages[msgIndex].content = newContent;
-    session.messages[msgIndex].metadata = {
-      ...session.messages[msgIndex].metadata,
+    // ── 3. Branching Logic: Save current branch before editing ──
+    const targetMsg = session.messages[msgIndex];
+    const subsequentMessages = session.messages.slice(msgIndex + 1);
+    
+    const currentVersions = targetMsg.metadata.versions || [{ text: targetMsg.content, subsequentMessages: [] }];
+    const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
+    
+    // Update the active version with its subsequent branch
+    const updatedVersions = currentVersions.map((v, i) => 
+      i === activeIdx ? { ...v, subsequentMessages } : v
+    );
+    
+    // Add the new edit as a new version
+    const newVersion = { text: newContent, subsequentMessages: [] };
+    updatedVersions.push(newVersion);
+    
+    targetMsg.content = newContent;
+    targetMsg.metadata = {
+      ...targetMsg.metadata,
       edited: true,
+      versions: updatedVersions,
+      activeVersionIndex: updatedVersions.length - 1
     };
 
-    // Delete all messages AFTER the edited one
+    // Truncate the main messages array (the new branch starts empty)
     session.messages = session.messages.slice(0, msgIndex + 1);
 
-    // ── 4. Regenerate AI Response ──
+    // ── 4. RAG + Web Search + Planner Fusion (Standard Intelligence Pipeline) ──
+    const topic = session.currentTopic || detectTopic(newContent);
+    const toolDecision = detectTools(newContent);
+    const gateSearch = toolDecision.useWebSearch || shouldSearch(newContent);
+
+    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+      userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
+      gateSearch ? searchWeb(newContent, { count: 5 }) : Promise.resolve([]),
+      runChatPlanner(newContent, '', '', null).catch(err => {
+        console.warn(`[Chat:Edit] Planner failed: ${err.message}`);
+        return null;
+      }),
+    ]);
+
+    const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
+    let webResults = initialWebResults;
+    if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
+      webResults = await searchWeb(newContent, { count: 5 });
+    }
+
+    const webContextStr = formatForPrompt(webResults);
+    const sources = extractSources(webResults);
+
+    // ── 5. Build Final Prompt & Regenerate AI Response ──
     const systemPrompt = buildSystemPrompt({
       currentTopic: session.currentTopic,
       explanationMode: session.explanationMode,
+      pastContext,
+      webContext: webContextStr,
+      plan: plannerPlan,
     });
     const llmMessages = buildLLMMessages(session.messages, systemPrompt, 20);
 
     let aiResponse;
     try {
       aiResponse = await routeConversation(llmMessages, { timeout: 30000, maxRetries: 2 });
+      // Attach metadata for the standard buildAssistantMsg helper if needed
+      aiResponse.sources = sources; 
     } catch (err) {
       // Still save the edit even if AI fails
       await session.save();
@@ -715,21 +650,43 @@ export const editMessage = async (req, res) => {
       });
     }
 
-    // ── 5. Append New Assistant Response ──
+    // ── 5. Append New Assistant Response (extract thought if present) ──
+    let cleanContent = aiResponse.content;
+    let thoughtContent = '';
+    
+    if (cleanContent.includes('<thought>')) {
+      const parts = cleanContent.split(/<\/?thought>/);
+      if (parts.length >= 3) {
+        thoughtContent = parts[1].trim();
+        cleanContent = (parts[0] + parts[2]).trim();
+      }
+    }
+
     const assistantMsg = {
       role: 'assistant',
-      content: aiResponse.content,
+      content: cleanContent,
       timestamp: new Date(),
-      metadata: { edited: false, regenerated: false, feedback: null },
+      metadata: { 
+        edited: false, 
+        regenerated: false, 
+        feedback: null,
+        sources: aiResponse.sources || [],
+        thought: thoughtContent || undefined,
+        versions: [{ text: cleanContent, subsequentMessages: [] }],
+        activeVersionIndex: 0
+      },
     };
     session.messages.push(assistantMsg);
     session.lastUpdated = Date.now();
     await session.save();
 
+    const finalMsg = session.messages[session.messages.length - 1];
     res.json({
-      response: aiResponse.content,
+      response: finalMsg.content,
       sessionId: session._id.toString(),
-      assistantMessageId: generateMessageId('assistant'),
+      assistantMessageId: finalMsg._id.toString(),
+      activeVersionIndex: finalMsg.metadata.activeVersionIndex,
+      versionCount: finalMsg.metadata.versions.length,
       messagesAfterEdit: session.messages,
       provider: aiResponse.provider,
     });
@@ -757,47 +714,131 @@ export const regenerate = async (req, res) => {
     const session = await ChatSession.findOne({ _id: sessionId, userId });
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
-    // ── 2. Remove Last Assistant Message ──
+    // ── 2. Handle Non-Destructive Regeneration (Branching) ──
+    let targetMsgId = null;
+    let existingVersions = [];
+    let activeIdx = 0;
+
     if (session.messages.length > 0) {
       const lastMsg = session.messages[session.messages.length - 1];
       if (lastMsg.role === 'assistant') {
-        session.messages.pop();
+        targetMsgId = lastMsg._id;
+        existingVersions = lastMsg.metadata?.versions || [{ text: lastMsg.content, subsequentMessages: [] }];
+        activeIdx = lastMsg.metadata?.activeVersionIndex || 0;
+        
+        // We don't pop() anymore. We will update this message in place or append to it.
+        // Actually, to make it clean, we'll keep the message and update its metadata.
       }
     }
 
-    // ── 3. Regenerate ──
+    // ── 3. RAG + Web Search + Planner Fusion (Standard Intelligence Pipeline) ──
+    // Use the messages BEFORE the last assistant message if we are regenerating
+    const messagesForContext = targetMsgId 
+      ? session.messages.slice(0, -1) 
+      : session.messages;
+
+    const lastUserMsg = [...messagesForContext].reverse().find(m => m.role === 'user');
+    const query = lastUserMsg?.content || session.currentTopic;
+    
+    const topic = session.currentTopic || detectTopic(query);
+    const toolDecision = detectTools(query);
+    const gateSearch = toolDecision.useWebSearch || shouldSearch(query);
+
+    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+      userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
+      gateSearch ? searchWeb(query, { count: 5 }) : Promise.resolve([]),
+      runChatPlanner(query, '', '', null).catch(err => {
+        console.warn(`[Chat:Regen] Planner failed: ${err.message}`);
+        return null;
+      }),
+    ]);
+
+    const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
+    let webResults = initialWebResults;
+    if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
+      webResults = await searchWeb(query, { count: 5 });
+    }
+
+    const webContextStr = formatForPrompt(webResults);
+    const sources = extractSources(webResults);
+
+    // ── 4. Build Final Prompt & Regenerate AI Response ──
     const systemPrompt = buildSystemPrompt({
       currentTopic: session.currentTopic,
       explanationMode: session.explanationMode,
+      pastContext,
+      webContext: webContextStr,
+      plan: plannerPlan,
     });
-    const llmMessages = buildLLMMessages(session.messages, systemPrompt, 20);
+    const llmMessages = buildLLMMessages(messagesForContext, systemPrompt, 20);
 
     let aiResponse;
     try {
       aiResponse = await routeConversation(llmMessages, { timeout: 30000, maxRetries: 2 });
+      aiResponse.sources = sources;
     } catch (err) {
-      await session.save();
       return res.status(503).json({
         error: 'AI service unavailable for regeneration',
         sessionId: session._id.toString(),
       });
     }
 
-    // ── 4. Append New Response ──
-    const assistantMsg = {
-      role: 'assistant',
-      content: aiResponse.content,
-      timestamp: new Date(),
-      metadata: { edited: false, regenerated: true, feedback: null },
-    };
-    session.messages.push(assistantMsg);
+    // ── 5. Append New Version or Create New Message ──
+    let cleanContent = aiResponse.content;
+    let thoughtContent = '';
+    
+    if (cleanContent.includes('<thought>')) {
+      const parts = cleanContent.split(/<\/?thought>/);
+      if (parts.length >= 3) {
+        thoughtContent = parts[1].trim();
+        cleanContent = (parts[0] + parts[2]).trim();
+      }
+    }
+
+    if (targetMsgId) {
+      // Update existing message with new version
+      const targetMsg = session.messages[session.messages.length - 1];
+      const newVersion = { text: cleanContent, subsequentMessages: [] };
+      const updatedVersions = [...existingVersions, newVersion];
+
+      targetMsg.content = cleanContent;
+      targetMsg.metadata = {
+        ...targetMsg.metadata,
+        regenerated: true,
+        sources: aiResponse.sources || [],
+        thought: thoughtContent || undefined,
+        versions: updatedVersions,
+        activeVersionIndex: updatedVersions.length - 1
+      };
+    } else {
+      // Create new assistant message if none existed
+      const assistantMsg = {
+        role: 'assistant',
+        content: cleanContent,
+        timestamp: new Date(),
+        metadata: { 
+          edited: false, 
+          regenerated: true, 
+          feedback: null,
+          sources: aiResponse.sources || [],
+          thought: thoughtContent || undefined,
+          versions: [{ text: cleanContent, subsequentMessages: [] }],
+          activeVersionIndex: 0
+        },
+      };
+      session.messages.push(assistantMsg);
+    }
+
     session.lastUpdated = Date.now();
     await session.save();
 
+    const finalMsg = session.messages[session.messages.length - 1];
     res.json({
-      response: aiResponse.content,
+      response: finalMsg.content,
       sessionId: session._id.toString(),
-      assistantMessageId: generateMessageId('assistant'),
+      assistantMessageId: finalMsg._id.toString(),
+      activeVersionIndex: finalMsg.metadata.activeVersionIndex,
+      versionCount: finalMsg.metadata.versions.length,
       provider: aiResponse.provider,
     });
   } catch (err) {
@@ -845,3 +886,130 @@ export const deleteMessage = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete message' });
   }
 };
+
+/**
+ * POST /api/chat/feedback
+ * Update feedback for a specific message.
+ */
+export const updateMessageFeedback = async (req, res) => {
+  try {
+    const { sessionId, messageId, feedback } = req.body;
+    const userId = req.user?._id || req.user?.id;
+
+    if (!sessionId || !messageId) {
+      return res.status(400).json({ error: "Missing sessionId or messageId" });
+    }
+
+    const session = await ChatSession.findOne({ _id: sessionId, userId });
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const message = session.messages.id(messageId);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+
+    message.metadata = {
+      ...(message.metadata || {}),
+      feedback: (feedback === 'positive' || feedback === 'negative') ? feedback : null
+    };
+
+    await session.save();
+    res.json({ success: true, messageId, feedback });
+  } catch (err) {
+    console.error('[Chat] updateFeedback error:', err);
+    res.status(500).json({ error: "Failed to update feedback" });
+  }
+};
+
+/**
+ * generateSessionTitle: Use AI to create a short, relevant title for the session
+ */
+const generateSessionTitle = async (userMsg, aiMsg) => {
+  try {
+    const prompt = [
+      { role: 'system', content: 'Generate a 2-4 word title for this chat based on the first exchange. Return ONLY the title text, no quotes or prefix.' },
+      { role: 'user', content: `User: ${userMsg}\nAI: ${aiMsg}` }
+    ];
+    const res = await routeConversation(prompt, { timeout: 10000 });
+    return res.content.trim() || 'New Session';
+  } catch (err) {
+    console.error('[TitleGen] Error:', err);
+    return 'New Session';
+  }
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * detectTopic: Extracts a short topic from a message
+ */
+const detectTopic = (text) => {
+  if (!text) return 'General';
+  const clean = text.trim();
+  // Simple heuristic: first 5 words or first sentence
+  const sentence = clean.split(/[.!?]/)[0];
+  const words = sentence.split(/\s+/).slice(0, 5).join(' ');
+  return words.length > 3 ? words : 'General Chat';
+};
+
+/**
+ * buildSystemPrompt: Construct the primary instructions for the AI
+ */
+const buildSystemPrompt = (args) => {
+  // Support both object and positional (legacy-ish) arguments if needed, 
+  // but object is safer for our multi-mode controller.
+  const { 
+    currentTopic, 
+    explanationMode, 
+    learnerLevel = 'Intermediate',
+    mode, 
+    webContext, 
+    pastContext, 
+    planner 
+  } = args;
+  
+  let prompt = `You are TutorBoard AI, a professional tutor. 
+Topic: ${currentTopic || 'General Education'}
+Level: ${learnerLevel}
+Mode: ${explanationMode || 'Standard'}
+
+INSTRUCTIONS:
+1. Provide visually structured learning notes.
+2. Use bolding, bullet points, and clear sections.
+3. Keep the tone professional but encouraging.
+4. DO NOT use emojis.
+5. If web context is provided, cite sources using [1], [2], etc.
+`;
+
+  if (planner) {
+    prompt += `\nPLANNER GUIDANCE:
+- Tone: ${planner.tone || 'Professional'}
+- Depth: ${planner.complexity || 'Appropriate'}
+- Focus: ${planner.focus_areas?.join(', ') || 'General'}
+`;
+  }
+
+  if (webContext) {
+    prompt += `\nWEB RESEARCH CONTEXT:\n${webContext}`;
+  }
+
+  if (pastContext) {
+    prompt += `\nLONG-TERM MEMORY (RAG):\n${pastContext}`;
+  }
+
+  return prompt;
+};
+
+/**
+ * buildLLMMessages: Format history for the AI Router
+ */
+const buildLLMMessages = (messages, systemPrompt, limit = 20) => {
+  const history = messages.slice(-limit).map(m => ({
+    role: m.role,
+    content: m.content
+  }));
+
+  return [
+    { role: 'system', content: systemPrompt },
+    ...history
+  ];
+};
+

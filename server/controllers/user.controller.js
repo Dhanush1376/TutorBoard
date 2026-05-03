@@ -16,10 +16,19 @@ export const updateSettings = async (req, res) => {
 
     // Merge settings only if they are provided in the payload
     if (!user.settings) user.settings = {};
-    if (settings.general) user.settings.general = { ...user.settings.general, ...settings.general };
-    if (settings.appearance) user.settings.appearance = { ...user.settings.appearance, ...settings.appearance };
-    if (settings.canvas) user.settings.canvas = { ...user.settings.canvas, ...settings.canvas };
-    if (settings.privacy) user.settings.privacy = { ...user.settings.privacy, ...settings.privacy };
+    
+    // Support merging multiple categories at once
+    const categories = ['general', 'appearance', 'canvas', 'privacy'];
+    categories.forEach(cat => {
+      if (settings[cat]) {
+        user.settings[cat] = { 
+          ...(user.settings[cat] || {}), 
+          ...settings[cat] 
+        };
+        // Explicitly mark as modified for Mongoose if needed (especially for nested paths)
+        user.markModified(`settings.${cat}`);
+      }
+    });
     
     // Explicitly update top-level fields
     // Prize req.body.avatar, then settings.avatar, then keep existing

@@ -326,15 +326,24 @@ export const useSettingsSync = () => {
   const { token, user } = useAuth();
   const timeoutRef = useRef(null);
 
-  const syncSettings = (category, newValues, topLevel = {}) => {
+  const syncSettings = (categoryOrObject, newValues, topLevel = {}) => {
     if (!user) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    
     timeoutRef.current = setTimeout(async () => {
       try {
+        let payload = { ...topLevel };
+        
+        if (typeof categoryOrObject === 'string') {
+          payload.settings = { [categoryOrObject]: newValues };
+        } else {
+          payload.settings = categoryOrObject;
+        }
+
         await fetch(`${API_URL}/api/user/settings`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ settings: { [category]: newValues }, ...topLevel })
+          body: JSON.stringify(payload)
         });
       } catch (err) { console.error('Settings sync failed:', err); }
     }, 400);

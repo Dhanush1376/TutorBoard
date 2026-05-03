@@ -95,24 +95,57 @@ export const createConversationSlice = (set, get) => ({
   clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
 
   finishStreaming: (finalContent, thoughtContent = '', sources = []) => {
-    const { streamingMessageId } = get();
-    const msg = {
-      id: streamingMessageId || generateId('assistant'),
-      role: 'assistant', content: finalContent,
-      timestamp: new Date().toISOString(),
-      metadata: { 
-        edited: false, regenerated: false, feedback: null,
-        thought: thoughtContent,
-        sources: sources,
-        versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0
-      },
-    };
-    set((state) => ({
-      conversationMessages: [...state.conversationMessages, msg],
-      isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
-      isWaitingForAI: false, waitingSessionId: null,
-      conversationSources: [],
-    }));
+    const { streamingMessageId, conversationMessages } = get();
+    
+    const existingIdx = conversationMessages.findIndex(m => m.id === streamingMessageId);
+    
+    if (existingIdx !== -1) {
+      // UPDATE EXISTING (Regeneration case)
+      const targetMsg = conversationMessages[existingIdx];
+      const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
+      
+      const updatedVersions = (targetMsg.metadata.versions || []).map((v, i) => 
+        i === activeIdx ? { ...v, text: finalContent } : v
+      );
+      
+      set((state) => ({
+        conversationMessages: state.conversationMessages.map((m, i) => 
+          i === existingIdx ? {
+            ...m,
+            content: finalContent,
+            metadata: {
+              ...m.metadata,
+              regenerated: true,
+              thought: thoughtContent || m.metadata.thought,
+              sources: sources.length > 0 ? sources : m.metadata.sources,
+              versions: updatedVersions,
+              activeVersionIndex: activeIdx
+            }
+          } : m
+        ),
+        isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
+        isWaitingForAI: false, waitingSessionId: null,
+      }));
+    } else {
+      // APPEND NEW (Standard message case)
+      const msg = {
+        id: streamingMessageId || generateId('assistant'),
+        role: 'assistant', content: finalContent,
+        timestamp: new Date().toISOString(),
+        metadata: { 
+          edited: false, regenerated: false, feedback: null,
+          thought: thoughtContent,
+          sources: sources,
+          versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0
+        },
+      };
+      set((state) => ({
+        conversationMessages: [...state.conversationMessages, msg],
+        isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
+        isWaitingForAI: false, waitingSessionId: null,
+        conversationSources: [],
+      }));
+    }
   },
 
   abortStreaming: () => {
@@ -197,7 +230,7 @@ export const createConversationSlice = (set, get) => ({
     const targetMsg = conversationMessages[idx];
     if (!targetMsg.metadata.versions) return;
     
-    // Save current branch to the current active version before switching
+    // 1. Save CURRENT branch state to the currently active version before switching away
     const currentSubsequent = conversationMessages.slice(idx + 1);
     const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
     
@@ -205,7 +238,7 @@ export const createConversationSlice = (set, get) => ({
       i === activeIdx ? { ...v, subsequentMessages: currentSubsequent } : v
     );
     
-    // Now switch to the requested version
+    // 2. Switch to the target version and RESTORE its branch
     const targetVersion = updatedVersions[versionIndex];
     
     const updatedMsg = {
@@ -214,7 +247,7 @@ export const createConversationSlice = (set, get) => ({
       metadata: { ...targetMsg.metadata, versions: updatedVersions, activeVersionIndex: versionIndex }
     };
     
-    // Reconstruct the conversation array: messages before this + this message + saved subsequent messages
+    // Reconstruct the conversation array: [messages before] + [updated message] + [restored branch]
     const newConversation = [
       ...conversationMessages.slice(0, idx),
       updatedMsg,
@@ -222,6 +255,25 @@ export const createConversationSlice = (set, get) => ({
     ];
     
     set({ conversationMessages: newConversation });
+  },
+
+  addMessageVersion: (messageId, text, metadata = {}) => {
+    set((state) => ({
+      conversationMessages: state.conversationMessages.map((m) => {
+        if (m.id !== messageId) return m;
+        const versions = m.metadata.versions || [{ text: m.content, subsequentMessages: [] }];
+        return {
+          ...m,
+          content: text,
+          metadata: {
+            ...m.metadata,
+            ...metadata,
+            versions: [...versions, { text, subsequentMessages: [] }],
+            activeVersionIndex: versions.length
+          }
+        };
+      })
+    }));
   },
 
   deleteMessageById: (messageId) => {
