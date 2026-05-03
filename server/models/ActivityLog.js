@@ -10,7 +10,7 @@ const activityLogSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: false, // Allow guest logging
     index: true,
   },
   sessionId: {
@@ -30,7 +30,11 @@ const activityLogSchema = new mongoose.Schema({
       'doubt_asked',
       'doubt_resolved',
       'navigation',
-      'chat_message'
+      'chat_message',
+      'chat_message_stream',
+      'stream_start',
+      'stream_complete',
+      'error'
     ],
     required: true,
   },

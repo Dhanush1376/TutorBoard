@@ -16,14 +16,20 @@ export function useAiRouter() {
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/ai/ask`, {
+      const fetchOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ query, options })
-      });
+        body: JSON.stringify({ query, options }),
+        credentials: 'include'
+      };
+
+      if (token && token !== 'verified' && token !== 'guest') {
+        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_URL}/api/ai/ask`, fetchOptions);
 
       if (!response.ok) {
         const errData = await response.json();

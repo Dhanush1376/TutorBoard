@@ -689,6 +689,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // Playback
     isPlaying,
     isPaused,
+    playbackSpeed,
 
     // Actions
     startSession,

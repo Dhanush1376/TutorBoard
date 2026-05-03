@@ -139,6 +139,7 @@ const ThinkingIndicator = () => (
 const ChatWindow = ({
   messages, isGenerating,
   onOpenCanvas, onDeleteMessage, onEditMessage, onRegenerateMessage, onFeedback, onSwitchVersion,
+  onOpenArtifact,
   activeMode, setActiveMode,
 }) => {
   const bottomRef = useRef(null);
@@ -153,6 +154,7 @@ const ChatWindow = ({
   const streamingSessionId = useTutorStore((s) => s.streamingSessionId);
   const streamingSources = useTutorStore((s) => s.conversationSources);
   const isSearchPerformed = useTutorStore((s) => s.isSearchPerformed);
+  const currentCanvasType = useTutorStore((s) => s.currentCanvasType);
   const isWaitingForAI = useTutorStore((s) => s.isWaitingForAI);
   const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
   const currentSessionId = useTutorStore((s) => s.chatSessionId || s.sessionId);
@@ -222,6 +224,7 @@ const ChatWindow = ({
                   onRegenerateMessage={onRegenerateMessage}
                   onFeedback={onFeedback}
                   onSwitchVersion={onSwitchVersion}
+                  onOpenArtifact={onOpenArtifact}
                   steps={msg.steps}
                   stepTitle={msg.stepTitle}
                   domain={msg.domain}
@@ -232,6 +235,7 @@ const ChatWindow = ({
                   sequence={msg.sequence}
                   objects={msg.objects || msg.elements}
                   hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
+                  canvasType={msg.canvasType}
                   isSearchPerformed={isSearchPerformed}
                 />
               );
@@ -249,7 +253,9 @@ const ChatWindow = ({
                 streamingContent={streamingContent}
                 streamingThought={streamingThought}
                 streamingSources={streamingSources}
+                canvasType={currentCanvasType} 
                 isSearchPerformed={isSearchPerformed}
+                onOpenArtifact={onOpenArtifact}
               />
             )}
 

@@ -591,11 +591,26 @@ async function _executeSystemPath(params, ctx) {
       continue;
     }
 
-    const currentModel = (!canonicalModel || canonicalModel.includes('Universal'))
-      ? defaultModel 
-      : canonicalModel;
+    let currentModel;
+    if (!canonicalModel || canonicalModel.includes('Universal')) {
+      currentModel = defaultModel;
+    } else if (providerId === 'openrouter') {
+      currentModel = canonicalModel;
+    } else {
+      // Native providers (Google, Groq, etc.) expect IDs without the "provider/" prefix
+      currentModel = canonicalModel.includes('/') ? canonicalModel.split('/').pop() : canonicalModel;
+      
+      // Fallback to provider's default model if the canonical one is incompatible
+      if (providerId === 'google' && !currentModel.toLowerCase().includes('gemini')) {
+        currentModel = defaultModel;
+      }
+      if (providerId === 'groq' && !currentModel.toLowerCase().includes('llama') && 
+          !currentModel.toLowerCase().includes('mixtral') && !currentModel.toLowerCase().includes('gemma')) {
+        currentModel = defaultModel;
+      }
+    }
 
-    const timeout = createTimeoutController(DEFAULT_TIMEOUT_MS);
+    const timeout = createTimeoutController(20_000);
     
     try {
       console.log(`[AI:System] Attempting ${providerId} with model ${currentModel}...`);

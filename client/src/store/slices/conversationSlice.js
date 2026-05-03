@@ -23,6 +23,7 @@ export const createConversationSlice = (set, get) => ({
   conversationSources: [],   // Web search sources for citation display
   lastStreamSources: [],     // Sources from the last streaming response
   isSearchPerformed: false,  // Track if a search was attempted in the current turn
+  currentCanvasType: null,   // Track canvas_type for the active stream
 
   addUserMessage: (content) => {
     const userId = generateId('user');
@@ -101,9 +102,10 @@ export const createConversationSlice = (set, get) => ({
   // Clear sources
   clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
 
-  finishStreaming: (finalContent, thoughtContent = '', sources = [], artifactId = null) => {
-    const { streamingMessageId, conversationMessages } = get();
-    
+  finishStreaming: (finalContent, sessionId = null, thoughtContent = '', sources = [], artifactId = null, canvasType = null) => {
+    const { streamingMessageId, conversationMessages, chatSessionId, sessionId: activeSessionId } = get();
+    const currentViewId = chatSessionId || activeSessionId;
+    const isCurrentChat = !sessionId || sessionId === currentViewId;
     const existingIdx = conversationMessages.findIndex(m => m.id === streamingMessageId);
     
     if (existingIdx !== -1) {
@@ -115,32 +117,41 @@ export const createConversationSlice = (set, get) => ({
         i === activeIdx ? { ...v, text: finalContent } : v
       );
       
-      set((state) => ({
-        conversationMessages: state.conversationMessages.map((m, i) => 
-          i === existingIdx ? {
-            ...m,
-            content: finalContent,
-            metadata: {
-              ...m.metadata,
-              regenerated: true,
-              thought: thoughtContent || m.metadata.thought,
-              sources: sources.length > 0 ? sources : m.metadata.sources,
-              searchPerformed: get().isSearchPerformed || m.metadata.searchPerformed,
-              artifactId: artifactId || m.metadata.artifactId,
-              versions: updatedVersions,
-              activeVersionIndex: activeIdx
-            }
-          } : m
-        ),
-        isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
-        isWaitingForAI: false, waitingSessionId: null,
-      }));
+      set((state) => {
+        const update = {
+          isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
+          isWaitingForAI: false, waitingSessionId: null,
+        };
+        if (isCurrentChat) {
+          update.conversationMessages = state.conversationMessages.map((m, i) => 
+            i === existingIdx ? {
+              ...m,
+              content: finalContent,
+              hasCanvas: !!canvasType || m.hasCanvas,
+              canvasType: canvasType || m.canvasType,
+              metadata: {
+                ...m.metadata,
+                regenerated: true,
+                thought: thoughtContent || m.metadata.thought,
+                sources: sources.length > 0 ? sources : m.metadata.sources,
+                searchPerformed: get().isSearchPerformed || m.metadata.searchPerformed,
+                artifactId: artifactId || m.metadata.artifactId,
+                versions: updatedVersions,
+                activeVersionIndex: activeIdx
+              }
+            } : m
+          );
+        }
+        return update;
+      });
     } else {
       // APPEND NEW (Standard message case)
       const msg = {
         id: streamingMessageId || generateId('assistant'),
         role: 'assistant', content: finalContent,
         timestamp: new Date().toISOString(),
+        hasCanvas: !!canvasType,
+        canvasType: canvasType,
         metadata: { 
           edited: false, regenerated: false, feedback: null,
           thought: thoughtContent,
@@ -150,15 +161,23 @@ export const createConversationSlice = (set, get) => ({
           versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0
         },
       };
-      set((state) => ({
-        conversationMessages: [...state.conversationMessages, msg],
-        isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
-        isWaitingForAI: false, waitingSessionId: null,
-        conversationSources: [],
-        isSearchPerformed: false,
-      }));
+      set((state) => {
+        const update = {
+          isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
+          isWaitingForAI: false, waitingSessionId: null,
+          conversationSources: [],
+          isSearchPerformed: false,
+          currentCanvasType: null,
+        };
+        if (isCurrentChat) {
+          update.conversationMessages = [...state.conversationMessages, msg];
+        }
+        return update;
+      });
     }
   },
+
+  setCurrentCanvasType: (type) => set({ currentCanvasType: type }),
 
   abortStreaming: () => {
     const { streamingContent, streamingMessageId } = get();

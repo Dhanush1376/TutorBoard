@@ -14,8 +14,19 @@ export const createUiSlice = (set, get) => ({
   settingsActiveSection: 'general', // 'general' | 'account' | 'appearance' | 'ai' | 'about'
   isExplainMinimized:  false,
   isVisualizerMinimized: false,
-  isSettingsMinimized: false,
   isMasteryOpen:        false,
+  unreadSessions:       [], // Array of session IDs that have background updates
+  
+  addUnreadSession: (sessionId) => set(s => {
+    if (s.unreadSessions.includes(sessionId)) return {};
+    return { unreadSessions: [...s.unreadSessions, sessionId] };
+  }),
+  markSessionRead: (sessionId) => set(s => ({
+    unreadSessions: s.unreadSessions.filter(id => id !== sessionId)
+  })),
+  
+  codeEditorCode:      '',
+  codeEditorLang:      'javascript',
   
   drawColor:           'var(--text-primary)',
   drawWidth:           3,
@@ -141,6 +152,12 @@ export const createUiSlice = (set, get) => ({
   setVisualizerMinimized: (min) => set({ isVisualizerMinimized: min }),
   setSettingsMinimized: (min) => set({ isSettingsMinimized: min }),
   setMasteryOpen: (open) => set({ isMasteryOpen: open }),
+  
+  setCodeEditorData: (code, lang) => set({ 
+    codeEditorCode: code, 
+    codeEditorLang: lang || 'javascript',
+    activeOverlay: 'code-editor'
+  }),
 
   setDrawColor:          (color) => set({ drawColor: color }),
   setDrawWidth:          (width) => set({ drawWidth: width }),

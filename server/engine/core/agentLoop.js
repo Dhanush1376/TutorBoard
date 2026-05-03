@@ -273,13 +273,16 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
   const userContext = getUserContext(userConfig);
   let lastError = null;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  // AGGRESSIVE TIMEOUT FOR AGENT PIPELINE:
+  // We want individual agents to fail fast so the whole pipeline doesn't hang for 10+ minutes.
+  const STAGE_TIMEOUT = 30000; // 30 seconds
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       if (attempt > 1) {
-        console.log(`[AgentLoop] Agent retry attempt ${attempt}, rebuilding messages fresh`);
+        console.log(`[AgentLoop] Agent retry attempt ${attempt} for "${stageName}"`);
       }
 
-      // BUG-04: Rebuild messages fresh on each attempt to prevent context poisoning from failed JSON parses.
       const currentMessages = [
         { role: 'system', content: userContext + prompt },
         { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) }
@@ -288,37 +291,41 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
       if (attempt > 1) {
         currentMessages.push({ 
           role: 'user', 
-          content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation, no conversational text, and no markdown code fences.' 
+          content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation and no markdown code fences.' 
         });
-
-        const delay = Math.pow(2, attempt - 1) * 1000;
-        console.log(`[AgentLoop] ⏳ Retrying Stage "${stageName}" (Attempt ${attempt}) in ${delay}ms...`);
-        await new Promise(r => setTimeout(r, delay));
       }
 
       const stageFile = input?.file || null;
 
-      const response = await requestCompletion({
-        model: model || getModel(),
-        messages: currentMessages,
-        temperature: 0.3,
-        maxTokens: stageName.includes('Finalizing') ? 8000 : 4000, 
-        userConfig,
-        responseMimeType: 'application/json',
-        taskType: 'teaching',
-        onStream: attempt === 1 ? onStream : undefined, // Only stream on the first attempt to avoid UI duplication
-        file: stageFile,
-      });
+      // Wrap in timeout to prevent provider hangs
+      const response = await Promise.race([
+        requestCompletion({
+          model: model || getModel(),
+          messages: currentMessages,
+          temperature: 0.3,
+          maxTokens: stageName.includes('Finalizing') ? 8000 : 4000, 
+          userConfig,
+          responseMimeType: 'application/json',
+          taskType: 'teaching',
+          onStream: attempt === 1 ? onStream : undefined,
+          file: stageFile,
+          skipRacing: true, // Don't double-race within the loop
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('STAGE_TIMEOUT')), STAGE_TIMEOUT))
+      ]);
 
       if (!response?.content) throw new Error('Empty response');
 
       const parsed = extractJSON(response.content);
-      if (!parsed) throw new Error(`JSON parse failed. Preview: ${response.content.substring(0, 300)}`);
+      if (!parsed) throw new Error(`JSON parse failed. Preview: ${response.content.substring(0, 100)}`);
 
       return parsed;
     } catch (err) {
-      console.warn(`[AgentLoop] ⚠️ Stage "${stageName}" attempt ${attempt}: ${err.message}`);
+      console.warn(`[AgentLoop] ⚠️ Stage "${stageName}" attempt ${attempt} FAILED: ${err.message}`);
       lastError = err;
+      
+      // If it's a timeout, don't even bother retrying if it's already been a long time
+      if (err.message === 'STAGE_TIMEOUT' && attempt >= 1) break;
     }
   }
   throw lastError;
@@ -359,10 +366,18 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     const toolDecision = detectTools(topic);
     const doSearch = toolDecision.useWebSearch || shouldSearch(topic, domain);
 
+    console.log(`[AgentLoop] 🔍 Starting research phase for: "${topic}"`);
+    const researchStart = Date.now();
+
     const [pastContext, webResults] = await Promise.all([
       VectorStoreService.getContextForTopic(topic, 3, userId),
       doSearch ? searchWeb(topic, { count: 5 }) : Promise.resolve([])
-    ]);
+    ]).catch(err => {
+      console.warn(`[AgentLoop] ⚠️ Research phase error: ${err.message}. Continuing without context.`);
+      return ["", []];
+    });
+
+    console.log(`[AgentLoop] ✅ Research phase COMPLETE (${Date.now() - researchStart}ms)`);
 
     const pastContextStr = learnerProfile?.past_context || pastContext || "No prior sessions found for this topic.";
     const learnerStyleStr = learnerProfile?.learning_style || "General (Visual-Conceptual balance)";
@@ -399,7 +414,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       runStage({
         stageName: '🎙️ Crafting pedagogical explanations...',
         prompt: getPrompt('narrator'),
-        input: { plannerOutput, learnerProfile },
+        input: { plannerOutput, learnerProfile, webContextStr },
         model, onProgress, userConfig,
         onStream: (chunk) => onProgress('narration_chunk', chunk)
       }),
@@ -407,7 +422,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       runStage({
         stageName: '🎨 Designing visual representation...',
         prompt: getPrompt('visualizer'),
-        input: { plannerOutput, learnerProfile }, // Decoupled: only needs the plan
+        input: { plannerOutput, learnerProfile, webContextStr }, // Pass webContext to visualizer too
         model, onProgress, userConfig
       })
     ]);

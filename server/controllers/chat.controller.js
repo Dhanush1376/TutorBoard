@@ -9,6 +9,62 @@ import { formatForPrompt, extractSources } from '../utils/ai/searchContextFormat
 import VectorStoreService from '../engine/core/vectorStore.js';
 import { runChatPlanner } from '../engine/agents/chatPlannerAgent.js';
 import Artifact from '../models/Artifact.js';
+import { buildSystemPrompt, buildLLMMessages } from '../engine/agents/BuildSystemPrompt.js';
+
+// ─── Rich Memory Context Builder ─────────────────────────────────────────────
+
+function buildRichMemorySummary(session) {
+  if (!session?.messages || session.messages.length < 2) return '';
+
+  const msgs = session.messages;
+  const userMessages = msgs.filter(m => m.role === 'user');
+  const assistantMessages = msgs.filter(m => m.role === 'assistant');
+
+  // Extract topics the user has asked about
+  const topicsAsked = userMessages
+    .map(m => m.content?.substring(0, 100))
+    .filter(Boolean);
+
+  // Extract key themes from the conversation
+  const recentExchanges = msgs.slice(-8).map(m => 
+    `[${m.role.toUpperCase()}]: ${(m.content || '').substring(0, 150)}`
+  ).join('\n');
+
+  // Detect user behavior patterns
+  const avgMsgLength = userMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0) / (userMessages.length || 1);
+  const asksFollowUps = userMessages.filter(m => 
+    /why|how|what if|can you|explain more|but|wait/i.test(m.content || '')
+  ).length;
+
+  let behaviorNote = '';
+  if (avgMsgLength > 200) {
+    behaviorNote = 'The student writes detailed questions — they are thorough and want deep explanations.';
+  } else if (avgMsgLength < 30) {
+    behaviorNote = 'The student writes short, direct questions — keep responses focused and concise unless depth is needed.';
+  }
+  if (asksFollowUps > userMessages.length * 0.5) {
+    behaviorNote += ' They frequently ask follow-up questions — they are curious and want to truly understand.';
+  }
+
+  let summary = `SESSION CONTEXT:\n`;
+  summary += `- Total exchanges: ${userMessages.length} questions, ${assistantMessages.length} responses\n`;
+  summary += `- Session topic: ${session.currentTopic || session.title || 'General'}\n`;
+  
+  if (topicsAsked.length > 0) {
+    summary += `\nTOPICS THE STUDENT HAS EXPLORED (in order):\n`;
+    summary += topicsAsked.map((t, i) => `  ${i + 1}. "${t}"`).join('\n');
+    summary += '\n';
+  }
+
+  if (behaviorNote) {
+    summary += `\nSTUDENT BEHAVIOR ANALYSIS:\n${behaviorNote}\n`;
+  }
+
+  summary += `\nRECENT CONVERSATION FLOW:\n${recentExchanges}\n`;
+  summary += `\nIMPORTANT: Use this history as PRIMARY CONTEXT. Reference past topics naturally. If the student mentioned something earlier, connect it to your current answer.\n`;
+
+  return summary;
+}
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -63,31 +119,6 @@ export const sendMessage = async (req, res) => {
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
 
-    if (sessionId && isMongoId) {
-      // For guests, we don't check userId ownership since sessions are essentially public/ephemeral-but-stored
-      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
-      session = await ChatSession.findOne(query);
-    }
-
-    if (!session) {
-      const initialTopic = detectTopic(userMessage);
-      session = await ChatSession.create({
-        userId: isGuest ? null : userId,
-        title: initialTopic, // Temporary title
-        messages: [],
-        currentTopic: teachingContext?.currentTopic || initialTopic,
-        explanationMode: teachingContext?.explanationMode || 'basic',
-      });
-      console.log(`[Chat] ✨ Created new session: ${session._id} (Guest: ${isGuest})`);
-    }
-
-    // ── 1.5 Update User Last Active Session ──
-    if (!isGuest && userId) {
-      User.updateOne({ _id: userId }, { lastActiveSessionId: session._id }).catch(e => 
-        console.error('[Chat] Failed to update lastActiveSessionId:', e.message)
-      );
-    }
-
     // ── 2. Build User Message Object ──
     const userMsg = {
       role: 'user',
@@ -102,9 +133,39 @@ export const sendMessage = async (req, res) => {
       },
     };
 
+    if (sessionId && isMongoId) {
+      // For guests, we don't check userId ownership since sessions are essentially public/ephemeral-but-stored
+      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      session = await ChatSession.findOne(query);
+      if (session) {
+        session.messages.push(userMsg);
+        await session.save();
+        console.log(`[Chat] 📝 Appended user message to existing session: ${session._id}`);
+      }
+    }
+
+    if (!session) {
+      const initialTopic = detectTopic(userMessage);
+      session = await ChatSession.create({
+        userId: isGuest ? null : userId,
+        title: initialTopic, // Temporary title
+        messages: [userMsg], // Save immediately
+        currentTopic: teachingContext?.currentTopic || initialTopic,
+        explanationMode: teachingContext?.explanationMode || 'basic',
+      });
+      console.log(`[Chat] ✨ Created new session and saved user message: ${session._id} (Guest: ${isGuest})`);
+    }
+
+    // ── 1.5 Update User Last Active Session ──
+    if (!isGuest && userId) {
+      User.updateOne({ _id: userId }, { lastActiveSessionId: session._id }).catch(e => 
+        console.error('[Chat] Failed to update lastActiveSessionId:', e.message)
+      );
+    }
+
     // For guests without DB sessions, work with in-memory messages
     const existingMessages = session?.messages || [];
-    const allMessages = [...existingMessages, userMsg];
+    const allMessages = [...existingMessages]; // userMsg is already in session.messages
 
     // ── 3. Intelligence Pipeline: RAG + Web Search + Planner Fusion ──
     const topic = session?.currentTopic || teachingContext?.currentTopic || detectTopic(userMessage);
@@ -152,15 +213,11 @@ export const sendMessage = async (req, res) => {
       learnerLevel: teachingContext?.learnerLevel || 'intermediate',
     };
 
-    // Build recent messages summary for prompt context
-    const recentMsgsSummary = allMessages.slice(-6).map(m =>
-      `[${m.role.toUpperCase()}]: ${m.content.substring(0, 200)}`
-    ).join('\n');
+    // Build rich memory context from session history
+    const memorySummary = buildRichMemorySummary(session);
 
-    // Build memory summary from session history
-    const memorySummary = session?.messages?.length > 2
-      ? `Session has ${session.messages.length} messages. Topic: ${session.currentTopic || 'General'}.`
-      : '';
+    // Resolve user name for personalization
+    const userName = req.user?.name || req.user?.settings?.general?.nickname || null;
 
     const systemPrompt = buildSystemPrompt({
       currentTopic: topic,
@@ -169,7 +226,9 @@ export const sendMessage = async (req, res) => {
       mode,
       webContext: webContextStr,
       pastContext,
-      planner: plannerPlan
+      planner: plannerPlan,
+      memorySummary,
+      userName,
     });
     const llmMessages = buildLLMMessages(allMessages, systemPrompt, 20);
 
@@ -229,17 +288,16 @@ export const sendMessage = async (req, res) => {
     let savedSessionId = sessionId;
 
     if (session) {
-      session.messages.push(userMsg);
       session.messages.push(assistantMsg);
 
       // Update title using AI output if it's the first message
       if (session.messages.length <= 2) {
         try {
-          const aiTitle = await generateSessionTitle(userMessage, cleanContent);
+          const aiTitle = generateSessionTitle(userMessage);
           session.title = aiTitle;
-          console.log(`[Chat] 🏷️ AI generated title: "${aiTitle}"`);
+          console.log(`[Chat] 🏷️ Generated title: "${aiTitle}"`);
         } catch (e) {
-          console.error('[Chat] Failed to generate AI title:', e.message);
+          console.error('[Chat] Failed to generate title:', e.message);
         }
       }
 
@@ -289,7 +347,9 @@ export const sendMessage = async (req, res) => {
  * POST /api/chat/stream
  * Send a message and get a real-time SSE streaming AI response.
  */
-export const streamMessage = async (req, res) => {
+export async function streamMessage(req, res) {
+  const requestId = req.headers['x-request-id'] || 'no-id';
+  console.log(`[Chat:Stream] 📨 Request received in streamMessage controller [${requestId}]`);
   try {
     const validation = sendMessageSchema.safeParse(req.body);
     if (!validation.success) {
@@ -300,33 +360,11 @@ export const streamMessage = async (req, res) => {
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
+    console.log(`[Chat:Stream] 📨 Request received from ${userId || 'guest'} (Session: ${sessionId || 'new'})`);
+
     // ── 1. Load or Create Session ──
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
-
-    if (sessionId && isMongoId) {
-      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
-      session = await ChatSession.findOne(query);
-    }
-
-    if (!session) {
-      const initialTopic = detectTopic(userMessage);
-      session = await ChatSession.create({
-        userId: isGuest ? null : userId,
-        title: initialTopic,
-        messages: [],
-        currentTopic: teachingContext?.currentTopic || initialTopic,
-        explanationMode: teachingContext?.explanationMode || 'basic',
-      });
-      console.log(`[Chat:Stream] ✨ Created new session: ${session._id} (Guest: ${isGuest})`);
-    }
-
-    // ── 1.5 Update User Last Active Session ──
-    if (!isGuest && userId) {
-      User.updateOne({ _id: userId }, { lastActiveSessionId: session._id }).catch(e => 
-        console.error('[Chat:Stream] Failed to update lastActiveSessionId:', e.message)
-      );
-    }
 
     // ── 2. Build User Message ──
     const userMsg = {
@@ -342,8 +380,37 @@ export const streamMessage = async (req, res) => {
       },
     };
 
+    if (sessionId && isMongoId) {
+      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      session = await ChatSession.findOne(query);
+      if (session) {
+        session.messages.push(userMsg);
+        await session.save();
+        console.log(`[Chat:Stream] 📝 Appended user message to existing session: ${session._id}`);
+      }
+    }
+
+    if (!session) {
+      const initialTopic = detectTopic(userMessage);
+      session = await ChatSession.create({
+        userId: isGuest ? null : userId,
+        title: initialTopic,
+        messages: [userMsg], // Save immediately
+        currentTopic: teachingContext?.currentTopic || initialTopic,
+        explanationMode: teachingContext?.explanationMode || 'basic',
+      });
+      console.log(`[Chat:Stream] ✨ Created new session and saved user message: ${session._id} (Guest: ${isGuest})`);
+    }
+
+    // ── 1.5 Update User Last Active Session ──
+    if (!isGuest && userId) {
+      User.updateOne({ _id: userId }, { lastActiveSessionId: session._id }).catch(e => 
+        console.error('[Chat:Stream] Failed to update lastActiveSessionId:', e.message)
+      );
+    }
+
     const existingMessages = session?.messages || [];
-    const allMessages = [...existingMessages, userMsg];
+    const allMessages = [...existingMessages]; // userMsg is already in session.messages
 
     // ── 3. RAG + Web Search + Planner Fusion (Parallel) ──
     const topic = session?.currentTopic || teachingContext?.currentTopic || detectTopic(userMessage);
@@ -355,6 +422,18 @@ export const streamMessage = async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no'); 
     res.flushHeaders();
 
+    let clientDisconnected = false;
+    const heartbeat = setInterval(() => {
+      if (!clientDisconnected) {
+        res.write(': keep-alive\n\n');
+      }
+    }, 15000);
+
+    req.on('close', () => {
+      clientDisconnected = true;
+      clearInterval(heartbeat);
+    });
+
     // Send session ID and "Thinking" state early
     const savedSessionId = session?._id?.toString() || sessionId;
     res.write(`data: ${JSON.stringify({ type: 'meta', sessionId: savedSessionId })}\n\n`);
@@ -364,10 +443,12 @@ export const streamMessage = async (req, res) => {
     const gateSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
 
     // Run RAG and Initial Search first to provide context for the planner
+    console.log(`[Chat:Stream] 🔍 Starting RAG and Search...`);
     const [pastContext, initialWebResults] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
       gateSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
     ]);
+    console.log(`[Chat:Stream] ✅ RAG and Search complete.`);
 
     let webContextStr = formatForPrompt(initialWebResults);
 
@@ -376,6 +457,7 @@ export const streamMessage = async (req, res) => {
       console.warn(`[Chat:Stream] Planner failed: ${err.message}`);
       return null;
     });
+    console.log(`[Chat:Stream] ✅ Planner complete.`);
 
     // Apply planner override to search decision
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
@@ -402,6 +484,10 @@ export const streamMessage = async (req, res) => {
       learnerLevel: teachingContext?.learnerLevel || 'intermediate',
     };
 
+    // Build rich memory context for personalization
+    const memorySummary = buildRichMemorySummary(session);
+    const userName = req.user?.name || req.user?.settings?.general?.nickname || null;
+
     const systemPrompt = buildSystemPrompt({
       currentTopic: topic,
       explanationMode: effectiveContext.explanationMode,
@@ -409,7 +495,9 @@ export const streamMessage = async (req, res) => {
       mode,
       webContext: webContextStr,
       pastContext,
-      planner: plannerPlan
+      planner: plannerPlan,
+      memorySummary,
+      userName,
     });
     const llmMessages = buildLLMMessages(allMessages, systemPrompt, 20);
 
@@ -434,22 +522,10 @@ export const streamMessage = async (req, res) => {
     // ── 6. Stream AI Response ──
     let fullContent = '';
     let streamProvider = null;
-    let clientDisconnected = false;
     let lastStreamProvider = '';
     let cleanContent = '';
     let thoughtContent = '';
 
-    // Heartbeat to keep connection alive
-    const heartbeat = setInterval(() => {
-      if (!clientDisconnected) {
-        res.write(': keep-alive\n\n');
-      }
-    }, 15000);
-
-    req.on('close', () => {
-      clientDisconnected = true;
-      clearInterval(heartbeat);
-    });
 
     try {
       const stream = routeConversationStream(llmMessages, { 
@@ -466,11 +542,9 @@ export const streamMessage = async (req, res) => {
           fullContent += chunk;
           lastStreamProvider = provider;
 
-          // If NOT an artifact, stream chunks immediately
-          if (!isArtifactExpected) {
-            res.write(`event: message\n`);
-            res.write(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
-          }
+          // Stream chunks immediately to keep the UI responsive
+          res.write(`event: message\n`);
+          res.write(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
 
           // Extract and send thoughts immediately even if buffering the rest
           const thoughtMatch = chunk.match(/<thought>([\s\S]*?)<\/thought>/) || 
@@ -627,23 +701,27 @@ export const streamMessage = async (req, res) => {
           cleanContent = chatResponseText;
         } else {
           console.warn('[Chat:Stream] Parsed JSON missing required artifact fields');
+          if (!clientDisconnected && isArtifactExpected) {
+             res.write(`event: message\n`);
+             res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
+          }
         }
       } catch (parseErr) {
         console.warn('[Chat:Stream] Artifact JSON parse failed:', parseErr.message);
+        // FALLBACK: Send raw content as message if parsing failed
+        if (!clientDisconnected && isArtifactExpected) {
+          res.write(`event: message\n`);
+          res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
+        }
       }
+    } else if (isArtifactExpected && !clientDisconnected) {
+      // We expected an artifact but got nothing or no plan match
+      res.write(`event: message\n`);
+      res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
     }
 
-    if (!clientDisconnected) {
-      clearInterval(heartbeat);
-      res.write(`data: ${JSON.stringify({ type: 'done', provider: streamProvider })}\n\n`);
-      res.end();
-    }
-
-    // ── 8. Persist to DB (background, after stream ends) ──
+    // ── 8. Persist Assistant Message to DB (background, after stream ends) ──
     if (session && fullContent) {
-      // PERSIST USER MESSAGE (Fixed: was being lost)
-      session.messages.push(userMsg);
-
       const assistantMsg = {
         role: 'assistant',
         content: fullContent,
@@ -666,11 +744,11 @@ export const streamMessage = async (req, res) => {
       // Update title using AI output if it's the first message
       if (session.messages.length <= 2) {
         try {
-          const aiTitle = await generateSessionTitle(userMessage, fullContent);
+          const aiTitle = generateSessionTitle(userMessage);
           session.title = aiTitle;
-          console.log(`[Chat:Stream] 🏷️ AI generated title: "${aiTitle}"`);
+          console.log(`[Chat:Stream] 🏷️ Generated title: "${aiTitle}"`);
         } catch (e) {
-          console.error('[Chat:Stream] Failed to generate AI title:', e.message);
+          console.error('[Chat:Stream] Failed to generate title:', e.message);
         }
       }
 
@@ -747,6 +825,13 @@ export const streamMessage = async (req, res) => {
             await session.save().catch(e => console.error('[Artifact] Failed to link to message:', e.message));
           }
         }
+      }
+
+      // Final closure of SSE stream
+      if (!clientDisconnected) {
+        clearInterval(heartbeat);
+        res.write(`data: ${JSON.stringify({ type: 'done', provider: streamProvider })}\n\n`);
+        res.end();
       }
     }
   } catch (err) {
@@ -1153,159 +1238,6 @@ function summarizeForMemory(userMsg, aiMsg) {
   return summary;
 }
 
-/**
- * buildSystemPrompt: Construct the primary instructions for the AI
- */
-function buildSystemPrompt(args) {
-  const { 
-    currentTopic, 
-    explanationMode, 
-    learnerLevel = 'Intermediate',
-    mode, 
-    webContext, 
-    pastContext, 
-    planner 
-  } = args;
-  
-  // 1. Core Identity & Voice
-  let prompt = `You are TutorBoard AI, a knowledgeable and engaging personal tutor. 
-Your goal is to guide students through complex topics with clarity, patience, and a touch of intellectual curiosity.
-
-TOPIC: ${currentTopic || 'General Education'}
-LEARNER LEVEL: ${learnerLevel}
-EXPLANATION STYLE: ${explanationMode || 'Standard'}
-`;
-
-  // 2. Structural Guidance (from Planner)
-  if (planner && planner.sections && planner.sections.length > 0) {
-    prompt += `\nRESPONSE SECTIONS (Include these in order): ${planner.sections.join(', ')}\n`;
-  }
-
-  // 3. Tool usage (from Planner)
-  if (planner) {
-    if (planner.use_table) prompt += `- Use a Markdown table for comparisons or structured data.\n`;
-    if (planner.use_code) prompt += `- Include clear, commented code snippets where relevant.\n`;
-    if (planner.use_diagram) prompt += `- Describe visual concepts clearly so they can be easily imagined or drawn.\n`;
-  }
-
-  // 4. Tone & Narrative Instructions
-  prompt += `\nINSTRUCTIONS:
-1. NARRATIVE FLOW: Do not provide dry, documentation-style notes. Write in natural prose that flows logically from one concept to the next.
-2. VISUAL HIERARCHY: Use bolding for key terms and bullet points for lists, but embed them within a conversational narrative.
-3. PEDAGOGY: Use "we" and "us" to make the learning feel like a shared journey (e.g., "Now, let's look at how this applies...").
-4. EMOJI POLICY: Strictly NO emojis.
-5. NO REDUNDANT LABELS: Strictly DO NOT start your response with labels like "Title:", "Introduction:", "Topic:", or "Subject:". Just start with the content or a bold heading.
-`;
-
-  // 5. Tone-Specific Blocks
-  if (planner && planner.tone) {
-    const tone = planner.tone.toLowerCase();
-    if (tone.includes('storytelling')) {
-      prompt += `\nTONE - STORYTELLING: Use metaphors, analogies, and a narrative arc to explain concepts. Make it immersive.\n`;
-    } else if (tone.includes('technical') || tone.includes('rigorous')) {
-      prompt += `\nTONE - TECHNICAL: Focus on precision, formal definitions, and underlying mechanisms. Prioritize accuracy over simplicity.\n`;
-    } else if (tone.includes('intuitive') || tone.includes('simple')) {
-      prompt += `\nTONE - INTUITIVE: Focus on "the vibe" and high-level concepts before diving into details. Use relatable everyday examples.\n`;
-    } else if (tone.includes('encouraging') || tone.includes('supportive')) {
-      prompt += `\nTONE - ENCOURAGING: Use positive reinforcement and break things down into very manageable steps to build confidence.\n`;
-    } else {
-      prompt += `\nTONE: ${planner.tone}. Maintain this specific personality throughout the response.\n`;
-    }
-  }
-
-  // 6. Contextual Data
-  if (webContext) {
-    prompt += `\nWEB RESEARCH CONTEXT (Cite sources as [1], [2], etc.):\n${webContext}\n`;
-  }
-
-  if (pastContext) {
-    prompt += `\nLONG-TERM MEMORY (Previous context about this student/topic):\n${pastContext}\n`;
-  }
-
-  // 7. Artifact Generation Instructions
-  if (planner && planner.generate_artifact && planner.artifact_type) {
-    const artifactCount = planner.artifact_count || 1;
-    const artifactTypes = planner.artifact_types || [planner.artifact_type];
-
-    prompt += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ARTIFACT GENERATION REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-You MUST generate ${artifactCount > 1 ? artifactCount + ' interactive artifacts' : 'an interactive artifact'}. 
-${artifactCount > 1 ? `Types: ${artifactTypes.join(', ')}` : `Type: ${planner.artifact_type}`}
-
-Rules per artifact type:
-- code: Content MUST be raw source code only. No markdown headers. No chat-style text inside.
-- document: Content MUST be rich Markdown with headers, lists, and tables.
-- ui: Content MUST be a single HTML file with Tailwind CSS and JS.
-- table: Content MUST be Markdown table syntax.
-- diagram: Content MUST be valid Mermaid syntax (e.g. graph TD; A-->B;).
-`;
-
-    if (artifactCount > 1) {
-      prompt += `
-You MUST return your response as valid JSON with this exact structure:
-{
-  "chat_response": "**Query Topic**\\n\\nA short, professional explanation of what you created.",
-  "artifacts": [
-${artifactTypes.map((t, i) => `    {
-      "type": "${t}",
-      "title": "Descriptive Title for artifact ${i + 1}",
-      "content": "Full artifact content here...",
-      "language": "${t === 'code' ? 'js' : t === 'ui' ? 'html' : ''}",
-      "metadata": {}
-    }`).join(',\n')}
-  ]
-}
-`;
-    } else {
-      prompt += `
-You MUST return your response as valid JSON with this exact structure:
-{
-  "chat_response": "**Query Topic**\\n\\nA short, professional explanation of what you created.",
-  "artifact": {
-    "type": "${planner.artifact_type}",
-    "title": "Descriptive Title",
-    "content": "Full artifact content here...",
-    "language": "js/py/html/etc",
-    "metadata": {}
-  }
-`;
-    }
-
-    prompt += `
-STRICT RULE: Respond ONLY with the JSON. Do NOT add any text before or after the JSON.
-IF AN ARTIFACT IS NEEDED:
-1. DO NOT show JSON to the user directly in the chat.
-2. Respond ONLY with a short explanation in plain text (the chat_response field).
-3. The artifact data will be handled separately by the system.
-4. DO NOT include any redundant labels or headers (like "Title:") inside the artifact content itself.
-5. In your "chat_response", ALWAYS start with the topic of the query as a bold heading on its own line (e.g. **Introduction to DSA**).
-`;
-  }
-
-  return prompt;
-};
-
-
-/**
- * buildLLMMessages: Format history for the AI Router
- */
-/**
- * buildLLMMessages: Format history for the AI Router
- */
-function buildLLMMessages(messages, systemPrompt, limit = 20) {
-  const history = messages.slice(-limit).map(m => ({
-    role: m.role,
-    content: m.content
-  }));
-
-  return [
-    { role: 'system', content: systemPrompt },
-    ...history
-  ];
-}
 
 /**
  * detectTopic: Extract a short topic label from user message
@@ -1327,19 +1259,22 @@ function detectTopic(text) {
 /**
  * generateSessionTitle: Use LLM to create a better title after first turn
  */
-async function generateSessionTitle(userMsg, aiMsg) {
-  try {
-    const prompt = `Based on this first turn of conversation, generate a 2-4 word title for the chat.
-User: ${userMsg.substring(0, 200)}
-AI: ${aiMsg.substring(0, 200)}
+const generateSessionTitle = (userMsg) => {
+  // Simple heuristic — no API call, instant, free
+  const STRIP_WORDS = /^(what|how|why|when|where|who|can|could|would|should|is|are|was|were|does|do|did|explain|tell me about|describe|define|give me|show me|write|create|build|make|help me)\s+/i;
+  const STRIP_SUFFIX = /[?!.]+$/;
+  
+  let title = userMsg
+    .trim()
+    .replace(STRIP_SUFFIX, '')
+    .replace(STRIP_WORDS, '')
+    .split(' ')
+    .slice(0, 5)
+    .join(' ');
 
-Response ONLY with the title. No quotes.`;
-    
-    const response = await routeConversation([{ role: 'user', content: prompt }], { timeout: 10000 });
-    return response.content.replace(/^["']|["']$/g, '').trim() || 'New Session';
-  } catch (err) {
-    console.warn('[Chat] Title generation failed:', err.message);
-    return 'New Session';
-  }
-}
+  // Capitalize first letter of each significant word
+  title = title.replace(/\b\w/g, c => c.toUpperCase());
+  
+  return title || 'New Session';
+};
 

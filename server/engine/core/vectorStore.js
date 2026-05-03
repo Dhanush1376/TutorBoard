@@ -1,4 +1,4 @@
-import pool from '../../utils/core/postgres.js';
+import pool, { isPostgresReady } from '../../utils/core/postgres.js';
 import { getEmbeddings } from '../../utils/ai/llmClient.js';
 
 class VectorStoreService {
@@ -31,6 +31,8 @@ class VectorStoreService {
         return;
       }
 
+      if (!isPostgresReady()) return;
+
       const client = await pool.connect();
       try {
         // Convert embedding array to string format for pgvector '[0.1, 0.2, ...]'
@@ -59,6 +61,11 @@ class VectorStoreService {
     try {
       const queryEmbedding = await this.generateEmbedding(topic);
       if (!queryEmbedding) return "";
+
+      if (!isPostgresReady()) {
+        console.warn('[VectorStore] Skipping retrieval — Postgres not ready');
+        return "";
+      }
 
       const client = await pool.connect();
       try {

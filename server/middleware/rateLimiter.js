@@ -73,17 +73,27 @@ export async function checkSocketRate(key) {
   if (redisClient.isConnected) {
     const redisKey = `ratelimit:socket:${key}`;
     try {
-      const multi = redisClient.client.multi();
-      multi.zremrangebyscore(redisKey, 0, now - SOCKET_WINDOW_MS);
-      multi.zadd(redisKey, now, now.toString());
-      multi.zcard(redisKey);
-      multi.expire(redisKey, 65);
+      // Add a 2s timeout to avoid hanging the entire event loop on Redis latency
+      const resultPromise = (async () => {
+        const multi = redisClient.client.multi();
+        multi.zremrangebyscore(redisKey, 0, now - SOCKET_WINDOW_MS);
+        multi.zadd(redisKey, now, now.toString());
+        multi.zcard(redisKey);
+        multi.expire(redisKey, 65);
 
-      const results = await multi.exec();
-      if (results) {
-        const count = results[2][1];
-        return count <= limit;
-      }
+        const results = await multi.exec();
+        if (results) {
+          return results[2][1] <= limit;
+        }
+        return true;
+      })();
+
+      const isAllowed = await Promise.race([
+        resultPromise,
+        new Promise((resolve) => setTimeout(() => resolve(true), 2000))
+      ]);
+      
+      return isAllowed;
     } catch (err) {
       console.warn('[RateLimit] Redis failed:', err.message);
     }
@@ -105,10 +115,13 @@ export async function getGuestUsageCount(ip) {
 
   if (redisClient.isConnected) {
     try {
-      const current = await redisClient.client.get(usageKey);
-      return parseInt(current || '0', 10);
+      const count = await Promise.race([
+        redisClient.client.get(usageKey).then(c => parseInt(c || '0', 10)),
+        new Promise((resolve) => setTimeout(() => resolve(null), 2000))
+      ]);
+      if (count !== null) return count;
     } catch (err) {
-      console.warn('[RateLimit] Redis failed:', err.message);
+      console.warn('[RateLimit] Redis failed (getUsage):', err.message);
     }
   }
 
@@ -122,11 +135,18 @@ export async function checkGuestUsage(ip) {
 
   if (redisClient.isConnected) {
     try {
-      const current = await redisClient.client.incr(usageKey);
-      if (current === 1) await redisClient.client.expire(usageKey, 32 * 24 * 3600);
-      return current <= GUEST_MONTHLY_LIMIT;
+      const result = await Promise.race([
+        (async () => {
+          const current = await redisClient.client.incr(usageKey);
+          if (current === 1) await redisClient.client.expire(usageKey, 32 * 24 * 3600);
+          return current;
+        })(),
+        new Promise((resolve) => setTimeout(() => resolve(null), 2000))
+      ]);
+      
+      if (result !== null) return result <= GUEST_MONTHLY_LIMIT;
     } catch (err) {
-      console.warn('[RateLimit] Redis failed:', err.message);
+      console.warn('[RateLimit] Redis failed (checkUsage):', err.message);
     }
   }
 

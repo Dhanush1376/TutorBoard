@@ -188,14 +188,22 @@ export function createTeachingMachine(sessionId, onTransition) {
       const prevState = currentState;
       currentState = STATES.IDLE;
       isPaused = false;
-      history.push({
+
+      const transition = {
         from: prevState,
         to: STATES.IDLE,
         event: 'FORCE_RESET',
         payload: {},
         timestamp: Date.now(),
-      });
+      };
+
+      history.push(transition);
       console.log(`[SM:${sessionId}] FORCE RESET: ${prevState} → IDLE`);
+
+      // Notify listener so client state syncs
+      if (onTransition) {
+        onTransition(transition);
+      }
     },
   };
 

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Edit2, Share, Trash2, Check, X, MessageSquare, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useWindowSize from '../../hooks/useWindowSize';
+import useTutorStore from '../../store/tutorStore';
 
 const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, onRenameChat }) => {
+  const { unreadSessions } = useTutorStore();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const { isMobile } = useWindowSize();
@@ -75,6 +77,10 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                   <span className={`truncate ${isMobile ? 'text-[13px]' : 'text-[12px]'} flex-1 font-normal tracking-tight transition-colors`}>
                     {chat.title || "Untitled Session"}
                   </span>
+
+                  {unreadSessions.includes(chat.id) && activeChatId !== chat.id && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse" />
+                  )}
                   
                   {activeChatId === chat.id && (
                     <motion.div 

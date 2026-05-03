@@ -39,9 +39,14 @@ export function setupTeachingSocket(io) {
       }
 
       const userId = decoded.id || decoded._id;
-      const user = await User.findById(userId);
+      // Add a 5s timeout to avoid hanging the connection if MongoDB is slow
+      const user = await Promise.race([
+        User.findById(userId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 5000))
+      ]);
+      
       if (!user) {
-        return next(new Error('Authentication error: User account no longer exists'));
+        return next(new Error('Authentication error: User account no longer exists or timeout'));
       }
 
       socket.user = {

@@ -117,14 +117,22 @@ export const useSessionSync = (chatMessages) => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/sessions`, {
+      const resOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${state.token}`
         },
-        body: JSON.stringify(payload)
-      });
+        body: JSON.stringify(payload),
+        credentials: 'include' // CRITICAL: Allows HttpOnly tb-token cookie to be sent
+      };
+
+      // Only add Bearer header if we have a real JWT (e.g. for non-cookie fallback or legacy social auth)
+      // If token is just 'verified', we rely on the tb-token cookie.
+      if (state.token && state.token !== 'verified' && state.token !== 'guest') {
+        resOptions.headers['Authorization'] = `Bearer ${state.token}`;
+      }
+
+      const response = await fetch(`${API_URL}/api/sessions`, resOptions);
 
       if (response.ok) {
         const savedSession = await response.json();

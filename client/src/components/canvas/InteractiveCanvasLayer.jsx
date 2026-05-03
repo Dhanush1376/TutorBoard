@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
 
-import { CanvasContext } from './CanvasContext';
 import { getToolCursor } from '../../utils/cursors';
 import { getSvgPath, getStarPoints, getHexagonPoints, getDiamondPoints } from '../../utils/geometryUtils';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
@@ -67,7 +66,8 @@ const InteractiveCanvasLayer = React.memo(() => {
 
   
   // Use transform from context to handle "Infinite Drawing" coordinates
-  const { transform } = useContext(CanvasContext);
+  const context = useContext(CanvasContext);
+  const transform = context?.transform || { x: 0, y: 0, scale: 1 };
   
   const activeTool = useMemo(() => {
     if (rawActiveTool === 'draw') return 'draw:pen';
@@ -101,7 +101,6 @@ const InteractiveCanvasLayer = React.memo(() => {
     const rect = layer.getBoundingClientRect();
     if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
 
-    if (!transform) return;
     const { scale, x: tx, y: ty } = transform;
     const worldX = (e.clientX - rect.left - tx) / scale;
     const worldY = (e.clientY - rect.top - ty) / scale;

@@ -33,7 +33,8 @@ const LeftPanel = ({
   hasMore, isLoadingMore, onLoadMore,
   onQuickAsk,
   onRegenerateMessage, onFeedback, onStopGeneration,
-  onSwitchVersion
+  onSwitchVersion,
+  onOpenArtifact
 }) => {
   const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
@@ -97,6 +98,7 @@ const LeftPanel = ({
               onRegenerateMessage={onRegenerateMessage}
               onFeedback={onFeedback}
               onSwitchVersion={onSwitchVersion}
+              onOpenArtifact={onOpenArtifact}
               activeMode={activeMode}
               setActiveMode={setActiveMode}
             />

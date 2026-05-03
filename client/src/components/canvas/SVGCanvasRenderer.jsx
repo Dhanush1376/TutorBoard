@@ -5,7 +5,6 @@
 import React, { useMemo, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
-import { CanvasContext } from './CanvasContext';
 import ErrorBoundary from '../common/ErrorBoundary.jsx';
 import { resolve } from '../renderers/shapes/ShapeUtils.js';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
@@ -215,12 +214,9 @@ export default function SVGCanvasRenderer({
 
   const { highlightIds, fadeIds, camera } = useStepDirector(worldElements, timelineSteps, currentStepIndex, deltaState);
   
-  const { transform: manualTransform } = useContext(CanvasContext) || {};
-  const isUserControlled = !!manualTransform;
-
-  const Z  = isUserControlled ? 1 : camera.zoom;
-  const tx = isUserControlled ? 0 : (CANVAS_WIDTH / 2 - camera.x * CANVAS_WIDTH * Z);
-  const ty = isUserControlled ? 0 : (CANVAS_HEIGHT / 2 - camera.y * CANVAS_HEIGHT * Z);
+  const Z  = camera.zoom;
+  const tx = (CANVAS_WIDTH / 2 - camera.x * Z);
+  const ty = (CANVAS_HEIGHT / 2 - camera.y * Z);
 
   // Step animations are handled by the specialized D3/AgentCanvasRenderer pipeline.
 
@@ -233,7 +229,7 @@ export default function SVGCanvasRenderer({
       >
         <motion.g 
           animate={{ x: tx, y: ty, scale: Z }} 
-          transition={isUserControlled ? { duration: 0 } : { duration: 0.75, ease: EASE }}
+          transition={{ duration: 0.75, ease: EASE }}
         >
             <g className="world-elements">
               {worldElements.map(obj => (

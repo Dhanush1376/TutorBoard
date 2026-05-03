@@ -92,6 +92,39 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error(msg);
 });
 
+// SIGINT / SIGTERM handlers for nodemon/production graceful shutdown
+const gracefulShutdown = async (signal: string) => {
+  console.log(`[${signal}] Received. Starting graceful shutdown...`);
+  
+  if (httpServer && httpServer.listening) {
+    // Aggressively close all active connections to free the port immediately
+    if ((httpServer as any).closeAllConnections) {
+      (httpServer as any).closeAllConnections();
+    }
+    
+    httpServer.close(() => {
+      console.log('[Graceful] HTTP server closed.');
+      mongoose.connection.close(false).then(async () => {
+        console.log('[Graceful] Mongoose connection closed.');
+        await flushAnalytics();
+        console.log('[Graceful] Shutdown complete.');
+        process.exit(0);
+      });
+    });
+
+    // Forced exit if graceful shutdown takes too long
+    setTimeout(() => {
+      console.error('[Graceful] Shutdown timed out. Forcing exit.');
+      process.exit(1);
+    }, 5000);
+  } else {
+    process.exit(0);
+  }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 if (process.env.REDIS_URL) {
   try {
     const client = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
@@ -156,24 +189,21 @@ function isOriginAllowed(origin: string | undefined, callback: (err: Error | nul
   }
 }
 
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} ${res.statusCode} (${duration}ms)`);
+  });
+  next();
+});
+
 app.use(express.json({ limit: '1mb' }));
 app.use(cors({
   origin: isOriginAllowed as any,
   credentials: true,
 }));
 app.use(cookieParser());
-
-app.use('/uploads', express.static('uploads', {
-  setHeaders: (res: any) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', 'attachment');
-  }
-}));
-
-app.use((req: Request, res: Response, next: NextFunction) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
-});
 
 app.use(requestIdMiddleware);
 

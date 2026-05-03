@@ -13,11 +13,9 @@ import useStreamingResponse from '../hooks/useStreamingResponse';
 import { BASE_URL as API_URL } from '../services/api';
 
 // Canvas & Teaching Overlays
-import InfiniteCanvas from '../components/canvas/InfiniteCanvas';
+import FixedTeachingStage from '../components/canvas/FixedTeachingStage';
 import AgentCanvasRenderer from '../components/canvas/AgentCanvasRenderer';
 import InteractiveCanvasLayer from '../components/canvas/InteractiveCanvasLayer';
-import CanvasControls from '../components/canvas/CanvasControls';
-import CanvasMinimap from '../components/canvas/CanvasMinimap';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
@@ -51,8 +49,8 @@ const Home = ({ isDark }) => {
   } = machine;
 
   const {
-    canvasMode, canvasTransform, showMinimap, voiceEnabled, playbackSpeed,
-    setCanvasMode, setCanvasTransform, toggleMinimap, toggleVoice,
+    canvasMode, voiceEnabled, playbackSpeed,
+    setCanvasMode, toggleVoice,
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
@@ -63,7 +61,8 @@ const Home = ({ isDark }) => {
     activeTool, setActiveTool, addCanvasObjects,
     drawColor, noteColor, noteSize, notePinned, noteToolSize,
     textToolSize, shapeStrokeStyle,
-    drawWidth, gridType, gridSize, showGrid
+    drawWidth, gridType, gridSize, showGrid,
+    setCodeEditorData
   } = useTutorStore();
 
   const {
@@ -75,9 +74,14 @@ const Home = ({ isDark }) => {
     setWaitingForAI, setLastAIError, conversationTopic,
     switchMessageVersion, setSources, clearSources, startStreaming: storeStartStreaming,
     appendStreamChunk, appendStreamThought, updateStreamingContent, lastStreamSources,
+    setCurrentCanvasType,
     // Artifact system
     addArtifact, setArtifactDbId, setActiveArtifact, openArtifactPanel,
+    // Unread tracking
+    addUnreadSession, markSessionRead
   } = useTutorStore();
+
+
 
 
   const isGuest = !!user?.isGuest;
@@ -97,11 +101,21 @@ const Home = ({ isDark }) => {
   const fetchCloudSessions = useCallback(async (pageNum = 1) => {
     if (!isAuthenticated || user?.isGuest || !token) return;
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
     setPagination(prev => ({ ...prev, loading: true }));
     try {
-      const res = await fetch(`${API_URL}/api/sessions?page=${pageNum}&limit=15`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const fetchOptions = {
+        signal: controller.signal,
+        credentials: 'include'
+      };
+      if (token && token !== 'verified' && token !== 'guest') {
+        fetchOptions.headers = { 'Authorization': `Bearer ${token}` };
+      }
+
+      const res = await fetch(`${API_URL}/api/sessions?page=${pageNum}&limit=15`, fetchOptions);
+      clearTimeout(timeoutId);
       
       if (res.ok) {
         const data = await res.json();
@@ -145,9 +159,16 @@ const Home = ({ isDark }) => {
           hasMore: pg.hasMore,
           loading: false
         });
+      } else {
+        console.warn(`[Home] Cloud fetch failed with status: ${res.status}`);
+        setPagination(prev => ({ ...prev, loading: false }));
       }
     } catch (err) {
-      console.error('Failed to restore cloud sessions:', err);
+      if (err.name === 'AbortError') {
+        console.warn('[Home] Cloud fetch timed out after 10s');
+      } else {
+        console.error('Failed to restore cloud sessions:', err);
+      }
       setPagination(prev => ({ ...prev, loading: false }));
     } finally {
       setHistoryFetched(true);
@@ -186,6 +207,11 @@ const Home = ({ isDark }) => {
   const activeChatId = machineSessionId;
   const setActiveChatId = storeSetSessionId;
 
+  const activeChatIdRef = useRef(activeChatId);
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+  }, [activeChatId]);
+
   // ─── Leave Chat / Close Snapshot Logic ───
   useEffect(() => {
     // If sidebar is closed and we were viewing a snapshot, return to main lesson
@@ -220,6 +246,7 @@ const Home = ({ isDark }) => {
   const hasHydratedActive = useRef(false);
   const lastArtifactIdRef = useRef(null);
   const isArtifactExpectedRef = useRef(false);
+  const currentCanvasTypeRef = useRef(null);
   useEffect(() => {
     // Wait for auth to finish deciding if we are guest or user
     if (authLoading) return;
@@ -430,7 +457,7 @@ const Home = ({ isDark }) => {
   const [prompt, setPrompt] = useState('');
   const [activeMode, setActiveMode] = useState(null);
 
-  const canvasRef = useRef(null);
+
   const isSubmittingRef = useRef(false);
   const fetchAbortControllerRef = useRef(null);
   const msgIdCounter = useRef(0);
@@ -525,14 +552,19 @@ const Home = ({ isDark }) => {
     console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
     
     try {
-      const res = await fetch(`${API_URL}/api/sessions`, {
+      const fetchOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(payload)
-      });
+        body: JSON.stringify(payload),
+        credentials: 'include'
+      };
+      if (token && token !== 'verified' && token !== 'guest') {
+        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/sessions`, fetchOptions);
       
       if (res.ok) {
         const saved = await res.json();
@@ -601,55 +633,7 @@ const Home = ({ isDark }) => {
   // ─── Logic ───
   const { toggleSidebar } = useTutorStore();
 
-  // ── Auto-Centering Logic ──
-  const isAutoFollow = useRef(true); 
-  const lastCenteredStep = useRef(-1);
-  useEffect(() => {
-    if (!canvasObjects || canvasObjects.length === 0) return;
-    if (currentStepIndex === lastCenteredStep.current) return;
-    if (!isAutoFollow.current) return; // User manually panned - pause auto-center
-    
-    const step = canvasSteps[currentStepIndex];
-    if (!step) return;
 
-    const ids = new Set(step.objectIds || []);
-    const objs = canvasObjects.filter(o => ids.has(o.id));
-    
-    // Canvas dimensions for coordinate conversion (elements use 0-1 normalized coords)
-    const CW = 800, CH = 600;
-    
-    if (objs.length > 0) {
-      // Calculate Bounding Box — convert normalized (0-1) coords to pixel coords
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      objs.forEach(o => {
-        // Elements store x/y as normalized 0-1 values, convert to pixel space
-        const rawX = safeNum(o.x || o.cx || o.x1, 0.5);
-        const rawY = safeNum(o.y || o.cy || o.y1, 0.5);
-        const x = (rawX <= 1 ? rawX * CW : rawX);
-        const y = (rawY <= 1 ? rawY * CH : rawY);
-        const w = safeNum(o.w || o.r || (o.x2 ? Math.abs(o.x2 - o.x1) : 0), 100);
-        const h = safeNum(o.h || o.r || (o.y2 ? Math.abs(o.y2 - o.y1) : 0), 100);
-        
-        minX = Math.min(minX, x - w/2);
-        maxX = Math.max(maxX, x + w/2);
-        minY = Math.min(minY, y - h/2);
-        maxY = Math.max(maxY, y + h/2);
-      });
-
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-
-      // Smoothly center
-      setTimeout(() => {
-        canvasRef.current?.centerOn(centerX, centerY, 0.85);
-      }, 100);
-    } else {
-      // Fallback: center on default point
-      canvasRef.current?.centerOn(400, 300, 1);
-    }
-    
-    lastCenteredStep.current = currentStepIndex;
-  }, [currentStepIndex, canvasObjects, canvasSteps]);
 
   const safeNum = (v, f) => { const n = parseFloat(v); return isNaN(n) ? f : n; };
 
@@ -667,6 +651,7 @@ const Home = ({ isDark }) => {
   const handleSelectChat = async (id) => {
     setActiveChatId(id);
     setActiveView('chat');
+    markSessionRead(id);
     
     // 1. Immediate local restore (minimal snapshot)
     const localSession = chatHistory.find(s => s.id === id);
@@ -703,9 +688,11 @@ const Home = ({ isDark }) => {
     if (isAuthenticated && !user?.isGuest && id && !id.startsWith('session-')) {
       try {
         console.log(`[Home] 🔄 Fetching full pedagogical state for session ${id}...`);
-        const res = await fetch(`${API_URL}/api/sessions/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const fetchOptions = { credentials: 'include' };
+        if (token && token !== 'verified' && token !== 'guest') {
+          fetchOptions.headers = { 'Authorization': `Bearer ${token}` };
+        }
+        const res = await fetch(`${API_URL}/api/sessions/${id}`, fetchOptions);
         
         if (res.ok) {
           const fullData = await res.json();
@@ -795,10 +782,14 @@ const Home = ({ isDark }) => {
         const dbId = sessionToRestore.chatSessionId || id;
         if (isAuthenticated && !isGuest && dbId && !dbId.startsWith('session-') && !dbId.startsWith('msg-')) {
           try {
-            const res = await fetch(`${API_URL}/api/sessions/${dbId}`, {
+            const fetchOptions = { 
               method: 'DELETE',
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
+              credentials: 'include'
+            };
+            if (token && token !== 'verified' && token !== 'guest') {
+              fetchOptions.headers = { 'Authorization': `Bearer ${token}` };
+            }
+            const res = await fetch(`${API_URL}/api/sessions/${dbId}`, fetchOptions);
             if (res.ok) {
               console.log(`[Home] ✅ Session ${id} permanently deleted from cloud.`);
             } else {
@@ -849,14 +840,18 @@ const Home = ({ isDark }) => {
     // Persistent cloud update
     if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
       try {
-        await fetch(`${API_URL}/api/sessions`, {
+        const fetchOptions = {
           method: 'POST',
           headers: { 
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ sessionId: id, title: newTitle })
-        });
+          body: JSON.stringify({ sessionId: id, title: newTitle }),
+          credentials: 'include'
+        };
+        if (token && token !== 'verified' && token !== 'guest') {
+          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+        }
+        await fetch(`${API_URL}/api/sessions`, fetchOptions);
         console.log(`[Home] ✅ Session ${id} renamed to "${newTitle}" in cloud.`);
       } catch (err) {
         console.error('[Home] Failed to rename session in cloud:', err);
@@ -865,21 +860,73 @@ const Home = ({ isDark }) => {
   };
 
   const handleOpenCanvas = (messageId) => {
+    // 1. Try to find snapshot from chatHistory
     const session = chatHistory.find(s => s.id === activeChatId);
+    let snapshot = null;
+
     if (session) {
-      const msg = session.messages.find(m => m.id === messageId);
-      if (msg && msg.canvasSnapshot) {
-        // Restore full pedagogical context including renderer type and original title
-        setCanvasSnapshot({
-          ...msg.canvasSnapshot,
-          currentStepIndex: 0 // Always start snapshot at first step
-        });
-        useTutorStore.getState().setActiveSnapshotId(messageId);
+      const msg = session.messages?.find(m => m.id === messageId || m._id === messageId);
+      if (msg?.canvasSnapshot) {
+        snapshot = msg.canvasSnapshot;
       }
     }
-    // Reveal the canvas by collapsing the sidebar
-    // setSidebarOpen(false); // USER_REQUEST: Do not close while generating/visualizing
+
+    // 2. Fallback: Try conversationMessages from the store
+    if (!snapshot) {
+      const storeMsg = conversationMessages.find(m => m.id === messageId || m._id === messageId);
+      if (storeMsg?.canvasSnapshot) {
+        snapshot = storeMsg.canvasSnapshot;
+      }
+    }
+
+    // 3. Final fallback: Use the current live canvas state from the store
+    if (!snapshot) {
+      const store = useTutorStore.getState();
+      if (store.canvasObjects?.length > 0 || store.canvasSteps?.length > 0) {
+        snapshot = {
+          canvasObjects: store.canvasObjects || [],
+          canvasSteps: store.canvasSteps || [],
+          totalSteps: store.totalSteps || store.canvasSteps?.length || 0,
+          currentStepIndex: store.currentStepIndex || 0,
+          renderer: store.renderer || 'cinematic',
+          title: store.timeline?.title || 'Visual Lesson',
+        };
+        console.log('[Home] Using live store state as canvas snapshot fallback');
+      }
+    }
+
+    if (snapshot) {
+      setCanvasSnapshot({
+        ...snapshot,
+        currentStepIndex: snapshot.currentStepIndex || 0,
+      });
+      useTutorStore.getState().setActiveSnapshotId(messageId);
+      console.log('[Home] Canvas snapshot opened for message:', messageId);
+    } else {
+      console.warn('[Home] No canvas data found for message:', messageId);
+    }
   };
+
+  const handleOpenArtifactFromCode = useCallback((code, lang) => {
+    // Normalize language for the visualizer
+    const langMap = { 
+      'js': 'javascript', 'javascript': 'javascript',
+      'ts': 'typescript', 'typescript': 'typescript',
+      'py': 'python', 'python': 'python', 
+      'rb': 'ruby', 'ruby': 'ruby',
+      'go': 'go', 'golang': 'go',
+      'rs': 'rust', 'rust': 'rust',
+      'sql': 'sql', 
+      'html': 'html', 
+      'css': 'css',
+      'cpp': 'cpp', 'c++': 'cpp',
+      'c': 'c' 
+    };
+    const normalizedLang = langMap[lang?.toLowerCase()] || lang || 'javascript';
+
+    // 1. Open in the Code Visualizer (IDE-like toolbar modal)
+    setCodeEditorData(code, normalizedLang);
+  }, [setCodeEditorData]);
 
   // ── AI Chat Injection from Notes ──
   useEffect(() => {
@@ -945,31 +992,32 @@ const Home = ({ isDark }) => {
       }
 
       // ── 3. Call the SSE Streaming Chat API ──
-      const headers = { 'Content-Type': 'application/json' };
-      if (token && token !== 'guest') {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const chatPayload = {
-        sessionId: /^[0-9a-fA-F]{24}$/.test(workingSessionId) ? workingSessionId : undefined,
-        userMessage: userPrompt,
-        mode: activeMode || 'quick',
-        teachingContext: {
-          currentTopic: conversationTopic || undefined,
-          explanationMode: 'basic',
-          learnerLevel: 'intermediate',
+      const fetchOptions = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          sessionId: /^[0-9a-fA-F]{24}$/.test(workingSessionId) ? workingSessionId : undefined,
+          userMessage: userPrompt,
+          mode: activeMode || 'quick',
+          teachingContext: {
+            currentTopic: conversationTopic || undefined,
+            explanationMode: 'basic',
+            learnerLevel: 'intermediate',
+          },
+        }),
+        credentials: 'include'
       };
+      if (token && token !== 'verified' && token !== 'guest') {
+        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+      }
 
       isArtifactExpectedRef.current = false;
       fetchAbortControllerRef.current = new AbortController();
+      fetchOptions.signal = fetchAbortControllerRef.current.signal;
 
-      const res = await fetch(`${API_URL}/api/chat/stream`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(chatPayload),
-        signal: fetchAbortControllerRef.current.signal,
-      });
+      const res = await fetch(`${API_URL}/api/chat/stream`, fetchOptions);
 
       fetchAbortControllerRef.current = null;
 
@@ -1019,22 +1067,23 @@ const Home = ({ isDark }) => {
             if (eventType === 'chunk' || eventType === 'message') {
               const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
               
-              // FAIL-SAFE: If we expect an artifact, or if the text looks like raw JSON, suppress it from the UI
-              // We only want to show the clean 'chat_override' content or non-JSON conversational text.
-              const looksLikeJson = typeof text === 'string' && (text.trim().startsWith('{') || text.trim().startsWith('['));
-              const isLikelyJsonChunk = isArtifactExpectedRef.current && (looksLikeJson || fullContent.trim().startsWith('{'));
-
-              if (!isLikelyJsonChunk && text) {
+              if (text) {
                 fullContent += text;
-                appendStreamChunk(text);
-              } else if (text) {
-                // Still accumulate it locally for parsing at the end, just don't show it
-                fullContent += text;
+                // Isolation check: Only stream to UI if this is the active chat
+                if (workingSessionId === activeChatIdRef.current) {
+                  appendStreamChunk(text);
+                } else {
+                  addUnreadSession(workingSessionId);
+                }
               }
-            } else if (eventType === 'thought') {
-              const thought = eventData.thought || eventData.content || '';
-              thoughtContent += thought;
-              appendStreamThought(thought);
+            } else if (eventType === 'thought' || eventType === 'status') {
+              const thought = eventData.thought || eventData.message || eventData.content || '';
+              thoughtContent += thought + (eventType === 'status' ? '\n' : '');
+              if (workingSessionId === activeChatIdRef.current) {
+                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''));
+              } else {
+                addUnreadSession(workingSessionId);
+              }
             } else if (eventType === 'sources') {
               setSources(eventData.sources || []);
             } else if (eventType === 'message_ids') {
@@ -1053,8 +1102,13 @@ const Home = ({ isDark }) => {
                 return s;
               }));
             } else if (eventType === 'plan') {
-              if (eventData.plan?.generate_artifact) {
+              const plan = eventData.plan || {};
+              if (plan.generate_artifact) {
                 isArtifactExpectedRef.current = true;
+              }
+              if (plan.suggest_canvas && plan.canvas_type) {
+                currentCanvasTypeRef.current = plan.canvas_type;
+                setCurrentCanvasType(plan.canvas_type);
               }
             } else if (eventType === 'status') {
               console.log('[Home] AI Status:', eventData.message);
@@ -1106,7 +1160,11 @@ const Home = ({ isDark }) => {
                 setArtifactDbId(savedLocalId, eventData.artifactId);
               }
             } else if (eventType === 'chat_override') {
-              updateStreamingContent(eventData.content);
+              if (workingSessionId === activeChatIdRef.current) {
+                updateStreamingContent(eventData.content);
+              } else {
+                addUnreadSession(workingSessionId);
+              }
               fullContent = eventData.content;
               setChatHistory(prev => prev.map(s => {
                 if (s.id === (receivedSessionId || workingSessionId)) {
@@ -1127,7 +1185,11 @@ const Home = ({ isDark }) => {
             // Not JSON data, could be raw string
             if (lastEventType === 'message' && !dataStr.startsWith('{')) {
               fullContent += dataStr;
-              appendStreamChunk(dataStr);
+              if (workingSessionId === activeChatIdRef.current) {
+                appendStreamChunk(dataStr);
+              } else {
+                addUnreadSession(workingSessionId);
+              }
             }
           }
         }
@@ -1136,8 +1198,9 @@ const Home = ({ isDark }) => {
       console.log("FULL RESPONSE (Client):", fullContent);
 
       // ── 5. Finalize streaming ──
-      finishStreaming(fullContent, thoughtContent, lastStreamSources, lastArtifactIdRef.current);
+      finishStreaming(fullContent, workingSessionId, thoughtContent, lastStreamSources, lastArtifactIdRef.current, currentCanvasTypeRef.current);
       lastArtifactIdRef.current = null; // Reset for next turn
+      currentCanvasTypeRef.current = null;
 
       // Background persist for sidebar sync
       if (isAuthenticated && !user?.isGuest && token) {
@@ -1184,11 +1247,16 @@ const Home = ({ isDark }) => {
 
     try {
       if (isMongoId && isAuthenticated && !user?.isGuest && token) {
-        const res = await fetch(`${API_URL}/api/chat/edit`, {
+        const fetchOptions = {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: dbSessionId, messageId, newContent }),
-        });
+          credentials: 'include'
+        };
+        if (token && token !== 'verified' && token !== 'guest') {
+          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch(`${API_URL}/api/chat/edit`, fetchOptions);
         if (res.ok) {
           const data = await res.json();
           const assistantMsgId = data.assistantMessageId || getMsgId('assistant');
@@ -1198,18 +1266,21 @@ const Home = ({ isDark }) => {
       }
 
       // Fallback: call the regular chat API with truncated context
-      const headers = { 'Content-Type': 'application/json' };
-      if (token && token !== 'guest') headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_URL}/api/chat`, {
+      const fetchOptions = {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: isMongoId ? dbSessionId : undefined,
           userMessage: newContent,
           mode: activeMode || 'quick',
         }),
-      });
+        credentials: 'include'
+      };
+      if (token && token !== 'verified' && token !== 'guest') {
+        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/chat`, fetchOptions);
 
       if (res.ok) {
         const data = await res.json();
@@ -1237,11 +1308,16 @@ const Home = ({ isDark }) => {
 
     try {
       if (isMongoId && isAuthenticated && !user?.isGuest && token) {
-        const res = await fetch(`${API_URL}/api/chat/regenerate`, {
+        const fetchOptions = {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: dbSessionId }),
-        });
+          credentials: 'include'
+        };
+        if (token && token !== 'verified' && token !== 'guest') {
+          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch(`${API_URL}/api/chat/regenerate`, fetchOptions);
         if (res.ok) {
           const data = await res.json();
           // ── OPTIMISTIC UPDATE: Add a new version placeholder immediately ──
@@ -1258,12 +1334,16 @@ const Home = ({ isDark }) => {
       const lastUserMsg = useTutorStore.getState().conversationMessages
         .filter(m => m.role === 'user').pop();
       if (lastUserMsg) {
-        const headers = { 'Content-Type': 'application/json' };
-        if (token && token !== 'guest') headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`${API_URL}/api/chat`, {
-          method: 'POST', headers,
+        const fetchOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userMessage: lastUserMsg.content, mode: activeMode || 'quick' }),
-        });
+          credentials: 'include'
+        };
+        if (token && token !== 'verified' && token !== 'guest') {
+          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch(`${API_URL}/api/chat`, fetchOptions);
         if (res.ok) {
           const data = await res.json();
           streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
@@ -1281,11 +1361,16 @@ const Home = ({ isDark }) => {
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
     if (isMongoId && isAuthenticated && !user?.isGuest && token) {
-      fetch(`${API_URL}/api/chat/message`, {
+      const fetchOptions = {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: dbSessionId, messageId }),
-      }).catch(err => console.error('[Home] Delete sync failed:', err));
+        credentials: 'include'
+      };
+      if (token && token !== 'verified' && token !== 'guest') {
+        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+      }
+      fetch(`${API_URL}/api/chat/message`, fetchOptions).catch(err => console.error('[Home] Delete sync failed:', err));
     }
   };
 
@@ -1298,11 +1383,16 @@ const Home = ({ isDark }) => {
 
       if (isMongoId && isAuthenticated && !user?.isGuest && token) {
         try {
-          await fetch(`${API_URL}/api/chat/feedback`, {
+          const fetchOptions = {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId: dbSessionId, messageId, feedback }),
-          });
+            credentials: 'include'
+          };
+          if (token && token !== 'verified' && token !== 'guest') {
+            fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+          }
+          await fetch(`${API_URL}/api/chat/feedback`, fetchOptions);
         } catch (err) {
           console.error('[Home] Feedback sync failed:', err);
         }
@@ -1339,6 +1429,7 @@ const Home = ({ isDark }) => {
       onSwitchVersion={switchMessageVersion}
       getMsgId={getMsgId}
       prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit}
+      onOpenArtifact={handleOpenArtifactFromCode}
       activeMode={activeMode} setActiveMode={setActiveMode}
       selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent}
       isDark={isDark}
@@ -1360,32 +1451,86 @@ const Home = ({ isDark }) => {
         sidebar={leftPanel}
       >
         {/* 2. Main Background Canvas */}
-        <div className="absolute inset-0 z-0">
-          <InfiniteCanvas
-            ref={canvasRef}
-            onViewportChange={setCanvasTransform}
-            onInteractionStart={() => { isAutoFollow.current = false; }}
-            onClick={() => {
-              setSelectedElements([]);
-              setHasTextSelection(false);
-            }}
-            overlay={<InteractiveCanvasLayer />}
-          >
-            <AgentCanvasRenderer
-              timeline={timeline}
-              objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
-              steps={canvasSteps}
+        <div className="absolute inset-0 z-0 bg-[var(--bg-primary)]">
+          {(timeline || (canvasObjects && canvasObjects.length > 0)) ? (
+            <FixedTeachingStage
               currentStepIndex={currentStepIndex}
-              onGoToStep={goToStep}
-              doubtHistory={doubtHistory}
-              isDoubtProcessing={isDoubtProcessing}
-              activeDoubtId={machine.activeDoubtId}
-              onJumpToDoubt={machine.jumpToDoubt}
-              onPinDoubt={machine.pinDoubtToCanvas}
-              onResume={resume}
-              onAskDoubt={askDoubt}
-            />
-          </InfiniteCanvas>
+              totalSteps={totalSteps}
+              onNext={nextStep}
+              onPrev={prevStep}
+              onPlay={play}
+              onPause={pause}
+              isPlaying={isPlaying}
+              playbackSpeed={machine.playbackSpeed}
+              onSpeedChange={setSpeed}
+              topic={timeline?.title || "Lesson Session"}
+            >
+              <AgentCanvasRenderer
+                timeline={timeline}
+                objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
+                steps={canvasSteps}
+                currentStepIndex={currentStepIndex}
+                onGoToStep={goToStep}
+                doubtHistory={doubtHistory}
+                isDoubtProcessing={isDoubtProcessing}
+                activeDoubtId={machine.activeDoubtId}
+                onJumpToDoubt={machine.jumpToDoubt}
+                onPinDoubt={machine.pinDoubtToCanvas}
+                onResume={resume}
+                onAskDoubt={askDoubt}
+              />
+            </FixedTeachingStage>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center relative p-8">
+              {/* The "Empty" Stage Frame (3D Glassy) */}
+              <div 
+                className="absolute inset-8 rounded-[2.5rem] bg-[var(--bg-secondary)] opacity-20 pointer-events-none"
+                style={{
+                  boxShadow: `
+                    0 0 0 1px var(--border-color),
+                    inset 0 1px 2px rgba(255,255,255,0.05)
+                  `
+                }}
+              />
+
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="relative z-10 flex flex-col items-center"
+              >
+                {/* Minimalist 3D Glass Hub */}
+                <div className="relative w-16 h-16 flex items-center justify-center mb-8">
+                  <div className="absolute inset-0 bg-[var(--info)] opacity-10 blur-2xl rounded-full scale-150" />
+                  <div 
+                    className="relative w-full h-full rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center overflow-hidden border border-[var(--border-color)]"
+                    style={{
+                      boxShadow: `
+                        0 10px 30px -5px rgba(0,0,0,0.4),
+                        inset 0 1px 1px rgba(255,255,255,0.1)
+                      `
+                    }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
+                    <Cpu size={24} className="text-[var(--text-primary)] opacity-50" />
+                  </div>
+                </div>
+
+                <div className="text-center space-y-3">
+                  <h3 className="text-3xl font-light text-[var(--text-primary)] tracking-tight opacity-80">
+                    Start <span className="font-semibold">Learning</span>
+                  </h3>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="h-px w-6 bg-[var(--border-color)]" />
+                    <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-[0.3em] font-medium opacity-40">
+                      Teaching Engine Ready
+                    </p>
+                    <div className="h-px w-6 bg-[var(--border-color)]" />
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
           
           {/* Initial Load Skeleton Overlay */}
           <AnimatePresence>
@@ -1446,36 +1591,7 @@ const Home = ({ isDark }) => {
           }} 
         />
 
-        {/* ─── 4. GLOBAL CANVAS TOOLS ─── */}
-        <CanvasMinimap
-          visible={showMinimap}
-          objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
-          transform={canvasTransform}
-          onNavigate={(wx, wy) => canvasRef.current?.centerOn(wx, wy)}
-          layoutView={layoutView}
-        />
 
-        <CanvasControls
-          transform={canvasTransform}
-          onZoomIn={() => canvasRef.current?.zoomIn?.()}
-          onZoomOut={() => canvasRef.current?.zoomOut?.()}
-          onFitToContent={() => { 
-            if (isSidebarOpen) {
-              canvasRef.current?.fitToContent?.(); 
-              setSidebarOpen(false); 
-            } else {
-              setSidebarOpen(true);
-            }
-          }}
-          onResetView={() => {
-            isAutoFollow.current = true;
-            canvasRef.current?.resetView?.();
-          }}
-          onToggleMinimap={toggleMinimap}
-          showMinimap={showMinimap}
-          layoutView={layoutView}
-          isSidebarOpen={isSidebarOpen}
-        />
 
         {/* ── G. Doubt Resume Pill (Contextual) ── */}
         <AnimatePresence>
