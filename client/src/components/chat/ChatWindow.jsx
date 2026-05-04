@@ -77,8 +77,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
   );
 };
 
-// ── Thinking / Typing Indicator ─────────────────────────────────────────────
-
+// ── Thinking / Typing indicator ──
 const ThinkingIndicator = () => (
   <motion.div
     initial={{ opacity: 0, y: 12, scale: 0.95 }}
@@ -114,8 +113,8 @@ const ThinkingIndicator = () => (
             <motion.div
               key={i}
               animate={{ 
-                opacity: [0.2, 1, 0.2],
-                scale: [0.8, 1.2, 0.8]
+                scale: [1, 1.5, 1],
+                opacity: [0.3, 1, 0.3]
               }}
               transition={{ 
                 duration: 1, 
@@ -192,7 +191,7 @@ const ChatWindow = ({
   const isEmpty = messages.length === 0 && !isGenerating && !isCurrentlyWaiting && !isCurrentlyStreaming;
 
   return (
-    <div ref={containerRef} className="flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar">
+    <div ref={containerRef} className="chat-window flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar">
       <AnimatePresence mode="wait">
         {isEmpty ? (
           <ChatLanding key="empty" activeMode={activeMode} setActiveMode={setActiveMode} />
@@ -259,13 +258,10 @@ const ChatWindow = ({
               />
             )}
 
-            {/* ── Thinking Indicator (waiting for AI) ── */}
+            {/* Thinking Indicator */}
             <AnimatePresence>
-              {(isCurrentlyWaiting || (isGenerating && !isCurrentlyStreaming)) && (
-                <ThinkingIndicator key="thinking" />
-              )}
+              {(isGenerating || isCurrentlyWaiting) && <ThinkingIndicator key="thinking" />}
             </AnimatePresence>
-
             <div ref={bottomRef} className="h-2" />
           </motion.div>
         )}

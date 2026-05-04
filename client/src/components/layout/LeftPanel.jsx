@@ -34,7 +34,8 @@ const LeftPanel = ({
   onQuickAsk,
   onRegenerateMessage, onFeedback, onStopGeneration,
   onSwitchVersion,
-  onOpenArtifact
+  onOpenArtifact,
+  isSplitView = false
 }) => {
   const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
@@ -74,7 +75,7 @@ const LeftPanel = ({
 
   // ── RENDER HELPERS ──
   const renderScrollContent = () => {
-    if (activeView === 'chat') {
+    if (activeView === 'chat' || isSplitView) {
       return (
         <div className="flex flex-col gap-2 relative min-h-full">
           {/* Compact Back Button for Sidebar Chat */}

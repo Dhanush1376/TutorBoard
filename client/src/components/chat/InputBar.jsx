@@ -23,11 +23,13 @@ import {
   Globe,
   Sparkles,
   Lock,
-  Timer
+  Timer,
+  SkipBack
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import useTutorStore from '../../store/tutorStore';
+import { useShallow } from 'zustand/react/shallow';
 import useWindowSize from '../../hooks/useWindowSize';
 import { TRIAL_LIMITS, isFeatureBlocked } from '../../constants/trialConfig';
 
@@ -35,6 +37,10 @@ import { BASE_URL as API_URL } from '../../services/api';
 
 const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk, onStopGeneration }) => {
   const { apiPrefs, switchApi, user } = useAuth();
+  const { selectedTextContext, setSelectedTextContext } = useTutorStore(useShallow(s => ({
+    selectedTextContext: s.selectedTextContext,
+    setSelectedTextContext: s.setSelectedTextContext
+  })));
   const textareaRef = useRef(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
@@ -434,7 +440,32 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </div>
             </div>
           ) : (
-            <div className="relative w-full">
+            <>
+            {/* Selected Context Pill */}
+              <AnimatePresence>
+            {selectedTextContext && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 5 }}
+                className="mx-4 mt-3 mb-1 p-2 pl-3 bg-[var(--bg-tertiary)]/50 border-l-2 border-[var(--text-tertiary)] rounded-r-lg flex items-center justify-between gap-3 group"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] text-[var(--text-tertiary)] font-medium truncate italic opacity-80">
+                    "{selectedTextContext}"
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedTextContext(null)}
+                  className="p-1 hover:text-red-500 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="relative w-full">
               <textarea
                 ref={textareaRef}
                 value={value}
@@ -458,21 +489,23 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   {value.length}/{TRIAL_LIMITS.MAX_INPUT_LENGTH}
                 </div>
               )}
-            </div>
+              </div>
+            </>
           )}
         </div>
 
         {/* ── Action Bar (Bottom Row) ── */}
-        <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
+        {/* ── Action Bar (Bottom Row) ── */}
+        <div className="relative flex items-center justify-between px-2 py-1.5 min-h-[48px]">
           
-          <div className="flex items-center gap-0.5">
-            {/* 1. Plus Menu */}
+          {/* Left Cluster */}
+          <div className="flex items-center gap-1">
             <div className="relative">
               <button
                 onClick={() => { setIsPlusMenuOpen(!isPlusMenuOpen); setIsToolsMenuOpen(false); setIsAgentMenuOpen(false); }}
-                className={`p-2.5 rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isPlusMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isPlusMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
               >
-                <Plus size={isMobile ? 22 : 19} strokeWidth={2} />
+                <Plus size={20} strokeWidth={2} />
               </button>
               <AnimatePresence>
                 {isPlusMenuOpen && (
@@ -511,13 +544,12 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </AnimatePresence>
             </div>
 
-            {/* 2. Tools Menu */}
             <div className="relative">
               <button
                 onClick={() => { setIsToolsMenuOpen(!isToolsMenuOpen); setIsPlusMenuOpen(false); setIsAgentMenuOpen(false); }}
-                className={`p-2.5 rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isToolsMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isToolsMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
               >
-                <Settings2 size={isMobile ? 22 : 19} strokeWidth={2} />
+                <Settings2 size={20} strokeWidth={2} />
               </button>
               <AnimatePresence>
                 {isToolsMenuOpen && (
@@ -572,80 +604,78 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 )}
               </AnimatePresence>
             </div>
-
-            {/* 3. Agent Selector */}
-            <div className="relative">
-              <button
-                onClick={() => { setIsAgentMenuOpen(!isAgentMenuOpen); setIsPlusMenuOpen(false); setIsToolsMenuOpen(false); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] group active:scale-95 ${isAgentMenuOpen ? 'bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : ''}`}
-              >
-                {(() => {
-                  const agent = agents.find(a => a.id === selectedAgent) || agents[0];
-                  const Icon = agent.icon;
-                  return (
-                    <>
-                      <Icon size={17} strokeWidth={2} className={`${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`} />
-                      {!isMobile && (
-                        <span className={`text-[11px] font-medium tracking-tight uppercase ${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
-                          {agent.name}
-                        </span>
-                      )}
-                      <ChevronDown size={10} strokeWidth={2} className={`transition-transform duration-300 ${isAgentMenuOpen ? 'rotate-180 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]/50 group-hover:text-[var(--text-tertiary)]'}`} />
-                    </>
-                  );
-                })()}
-              </button>
-              <AnimatePresence>
-                {isAgentMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-48' : 'w-56'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] p-1.5 shadow-2xl flex flex-col gap-1`}
-                  >
-                    {agents.map((agent, idx) => {
-                      const Icon = agent.icon;
-                      const isActive = selectedAgent === agent.id;
-                      const isFirstCustom = agent.isCustom && !agents[idx - 1]?.isCustom;
-
-                      return (
-                        <React.Fragment key={agent.id}>
-                          {isFirstCustom && (
-                            <div className="pt-2 pb-1 px-3 flex items-center gap-3">
-                              <span className="text-[9px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]/60">APIs</span>
-                              <div className="flex-1 h-[1px] bg-[var(--border-color)]/30" />
-                            </div>
-                          )}
-                          <button
-                            onClick={() => { setSelectedAgent(agent.id); setIsAgentMenuOpen(false); }}
-                            className={`flex items-center justify-between w-full px-3 py-2.5 text-[13.5px] rounded-xl transition-all font-medium ${
-                              isActive
-                                ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
-                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Icon size={16} strokeWidth={2} />
-                              <span className="truncate max-w-[120px]">{agent.name}</span>
-                            </div>
-                            {isActive && (
-                              <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-white/20" />
-                            )}
-                          </button>
-                        </React.Fragment>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
 
-          <div className="flex-1" />
+          {/* Center: Agent Selector (Fixed Center) */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center z-10">
+            <button
+              onClick={() => { setIsAgentMenuOpen(!isAgentMenuOpen); setIsPlusMenuOpen(false); setIsToolsMenuOpen(false); }}
+              className={`flex items-center justify-center gap-2 h-10 px-3 min-w-[100px] rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] group active:scale-95 ${isAgentMenuOpen ? 'bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : ''}`}
+            >
+              {(() => {
+                const agent = agents.find(a => a.id === selectedAgent) || agents[0];
+                const Icon = agent.icon;
+                return (
+                  <>
+                    <Icon size={17} strokeWidth={2} className={`${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`} />
+                    {!isMobile && (
+                      <span className={`text-[9.5px] font-bold tracking-[0.05em] uppercase ${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
+                        {agent.name}
+                      </span>
+                    )}
+                    <ChevronDown size={10} strokeWidth={2} className={`transition-transform duration-300 ${isAgentMenuOpen ? 'rotate-180 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]/50 group-hover:text-[var(--text-tertiary)]'}`} />
+                  </>
+                );
+              })()}
+            </button>
+            <AnimatePresence>
+              {isAgentMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 ${isMobile ? 'w-48' : 'w-56'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] p-1.5 shadow-2xl flex flex-col gap-1`}
+                >
+                  {agents.map((agent, idx) => {
+                    const Icon = agent.icon;
+                    const isActive = selectedAgent === agent.id;
+                    const isFirstCustom = agent.isCustom && !agents[idx - 1]?.isCustom;
 
-          <div className="flex items-center gap-1.5">
-            {/* Voice Input */}
+                    return (
+                      <React.Fragment key={agent.id}>
+                        {isFirstCustom && (
+                          <div className="pt-2 pb-1 px-3 flex items-center gap-3">
+                            <span className="text-[9px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]/60">APIs</span>
+                            <div className="flex-1 h-[1px] bg-[var(--border-color)]/30" />
+                          </div>
+                        )}
+                        <button
+                          onClick={() => { setSelectedAgent(agent.id); setIsAgentMenuOpen(false); }}
+                          className={`flex items-center justify-between w-full px-3 py-2 text-[12px] rounded-xl transition-all font-medium ${
+                            isActive
+                              ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Icon size={16} strokeWidth={2} />
+                            <span className="truncate max-w-[120px]">{agent.name}</span>
+                          </div>
+                          {isActive && (
+                            <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-white/20" />
+                          )}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Right Cluster */}
+          <div className="flex items-center justify-end gap-1">
             {isSpeechSupported && (
               <div className="relative">
                 <AnimatePresence>
@@ -659,20 +689,20 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 </AnimatePresence>
                 <button
                   onClick={startListening}
-                  className={`p-2.5 rounded-xl transition-all duration-200 ${
+                  className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 ${
                     isListening
                       ? 'text-red-500 bg-red-500/15 ring-1 ring-red-500/20'
                       : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                   }`}
                 >
-                  <Mic size={isMobile ? 22 : 19} strokeWidth={2} />
+                  <Mic size={20} strokeWidth={2} />
                 </button>
               </div>
             )}
 
             {/* Trial Badge */}
             {isGuest && !isTrialExhausted && (
-              <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border tabular-nums transition-all duration-500 ${
+              <div className={`flex items-center gap-1.5 h-10 px-2.5 rounded-xl border tabular-nums transition-all duration-500 ${
                 guestRemaining <= 3 ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-tertiary)]'
               }`}>
                 <Activity size={11} strokeWidth={2} className={guestRemaining <= 3 ? 'animate-pulse' : ''} />
@@ -682,17 +712,16 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
             {/* Cooldown */}
             {isOnCooldown && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)]">
+              <div className="flex items-center gap-1.5 h-10 px-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)]">
                 <Timer size={11} strokeWidth={2} className="animate-pulse" />
                 <span className="text-[10px] font-medium tabular-nums">{cooldownRemaining}s</span>
               </div>
             )}
 
-            {/* Primary Action Button (Send/Stop) */}
             {isGenerating ? (
               <button
                 onClick={onStopGeneration}
-                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-red-500/15 text-red-500 hover:bg-red-500/25 transition-all active:scale-90 group shadow-lg shadow-red-500/10 ring-1 ring-red-500/20"
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/15 text-red-500 hover:bg-red-500/25 transition-all active:scale-90 group shadow-lg shadow-red-500/10 ring-1 ring-red-500/20"
               >
                 <Square size={16} strokeWidth={2} className="fill-current group-hover:scale-110 transition-transform" />
               </button>
@@ -705,11 +734,11 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     setAttachedFile(null);
                   }
                 }}
-                disabled={(!value.trim() && !attachedFile) || isTrialExhausted || isOnCooldown}
-                className={`w-10 h-10 flex items-center justify-center rounded-2xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${
-                  activeMode === 'teach' && (value.trim() || attachedFile)
+                disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${
+                  activeMode === 'teach' && (value.trim() || attachedFile || selectedTextContext)
                     ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
-                    : (value.trim() || attachedFile)
+                    : (value.trim() || attachedFile || selectedTextContext)
                       ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20 hover:shadow-[var(--text-primary)]/30 hover:-translate-y-0.5'
                       : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/40 shadow-none cursor-not-allowed'
                 }`}

@@ -212,12 +212,12 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
     </h3>
   ),
   ul: ({ children }) => (
-    <ul className="my-2.5 pl-5 space-y-1.5 list-disc marker:text-[var(--text-tertiary)]/50 text-[13.5px]">
+    <ul className="my-2.5 pl-5 space-y-1.5 list-disc marker:text-[var(--text-tertiary)] text-[13.5px]">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="my-2.5 pl-5 space-y-1.5 list-decimal marker:text-[var(--text-tertiary)]/60 marker:font-medium text-[13.5px]">
+    <ol className="my-2.5 pl-5 space-y-1.5 list-decimal marker:text-[var(--text-tertiary)] marker:font-medium text-[13.5px]">
       {children}
     </ol>
   ),
@@ -252,7 +252,7 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
     </blockquote>
   ),
   hr: () => (
-    <hr className="my-6 border-[var(--border-color)]/30" />
+    <hr className="my-6 border-[var(--border-color)]" />
   ),
   a: ({ href, children }) => (
     <a
@@ -265,7 +265,7 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
     </a>
   ),
   table: ({ children }) => (
-    <div className="overflow-x-auto my-4 rounded-xl border border-[var(--border-color)]/25 shadow-sm">
+    <div className="overflow-x-auto my-4 rounded-xl border border-[var(--border-color)]/60 shadow-sm">
       <table className="text-[12.5px] border-collapse w-full">{children}</table>
     </div>
   ),
@@ -273,7 +273,7 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
     <thead className="bg-[var(--text-primary)]/[0.04]">{children}</thead>
   ),
   th: ({ children }) => (
-    <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider border-b border-[var(--border-color)]/25 text-[var(--text-secondary)]">
+    <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider border-b border-[var(--border-color)]/60 text-[var(--text-secondary)]">
       {children}
     </th>
   ),
@@ -356,24 +356,8 @@ const CanvasCTA = ({ onOpenCanvas, messageId, canvasType }) => {
 
 // ─── Thinking dropdown ───────────────────────────────────────────────────────
 
-const ThoughtBlock = ({ content, isStreaming }) => {
-  if (!content && !isStreaming) return null;
-
-  return (
-    <div className="mb-4 w-full">
-      <div className="flex items-center gap-2 mb-2 px-0.5">
-        <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] animate-pulse" />
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
-          {isStreaming ? 'Thinking…' : 'Reasoning'}
-        </span>
-      </div>
-      <div className="p-3.5 rounded-xl bg-[var(--text-primary)]/[0.03] border border-[var(--border-color)]/10 text-[12.5px] leading-relaxed text-[var(--text-secondary)] italic border-l-2 border-l-[var(--text-tertiary)]/20 shadow-sm">
-        {content}
-        {isStreaming && <span className="animate-pulse ml-0.5 font-bold text-[var(--text-tertiary)]">▍</span>}
-      </div>
-    </div>
-  );
-};
+// ThoughtBlock REMOVED per user request
+const ThoughtBlock = () => null;
 
 // ─── Source cards ────────────────────────────────────────────────────────────
 
@@ -542,13 +526,14 @@ const Message = ({
                 />
               )}
 
-              {/* Thinking */}
-              {isAssistant && (metadata?.thought || streamingThought) && (
-                <ThoughtBlock
-                  content={metadata?.thought || streamingThought}
-                  isStreaming={isStreaming && !!streamingThought}
+              {/* Thinking / Reasoning Block */}
+              {(metadata?.thought || (isStreaming && streamingThought)) && (
+                <ThoughtBlock 
+                  content={metadata?.thought || streamingThought} 
+                  isStreaming={isStreaming && !metadata?.thought} 
                 />
               )}
+
 
               {/* Bubble */}
               <motion.div
@@ -558,16 +543,19 @@ const Message = ({
                 transition={isStreaming ? { duration: 0 } : { duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                 className={`relative min-w-0 max-w-full break-words overflow-hidden ${
                   isAssistant
-                    ? 'px-0.5 py-1 text-[13.5px]'
-                    : 'px-4 py-3 rounded-2xl rounded-tr-md text-[13.5px]'
+                    ? 'px-0 py-1 text-[14px] leading-relaxed'
+                    : 'px-4 py-2.5 rounded-[22px] rounded-tr-[4px] text-[14px] shadow-sm'
                 }`}
-                style={isAssistant ? {} : {
-                  backgroundColor: 'var(--text-primary)',
+                style={isAssistant ? {
+                  color: 'var(--text-primary)',
+                } : {
+                  background: 'linear-gradient(135deg, var(--text-primary) 0%, #1e1e1e 100%)',
                   color: 'var(--bg-primary)',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
                 }}
               >
                 {isAssistant ? (
-                  <div className="relative">
+                  <div className="relative markdown-content opacity-[0.98]">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
                       rehypePlugins={[rehypeKatex]}
@@ -575,12 +563,9 @@ const Message = ({
                     >
                       {displayContent || ''}
                     </ReactMarkdown>
-                    {isStreaming && (
-                      <span className="inline-block w-[3px] h-[15px] bg-[var(--text-primary)] ml-1 animate-pulse align-middle" />
-                    )}
                   </div>
                 ) : (
-                  <p style={{ color: 'inherit' }} className="whitespace-pre-wrap leading-[1.65]">
+                  <p style={{ color: 'inherit' }} className="whitespace-pre-wrap leading-[1.6] font-medium tracking-tight">
                     {displayContent}
                   </p>
                 )}
@@ -606,8 +591,12 @@ const Message = ({
                       </button>
                     )}
 
-                    {isAssistant && onRegenerateMessage && (
-                      <button onClick={() => onRegenerateMessage(messageId)} title="Regenerate" className="chat-action-btn">
+                    {onRegenerateMessage && (
+                      <button 
+                        onClick={() => onRegenerateMessage(messageId)} 
+                        title="Regenerate" 
+                        className={`chat-action-btn ${!isAssistant ? 'hover:!text-emerald-500' : ''}`}
+                      >
                         <RefreshCw size={12} />
                       </button>
                     )}
@@ -631,11 +620,6 @@ const Message = ({
                       </>
                     )}
 
-                    {onDeleteMessage && (
-                      <button onClick={() => onDeleteMessage(messageId)} title="Delete" className="chat-action-btn hover:!text-red-400">
-                        <Trash2 size={12} />
-                      </button>
-                    )}
 
                     <span className={`text-[9px] text-[var(--text-tertiary)]/40 tabular-nums tracking-wide px-1 ${isAssistant ? '' : 'order-first'}`}>
                       {formatTime(timestamp)}
@@ -657,7 +641,7 @@ const Message = ({
 
               {/* Version switcher */}
               {metadata?.versions?.length > 1 && (
-                <div className={`flex items-center gap-1 mt-1 text-[10px] font-medium text-[var(--text-tertiary)]/60 hover:text-[var(--text-tertiary)] transition-colors`}>
+                <div className={`flex items-center gap-1 mt-1 text-[10px] font-medium text-[var(--text-tertiary)]/60 hover:text-[var(--text-tertiary)] transition-colors ${isAssistant ? '' : 'justify-end'}`}>
                   <button
                     onClick={() => onSwitchVersion?.(messageId, Math.max(0, metadata.activeVersionIndex - 1))}
                     disabled={metadata.activeVersionIndex === 0}

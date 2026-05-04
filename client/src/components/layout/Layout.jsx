@@ -27,7 +27,7 @@ const miniGlass = {
   boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
 };
 
-const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse = false }) => {
+const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse = false, isSplitView = false }) => {
   const navigate = useNavigate();
   const isSidebarOpen = useTutorStore(state => state.isSidebarOpen);
   const setSidebarOpen = useTutorStore(state => state.setSidebarOpen);
@@ -42,8 +42,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
   // Responsive logic
   const { isMobile } = useWindowSize();
-  const currentSidebarWidth = isMobile ? '100%' : SIDEBAR_WIDTH;
-  const sidebarVisible = isSidebarOpen && !forceCollapse;
+  const baseSidebarWidth = isSplitView ? '40%' : SIDEBAR_WIDTH;
+  const currentSidebarWidth = isMobile ? '100%' : baseSidebarWidth;
+  const sidebarVisible = (isSidebarOpen || isSplitView) && !forceCollapse;
 
   return (
     <div
@@ -146,12 +147,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             background: 'var(--glass-bg)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
-            boxShadow: isMobile ? 'none' : `
-              ${isRightHand ? 10 : -10}px 40px 120px -20px rgba(0, 0, 0, 0.18),
-              ${isRightHand ? 5 : -5}px 20px 60px -15px rgba(0, 0, 0, 0.12),
-              inset 0 1px 1px rgba(255, 255, 255, 0.8),
-              inset 0 0 0 1px var(--glass-border)
-            `,
+            boxShadow: 'none',
           }}
         />
 
@@ -164,7 +160,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             borderBottomLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
             borderTopRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
             borderBottomRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            overflow: 'hidden'
+            overflow: 'hidden',
+            borderLeft: !isMobile && !isRightHand && sidebarVisible ? '1px solid var(--border-color)' : 'none',
+            borderRight: !isMobile && isRightHand && sidebarVisible ? '1px solid var(--border-color)' : 'none',
           }}
         >
           <div className={`relative h-full overflow-hidden transition-all duration-300 ${isArtifactPanelOpen && !isMobile ? 'flex-1 min-w-0' : 'w-full'}`}>
@@ -213,15 +211,17 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             </AnimatePresence>
           </div>
 
-          {/* Main Toolbar */}
+          {/* Main Toolbar - Hidden in Teaching Split View */}
           <div
             className={`pointer-events-auto transition-all duration-500 flex-1 flex ${isRightHand ? 'justify-start' : 'justify-end'} ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none -translate-y-10' : 'opacity-100'}`}
           >
             <div className="w-fit">
-              <Toolbar
-                onShare={() => { }}
-                onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
-              />
+              {!isSplitView && (
+                <Toolbar
+                  onShare={() => { }}
+                  onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
+                />
+              )}
             </div>
           </div>
         </div>

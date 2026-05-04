@@ -7,12 +7,12 @@ This document defines the component directory conventions for the TutorBoard cli
 ### `/canvas/`
 **Purpose**: Core visual interaction, geometric rendering, and canvas state management.
 - **Ownership**: Components that directly interact with the drawing surface or manage canvas-specific UI (minimaps, overlays, overlays, format bars).
-- **Examples**: `Board.jsx`, `InfiniteCanvas.jsx`, `CanvasControls.jsx`, `PremiumTextBox.jsx`.
+- **Examples**: `AgentCanvasRenderer.jsx`, `FixedTeachingStage.jsx`, `InteractiveCanvasLayer.jsx`, `PremiumTextBox.jsx`.
 
 ### `/teaching/`
 **Purpose**: Pedagogy-focused UX, session state, and student/tutor progress tracking.
 - **Ownership**: Components that drive the teaching logic, session modals, step-by-step guidance, and learning timelines.
-- **Examples**: `TeachingModal.jsx`, `StepPanel.jsx`, `ProgressIndicator.jsx`, `DoubtPanel.jsx`.
+- **Examples**: `TeachingSession.jsx`, `StepPanel.jsx`, `AlgoRightPanel.jsx`, `DoubtPanel.jsx`.
 
 ### `/chat/`
 **Purpose**: Messaging, AI orchestration feedback, and conversation-based interaction.

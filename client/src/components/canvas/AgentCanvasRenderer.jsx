@@ -14,6 +14,7 @@ export default function AgentCanvasRenderer({
   connections: extConnections, steps: extSteps,
   showNotes, onGoToStep,
   hideAlgoPanel = false,
+  width, height, // Explicit dimensions to bypass DOM measurement
   ...doubtProps
 }) {
   const rendererType = (timeline?.renderer || 'cinematic').toLowerCase();
@@ -85,13 +86,22 @@ export default function AgentCanvasRenderer({
 
   // 1. Core Interpreter & Renderer Initialization
   useEffect(() => {
-    if (d3ContainerRef.current && layoutReady) {
-      if (!interpreterRef.current) {
-        console.log('[AgentCanvasRenderer] 🏗️ Initializing VisualScriptInterpreter');
-        const d3Renderer = new D3Renderer(d3ContainerRef.current);
-        interpreterRef.current = new VisualScriptInterpreter(setD3Narration, d3ContainerRef.current);
-        interpreterRef.current.setRenderers({ d3: d3Renderer });
+    // If explicit width/height are provided, we don't need to wait for ResizeObserver (layoutReady)
+    const canInitialize = d3ContainerRef.current && (layoutReady || (width && height));
+    
+    if (canInitialize) {
+      // Bug Fix: If we were already initialized but layout was 0, or if we transition to a ready state,
+      // we must re-initialize to ensure the SVG viewport and D3 coordinate system match the real dimensions.
+      if (interpreterRef.current) {
+        console.log('[AgentCanvasRenderer] 🔄 Re-initializing VisualScriptInterpreter for new dimensions');
+        interpreterRef.current.kill();
+        interpreterRef.current = null;
       }
+
+      console.log('[AgentCanvasRenderer] 🏗️ Initializing VisualScriptInterpreter');
+      const d3Renderer = new D3Renderer(d3ContainerRef.current, width, height);
+      interpreterRef.current = new VisualScriptInterpreter(setD3Narration, d3ContainerRef.current);
+      interpreterRef.current.setRenderers({ d3: d3Renderer });
     }
 
     return () => {
@@ -100,7 +110,7 @@ export default function AgentCanvasRenderer({
         interpreterRef.current = null;
       }
     };
-  }, [isD3, isKaTeX, SpecializedRenderer, layoutReady, setD3Narration]);
+  }, [isD3, isKaTeX, SpecializedRenderer, layoutReady, width, height, setD3Narration]);
 
   // 2. Specialized Renderer Registration (Physics/Equation/Graph/Code)
   useEffect(() => {

@@ -1,18 +1,3 @@
-/**
- * TeachingSession — Structured teaching canvas.
- *
- * Layout (absolute inside Layout content area):
- *   ┌────────────────────────────────────────┐
- *   │  Header (48px)                         │
- *   ├───────────────────────┬────────────────┤
- *   │                       │  Right Panel   │
- *   │  Canvas Area          │  (320px)       │
- *   │                       │                │
- *   ├───────────────────────┴────────────────┤
- *   │  Timeline (52px)                       │
- *   └────────────────────────────────────────┘
- */
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,14 +6,15 @@ import {
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
-import InfiniteCanvas from '../canvas/InfiniteCanvas';
 import AgentCanvasRenderer from '../canvas/AgentCanvasRenderer';
+import FixedTeachingStage from '../canvas/FixedTeachingStage';
 import FloatingSidebar from './FloatingSidebar';
 import StepPanel from './StepPanel';
 import NarrationBar from './NarrationBar';
 import DoubtThread from './DoubtThread';
 import DoubtPanel from './DoubtPanel';
 import InteractiveControlPanel from './InteractiveControlPanel';
+import StepFilmstrip from './StepFilmstrip';
 import { AlgoRightPanel } from './AlgoRightPanel';
 import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
@@ -51,8 +37,8 @@ const TeachingSession = ({ initialTopic }) => {
   } = machine;
 
   const {
-    canvasMode, canvasTransform, voiceEnabled, playbackSpeed,
-    setCanvasMode, setCanvasTransform, toggleVoice,
+    canvasMode, voiceEnabled, playbackSpeed,
+    setCanvasMode, toggleVoice,
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, showNotes, deselectAll,
     levelUpEvent, setLevelUpEvent, showToast,
@@ -64,7 +50,7 @@ const TeachingSession = ({ initialTopic }) => {
   const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelWide, setPanelWide] = useState(false);
-  const canvasRef = useRef(null);
+  const rootRef = useRef(null);
 
   // ── Handlers ──────────────────────────────────────────────
 
@@ -101,21 +87,24 @@ const TeachingSession = ({ initialTopic }) => {
     }
   }, [currentStepIndex, voiceEnabled, currentStep, machineState, playbackSpeed]);
 
-  // Auto-fit on doubt visuals
-  useEffect(() => {
-    if (doubtResponse?.hasVisuals && canvasRef.current) {
-      const t = setTimeout(() => canvasRef.current.fitToContent?.(), 300);
-      return () => clearTimeout(t);
-    }
-  }, [doubtResponse]);
-
-  // Escape key
+  // ── Keyboard Navigation ──────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const fn = (e) => { if (e.key === 'Escape') handleClose(); };
+    const fn = (e) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      } else if (e.key === 'ArrowRight') {
+        nextStep();
+      } else if (e.key === 'ArrowLeft') {
+        prevStep();
+      } else if (e.key === ' ' && !e.target.matches('input, textarea')) {
+        e.preventDefault();
+        isPlaying ? pause() : play();
+      }
+    };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
-  }, [isOpen, handleClose]);
+  }, [isOpen, handleClose, nextStep, prevStep, isPlaying, play, pause]);
 
   // Level-up toast
   useEffect(() => {
@@ -126,13 +115,51 @@ const TeachingSession = ({ initialTopic }) => {
     }
   }, [levelUpEvent, showToast, setLevelUpEvent]);
 
+  // ── Focus Trap & Accessibility ────────────────────────────
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousActiveElement = document.activeElement;
+
+    // Set initial focus to the close button or first interactive element
+    const initialFocus = rootRef.current?.querySelector('button[title="Close"]');
+    if (initialFocus) initialFocus.focus();
+
+    const handleFocusTrap = (e) => {
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = Array.from(rootRef.current?.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      ) || []);
+
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) { // Shift + Tab
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else { // Tab
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleFocusTrap);
+    return () => {
+      window.removeEventListener('keydown', handleFocusTrap);
+      previousActiveElement?.focus();
+    };
+  }, [isOpen]);
+
   // Time
   const { formatted, formatTime } = useElapsedTime(isPlaying, machineState === STATES.GENERATING);
   const totalFormatted = formatTime(totalSteps * 8);
-
-  // Canvas callbacks
-  const handleViewport = useCallback((t) => setCanvasTransform(t), [setCanvasTransform]);
-  const handleZoom = useCallback((s) => setCanvasTransform(p => p.scale === s ? p : { ...p, scale: s }), [setCanvasTransform]);
 
   // ── Bail ──────────────────────────────────────────────────
   if (!isOpen) return null;
@@ -164,42 +191,91 @@ const TeachingSession = ({ initialTopic }) => {
   }
 
   return (
-    <div className="teaching-session">
-
-      {/* ── Generating ───────────────────────────────────── */}
-      <AnimatePresence mode="wait">
-        {isGenerating && (
-          <motion.div
-            key="gen"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[100] flex items-center justify-center"
-            style={{ background: 'var(--bg-primary)' }}
-          >
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative w-14 h-14">
-                <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                  className="absolute inset-0 rounded-full" style={{ border: '2px solid var(--border-color)', borderTopColor: 'var(--text-primary)' }} />
-                <motion.div animate={{ rotate: -360 }} transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
-                  className="absolute inset-3 rounded-full" style={{ border: '2px solid var(--border-color)', borderBottomColor: 'var(--text-secondary)' }} />
-              </div>
-              <div className="text-center">
-                <p style={{ color: 'var(--text-secondary)' }} className="text-xs mb-1">Building lesson</p>
-                <p style={{ color: 'var(--text-tertiary)' }} className="text-[10px] truncate max-w-[200px]">"{topic}"</p>
-              </div>
-              <div className="w-32 h-px overflow-hidden" style={{ background: 'var(--border-color)' }}>
-                <motion.div animate={{ x: [-128, 128] }} transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                  className="w-16 h-full" style={{ background: 'linear-gradient(90deg, transparent, var(--text-tertiary), transparent)' }} />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div
+      ref={rootRef}
+      className="teaching-session"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="teaching-session-title"
+      tabIndex="-1"
+    >
       {/* ── Body ─────────────────────────────────────────── */}
       {isTeaching && (
         <div className="teaching-body">
           {/* Canvas */}
           <div className="teaching-canvas-area">
+            {/* ── Generating Overlay (Now Constrained to Canvas Area) ── */}
+            <AnimatePresence mode="wait">
+              {isGenerating && (
+                <motion.div
+                  key="generating"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--bg-primary)]/80 backdrop-blur-xl"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex flex-col items-center gap-6 max-w-md text-center px-8"
+                  >
+                    <div className="relative w-20 h-20">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                        className="absolute inset-0 rounded-full border-2 border-[var(--border-color)] border-t-[var(--text-primary)]"
+                      />
+                      <motion.div
+                        animate={{ rotate: -360 }}
+                        transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
+                        className="absolute inset-2 rounded-full border-2 border-[var(--border-color)] border-b-[var(--text-secondary)]"
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="absolute inset-4 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center"
+                      >
+                        <span className="text-2xl">🎨</span>
+                      </motion.div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-normal text-[var(--text-primary)] mb-2">
+                        Building your visual lesson
+                      </h3>
+                      <p className="text-sm text-[var(--text-secondary)]">
+                        Creating an interactive animated explanation for
+                      </p>
+                      <p className="text-sm font-normal text-[var(--text-primary)] mt-1">
+                        "{topic}"
+                      </p>
+                    </div>
+
+                    {/* Shimmer bar */}
+                    <div className="w-48 h-1 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+                      <motion.div
+                        animate={{ x: [-200, 200] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                        className="w-24 h-full bg-gradient-to-r from-transparent via-[var(--text-tertiary)] to-transparent rounded-full"
+                      />
+                    </div>
+
+                    {/* Tips */}
+                    <motion.p 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 2 }}
+                      className="text-[11px] text-[var(--text-tertiary)] italic"
+                    >
+                      💡 Tip: Use ? to ask doubts during the lesson
+                    </motion.p>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* ── Floating Canvas Header (Replaces Navbar) ── */}
             <div className="absolute top-4 left-4 right-4 z-[50] flex justify-start pointer-events-none">
 
@@ -242,15 +318,58 @@ const TeachingSession = ({ initialTopic }) => {
               </div>
             </div>
 
-            {/* ── Bottom Floating Controls Stack ── */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[50] flex flex-col items-center gap-3 w-full max-w-[90%] md:max-w-4xl px-5 pointer-events-none">
+            {/* ── Step Orientation Pill (Floating Context) ── */}
+            <div className="absolute top-[76px] left-6 z-[45] pointer-events-none">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                key={`step-pill-${currentStepIndex}`}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full shadow-sm border border-[var(--glass-border)]"
+                style={{
+                  background: 'var(--glass-bg)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                }}
+              >
+                <div
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: currentStep?.type === 'summary' ? 'var(--warning)' :
+                      currentStep?.type === 'example' ? 'var(--success)' :
+                        currentStep?.type === 'intro' ? 'var(--info)' : 'var(--text-primary)'
+                  }}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-80" style={{ color: 'var(--text-primary)' }}>
+                  {currentStep?.type || 'Core'} {currentStepIndex + 1}
+                </span>
+              </motion.div>
+            </div>
 
-              {/* 1. Narration Subtitle (Top of Stack) */}
-              {(!isAlgo || isD3) && (
-                <div className="w-full flex justify-center pointer-events-auto">
+            {/* 1. Narration Subtitle (Fixed Position Above Controls) */}
+            {(!isAlgo || isD3) && (
+              <div className="absolute bottom-[104px] left-1/2 -translate-x-1/2 z-[50] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
+                <div className="pointer-events-auto w-full flex justify-center">
                   <NarrationBar text={currentStep?.narration || currentStep?.explanation} isGenerating={isGenerating} />
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* ── Bottom Floating Controls Stack ── */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[50] flex flex-col items-center gap-2 w-full max-w-[90%] md:max-w-4xl px-5 pointer-events-none">
+
+              {/* Step Filmstrip (Preview Area) */}
+              <AnimatePresence>
+                {isTeaching && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="w-full pointer-events-auto"
+                  >
+                    <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* 2 & 3. Playback Bar & Doubt Panel (Side by Side on Desktop) */}
               <div className="flex flex-col xl:flex-row items-center xl:items-end justify-center gap-3 w-full">
@@ -311,16 +430,24 @@ const TeachingSession = ({ initialTopic }) => {
               </div>
             </div>
 
-            <InfiniteCanvas ref={canvasRef} onViewportChange={handleViewport} onZoomChange={handleZoom}>
-              <AgentCanvasRenderer
-                timeline={timeline} objects={canvasObjects || []} steps={canvasSteps}
-                currentStepIndex={currentStepIndex} onGoToStep={goToStep}
-                doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
-                activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
-                onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
-                hideAlgoPanel={true}
-              />
-            </InfiniteCanvas>
+            <div className="absolute inset-0 overflow-hidden">
+              <FixedTeachingStage
+                topic={topic}
+                currentStepIndex={currentStepIndex}
+                totalSteps={canvasSteps.length}
+                hideControls={true}
+              >
+                <AgentCanvasRenderer
+                  width={800} height={600}
+                  timeline={timeline} objects={canvasObjects || []} steps={canvasSteps}
+                  currentStepIndex={currentStepIndex} onGoToStep={goToStep}
+                  doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
+                  activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
+                  onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
+                  hideAlgoPanel={true}
+                />
+              </FixedTeachingStage>
+            </div>
 
             {/* Expand Panel Handle (Appears when panel is closed) */}
             <AnimatePresence>
@@ -351,13 +478,15 @@ const TeachingSession = ({ initialTopic }) => {
           <div
             className={`teaching-right-panel ${panelOpen ? '' : 'collapsed'}`}
             style={{
-              width: panelOpen ? (panelWide ? 420 : 320) : 0,
+              ...(panelOpen ? {
+                width: panelWide ? 420 : 320,
+                marginRight: '16px',
+                borderRadius: '16px',
+                border: '1px solid var(--border-color)',
+                boxShadow: 'var(--glass-shadow)',
+              } : {}),
               marginTop: '84px',
               marginBottom: '84px',
-              marginRight: panelOpen ? '16px' : '0px',
-              borderRadius: panelOpen ? '16px' : '0px',
-              border: panelOpen ? '1px solid var(--border-color)' : 'none',
-              boxShadow: panelOpen ? 'var(--glass-shadow)' : 'none',
               height: 'calc(100% - 168px)',
               overflow: 'hidden', // Forces children to scroll
               display: 'flex',

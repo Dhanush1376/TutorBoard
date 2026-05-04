@@ -89,6 +89,7 @@ const editMessageSchema = z.object({
 
 const regenerateSchema = z.object({
   sessionId: z.string(),
+  messageId: z.string().optional().nullable(),
 }).passthrough();
 
 const deleteMessageSchema = z.object({
@@ -744,7 +745,7 @@ export async function streamMessage(req, res) {
       // Update title using AI output if it's the first message
       if (session.messages.length <= 2) {
         try {
-          const aiTitle = generateSessionTitle(userMessage);
+          const aiTitle = await generateSessionTitle(userMessage);
           session.title = aiTitle;
           console.log(`[Chat:Stream] 🏷️ Generated title: "${aiTitle}"`);
         } catch (e) {
@@ -855,9 +856,10 @@ export const editMessage = async (req, res) => {
 
     const { sessionId, messageId, newContent } = validation.data;
     const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
 
     // ── 1. Load Session ──
-    const session = await ChatSession.findOne({ _id: sessionId, userId });
+    const session = await ChatSession.findOne(isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() });
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     // ── 2. Find Message Index ──
@@ -1007,47 +1009,72 @@ export const regenerate = async (req, res) => {
       return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
     }
 
-    const { sessionId } = validation.data;
+    const { sessionId, messageId } = validation.data;
     const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
 
-    // ── 1. Load Session ──
-    const session = await ChatSession.findOne({ _id: sessionId, userId });
+    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const session = await ChatSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     // ── 2. Handle Non-Destructive Regeneration (Branching) ──
     let targetMsgId = null;
     let existingVersions = [];
     let activeIdx = 0;
+    let turnIndex = -1;
 
-    if (session.messages.length > 0) {
+    if (messageId) {
+      // Find the specific message by ID
+      turnIndex = session.messages.findIndex(m => m._id.toString() === messageId || m.id === messageId);
+      if (turnIndex !== -1) {
+        const targetMsg = session.messages[turnIndex];
+        // If user clicked regenerate on their own message, we want to regenerate the NEXT message (the assistant response)
+        if (targetMsg.role === 'user') {
+          const nextMsg = session.messages[turnIndex + 1];
+          if (nextMsg && nextMsg.role === 'assistant') {
+            targetMsgId = nextMsg._id;
+            existingVersions = nextMsg.metadata?.versions || [{ text: nextMsg.content, subsequentMessages: [] }];
+            activeIdx = nextMsg.metadata?.activeVersionIndex || 0;
+            turnIndex = turnIndex + 1; // Target the assistant response
+          } else {
+            // No assistant response exists yet or next message is not assistant
+            // We just treat it as a new generation after this user message
+            turnIndex = turnIndex + 1;
+          }
+        } else {
+          // It's an assistant message
+          targetMsgId = targetMsg._id;
+          existingVersions = targetMsg.metadata?.versions || [{ text: targetMsg.content, subsequentMessages: [] }];
+          activeIdx = targetMsg.metadata?.activeVersionIndex || 0;
+        }
+      }
+    } else if (session.messages.length > 0) {
       const lastMsg = session.messages[session.messages.length - 1];
       if (lastMsg.role === 'assistant') {
         targetMsgId = lastMsg._id;
         existingVersions = lastMsg.metadata?.versions || [{ text: lastMsg.content, subsequentMessages: [] }];
         activeIdx = lastMsg.metadata?.activeVersionIndex || 0;
-        
-        // We don't pop() anymore. We will update this message in place or append to it.
-        // Actually, to make it clean, we'll keep the message and update its metadata.
+        turnIndex = session.messages.length - 1;
       }
     }
 
-    // ── 3. RAG + Web Search + Planner Fusion (Standard Intelligence Pipeline) ──
-    // Use the messages BEFORE the last assistant message if we are regenerating
-    const messagesForContext = targetMsgId 
-      ? session.messages.slice(0, -1) 
+    // ── 3. Context Preparation ──
+    // Use the messages BEFORE the targeted assistant message
+    const messagesForContext = turnIndex !== -1
+      ? session.messages.slice(0, turnIndex)
       : session.messages;
 
     const lastUserMsg = [...messagesForContext].reverse().find(m => m.role === 'user');
-    const query = lastUserMsg?.content || session.currentTopic;
+    const userQuery = lastUserMsg?.content || session.currentTopic;
     
-    const topic = session.currentTopic || detectTopic(query);
-    const toolDecision = detectTools(query);
-    const gateSearch = toolDecision.useWebSearch || shouldSearch(query);
+    const topic = session.currentTopic || detectTopic(userQuery);
+    const toolDecision = detectTools(userQuery);
+    const gateSearch = toolDecision.useWebSearch || shouldSearch(userQuery);
 
     // Run RAG and Initial Search first to provide context for the planner
     const [pastContext, initialWebResults] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
-      gateSearch ? searchWeb(query, { count: 5 }) : Promise.resolve([]),
+      gateSearch ? searchWeb(userQuery, { count: 5 }) : Promise.resolve([]),
     ]);
 
     let webContextStr = formatForPrompt(initialWebResults);
@@ -1100,9 +1127,9 @@ export const regenerate = async (req, res) => {
       }
     }
 
-    if (targetMsgId) {
+    if (targetMsgId && turnIndex !== -1) {
       // Update existing message with new version
-      const targetMsg = session.messages[session.messages.length - 1];
+      const targetMsg = session.messages[turnIndex];
       const newVersion = { text: cleanContent, subsequentMessages: [] };
       const updatedVersions = [...existingVersions, newVersion];
 
@@ -1139,7 +1166,7 @@ export const regenerate = async (req, res) => {
     session.lastUpdated = Date.now();
     await session.save();
 
-    const finalMsg = session.messages[session.messages.length - 1];
+    const finalMsg = targetMsgId && turnIndex !== -1 ? session.messages[turnIndex] : session.messages[session.messages.length - 1];
     res.json({
       response: finalMsg.content,
       sessionId: session._id.toString(),
@@ -1167,8 +1194,10 @@ export const deleteMessage = async (req, res) => {
 
     const { sessionId, messageId } = validation.data;
     const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
 
-    const session = await ChatSession.findOne({ _id: sessionId, userId });
+    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const session = await ChatSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     const originalLength = session.messages.length;
@@ -1202,12 +1231,14 @@ export const updateMessageFeedback = async (req, res) => {
   try {
     const { sessionId, messageId, feedback } = req.body;
     const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
 
     if (!sessionId || !messageId) {
       return res.status(400).json({ error: "Missing sessionId or messageId" });
     }
 
-    const session = await ChatSession.findOne({ _id: sessionId, userId });
+    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const session = await ChatSession.findOne(query);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
     const message = session.messages.id(messageId);
@@ -1223,6 +1254,74 @@ export const updateMessageFeedback = async (req, res) => {
   } catch (err) {
     console.error('[Chat] updateFeedback error:', err);
     res.status(500).json({ error: "Failed to update feedback" });
+  }
+};
+
+/**
+ * POST /api/chat/switch-version
+ * Persist the active version switch and update the conversation branch.
+ */
+export const switchMessageVersion = async (req, res) => {
+  try {
+    const { sessionId, messageId, versionIndex } = req.body;
+    const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
+
+    if (!sessionId || !messageId || versionIndex === undefined) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const session = await ChatSession.findOne(query);
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const msgIndex = session.messages.findIndex(
+      (m) => m._id?.toString() === messageId || m.id === messageId
+    );
+
+    if (msgIndex === -1) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    const targetMsg = session.messages[msgIndex];
+    const versions = targetMsg.metadata?.versions || [];
+    if (versionIndex < 0 || versionIndex >= versions.length) {
+      return res.status(400).json({ error: "Invalid version index" });
+    }
+
+    // ── Branching Logic ──
+    // 1. Save current subsequent branch to the CURRENT active version
+    const activeIdx = targetMsg.metadata?.activeVersionIndex || 0;
+    const subsequentMessages = session.messages.slice(msgIndex + 1);
+    
+    const updatedVersions = versions.map((v, i) => 
+      i === activeIdx ? { ...v, subsequentMessages } : v
+    );
+
+    // 2. Switch to target version
+    const targetVersion = updatedVersions[versionIndex];
+    targetMsg.content = targetVersion.text;
+    targetMsg.metadata = {
+      ...targetMsg.metadata,
+      versions: updatedVersions,
+      activeVersionIndex: versionIndex
+    };
+
+    // 3. Restore the target version's branch
+    const prefix = session.messages.slice(0, msgIndex + 1);
+    session.messages = [...prefix, ...(targetVersion.subsequentMessages || [])];
+
+    session.lastUpdated = Date.now();
+    await session.save();
+
+    res.json({ 
+      success: true, 
+      activeVersionIndex: versionIndex,
+      messageCount: session.messages.length 
+    });
+  } catch (err) {
+    console.error('[Chat] switchVersion error:', err);
+    res.status(500).json({ error: "Failed to switch version" });
   }
 };
 
@@ -1248,9 +1347,9 @@ function summarizeForMemory(userMsg, aiMsg) {
 function detectTopic(text) {
   if (!text) return 'General';
   // Strip common filler and extract first few significant words
-  const clean = text.replace(/^(hi|hello|hey|can you help me with|tell me about|what is|how does|explain)\s+/i, '');
-  const words = clean.split(/\s+/).slice(0, 4).join(' ');
-  return words.length > 20 ? words.substring(0, 17) + '...' : words || 'General';
+  const clean = text.replace(/^(hi|hello|hey|can you help me with|tell me about|what is|how does|explain|show me|give me|write|create|build)\s+/i, '');
+  const words = clean.split(/\s+/).slice(0, 3).join(' ');
+  return words.length > 25 ? words.substring(0, 22) + '...' : words || 'General';
 }
 
 /**
@@ -1259,22 +1358,48 @@ function detectTopic(text) {
 /**
  * generateSessionTitle: Use LLM to create a better title after first turn
  */
-const generateSessionTitle = (userMsg) => {
-  // Simple heuristic — no API call, instant, free
-  const STRIP_WORDS = /^(what|how|why|when|where|who|can|could|would|should|is|are|was|were|does|do|did|explain|tell me about|describe|define|give me|show me|write|create|build|make|help me)\s+/i;
-  const STRIP_SUFFIX = /[?!.]+$/;
-  
-  let title = userMsg
-    .trim()
-    .replace(STRIP_SUFFIX, '')
-    .replace(STRIP_WORDS, '')
-    .split(' ')
-    .slice(0, 5)
-    .join(' ');
+const generateSessionTitle = async (userMsg) => {
+  try {
+    // Use the LLM to generate a professional 2-3 word title
+    const response = await routeConversation([
+      { 
+        role: 'system', 
+        content: 'You are a professional session title generator. Create a concise, 2-3 word title for a conversation that starts with the provided user message. Output ONLY the title, no punctuation, no quotes, no labels. Keep it professional and descriptive.' 
+      },
+      { role: 'user', content: userMsg }
+    ], { 
+      timeout: 5000, 
+      maxTokens: 10 // Enough for 2-3 words
+    });
 
-  // Capitalize first letter of each significant word
-  title = title.replace(/\b\w/g, c => c.toUpperCase());
-  
-  return title || 'New Session';
+    let title = response.content.trim();
+    
+    // Fallback cleanup if LLM goes long
+    title = title.replace(/[".!?]$/, '').replace(/^["']|["']$/g, '');
+    const words = title.split(/\s+/);
+    if (words.length > 4) {
+      title = words.slice(0, 3).join(' ');
+    }
+
+    // Capitalize properly
+    title = title.replace(/\b\w/g, c => c.toUpperCase());
+    
+    return title || 'New Session';
+  } catch (err) {
+    console.warn('[TitleGen] LLM title generation failed, falling back to heuristic:', err.message);
+    
+    // Heuristic Fallback
+    const STRIP_WORDS = /^(what|how|why|when|where|who|can|could|would|should|is|are|was|were|does|do|did|explain|tell me about|describe|define|give me|show me|write|create|build|make|help me|the|a|an)\s+/i;
+    let fallback = userMsg
+      .trim()
+      .replace(/[?!.]+$/, '')
+      .replace(STRIP_WORDS, '')
+      .split(/\s+/)
+      .slice(0, 3)
+      .join(' ');
+      
+    fallback = fallback.replace(/\b\w/g, c => c.toUpperCase());
+    return fallback || 'New Session';
+  }
 };
 

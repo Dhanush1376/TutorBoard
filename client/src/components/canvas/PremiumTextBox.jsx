@@ -287,7 +287,7 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
               boxShadow: isDragging ? '0 20px 40px rgba(0,0,0,0.2)' : 'none'
             }}
             transition={{ duration: 0.15 }}
-            className={`relative pointer-events-auto flex flex-col rounded-xl transition-all ${isSelected ? 'border-2 border-dashed border-blue-500/50' : 'hover:ring-1 hover:ring-slate-500/30'}`}
+            className={`relative pointer-events-auto flex flex-col rounded-xl transition-all ${isSelected ? 'border border-dashed border-blue-500/50' : 'hover:ring-1 hover:ring-slate-500/30'}`}
             style={{ 
               width: localDim.w, 
               height: localDim.h,

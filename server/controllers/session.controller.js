@@ -113,7 +113,10 @@ export const saveSession = async (req, res) => {
       canvasVersion, preferences, activeSnapshotId 
     } = validation.data;
     
-    console.log(`[DB] Save Request: User=${req.user._id}, Session=${sessionId || 'NEW'}`);
+    const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
+
+    console.log(`[DB] Save Request: User=${userId || 'GUEST'}, Session=${sessionId || 'NEW'}`);
 
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
@@ -149,8 +152,10 @@ export const saveSession = async (req, res) => {
 
       if (preferences !== undefined) updateFields.preferences = preferences;
 
+      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      
       session = await ChatSession.findOneAndUpdate(
-        { _id: sessionId, userId: req.user._id },
+        query,
         { $set: updateFields },
         { new: true, runValidators: true }
       );
@@ -164,7 +169,7 @@ export const saveSession = async (req, res) => {
       // Create new session if document not found or if sessionId is a local UUID
       // This handles the "Initial Save" from the client before a MongoDB ID is assigned.
       session = await ChatSession.create({
-        userId: req.user._id,
+        userId: isGuest ? null : userId,
         title: title || 'New Session',
         messages: messages || [],
         canvasState: canvasState || [],
@@ -173,20 +178,20 @@ export const saveSession = async (req, res) => {
         preferences: preferences || {},
         engineSessionId: sessionId // Store the client's local ID for audit/linking
       });
-      console.log(`[DB] ✨ Created new session: ${session._id} (Client UUID: ${sessionId})`);
+      console.log(`[DB] ✨ Created new session: ${session._id} (Client UUID: ${sessionId}) (Guest: ${isGuest})`);
       
       // LOG ACTIVITY: Session Start
       logActivity({
-        userId: req.user._id,
+        userId: isGuest ? null : userId,
         sessionId: session._id.toString(),
         eventType: 'session_start',
         eventData: { title: session.title }
       });
     }
- else {
-      // LOG ACTIVITY: Session Update (e.g. canvas action)
-      logActivity({
-        userId: req.user._id,
+  else {
+    // LOG ACTIVITY: Session Update (e.g. canvas action)
+    logActivity({
+      userId: isGuest ? null : userId,
         sessionId: session._id.toString(),
         eventType: 'canvas_action',
         eventData: { version: canvasVersion }
@@ -252,10 +257,12 @@ export const beaconSave = async (req, res) => {
  */
 export const deleteSession = async (req, res) => {
   try {
-    const session = await ChatSession.findOneAndDelete({ 
-      _id: req.params.id, 
-      userId: req.user._id 
-    });
+    const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
+    
+    const query = isGuest ? { _id: req.params.id } : { _id: req.params.id, userId: userId.toString() };
+
+    const session = await ChatSession.findOneAndDelete(query);
     
     if (!session) return res.status(404).json({ error: 'Session not found' });
     res.json({ message: 'Session deleted' });

@@ -87,17 +87,27 @@ export default function AboutSection() {
     setRefreshing(true);
     setSystemStatus(prev => ({ ...prev, api: 'checking', database: 'checking' }));
     try {
-      const res = await fetch(`${API_URL}/api/test`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const ok = res.ok;
-      setSystemStatus(prev => ({
-        ...prev,
-        api: ok ? 'online' : 'offline',
-        database: ok ? 'online' : 'offline',
-      }));
+      // Use public health endpoint instead of protected test route
+      const res = await fetch(`${API_URL}/health`);
+      
+      if (res.ok) {
+        setSystemStatus(prev => ({
+          ...prev,
+          api: 'online',
+          database: 'online',
+        }));
+      } else {
+        // If server is reachable but returns error (like 503 DB offline)
+        const isDbOffline = res.status === 503;
+        setSystemStatus(prev => ({
+          ...prev,
+          api: 'online',
+          database: isDbOffline ? 'offline' : 'online',
+        }));
+      }
       setLastChecked(new Date());
-    } catch {
+    } catch (err) {
+      // Network error / Server down
       setSystemStatus(prev => ({ ...prev, api: 'offline', database: 'offline' }));
     } finally {
       setTimeout(() => setRefreshing(false), 600);

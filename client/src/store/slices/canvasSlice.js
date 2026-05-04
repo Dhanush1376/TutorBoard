@@ -43,7 +43,6 @@ export const createCanvasSlice = (set, get) => ({
     state.activeTool = 'select'; 
   }),
   expandCanvas:  ()     => set((state) => { state.canvasMode = CANVAS_MODE.FULLSCREEN; }),
-  setCanvasTransform: (transform) => set((state) => { state.canvasTransform = transform; }),
   setCanvasLocked:    (locked) => set((state) => { state.isCanvasLocked = locked; }),
   setInteracting:     (active) => set((state) => { state.isInteracting = active; }),
   setCurrentStep: (index)      => set((state) => {
@@ -55,7 +54,7 @@ export const createCanvasSlice = (set, get) => ({
   setD3Narration: (text)       => set((state) => { state.d3Narration = text; }),
 
   _syncManifest: (canvasObjects) => {
-    const { sessionId, sessionManifest, pinnedNotes, canvasTransform } = get();
+    const { sessionId, sessionManifest, pinnedNotes } = get();
     if (!sessionId) return;
     
     const existing = sessionManifest[sessionId] || {};
@@ -65,7 +64,6 @@ export const createCanvasSlice = (set, get) => ({
       [sessionId]: {
         ...existing,
         canvasObjects: [...(canvasObjects || [])],
-        canvasTransform: canvasTransform || { x: 0, y: 0, scale: 1 },
         pinnedNotes: existing.pinnedNotes || pinnedNotes || [],
         lastActive: Date.now()
       }
@@ -84,12 +82,11 @@ export const createCanvasSlice = (set, get) => ({
     const manualObjects = currentObjects.filter(obj => obj.id?.startsWith('manual-'));
     const canvasObjects = [...manualObjects, ...serverObjects];
 
-    const { sessionId, sessionManifest, pinnedNotes, timeline: oldTimeline, canvasTransform: currentTransform } = get();
+    const { sessionId, sessionManifest, pinnedNotes, timeline: oldTimeline } = get();
     
-    // BUG FIX: Only reset transform if it's a DIFFERENT lesson title.
-    // This preserves zoom/pan during doubt-triggered regens of the same lesson.
+    // BUG FIX: Only reset current step if it's a DIFFERENT lesson title.
     const isNewTopic = !oldTimeline || oldTimeline.title !== data.title;
-    const finalTransform = isNewTopic ? { x: 0, y: 0, scale: 1 } : currentTransform;
+    const finalTransform = { x: 0, y: 0, scale: 1 }; // Default for fixed canvas
 
     set({
       timeline: {

@@ -13,20 +13,22 @@ import useStreamingResponse from '../hooks/useStreamingResponse';
 import { BASE_URL as API_URL } from '../services/api';
 
 // Canvas & Teaching Overlays
-import FixedTeachingStage from '../components/canvas/FixedTeachingStage';
 import AgentCanvasRenderer from '../components/canvas/AgentCanvasRenderer';
-import InteractiveCanvasLayer from '../components/canvas/InteractiveCanvasLayer';
+import FixedTeachingStage from '../components/canvas/FixedTeachingStage';
+import CodeVisualizerModal from '../components/canvas/CodeVisualizerModal';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
 import QuickAskOverlay from '../components/chat/QuickAskOverlay';
 import { useAuth } from '../context/AuthContext';
 import { useSessionSync } from '../hooks/useSessionSync';
+import VisaiLogo from '../components/layout/VisaiLogo';
+import SelectionPopover from '../components/chat/SelectionPopover';
 
 import { 
   Volume2, VolumeX, Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
-  Check, Wifi, WifiOff, Loader, Key, Cpu
+  Check, Wifi, WifiOff, Loader, Key
 } from 'lucide-react';
 
 
@@ -40,7 +42,7 @@ const Home = ({ isDark }) => {
     machineState, isConnected,
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
     currentStep, currentStepIndex, totalSteps,
-    canvasObjects, canvasSteps,
+    canvasObjects, canvasConnections, canvasSteps,
     doubtResponse, isDoubtProcessing, doubtHistory,
     error,
     isPlaying,
@@ -467,6 +469,28 @@ const Home = ({ isDark }) => {
 
   const { startStreaming: streamResponse, stopStreaming } = useStreamingResponse();
 
+  // ── Smart Title Summarization Helper ──
+  const generateCleanTitle = useCallback((text) => {
+    if (!text) return 'Untitled Session';
+    let clean = text;
+    // Strip Context block if it exists (handles context prepended in handleSubmit)
+    const contextMatch = text.match(/Context: ".*?"\n\nQuestion: (.*)/is);
+    if (contextMatch && contextMatch[1]) {
+      clean = contextMatch[1];
+    }
+    // Strip "Question: " prefix if standalone
+    clean = clean.replace(/^Question: /i, '');
+    
+    // Take first sentence or first 45 chars
+    clean = clean.split(/[.!?\n]/)[0].trim();
+    if (clean.length > 45) {
+      clean = clean.substring(0, 42) + '...';
+    }
+    
+    if (!clean) return 'Untitled Session';
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  }, []);
+
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
   // Use conversationMessages as the primary source for the chat UI
   const messages = conversationMessages.length > 0 ? conversationMessages : (activeSession?.messages || []);
@@ -511,9 +535,16 @@ const Home = ({ isDark }) => {
     
     if (!hasUserContent) return null;
 
+    const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
+    const existingTitle = activeSession?.title || timeline?.title;
+    
+    const derivedTitle = isGeneric(existingTitle) 
+      ? (updatedMessages && updatedMessages.find(m => m.role === 'user')?.content) 
+      : existingTitle;
+
     const payload = {
       sessionId: targetSessionId,
-      title: overrideTitle || activeSession?.title || timeline?.title || (updatedMessages && updatedMessages.find(m => m.role === 'user')?.content?.substring(0, 40)) || 'Untitled Session',
+      title: overrideTitle || (isGeneric(derivedTitle) ? generateCleanTitle(derivedTitle) : derivedTitle) || 'Untitled Session',
       messages: updatedMessages,
       canvasState: canvasObjects || [],
       canvasSteps: canvasSteps || [],
@@ -527,9 +558,9 @@ const Home = ({ isDark }) => {
       updatedAt: Date.now()
     };
 
-    // ── GUEST PERSISTENCE (LocalStorage) ──
+    // ── GUEST PERSISTENCE (LocalStorage fallback + MongoDB) ──
     if (user?.isGuest) {
-      console.log(`[Persistence:Guest] 🏠 Saving to local storage: ${targetSessionId}`);
+      console.log(`[Persistence:Guest] 🏠 Updating local history: ${targetSessionId}`);
       setChatHistory(prev => {
         const idx = prev.findIndex(s => s.id === targetSessionId);
         let next;
@@ -539,15 +570,14 @@ const Home = ({ isDark }) => {
           next = [...prev];
           next[idx] = { ...next[idx], ...payload };
         }
-        // Prune to 10 sessions to prevent storage bloating
         const pruned = next.slice(0, 10);
         localStorage.setItem('tutorboard-guest-history', JSON.stringify(pruned));
         return next;
       });
-      return targetSessionId;
+      // Continue to API call if we have a valid session ID or just started one
     }
 
-    if (!isAuthenticated || !token) return null;
+    if (!isAuthenticated) return null;
     
     console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
     
@@ -939,10 +969,24 @@ const Home = ({ isDark }) => {
   }, [chatInputText, setPrompt, setSidebarOpen, setActiveView, setChatInputText]);
 
   const handleSubmit = async (textOverride, fileData = null) => {
-    if ((!prompt.trim() && !textOverride && !fileData) || isSubmittingRef.current) return;
+    const { selectedTextContext, setSelectedTextContext } = useTutorStore.getState();
+    const finalContext = selectedTextContext;
+
+    if ((!prompt.trim() && !textOverride && !fileData && !finalContext) || isSubmittingRef.current) return;
     
-    const userPrompt = textOverride || prompt.trim();
+    let userPrompt = textOverride || prompt.trim();
+    
+    // If we have context but NO user prompt, we might want a default question
+    if (!userPrompt && finalContext) {
+      userPrompt = `Explain this: "${finalContext}"`;
+    } else if (finalContext) {
+      // Prepend context to the prompt or send as separate field if API supports it
+      // For now, we'll prepend it in a clean way for the AI to see
+      userPrompt = `Context: "${finalContext}"\n\nQuestion: ${userPrompt}`;
+    }
+
     setPrompt('');  // Clear input immediately
+    setSelectedTextContext(null); // Clear context immediately
     setActiveView('chat');
     isSubmittingRef.current = true;
 
@@ -963,7 +1007,10 @@ const Home = ({ isDark }) => {
       // ── 1. Add user message to conversation slice ──
       const { userId, assistantId } = addUserMessage(userPrompt);
 
-      const sessionTitle = userPrompt.substring(0, 40) || 'Untitled Session';
+      // ── Smart Title Generation: Only if session is currently generic ──
+      const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
+      const currentTitle = activeSession?.title;
+      const sessionTitle = isGeneric(currentTitle) ? generateCleanTitle(userPrompt) : currentTitle;
       
       // Update local chat history for sidebar display
       const userMessage = { 
@@ -975,7 +1022,7 @@ const Home = ({ isDark }) => {
         const idx = prev.findIndex(s => s.id === workingSessionId);
         if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
         const next = [...prev]; 
-        next[idx] = { ...next[idx], messages: [...next[idx].messages, userMessage] }; 
+        next[idx] = { ...next[idx], title: sessionTitle, messages: [...next[idx].messages, userMessage] }; 
         return next;
       });
 
@@ -1202,8 +1249,8 @@ const Home = ({ isDark }) => {
       lastArtifactIdRef.current = null; // Reset for next turn
       currentCanvasTypeRef.current = null;
 
-      // Background persist for sidebar sync
-      if (isAuthenticated && !user?.isGuest && token) {
+      // Background persist for sidebar sync (Supports guests)
+      if (isAuthenticated) {
         saveCurrentSession(
           useTutorStore.getState().conversationMessages,
           receivedSessionId || workingSessionId,
@@ -1246,7 +1293,7 @@ const Home = ({ isDark }) => {
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
     try {
-      if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+      if (isMongoId && isAuthenticated && token) {
         const fetchOptions = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1307,11 +1354,14 @@ const Home = ({ isDark }) => {
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
     try {
-      if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+      if (isMongoId && isAuthenticated && token) {
         const fetchOptions = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: dbSessionId }),
+          body: JSON.stringify({ 
+            sessionId: dbSessionId,
+            messageId: finalTargetId 
+          }),
           credentials: 'include'
         };
         if (token && token !== 'verified' && token !== 'guest') {
@@ -1320,11 +1370,27 @@ const Home = ({ isDark }) => {
         const res = await fetch(`${API_URL}/api/chat/regenerate`, fetchOptions);
         if (res.ok) {
           const data = await res.json();
-          // ── OPTIMISTIC UPDATE: Add a new version placeholder immediately ──
-          // This makes the UI version counter (e.g. 1/1 -> 2/2) update instantly
-          useTutorStore.getState().addMessageVersion(finalTargetId, '', { regenerated: true });
           
-          streamResponse(data.response, finalTargetId);
+          // Determine the actual message ID to stream into. 
+          // 1. Prioritize real ID from backend
+          // 2. Fallback to heuristic (find assistant response to the user message)
+          let streamTargetId = data.assistantMessageId || finalTargetId;
+          
+          if (!data.assistantMessageId) {
+            const messages = useTutorStore.getState().conversationMessages;
+            const targetIdx = messages.findIndex(m => m.id === finalTargetId);
+            if (targetIdx !== -1 && messages[targetIdx].role === 'user') {
+              const nextMsg = messages[targetIdx + 1];
+              if (nextMsg && nextMsg.role === 'assistant') {
+                streamTargetId = nextMsg.id;
+              }
+            }
+          }
+
+          // ── OPTIMISTIC UPDATE: Add a new version placeholder immediately ──
+          useTutorStore.getState().addMessageVersion(streamTargetId, '', { regenerated: true });
+          
+          streamResponse(data.response, streamTargetId);
           return;
         }
       }
@@ -1360,7 +1426,7 @@ const Home = ({ isDark }) => {
     deleteMessageById(messageId);
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
-    if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+    if (isMongoId && isAuthenticated && token) {
       const fetchOptions = {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -1381,7 +1447,7 @@ const Home = ({ isDark }) => {
       const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
-      if (isMongoId && isAuthenticated && !user?.isGuest && token) {
+      if (isMongoId && isAuthenticated && token) {
         try {
           const fetchOptions = {
             method: 'POST',
@@ -1398,6 +1464,31 @@ const Home = ({ isDark }) => {
         }
       }
     };
+
+  // ── Version Switch Handler ──
+  const handleSwitchVersion = async (messageId, versionIndex) => {
+    switchMessageVersion(messageId, versionIndex);
+
+    const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+
+    if (isMongoId && isAuthenticated && token) {
+      try {
+        const fetchOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: dbSessionId, messageId, versionIndex }),
+          credentials: 'include'
+        };
+        if (token && token !== 'verified' && token !== 'guest') {
+          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+        }
+        await fetch(`${API_URL}/api/chat/switch-version`, fetchOptions);
+      } catch (err) {
+        console.error('[Home] Version switch sync failed:', err);
+      }
+    }
+  };
 
   // ── Stop Generation Handler ──
   const handleStopGeneration = () => {
@@ -1416,6 +1507,8 @@ const Home = ({ isDark }) => {
   const setSelectedElements = useTutorStore(state => state.setSelectedElements);
   const setHasTextSelection = useTutorStore(state => state.setHasTextSelection);
 
+  const isTeachingActive = machineState !== STATES.IDLE;
+
   const leftPanel = (
     <ErrorBoundary reloadOnRetry={true}>
       <LeftPanel
@@ -1426,7 +1519,7 @@ const Home = ({ isDark }) => {
       messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing || isStreaming || isWaitingForAI}
       onOpenCanvas={handleOpenCanvas} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage}
       onRegenerateMessage={handleRegenerateMessage} onFeedback={handleFeedback} onStopGeneration={handleStopGeneration}
-      onSwitchVersion={switchMessageVersion}
+      onSwitchVersion={handleSwitchVersion}
       getMsgId={getMsgId}
       prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit}
       onOpenArtifact={handleOpenArtifactFromCode}
@@ -1438,6 +1531,7 @@ const Home = ({ isDark }) => {
       isLoadingMore={pagination.loading && chatHistory.length > 0}
       onLoadMore={() => fetchCloudSessions(pagination.page + 1)}
       onQuickAsk={() => setIsQuickAskOpen(true)}
+      isSplitView={isTeachingActive}
     />
     </ErrorBoundary>
   );
@@ -1449,42 +1543,41 @@ const Home = ({ isDark }) => {
         title={activeSession?.title || "TutorBoard AI"}
         onBack={handleNewChat}
         sidebar={leftPanel}
+        isSplitView={isTeachingActive}
       >
         {/* 2. Main Background Canvas */}
-        <div className="absolute inset-0 z-0 bg-[var(--bg-primary)]">
+        <div className="absolute inset-0 z-0 bg-[var(--bg-secondary)] overflow-hidden">
+          {/* Global Ambient Light Decorations (Subtle) */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] bg-[var(--info)] opacity-[0.03] blur-[100px] rounded-full" />
+            <div className="absolute -bottom-[10%] -right-[5%] w-[40%] h-[40%] bg-[var(--success)] opacity-[0.03] blur-[100px] rounded-full" />
+          </div>
+
           {(timeline || (canvasObjects && canvasObjects.length > 0)) ? (
-            <FixedTeachingStage
-              currentStepIndex={currentStepIndex}
-              totalSteps={totalSteps}
-              onNext={nextStep}
-              onPrev={prevStep}
-              onPlay={play}
-              onPause={pause}
-              isPlaying={isPlaying}
-              playbackSpeed={machine.playbackSpeed}
-              onSpeedChange={setSpeed}
-              topic={timeline?.title || "Lesson Session"}
-            >
-              <AgentCanvasRenderer
-                timeline={timeline}
-                objects={[...(canvasObjects || []), ...(pinnedNotes || [])]}
-                steps={canvasSteps}
+            <div className="w-full h-full relative overflow-hidden">
+              <FixedTeachingStage 
+                topic={timeline?.title || "History Session"}
                 currentStepIndex={currentStepIndex}
-                onGoToStep={goToStep}
-                doubtHistory={doubtHistory}
-                isDoubtProcessing={isDoubtProcessing}
-                activeDoubtId={machine.activeDoubtId}
-                onJumpToDoubt={machine.jumpToDoubt}
-                onPinDoubt={machine.pinDoubtToCanvas}
-                onResume={resume}
-                onAskDoubt={askDoubt}
-              />
-            </FixedTeachingStage>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center relative p-8">
+                totalSteps={canvasSteps.length}
+                hideControls={true}
+              >
+                <AgentCanvasRenderer
+                  width={800} height={600}
+                  timeline={timeline}
+                  currentStepIndex={currentStepIndex}
+                  elements={canvasObjects}
+                  objects={canvasObjects}
+                  connections={canvasConnections}
+                  steps={canvasSteps}
+                  onGoToStep={goToStep}
+                />
+              </FixedTeachingStage>
+            </div>
+          ) : !pagination.loading && (
+            <div className="w-full h-full flex items-center justify-center relative p-4 md:p-6">
               {/* The "Empty" Stage Frame (3D Glassy) */}
               <div 
-                className="absolute inset-8 rounded-[2.5rem] bg-[var(--bg-secondary)] opacity-20 pointer-events-none"
+                className="absolute inset-4 md:inset-6 rounded-[2.5rem] bg-[var(--bg-secondary)] opacity-20 pointer-events-none"
                 style={{
                   boxShadow: `
                     0 0 0 1px var(--border-color),
@@ -1504,26 +1597,20 @@ const Home = ({ isDark }) => {
                   <div className="absolute inset-0 bg-[var(--info)] opacity-10 blur-2xl rounded-full scale-150" />
                   <div 
                     className="relative w-full h-full rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center overflow-hidden border border-[var(--border-color)]"
-                    style={{
-                      boxShadow: `
-                        0 10px 30px -5px rgba(0,0,0,0.4),
-                        inset 0 1px 1px rgba(255,255,255,0.1)
-                      `
-                    }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
-                    <Cpu size={24} className="text-[var(--text-primary)] opacity-50" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
+                    <VisaiLogo size="sm" />
                   </div>
                 </div>
 
                 <div className="text-center space-y-3">
                   <h3 className="text-3xl font-light text-[var(--text-primary)] tracking-tight opacity-80">
-                    Start <span className="font-semibold">Learning</span>
+                    Tutor<span className="font-semibold">Board</span>
                   </h3>
                   <div className="flex items-center justify-center gap-4">
                     <div className="h-px w-6 bg-[var(--border-color)]" />
                     <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-[0.3em] font-medium opacity-40">
-                      Teaching Engine Ready
+                      AI Visual Learning Ready
                     </p>
                     <div className="h-px w-6 bg-[var(--border-color)]" />
                   </div>
@@ -1539,7 +1626,7 @@ const Home = ({ isDark }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 z-[5] bg-[var(--bg-primary)] flex flex-col items-center justify-center gap-4"
+                className="absolute inset-0 z-[5] bg-[var(--bg-secondary)] flex flex-col items-center justify-center gap-4"
               >
                 <div className="relative">
                   <div className="w-12 h-12 border-2 border-[var(--border-color)] border-t-[var(--text-primary)] rounded-full animate-spin" />
@@ -1583,13 +1670,24 @@ const Home = ({ isDark }) => {
           )}
         </AnimatePresence>
 
-        {/* ─── 3. TEACHING OVERLAYS ─── */}
-        <TeachingSession 
-          deselectAll={() => {
-            setSelectedElements([]);
-            setHasTextSelection(false);
-          }} 
-        />
+        {/* ─── 3. TEACHING OVERLAYS (Split View Container) ─── */}
+        <AnimatePresence>
+          {isTeachingActive && (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="absolute inset-0 z-[40] bg-[var(--bg-primary)] border-l border-[var(--border-color)] shadow-2xl"
+            >
+              <TeachingSession 
+                deselectAll={() => {
+                  setSelectedElements([]);
+                  setHasTextSelection(false);
+                }} 
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
 
 
@@ -1617,6 +1715,8 @@ const Home = ({ isDark }) => {
           isOpen={isQuickAskOpen} 
           onClose={() => setIsQuickAskOpen(false)} 
         />
+        <SelectionPopover />
+        <CodeVisualizerModal />
       </Layout>
     </div>
   );

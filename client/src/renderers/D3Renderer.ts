@@ -12,27 +12,27 @@ export class D3Renderer {
   private nextY = 120;
   private resizeObserver: ResizeObserver | null = null;
 
-  constructor(containerElement: HTMLDivElement) {
+  constructor(containerElement: HTMLDivElement, initialWidth?: number, initialHeight?: number) {
     this.container = d3.select(containerElement);
     this.container.selectAll('*').remove();
     
+    if (initialWidth) this.currentWidth = initialWidth;
+    if (initialHeight) this.currentHeight = initialHeight;
+
     const svg = this.container.append('svg')
       .attr('id', 'teaching-canvas-svg')
       .attr('width', '100%')
       .attr('height', '100%')
+      .attr('viewBox', `0 0 ${this.currentWidth} ${this.currentHeight}`)
       .style('overflow', 'visible')
       .style('display', 'block');
 
-    // INFRA-05: Handle dynamic resizing to prevent zero-width rendering artifacts
+    // INFRA-05: We use a fixed logical coordinate system (800x600).
+    // The CSS transform: scale() in FixedTeachingStage handles visual fitting.
+    // We observe the container only to ensure we can initialize, not to update our internal logic.
     this.resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          this.currentWidth = width;
-          this.currentHeight = height;
-          svg.attr('viewBox', `0 0 ${width} ${height}`);
-        }
-      }
+      // Logic removed: never update currentWidth/Height from physical DOM measurements
+      // to avoid breaking the 800x600 logical layout.
     });
     this.resizeObserver.observe(containerElement);
 

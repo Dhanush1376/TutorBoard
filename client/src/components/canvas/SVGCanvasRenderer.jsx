@@ -37,7 +37,7 @@ function FreeformShape({ type, x, y, w, h, color, label, attentionLevel, path, s
     <g transform={`translate(${x * CANVAS_WIDTH}, ${y * CANVAS_HEIGHT})`}>
       <rect 
         x={-w/2} y={-h/2} width={w} height={h} rx={8} 
-        fill={c.glass} stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 3 : 1.5} 
+        fill={c.glass} stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 2 : 1.2} 
       />
       {label && <text textAnchor="middle" dominantBaseline="middle" fill={c.text} fontSize={12} fontWeight="600">{label}</text>}
     </g>

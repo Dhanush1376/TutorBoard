@@ -61,6 +61,8 @@ export const createUiSlice = (set, get) => ({
   canvasTone:          'neutral',
   motionMode:          'fluid',
   alertPrefs:          {}, // { [key]: boolean }
+  chatInputText:       '',
+  selectedTextContext: null,
 
   globalAlert: { 
     isActive: false, 
@@ -116,6 +118,9 @@ export const createUiSlice = (set, get) => ({
 
   setSidebarOpen:   (open)  => set({ isSidebarOpen: open }),
   toggleSidebar:    ()      => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
+  setChatInputText: (text)  => set({ chatInputText: text }),
+  toggleSidebarPosition: () => set(s => ({ layoutView: s.layoutView === 'left' ? 'right' : 'left' })),
+  setSelectedTextContext: (text) => set({ selectedTextContext: text }),
   setSelectedAgent: (agent) => {
     localStorage.setItem('tutorboard-agent', agent);
     set({ selectedAgent: agent });
