@@ -200,7 +200,9 @@ const AuthLanding = () => {
             </p>
           </div>
           <div className="mb-6">
-            <h1 className="text-[32px] lg:text-[40px] leading-[1.05] font-heading font-semibold mb-2 text-[var(--text-primary)] tracking-tight">
+            <h1 
+              className="text-[38px] lg:text-[46px] leading-[1.05] font-serif font-normal mb-3 text-[var(--text-primary)] tracking-tight whitespace-pre-line"
+            >
               {isLogin ? 'Sign in' : 'Create an\naccount'}
             </h1>
             <p className="text-[var(--text-secondary)] text-[12px] font-normal opacity-80 whitespace-pre-line">

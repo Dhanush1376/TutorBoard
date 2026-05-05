@@ -6,18 +6,21 @@
  * - Java, C++, C (Remote Piston API)
  */
 
-// Piston API Configuration
+// Piston API Configuration (Mirrors for redundancy)
 const PISTON_ENDPOINTS = [
-  'https://piston.pydis.com/api/v2',      // Python Discord mirror
-  'https://piston.engineer/api/v2',       // Community mirror
-  'https://emkc.org/api/v2/piston',       // Original (Publicly Restricted)
+  'https://emkc.org/api/v2/piston',       // Primary
+  'https://piston.engineer/api/v2',       // Backup 1
+  'https://piston.pydis.com/api/v2',      // Backup 2
 ];
 
 const PISTON_LANG_MAP = {
-  python: { language: 'python', version: '3.10.0' },
-  java: { language: 'java', version: '15.0.2' },
-  cpp: { language: 'c++', version: '10.2.0' },
-  c: { language: 'c', version: '10.2.0' },
+  python: { language: 'python3', version: '*' },
+  java: { language: 'java', version: '*' },
+  cpp: { language: 'cpp', version: '*' },
+  c: { language: 'c', version: '*' },
+  ruby: { language: 'ruby', version: '*' },
+  go: { language: 'go', version: '*' },
+  rust: { language: 'rust', version: '*' },
 };
 
 // ─── JavaScript (Local) ───────────────────────────────────────────────────────
@@ -72,11 +75,10 @@ let pyodideInstance = null;
 export async function executePythonLocal(code, onLog) {
   try {
     if (!pyodideInstance) {
-      onLog?.({ type: 'info', text: '📥 Loading Python Engine (Pyodide)...' });
       if (!window.loadPyodide) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js';
+          script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.0/full/pyodide.js';
           script.onload = resolve;
           script.onerror = reject;
           document.head.appendChild(script);
@@ -85,8 +87,6 @@ export async function executePythonLocal(code, onLog) {
       pyodideInstance = await window.loadPyodide();
     }
 
-    onLog?.({ type: 'info', text: '🐍 Executing Python locally...' });
-    
     pyodideInstance.setStdout({
       batched: (text) => onLog?.({ type: 'log', text })
     });
@@ -102,7 +102,7 @@ export async function executePythonLocal(code, onLog) {
   }
 }
 
-// ─── Remote Execution (Piston API) ───────────────────────────────────────────
+// ─── Remote Execution (Piston API + Backend Proxy) ───────────────────────────
 export async function executePistonAPI(code, lang, onLog) {
   let config = PISTON_LANG_MAP[lang];
   if (!config) {
@@ -110,10 +110,39 @@ export async function executePistonAPI(code, lang, onLog) {
     return { success: false };
   }
 
+  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  
+  // 1. Try our own backend proxy first (More reliable, bypasses CORS)
+  try {
+    const response = await fetch(`${API_URL}/api/compiler/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        language: config.language,
+        version: config.version,
+        files: [{ 
+          name: lang === 'java' ? 'Main.java' : `main.${lang === 'cpp' ? 'cpp' : lang}`, 
+          content: code 
+        }],
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.run) {
+        if (data.run.stdout) data.run.stdout.trim().split('\n').forEach(line => onLog?.({ type: 'log', text: line }));
+        if (data.run.stderr) data.run.stderr.trim().split('\n').forEach(line => onLog?.({ type: 'error', text: line }));
+        return { success: data.run.code === 0 };
+      }
+    }
+    throw new Error('Proxy returned non-ok response');
+  } catch (err) {
+    console.warn('[codeRunner] Backend proxy failed:', err.message);
+  }
+
+  // 2. Fallback to direct public mirrors (Note: many are now restricted)
   for (const endpoint of PISTON_ENDPOINTS) {
     try {
-      onLog?.({ type: 'info', text: `⚙ Connecting to ${endpoint.split('/')[2]}...` });
-
       const response = await fetch(`${endpoint}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,15 +153,32 @@ export async function executePistonAPI(code, lang, onLog) {
             name: lang === 'java' ? 'Main.java' : `main.${lang === 'cpp' ? 'cpp' : lang}`, 
             content: code 
           }],
+          compile_timeout: 10000,
+          run_timeout: 3000,
+          memory_limit: -1
         }),
       });
 
-      if (!response.ok) continue;
+      if (!response.ok) {
+        console.warn(`[Piston] Mirror ${endpoint} returned ${response.status}`);
+        continue;
+      }
 
       const data = await response.json();
       if (data.run) {
+        // Log compilation issues first
+        if (data.compile && data.compile.stderr) {
+          data.compile.stderr.trim().split('\n').forEach(line => onLog?.({ type: 'error', text: `[Compile] ${line}` }));
+        }
+        
+        // Log standard output
         if (data.run.stdout) data.run.stdout.trim().split('\n').forEach(line => onLog?.({ type: 'log', text: line }));
         if (data.run.stderr) data.run.stderr.trim().split('\n').forEach(line => onLog?.({ type: 'error', text: line }));
+        
+        if (data.run.signal) {
+          onLog?.({ type: 'error', text: `Process terminated by signal: ${data.run.signal}` });
+        }
+
         return { success: data.run.code === 0 };
       }
     } catch (err) {
@@ -150,10 +196,13 @@ export async function executeCode(code, lang, onLog) {
     return executeJavaScript(code, onLog);
   }
   if (lang === 'python') {
-    return await executePythonLocal(code, onLog);
+    const localResult = await executePythonLocal(code, onLog);
+    if (localResult.success) return localResult;
+    // Fallthrough to Piston
   }
-  if (PISTON_LANG_MAP[lang]) {
-    return await executePistonAPI(code, lang, onLog);
+  
+  if (PISTON_LANG_MAP[lang] || lang === 'python') {
+    return await executePistonAPI(code, lang === 'python' ? 'python' : lang, onLog);
   }
   
   onLog?.({ type: 'error', text: `Language "${lang}" is not supported for execution yet.` });

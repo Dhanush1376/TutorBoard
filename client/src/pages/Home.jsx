@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import Layout from '../components/layout/Layout';
 import ChatWindow from '../components/chat/ChatWindow';
 import InputBar from '../components/chat/InputBar';
@@ -64,10 +65,7 @@ const Home = ({ isDark }) => {
     drawColor, noteColor, noteSize, notePinned, noteToolSize,
     textToolSize, shapeStrokeStyle,
     drawWidth, gridType, gridSize, showGrid,
-    setCodeEditorData
-  } = useTutorStore();
-
-  const {
+    setCodeEditorData,
     conversationMessages, isStreaming, isWaitingForAI,
     addUserMessage, finishStreaming, abortStreaming,
     setConversationMessages, clearConversation,
@@ -81,15 +79,43 @@ const Home = ({ isDark }) => {
     addArtifact, setArtifactDbId, setActiveArtifact, openArtifactPanel,
     // Unread tracking
     addUnreadSession, markSessionRead
-  } = useTutorStore();
+  } = useTutorStore(useShallow(s => ({
+    canvasMode: s.canvasMode, voiceEnabled: s.voiceEnabled, playbackSpeed: s.playbackSpeed,
+    setCanvasMode: s.setCanvasMode, toggleVoice: s.toggleVoice,
+    setPlaybackSpeed: s.setPlaybackSpeed,
+    openFloatingSidebar: s.openFloatingSidebar, toggleDoubtThread: s.toggleDoubtThread, showDoubtThread: s.showDoubtThread,
+    selectedAgent: s.selectedAgent, setSelectedAgent: s.setSelectedAgent, isSidebarOpen: s.isSidebarOpen, setSidebarOpen: s.setSidebarOpen,
+    setCanvasSnapshot: s.setCanvasSnapshot, greetingMessage: s.greetingMessage, layoutView: s.layoutView, addNoteToCanvas: s.addNoteToCanvas,
+    chatInputText: s.chatInputText, setChatInputText: s.setChatInputText, pinnedNotes: s.pinnedNotes, toggleSidebarPosition: s.toggleSidebarPosition, showAlert: s.showAlert,
+    activeSnapshotId: s.activeSnapshotId, setActiveSnapshotId: s.setActiveSnapshotId, setTimeline: s.setTimeline,
+    activeTool: s.activeTool, setActiveTool: s.setActiveTool, addCanvasObjects: s.addCanvasObjects,
+    drawColor: s.drawColor, noteColor: s.noteColor, noteSize: s.noteSize, notePinned: s.notePinned, noteToolSize: s.noteToolSize,
+    textToolSize: s.textToolSize, shapeStrokeStyle: s.shapeStrokeStyle,
+    drawWidth: s.drawWidth, gridType: s.gridType, gridSize: s.gridSize, showGrid: s.showGrid,
+    setCodeEditorData: s.setCodeEditorData,
+    conversationMessages: s.conversationMessages, isStreaming: s.isStreaming, isWaitingForAI: s.isWaitingForAI,
+    addUserMessage: s.addUserMessage, finishStreaming: s.finishStreaming, abortStreaming: s.abortStreaming,
+    setConversationMessages: s.setConversationMessages, clearConversation: s.clearConversation,
+    applyEdit: s.applyEdit, removeLastAssistantMessage: s.removeLastAssistantMessage,
+    deleteMessageById: s.deleteMessageById, setMessageFeedback: s.setMessageFeedback,
+    setWaitingForAI: s.setWaitingForAI, setLastAIError: s.setLastAIError, conversationTopic: s.conversationTopic,
+    switchMessageVersion: s.switchMessageVersion, setSources: s.setSources, clearSources: s.clearSources, startStreaming: s.startStreaming,
+    appendStreamChunk: s.appendStreamChunk, appendStreamThought: s.appendStreamThought, updateStreamingContent: s.updateStreamingContent, lastStreamSources: s.lastStreamSources,
+    setCurrentCanvasType: s.setCurrentCanvasType, syncMessageIds: s.syncMessageIds,
+    addArtifact: s.addArtifact, setArtifactDbId: s.setArtifactDbId, setActiveArtifact: s.setActiveArtifact, openArtifactPanel: s.openArtifactPanel,
+    startStreamingArtifact: s.startStreamingArtifact, finalizeStreamingArtifact: s.finalizeStreamingArtifact,
+    addUnreadSession: s.addUnreadSession, markSessionRead: s.markSessionRead
+  })));
 
 
 
 
   const isGuest = !!user?.isGuest;
-  if (import.meta.env.DEV) {
-    console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
-  }
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
+    }
+  }, [user?.email, isGuest]);
   
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
@@ -478,13 +504,15 @@ const Home = ({ isDark }) => {
     if (contextMatch && contextMatch[1]) {
       clean = contextMatch[1];
     }
-    // Strip "Question: " prefix if standalone
+    // Strip "Question: " prefix if standalone (legacy)
     clean = clean.replace(/^Question: /i, '');
     
-    // Take first sentence or first 45 chars
-    clean = clean.split(/[.!?\n]/)[0].trim();
-    if (clean.length > 45) {
-      clean = clean.substring(0, 42) + '...';
+    // Take first 50 chars or first sentence
+    const firstSentence = clean.split(/[.!?\n]/)[0].trim();
+    if (firstSentence.length > 50) {
+      clean = firstSentence.substring(0, 47) + '...';
+    } else {
+      clean = firstSentence;
     }
     
     if (!clean) return 'Untitled Session';
@@ -641,7 +669,22 @@ const Home = ({ isDark }) => {
 
 
   // ── Passive Sync (Canvas/Prefs Debounce) ──
-  useSessionSync(messages);
+  useSessionSync(conversationMessages);
+
+  // ── Voice Narration for Chat ──
+  useEffect(() => {
+    if (!voiceEnabled || isStreaming || !window.speechSynthesis) return;
+    const lastMsg = conversationMessages[conversationMessages.length - 1];
+    if (lastMsg?.role === 'assistant' && lastMsg.content) {
+      window.speechSynthesis.cancel();
+      // Remove markdown characters for cleaner speech
+      const cleanText = lastMsg.content.replace(/[*#`$]/g, '').replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+      const u = new SpeechSynthesisUtterance(cleanText);
+      u.rate = 1.05; u.pitch = 1; u.volume = 0.8;
+      window.speechSynthesis.speak(u);
+    }
+    return () => window.speechSynthesis.cancel();
+  }, [conversationMessages.length, isStreaming, voiceEnabled]);
 
   // ── Active Canvas Persistence: Save immediately after manual drawing ──
   const canvasSyncTimer = useRef(null);
@@ -704,8 +747,10 @@ const Home = ({ isDark }) => {
         });
         useTutorStore.setState({ pinnedNotes: localSession.pinnedNotes || [] });
       }
-      if (localSession.messages) {
-        useTutorStore.setState({ doubtHistory: localSession.messages });
+
+      // ── Bug A Fix: Don't overwrite doubtHistory with regular messages ──
+      if (localSession.doubtHistory) {
+        useTutorStore.setState({ doubtHistory: localSession.doubtHistory });
       }
       
       // Update store's session mapping
@@ -742,7 +787,12 @@ const Home = ({ isDark }) => {
 
             // Restore complete chat history
             if (fullData.messages) {
-              useTutorStore.setState({ doubtHistory: fullData.messages });
+              setConversationMessages(fullData.messages);
+            }
+
+            // ── Bug A Fix: Restore actual doubts if they exist ──
+            if (fullData.doubtHistory) {
+              useTutorStore.setState({ doubtHistory: fullData.doubtHistory });
             }
 
             // Sync with local history so the sidebar/main preview is also updated
@@ -1026,17 +1076,25 @@ const Home = ({ isDark }) => {
         return next;
       });
 
-      // ── 2. Determine if this is a "Deep Visual Dive" (uses existing teaching pipeline) ──
-      if (activeMode === 'deep') {
+      // ── 2. Determine if this is a teaching-related query ──
+      // If a teaching session is active, route all chat input to the doubt pipeline
+      const isTeachingActive = machine.isTeaching || machine.isGenerating || machine.isDoubtTriggered;
+      
+      if (activeMode === 'deep' || isTeachingActive) {
         const history = chatHistory.find(s => s.id === workingSessionId)?.messages || [];
-        const isFollowUp = activeChatId && history.length > 0;
+        const isFollowUp = (activeChatId && history.length > 0) || isTeachingActive;
+        
         if (isFollowUp) {
+          console.log('[Home] Routing chat query to doubt pipeline...');
           askDoubt(userPrompt, activeMode, fileData);
         } else {
           startSession(userPrompt, userPrompt, activeMode, fileData);
         }
+        isSubmittingRef.current = false;
         return;
       }
+
+      const requestStartTime = Date.now();
 
       // ── 3. Call the SSE Streaming Chat API ──
       const fetchOptions = {
@@ -1082,6 +1140,7 @@ const Home = ({ isDark }) => {
       const decoder = new TextDecoder();
       let buffer = '';
       let fullContent = '';
+      let bufferedContent = ''; // Buffer for JSON artifact responses
       let thoughtContent = '';
       let receivedSessionId = null;
       let lastArtifactLocalId = null;
@@ -1118,7 +1177,12 @@ const Home = ({ isDark }) => {
                 fullContent += text;
                 // Isolation check: Only stream to UI if this is the active chat
                 if (workingSessionId === activeChatIdRef.current) {
-                  appendStreamChunk(text);
+                  if (isArtifactExpectedRef.current) {
+                    // Hide the raw JSON from the user, show a nice placeholder
+                    updateStreamingContent("### Generating Visual Model\n\nI'm building a custom artifact for this explanation. One moment...");
+                  } else {
+                    appendStreamChunk(text);
+                  }
                 } else {
                   addUnreadSession(workingSessionId);
                 }
@@ -1136,6 +1200,11 @@ const Home = ({ isDark }) => {
             } else if (eventType === 'message_ids') {
               // Sync local ephemeral IDs with real MongoDB IDs (Fixed: Bug 2)
               const { userMessageId, assistantMessageId } = eventData;
+              
+              if (workingSessionId === activeChatIdRef.current) {
+                syncMessageIds(userMessageId, assistantMessageId);
+              }
+              
               setChatHistory(prev => prev.map(s => {
                 if (s.id === workingSessionId || s.id === receivedSessionId) {
                   const msgs = [...s.messages];
@@ -1152,6 +1221,10 @@ const Home = ({ isDark }) => {
               const plan = eventData.plan || {};
               if (plan.generate_artifact) {
                 isArtifactExpectedRef.current = true;
+                startStreamingArtifact({
+                  type: plan.artifact_type || 'code',
+                  title: plan.artifact_title || 'New Model'
+                });
               }
               if (plan.suggest_canvas && plan.canvas_type) {
                 currentCanvasTypeRef.current = plan.canvas_type;
@@ -1173,6 +1246,8 @@ const Home = ({ isDark }) => {
                   language: art.language,
                   metadata: art.metadata || {},
                 });
+                
+                finalizeStreamingArtifact();
 
                 // Only open the panel for the FIRST artifact in a multi-artifact response
                 if (!lastArtifactLocalId) {
@@ -1293,7 +1368,7 @@ const Home = ({ isDark }) => {
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
     try {
-      if (isMongoId && isAuthenticated && token) {
+      if (isMongoId) {
         const fetchOptions = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1306,6 +1381,12 @@ const Home = ({ isDark }) => {
         const res = await fetch(`${API_URL}/api/chat/edit`, fetchOptions);
         if (res.ok) {
           const data = await res.json();
+          
+          // ── SYNC STATE: If edit truncated the conversation (branching), update store ──
+          if (data.messagesAfterEdit) {
+            useTutorStore.getState().setConversationMessages(data.messagesAfterEdit);
+          }
+
           const assistantMsgId = data.assistantMessageId || getMsgId('assistant');
           streamResponse(data.response, assistantMsgId);
           return;
@@ -1350,11 +1431,14 @@ const Home = ({ isDark }) => {
 
     if (!finalTargetId) return;
 
+    useTutorStore.getState().setWaitingForAI(true);
+    useTutorStore.getState().setLastAIError(null);
+
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
     try {
-      if (isMongoId && isAuthenticated && token) {
+      if (isMongoId) {
         const fetchOptions = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1371,9 +1455,19 @@ const Home = ({ isDark }) => {
         if (res.ok) {
           const data = await res.json();
           
+          // ── SYNC STATE: If regeneration truncated the conversation (branching), update store ──
+          if (data.messagesAfterRegen) {
+            useTutorStore.getState().setConversationMessages(data.messagesAfterRegen);
+          }
+
+          // GUARD: data.response must be a non-empty string
+          if (!data.response || typeof data.response !== 'string') {
+            console.error('[Home] Regenerate returned empty response:', data);
+            setLastAIError('Regeneration returned empty content. Please try again.');
+            return;
+          }
+
           // Determine the actual message ID to stream into. 
-          // 1. Prioritize real ID from backend
-          // 2. Fallback to heuristic (find assistant response to the user message)
           let streamTargetId = data.assistantMessageId || finalTargetId;
           
           if (!data.assistantMessageId) {
@@ -1387,11 +1481,14 @@ const Home = ({ isDark }) => {
             }
           }
 
-          // ── OPTIMISTIC UPDATE: Add a new version placeholder immediately ──
-          useTutorStore.getState().addMessageVersion(streamTargetId, '', { regenerated: true });
-          
+          useTutorStore.getState().setWaitingForAI(false);
           streamResponse(data.response, streamTargetId);
           return;
+        } else {
+          // NEW: parse error from non-ok response
+          useTutorStore.getState().setWaitingForAI(false);
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Regenerate failed with status ${res.status}`);
         }
       }
 
@@ -1410,13 +1507,19 @@ const Home = ({ isDark }) => {
           fetchOptions.headers['Authorization'] = `Bearer ${token}`;
         }
         const res = await fetch(`${API_URL}/api/chat`, fetchOptions);
+        useTutorStore.getState().setWaitingForAI(false);
         if (res.ok) {
           const data = await res.json();
           streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
+        } else {
+          throw new Error('Regenerate fallback failed');
         }
+      } else {
+        useTutorStore.getState().setWaitingForAI(false);
       }
     } catch (err) {
       console.error('[Home] Regenerate failed:', err);
+      useTutorStore.getState().setWaitingForAI(false);
       setLastAIError(err.message);
     }
   };
@@ -1426,7 +1529,7 @@ const Home = ({ isDark }) => {
     deleteMessageById(messageId);
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
-    if (isMongoId && isAuthenticated && token) {
+    if (isMongoId) {
       const fetchOptions = {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -1500,8 +1603,150 @@ const Home = ({ isDark }) => {
     useTutorStore.getState().setWaitingForAI(false);
   };
 
-  // ── Manual Canvas Interaction ──
+  // ── Session Export Handler ──
+  const handleExport = (type) => {
+    const session = chatHistory.find(s => s.id === activeChatId) || activeSession;
+    if (!session || !messages.length) return;
 
+    const title = session.title || 'TutorBoard_Conversation';
+    
+    if (type === 'docx') {
+      const header = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'><title>${title}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; }
+          .msg { margin-bottom: 20pt; }
+          .role { font-weight: bold; font-size: 10pt; color: #555; text-transform: uppercase; }
+          .content { font-size: 11pt; }
+          pre { background: #f4f4f4; padding: 10pt; font-family: 'Courier New', monospace; }
+        </style>
+        </head><body>
+        <h1>${title}</h1>
+        <hr/>
+      `;
+      let content = "";
+      messages.forEach(m => {
+        content += `
+          <div class="msg">
+            <div class="role">${m.role === 'user' ? 'Student' : 'TutorBoard AI'} - ${new Date(m.timestamp).toLocaleString()}</div>
+            <div class="content">${m.content.replace(/\n/g, '<br/>')}</div>
+            ${m.metadata?.thought ? `<div style="color: #666; font-style: italic; margin-top: 5pt; padding-left: 10pt; border-left: 2px solid #ddd;">Thought: ${m.metadata.thought}</div>` : ''}
+          </div>
+          <hr style="border: 0; border-top: 1px solid #eee;"/>
+        `;
+      });
+      const footer = "</body></html>";
+      
+      const blob = new Blob(['\ufeff', header + content + footer], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.doc`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (type === 'pdf') {
+      const printWindow = window.open('', '_blank');
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap');
+              body { 
+                font-family: 'Inter', sans-serif; 
+                padding: 40px; 
+                line-height: 1.6; 
+                color: #1a1a1a; 
+                max-width: 850px; 
+                margin: 0 auto; 
+                background: #fff;
+              }
+              header { border-bottom: 2px solid #f0f0f0; margin-bottom: 30px; padding-bottom: 15px; }
+              h1 { font-weight: 700; font-size: 24px; margin: 0; color: #000; }
+              .date { font-size: 12px; color: #666; margin-top: 4px; }
+              .msg { margin-bottom: 30px; page-break-inside: avoid; }
+              .role { 
+                display: inline-block;
+                font-weight: 600; 
+                font-size: 10px; 
+                text-transform: uppercase; 
+                letter-spacing: 0.05em;
+                color: #666; 
+                margin-bottom: 8px; 
+              }
+              .content { font-size: 14px; white-space: pre-wrap; color: #333; }
+              pre { 
+                background: #f8f9fa; 
+                color: #1a1a1a; 
+                padding: 15px; 
+                border: 1px solid #e9ecef;
+                border-radius: 6px; 
+                font-family: 'JetBrains Mono', monospace; 
+                font-size: 12px; 
+                overflow-x: auto;
+                margin: 15px 0;
+              }
+              .thought { font-size: 12px; color: #777; font-style: italic; margin-top: 10px; border-left: 2px solid #eee; padding-left: 10px; }
+              @media print {
+                body { padding: 20px; }
+                .no-print { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <header>
+              <h1>${title}</h1>
+              <div class="date">Exported on ${new Date().toLocaleString()} from TutorBoard AI</div>
+            </header>
+            <main>
+              ${messages.map(m => `
+                <div class="msg">
+                  <div class="role">${m.role === 'user' ? 'Student' : 'TutorBoard AI'}</div>
+                  <div class="content">${m.content}</div>
+                  ${m.metadata?.thought ? `<div class="thought">Thought: ${m.metadata.thought}</div>` : ''}
+                </div>
+              `).join('')}
+            </main>
+            <script>
+              window.onload = () => {
+                window.print();
+                setTimeout(() => window.close(), 500);
+              };
+            </script>
+          </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
+    }
+  };
+  // ── Keyboard Shortcuts (UPGRADE-05) ──
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      // 1. Ctrl+K Focus Input (Always allow)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('focus-input-bar'));
+      }
+
+      // 2. Escape Stop Generation (Always allow while generating)
+      if (e.key === 'Escape' && (isStreaming || isWaitingForAI)) {
+        e.preventDefault();
+        handleStopGeneration();
+      }
+
+      // 3. Ctrl+/ Open Agent Selector
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('toggle-agent-menu'));
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isStreaming, isWaitingForAI]);
 
   // Selection cleanup
   const setSelectedElements = useTutorStore(state => state.setSelectedElements);
@@ -1516,10 +1761,11 @@ const Home = ({ isDark }) => {
       chatHistory={chatHistory} activeChatId={activeChatId}
       onNewChat={handleNewChat} onSelectChat={handleSelectChat}
       onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
-      messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing || isStreaming || isWaitingForAI}
+      messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing || isWaitingForAI || isStreaming}
       onOpenCanvas={handleOpenCanvas} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage}
       onRegenerateMessage={handleRegenerateMessage} onFeedback={handleFeedback} onStopGeneration={handleStopGeneration}
       onSwitchVersion={handleSwitchVersion}
+      onExport={handleExport}
       getMsgId={getMsgId}
       prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit}
       onOpenArtifact={handleOpenArtifactFromCode}
@@ -1546,78 +1792,69 @@ const Home = ({ isDark }) => {
         isSplitView={isTeachingActive}
       >
         {/* 2. Main Background Canvas */}
-        <div className="absolute inset-0 z-0 bg-[var(--bg-secondary)] overflow-hidden">
-          {/* Global Ambient Light Decorations (Subtle) */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-[10%] -left-[5%] w-[40%] h-[40%] bg-[var(--info)] opacity-[0.03] blur-[100px] rounded-full" />
-            <div className="absolute -bottom-[10%] -right-[5%] w-[40%] h-[40%] bg-[var(--success)] opacity-[0.03] blur-[100px] rounded-full" />
-          </div>
+        {!isTeachingActive && (
+          <div className="absolute inset-0 z-0 bg-[var(--bg-secondary)] overflow-hidden">
+            {/* Ambient Background Elements */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute top-[10%] left-[5%] w-[30%] h-[30%] bg-[var(--text-primary)] opacity-[0.02] blur-[120px] rounded-full" />
+              <div className="absolute -bottom-[10%] -right-[5%] w-[40%] h-[40%] bg-[var(--success)] opacity-[0.03] blur-[100px] rounded-full" />
+            </div>
 
-          {(timeline || (canvasObjects && canvasObjects.length > 0)) ? (
-            <div className="w-full h-full relative overflow-hidden">
-              <FixedTeachingStage 
-                topic={timeline?.title || "History Session"}
-                currentStepIndex={currentStepIndex}
-                totalSteps={canvasSteps.length}
-                hideControls={true}
-              >
-                <AgentCanvasRenderer
-                  width={800} height={600}
-                  timeline={timeline}
+            {(timeline || (canvasObjects && canvasObjects.length > 0)) ? (
+              <div className="w-full h-full relative overflow-hidden">
+                <FixedTeachingStage 
+                  topic={timeline?.title || "History Session"}
                   currentStepIndex={currentStepIndex}
-                  elements={canvasObjects}
-                  objects={canvasObjects}
-                  connections={canvasConnections}
-                  steps={canvasSteps}
-                  onGoToStep={goToStep}
+                  totalSteps={canvasSteps.length}
+                  hideControls={true}
+                >
+                  <AgentCanvasRenderer
+                    width={800} height={600}
+                    timeline={timeline}
+                    currentStepIndex={currentStepIndex}
+                    elements={canvasObjects}
+                    objects={canvasObjects}
+                    connections={canvasConnections}
+                    steps={canvasSteps}
+                    onGoToStep={goToStep}
+                  />
+                </FixedTeachingStage>
+              </div>
+            ) : !pagination.loading && (
+              <div className="w-full h-full flex items-center justify-center relative p-4 md:p-6">
+                {/* The "Empty" Stage Frame (3D Glassy) */}
+                <div 
+                  className="absolute inset-4 md:inset-6 rounded-[2.5rem] bg-[var(--bg-secondary)] opacity-20 pointer-events-none"
+                  style={{
+                    boxShadow: `
+                      0 0 0 1px var(--border-color),
+                      inset 0 1px 2px rgba(255,255,255,0.05)
+                    `
+                  }}
                 />
-              </FixedTeachingStage>
-            </div>
-          ) : !pagination.loading && (
-            <div className="w-full h-full flex items-center justify-center relative p-4 md:p-6">
-              {/* The "Empty" Stage Frame (3D Glassy) */}
-              <div 
-                className="absolute inset-4 md:inset-6 rounded-[2.5rem] bg-[var(--bg-secondary)] opacity-20 pointer-events-none"
-                style={{
-                  boxShadow: `
-                    0 0 0 1px var(--border-color),
-                    inset 0 1px 2px rgba(255,255,255,0.05)
-                  `
-                }}
-              />
-
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1, ease: "easeOut" }}
-                className="relative z-10 flex flex-col items-center"
-              >
-                {/* Minimalist 3D Glass Hub */}
-                <div className="relative w-16 h-16 flex items-center justify-center mb-8">
-                  <div className="absolute inset-0 bg-[var(--info)] opacity-10 blur-2xl rounded-full scale-150" />
-                  <div 
-                    className="relative w-full h-full rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center overflow-hidden border border-[var(--border-color)]"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
-                    <VisaiLogo size="sm" />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="relative z-10 flex flex-col items-center gap-8 text-center"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-[var(--text-primary)] opacity-5 blur-3xl rounded-full" />
+                    <VisaiLogo size="xl" className="relative opacity-20 grayscale brightness-150 animate-pulse-logo" />
                   </div>
-                </div>
-
-                <div className="text-center space-y-3">
-                  <h3 className="text-3xl font-light text-[var(--text-primary)] tracking-tight opacity-80">
-                    Tutor<span className="font-semibold">Board</span>
-                  </h3>
-                  <div className="flex items-center justify-center gap-4">
-                    <div className="h-px w-6 bg-[var(--border-color)]" />
-                    <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-[0.3em] font-medium opacity-40">
-                      AI Visual Learning Ready
+                  
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-heading font-extrabold uppercase tracking-[0.3em] text-[var(--text-primary)] opacity-20">
+                      TutorBoard AI
+                    </h2>
+                    <p className="text-[10px] uppercase tracking-[0.15em] font-medium text-[var(--text-tertiary)] max-w-xs leading-relaxed">
+                      Visual Learning Ready
                     </p>
-                    <div className="h-px w-6 bg-[var(--border-color)]" />
                   </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
+                </motion.div>
+              </div>
+            )}
+          </div>
+        )}
           
           {/* Initial Load Skeleton Overlay */}
           <AnimatePresence>
@@ -1641,7 +1878,7 @@ const Home = ({ isDark }) => {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+
         {/* Connection Alert Banner */}
         <AnimatePresence>
           {isDbOffline && (

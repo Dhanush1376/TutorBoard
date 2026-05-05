@@ -10,6 +10,29 @@
 import { requestCompletion, getTextModel, getModelForAgent } from '../../utils/ai/llmClient.js';
 import { sanitizeTopicForPrompt } from '../../utils/validation/topicValidator.js';
 
+// Cache intent results for 10 minutes (LRU 100 entries)
+const intentCache = new Map();
+const CACHE_LIMIT = 100;
+const CACHE_TTL = 10 * 60 * 1000;
+
+function getCacheEntry(key) {
+  const entry = intentCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    intentCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setCacheEntry(key, value) {
+  if (intentCache.size >= CACHE_LIMIT) {
+    const oldestKey = intentCache.keys().next().value;
+    intentCache.delete(oldestKey);
+  }
+  intentCache.set(key, { value, timestamp: Date.now() });
+}
+
 /**
  * Detects user intent and preferred renderer using a cheap, fast LLM call.
  * 
@@ -28,6 +51,14 @@ export async function detectIntent(prompt, explicitMode, selectedAgent, userConf
 
   // BUG FIX #56: Sanitize prompt to prevent JSON-level prompt injection
   const sanitizedPrompt = sanitizeTopicForPrompt(prompt);
+
+  // 1.5 Cache Check
+  const cacheKey = `${sanitizedPrompt}|${explicitMode}|${selectedAgent}`;
+  const cached = getCacheEntry(cacheKey);
+  if (cached) {
+    console.log(`[IntentEngine] ⚡ Cache hit for: ${sanitizedPrompt}`);
+    return cached;
+  }
 
   // 2. Request LLM Classification
   try {
@@ -80,11 +111,15 @@ Return ONLY a JSON object:
     const raw = (res.content || '{}').replace(/```json|```/g, '').trim();
     const result = JSON.parse(raw);
     console.log(`[IntentEngine] 🧠 Classified: ${result.intent} (${result.renderer}) | Conf: ${result.confidence}`);
-    return {
+    
+    const finalResult = {
       intent: result.intent || 'quick',
       renderer: result.renderer || 'cinematic',
       confidence: result.confidence || 0.5
     };
+    
+    setCacheEntry(cacheKey, finalResult);
+    return finalResult;
   } catch (err) {
     console.error(`[IntentEngine] ⚠️ LLM Classification failed, falling back to regex: ${err.message}`);
     // res might be undefined here if requestCompletion failed before returning

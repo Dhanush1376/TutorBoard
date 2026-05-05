@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 
-import { BASE_URL as API_URL_IMPORT } from '../../services/api';
+import API, { BASE_URL as API_URL_IMPORT } from '../../services/api';
 export const API_URL = API_URL_IMPORT;
 
 export const SECTIONS = [
@@ -57,7 +57,7 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
       className="relative group/row"
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 16px',
+        padding: '8px 12px',
         borderBottom: borderBottom ? '1px solid var(--border-color)' : 'none',
         background: 'transparent',
         cursor: isClickable ? 'pointer' : 'default',
@@ -70,7 +70,7 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
           style={{ background: 'var(--bg-tertiary)66', zIndex: 0 }}
         />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: 1, position: 'relative', zIndex: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, position: 'relative', zIndex: 10 }}>
         {Icon && (
           <div style={{
             width: '24px', height: '24px', borderRadius: '6px',
@@ -99,7 +99,7 @@ export const SettingsRow = ({ icon: Icon, label, description, rightElement, bord
         </div>
       </div>
       {(rightElement || (isClickable && !rightElement)) && (
-        <div style={{ marginLeft: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {rightElement}
           {isClickable && !rightElement && <ChevronRight size={18} style={{ color: 'var(--text-tertiary)', opacity: 0.5 }} />}
         </div>
@@ -340,11 +340,7 @@ export const useSettingsSync = () => {
           payload.settings = categoryOrObject;
         }
 
-        await fetch(`${API_URL}/api/user/settings`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify(payload)
-        });
+        await API.put('/api/user/settings', payload);
       } catch (err) { console.error('Settings sync failed:', err); }
     }, 400);
   };

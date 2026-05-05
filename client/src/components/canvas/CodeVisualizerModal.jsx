@@ -89,6 +89,18 @@ const CodeVisualizerModal = () => {
     }
   }, [code, lang, isRunning]);
 
+  // Keyboard Shortcuts (Ctrl+Enter to run)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleRun();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleRun]);
+
   const handleVisualize = useCallback(() => {
     const lines = code.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('//'));
     if (lines.length === 0) return;
@@ -117,7 +129,7 @@ const CodeVisualizerModal = () => {
             isMaximized ? { position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, width: '100vw', height: '100vh', borderRadius: 0, scale: 1, opacity: 1 } :
             isDocked ? { position: 'fixed', top: '88px', bottom: '88px', left: layoutView === 'right' ? '16px' : 'auto', right: layoutView === 'right' ? 'auto' : '16px', width: 'min(450px, 45vw)', height: 'calc(100vh - 176px)', borderRadius: '24px', scale: 1, opacity: 1 } :
             { position: 'relative', width: 'min(900px, 95vw)', height: 'min(650px, 88vh)', borderRadius: '16px', scale: 1, opacity: 1 }
-          } exit={{ scale: 0.9, opacity: 0 }} className="pointer-events-auto" style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(20px)', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-color)', boxShadow: '0 40px 100px rgba(0,0,0,0.4)', zIndex: 100000 }}>
+          } exit={{ scale: 0.9, opacity: 0 }} className="pointer-events-auto" style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(20px)', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-color)', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', zIndex: 100000 }}>
             
             {isVisualizerMinimized ? (
               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '0 16px', fontSize: 12 }} onClick={() => setVisualizerMinimized(false)}>
@@ -207,31 +219,65 @@ const CodeVisualizerModal = () => {
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5 }}>
                           {logs.length === 0 && <div style={{ color: 'var(--text-tertiary)' }}>No output to display.</div>}
                           {logs.map((log, i) => (
-                            <div key={i} style={{ marginBottom: 4, color: log.type === 'error' ? '#f87171' : log.type === 'success' ? '#86efac' : 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                            <div key={i} style={{ marginBottom: 4, color: log.type === 'error' ? '#f87171' : log.type === 'success' ? '#86efac' : (log.type === 'info' ? 'var(--text-tertiary)' : 'var(--text-primary)'), whiteSpace: 'pre-wrap' }}>
                               <span style={{ color: 'var(--text-tertiary)', marginRight: 12, opacity: 0.5 }}>{i + 1}</span>
                               {log.text}
                             </div>
                           ))}
+                          {runStatus && (
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)', opacity: 0.5, fontSize: 10, color: runStatus === 'success' ? '#86efac' : '#f87171' }}>
+                              [Process finished with exit code {runStatus === 'success' ? '0' : '1'}]
+                            </div>
+                          )}
                         </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
 
-                <div style={{ height: 48, background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10 }}>
+                <div style={{ height: 60, background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 12 }}>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 11 }}>
-                    <Terminal size={12} />
-                    <span>Interpreter Ready</span>
-                    <span style={{ opacity: 0.3 }}>|</span>
+                    <Terminal size={12} className="opacity-50" />
+                    <span style={{ letterSpacing: '0.02em' }}>Compiler Ready</span>
+                    <span style={{ opacity: 0.2 }}>|</span>
                     <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{lang.toUpperCase()}</span>
                   </div>
-                  <button onClick={handleRun} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 7, background: isRunning ? 'rgba(248,113,113,0.1)' : 'rgba(96,165,250,0.1)', border: '1px solid ' + (isRunning ? '#f8717144' : '#60a5fa44'), color: isRunning ? '#f87171' : '#60a5fa', fontSize: 12, cursor: 'pointer' }}>
-                    {isRunning ? <><Square size={12} fill="currentColor" /> Stop</> : <><Play size={12} fill="currentColor" /> Run</>}
-                  </button>
-                  <button onClick={handleVisualize} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 7, background: 'rgba(167,139,250,0.1)', border: '1px solid #a78bfa44', color: '#a78bfa', fontSize: 12, cursor: 'pointer' }}>
+                  
+                  <motion.button 
+                    whileHover={{ backgroundColor: 'var(--text-primary)', opacity: 0.9 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleRun} 
+                    style={{ 
+                      display: 'flex', alignItems: 'center', gap: 7, 
+                      padding: '8px 16px', borderRadius: '8px', 
+                      background: isRunning ? '#ef4444' : 'var(--text-primary)',
+                      color: 'var(--bg-primary)', 
+                      fontSize: '11px', fontWeight: 600,
+                      border: 'none', cursor: 'pointer',
+                      letterSpacing: '0.03em'
+                    }}
+                  >
+                    {isRunning ? <><Square size={12} fill="currentColor" /> STOP</> : <><Play size={12} fill="currentColor" /> RUN</>}
+                  </motion.button>
+
+                  <motion.button 
+                    whileHover={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--text-tertiary)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleVisualize} 
+                    style={{ 
+                      display: 'flex', alignItems: 'center', gap: 7, 
+                      padding: '8px 16px', borderRadius: '8px', 
+                      background: 'transparent',
+                      color: 'var(--text-secondary)', 
+                      fontSize: '11px', fontWeight: 500,
+                      border: '1px solid var(--border-color)', 
+                      cursor: 'pointer',
+                      letterSpacing: '0.03em'
+                    }}
+                  >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><line x1="10" y1="6.5" x2="14" y2="6.5" /><line x1="12" y1="10" x2="12" y2="14" /><line x1="10" y1="17.5" x2="14" y2="17.5" /></svg>
-                    Visualize
-                  </button>
+                    VISUALIZE
+                  </motion.button>
                 </div>
               </>
             )}

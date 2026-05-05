@@ -294,7 +294,7 @@ export const sendMessage = async (req, res) => {
       // Update title using AI output if it's the first message
       if (session.messages.length <= 2) {
         try {
-          const aiTitle = generateSessionTitle(userMessage);
+          const aiTitle = await generateSessionTitle(userMessage);
           session.title = aiTitle;
           console.log(`[Chat] 🏷️ Generated title: "${aiTitle}"`);
         } catch (e) {
@@ -351,6 +351,11 @@ export const sendMessage = async (req, res) => {
 export async function streamMessage(req, res) {
   const requestId = req.headers['x-request-id'] || 'no-id';
   console.log(`[Chat:Stream] 📨 Request received in streamMessage controller [${requestId}]`);
+  
+  let heartbeat;
+  let clientDisconnected = false;
+  let lastStreamProvider = '';
+
   try {
     const validation = sendMessageSchema.safeParse(req.body);
     if (!validation.success) {
@@ -423,10 +428,10 @@ export async function streamMessage(req, res) {
     res.setHeader('X-Accel-Buffering', 'no'); 
     res.flushHeaders();
 
-    let clientDisconnected = false;
-    const heartbeat = setInterval(() => {
+    heartbeat = setInterval(() => {
       if (!clientDisconnected) {
         res.write(': keep-alive\n\n');
+        if (res.flush) res.flush();
       }
     }, 15000);
 
@@ -439,26 +444,30 @@ export async function streamMessage(req, res) {
     const savedSessionId = session?._id?.toString() || sessionId;
     res.write(`data: ${JSON.stringify({ type: 'meta', sessionId: savedSessionId })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'status', message: 'Planning lesson...' })}\n\n`);
+    if (res.flush) res.flush();
 
     const toolDecision = detectTools(userMessage);
     const gateSearch = toolDecision.useWebSearch || shouldSearch(userMessage);
 
-    // Run RAG and Initial Search first to provide context for the planner
-    console.log(`[Chat:Stream] 🔍 Starting RAG and Search...`);
-    const [pastContext, initialWebResults] = await Promise.all([
+    if (gateSearch) {
+      console.log('[Chat:Stream] Gate requested web search — notifying client...');
+      res.write(`data: ${JSON.stringify({ type: 'status', message: 'Searching web...' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'sources', sources: [], searchPerformed: true })}\n\n`);
+      if (res.flush) res.flush();
+    }
+
+    // Run RAG, Search, and Planner in parallel to minimize time-to-first-token
+    console.log(`[Chat:Stream] 🔍 Starting Parallel Pre-processing...`);
+    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
       gateSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
+      // Run planner in parallel — it primarily needs to know IF web search is being done
+      runChatPlanner(userMessage, '', gateSearch ? 'Searching...' : 'None', null).catch(err => {
+        console.warn(`[Chat:Stream] Planner failed: ${err.message}`);
+        return null;
+      })
     ]);
-    console.log(`[Chat:Stream] ✅ RAG and Search complete.`);
-
-    let webContextStr = formatForPrompt(initialWebResults);
-
-    // Run planner with actual context
-    const plannerPlan = await runChatPlanner(userMessage, pastContext, webContextStr, null).catch(err => {
-      console.warn(`[Chat:Stream] Planner failed: ${err.message}`);
-      return null;
-    });
-    console.log(`[Chat:Stream] ✅ Planner complete.`);
+    console.log(`[Chat:Stream] ✅ Pre-processing complete.`);
 
     // Apply planner override to search decision
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
@@ -468,11 +477,16 @@ export async function streamMessage(req, res) {
     if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
       console.log('[Chat:Stream] Planner requested web search — executing late search...');
       res.write(`data: ${JSON.stringify({ type: 'status', message: 'Searching web...' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'sources', sources: [], searchPerformed: true })}\n\n`);
+      if (res.flush) res.flush();
       webResults = await searchWeb(userMessage, { count: 5 });
     }
 
     webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
+    if (sources.length > 0) {
+      res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
+    }
 
     if (plannerPlan) {
       console.log(`[Chat:Stream] 🧠 Planner: ${plannerPlan.content_type}/${plannerPlan.complexity} | tone: ${plannerPlan.tone}`);
@@ -514,24 +528,25 @@ export async function streamMessage(req, res) {
     if (plannerPlan) {
       res.write(`data: ${JSON.stringify({ type: 'plan', plan: plannerPlan })}\n\n`);
     }
+    if (res.flush) res.flush();
 
     const isArtifactExpected = !!(plannerPlan?.generate_artifact);
     if (isArtifactExpected) {
       res.write(`data: ${JSON.stringify({ type: 'status', message: `Generating ${plannerPlan.artifact_type} artifact...` })}\n\n`);
+      if (res.flush) res.flush();
     }
 
     // ── 6. Stream AI Response ──
     let fullContent = '';
     let streamProvider = null;
-    let lastStreamProvider = '';
+    lastStreamProvider = '';
     let cleanContent = '';
     let thoughtContent = '';
-
 
     try {
       const stream = routeConversationStream(llmMessages, { 
         timeout: 90000, 
-        maxTokens: isArtifactExpected ? 4000 : 1500,
+        maxTokens: isArtifactExpected ? 8000 : 4000, 
         responseMimeType: isArtifactExpected ? 'application/json' : 'text/plain'
       });
 
@@ -546,6 +561,7 @@ export async function streamMessage(req, res) {
           // Stream chunks immediately to keep the UI responsive
           res.write(`event: message\n`);
           res.write(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
+          if (res.flush) res.flush();
 
           // Extract and send thoughts immediately even if buffering the rest
           const thoughtMatch = chunk.match(/<thought>([\s\S]*?)<\/thought>/) || 
@@ -556,6 +572,7 @@ export async function streamMessage(req, res) {
             const thought = thoughtMatch[1] || '';
             res.write(`event: thought\n`);
             res.write(`data: ${JSON.stringify({ thought })}\n\n`);
+            if (res.flush) res.flush();
           }
         }
       }
@@ -684,6 +701,7 @@ export async function streamMessage(req, res) {
                 language: art.language || null,
                 metadata: art.metadata || {},
               })}\n\n`);
+              if (res.flush) res.flush();
             }
 
             artifactsArray.push({ ...art, localId: artLocalId });
@@ -696,6 +714,7 @@ export async function streamMessage(req, res) {
               type: 'chat_override',
               content: chatResponseText 
             })}\n\n`);
+            if (res.flush) res.flush();
           }
 
           fullContent = chatResponseText;
@@ -705,6 +724,7 @@ export async function streamMessage(req, res) {
           if (!clientDisconnected && isArtifactExpected) {
              res.write(`event: message\n`);
              res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
+             if (res.flush) res.flush();
           }
         }
       } catch (parseErr) {
@@ -713,12 +733,14 @@ export async function streamMessage(req, res) {
         if (!clientDisconnected && isArtifactExpected) {
           res.write(`event: message\n`);
           res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
+          if (res.flush) res.flush();
         }
       }
     } else if (isArtifactExpected && !clientDisconnected) {
       // We expected an artifact but got nothing or no plan match
       res.write(`event: message\n`);
       res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
+      if (res.flush) res.flush();
     }
 
     // ── 8. Persist Assistant Message to DB (background, after stream ends) ──
@@ -762,6 +784,7 @@ export async function streamMessage(req, res) {
       
       if (!clientDisconnected) {
         res.write(`data: ${JSON.stringify({ type: 'message_ids', userMessageId, assistantMessageId })}\n\n`);
+        if (res.flush) res.flush();
       }
 
       logActivity({
@@ -828,17 +851,24 @@ export async function streamMessage(req, res) {
         }
       }
 
-      // Final closure of SSE stream
-      if (!clientDisconnected) {
-        clearInterval(heartbeat);
-        res.write(`data: ${JSON.stringify({ type: 'done', provider: streamProvider })}\n\n`);
-        res.end();
-      }
     }
   } catch (err) {
     console.error('[Chat:Stream] streamMessage error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to process streaming message' });
+    } else {
+      // Stream is already open, just end it after sending error
+      if (!clientDisconnected) {
+        res.write(`event: message\n`);
+        res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      }
+    }
+  } finally {
+    // Final closure of SSE stream — ALWAYS close even on error
+    clearInterval(heartbeat);
+    if (!clientDisconnected && res.headersSent) {
+      res.write(`data: ${JSON.stringify({ type: 'done', provider: lastStreamProvider })}\n\n`);
+      res.end();
     }
   }
 };
@@ -1080,7 +1110,7 @@ export const regenerate = async (req, res) => {
     let webContextStr = formatForPrompt(initialWebResults);
 
     // Run planner with actual context
-    const plannerPlan = await runChatPlanner(query, pastContext, webContextStr, null).catch(err => {
+    const plannerPlan = await runChatPlanner(userQuery, pastContext, webContextStr, null).catch(err => {
       console.warn(`[Chat:Regen] Planner failed: ${err.message}`);
       return null;
     });
@@ -1088,7 +1118,7 @@ export const regenerate = async (req, res) => {
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
     let webResults = initialWebResults;
     if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
-      webResults = await searchWeb(query, { count: 5 });
+      webResults = await searchWeb(userQuery, { count: 5 });
     }
 
     webContextStr = formatForPrompt(webResults);
@@ -1125,6 +1155,29 @@ export const regenerate = async (req, res) => {
         thoughtContent = parts[1].trim();
         cleanContent = (parts[0] + parts[2]).trim();
       }
+    }
+
+    // ── 3. Branching Logic: Save CURRENT branch before truncating ──
+    if (turnIndex !== -1 && turnIndex < session.messages.length - 1) {
+      const targetMsg = session.messages[turnIndex];
+      const subsequentMessages = session.messages.slice(turnIndex + 1);
+      
+      const currentVersions = targetMsg.metadata?.versions || [{ text: targetMsg.content, subsequentMessages: [] }];
+      const activeIdx = targetMsg.metadata?.activeVersionIndex || 0;
+      
+      // Save current subsequent branch to the active version
+      const updatedVersions = currentVersions.map((v, i) => 
+        i === activeIdx ? { ...v, subsequentMessages } : v
+      );
+      
+      targetMsg.metadata = {
+        ...targetMsg.metadata,
+        versions: updatedVersions
+      };
+      
+      // TRUNCATE: The new generation starts a new branch
+      session.messages = session.messages.slice(0, turnIndex + 1);
+      console.log(`[Chat:Regen] Truncated ${subsequentMessages.length} messages for clean branch.`);
     }
 
     if (targetMsgId && turnIndex !== -1) {
@@ -1173,6 +1226,7 @@ export const regenerate = async (req, res) => {
       assistantMessageId: finalMsg._id.toString(),
       activeVersionIndex: finalMsg.metadata.activeVersionIndex,
       versionCount: finalMsg.metadata.versions.length,
+      messagesAfterRegen: session.messages, // New field to sync branches
       provider: aiResponse.provider,
     });
   } catch (err) {
@@ -1346,10 +1400,13 @@ function summarizeForMemory(userMsg, aiMsg) {
  */
 function detectTopic(text) {
   if (!text) return 'General';
-  // Strip common filler and extract first few significant words
-  const clean = text.replace(/^(hi|hello|hey|can you help me with|tell me about|what is|how does|explain|show me|give me|write|create|build)\s+/i, '');
-  const words = clean.split(/\s+/).slice(0, 3).join(' ');
-  return words.length > 25 ? words.substring(0, 22) + '...' : words || 'General';
+  // Use the query more directly, stripping only very common filler if it's long
+  let clean = text.trim();
+  if (clean.length > 50) {
+    // If long, take first few words
+    return clean.split(/\s+/).slice(0, 5).join(' ') + '...';
+  }
+  return clean || 'General';
 }
 
 /**
@@ -1360,29 +1417,34 @@ function detectTopic(text) {
  */
 const generateSessionTitle = async (userMsg) => {
   try {
-    // Use the LLM to generate a professional 2-3 word title
+    // If the message is short enough, use it directly as the title
+    if (userMsg.length <= 40) {
+      return userMsg.charAt(0).toUpperCase() + userMsg.slice(1);
+    }
+
+    // Use the LLM to generate a professional title that captures the intent
     const response = await routeConversation([
       { 
         role: 'system', 
-        content: 'You are a professional session title generator. Create a concise, 2-3 word title for a conversation that starts with the provided user message. Output ONLY the title, no punctuation, no quotes, no labels. Keep it professional and descriptive.' 
+        content: 'You are a session title generator. Create a title for the conversation based on the user\'s first message. Preserve the core intent. If it\'s a question, keep it as a concise question. Output ONLY the title, no punctuation, no quotes, no labels. Max 5 words.' 
       },
       { role: 'user', content: userMsg }
     ], { 
       timeout: 5000, 
-      maxTokens: 10 // Enough for 2-3 words
+      maxTokens: 15
     });
 
     let title = response.content.trim();
     
-    // Fallback cleanup if LLM goes long
+    // Fallback cleanup
     title = title.replace(/[".!?]$/, '').replace(/^["']|["']$/g, '');
     const words = title.split(/\s+/);
-    if (words.length > 4) {
-      title = words.slice(0, 3).join(' ');
+    if (words.length > 6) {
+      title = words.slice(0, 5).join(' ') + '...';
     }
 
-    // Capitalize properly
-    title = title.replace(/\b\w/g, c => c.toUpperCase());
+    // Capitalize first letter
+    return title.charAt(0).toUpperCase() + title.slice(1);
     
     return title || 'New Session';
   } catch (err) {

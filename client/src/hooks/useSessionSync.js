@@ -93,7 +93,8 @@ export const useSessionSync = (chatMessages) => {
       sessionId: effectiveSessionId,
       activeSnapshotId: state.activeSnapshotId,
       ...(state.topic ? { title: state.topic } : {}),
-      messages: state.chatMessages || [],
+      // ── Bug B Fix: Sync correct field & protect against empty-wipe ──
+      messages: state.chatMessages || useTutorStore.getState().conversationMessages || [],
       canvasState: state.canvasObjects || [],
       canvasSteps: state.canvasSteps || [],
       canvasVersion: state.canvasVersion || 0,

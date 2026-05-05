@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
-  Minimize2, Maximize2, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2
+  Minimize2, Maximize2, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
@@ -11,11 +11,10 @@ import FixedTeachingStage from '../canvas/FixedTeachingStage';
 import FloatingSidebar from './FloatingSidebar';
 import StepPanel from './StepPanel';
 import NarrationBar from './NarrationBar';
-import DoubtThread from './DoubtThread';
-import DoubtPanel from './DoubtPanel';
 import InteractiveControlPanel from './InteractiveControlPanel';
 import StepFilmstrip from './StepFilmstrip';
 import { AlgoRightPanel } from './AlgoRightPanel';
+import StudyPanel from './StudyPanel';
 import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
@@ -33,7 +32,7 @@ const TeachingSession = ({ initialTopic }) => {
     doubtResponse, isDoubtProcessing, doubtHistory,
     error, topic, isPlaying,
     startSession, askDoubt, goToStep, nextStep, prevStep,
-    play, pause, resume, finish, setSpeed, endSession,
+    play, pause, resume, finish, setSpeed, endSession, cancelSession,
   } = machine;
 
   const {
@@ -50,6 +49,7 @@ const TeachingSession = ({ initialTopic }) => {
   const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelWide, setPanelWide] = useState(false);
+  const [studyPanelOpen, setStudyPanelOpen] = useState(false);
   const rootRef = useRef(null);
 
   // ── Handlers ──────────────────────────────────────────────
@@ -204,77 +204,7 @@ const TeachingSession = ({ initialTopic }) => {
         <div className="teaching-body">
           {/* Canvas */}
           <div className="teaching-canvas-area">
-            {/* ── Generating Overlay (Now Constrained to Canvas Area) ── */}
-            <AnimatePresence mode="wait">
-              {isGenerating && (
-                <motion.div
-                  key="generating"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--bg-primary)]/80 backdrop-blur-xl"
-                >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex flex-col items-center gap-6 max-w-md text-center px-8"
-                  >
-                    <div className="relative w-20 h-20">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                        className="absolute inset-0 rounded-full border-2 border-[var(--border-color)] border-t-[var(--text-primary)]"
-                      />
-                      <motion.div
-                        animate={{ rotate: -360 }}
-                        transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
-                        className="absolute inset-2 rounded-full border-2 border-[var(--border-color)] border-b-[var(--text-secondary)]"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="absolute inset-4 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center"
-                      >
-                        <span className="text-2xl">🎨</span>
-                      </motion.div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-lg font-normal text-[var(--text-primary)] mb-2">
-                        Building your visual lesson
-                      </h3>
-                      <p className="text-sm text-[var(--text-secondary)]">
-                        Creating an interactive animated explanation for
-                      </p>
-                      <p className="text-sm font-normal text-[var(--text-primary)] mt-1">
-                        "{topic}"
-                      </p>
-                    </div>
-
-                    {/* Shimmer bar */}
-                    <div className="w-48 h-1 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
-                      <motion.div
-                        animate={{ x: [-200, 200] }}
-                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                        className="w-24 h-full bg-gradient-to-r from-transparent via-[var(--text-tertiary)] to-transparent rounded-full"
-                      />
-                    </div>
-
-                    {/* Tips */}
-                    <motion.p 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 2 }}
-                      className="text-[11px] text-[var(--text-tertiary)] italic"
-                    >
-                      💡 Tip: Use ? to ask doubts during the lesson
-                    </motion.p>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Generating Overlay Removed - Progress now shown in NarrationBar */}
 
             {/* ── Floating Canvas Header (Replaces Navbar) ── */}
             <div className="absolute top-4 left-4 right-4 z-[50] flex justify-start pointer-events-none">
@@ -308,6 +238,9 @@ const TeachingSession = ({ initialTopic }) => {
                   </span>
                   <Btn onClick={toggleVoice} active={voiceEnabled} className="hidden sm:flex rounded-full border-none shadow-none">
                     {voiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                  </Btn>
+                  <Btn onClick={() => setStudyPanelOpen(!studyPanelOpen)} active={studyPanelOpen} title="Study Insights" className="hidden sm:flex rounded-full border-none shadow-none">
+                    <Sparkles size={14} />
                   </Btn>
                   <Btn onClick={() => setPanelOpen(!panelOpen)} title={panelOpen ? 'Hide panel' : 'Show panel'} className="rounded-full border-none shadow-none">
                     {panelOpen ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
@@ -349,7 +282,11 @@ const TeachingSession = ({ initialTopic }) => {
             {(!isAlgo || isD3) && (
               <div className="absolute bottom-[104px] left-1/2 -translate-x-1/2 z-[50] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
                 <div className="pointer-events-auto w-full flex justify-center">
-                  <NarrationBar text={currentStep?.narration || currentStep?.explanation} isGenerating={isGenerating} />
+                  <NarrationBar 
+                    text={currentStep?.narration || currentStep?.explanation} 
+                    isGenerating={isGenerating} 
+                    onCancel={cancelSession}
+                  />
                 </div>
               </div>
             )}
@@ -535,22 +472,15 @@ const TeachingSession = ({ initialTopic }) => {
                       <InteractiveControlPanel data={currentStep.interactiveControls} />
                     </div>
                   )}
-                  {doubtHistory.length > 0 && (
-                    <div className="teaching-panel-section shrink-0"><DoubtThread /></div>
-                  )}
                 </>
               )}
             </div>
-
-            {/* Sticky Doubt Input for Standard Sessions */}
-            {!useAlgoPanel && (
-              <DoubtInputBar onAskDoubt={askDoubt} isProcessing={isDoubtProcessing} />
-            )}
 
           </div>
         </div>
       )}
 
+      <StudyPanel isOpen={studyPanelOpen} onClose={() => setStudyPanelOpen(false)} />
       {/* Removed old timeline since it's now a floating pill in the canvas area */}
 
       <FloatingSidebar />
@@ -600,43 +530,6 @@ function Dot({ ok }) {
   );
 }
 
-// ── Inline Doubt Input Bar ──────────────────────────────────────────────
-const DoubtInputBar = ({ onAskDoubt, isProcessing }) => {
-  const [input, setInput] = useState('');
-
-  const handleSubmit = (e) => {
-    e?.preventDefault();
-    if (!input.trim() || isProcessing) return;
-    onAskDoubt(input.trim());
-    setInput('');
-  };
-
-  return (
-    <div className="p-3 shrink-0" style={{ borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask a doubt about this step..."
-          disabled={isProcessing}
-          className="flex-1 rounded-xl px-3 py-2 text-xs outline-none transition-all shadow-sm"
-          style={{
-            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-            color: 'var(--text-primary)', '::placeholder': { color: 'var(--text-tertiary)' },
-          }}
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || isProcessing}
-          className="w-8 h-8 flex shrink-0 items-center justify-center rounded-xl disabled:opacity-30 transition-all active:scale-95 shadow-sm"
-          style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
-        >
-          {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <ArrowUp size={14} />}
-        </button>
-      </form>
-    </div>
-  );
-};
+// BTN helper removed or moved if needed
 
 export default TeachingSession;

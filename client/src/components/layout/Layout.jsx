@@ -34,6 +34,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   const toggleSidebar = useTutorStore(state => state.toggleSidebar);
   const layoutView = useTutorStore(state => state.layoutView);
   const isArtifactPanelOpen = useTutorStore(state => state.isArtifactPanelOpen);
+  const artifactPanelFullscreen = useTutorStore(state => state.artifactPanelFullscreen);
   const { mode } = useTheme();
   const isDark = mode === 'dark';
   const isRightHand = layoutView === 'right';
@@ -169,11 +170,34 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             {children}
           </div>
           {isArtifactPanelOpen && !isMobile && (
-            <div className="h-full" style={{ width: '50%', maxWidth: 700, minWidth: 340 }}>
+            <div 
+              className="h-full overflow-hidden border-l border-[var(--border-color)]" 
+              style={{ 
+                width: artifactPanelFullscreen ? '100%' : '50%', 
+                maxWidth: artifactPanelFullscreen ? 'none' : 800,
+                minWidth: artifactPanelFullscreen ? 'none' : 380,
+                zIndex: 20
+              }}
+            >
               <ArtifactPanel isDark={isDark} />
             </div>
           )}
         </div>
+
+        {/* ── MOBILE ARTIFACT OVERLAY ── */}
+        <AnimatePresence>
+          {isArtifactPanelOpen && isMobile && (
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-0 z-[6000] bg-[var(--bg-primary)] flex flex-col"
+            >
+              <ArtifactPanel isDark={isDark} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── OVERLAYS (Pills, Toolbar, etc.) ── */}
 

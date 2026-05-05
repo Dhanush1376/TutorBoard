@@ -49,6 +49,20 @@ export const createChatSlice = (set, get) => ({
       activeDoubtId:     doubtNode.id,
     }));
 
+    // ─── Phase 4 Integration: Chat Bar Doubt Bridge ───
+    const { addAssistantMessage } = get();
+    if (addAssistantMessage) {
+      addAssistantMessage(answer, null, {
+        hasCanvas,
+        canvasSnapshot: hasVisuals ? {
+          objects: get().canvasObjects,
+          connections: get().canvasConnections,
+          stepIndex: get().currentStepIndex
+        } : null,
+        isDoubtResponse: true
+      });
+    }
+
     return doubtNode;
   },
 

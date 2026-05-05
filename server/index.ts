@@ -51,6 +51,8 @@ import learnerRoutes from './routes/learner.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 // @ts-ignore
 import artifactRoutes from './routes/artifact.routes.js';
+// @ts-ignore
+import compilerRoutes from './routes/compiler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,7 +70,13 @@ process.on('uncaughtException', async (err: Error) => {
   console.error(msg);
   
   if (httpServer && httpServer.listening) {
-    console.log('[Graceful] Closing HTTP server...');
+    console.log('[Graceful] Closing HTTP server and active connections...');
+    
+    // Aggressively close all active connections to free the port immediately
+    if ((httpServer as any).closeAllConnections) {
+      (httpServer as any).closeAllConnections();
+    }
+
     httpServer.close(() => {
       console.log('[Graceful] HTTP server closed.');
       mongoose.connection.close(false).then(async () => {
@@ -299,6 +307,7 @@ app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
 app.use('/api/learner', httpRateLimiter, dbCheck, learnerRoutes);
 app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
 app.use('/api/artifact', httpRateLimiter, dbCheck, artifactRoutes);
+app.use('/', httpRateLimiter, compilerRoutes);
 app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
 
 // @ts-ignore
@@ -313,6 +322,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 const startServer = async () => {
   try {
+    console.log(`[Server] Attempting to listen on port ${port}...`);
     httpServer.listen(port, () => {
       console.log(`Server running on port ${port} in TS Mode 🚀`);
     });

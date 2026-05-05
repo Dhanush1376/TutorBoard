@@ -48,7 +48,7 @@ OUTPUT SCHEMA
       "timeComplexity": "", "spaceComplexity": "",
       "variables": {}, "activeStates": [] 
     } ],
-    "visual_steps": [ { "step": 1, "elements": [...], "exits": [...], "interactive_controls": { "formula": "...", "controls": [...] } } ],
+    "visual_steps": [ { "step": 1, "elements": [...], "script": [...], "exits": [...], "interactive_controls": { "formula": "...", "controls": [...] } } ],
     "animation_steps": [ { "step": 1, "actions": [...] } ]
   }
 }

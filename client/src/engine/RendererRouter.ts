@@ -11,7 +11,7 @@ const MonacoRenderer     = React.lazy(() => import('../components/renderers/Mona
 const SimulatorRenderer  = React.lazy(() => import('../components/renderers/SimulatorRenderer'));
 
 export const RENDERER_MAP: Record<string, any> = {
-  'cinematic':  null,
+  'cinematic':  'd3',
   'simulator':  SimulatorRenderer,
   'matter':     MatterRenderer,
   'physics':    MatterRenderer,
@@ -65,5 +65,9 @@ export function isDSAContent(timeline: any) {
 }
 
 export function getRenderer(type: string) {
-  return RENDERER_MAP[type] || null;
+  const routed = RENDERER_MAP[type];
+  if (!routed && ['matter', 'physics', 'mechanics'].includes(type)) {
+    return 'd3'; // Safe fallback for physics topics
+  }
+  return routed || null;
 }

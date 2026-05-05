@@ -33,8 +33,8 @@ const GuestTrialBanner = () => {
       <div
         className="glass-strong relative overflow-hidden group"
         style={{
-          borderRadius: '24px',
-          padding: '20px 18px',
+          borderRadius: '16px',
+          padding: '14px 14px',
           border: '1px solid var(--glass-border)',
           background: isLimitReached 
             ? 'rgba(239, 68, 68, 0.04)' 
@@ -58,7 +58,7 @@ const GuestTrialBanner = () => {
         />
 
         {/* Header: Status + Usage */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div 
               className="w-5 h-5 rounded-lg flex items-center justify-center transition-colors"
@@ -83,7 +83,7 @@ const GuestTrialBanner = () => {
         </div>
 
         {/* Messaging Area */}
-        <div className="mb-5">
+        <div className="mb-3.5">
           <p className="text-[12.5px] leading-relaxed font-normal text-[var(--text-primary)] opacity-90 mb-1.5">
             {isLimitReached
               ? 'Your trial sessions are complete.'
@@ -99,7 +99,7 @@ const GuestTrialBanner = () => {
         </div>
 
         {/* Progress System */}
-        <div className="relative h-[2px] w-full bg-[var(--border-color)] rounded-full mb-6 overflow-hidden opacity-40">
+        <div className="relative h-[2px] w-full bg-[var(--border-color)] rounded-full mb-4 overflow-hidden opacity-40">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.min(progress * 100, 100)}%` }}
@@ -114,7 +114,7 @@ const GuestTrialBanner = () => {
         {/* Premium CTA Button */}
         <button
           onClick={handleSignUp}
-          className="w-full relative flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl transition-all duration-500 overflow-hidden group/btn"
+          className="w-full relative flex items-center justify-center gap-2 px-3 py-2 rounded-xl transition-all duration-500 overflow-hidden group/btn"
           style={{
             background: isLimitReached ? '#ef4444' : 'var(--text-primary)',
             color: 'var(--bg-primary)',

@@ -54,13 +54,14 @@ const ArtifactPanel = ({ isDark }) => {
   const saveArtifactVersion = useTutorStore(state => state.saveArtifactVersion);
   const revertArtifact = useTutorStore(state => state.revertArtifact);
   const removeArtifact = useTutorStore(state => state.removeArtifact);
+  const streamingArtifact = useTutorStore(state => state.streamingArtifact);
 
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const [isAiEditing, setIsAiEditing] = useState(false);
 
-  const activeArtifact = artifacts.find(a => a.id === activeArtifactId);
+  const activeArtifact = artifacts.find(a => a.id === activeArtifactId) || streamingArtifact;
 
   const handleCopy = useCallback(async () => {
     if (!activeArtifact) return;
@@ -176,7 +177,7 @@ const ArtifactPanel = ({ isDark }) => {
 
   const displayContent = cleanContent(activeArtifact?.content);
 
-  if (!isArtifactPanelOpen || artifacts.length === 0) return null;
+  if (!isArtifactPanelOpen || (!activeArtifact && !streamingArtifact)) return null;
 
   const TypeIcon = TYPE_ICONS[activeArtifact?.type] || Code;
 
@@ -188,10 +189,11 @@ const ArtifactPanel = ({ isDark }) => {
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed top-0 right-0 h-full bg-[var(--bg-primary)] shadow-2xl z-50 flex flex-col overflow-hidden"
+        className="relative h-full bg-[var(--bg-primary)] flex flex-col overflow-hidden"
         style={{
-          width: artifactPanelFullscreen ? '100vw' : 'min(900px, 65vw)',
-          borderLeft: artifactPanelFullscreen ? 'none' : '1px solid var(--border-color)',
+          width: '100%',
+          borderLeft: '1px solid var(--border-color)',
+          boxShadow: '-10px 0 30px rgba(0,0,0,0.05)',
         }}
       >
         {/* ─── Header ─── */}
@@ -363,6 +365,17 @@ const ArtifactPanel = ({ isDark }) => {
               onContentChange={handleContentChange}
               isDark={isDark}
             />
+          )}
+          {streamingArtifact && !artifacts.find(a => a.id === streamingArtifact.id) && (
+            <div className="absolute inset-0 z-50 bg-[var(--bg-primary)]/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full border-4 border-[var(--border-color)] border-t-[var(--text-primary)] animate-spin" />
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold">Building your artifact...</h3>
+                <p className="text-sm text-[var(--text-tertiary)] max-w-xs">
+                  TutorBoard AI is generating a custom {streamingArtifact.type} model for this explanation.
+                </p>
+              </div>
+            </div>
           )}
         </div>
 

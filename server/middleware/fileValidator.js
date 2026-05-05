@@ -28,9 +28,10 @@ export const validateFile = async (req, res, next) => {
     if (!type || !allowedMimeTypes.includes(type.mime)) {
       // SEC-18: Reject spoofed or unsupported files
       await fs.unlink(filePath).catch(() => {}); // Cleanup
-      console.warn(`[Security] Blocked spoofed file upload: ${req.file.originalname} (Actual: ${type?.mime || 'unknown'})`);
+      const detected = type?.mime || 'unknown';
+      console.warn(`[Security] Blocked spoofed file upload: ${req.file.originalname} (Actual Content: ${detected})`);
       return res.status(400).json({ 
-        error: `Security Alert: File content does not match reported type. (Detected: ${type?.mime || 'unknown'})` 
+        error: `Security Alert: File content does not match reported type. (Detected: ${detected})` 
       });
     }
 

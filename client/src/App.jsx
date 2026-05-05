@@ -24,13 +24,13 @@ function App() {
   const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
   const { setGlobalOverlay, hydrate, setSidebarOpen, globalOverlay } = useTutorStore();
 
-  
+
   // SEC-02 & FO-03: Initialize store from client environment and listen for resize
   useEffect(() => {
     hydrate();
-    
+
     let lastIsMobile = window.innerWidth < 768;
-    
+
     const handleResize = () => {
       const currentIsMobile = window.innerWidth < 768;
       // Only auto-adjust if we cross the mobile/desktop boundary
@@ -39,7 +39,7 @@ function App() {
         lastIsMobile = currentIsMobile;
       }
     };
-    
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [hydrate, setSidebarOpen]);
@@ -61,7 +61,7 @@ function App() {
       // UX-01: Set flag immediately so a quick refresh doesn't replay the intro
       try {
         localStorage.setItem('tb-welcome-played-v1', 'true');
-      } catch {}
+      } catch { }
 
       const timer = setTimeout(() => {
         setWelcomeLoading(false);
@@ -119,7 +119,7 @@ function App() {
         <div className="mb-6 text-6xl">📡</div>
         <h1 className="text-2xl font-normal mb-2 tracking-tight">Database Offline</h1>
         <p className="max-w-md mb-8 text-[var(--text-tertiary)] text-sm leading-relaxed">
-          The TutorBoard server is currently in <span className="text-[var(--text-primary)]">Degraded Mode</span>. 
+          The TutorBoard server is currently in <span className="text-[var(--text-primary)]">Degraded Mode</span>.
           Please ensure your IP is whitelisted in MongoDB Atlas or check your connection string.
         </p>
         <div className="flex gap-4">
@@ -146,7 +146,7 @@ function App() {
           >
             <Loader fullScreen={true} glass={true} />
             {connectionStatus === 'warming' && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="fixed bottom-32 left-0 right-0 flex flex-col items-center gap-2 z-[10000]"
@@ -161,8 +161,8 @@ function App() {
             )}
             {showSkip && (
               <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[10000]">
-                <button 
-                  onClick={() => forceStopLoading()} 
+                <button
+                  onClick={() => forceStopLoading()}
                   className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-full text-white/50 text-sm font-normal transition-all shadow-2xl"
                 >
                   Enter Dashboard Anyway →
@@ -181,13 +181,13 @@ function App() {
       <ToastContainer />
       <TrialLimitOverlay />
       <MasteryDashboard />
-      
+
       <main className="app-main">
         <Routes>
           <Route path="/" element={<AuthLanding />} />
           <Route path="/login" element={<AuthLanding />} />
           <Route path="/auth" element={<Navigate to="/" replace />} />
-          
+
           <Route element={<MarketingLayout />}>
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/features" element={<Features />} />

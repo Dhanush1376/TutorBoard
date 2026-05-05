@@ -46,9 +46,21 @@ export const createSessionSlice = (set, get) => ({
     count: 0, 
     limit: 10 
   },
+  voiceEnabled: false,
+  toggleVoice: () => set(s => ({ voiceEnabled: !s.voiceEnabled })),
   resumeContext:      null, // { topic, stepIndex }
   activeSnapshotId:   null, // ID of message whose snapshot we are currently viewing/editing
   levelUpEvent:       null, // { message, newLevel, ts }
+  takeaways:          [],   // AI-extracted or user-pinned key insights
+
+  addTakeaway: (text) => set(state => {
+    if (!text || state.takeaways.some(t => t.text === text)) return;
+    state.takeaways.push({ id: Date.now(), text, timestamp: Date.now() });
+  }),
+  removeTakeaway: (id) => set(state => {
+    state.takeaways = state.takeaways.filter(t => t.id !== id);
+  }),
+  clearTakeaways: () => set({ takeaways: [] }),
 
   setLearnerProfile: (profile) => set({ learnerProfile: { ...get().learnerProfile, ...profile } }),
   setResumeContext: (ctx) => set({ resumeContext: ctx }),
@@ -293,5 +305,26 @@ export const createSessionSlice = (set, get) => ({
       machineState:       STATES.GENERATING,
     });
   },
+
+  forceReset: () => set({
+    machineState:       STATES.IDLE,
+    topic:              '',
+    sessionId:          null,
+    chatSessionId:      null,
+    timeline:           null,
+    canvasObjects:      [],
+    canvasConnections:  [],
+    canvasSteps:        [],
+    currentStepIndex:   0,
+    totalSteps:         0,
+    isPlaying:          false,
+    isPaused:           false,
+    error:              null,
+    generationProgress: null,
+    isTimelineReady:    false,
+    narrationTokens:    '',
+    doubtResponse:      null,
+    doubtHistory:       [],
+  }),
 });
 

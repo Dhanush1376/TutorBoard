@@ -1,6 +1,7 @@
 import LearnerProfile from '../models/LearnerProfile.js';
 import SessionMemory from '../models/SessionMemory.js';
 import UsageLog from '../models/UsageLog.js';
+import SpacedRepetitionScheduler from '../engine/core/SpacedRepetitionScheduler.js';
 
 /**
  * Get aggregated data for the learner dashboard
@@ -10,9 +11,10 @@ export const getDashboardData = async (req, res) => {
     const userId = req.user.id || req.user._id;
 
     // 1. Fetch Learner Profile
-    const profile = await LearnerProfile.findOne({ userId });
+    let profile = await LearnerProfile.findOne({ userId });
     if (!profile) {
-      return res.status(404).json({ error: 'Learner profile not found' });
+      console.log(`[Dashboard] No profile found for ${userId}. Creating default.`);
+      profile = await LearnerProfile.create({ userId });
     }
 
     // 2. Aggregate Mastery Data
@@ -32,11 +34,13 @@ export const getDashboardData = async (req, res) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const masteredInLastMonth = Object.values(topicsMastery).filter(m => 
-      m.mastery > 0.8 && m.lastTaught > thirtyDaysAgo
-    ).length;
+    const masteredInLastMonth = Object.values(topicsMastery).filter(m => {
+      const lastTaught = m.lastTaught ? new Date(m.lastTaught) : null;
+      return (m.mastery > 0.7) && (!lastTaught || lastTaught > thirtyDaysAgo);
+    }).length;
     
-    const velocity = (masteredInLastMonth / 4).toFixed(1); // average per week
+    // Minimum 1 concept per month to show some velocity if active
+    const velocity = Math.max(0.2, (masteredInLastMonth / 4)).toFixed(1);
 
     // 5. Aggregate Analytics (Total doubts, total steps)
     const analytics = {
@@ -54,7 +58,8 @@ export const getDashboardData = async (req, res) => {
       velocity,
       analytics,
       learningStyle: profile.engagementMetrics?.styleDetected || 'unknown',
-      totalSessions: profile.totalSessions || 0
+      totalSessions: profile.totalSessions || 0,
+      dueConcepts: await SpacedRepetitionScheduler.getDueConcepts(userId)
     });
   } catch (err) {
     console.error('[LearnerController] Failed to fetch dashboard data:', err.message);

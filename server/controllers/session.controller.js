@@ -225,10 +225,14 @@ export const beaconSave = async (req, res) => {
       return res.status(400).json({ error: 'Invalid session ID for beacon' });
     }
 
-    // Verify token manually
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded?.id) {
-      return res.status(401).json({ error: 'Invalid token' });
+    let userId = null;
+    if (token && token !== 'guest') {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded?.id;
+      } catch (e) {
+        // invalid token, treat as guest
+      }
     }
 
     const updateFields = { lastUpdated: Date.now() };
@@ -239,8 +243,10 @@ export const beaconSave = async (req, res) => {
     if (data.canvasVersion !== undefined) updateFields.canvasVersion = data.canvasVersion;
     if (data.preferences !== undefined) updateFields.preferences = data.preferences;
 
+    const query = userId ? { _id: sessionId, userId } : { _id: sessionId };
+    
     await ChatSession.findOneAndUpdate(
-      { _id: sessionId, userId: decoded.id },
+      query,
       { $set: updateFields }
     );
 

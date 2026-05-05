@@ -119,6 +119,7 @@ const chatSessionSchema = new mongoose.Schema({
     default: [],
   },
 }, { timestamps: true });
+chatSessionSchema.index({ userId: 1, createdAt: -1 });
 
 // INFRA-12: Cap messages at 200 entries to prevent MongoDB document size limits.
 chatSessionSchema.pre('save', function() {

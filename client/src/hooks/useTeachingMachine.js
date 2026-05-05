@@ -36,6 +36,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     setNarrationTokens,
     startSession: storeStartSession,
     endSession,
+    forceReset,
     play: storePlay, pause: storePause,
     goToStep: storeGoToStep,
 
@@ -121,6 +122,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     showToast: s.showToast,
     setTopic: s.setTopic,
     setCanvasObjectsWithHistory: s.setCanvasObjectsWithHistory,
+    forceReset: s.forceReset,
   })));
 
   // ─── Refs for Listener Stability ───
@@ -464,17 +466,34 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     }
   }, [isConnected]);
 
-  // ─── Safety Timeout (no server response in 180s) ──────────────────────────
+  // ─── Safety Timeout (no server response in 30s) ───────────────────────────
   useEffect(() => {
     if (machineState === STATES.GENERATING) {
+      // 1. Initial warning at 20s
+      const warningTimer = setTimeout(() => {
+        if (machineState === STATES.GENERATING) {
+          showToast({ 
+            message: 'Generation is taking a bit longer than usual. You can cancel if you wish.', 
+            type: 'info', 
+            duration: 5000 
+          });
+        }
+      }, 20000);
+
+      // 2. Fatal timeout at 30s
       safetyTimeoutRef.current = setTimeout(() => {
         if (machineState === STATES.GENERATING) {
-          console.warn('[Machine] ⚠️ 180s timeout — no server response. Resetting.');
-          setGreeting('The AI is taking too long to respond. Please try again.');
+          console.warn('[Machine] ⚠️ 30s timeout — no server response. Resetting.');
+          setError('The AI is taking too long to respond. Please try again or check your connection.');
+          forceReset();
         }
-      }, 180000);
-    } else {
+      }, 30000);
 
+      return () => {
+        clearTimeout(warningTimer);
+        if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+      };
+    } else {
       if (safetyTimeoutRef.current) {
         clearTimeout(safetyTimeoutRef.current);
         safetyTimeoutRef.current = null;
@@ -533,10 +552,12 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       incrementGuestUsage(); // Initial question counts as a message
     }
 
+    // ── Bug C Fix: Always reset ID before starting a new session to prevent overwrites ──
+    setChatSessionId(null);
+
     storeStartSession(topicStr, initialQuestion);
-    // Pass the existing chatSessionId (if any) so the server can resume/link
-    // the correct MongoDB document instead of creating a duplicate.
-    const existingChatId = chatSessionId;
+    // After setChatSessionId(null), existingChatId will effectively be null for new sessions
+    const existingChatId = null;
 
     identifyUser(topicStr, { last_topic: topicStr });
     trackEvent('session_started', { topic: topicStr, mode: activeMode, agent: selectedAgent });
@@ -546,10 +567,10 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       initialQuestion,
       selectedAgent,
       activeMode,
-      chatId: existingChatId || undefined,
+      chatId: undefined, // Force a new ID on server
       file // Multimodal support
     });
-  }, [emit, storeStartSession, selectedAgent, chatSessionId, incrementGuestSession, incrementGuestUsage]);
+  }, [emit, storeStartSession, selectedAgent, setChatSessionId, incrementGuestSession, incrementGuestUsage]);
 
 
   const askDoubt = useCallback(async (question, activeMode, file = null) => {
@@ -703,6 +724,10 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     finish,
     setSpeed,
     endSession,
+    cancelSession: useCallback(() => {
+      emit('session:cancel');
+      forceReset();
+    }, [emit, forceReset]),
     pinDoubtToCanvas,
     jumpToDoubt,
   };

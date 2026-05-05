@@ -111,23 +111,6 @@ const FloatingSidebar = () => {
                 </div>
               )}
 
-              {/* Doubts */}
-              {doubtHistory.length > 0 && (
-                <div className="px-4 pb-4">
-                  <span className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-widest mb-2"
-                    style={{ color: 'var(--text-tertiary)' }}>
-                    <MessageCircleQuestion size={11} /> Doubts ({doubtHistory.length})
-                  </span>
-                  <div className="flex flex-col gap-1.5">
-                    {doubtHistory.map((d, i) => (
-                      <div key={d.id} className="px-3 py-2 rounded-lg text-[11px] leading-relaxed"
-                        style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-                        <span style={{ color: 'var(--text-primary)' }} className="font-medium">{d.question}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Footer */}

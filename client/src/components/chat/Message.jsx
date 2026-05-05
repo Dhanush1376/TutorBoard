@@ -21,7 +21,7 @@ import {
   ChevronLeft, ChevronRight, BookOpen,
   Code, Globe, FileText, Table2, GitBranch,
   Layers, ThumbsUp, ThumbsDown, ChevronRight as ChevronRightIcon,
-  Play, FlaskConical, Network
+  Play, FlaskConical, Network, BookMarked, Activity, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import VisaiLogo from '../layout/VisaiLogo';
@@ -35,11 +35,11 @@ import useTutorStore from '../../store/tutorStore';
 // ─── Artifact type config ────────────────────────────────────────────────────
 
 const ARTIFACT_TYPE_CONFIG = {
-  code:     { icon: Code,     label: 'Code',       color: '#3b82f6' },
-  ui:       { icon: Globe,    label: 'UI Preview',  color: '#8b5cf6' },
-  document: { icon: FileText, label: 'Document',    color: '#10b981' },
-  table:    { icon: Table2,   label: 'Table',       color: '#f59e0b' },
-  diagram:  { icon: GitBranch,label: 'Diagram',     color: '#ec4899' },
+  code: { icon: Code, label: 'Code', color: '#3b82f6' },
+  ui: { icon: Globe, label: 'UI Preview', color: '#8b5cf6' },
+  document: { icon: FileText, label: 'Document', color: '#10b981' },
+  table: { icon: Table2, label: 'Table', color: '#f59e0b' },
+  diagram: { icon: GitBranch, label: 'Diagram', color: '#ec4899' },
 };
 
 // ─── Language label colors ───────────────────────────────────────────────────
@@ -69,9 +69,9 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
   const [output, setOutput] = useState('');
   const [showOutput, setShowOutput] = useState(false);
 
-  const lang = (className?.replace('language-', '') || '').toLowerCase();
+  const lang = (className || '').replace(/^language-/, '').toLowerCase();
   const langColor = LANG_COLORS[lang] || '#888';
-  const isRunnable = ['javascript', 'js', 'python', 'py'].includes(lang);
+  const isRunnable = ['javascript', 'js', 'python', 'py', 'java', 'cpp', 'c++', 'c', 'rust', 'rs', 'go', 'ruby', 'ts', 'typescript'].includes(lang);
   const code = String(children).replace(/\n$/, '');
 
   const handleCopy = useCallback(async () => {
@@ -247,7 +247,7 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
     return <div className={className}>{children}</div>;
   },
   blockquote: ({ children }) => (
-    <blockquote className="border-l-[3px] border-[var(--text-tertiary)]/30 pl-4 my-3.5 text-[13px] text-[var(--text-secondary)] italic leading-relaxed">
+    <blockquote className="border-l-[4px] border-[var(--text-tertiary)]/40 pl-4 py-2 pr-2 my-4 rounded-r-lg bg-[var(--text-primary)]/[0.03] text-[13px] text-[var(--text-secondary)] italic leading-relaxed">
       {children}
     </blockquote>
   ),
@@ -291,7 +291,7 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
 
 const ArtifactChipForMessage = ({ artifactId }) => {
   const { artifacts, setActiveArtifact, openArtifactPanel } = useTutorStore();
-  const artifact = artifacts.find(a => a.id === artifactId);
+  const artifact = artifacts.find(a => a.id === artifactId || a.dbId === artifactId);
   if (!artifact) return null;
 
   const config = ARTIFACT_TYPE_CONFIG[artifact.type] || ARTIFACT_TYPE_CONFIG.code;
@@ -366,14 +366,28 @@ const SourceGrid = ({ sources, searchPerformed }) => {
 
   return (
     <div className="mb-4 w-full">
-      <div className="flex items-center gap-2 mb-2.5 px-0.5">
-        <div className="w-4 h-4 rounded-full bg-[var(--text-primary)]/[0.05] flex items-center justify-center">
-          <BookOpen size={9} className="text-[var(--text-tertiary)]" />
-        </div>
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">
-          {sources?.length > 0 ? 'Sources' : 'Searched the web'}
+      <motion.div
+        initial={{ opacity: 0, y: -5 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-2.5 mb-3 w-fit px-3 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border-color)]/60 rounded-full shadow-sm"
+      >
+        {sources?.length > 0 ? (
+          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--text-primary)]/[0.05]">
+            <BookOpen size={10} className="text-[var(--text-tertiary)]" />
+          </div>
+        ) : (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="flex items-center justify-center w-5 h-5"
+          >
+            <Loader2 size={12} className="text-[var(--info)]" />
+          </motion.div>
+        )}
+        <span className={`text-[11.5px] font-medium tracking-wide ${sources?.length > 0 ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'}`}>
+          {sources?.length > 0 ? 'Searched the web' : 'Searching the web...'}
         </span>
-      </div>
+      </motion.div>
       {sources?.length > 0 && (
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {sources.map((source, idx) => {
@@ -383,7 +397,7 @@ const SourceGrid = ({ sources, searchPerformed }) => {
               const url = new URL(source.url);
               hostname = url.hostname.replace('www.', '');
               favicon = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
-            } catch {}
+            } catch { }
             return (
               <a
                 key={idx}
@@ -428,6 +442,7 @@ const Message = ({
   const [feedback, setFeedback] = useState(metadata?.feedback || null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
   const editRef = useRef(null);
 
   const displayContent = isStreaming ? streamingContent : content;
@@ -528,9 +543,9 @@ const Message = ({
 
               {/* Thinking / Reasoning Block */}
               {(metadata?.thought || (isStreaming && streamingThought)) && (
-                <ThoughtBlock 
-                  content={metadata?.thought || streamingThought} 
-                  isStreaming={isStreaming && !metadata?.thought} 
+                <ThoughtBlock
+                  content={metadata?.thought || streamingThought}
+                  isStreaming={isStreaming && !metadata?.thought}
                 />
               )}
 
@@ -541,15 +556,14 @@ const Message = ({
                 initial={isStreaming ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={isStreaming ? { duration: 0 } : { duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                className={`relative min-w-0 max-w-full break-words overflow-hidden ${
-                  isAssistant
+                className={`relative min-w-0 max-w-full break-words overflow-hidden ${isAssistant
                     ? 'px-0 py-1 text-[14px] leading-relaxed'
                     : 'px-4 py-2.5 rounded-[22px] rounded-tr-[4px] text-[14px] shadow-sm'
-                }`}
+                  }`}
                 style={isAssistant ? {
                   color: 'var(--text-primary)',
                 } : {
-                  background: 'linear-gradient(135deg, var(--text-primary) 0%, #1e1e1e 100%)',
+                  background: 'var(--text-primary)',
                   color: 'var(--bg-primary)',
                   boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
                 }}
@@ -565,11 +579,31 @@ const Message = ({
                     </ReactMarkdown>
                   </div>
                 ) : (
-                  <p style={{ color: 'inherit' }} className="whitespace-pre-wrap leading-[1.6] font-medium tracking-tight">
-                    {displayContent}
-                  </p>
+                  <div className="flex flex-col">
+                    <p style={{ color: 'inherit' }} className={`whitespace-pre-wrap leading-[1.6] font-medium tracking-tight ${!isExpanded && displayContent?.length > 400 ? 'line-clamp-[8]' : ''}`}>
+                      {displayContent}
+                    </p>
+                    {displayContent?.length > 400 && (
+                      <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="mt-2 self-start text-[11px] font-bold uppercase tracking-wider opacity-60 hover:opacity-100 transition-opacity flex items-center gap-1"
+                      >
+                        {isExpanded ? 'Show Less' : 'Read More'}
+                      </button>
+                    )}
+                  </div>
                 )}
               </motion.div>
+
+              {/* Canvas CTA — context-aware, not on every message */}
+              {isAssistant && hasCanvas && !isStreaming && (
+                <CanvasCTA onOpenCanvas={onOpenCanvas} messageId={messageId} canvasType={canvasType} />
+              )}
+
+              {/* Artifact chip */}
+              {isAssistant && metadata?.artifactId && (
+                <ArtifactChipForMessage artifactId={metadata.artifactId} />
+              )}
 
               {/* Action bar */}
               <AnimatePresence>
@@ -592,36 +626,54 @@ const Message = ({
                     )}
 
                     {onRegenerateMessage && (
-                      <button 
-                        onClick={() => onRegenerateMessage(messageId)} 
-                        title="Regenerate" 
-                        className={`chat-action-btn ${!isAssistant ? 'hover:!text-emerald-500' : ''}`}
+                      <button
+                        onClick={() => onRegenerateMessage(messageId)}
+                        title="Regenerate"
+                        className="chat-action-btn"
                       >
                         <RefreshCw size={12} />
                       </button>
                     )}
 
                     {isAssistant && (
-                      <>
-                        <button
-                          onClick={() => handleFeedback('positive')}
-                          title="Good response"
-                          className={`chat-action-btn ${feedback === 'positive' ? '!text-emerald-500' : ''}`}
-                        >
-                          <ThumbsUp size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleFeedback('negative')}
-                          title="Poor response"
-                          className={`chat-action-btn ${feedback === 'negative' ? '!text-red-400' : ''}`}
-                        >
-                          <ThumbsDown size={12} />
-                        </button>
-                      </>
+                      <button
+                        onClick={() => {
+                          const fullText = displayContent || '';
+                          // Capture first 300 chars or first two paragraphs
+                          let insight = fullText.split('\n\n').slice(0, 2).join('\n\n');
+                          if (insight.length > 300) {
+                            insight = insight.substring(0, 297) + '...';
+                          }
+                          
+                          useTutorStore.getState().addTakeaway(insight);
+                          
+                          // Show interactive toast
+                          useTutorStore.getState().showToast({
+                            message: 'Insight saved to your dashboard',
+                            type: 'success',
+                            duration: 4000,
+                            action: {
+                              label: 'View',
+                              onClick: () => useTutorStore.getState().setMasteryOpen(true)
+                            }
+                          });
+                        }}
+                        title="Save as Key Insight"
+                        className="chat-action-btn hover:!text-amber-500"
+                      >
+                        <BookMarked size={12} />
+                      </button>
                     )}
 
 
-                    <span className={`text-[9px] text-[var(--text-tertiary)]/40 tabular-nums tracking-wide px-1 ${isAssistant ? '' : 'order-first'}`}>
+                    <span className={`text-[9px] text-[var(--text-tertiary)]/40 tabular-nums tracking-wide px-1 ${isAssistant ? '' : 'order-first'} flex items-center gap-1.5`}>
+                      {isAssistant && metadata?.latencyMs && (
+                        <span className="flex items-center gap-0.5 opacity-80">
+                          <Activity size={8} className="text-[var(--info)]/60" />
+                          <span>Generated in {(metadata.latencyMs / 1000).toFixed(1)}s</span>
+                          <span className="opacity-30 mx-0.5">|</span>
+                        </span>
+                      )}
                       {formatTime(timestamp)}
                       {metadata?.edited && <span className="ml-1 italic opacity-60">· edited</span>}
                     </span>
@@ -629,34 +681,28 @@ const Message = ({
                 )}
               </AnimatePresence>
 
-              {/* Canvas CTA — context-aware, not on every message */}
-              {isAssistant && hasCanvas && !isStreaming && (
-                <CanvasCTA onOpenCanvas={onOpenCanvas} messageId={messageId} canvasType={canvasType} />
-              )}
-
-              {/* Artifact chip */}
-              {isAssistant && metadata?.artifactId && (
-                <ArtifactChipForMessage artifactId={metadata.artifactId} />
-              )}
-
-              {/* Version switcher */}
-              {metadata?.versions?.length > 1 && (
-                <div className={`flex items-center gap-1 mt-1 text-[10px] font-medium text-[var(--text-tertiary)]/60 hover:text-[var(--text-tertiary)] transition-colors ${isAssistant ? '' : 'justify-end'}`}>
-                  <button
-                    onClick={() => onSwitchVersion?.(messageId, Math.max(0, metadata.activeVersionIndex - 1))}
-                    disabled={metadata.activeVersionIndex === 0}
-                    className="p-0.5 hover:text-[var(--text-primary)] rounded disabled:opacity-20"
-                  >
-                    <ChevronLeft size={11} strokeWidth={2.5} />
-                  </button>
-                  <span className="tabular-nums">{metadata.activeVersionIndex + 1}/{metadata.versions.length}</span>
-                  <button
-                    onClick={() => onSwitchVersion?.(messageId, Math.min(metadata.versions.length - 1, metadata.activeVersionIndex + 1))}
-                    disabled={metadata.activeVersionIndex === metadata.versions.length - 1}
-                    className="p-0.5 hover:text-[var(--text-primary)] rounded disabled:opacity-20"
-                  >
-                    <ChevronRight size={11} strokeWidth={2.5} />
-                  </button>
+              {/* Version switcher — ChatGPT style */}
+              {metadata?.versions?.length > 1 && !isStreaming && (
+                <div className={`flex items-center gap-2.5 mt-2 transition-opacity ${isAssistant ? '' : 'justify-end'}`}>
+                  <div className="flex items-center bg-[var(--text-primary)]/[0.04] border border-[var(--border-color)]/20 rounded-full px-1.5 py-0.5">
+                    <button
+                      onClick={() => onSwitchVersion?.(messageId, Math.max(0, metadata.activeVersionIndex - 1))}
+                      disabled={metadata.activeVersionIndex === 0}
+                      className="p-1 hover:text-[var(--text-primary)] text-[var(--text-tertiary)] disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={13} strokeWidth={2.5} />
+                    </button>
+                    <span className="text-[10px] font-bold tabular-nums text-[var(--text-tertiary)] px-1 min-w-[32px] text-center">
+                      {metadata.activeVersionIndex + 1} / {metadata.versions.length}
+                    </span>
+                    <button
+                      onClick={() => onSwitchVersion?.(messageId, Math.min(metadata.versions.length - 1, metadata.activeVersionIndex + 1))}
+                      disabled={metadata.activeVersionIndex === metadata.versions.length - 1}
+                      className="p-1 hover:text-[var(--text-primary)] text-[var(--text-tertiary)] disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight size={13} strokeWidth={2.5} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

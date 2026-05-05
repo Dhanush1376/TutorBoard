@@ -12,9 +12,9 @@ export const createArtifactSlice = (set, get) => ({
   // ─── State ───
   artifacts: [],                 // All artifacts in current session
   activeArtifactId: null,        // Currently viewed artifact tab
+  streamingArtifact: null,       // Artifact being streamed in (temp)
   isArtifactPanelOpen: false,    // Panel visibility
   artifactPanelFullscreen: false, // Fullscreen mode
-  streamingArtifact: null,       // Artifact being streamed in (temp)
 
   // ─── Actions ───
 
@@ -199,6 +199,42 @@ export const createArtifactSlice = (set, get) => ({
       artifactPanelFullscreen: false,
       streamingArtifact: null,
     });
+  },
+
+  /** Start streaming a new artifact */
+  startStreamingArtifact: (artifact) => {
+    set({
+      streamingArtifact: {
+        id: artifact.id || 'streaming',
+        type: artifact.type || 'code',
+        title: artifact.title || 'Generating...',
+        content: '',
+        language: artifact.language || null,
+        metadata: artifact.metadata || {},
+      },
+      isArtifactPanelOpen: true,
+    });
+  },
+
+  /** Update streaming artifact content */
+  updateStreamingArtifact: (content) => {
+    set((state) => ({
+      streamingArtifact: state.streamingArtifact 
+        ? { ...state.streamingArtifact, content: state.streamingArtifact.content + content }
+        : null
+    }));
+  },
+
+  /** Finalize streaming artifact and move to main list */
+  finalizeStreamingArtifact: (finalArtifact = null) => {
+    const { streamingArtifact, addArtifact } = get();
+    const artToFinalize = finalArtifact || streamingArtifact;
+    
+    if (artToFinalize) {
+      addArtifact(artToFinalize);
+    }
+    
+    set({ streamingArtifact: null });
   },
 
   /** Load artifacts from API for a session */

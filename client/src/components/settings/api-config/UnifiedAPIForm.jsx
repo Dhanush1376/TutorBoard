@@ -6,6 +6,7 @@ import {
   Globe, X
 } from 'lucide-react';
 import { ValidationError, API_URL } from '../SettingsShared';
+import API from '../../../services/api';
 import { PROVIDERS, ALL_DEFAULT_MODELS, detectProvider } from './ProviderRegistry';
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
@@ -147,19 +148,15 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
     setValidationResult(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/apikeys/test-transient`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          provider: provider.id, apiKey: apiKey.trim(),
-          model: model || provider.defaultModel,
-          baseUrl: provider.id === 'custom' ? baseUrl : undefined,
-        }),
+      const res = await API.post('/api/apikeys/test-transient', {
+        provider: provider.id, apiKey: apiKey.trim(),
+        model: model || provider.defaultModel,
+        baseUrl: provider.id === 'custom' ? baseUrl : undefined,
       });
 
-      const data = await res.json().catch(() => ({ error: 'Invalid server response.' }));
+      const data = res.data;
       
-      if (res.ok && data.valid) {
+      if (res.status === 200 && data.valid) {
         setValidationResult({ valid: true, latency: data.latencyMs });
       } else {
         const rawErr = data.details || data.error || `Error (${res.status})`;
@@ -177,17 +174,13 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
     if (!validationResult?.valid) return setError('Validate the key first.');
 
     try {
-      const res = await fetch(`${API_URL}/api/apikeys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          provider: provider.id, apiKey: apiKey.trim(), model,
-          label: label || `${provider.name} Key`,
-          baseUrl: provider.id === 'custom' ? baseUrl : undefined,
-        }),
+      const res = await API.post('/api/apikeys', {
+        provider: provider.id, apiKey: apiKey.trim(), model,
+        label: label || `${provider.name} Key`,
+        baseUrl: provider.id === 'custom' ? baseUrl : undefined,
       });
 
-      if (res.ok) {
+      if (res.status === 200 || res.status === 201) {
         const entry = {
           id: Date.now(), provider,
           model: model || provider.defaultModel || '—',
@@ -200,7 +193,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
         resetForm();
         onSave?.();
       } else {
-        const data = await res.json();
+        const data = res.data;
         setError(data.error || 'Save failed.');
       }
     } catch {

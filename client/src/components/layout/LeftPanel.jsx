@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
-  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, Loader, LayoutDashboard
+  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, Loader, LayoutDashboard,
+  FileText, Download, Volume2, VolumeX, Sparkles
 } from 'lucide-react';
 import VisaiLogo from './VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
@@ -35,10 +36,11 @@ const LeftPanel = ({
   onRegenerateMessage, onFeedback, onStopGeneration,
   onSwitchVersion,
   onOpenArtifact,
+  onExport,
   isSplitView = false
 }) => {
   const navigate = useNavigate();
-  const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
+  const { setSidebarOpen, layoutView, setOverlay, voiceEnabled, toggleVoice } = useTutorStore();
   const { user } = useAuth();
   const isGuest = !!user?.isGuest;
   const hasStarted = messages.length > 0;
@@ -88,6 +90,23 @@ const LeftPanel = ({
               <ChevronLeft size={12} strokeWidth={2} className="text-[var(--text-tertiary)]" />
               <p className="px-0.5 tracking-[0.1em]">All Sessions</p>
             </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onExport?.('pdf')}
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]/60 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                title="Export as PDF"
+              >
+                <FileText size={13} />
+              </button>
+              <button
+                onClick={() => onExport?.('docx')}
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]/60 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                title="Export as Word (DOCX)"
+              >
+                <Download size={13} />
+              </button>
+            </div>
           </div>
           <div className="pt-1">
             <ChatWindow
@@ -254,7 +273,13 @@ const LeftPanel = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleVoice}
+              className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
+              title={voiceEnabled ? "Turn off narration" : "Turn on narration"}
+            >
+              {voiceEnabled ? <Volume2 size={isMobile ? 22 : 20} strokeWidth={1.8} /> : <VolumeX size={isMobile ? 22 : 20} strokeWidth={1.8} />}
+            </button>
             <button
               onClick={() => useTutorStore.getState().setMasteryOpen(true)}
               className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
@@ -277,7 +302,6 @@ const LeftPanel = ({
               {isMobile ? <X size={24} strokeWidth={2} /> : <PanelLeftClose size={22} strokeWidth={1.8} className="group-hover:scale-110 transition-transform" />}
             </button>
           </div>
-        </div>
 
         {/* Top block visible only on landing/history */}
         {activeView !== 'chat' && (

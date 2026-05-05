@@ -186,7 +186,8 @@ export default function SVGCanvasRenderer({
         if (!el?.id) return false;
         const sId = String(el.id);
         const isManual = sId.startsWith('manual-') || el.isPinned || el.pinned || el.doubtDriven;
-        if (forceManualOnly && !isManual) return false;
+        const isTimeline = !sId.startsWith('manual-') && !el.doubtDriven;
+        if (forceManualOnly && isTimeline) return false;
         return isManual || stepObjectIds.has(sId);
       })
       .map(el => {

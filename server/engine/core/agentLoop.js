@@ -17,7 +17,7 @@
  *   [FIX 4] model param now correctly forwarded to every runStage call.
  */
 
-import { requestCompletion, getModel } from '../../utils/ai/llmClient.js';
+import { requestCompletion, getModel, getFastModel } from '../../utils/ai/llmClient.js';
 import { getPrompt } from '../config/promptRegistry.js';
 import { SceneGraphSchema } from '../validators/timelineSchema.js';
 import VectorStoreService from './vectorStore.js';
@@ -25,6 +25,10 @@ import { validateVisualScript } from './visualScriptValidator.js';
 import { searchWeb } from '../../utils/ai/webSearchService.js';
 import { shouldSearch, detectTools } from '../../utils/ai/searchGate.js';
 import { formatForPrompt, extractSources } from '../../utils/ai/searchContextFormatter.js';
+
+// Global concurrency limiter — prevents provider rate limit saturation
+let activeAgentLoops = 0;
+const MAX_CONCURRENT_LOOPS = 3;
 
 // ─── Robust JSON Extractor ────────────────────────────────────────────────────
 // FIX 1: Old code had a regex that only matched JSON with "elements"/"timeline" 
@@ -99,7 +103,7 @@ function unwrapValidatorOutput(raw) {
   // FORCE NORMALIZATION: Always check for alternate field names like visual_steps vs steps
   const meta        = inner.meta || {};
   const rawNarrations  = inner.narrations    || inner.explanation_steps || inner.narration_steps || inner.narrative_steps || inner.steps || inner.sequence || inner.roadmap || [];
-  const rawVisualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || inner.visual_timeline || inner.visualization || inner.frames || [];
+  const rawVisualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || inner.visual_timeline || inner.visualization || inner.frames || inner.script || [];
   const rawAnimSteps   = inner.animation_steps || inner.animations || inner.transitions || inner.motion_steps || inner.animation_timeline || [];
 
   // If the Validator output was already in legacy format (raw.steps), 
@@ -107,7 +111,8 @@ function unwrapValidatorOutput(raw) {
   const narrations = rawNarrations.map(n => typeof n === 'string' ? { text: n } : n);
   const visualSteps = rawVisualSteps.map(v => ({
     ...v,
-    elements: v.elements || v.objects || v.shapes || v.visuals || v.script || []
+    elements: v.elements || v.objects || v.shapes || v.visuals || [],
+    _script: v.script || [] // Kept separate, merged into animationActions below
   }));
   const animSteps = rawAnimSteps;
 
@@ -119,12 +124,19 @@ function unwrapValidatorOutput(raw) {
   // Collect all elements declared across all steps (deduplicated by id)
   const elementMap = new Map();
   for (const vs of visualSteps) {
-    for (const el of (vs.elements || vs.objects || vs.shapes || [])) {
+    // A. Explicit elements
+    for (const el of vs.elements) {
       if (el?.id && !elementMap.has(el.id)) {
-        // Ensure every element has a type fallback
         if (!el.type && el.shape) el.type = el.shape;
         if (!el.type) el.type = 'orb';
         elementMap.set(el.id, el);
+      }
+    }
+    // B. Elements implied by script commands (e.g. array, pointer)
+    const ELEMENT_DEFINING_COMMANDS = new Set(['array', 'pointer', 'tree', 'chart', 'timeline', 'equation', 'physics_body', 'draw_boundary', 'result']);
+    for (const cmd of (vs._script || [])) {
+      if (cmd.id && ELEMENT_DEFINING_COMMANDS.has(cmd.cmd) && !elementMap.has(cmd.id)) {
+        elementMap.set(cmd.id, { id: cmd.id, type: cmd.cmd || 'orb', ...cmd });
       }
     }
   }
@@ -142,15 +154,15 @@ function unwrapValidatorOutput(raw) {
     const narration = narrations.find(n => n.step === stepNum) || narrations[idx] || {};
     
     // Combine visualizer elements (setup) with animator actions
-    const visualActions = (vs.elements || vs.objects || vs.shapes || []).map(el => ({
-      ...el,
-      cmd: el.cmd || el.action || el.type,
-      duration: el.duration || 0, // Setup is usually instant
-      delay: el.delay || 0
+    const visualActions = (vs.elements || []).map(a => ({
+      ...a,
+      cmd: a.cmd || a.action || a.type,
+      duration: a.duration || 0, // Setup is usually instant
+      delay: a.delay || 0
     }));
 
     const rawAnimationActions = anim.actions || anim.animations || [];
-    const animationActions = rawAnimationActions.map(a => ({
+    const animationActions = [...(vs._script || []), ...rawAnimationActions].map(a => ({
       ...a,
       cmd: a.cmd || a.action
     }));
@@ -275,7 +287,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
 
   // AGGRESSIVE TIMEOUT FOR AGENT PIPELINE:
   // We want individual agents to fail fast so the whole pipeline doesn't hang for 10+ minutes.
-  const STAGE_TIMEOUT = 30000; // 30 seconds
+  const STAGE_TIMEOUT = 20000; // 20 seconds
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
@@ -343,7 +355,7 @@ function createFallbackTimeline(topic, errorMsg = 'Pedagogical validation failed
     timeline: [
       {
         title: 'Introduction',
-        explanation: `I've prepared a foundational overview for **${topic}**. While the advanced visual simulation encountered a technical glitch (${errorMsg}), we can still explore the core concepts through interactive dialogue.`,
+        explanation: `Our visual engine is experiencing high demand right now. Let me explain the core concept of **${topic}** here while I try to re-initialize the simulation in the background. (${errorMsg})`,
         objectIds: ['fallback-orb'],
         animation: { type: 'fade', duration: 0.8, actions: [{ id: 'fallback-orb', cmd: 'fade_in' }] }
       }
@@ -352,8 +364,29 @@ function createFallbackTimeline(topic, errorMsg = 'Pedagogical validation failed
 }
 
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
-export async function runAgentLoop({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null, file = null }) {
+export async function runAgentLoop(params) {
+  // If too many loops are running, queue this one
+  if (activeAgentLoops >= MAX_CONCURRENT_LOOPS) {
+    if (params.onProgress) params.onProgress('⏳ Preparing your lesson...');
+    // Jittered wait to prevent thundering herd
+    await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+  }
+  
+  activeAgentLoops++;
+  try {
+    return await _runAgentLoopInternal(params);
+  } finally {
+    activeAgentLoops--;
+  }
+}
+
+async function _runAgentLoopInternal({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null, file = null }) {
   console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
+
+  // Use a deep reasoning model for planning/narrative, but a fast/cheap one for
+  // structural tasks (visualizer, animator, critic, validator).
+  const fullModel = model || getModel();
+  const fastModel = getFastModel();
 
   try {
     // Stage 1: PLANNING (Inject dynamic step limits)
@@ -399,7 +432,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: '💡 Thinking deeply about the topic...',
       prompt: plannerPrompt,
       input: { topic, domain, maxSteps: targetMax, learnerProfile, file },
-      model, onProgress, userConfig
+      model: fullModel, onProgress, userConfig
     });
 
     // Capture normalized topic from planner if available
@@ -410,35 +443,42 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
     console.log('[AgentLoop] ⚡ Starting Stages 2 (Narrator) & 3 (Visualizer) in PARALLEL...');
     
     const [narratorOutput, visualizerOutput] = await Promise.all([
-      // Stage 2: NARRATION (Streaming)
+      // Stage 2: NARRATION (Streaming) — FULL MODEL
       runStage({
         stageName: '🎙️ Crafting pedagogical explanations...',
         prompt: getPrompt('narrator'),
         input: { plannerOutput, learnerProfile, webContextStr },
-        model, onProgress, userConfig,
+        model: fullModel, onProgress, userConfig,
         onStream: (chunk) => onProgress('narration_chunk', chunk)
       }),
-      // Stage 3: VISUALIZATION (Now independent of Narrator)
+      // Stage 3: VISUALIZATION — FAST MODEL
       runStage({
         stageName: '🎨 Designing visual representation...',
         prompt: getPrompt('visualizer'),
         input: { plannerOutput, learnerProfile, webContextStr }, // Pass webContext to visualizer too
-        model, onProgress, userConfig
+        model: fastModel, onProgress, userConfig
       })
     ]);
 
     console.log(`[AgentLoop] ✅ Stages 2 & 3 COMPLETE — ${narratorOutput.narrations?.length || 0} narrations, ${visualizerOutput.visual_steps?.length || 0} visual steps`);
 
-    // Stage 4: ANIMATION
-    const animatorOutput = await runStage({
+    // Stage 4: ANIMATION — FAST MODEL
+    let animatorOutput = await runStage({
       stageName: 'Choreographing cinematic motion...',
       prompt: getPrompt('animator'),
       input: { plannerOutput, visualizerOutput, learnerProfile },
-      model, onProgress, userConfig
+      model: fastModel, onProgress, userConfig
     });
+
+    // FIX STAGE 4: Schema Normalization (Single object -> Array)
+    if (!animatorOutput.animation_steps && animatorOutput.actions) {
+       console.log('[AgentLoop] 🔄 Normalizing Animator output (single step object -> array)');
+       animatorOutput = { animation_steps: [{ step: animatorOutput.step || 1, actions: animatorOutput.actions }] };
+    }
+
     console.log(`[AgentLoop] ✅ Stage 4 — ${animatorOutput.animation_steps?.length || 0} animation steps`);
 
-    // Stage 5: CRITIQUE — Trimmed context to prevent context window explosion
+    // Stage 5: CRITIQUE — FAST MODEL
     const criticInput = {
       narrations:      narratorOutput.narrations || [],
       visual_steps:    visualizerOutput.visual_steps || [],
@@ -452,11 +492,22 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: '⚖️ Reviewing for consistency & clarity...',
       prompt: getPrompt('critic'),
       input: criticInput,
-      model, onProgress, userConfig
+      model: fastModel, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 5 — approved: ${criticOutput.approved}, score: ${criticOutput.scores?.overall}`);
 
-    // APPLY PATCHES: Merge critic's patch_suggestions into prior outputs before validation
+    // CRITIC GATING (STAGE 5)
+    const overallScore = criticOutput.scores?.overall || 0;
+    if (criticOutput.approved === false) {
+      if (overallScore < 7) {
+         console.warn(`[AgentLoop] ❌ CRITICAL: Critic rejected pipeline with score ${overallScore}. Triggering failsafe.`);
+         throw new Error(`Critic rejection (score ${overallScore})`);
+      } else {
+         console.warn(`[AgentLoop] ⚠️ WARNING: Critic scored ${overallScore} but rejected. Proceeding with patches.`);
+      }
+    }
+
+    // APPLY PATCHES: Merge critic's patch_suggestions into prior outputs AFTER gating
     if (criticOutput.patch_suggestions) {
       const patches = criticOutput.patch_suggestions;
       if (patches.narrations) {
@@ -473,18 +524,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       }
     }
 
-    // CRITIC GATING
-    const overallScore = criticOutput.scores?.overall || 10;
-    if (criticOutput.approved === false) {
-      if (overallScore < 3) {
-         console.warn(`[AgentLoop] ❌ CRITICAL: Critic rejected pipeline with score ${overallScore}. Triggering failsafe.`);
-         throw new Error(`Critic rejection (score ${overallScore})`);
-      } else if (overallScore < 5) {
-         console.warn(`[AgentLoop] ⚠️ WARNING: Critic scored ${overallScore}. Proceeding with patches but quality may be low.`);
-      }
-    }
-
-    // Stage 6: VALIDATION — Only critic feedback + patched essential outputs
+    // Stage 6: VALIDATION — FAST MODEL
     const validatorInput = {
       critic:          { approved: criticOutput.approved, scores: criticOutput.scores, issues: criticOutput.issues },
       narrations:      narratorOutput.narrations || [],
@@ -497,7 +537,7 @@ export async function runAgentLoop({ topic, domain, model = null, onProgress = (
       stageName: '✨ Finalizing high-fidelity plan...',
       prompt: getPrompt('validator'),
       input: validatorInput,
-      model, onProgress, userConfig
+      model: fastModel, onProgress, userConfig
     });
     console.log(`[AgentLoop] ✅ Stage 6 — status: ${validatorRaw.status}`);
 

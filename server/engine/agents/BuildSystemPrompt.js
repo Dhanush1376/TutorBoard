@@ -173,8 +173,8 @@ OUTPUT FORMAT RULES (NON-NEGOTIABLE):
 
 6. VISUAL ELEMENTS — Use intelligently, not forcefully:
 
-   For formulas:
-   $$E = mc^2$$
+   For formulas and queries: ALWAYS wrap them inside a blockquote (>) or a code block (\`\`\`math, \`\`\`sql) so they appear in a distinct box.
+   > $$E = mc^2$$
    Where E is energy, m is mass, c is speed of light.
 
    For comparisons — always use a table:
@@ -195,7 +195,7 @@ OUTPUT FORMAT RULES (NON-NEGOTIABLE):
    - Concept question -> Explanation + concrete example + key takeaway
    - Coding question -> Copy-paste code block + line-by-line explanation
    - Comparison question -> Table + brief analysis
-   - Math question -> LaTeX formula + variable breakdown + worked example
+   - Math/Physics/Chemistry question -> Structure the solution exactly like a teacher on a whiteboard. Use clear, numbered steps (Step 1, Step 2...), show your work, and ALWAYS box major formulas and the final answer.
    - "How does X work" -> Step-by-step numbered breakdown with visuals
 
 8. SMOOTH TRANSITIONS: Each section must flow naturally from the last. Never just jump to a new heading.
@@ -294,7 +294,7 @@ Rules per artifact type:
       prompt += `
 Return ONLY this JSON (no text before or after):
 {
-  "chat_response": "**[Topic Name]**\\n\\nBrief explanation of what you built.\\n\\n---\\n\\n**Want to go deeper?** I can help you explore:\\n- [suggestion 1]\\n- [suggestion 2]\\n- [suggestion 3]",
+  "chat_response": "**[Topic Name]**\n\nA detailed, step-by-step explanation of the concept, following all 'OUTPUT FORMAT RULES'. The chat response is your PRIMARY teaching tool — use it to explain the 'how' and 'why' in depth, then refer to the artifacts for the implementation/visuals.\n\n---\n\n**Want to go deeper?** I can help you explore:\n- [suggestion 1]\n- [suggestion 2]\n- [suggestion 3]",
   "artifacts": [
 ${artifactTypes.map((t, i) => `    {
       "type": "${t}",
@@ -310,7 +310,7 @@ ${artifactTypes.map((t, i) => `    {
       prompt += `
 Return ONLY this JSON (no text before or after):
 {
-  "chat_response": "**[Topic Name]**\\n\\nBrief explanation of what you built.\\n\\n---\\n\\n**Want to go deeper?** I can help you explore:\\n- [suggestion 1]\\n- [suggestion 2]\\n- [suggestion 3]",
+  "chat_response": "**[Topic Name]**\n\nA detailed, step-by-step explanation of the concept, following all 'OUTPUT FORMAT RULES'. The chat response is your PRIMARY teaching tool — use it to explain the 'how' and 'why' in depth, then refer to the artifact for the implementation/visuals.\n\n---\n\n**Want to go deeper?** I can help you explore:\n- [suggestion 1]\n- [suggestion 2]\n- [suggestion 3]",
   "artifact": {
     "type": "${planner.artifact_type}",
     "title": "Descriptive Title",

@@ -180,7 +180,7 @@ export default function AgentCanvasRenderer({
       <div className={`relative w-full h-full ${rendererType === 'simulator' ? 'min-h-[600px]' : 'min-h-[480px]'}`}>
 
         {/* D3 Layer (Primary for D3 subjects, Overlay for KaTeX/Doubt Deltas/Cinematic) */}
-        {(isD3 || isKaTeX || !!deltaState || rendererType === 'cinematic') && (
+        {(isD3 || isKaTeX || !!deltaState) && (
           <div 
             ref={d3ContainerRef} 
             className="absolute inset-0 z-10 w-full h-full overflow-visible" 
@@ -228,22 +228,24 @@ export default function AgentCanvasRenderer({
         )}
 
 
-        {/* ─── Legacy/Cinematic SVG Layer ─── */}
-        {/* Only mount if no high-performance renderer (D3/KaTeX/Specialized) is handling the scene. */}
-        {!isD3 && !isKaTeX && !SpecializedRenderer && (
-          <div className="absolute inset-0 z-10 pointer-events-none">
-            <SVGCanvasRenderer 
-              timeline={timeline} 
-              currentStepIndex={currentStepIndex} 
-              elements={combinedElements} 
-              connections={extConnections} 
-              steps={extSteps} 
-              showNotes={showNotes} 
-              forceManualOnly={rendererType !== 'cinematic'} 
-              isD3={isD3} 
-            />
-          </div>
-        )}
+        {/* ─── Annotation & Legacy SVG Layer ─── */}
+        {/* 
+            This layer handles two things:
+            1. Static scene rendering for legacy topics (forceManualOnly = false)
+            2. Real-time manual annotations and notes on top of any active renderer (forceManualOnly = true)
+        */}
+        <div className="absolute inset-0 z-20 pointer-events-none">
+          <SVGCanvasRenderer 
+            timeline={timeline} 
+            currentStepIndex={currentStepIndex} 
+            elements={combinedElements} 
+            connections={extConnections} 
+            steps={extSteps} 
+            showNotes={showNotes} 
+            forceManualOnly={isD3 || isKaTeX || !!SpecializedRenderer} 
+            isD3={isD3} 
+          />
+        </div>
         
 
       </div>

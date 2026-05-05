@@ -60,11 +60,21 @@ export function setupTeachingSocket(io) {
     }
   });
 
-  // ─── Global Rate Limiter Middleware ─────────────────────────────────────
+  // ─── Global Rate Limiter & Token Expiry Check ───────────────────────────
   teachingIO.use(async (socket, next) => {
     socket.use(async ([event, ...args], nextEvent) => {
       if (['disconnect', 'error'].includes(event)) return nextEvent();
       
+      // BUG-04: Proactive Token Expiry Check
+      if (socket.user && !socket.user.isGuest && socket.user.exp) {
+        const now = Math.floor(Date.now() / 1000);
+        if (now > socket.user.exp) {
+          console.warn(`[Auth] Token expired mid-session for user ${socket.user.id}`);
+          socket.emit('auth:token-expired', { reason: 'SESSION_EXPIRED' });
+          return; // Block event execution
+        }
+      }
+
       const isAllowed = await checkSocketRate(getRateKey(socket));
       if (!isAllowed) {
         socket.emit('error:ratelimit', { 

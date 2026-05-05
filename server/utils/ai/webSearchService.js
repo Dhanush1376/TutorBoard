@@ -12,7 +12,7 @@
  */
 
 const BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search';
-const SEARCH_TIMEOUT_MS = 5000;
+const SEARCH_TIMEOUT_MS = 3500;
 const MAX_RESULTS = 5;
 const MAX_SNIPPET_LENGTH = 300;
 

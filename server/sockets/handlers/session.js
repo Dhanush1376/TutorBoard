@@ -99,26 +99,26 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
 
     await sessionStore.update(sessionId, { topic: cleanTopic });
 
-    // Profile Initialization
-    if (socket.user && socket.user.id !== 'guest') {
-      await sessionStore.initProfile(sessionId, socket.user.id);
-      const s = await sessionStore.get(sessionId);
-      if (s && s.learnerProfile) {
-        const safeProfile = {
-          ...s.learnerProfile,
-          topicsMastery: s.learnerProfile.topicsMastery instanceof Map
-            ? Object.fromEntries(s.learnerProfile.topicsMastery)
-            : (s.learnerProfile.topicsMastery || {})
-        };
-        socket.emit('teaching:profile', safeProfile);
+    // Profile Initialization (Async — don't block generation start)
+    const profilePromise = (async () => {
+      if (socket.user && socket.user.id !== 'guest') {
+        await sessionStore.initProfile(sessionId, socket.user.id);
+        const s = await sessionStore.get(sessionId);
+        if (s && s.learnerProfile) {
+          const safeProfile = {
+            ...s.learnerProfile,
+            topicsMastery: s.learnerProfile.topicsMastery instanceof Map
+              ? Object.fromEntries(s.learnerProfile.topicsMastery)
+              : (s.learnerProfile.topicsMastery || {})
+          };
+          socket.emit('teaching:profile', safeProfile);
+        }
+      } else {
+        const guestProfile = { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} };
+        await sessionStore.update(sessionId, { learnerProfile: guestProfile });
+        socket.emit('teaching:profile', guestProfile);
       }
-    } else {
-      const guestProfile = { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} };
-      await sessionStore.update(sessionId, {
-        learnerProfile: guestProfile,
-      });
-      socket.emit('teaching:profile', guestProfile);
-    }
+    })();
 
     // Resumption / Linking Logic
     if (chatId && mongoose.isValidObjectId(chatId)) {
@@ -160,14 +160,13 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         console.warn(`[WS] Resumption/linking failed for chatId ${chatId}: ${err.message}`);
       }
     } else if (socket.user && !socket.user.isGuest) {
-      // No chatId passed — create a new ChatSession in MongoDB
-      try {
-        const newMongoSession = await ChatSession.create({
-          userId: socket.user.id || socket.user._id,
-          title: cleanTopic,
-          topic: cleanTopic,
-          engineSessionId: sessionId,
-        });
+      // No chatId passed — create a new ChatSession in MongoDB (Fire-and-forget)
+      ChatSession.create({
+        userId: socket.user.id || socket.user._id,
+        title: cleanTopic,
+        topic: cleanTopic,
+        engineSessionId: sessionId,
+      }).then(async (newMongoSession) => {
         await sessionStore.update(sessionId, { chatSessionId: newMongoSession._id });
         
         // LOG ACTIVITY: Session Start
@@ -181,12 +180,9 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         await sessionStore.addMessage(sessionId, 'user', cleanTopic);
         await syncToDatabase(sessionId);
 
-        // CRITICAL: Tell the client the real MongoDB _id so REST sync targets the right document
+        // Notify client of DB ID for subsequent syncs
         socket.emit('session:db-id', { chatSessionId: newMongoSession._id.toString() });
-      } catch (err) {
-        console.error('[WS] Failed to create ChatSession:', err.message);
-      }
-
+      }).catch(err => console.error('[WS] Fire-and-forget ChatSession.create failed:', err.message));
     } else {
       console.log(`[${requestId}] [WS] Continuing as Guest session: ${sessionId}`);
     }
@@ -197,14 +193,16 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         console.warn(`[${requestId}] [WS] socket.user missing! Defaulting to guest context.`);
         socket.user = { id: 'guest', isGuest: true };
       }
-      const userConfig = await resolveUserConfig(socket, socket.user, cleanTopic, selectedAgent);
-      
-      let intentResult;
-      if (isGreeting(cleanTopic)) {
-        intentResult = { intent: 'quick', renderer: 'none', confidence: 1.0 };
-      } else {
-        intentResult = await detectIntent(cleanTopic, activeMode, selectedAgent, userConfig);
-      }
+
+      // Parallelize pre-generation configuration, profile init, and intent detection
+      const [userConfig, intentResult] = await Promise.all([
+        resolveUserConfig(socket, socket.user, cleanTopic, selectedAgent),
+        (async () => {
+          if (isGreeting(cleanTopic)) return { intent: 'quick', renderer: 'none', confidence: 1.0 };
+          return detectIntent(cleanTopic, activeMode, selectedAgent); // userConfig not strictly needed for basic intent
+        })(),
+        profilePromise // Ensure profile is initialized before we start pipeline
+      ]);
 
       if (intentResult.intent === 'quick' || intentResult.intent === 'text_only') {
         const response = await withTimeout(

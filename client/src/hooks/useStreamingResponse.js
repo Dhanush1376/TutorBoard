@@ -24,8 +24,8 @@ export default function useStreamingResponse() {
     let currentIndex = 0;
     let accumulated = '';
 
-    const WORDS_PER_TICK = 2;     // Words to add per frame
-    const TICK_INTERVAL = 30;     // ms between ticks
+    const WORDS_PER_TICK = 3;     // Words to add per frame
+    const TICK_INTERVAL = 18;     // ms between ticks
 
     const tick = () => {
       if (abortedRef.current || currentIndex >= words.length) {

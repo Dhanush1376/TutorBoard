@@ -7,6 +7,7 @@ import {
   Eraser,
   Hammer,
   Square,
+  Activity,
 } from 'lucide-react';
 import { motion, useAnimation } from 'framer-motion';
 import useTutorStore from '../../../store/tutorStore';
@@ -85,7 +86,7 @@ const HoldToConfirmButton = ({ onConfirm }) => {
 };
 
 const DeleteAction = (props) => {
-  const { clearAll, clearDrawings, clearNotes, clearShapes } = useTutorStore();
+  const { clearAll, clearDrawings, clearNotes, clearShapes, clearVisualizations } = useTutorStore();
   const [successId, setSuccessId] = React.useState(null);
 
   const triggerFeedback = (id) => {
@@ -143,6 +144,22 @@ const DeleteAction = (props) => {
               <span className="text-xs font-normal text-[var(--text-primary)]">Clean Geometry</span>
             </div>
             {successId === 'shapes' && (
+              <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-normal text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              clearVisualizations();
+              triggerFeedback('visuals');
+            }}
+            className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[var(--bg-secondary)] transition-all group w-full border border-transparent hover:border-[var(--border-color)]"
+          >
+            <div className="flex items-center gap-3">
+              <Activity size={15} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+              <span className="text-xs font-normal text-[var(--text-primary)]">Clean Visuals</span>
+            </div>
+            {successId === 'visuals' && (
               <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-[9px] font-normal text-green-500 uppercase tracking-tighter bg-green-500/10 px-1.5 py-0.5 rounded">Cleared</motion.div>
             )}
           </button>

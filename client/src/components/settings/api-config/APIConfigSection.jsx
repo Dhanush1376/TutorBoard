@@ -8,8 +8,9 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
-  AppleToggle, RightInlineSelect, API_URL
+  AppleToggle, RightInlineSelect
 } from '../SettingsShared';
+import API, { BASE_URL as API_URL } from '../../../services/api';
 import { MODEL_LABELS, PROVIDERS } from './ProviderRegistry';
 import UnifiedAPIForm from './UnifiedAPIForm';
 import KeyCard from './KeyCard';
@@ -26,14 +27,14 @@ const UsageCard = ({ usage }) => {
   if (!usage) return null;
   const isWarning = usage.percent >= 80;
   const isExceeded = usage.percent >= 100;
-  
+
   return (
-    <div style={{ 
-      background: 'var(--bg-secondary)', 
-      border: '1px solid var(--border-color)', 
-      borderRadius: '12px', 
-      padding: '14px', 
-      marginBottom: '16px', 
+    <div style={{
+      background: 'var(--bg-secondary)',
+      border: '1px solid var(--border-color)',
+      borderRadius: '12px',
+      padding: '14px',
+      marginBottom: '16px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <Sparkles size={13} strokeWidth={2} style={{ color: '#8b5cf6', opacity: 0.7 }} />
@@ -52,24 +53,24 @@ const UsageCard = ({ usage }) => {
           </span>
         </div>
         <div style={{ height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
-          <motion.div 
-            initial={{ width: 0 }} 
-            animate={{ width: `${Math.min(100, usage.percent)}%` }} 
-            transition={{ duration: 0.8, ease: 'easeOut' }} 
-            style={{ 
-              height: '100%', 
-              background: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : '#8b5cf6', 
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(100, usage.percent)}%` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            style={{
+              height: '100%',
+              background: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : '#8b5cf6',
               borderRadius: '2px',
-            }} 
+            }}
           />
         </div>
       </div>
 
       {/* Model breakdown */}
       {usage.breakdown && usage.breakdown.length > 0 && (
-        <div style={{ 
+        <div style={{
           paddingTop: '10px', marginTop: '10px',
-          borderTop: '1px solid var(--border-color)', 
+          borderTop: '1px solid var(--border-color)',
           display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
           {usage.breakdown.map((m, i) => {
@@ -91,35 +92,36 @@ const UsageCard = ({ usage }) => {
 
 export default function APIConfigSection({ showToast }) {
   const { token } = useAuth();
-  const [apiKeys, setApiKeys]             = useState([]);
-  const [preferences, setPreferences]     = useState({ useCustomApi: false, smartRouting: false, enableRacing: false, enableAdaptive: false, routingMode: 'auto', modelOverride: '', costControl: { monthlyLimitCents: 0, warningThresholdPct: 80, hardStop: true } });
-  const [usageStats, setUsageStats]       = useState(null);
+  const [apiKeys, setApiKeys] = useState([]);
+  const [preferences, setPreferences] = useState({ useCustomApi: false, smartRouting: false, enableRacing: false, enableAdaptive: false, routingMode: 'auto', modelOverride: '', costControl: { monthlyLimitCents: 0, warningThresholdPct: 80, hardStop: true } });
+  const [usageStats, setUsageStats] = useState(null);
   const [universalUsage, setUniversalUsage] = useState(null);
-  const [showAddForm, setShowAddForm]     = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [showDirectory, setShowDirectory] = useState(false);
-  const [testingKeyId, setTestingKeyId]   = useState(null);
-  const [testResults, setTestResults]     = useState({});
-  const [error, setError]                 = useState(null);
+  const [testingKeyId, setTestingKeyId] = useState(null);
+  const [testResults, setTestResults] = useState({});
+  const [error, setError] = useState(null);
 
   useEffect(() => { if (token) fetchDashboardData(); }, [token]);
 
   const fetchDashboardData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/apikeys/dashboard`, { headers: { 'Authorization': `Bearer ${token}` } });
-      const d = await res.json();
-      
-      if (res.ok) {
+      const res = await API.get('/api/apikeys/dashboard');
+      const d = res.data;
+
+      if (res.status === 200) {
         setApiKeys(d.keys || []);
         setPreferences(d.preferences || {});
         setUsageStats(d.usage || null);
         if (d.universal) setUniversalUsage(d.universal);
         setError(null);
       } else {
-        setError(d.details || d.error || 'Failed to sync');
+        const data = res.data;
+        setError(data.error || 'Save failed.');
       }
     } catch (err) {
       console.error(err);
-      setError('Connection failed');
+      setError(err.response?.data?.details || err.response?.data?.error || 'Connection failed');
     }
   };
 
@@ -127,11 +129,7 @@ export default function APIConfigSection({ showToast }) {
     const updated = { ...preferences, [key]: value };
     setPreferences(updated);
     try {
-      await fetch(`${API_URL}/api/apikeys/preferences`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(updated),
-      });
+      await API.put('/api/apikeys/preferences', updated);
       fetchDashboardData();
     } catch (err) {
       console.error(err);
@@ -142,7 +140,7 @@ export default function APIConfigSection({ showToast }) {
     const updated = { ...preferences, costControl: { ...(preferences.costControl || {}), [field]: value } };
     setPreferences(updated);
     try {
-      await fetch(`${API_URL}/api/apikeys/preferences`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(updated) });
+      await API.put('/api/apikeys/preferences', updated);
     } catch (err) {
       console.error(err);
     }
@@ -150,8 +148,8 @@ export default function APIConfigSection({ showToast }) {
 
   const handleDelete = async (keyId) => {
     try {
-      const r = await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (r.ok) { fetchDashboardData(); showToast?.('Key removed', 'info'); }
+      const r = await API.delete(`/api/apikeys/${keyId}`);
+      if (r.status === 200) { fetchDashboardData(); showToast?.('Key removed', 'info'); }
     } catch (err) {
       console.error(err);
     }
@@ -160,7 +158,7 @@ export default function APIConfigSection({ showToast }) {
   const handleToggle = async (keyId, isActive) => {
     setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, isActive } : k));
     try {
-      await fetch(`${API_URL}/api/apikeys/${keyId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ isActive }) });
+      await API.put(`/api/apikeys/${keyId}`, { isActive });
       fetchDashboardData();
     } catch (err) {
       console.error(err);
@@ -171,8 +169,8 @@ export default function APIConfigSection({ showToast }) {
     setTestingKeyId(keyId);
     setTestResults(prev => ({ ...prev, [keyId]: null }));
     try {
-      const res = await fetch(`${API_URL}/api/apikeys/${keyId}/test`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await res.json();
+      const res = await API.post(`/api/apikeys/${keyId}/test`);
+      const data = res.data;
       setTestResults(prev => ({ ...prev, [keyId]: data }));
       if (data.valid) showToast?.(`OK (${data.latencyMs}ms)`, 'success');
       else showToast?.(data.error || 'Failed', 'error');
@@ -184,8 +182,8 @@ export default function APIConfigSection({ showToast }) {
     }
   };
 
-  const hasActiveKey      = apiKeys.some(k => k.isActive && k.isValid);
-  const hasActiveCustom   = preferences.useCustomApi && hasActiveKey;
+  const hasActiveKey = apiKeys.some(k => k.isActive && k.isValid);
+  const hasActiveCustom = preferences.useCustomApi && hasActiveKey;
   const keyAddedNotActive = hasActiveKey && !preferences.useCustomApi;
 
   // Status
@@ -198,7 +196,7 @@ export default function APIConfigSection({ showToast }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
       {/* Status indicator */}
-      <div style={{ 
+      <div style={{
         display: 'flex', alignItems: 'center', gap: '8px',
         padding: '8px 12px', borderRadius: '8px',
         background: `${statusColor}08`,
@@ -207,11 +205,11 @@ export default function APIConfigSection({ showToast }) {
         <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
         <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-secondary)' }}>{statusText}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button 
+          <button
             onClick={() => setShowDirectory(true)}
-            style={{ 
-              padding: '4px 10px', borderRadius: '6px', 
-              background: 'transparent', border: '1px solid var(--border-color)', 
+            style={{
+              padding: '4px 10px', borderRadius: '6px',
+              background: 'transparent', border: '1px solid var(--border-color)',
               color: 'var(--text-tertiary)', fontSize: '10px', fontWeight: 500, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '4px'
             }}
@@ -222,11 +220,11 @@ export default function APIConfigSection({ showToast }) {
             Supported Providers
           </button>
           {keyAddedNotActive && (
-            <button 
-              onClick={() => handleUpdatePref('useCustomApi', true)} 
-              style={{ 
-                padding: '6px 14px', borderRadius: '8px', 
-                background: '#f59e0b', color: '#fff', border: 'none', 
+            <button
+              onClick={() => handleUpdatePref('useCustomApi', true)}
+              style={{
+                padding: '6px 14px', borderRadius: '8px',
+                background: '#f59e0b', color: '#fff', border: 'none',
                 fontSize: '11px', fontWeight: 600, cursor: 'pointer',
               }}
             >
@@ -240,11 +238,11 @@ export default function APIConfigSection({ showToast }) {
       <div>
         <SectionTitle>Configuration</SectionTitle>
         <SettingsGroup>
-          <SettingsRow icon={Key}       label="Use Custom API"    rightElement={<AppleToggle value={preferences.useCustomApi}    onChange={v => handleUpdatePref('useCustomApi', v)} />} />
-          <SettingsRow icon={Brain}     label="Smart Routing"     rightElement={<AppleToggle value={preferences.smartRouting}    onChange={v => handleUpdatePref('smartRouting', v)} />} />
-          <SettingsRow icon={GitBranch} label="Adaptive Learning" rightElement={<AppleToggle value={preferences.enableAdaptive}  onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
-          <SettingsRow icon={Activity}  label="Parallel Racing"   rightElement={<AppleToggle value={preferences.enableRacing}    onChange={v => handleUpdatePref('enableRacing', v)} />} />
-          <SettingsRow icon={Globe2}    label="Routing" borderBottom={false} rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
+          <SettingsRow icon={Key} label="Use Custom API" rightElement={<AppleToggle value={preferences.useCustomApi} onChange={v => handleUpdatePref('useCustomApi', v)} />} />
+          <SettingsRow icon={Brain} label="Smart Routing" rightElement={<AppleToggle value={preferences.smartRouting} onChange={v => handleUpdatePref('smartRouting', v)} />} />
+          <SettingsRow icon={GitBranch} label="Adaptive Learning" rightElement={<AppleToggle value={preferences.enableAdaptive} onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
+          <SettingsRow icon={Activity} label="Parallel Racing" rightElement={<AppleToggle value={preferences.enableRacing} onChange={v => handleUpdatePref('enableRacing', v)} />} />
+          <SettingsRow icon={Globe2} label="Routing" borderBottom={false} rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
         </SettingsGroup>
 
         {preferences.routingMode === 'manual' && apiKeys.length > 0 && (
@@ -262,12 +260,12 @@ export default function APIConfigSection({ showToast }) {
           <SectionTitle style={{ margin: 0 }}>API Keys</SectionTitle>
           <button
             onClick={() => setShowAddForm(s => !s)}
-            style={{ 
+            style={{
               display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 16px', borderRadius: '10px', 
-              background: showAddForm ? 'var(--bg-tertiary)' : 'var(--text-primary)', 
-              color: showAddForm ? 'var(--text-primary)' : 'var(--bg-primary)', 
-              border: '1px solid var(--border-color)', 
+              padding: '8px 16px', borderRadius: '10px',
+              background: showAddForm ? 'var(--bg-tertiary)' : 'var(--text-primary)',
+              color: showAddForm ? 'var(--text-primary)' : 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
               cursor: 'pointer', fontSize: '11px', fontWeight: 600,
               transition: 'all 0.12s',
             }}
@@ -291,21 +289,24 @@ export default function APIConfigSection({ showToast }) {
         {/* Key list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {apiKeys.length === 0 && !showAddForm && (
-            <div style={{ 
-              textAlign: 'center', padding: '32px 20px', 
-              background: 'var(--bg-secondary)', borderRadius: '12px', 
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              textAlign: 'center', padding: '40px 20px',
+              background: 'var(--bg-secondary)', borderRadius: '12px',
               border: '1px solid var(--border-color)',
             }}>
-              <Key size={20} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', opacity: 0.4, marginBottom: '10px' }} />
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                <Key size={20} strokeWidth={2} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
+              </div>
               <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>No API keys</div>
               <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 400, marginBottom: '14px' }}>
                 Add your own keys for independent AI access.
               </div>
               <button
                 onClick={() => setShowAddForm(true)}
-                style={{ 
-                  padding: '8px 20px', borderRadius: '8px', 
-                  background: 'var(--text-primary)', color: 'var(--bg-primary)', 
+                style={{
+                  padding: '8px 20px', borderRadius: '8px',
+                  background: 'var(--text-primary)', color: 'var(--bg-primary)',
                   border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 500,
                 }}
               >
@@ -336,17 +337,17 @@ export default function APIConfigSection({ showToast }) {
           <SettingsRow icon={DollarSign} label="Monthly Limit" rightElement={
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <span style={{ position: 'absolute', left: '8px', fontSize: '11px', color: 'var(--text-tertiary)', opacity: 0.5 }}>$</span>
-              <input 
-                type="number" 
-                value={preferences.costControl?.monthlyLimitCents || 0} 
+              <input
+                type="number"
+                value={preferences.costControl?.monthlyLimitCents || 0}
                 onChange={e => handleUpdateCostControl('monthlyLimitCents', parseInt(e.target.value) || 0)}
                 className="hide-arrows"
-                style={{ 
-                  width: '80px', padding: '6px 8px 6px 20px', borderRadius: '8px', 
-                  border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)', 
-                  color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right', 
+                style={{
+                  width: '80px', padding: '6px 8px 6px 20px', borderRadius: '8px',
+                  border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right',
                   fontWeight: 500, fontFamily: '"Geist Mono", monospace', outline: 'none',
-                }} 
+                }}
               />
             </div>
           } />
@@ -361,15 +362,15 @@ export default function APIConfigSection({ showToast }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
             {[
               { label: 'Requests', value: usageStats.totalRequests || 0, icon: Zap },
-              { label: 'Tokens',   value: usageStats.totalTokens   || 0, icon: Brain },
-              { label: 'Latency',  value: `${Math.round(usageStats.avgResponseTime || 0)}ms`, icon: Gauge },
+              { label: 'Tokens', value: usageStats.totalTokens || 0, icon: Brain },
+              { label: 'Latency', value: `${Math.round(usageStats.avgResponseTime || 0)}ms`, icon: Gauge },
               { label: 'Cost', value: `$${((usageStats.totalCost || 0) / 100).toFixed(2)}`, icon: DollarSign },
             ].map((s, i) => (
               <div
                 key={i}
-                style={{ 
-                  background: 'var(--bg-secondary)', padding: '12px', borderRadius: '10px', 
-                  border: '1px solid var(--border-color)', 
+                style={{
+                  background: 'var(--bg-secondary)', padding: '12px', borderRadius: '10px',
+                  border: '1px solid var(--border-color)',
                   display: 'flex', flexDirection: 'column', gap: '6px',
                 }}
               >
@@ -391,20 +392,20 @@ export default function APIConfigSection({ showToast }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ 
-              padding: '10px 14px', background: 'rgba(239,68,68,0.05)', 
-              border: '1px solid rgba(239,68,68,0.12)', borderRadius: '10px', 
-              display: 'flex', alignItems: 'center', gap: '8px', 
+            style={{
+              padding: '10px 14px', background: 'rgba(239,68,68,0.05)',
+              border: '1px solid rgba(239,68,68,0.12)', borderRadius: '10px',
+              display: 'flex', alignItems: 'center', gap: '8px',
               color: '#ef4444', fontSize: '12px',
             }}
           >
             <AlertCircle size={14} strokeWidth={2} style={{ flexShrink: 0 }} />
             <span style={{ flex: 1, fontWeight: 400 }}>{error}</span>
-            <button 
-              onClick={fetchDashboardData} 
-              style={{ 
-                background: 'rgba(239,68,68,0.08)', border: 'none', 
-                color: '#ef4444', fontWeight: 500, cursor: 'pointer', 
+            <button
+              onClick={fetchDashboardData}
+              style={{
+                background: 'rgba(239,68,68,0.08)', border: 'none',
+                color: '#ef4444', fontWeight: 500, cursor: 'pointer',
                 padding: '4px 10px', borderRadius: '6px', fontSize: '10px',
               }}
             >
@@ -441,16 +442,16 @@ export default function APIConfigSection({ showToast }) {
               }}
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ 
-                padding: '16px 20px', borderBottom: '1px solid var(--border-color)', 
+              <div style={{
+                padding: '16px 20px', borderBottom: '1px solid var(--border-color)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Providers</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontWeight: 400 }}>Supported AI providers</div>
                 </div>
-                <button 
-                  onClick={() => setShowDirectory(false)} 
+                <button
+                  onClick={() => setShowDirectory(false)}
                   style={{ background: 'none', border: 'none', padding: '6px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex' }}
                 >
                   <X size={16} strokeWidth={2} />
@@ -462,8 +463,8 @@ export default function APIConfigSection({ showToast }) {
                   .filter(p => p.id !== 'custom')
                   .sort((a, b) => (a.price || 0) - (b.price || 0))
                   .map(p => (
-                    <div 
-                      key={p.id} 
+                    <div
+                      key={p.id}
                       style={{
                         display: 'flex', alignItems: 'center', gap: '12px',
                         padding: '12px 14px', borderRadius: '10px',
@@ -484,8 +485,8 @@ export default function APIConfigSection({ showToast }) {
                         </div>
                       </div>
                       {p.link && (
-                        <a 
-                          href={p.link} target="_blank" rel="noopener noreferrer" 
+                        <a
+                          href={p.link} target="_blank" rel="noopener noreferrer"
                           style={{
                             padding: '6px 12px', borderRadius: '6px', background: 'var(--bg-tertiary)',
                             color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '10px', fontWeight: 500,

@@ -104,29 +104,74 @@ function setCachedResponse(key, response) {
   responseCache.set(key, { response, timestamp: Date.now() });
 }
 
+// ── Semantic Deduplication Layer ──────────────────────────────────────────────
+const SEMANTIC_CACHE_MAX = 100;
+const SIMILARITY_THRESHOLD = 0.96; 
+const semanticStore = []; // { embedding, lastMessage, cacheKey, model, isCustomKey }
+
+function cosineSimilarity(vecA, vecB) {
+  let dotProduct = 0; let mA = 0; let mB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    mA += vecA[i] * vecA[i];
+    mB += vecB[i] * vecB[i];
+  }
+  return dotProduct / (Math.sqrt(mA) * Math.sqrt(mB));
+}
+
+async function findSemanticHit(messages, model, userId, isCustomKey) {
+  const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content;
+  if (!lastUserMsg || lastUserMsg.length < 15) return null;
+
+  const currentEmbedding = await getEmbeddings(lastUserMsg);
+  if (!currentEmbedding) return null;
+
+  let bestMatch = null;
+  let maxSim = -1;
+
+  for (const entry of semanticStore) {
+    if (entry.model !== model || entry.isCustomKey !== isCustomKey) continue;
+    const sim = cosineSimilarity(currentEmbedding, entry.embedding);
+    if (sim > maxSim) {
+      maxSim = sim;
+      bestMatch = entry;
+    }
+  }
+
+  if (maxSim >= SIMILARITY_THRESHOLD) {
+    console.log(`[AI:Semantic] Cache hit! Similarity: ${(maxSim * 100).toFixed(1)}%`);
+    return getCachedResponse(bestMatch.cacheKey);
+  }
+
+  // Update store (LRU-ish)
+  if (semanticStore.length >= SEMANTIC_CACHE_MAX) semanticStore.shift();
+  semanticStore.push({ 
+    embedding: currentEmbedding, 
+    model, 
+    isCustomKey, 
+    cacheKey: getCacheKey(messages, model, userId, isCustomKey) 
+  });
+  return null;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function resolveModelId(modelId) {
   const normalizedId = (modelId || '').trim();
   
   if (!normalizedId || 
+      normalizedId.toLowerCase().includes('universal') || 
       normalizedId === 'OpenRouter' || 
-      normalizedId === 'OpenRouterAI' || 
-      normalizedId === 'Universal' ||
-      normalizedId.includes('Universal')) {
+      normalizedId === 'OpenRouterAI') {
     
-    // Default to the performant Claude 3.5 Sonnet if no specific model is resolved
-    const defaultModel = getModel();
-    if (defaultModel === 'Universal' || !defaultModel) {
-      return 'anthropic/claude-3-5-sonnet-20241022';
-    }
-    return defaultModel;
+    // Default to the system model if no specific model is resolved
+    return getModel();
   }
 
   // Model Aliases & Direct Mapping
   const mapping = {
     // Agents / Brand Names
-    'Bytez': 'anthropic/claude-3-5-sonnet-20241022',
+    'Bytez': 'anthropic/claude-sonnet-4-20250514',
     'Bytez (Opus)': 'anthropic/claude-opus-20240229',
     'Tutubot': 'openai/gpt-4o',
     
@@ -353,8 +398,16 @@ export async function requestCompletion(params = {}) {
   const cacheKey = getCacheKey(messages, model, userId, isCustomKey);
   const cached = getCachedResponse(cacheKey);
   if (cached) {
-    console.log('[AI:Cache] Cache hit — returning cached response');
+    console.log('[AI:Cache] Direct hit — returning cached response');
     return { ...cached, _meta: { ...cached._meta, cached: true } };
+  }
+
+  // ── Semantic hit (similar questions) ──
+  if (!onStream && !file) { // Don't semantic-cache streams or files yet
+    const semanticHit = await findSemanticHit(messages, model, userId, isCustomKey);
+    if (semanticHit) {
+      return { ...semanticHit, _meta: { ...semanticHit._meta, cached: true, semantic: true } };
+    }
   }
 
   // ═════════════════════════════════════════════════════════════════════════════
@@ -610,7 +663,7 @@ async function _executeSystemPath(params, ctx) {
       }
     }
 
-    const timeout = createTimeoutController(20_000);
+    const timeout = createTimeoutController(90_000);
     
     try {
       console.log(`[AI:System] Attempting ${providerId} with model ${currentModel}...`);
@@ -618,7 +671,7 @@ async function _executeSystemPath(params, ctx) {
       const response = await executeProviderRequest(client, providerId, {
         model: currentModel, messages,
         temperature: temperature ?? 0.1,
-        maxTokens: maxTokens ?? 1000,
+        maxTokens: maxTokens ?? 4000,
         tools, response_format, onStream, file
       }, timeout.signal);
 
@@ -776,17 +829,21 @@ export async function requestCompletionRaced(params, primaryConfig, secondaryCon
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function getModel() {
-  return process.env.AI_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
+  return process.env.AI_MODEL || 'openai/gpt-4o';
 }
 
 export function getTextModel() {
-  return process.env.AI_TEXT_MODEL || 'anthropic/claude-3.5-sonnet';
+  return process.env.AI_TEXT_MODEL || 'openai/gpt-4o-mini';
+}
+
+export function getFastModel() {
+  return process.env.AI_FAST_MODEL || 'openai/gpt-4o-mini';
 }
 
 export function getModelForAgent(agent) {
   if (!agent) return null;
   const mapping = {
-    'Bytez': 'anthropic/claude-3-5-sonnet-20241022',
+    'Bytez': 'anthropic/claude-sonnet-4-20250514',
     'Bytez (Opus)': 'anthropic/claude-opus-20240229',
     'OpenRouter': getModel(),
     'OpenRouterAI': getModel(),

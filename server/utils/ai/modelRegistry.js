@@ -26,7 +26,7 @@ export const MODEL_REGISTRY = {
   },
   anthropic: {
     validation: 'claude-3-5-haiku-20241022',
-    production: 'claude-3-5-sonnet-20241022',
+    production: 'claude-sonnet-4-20250514',
     fallback: 'claude-3-haiku-20240307',
     chain: ['claude-3-5-haiku-20241022', 'claude-3-haiku-20240307']
   },
@@ -134,7 +134,7 @@ export const MODEL_REGISTRY = {
   },
   openrouter: {
     validation: 'openai/gpt-4o-mini',
-    production: 'anthropic/claude-3-5-sonnet',
+    production: 'anthropic/claude-sonnet-4-20250514',
     fallback: 'google/gemini-2.0-flash-001',
     chain: ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001']
   },

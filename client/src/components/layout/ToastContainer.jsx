@@ -31,21 +31,21 @@ const Toast = ({ toast, index, total }) => {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 40, scale: 0.95 }}
+      initial={{ opacity: 0, y: 40, scale: 0.95 }}
       animate={{ 
         opacity, 
-        x: 0, 
+        y: 0, 
         scale,
         filter: `blur(${blur}px)`,
       }}
-      exit={{ opacity: 0, scale: 0.9, x: 20, transition: { duration: 0.2 } }}
+      exit={{ opacity: 0, scale: 0.9, y: 20, transition: { duration: 0.2 } }}
       className="relative group pointer-events-auto"
       style={{
-        background: 'rgba(11, 11, 10, 0.85)',
+        background: 'var(--bg-secondary)',
         backdropFilter: 'blur(16px) saturate(180%)',
         WebkitBackdropFilter: 'blur(16px) saturate(180%)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        boxShadow: `0 12px 40px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.02)`,
+        border: '1px solid var(--border-color)',
+        boxShadow: 'var(--shadow-xl)',
         borderRadius: '20px',
         minWidth: '280px',
         maxWidth: '400px',
@@ -82,7 +82,7 @@ const Toast = ({ toast, index, total }) => {
         
         <div className="flex-1">
           <p 
-            className="text-[13px] font-medium text-white leading-tight" 
+            className="text-[13px] font-medium text-[var(--text-primary)] leading-tight" 
             style={{ fontFamily: 'Outfit, sans-serif', letterSpacing: '0.01em' }}
           >
             {message || 'Notification'}
@@ -93,7 +93,7 @@ const Toast = ({ toast, index, total }) => {
           {onUndo && (
             <button
               onClick={() => { onUndo(); removeToast(id); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-white/70 hover:text-white transition-all active:scale-95 group border border-white/5 shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--brand-muted)] hover:bg-[var(--border-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 group border border-[var(--border-color)] shadow-sm"
             >
               <RotateCcw size={12} className="group-hover:-rotate-90 transition-transform duration-500" />
               <span className="text-[10px] font-bold uppercase tracking-widest" style={{ fontFamily: 'Outfit, sans-serif' }}>Undo</span>
@@ -102,7 +102,7 @@ const Toast = ({ toast, index, total }) => {
 
           <button
             onClick={() => removeToast(id)}
-            className="w-7 h-7 flex items-center justify-center text-white/30 hover:text-white transition-all rounded-full hover:bg-white/10"
+            className="w-7 h-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all rounded-full hover:bg-[var(--brand-muted)]"
           >
             <X size={14} strokeWidth={2.5} />
           </button>
@@ -119,10 +119,10 @@ const ToastContainer = () => {
 
   return (
     <div 
-      className="fixed top-6 right-6 z-[9999] flex flex-col items-end gap-3 pointer-events-none"
+      className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3 pointer-events-none"
     >
       <AnimatePresence mode="popLayout" initial={false}>
-        {toasts.slice().reverse().map((toast, idx) => (
+        {toasts.map((toast, idx) => (
           <Toast 
             key={toast.id} 
             toast={toast} 

@@ -104,6 +104,23 @@ export const createControlSlice = (set, get) => ({
       });
     }
   },
+  
+  clearVisualizations: () => {
+    const { canvasObjects, history } = get();
+    const remaining = canvasObjects.filter(o => 
+      o.type !== 'flow_step' && o.type !== 'flow_connection' && !o.id?.startsWith('manual-flow-')
+    );
+    
+    if (remaining.length !== canvasObjects.length) {
+      set({
+        canvasObjects: remaining,
+        history: {
+          past: [...(history.past || []), canvasObjects].slice(-50),
+          future: []
+        }
+      });
+    }
+  },
 
   addNoteToCanvas: (worldX, worldY) => {
     const { pinnedNotes, noteColor, noteSize, notePinned, noteToolSize, addCanvasObjects } = get();

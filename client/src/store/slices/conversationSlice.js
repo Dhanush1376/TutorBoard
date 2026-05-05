@@ -49,15 +49,17 @@ export const createConversationSlice = (set, get) => ({
     return { userId, assistantId };
   },
 
-  addAssistantMessage: (content, id = null) => {
+  addAssistantMessage: (content, id = null, extraMetadata = {}) => {
     const msgId = id || generateId('assistant');
     const msg = {
       id: msgId, role: 'assistant', content,
       timestamp: new Date().toISOString(),
       metadata: { 
         edited: false, regenerated: false, feedback: null,
-        versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0
+        versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0,
+        ...extraMetadata
       },
+      ...extraMetadata // Spread to root as well for hasCanvas etc
     };
     set((state) => ({
       conversationMessages: [...state.conversationMessages, msg],
@@ -74,7 +76,7 @@ export const createConversationSlice = (set, get) => ({
       isWaitingForAI: false, 
       waitingSessionId: null,
       streamingSessionId: get().chatSessionId || get().sessionId || 'temp',
-      streamingContent: '', 
+      streamingContent: '\u200B', // ← Zero-width space: prevents flash of empty bubble
       streamingThought: '',
       streamingMessageId: messageId,
       isSearchPerformed: false // Reset for new turn
@@ -102,10 +104,16 @@ export const createConversationSlice = (set, get) => ({
   // Clear sources
   clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
 
-  finishStreaming: (finalContent, sessionId = null, thoughtContent = '', sources = [], artifactId = null, canvasType = null) => {
+  finishStreaming: (finalContent, sessionId = null, thoughtContent = '', sources = [], artifactId = null, canvasType = null, latencyMs = null) => {
     const { streamingMessageId, conversationMessages, chatSessionId, sessionId: activeSessionId } = get();
     const currentViewId = chatSessionId || activeSessionId;
-    const isCurrentChat = !sessionId || sessionId === currentViewId;
+    const state = get();
+    // Prevent data loss: transition states mean the ID could be either the local one or the newly assigned MongoDB ID
+    const isCurrentChat = !sessionId || 
+      sessionId === state.streamingSessionId || 
+      sessionId === state.chatSessionId || 
+      sessionId === state.sessionId || 
+      sessionId === currentViewId;
     const existingIdx = conversationMessages.findIndex(m => m.id === streamingMessageId);
     
     if (existingIdx !== -1) {
@@ -137,7 +145,8 @@ export const createConversationSlice = (set, get) => ({
                 searchPerformed: get().isSearchPerformed || m.metadata.searchPerformed,
                 artifactId: artifactId || m.metadata.artifactId,
                 versions: updatedVersions,
-                activeVersionIndex: activeIdx
+                activeVersionIndex: activeIdx,
+                latencyMs: latencyMs || m.metadata.latencyMs
               }
             } : m
           );
@@ -158,7 +167,8 @@ export const createConversationSlice = (set, get) => ({
           sources: sources,
           searchPerformed: get().isSearchPerformed,
           artifactId: artifactId,
-          versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0
+          versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0,
+          latencyMs: latencyMs
         },
       };
       set((state) => {
@@ -358,4 +368,15 @@ export const createConversationSlice = (set, get) => ({
   setConversationTopic: (topic) => set({ conversationTopic: topic }),
   setConversationMode: (mode) => set({ conversationMode: mode }),
   setConversationIntent: (intent) => set({ conversationIntent: intent }),
+
+  syncMessageIds: (userMessageId, assistantMessageId) => {
+    set((state) => {
+      const msgs = [...state.conversationMessages];
+      if (msgs.length >= 2) {
+        if (userMessageId) msgs[msgs.length - 2] = { ...msgs[msgs.length - 2], id: userMessageId };
+        if (assistantMessageId) msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
+      }
+      return { conversationMessages: msgs };
+    });
+  },
 });

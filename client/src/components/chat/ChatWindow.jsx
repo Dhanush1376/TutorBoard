@@ -80,41 +80,20 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
 // ── Thinking / Typing indicator ──
 const ThinkingIndicator = () => (
   <motion.div
-    initial={{ opacity: 0, y: 12, scale: 0.95 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-    className="flex items-center gap-3 px-5 py-4 select-none"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="w-full py-1 flex flex-col items-start"
   >
-    <div className="relative">
-      <VisaiLogo size="xxs" />
-      <motion.div 
-        animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute inset-0 bg-[var(--text-primary)] rounded-full blur-md -z-10"
-      />
-    </div>
-
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)] animate-pulse">
-          Agent Thinking
-        </span>
-      </div>
-      
-      <div className="flex items-center gap-1">
-        <motion.div 
-          className="h-1 rounded-full bg-gradient-to-r from-[var(--text-primary)] to-transparent"
-          initial={{ width: 0 }}
-          animate={{ width: 40 }}
-          transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
-        />
-        <div className="flex gap-1">
+    <div className="relative group min-w-0 max-w-[96%] w-full">
+      <div className="flex flex-col gap-0 items-start w-full px-0 py-1 mt-1">
+        <div className="flex gap-1.5 items-center h-6">
           {[0, 1, 2].map((i) => (
             <motion.div
               key={i}
               animate={{ 
-                scale: [1, 1.5, 1],
-                opacity: [0.3, 1, 0.3]
+                scale: [0.8, 1.2, 0.8],
+                opacity: [0.4, 1, 0.4]
               }}
               transition={{ 
                 duration: 1, 
@@ -122,7 +101,7 @@ const ThinkingIndicator = () => (
                 delay: i * 0.2,
                 ease: "easeInOut" 
               }}
-              className="w-1 h-1 rounded-full bg-[var(--text-primary)]"
+              className="w-2 h-2 rounded-full bg-[var(--text-primary)]"
             />
           ))}
         </div>
@@ -241,7 +220,7 @@ const ChatWindow = ({
             })}
 
             {/* ── Streaming Message (only for NEW messages not in list) ── */}
-            {isCurrentlyStreaming && !messages.some(m => m.id === streamingMessageId) && (
+            {isCurrentlyStreaming && !messages.some(m => m.id === streamingMessageId) && (streamingContent || streamingThought || streamingSources?.length > 0) && (
               <Message
                 key="streaming-msg"
                 role="assistant"
@@ -260,7 +239,7 @@ const ChatWindow = ({
 
             {/* Thinking Indicator */}
             <AnimatePresence>
-              {(isGenerating || isCurrentlyWaiting) && <ThinkingIndicator key="thinking" />}
+            {(isGenerating || isCurrentlyWaiting || (isCurrentlyStreaming && !streamingContent && !streamingThought)) && <ThinkingIndicator key="thinking" />}
             </AnimatePresence>
             <div ref={bottomRef} className="h-2" />
           </motion.div>

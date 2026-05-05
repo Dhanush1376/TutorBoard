@@ -240,6 +240,18 @@ class SessionStore {
         }]);
       }
 
+      // Sync engagement metrics
+      if (s.learnerProfile?.engagementMetrics) {
+        const em = s.learnerProfile.engagementMetrics;
+        profile.engagementMetrics.visualStepsCompleted = (profile.engagementMetrics.visualStepsCompleted || 0) + (em.visualStepsCompleted || 0);
+        profile.engagementMetrics.conceptualDoubtsAsked = (profile.engagementMetrics.conceptualDoubtsAsked || 0) + (em.conceptualDoubtsAsked || 0);
+        
+        // Reset in-session counters after sync to prevent double counting if persistProfile is called multiple times
+        s.learnerProfile.engagementMetrics.visualStepsCompleted = 0;
+        s.learnerProfile.engagementMetrics.conceptualDoubtsAsked = 0;
+        await this.update(id, { learnerProfile: s.learnerProfile }, s);
+      }
+
       await profile.save();
       console.log(`[SessionStore:Persist] Profile updated for user ${s.userId} (Confusion: ${s.learnerProfile.confusionIndex})`);
     } catch (err) {

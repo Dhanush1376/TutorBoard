@@ -6,8 +6,8 @@ export const AI_CONFIG = {
   // Priority list for fallbacks
   priority: ["gemini", "groq", "openrouter"],
   
-  // Global timeout for any single provider request
-  timeout: 8000, 
+  // Global timeout for any single provider request (increased for complex reasoning)
+  timeout: 60000, 
   
   // Retry configuration
   maxRetries: 2,

@@ -24,11 +24,21 @@ The narration MUST match the visual timing:
 OUTPUT FORMAT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
-  "step": <number>,
-  "actions": [
-    { "cmd": "command_name", ...parameters, "duration": <ms>, "delay": <ms> }
+  "animation_steps": [
+    {
+      "step": <number>,
+      "actions": [
+        { "cmd": "command_name", ...parameters, "duration": <ms>, "delay": <ms> }
+      ]
+    }
   ]
 }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL REQUIREMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST return an "animation_steps" array, even if there is only one step. 
+NEVER return a single object with "step" and "actions" at the root level.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMAND REFERENCE (VisualScript Actions)
@@ -89,56 +99,72 @@ FEW-SHOT EXAMPLES
 
 EXAMPLE 1 — Bubble Sort: Compare and Swap
 {
-  "step": 2,
-  "actions": [
-    { "cmd": "narrate", "text": "64 is greater than 34. They are out of order, so we swap them." },
-    { "cmd": "highlight", "id": "arr[0]", "color": "yellow", "duration": 300, "delay": 0 },
-    { "cmd": "highlight", "id": "arr[1]", "color": "yellow", "duration": 300, "delay": 150 },
-    { "cmd": "compare", "left": 64, "right": 34, "op": ">", "delay": 400 },
-    { "cmd": "wait", "ms": 500 },
-    { "cmd": "swap", "id1": "arr[0]", "id2": "arr[1]", "duration": 800, "delay": 900 },
-    { "cmd": "color_to", "id": "arr[0]", "color": "#86efac", "duration": 300, "delay": 1800 }
+  "animation_steps": [
+    {
+      "step": 2,
+      "actions": [
+        { "cmd": "narrate", "text": "64 is greater than 34. They are out of order, so we swap them." },
+        { "cmd": "highlight", "id": "arr[0]", "color": "yellow", "duration": 300, "delay": 0 },
+        { "cmd": "highlight", "id": "arr[1]", "color": "yellow", "duration": 300, "delay": 150 },
+        { "cmd": "compare", "left": 64, "right": 34, "op": ">", "delay": 400 },
+        { "cmd": "wait", "ms": 500 },
+        { "cmd": "swap", "id1": "arr[0]", "id2": "arr[1]", "duration": 800, "delay": 900 },
+        { "cmd": "color_to", "id": "arr[0]", "color": "#86efac", "duration": 300, "delay": 1800 }
+      ]
+    }
   ]
 }
 
 EXAMPLE 2 — Bubble Sort: No Swap (Already in Order)
 {
-  "step": 3,
-  "actions": [
-    { "cmd": "narrate", "text": "34 is less than 64. They are already in order — no swap needed." },
-    { "cmd": "highlight", "id": "arr[0]", "color": "cyan", "duration": 300, "delay": 0 },
-    { "cmd": "highlight", "id": "arr[1]", "color": "cyan", "duration": 300, "delay": 150 },
-    { "cmd": "compare", "left": 34, "right": 64, "op": "<", "delay": 400 },
-    { "cmd": "wait", "ms": 600 },
-    { "cmd": "color_to", "id": "arr[0]", "color": "#86efac", "duration": 300, "delay": 1100 },
-    { "cmd": "color_to", "id": "arr[1]", "color": "#86efac", "duration": 300, "delay": 1200 },
-    { "cmd": "move_pointer", "id": "ptr_j", "atIndex": 2, "delay": 1400 }
+  "animation_steps": [
+    {
+      "step": 3,
+      "actions": [
+        { "cmd": "narrate", "text": "34 is less than 64. They are already in order — no swap needed." },
+        { "cmd": "highlight", "id": "arr[0]", "color": "cyan", "duration": 300, "delay": 0 },
+        { "cmd": "highlight", "id": "arr[1]", "color": "cyan", "duration": 300, "delay": 150 },
+        { "cmd": "compare", "left": 34, "right": 64, "op": "<", "delay": 400 },
+        { "cmd": "wait", "ms": 600 },
+        { "cmd": "color_to", "id": "arr[0]", "color": "#86efac", "duration": 300, "delay": 1100 },
+        { "cmd": "color_to", "id": "arr[1]", "color": "#86efac", "duration": 300, "delay": 1200 },
+        { "cmd": "move_pointer", "id": "ptr_j", "atIndex": 2, "delay": 1400 }
+      ]
+    }
   ]
 }
 
 EXAMPLE 3 — Merge Sort: Reveal the Midpoint
 {
-  "step": 1,
-  "actions": [
-    { "cmd": "narrate", "text": "Merge Sort starts by finding the midpoint and splitting the array in two." },
-    { "cmd": "draw_boundary", "atIndex": 3, "label": "mid", "delay": 0 },
-    { "cmd": "fade_in", "id": "ptr_left", "duration": 400, "delay": 300 },
-    { "cmd": "fade_in", "id": "ptr_right", "duration": 400, "delay": 500 },
-    { "cmd": "highlight", "id": "arr[3]", "color": "violet", "duration": 500, "delay": 700 },
-    { "cmd": "annotate", "id": "arr[3]", "text": "pivot", "delay": 1000 },
-    { "cmd": "wait", "ms": 1500 },
-    { "cmd": "remove_annotation", "id": "arr[3]", "delay": 1500 }
+  "animation_steps": [
+    {
+      "step": 1,
+      "actions": [
+        { "cmd": "narrate", "text": "Merge Sort starts by finding the midpoint and splitting the array in two." },
+        { "cmd": "draw_boundary", "atIndex": 3, "label": "mid", "delay": 0 },
+        { "cmd": "fade_in", "id": "ptr_left", "duration": 400, "delay": 300 },
+        { "cmd": "fade_in", "id": "ptr_right", "duration": 400, "delay": 500 },
+        { "cmd": "highlight", "id": "arr[3]", "color": "violet", "duration": 500, "delay": 700 },
+        { "cmd": "annotate", "id": "arr[3]", "text": "pivot", "delay": 1000 },
+        { "cmd": "wait", "ms": 1500 },
+        { "cmd": "remove_annotation", "id": "arr[3]", "delay": 1500 }
+      ]
+    }
   ]
 }
 
 EXAMPLE 4 — Newton's Second Law: Apply Force
 {
-  "step": 1,
-  "actions": [
-    { "cmd": "narrate", "text": "We apply a force of 10N to the right. Watch how the box accelerates." },
-    { "cmd": "physics_body", "id": "box", "type": "rectangle", "x": 0.3, "y": 0.5, "mass": 5, "delay": 0 },
-    { "cmd": "wait", "ms": 500 },
-    { "cmd": "force", "body": "box", "fx": 10, "fy": 0, "delay": 500 }
+  "animation_steps": [
+    {
+      "step": 1,
+      "actions": [
+        { "cmd": "narrate", "text": "We apply a force of 10N to the right. Watch how the box accelerates." },
+        { "cmd": "physics_body", "id": "box", "type": "rectangle", "x": 0.3, "y": 0.5, "mass": 5, "delay": 0 },
+        { "cmd": "wait", "ms": 500 },
+        { "cmd": "force", "body": "box", "fx": 10, "fy": 0, "delay": 500 }
+      ]
+    }
   ]
 }
 
