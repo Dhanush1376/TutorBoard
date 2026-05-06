@@ -51,8 +51,10 @@ export const getSessions = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
+    const query = req.user?._id ? { userId: req.user._id } : { userId: null };
+    
     const [sessions, total] = await Promise.all([
-      ChatSession.find({ userId: req.user._id })
+      ChatSession.find(query)
         .sort({ lastUpdated: -1 })
         .skip(skip)
         .limit(limit)
@@ -81,10 +83,11 @@ export const getSessions = async (req, res) => {
  */
 export const getSession = async (req, res) => {
   try {
-    const session = await ChatSession.findOne({ 
-      _id: req.params.id, 
-      userId: req.user._id 
-    });
+    const query = req.user?._id 
+      ? { _id: req.params.id, userId: req.user._id }
+      : { _id: req.params.id, userId: null };
+
+    const session = await ChatSession.findOne(query);
     
     if (!session) return res.status(404).json({ error: 'Session not found' });
     res.json(session);
@@ -152,7 +155,7 @@ export const saveSession = async (req, res) => {
 
       if (preferences !== undefined) updateFields.preferences = preferences;
 
-      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
       
       session = await ChatSession.findOneAndUpdate(
         query,
@@ -243,7 +246,7 @@ export const beaconSave = async (req, res) => {
     if (data.canvasVersion !== undefined) updateFields.canvasVersion = data.canvasVersion;
     if (data.preferences !== undefined) updateFields.preferences = data.preferences;
 
-    const query = userId ? { _id: sessionId, userId } : { _id: sessionId };
+    const query = userId ? { _id: sessionId, userId } : { _id: sessionId, userId: null };
     
     await ChatSession.findOneAndUpdate(
       query,
@@ -266,7 +269,7 @@ export const deleteSession = async (req, res) => {
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
     
-    const query = isGuest ? { _id: req.params.id } : { _id: req.params.id, userId: userId.toString() };
+    const query = isGuest ? { _id: req.params.id, userId: null } : { _id: req.params.id, userId: userId.toString() };
 
     const session = await ChatSession.findOneAndDelete(query);
     

@@ -9,21 +9,22 @@ export const createConversationSlice = (set, get) => ({
   conversationMessages: [],
   isStreaming: false,
   streamingContent: '',
-  streamingThought: '', // Internal reasoning/planning
+  streamingThought: '',
   streamingMessageId: null,
-  streamingSessionId: null, // Track which session is streaming
+  streamingSessionId: null,
   isWaitingForAI: false,
-  waitingSessionId: null, // Track which session is waiting for AI
+  waitingSessionId: null,
   lastAIError: null,
   conversationTopic: null,
   conversationMode: 'basic',
   conversationIntent: null,
   editingMessageId: null,
   editingContent: '',
-  conversationSources: [],   // Web search sources for citation display
-  lastStreamSources: [],     // Sources from the last streaming response
-  isSearchPerformed: false,  // Track if a search was attempted in the current turn
+  conversationSources: [],
+  lastStreamSources: [],
+  isSearchPerformed: false,
   currentCanvasType: null,   // Track canvas_type for the active stream
+  sessionStates: {},         // { [sessionId]: { isStreaming, isWaitingForAI, content, thought, messageId, sources, searchPerformed } }
 
   addUserMessage: (content) => {
     const userId = generateId('user');
@@ -36,12 +37,18 @@ export const createConversationSlice = (set, get) => ({
         versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0 
       },
     };
-    set((state) => ({
-      conversationMessages: [...state.conversationMessages, msg],
-      isWaitingForAI: true, 
-      waitingSessionId: get().chatSessionId || get().sessionId || 'temp', 
-      lastAIError: null,
-    }));
+    const sid = get().chatSessionId || get().sessionId || 'temp';
+    set((state) => {
+      state.conversationMessages = [...state.conversationMessages, msg];
+      state.isWaitingForAI = true; 
+      state.waitingSessionId = sid;
+      state.lastAIError = null;
+      
+      // Update session-specific state
+      if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
+      state.sessionStates[sid].isWaitingForAI = true;
+      state.sessionStates[sid].waitingSessionId = sid;
+    });
     const { conversationTopic, conversationMessages } = get();
     if (!conversationTopic && conversationMessages.length <= 1) {
       set({ conversationTopic: content.substring(0, 60).replace(/[?\n]/g, '').trim() });
@@ -61,157 +68,280 @@ export const createConversationSlice = (set, get) => ({
       },
       ...extraMetadata // Spread to root as well for hasCanvas etc
     };
-    set((state) => ({
-      conversationMessages: [...state.conversationMessages, msg],
-      isWaitingForAI: false, isStreaming: false,
-      waitingSessionId: null, streamingSessionId: null,
-      streamingContent: '', streamingMessageId: null,
-    }));
+    set((state) => {
+      state.conversationMessages = [...state.conversationMessages, msg];
+      state.isWaitingForAI = false;
+      state.isStreaming = false;
+      state.waitingSessionId = null;
+      state.streamingSessionId = null;
+      state.streamingContent = '';
+      state.streamingMessageId = null;
+
+      // Clear all active session states (legacy cleanup)
+      Object.keys(state.sessionStates).forEach(sid => {
+        state.sessionStates[sid].isStreaming = false;
+        state.sessionStates[sid].isWaitingForAI = false;
+      });
+    });
     return msgId;
   },
 
-  startStreaming: (messageId) => {
-    set({ 
-      isStreaming: true, 
-      isWaitingForAI: false, 
-      waitingSessionId: null,
-      streamingSessionId: get().chatSessionId || get().sessionId || 'temp',
-      streamingContent: '\u200B', // ← Zero-width space: prevents flash of empty bubble
-      streamingThought: '',
-      streamingMessageId: messageId,
-      isSearchPerformed: false // Reset for new turn
+  startStreaming: (messageId, sessionId = null) => {
+    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    set((state) => {
+      state.isStreaming = true;
+      state.isWaitingForAI = false;
+      state.waitingSessionId = null;
+      state.streamingSessionId = sid;
+      state.streamingContent = '';
+      state.streamingThought = '';
+      state.streamingMessageId = messageId;
+      state.isSearchPerformed = false;
+
+      // Initialize session-specific state
+      state.sessionStates[sid] = {
+        isStreaming: true,
+        isWaitingForAI: false,
+        content: '',
+        thought: '',
+        messageId: messageId,
+        sources: [],
+        searchPerformed: false
+      };
     });
   },
 
-  updateStreamingContent: (content) => set({ streamingContent: content }),
+  prepareRegeneration: (messageId) => {
+    set((state) => {
+      const messages = state.conversationMessages.map(m => {
+        if (m.id === messageId) {
+          const versions = m.metadata?.versions || [{ text: m.content, subsequentMessages: [] }];
+          const newVersion = { text: '', subsequentMessages: [] };
+          return {
+            ...m,
+            content: '', // Clear content for the new version
+            metadata: {
+              ...m.metadata,
+              versions: [...versions, newVersion],
+              activeVersionIndex: versions.length,
+              regenerated: true
+            }
+          };
+        }
+        return m;
+      });
+      return { conversationMessages: messages };
+    });
+  },
+
+  updateStreamingContent: (content, sessionId = null) => {
+    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    set((state) => {
+      if (state.sessionStates[sid]) state.sessionStates[sid].content = content;
+      if (sid === state.chatSessionId || sid === state.streamingSessionId) {
+        state.streamingContent = content;
+      }
+    });
+  },
 
   // Efficient append for real SSE streaming (avoids full string replacement)
-  appendStreamChunk: (chunk) => set((state) => ({
-    streamingContent: state.streamingContent + chunk
-  })),
+  appendStreamChunk: (chunk, sessionId = null) => {
+    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    set((state) => {
+      if (!state.sessionStates[sid]) state.sessionStates[sid] = { content: '' };
+      state.sessionStates[sid].content = (state.sessionStates[sid].content || '') + chunk;
+      
+      if (sid === state.chatSessionId || sid === state.streamingSessionId) {
+        state.streamingContent = (state.streamingContent || '') + chunk;
+      }
+    });
+  },
 
-  appendStreamThought: (thought) => set((state) => ({
-    streamingThought: state.streamingThought + thought
-  })),
+  appendStreamThought: (thought, sessionId = null) => {
+    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    set((state) => {
+      if (!state.sessionStates[sid]) state.sessionStates[sid] = { thought: '' };
+      state.sessionStates[sid].thought = (state.sessionStates[sid].thought || '') + thought;
+      
+      if (sid === state.chatSessionId || sid === state.streamingSessionId) {
+        state.streamingThought = (state.streamingThought || '') + thought;
+      }
+    });
+  },
 
   // Set web search sources for citation display
-  setSources: (sources) => set({ 
-    conversationSources: sources, 
-    lastStreamSources: sources,
-    isSearchPerformed: true 
-  }),
+  setSources: (sources, sessionId = null) => {
+    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    set((state) => {
+      if (state.sessionStates[sid]) {
+        state.sessionStates[sid].sources = sources;
+        state.sessionStates[sid].searchPerformed = true;
+      }
+      if (sid === state.chatSessionId || sid === state.streamingSessionId) {
+        state.conversationSources = sources;
+        state.lastStreamSources = sources;
+        state.isSearchPerformed = true;
+      }
+    });
+  },
 
   // Clear sources
   clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
 
   finishStreaming: (finalContent, sessionId = null, thoughtContent = '', sources = [], artifactId = null, canvasType = null, latencyMs = null) => {
-    const { streamingMessageId, conversationMessages, chatSessionId, sessionId: activeSessionId } = get();
+    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    const { conversationMessages, chatSessionId, sessionId: activeSessionId } = get();
     const currentViewId = chatSessionId || activeSessionId;
-    const state = get();
-    // Prevent data loss: transition states mean the ID could be either the local one or the newly assigned MongoDB ID
-    const isCurrentChat = !sessionId || 
-      sessionId === state.streamingSessionId || 
-      sessionId === state.chatSessionId || 
-      sessionId === state.sessionId || 
-      sessionId === currentViewId;
-    const existingIdx = conversationMessages.findIndex(m => m.id === streamingMessageId);
     
-    if (existingIdx !== -1) {
-      // UPDATE EXISTING (Regeneration case)
-      const targetMsg = conversationMessages[existingIdx];
-      const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
-      
-      const updatedVersions = (targetMsg.metadata.versions || []).map((v, i) => 
-        i === activeIdx ? { ...v, text: finalContent } : v
-      );
-      
-      set((state) => {
-        const update = {
-          isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
-          isWaitingForAI: false, waitingSessionId: null,
+    // Check if this session is the one currently visible
+    const isCurrentChat = sid === currentViewId || sid === chatSessionId || sid === activeSessionId;
+    
+    const targetMsgId = get().sessionStates[sid]?.messageId || get().streamingMessageId;
+    const existingIdx = conversationMessages.findIndex(m => m.id === targetMsgId);
+    
+    set((state) => {
+      // 1. Update session-specific map
+      if (state.sessionStates[sid]) {
+        state.sessionStates[sid].isStreaming = false;
+        state.sessionStates[sid].isWaitingForAI = false;
+        state.sessionStates[sid].content = '';
+        state.sessionStates[sid].thought = '';
+      }
+
+      // 2. Update global legacy state IF this was the active session
+      if (sid === state.streamingSessionId || sid === state.chatSessionId) {
+        state.isStreaming = false;
+        state.streamingContent = '';
+        state.streamingThought = '';
+        state.streamingMessageId = null;
+        state.streamingSessionId = null;
+        state.isWaitingForAI = false;
+        state.waitingSessionId = null;
+      }
+
+      // 3. Update conversation messages if visible
+      if (existingIdx !== -1 && isCurrentChat) {
+        const targetMsg = state.conversationMessages[existingIdx];
+        const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
+        const updatedVersions = (targetMsg.metadata.versions || []).map((v, i) => 
+          i === activeIdx ? { ...v, text: finalContent } : v
+        );
+
+        state.conversationMessages[existingIdx] = {
+          ...targetMsg,
+          content: finalContent,
+          hasCanvas: !!canvasType || targetMsg.hasCanvas,
+          canvasType: canvasType || targetMsg.canvasType,
+          metadata: {
+            ...targetMsg.metadata,
+            regenerated: true,
+            thought: thoughtContent || targetMsg.metadata.thought,
+            sources: sources.length > 0 ? sources : targetMsg.metadata.sources,
+            searchPerformed: state.isSearchPerformed || targetMsg.metadata.searchPerformed,
+            artifactId: artifactId || targetMsg.metadata.artifactId,
+            versions: updatedVersions,
+            activeVersionIndex: activeIdx,
+            latencyMs: latencyMs || targetMsg.metadata.latencyMs
+          }
         };
-        if (isCurrentChat) {
-          update.conversationMessages = state.conversationMessages.map((m, i) => 
-            i === existingIdx ? {
-              ...m,
-              content: finalContent,
-              hasCanvas: !!canvasType || m.hasCanvas,
-              canvasType: canvasType || m.canvasType,
-              metadata: {
-                ...m.metadata,
-                regenerated: true,
-                thought: thoughtContent || m.metadata.thought,
-                sources: sources.length > 0 ? sources : m.metadata.sources,
-                searchPerformed: get().isSearchPerformed || m.metadata.searchPerformed,
-                artifactId: artifactId || m.metadata.artifactId,
-                versions: updatedVersions,
-                activeVersionIndex: activeIdx,
-                latencyMs: latencyMs || m.metadata.latencyMs
-              }
-            } : m
-          );
-        }
-        return update;
-      });
-    } else {
-      // APPEND NEW (Standard message case)
-      const msg = {
-        id: streamingMessageId || generateId('assistant'),
-        role: 'assistant', content: finalContent,
-        timestamp: new Date().toISOString(),
-        hasCanvas: !!canvasType,
-        canvasType: canvasType,
-        metadata: { 
-          edited: false, regenerated: false, feedback: null,
-          thought: thoughtContent,
-          sources: sources,
-          searchPerformed: get().isSearchPerformed,
-          artifactId: artifactId,
-          versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0,
-          latencyMs: latencyMs
-        },
-      };
-      set((state) => {
-        const update = {
-          isStreaming: false, streamingContent: '', streamingThought: '', streamingMessageId: null, streamingSessionId: null,
-          isWaitingForAI: false, waitingSessionId: null,
-          conversationSources: [],
-          isSearchPerformed: false,
-          currentCanvasType: null,
+      } else if (isCurrentChat) {
+        // APPEND NEW (Standard message case)
+        const msg = {
+          id: targetMsgId || generateId('assistant'),
+          role: 'assistant', content: finalContent,
+          timestamp: new Date().toISOString(),
+          hasCanvas: !!canvasType,
+          canvasType: canvasType,
+          metadata: { 
+            edited: false, regenerated: false, feedback: null,
+            thought: thoughtContent,
+            sources: sources,
+            searchPerformed: state.isSearchPerformed,
+            artifactId: artifactId,
+            versions: [{ text: finalContent, subsequentMessages: [] }], activeVersionIndex: 0,
+            latencyMs: latencyMs
+          },
         };
-        if (isCurrentChat) {
-          update.conversationMessages = [...state.conversationMessages, msg];
-        }
-        return update;
-      });
-    }
+        state.conversationMessages = [...state.conversationMessages, msg];
+        state.conversationSources = [];
+        state.isSearchPerformed = false;
+        state.currentCanvasType = null;
+      }
+    });
   },
 
   setCurrentCanvasType: (type) => set({ currentCanvasType: type }),
 
-  abortStreaming: () => {
-    const { streamingContent, streamingMessageId } = get();
-    if (streamingContent.trim()) {
+  abortStreaming: (sessionId = null) => {
+    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    const state = get();
+    const sessionState = state.sessionStates[sid] || {};
+    const content = sessionState.content || state.streamingContent || '';
+    const msgId = sessionState.messageId || state.streamingMessageId;
+
+    if (content.trim()) {
       const msg = {
-        id: streamingMessageId || generateId('assistant'),
-        role: 'assistant', content: streamingContent + '\n\n*[Response stopped]*',
+        id: msgId || generateId('assistant'),
+        role: 'assistant', content: content + '\n\n*[Response stopped]*',
         timestamp: new Date().toISOString(),
         metadata: { 
           edited: false, regenerated: false, feedback: null,
-          versions: [{ text: streamingContent + '\n\n*[Response stopped]*', subsequentMessages: [] }], activeVersionIndex: 0
+          versions: [{ text: content + '\n\n*[Response stopped]*', subsequentMessages: [] }], activeVersionIndex: 0
         },
       };
-      set((state) => ({
-        conversationMessages: [...state.conversationMessages, msg],
-        isStreaming: false, streamingContent: '', streamingMessageId: null, isWaitingForAI: false,
-      }));
+      set((state) => {
+        const update = {
+          conversationMessages: [...state.conversationMessages, msg],
+          isStreaming: false, 
+          streamingContent: '', 
+          streamingMessageId: null, 
+          streamingSessionId: null,
+          isWaitingForAI: false,
+          waitingSessionId: null
+        };
+        if (state.sessionStates[sid]) {
+          state.sessionStates[sid].isStreaming = false;
+          state.sessionStates[sid].isWaitingForAI = false;
+        }
+        return update;
+      });
     } else {
-      set({ isStreaming: false, streamingContent: '', streamingMessageId: null, isWaitingForAI: false });
+      set((state) => {
+        if (state.sessionStates[sid]) {
+          state.sessionStates[sid].isStreaming = false;
+          state.sessionStates[sid].isWaitingForAI = false;
+        }
+        return { 
+          isStreaming: false, 
+          streamingContent: '', 
+          streamingMessageId: null, 
+          streamingSessionId: null,
+          isWaitingForAI: false,
+          waitingSessionId: null
+        };
+      });
     }
   },
 
-  setWaitingForAI: (waiting) => set({ isWaitingForAI: waiting }),
-  setLastAIError: (error) => set({ lastAIError: error, isWaitingForAI: false }),
+  setWaitingForAI: (waiting, sessionId = null) => {
+    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    set((state) => {
+      state.isWaitingForAI = waiting;
+      if (waiting) state.waitingSessionId = sid;
+      else state.waitingSessionId = null;
+
+      if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
+      state.sessionStates[sid].isWaitingForAI = waiting;
+    });
+  },
+  setLastAIError: (error, sessionId = null) => {
+    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    set((state) => {
+      state.lastAIError = error;
+      state.isWaitingForAI = false;
+      if (state.sessionStates[sid]) state.sessionStates[sid].isWaitingForAI = false;
+    });
+  },
 
   startEditingMessage: (messageId) => {
     const msg = get().conversationMessages.find((m) => m.id === messageId);
@@ -373,10 +503,47 @@ export const createConversationSlice = (set, get) => ({
     set((state) => {
       const msgs = [...state.conversationMessages];
       if (msgs.length >= 2) {
+        const oldAssistantId = msgs[msgs.length - 1].id;
         if (userMessageId) msgs[msgs.length - 2] = { ...msgs[msgs.length - 2], id: userMessageId };
-        if (assistantMessageId) msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
+        if (assistantMessageId) {
+          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
+          
+          // CRITICAL: Update streaming reference if this message is currently being streamed
+          if (state.streamingMessageId === oldAssistantId) {
+            state.streamingMessageId = assistantMessageId;
+          }
+          
+          // Also update session-specific maps
+          Object.keys(state.sessionStates).forEach(sid => {
+            if (state.sessionStates[sid].messageId === oldAssistantId) {
+              state.sessionStates[sid].messageId = assistantMessageId;
+            }
+          });
+        }
       }
       return { conversationMessages: msgs };
+    });
+  },
+
+  migrateSessionState: (oldId, newId) => {
+    if (!oldId || !newId || oldId === newId) return;
+    
+    set((state) => {
+      // 1. Copy session-specific state
+      if (state.sessionStates[oldId]) {
+        state.sessionStates[newId] = {
+          ...state.sessionStates[oldId],
+          // Maintain the reference to the same state object if possible, or deep copy
+        };
+        // We keep the old one for a moment to prevent race conditions during render
+        // but mark it as migrated or just let it be pruned later
+      }
+
+      // 2. Update global pointers
+      if (state.streamingSessionId === oldId) state.streamingSessionId = newId;
+      if (state.waitingSessionId === oldId) state.waitingSessionId = newId;
+      
+      console.log(`[Store] 🔄 Migrated session state from ${oldId} to ${newId}`);
     });
   },
 });

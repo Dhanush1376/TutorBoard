@@ -53,6 +53,17 @@ const useTutorStore = create(
         if (typeof window === 'undefined') return;
         set((state) => {
           state.selectedAgent = localStorage.getItem('tutorboard-agent') || 'Universal';
+          
+          // SEC-UX-05: Guest Trial Reset (Daily/Session Lifecycle)
+          // If the last guest message was more than 24 hours ago, reset the count.
+          const guestStatus = state.guestTrialStatus;
+          if (guestStatus && guestStatus.lastMessageAt) {
+            const oneDay = 24 * 60 * 60 * 1000;
+            if (Date.now() - guestStatus.lastMessageAt > oneDay) {
+              console.log('[Store] 🕒 Guest trial reset: >24h elapsed since last activity.');
+              state.resetGuestTrial();
+            }
+          }
         });
       },
     })),
@@ -61,6 +72,8 @@ const useTutorStore = create(
       storage: safeStorage,
       // Only persist UI preferences and global context — never large session data (objects, steps, history)
       partialize: (state) => ({
+        sessionId: state.sessionId,
+        chatSessionId: state.chatSessionId,
         playbackSpeed: state.playbackSpeed,
         voiceEnabled: state.voiceEnabled,
         layoutView: state.layoutView,
@@ -78,7 +91,7 @@ const useTutorStore = create(
           ? Object.fromEntries(
               Object.entries(state.sessionManifest)
                 .sort(([, a], [, b]) => (b.lastActive || 0) - (a.lastActive || 0))
-                .slice(0, 10)
+                .slice(0, 20)
             )
           : state.sessionManifest,
         // Explicitly exclude history {past, future} and snapshots to save space/performance

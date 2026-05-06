@@ -13,12 +13,13 @@ import {
   getCostStatus,
   testTransientKey,
 } from '../controllers/apikeys.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
+import { protect, restrictToUsers } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// All API key routes require authentication
+// All API key routes require authentication and a persistent user account
 router.use(protect);
+router.use(restrictToUsers);
 
 // Model catalog (no auth needed for reference, but we protect anyway)
 router.get('/models', getModels);

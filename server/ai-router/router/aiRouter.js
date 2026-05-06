@@ -254,7 +254,7 @@ export async function routeConversation(messages, options = {}) {
  * @returns {AsyncGenerator<{ chunk: string, provider?: string, done?: boolean }>}
  */
 export async function* routeConversationStream(messages, options = {}) {
-  const { timeout = 60000, maxTokens, responseMimeType } = options;
+  const { timeout = 60000, maxTokens, responseMimeType, signal } = options;
 
   logger.info(`[Chat:Stream] Routing streaming conversation (${messages.length} messages)...`);
 
@@ -285,8 +285,17 @@ export async function* routeConversationStream(messages, options = {}) {
           },
         });
 
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeout);
+        // Use the passed signal or a local timeout
+        const localController = new AbortController();
+        const timer = setTimeout(() => localController.abort(), timeout);
+        
+        // Combine signals if both exist
+        let combinedSignal = localController.signal;
+        if (signal) {
+          // In Node 16+ or modern browsers we could use AbortSignal.any([signal, localController.signal])
+          // For compatibility, we'll manually link them
+          signal.addEventListener('abort', () => localController.abort());
+        }
 
         try {
           const stream = await or.chat.completions.create(
@@ -297,7 +306,7 @@ export async function* routeConversationStream(messages, options = {}) {
               max_tokens: maxTokens || undefined,
               response_format: responseMimeType === 'application/json' ? { type: 'json_object' } : undefined
             },
-            { signal: controller.signal }
+            { signal: combinedSignal }
           );
 
           for await (const chunk of stream) {
@@ -317,8 +326,10 @@ export async function* routeConversationStream(messages, options = {}) {
         const apiKey = process.env.GROQ_API_KEY;
         if (!apiKey) throw new Error('Groq API key missing');
 
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeout);
+        const localController = new AbortController();
+        const timer = setTimeout(() => localController.abort(), timeout);
+        
+        if (signal) signal.addEventListener('abort', () => localController.abort());
 
         try {
           const response = await fetch(`${config.baseUrl}/chat/completions`, {
@@ -327,7 +338,7 @@ export async function* routeConversationStream(messages, options = {}) {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${apiKey}`,
             },
-            signal: controller.signal,
+            signal: localController.signal,
             body: JSON.stringify({ 
               messages, 
               model: config.model, 
@@ -385,15 +396,17 @@ export async function* routeConversationStream(messages, options = {}) {
           .map((m) => `[${m.role.toUpperCase()}]: ${m.content}`)
           .join('\n\n');
 
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeout);
+        const localController = new AbortController();
+        const timer = setTimeout(() => localController.abort(), timeout);
+
+        if (signal) signal.addEventListener('abort', () => localController.abort());
 
         try {
           const url = `${config.baseUrl}/v1beta/models/${config.model}:streamGenerateContent?key=${apiKey}&alt=sse`;
           const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            signal: controller.signal,
+            signal: localController.signal,
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {

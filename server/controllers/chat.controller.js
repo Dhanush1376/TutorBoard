@@ -97,6 +97,23 @@ const deleteMessageSchema = z.object({
   messageId: z.string(),
 }).passthrough();
 
+const feedbackSchema = z.object({
+  sessionId: z.string().min(1),
+  messageId: z.string().min(1),
+  feedback: z.enum(['positive', 'negative']).nullable().optional(),
+}).passthrough();
+
+const switchVersionSchema = z.object({
+  sessionId: z.string().min(1),
+  messageId: z.string().min(1),
+  versionIndex: z.number().int().min(0),
+}).passthrough();
+
+// ─── Utility: Generate fallback message IDs ───────────────────────────────────
+function generateMessageId(prefix = 'msg') {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -135,8 +152,8 @@ export const sendMessage = async (req, res) => {
     };
 
     if (sessionId && isMongoId) {
-      // For guests, we don't check userId ownership since sessions are essentially public/ephemeral-but-stored
-      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      // For guests, we only allow access to sessions with NO userId (null) to prevent hijacking
+      const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
       session = await ChatSession.findOne(query);
       if (session) {
         session.messages.push(userMsg);
@@ -328,7 +345,7 @@ export const sendMessage = async (req, res) => {
     const assistantMessageId = session?.messages[session.messages.length - 1]?._id?.toString() || generateMessageId('assistant');
 
     res.json({
-      response: aiResponse.content,
+      response: cleanContent,
       sessionId: savedSessionId || null,
       userMessageId,
       assistantMessageId,
@@ -387,7 +404,7 @@ export async function streamMessage(req, res) {
     };
 
     if (sessionId && isMongoId) {
-      const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+      const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
       session = await ChatSession.findOne(query);
       if (session) {
         session.messages.push(userMsg);
@@ -457,6 +474,7 @@ export async function streamMessage(req, res) {
     }
 
     // Run RAG, Search, and Planner in parallel to minimize time-to-first-token
+    let webContextStr = '';
     console.log(`[Chat:Stream] 🔍 Starting Parallel Pre-processing...`);
     const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
@@ -544,10 +562,15 @@ export async function streamMessage(req, res) {
     let thoughtContent = '';
 
     try {
+      // Create a combined signal that aborts if the client disconnects
+      const abortController = new AbortController();
+      req.on('close', () => abortController.abort());
+
       const stream = routeConversationStream(llmMessages, { 
         timeout: 90000, 
         maxTokens: isArtifactExpected ? 8000 : 4000, 
-        responseMimeType: isArtifactExpected ? 'application/json' : 'text/plain'
+        responseMimeType: isArtifactExpected ? 'application/json' : 'text/plain',
+        signal: abortController.signal
       });
 
       for await (const streamChunk of stream) {
@@ -577,7 +600,6 @@ export async function streamMessage(req, res) {
         }
       }
 
-      console.log("FULL RESPONSE:", fullContent);
       // For artifact parsing, we'll use fullContent.
       // We need to clean fullContent of thought tags for the robust parser if it's mixed
       cleanContent = fullContent.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
@@ -747,7 +769,7 @@ export async function streamMessage(req, res) {
     if (session && fullContent) {
       const assistantMsg = {
         role: 'assistant',
-        content: fullContent,
+        content: cleanContent,
         timestamp: new Date(),
         metadata: { 
           edited: false, 
@@ -756,7 +778,7 @@ export async function streamMessage(req, res) {
           sources: sources || [],
           searchPerformed: gateSearch || finalSearchNeeded,
           thought: thoughtContent || undefined,
-          versions: [{ text: fullContent, subsequentMessages: [] }],
+          versions: [{ text: cleanContent, subsequentMessages: [] }],
           activeVersionIndex: 0
         },
       };
@@ -866,6 +888,17 @@ export async function streamMessage(req, res) {
   } finally {
     // Final closure of SSE stream — ALWAYS close even on error
     clearInterval(heartbeat);
+    
+    // BUG-SYNC-01: Ensure critical background tasks finish before res.end() 
+    // to prevent potential thread termination/interruption on some hosts
+    if (session && session.isModified && session.isModified()) {
+      try {
+        await session.save();
+      } catch (e) {
+        console.error('[Chat:Stream] Delayed save failed in finally:', e.message);
+      }
+    }
+
     if (!clientDisconnected && res.headersSent) {
       res.write(`data: ${JSON.stringify({ type: 'done', provider: lastStreamProvider })}\n\n`);
       res.end();
@@ -889,7 +922,7 @@ export const editMessage = async (req, res) => {
     const isGuest = !userId || req.user?.isGuest;
 
     // ── 1. Load Session ──
-    const session = await ChatSession.findOne(isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() });
+    const session = await ChatSession.findOne(isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() });
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     // ── 2. Find Message Index ──
@@ -957,12 +990,16 @@ export const editMessage = async (req, res) => {
     const sources = extractSources(webResults);
 
     // ── 5. Build Final Prompt & Regenerate AI Response ──
+    const memorySummary = buildRichMemorySummary(session);
+    const userName = req.user?.name || req.user?.settings?.general?.nickname || null;
     const systemPrompt = buildSystemPrompt({
       currentTopic: session.currentTopic,
       explanationMode: session.explanationMode,
       pastContext,
       webContext: webContextStr,
-      plan: plannerPlan,
+      planner: plannerPlan,
+      memorySummary,
+      userName,
     });
     const llmMessages = buildLLMMessages(session.messages, systemPrompt, 20);
 
@@ -1043,7 +1080,7 @@ export const regenerate = async (req, res) => {
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
-    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
     const session = await ChatSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
@@ -1125,12 +1162,16 @@ export const regenerate = async (req, res) => {
     const sources = extractSources(webResults);
 
     // ── 4. Build Final Prompt & Regenerate AI Response ──
+    const memorySummary = buildRichMemorySummary(session);
+    const userName = req.user?.name || req.user?.settings?.general?.nickname || null;
     const systemPrompt = buildSystemPrompt({
       currentTopic: session.currentTopic,
       explanationMode: session.explanationMode,
       pastContext,
       webContext: webContextStr,
-      plan: plannerPlan,
+      planner: plannerPlan,
+      memorySummary,
+      userName,
     });
     const llmMessages = buildLLMMessages(messagesForContext, systemPrompt, 20);
 
@@ -1250,7 +1291,7 @@ export const deleteMessage = async (req, res) => {
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
-    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
     const session = await ChatSession.findOne(query);
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
@@ -1283,15 +1324,16 @@ export const deleteMessage = async (req, res) => {
  */
 export const updateMessageFeedback = async (req, res) => {
   try {
-    const { sessionId, messageId, feedback } = req.body;
+    const validation = feedbackSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
+    }
+
+    const { sessionId, messageId, feedback } = validation.data;
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
-    if (!sessionId || !messageId) {
-      return res.status(400).json({ error: "Missing sessionId or messageId" });
-    }
-
-    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
     const session = await ChatSession.findOne(query);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
@@ -1317,15 +1359,16 @@ export const updateMessageFeedback = async (req, res) => {
  */
 export const switchMessageVersion = async (req, res) => {
   try {
-    const { sessionId, messageId, versionIndex } = req.body;
+    const validation = switchVersionSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
+    }
+
+    const { sessionId, messageId, versionIndex } = validation.data;
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
-    if (!sessionId || !messageId || versionIndex === undefined) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const query = isGuest ? { _id: sessionId } : { _id: sessionId, userId: userId.toString() };
+    const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
     const session = await ChatSession.findOne(query);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
@@ -1382,9 +1425,6 @@ export const switchMessageVersion = async (req, res) => {
 /**
  * summarizeForMemory: Creates a concise summary for the VectorStore
  */
-/**
- * summarizeForMemory: Creates a concise summary for the VectorStore
- */
 function summarizeForMemory(userMsg, aiMsg) {
   const cleanAi = aiMsg.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
   const summary = `User asked about ${userMsg.slice(0, 100)}. AI explained: ${cleanAi.slice(0, 200)}...`;
@@ -1392,9 +1432,6 @@ function summarizeForMemory(userMsg, aiMsg) {
 }
 
 
-/**
- * detectTopic: Extract a short topic label from user message
- */
 /**
  * detectTopic: Extract a short topic label from user message
  */
@@ -1445,8 +1482,6 @@ const generateSessionTitle = async (userMsg) => {
 
     // Capitalize first letter
     return title.charAt(0).toUpperCase() + title.slice(1);
-    
-    return title || 'New Session';
   } catch (err) {
     console.warn('[TitleGen] LLM title generation failed, falling back to heuristic:', err.message);
     

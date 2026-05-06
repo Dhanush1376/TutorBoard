@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+import { useShallow } from 'zustand/react/shallow'; // State sync refactored for parallel generation
 import Layout from '../components/layout/Layout';
 import ChatWindow from '../components/chat/ChatWindow';
 import InputBar from '../components/chat/InputBar';
@@ -11,7 +11,7 @@ import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
 import TeachingSession from '../components/teaching/TeachingSession';
 import useStreamingResponse from '../hooks/useStreamingResponse';
 
-import { BASE_URL as API_URL } from '../services/api';
+import API, { BASE_URL as API_URL, getCookie } from '../services/api';
 
 // Canvas & Teaching Overlays
 import AgentCanvasRenderer from '../components/canvas/AgentCanvasRenderer';
@@ -29,7 +29,7 @@ import SelectionPopover from '../components/chat/SelectionPopover';
 import { 
   Volume2, VolumeX, Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
-  Check, Wifi, WifiOff, Loader, Key
+  Check, Wifi, WifiOff, Key
 } from 'lucide-react';
 
 
@@ -69,7 +69,7 @@ const Home = ({ isDark }) => {
     conversationMessages, isStreaming, isWaitingForAI,
     addUserMessage, finishStreaming, abortStreaming,
     setConversationMessages, clearConversation,
-    applyEdit, removeLastAssistantMessage,
+    applyEdit, removeLastAssistantMessage, prepareRegeneration,
     deleteMessageById, setMessageFeedback,
     setWaitingForAI, setLastAIError, conversationTopic,
     switchMessageVersion, setSources, clearSources, startStreaming: storeStartStreaming,
@@ -102,6 +102,7 @@ const Home = ({ isDark }) => {
     switchMessageVersion: s.switchMessageVersion, setSources: s.setSources, clearSources: s.clearSources, startStreaming: s.startStreaming,
     appendStreamChunk: s.appendStreamChunk, appendStreamThought: s.appendStreamThought, updateStreamingContent: s.updateStreamingContent, lastStreamSources: s.lastStreamSources,
     setCurrentCanvasType: s.setCurrentCanvasType, syncMessageIds: s.syncMessageIds,
+    prepareRegeneration: s.prepareRegeneration,
     addArtifact: s.addArtifact, setArtifactDbId: s.setArtifactDbId, setActiveArtifact: s.setActiveArtifact, openArtifactPanel: s.openArtifactPanel,
     startStreamingArtifact: s.startStreamingArtifact, finalizeStreamingArtifact: s.finalizeStreamingArtifact,
     addUnreadSession: s.addUnreadSession, markSessionRead: s.markSessionRead
@@ -111,6 +112,7 @@ const Home = ({ isDark }) => {
 
 
   const isGuest = !!user?.isGuest;
+
   useEffect(() => {
     if (import.meta.env.DEV) {
       console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
@@ -128,25 +130,18 @@ const Home = ({ isDark }) => {
 
   const fetchCloudSessions = useCallback(async (pageNum = 1) => {
     if (!isAuthenticated || user?.isGuest || !token) return;
-    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     
     setPagination(prev => ({ ...prev, loading: true }));
     try {
-      const fetchOptions = {
-        signal: controller.signal,
-        credentials: 'include'
-      };
-      if (token && token !== 'verified' && token !== 'guest') {
-        fetchOptions.headers = { 'Authorization': `Bearer ${token}` };
-      }
-
-      const res = await fetch(`${API_URL}/api/sessions?page=${pageNum}&limit=15`, fetchOptions);
+      const response = await API.get(`/api/sessions?page=${pageNum}&limit=15`, {
+        signal: controller.signal
+      });
       clearTimeout(timeoutId);
       
-      if (res.ok) {
-        const data = await res.json();
+      if (response.status === 200) {
+        const data = response.data;
         const { sessions, pagination: pg } = data;
         
         if (!sessions) return;
@@ -173,7 +168,7 @@ const Home = ({ isDark }) => {
             // Only preserve truly local in-progress sessions that have not yet been persisted.
             const cloudIds = new Set(cloudSessions.map(s => s.id));
             const localOnlySessions = prev.filter(
-              s => s.id && s.id.startsWith('session-') && !cloudIds.has(s.id)
+              s => s.id && !cloudIds.has(s.id)
             );
             return [...localOnlySessions, ...cloudSessions];
           }
@@ -229,13 +224,19 @@ const Home = ({ isDark }) => {
     }
   }, [fetchCloudSessions, loadLocalGuestHistory, isAuthenticated, user]);
 
-  const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore();
+  const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore(useShallow(s => ({
+    sessionId: s.sessionId,
+    setSessionId: s.setSessionId
+  })));
   
   // Use machine.sessionId as the single source of truth for the local chat pointer
   const activeChatId = machineSessionId;
   const setActiveChatId = storeSetSessionId;
 
   const activeChatIdRef = useRef(activeChatId);
+  const submittingSessionsRef = useRef(new Set()); // Track sessions currently initiating a request
+  const abortControllersRef = useRef(new Map());
+
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
   }, [activeChatId]);
@@ -250,12 +251,16 @@ const Home = ({ isDark }) => {
       // Restore main lesson state from history if available
       const session = chatHistory.find(s => s.id === activeChatId);
       if (session && session.canvasState) {
-        setCanvasSnapshot({
-          canvasObjects: session.canvasState,
-          canvasSteps: session.canvasSteps || [],
-          totalSteps: session.canvasSteps?.length || 0,
-          currentStepIndex: session.currentStepIndex || 0
-        });
+        // SEC-UX: Only sync if we aren't already at the correct step to prevent loops
+        const storeState = useTutorStore.getState();
+        if (storeState.currentStepIndex !== (session.currentStepIndex || 0)) {
+          setCanvasSnapshot({
+            canvasObjects: session.canvasState,
+            canvasSteps: session.canvasSteps || [],
+            totalSteps: session.canvasSteps?.length || 0,
+            currentStepIndex: session.currentStepIndex || 0
+          });
+        }
       }
     }
   }, [isSidebarOpen, activeSnapshotId, chatHistory, activeChatId, setActiveSnapshotId, setCanvasSnapshot]);
@@ -486,8 +491,6 @@ const Home = ({ isDark }) => {
   const [activeMode, setActiveMode] = useState(null);
 
 
-  const isSubmittingRef = useRef(false);
-  const fetchAbortControllerRef = useRef(null);
   const msgIdCounter = useRef(0);
   const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
@@ -610,22 +613,10 @@ const Home = ({ isDark }) => {
     console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
     
     try {
-      const fetchOptions = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        credentials: 'include'
-      };
-      if (token && token !== 'verified' && token !== 'guest') {
-        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetch(`${API_URL}/api/sessions`, fetchOptions);
+      const res = await API.post('/api/sessions', payload);
       
-      if (res.ok) {
-        const saved = await res.json();
+      if (res.status === 200 || res.status === 201) {
+        const saved = res.data;
         setIsDbOffline(false);
         // Always keep the store's chatSessionId in sync with the real Mongo ID.
         // This is the key link that lets useSessionSync and startSession target
@@ -658,7 +649,7 @@ const Home = ({ isDark }) => {
         }
         return saved._id || targetSessionId;
       } else {
-        const errData = await res.json().catch(() => ({}));
+        const errData = res.data || {};
         if (errData.code === 'DB_OFFLINE') setIsDbOffline(true);
       }
     } catch (err) {
@@ -686,25 +677,11 @@ const Home = ({ isDark }) => {
     return () => window.speechSynthesis.cancel();
   }, [conversationMessages.length, isStreaming, voiceEnabled]);
 
-  // ── Active Canvas Persistence: Save immediately after manual drawing ──
-  const canvasSyncTimer = useRef(null);
-  useEffect(() => {
-    const hasManualObjects = canvasObjects?.some(o => o.id?.startsWith('manual-'));
-    if (!hasManualObjects) return;
-    if (!isAuthenticated || user?.isGuest) return;
-
-    // Debounce 2s after last stroke
-    if (canvasSyncTimer.current) clearTimeout(canvasSyncTimer.current);
-    canvasSyncTimer.current = setTimeout(() => {
-      console.log('[Home] 🖊️ Manual drawing detected — syncing canvas to DB...');
-      saveCurrentSession(messages);
-    }, 2000);
-
-    return () => clearTimeout(canvasSyncTimer.current);
-  }, [canvasObjects, isAuthenticated, user]);
 
   // ─── Logic ───
-  const { toggleSidebar } = useTutorStore();
+  const { toggleSidebar } = useTutorStore(useShallow(s => ({
+    toggleSidebar: s.toggleSidebar
+  })));
 
 
 
@@ -763,14 +740,10 @@ const Home = ({ isDark }) => {
     if (isAuthenticated && !user?.isGuest && id && !id.startsWith('session-')) {
       try {
         console.log(`[Home] 🔄 Fetching full pedagogical state for session ${id}...`);
-        const fetchOptions = { credentials: 'include' };
-        if (token && token !== 'verified' && token !== 'guest') {
-          fetchOptions.headers = { 'Authorization': `Bearer ${token}` };
-        }
-        const res = await fetch(`${API_URL}/api/sessions/${id}`, fetchOptions);
+        const response = await API.get(`/api/sessions/${id}`);
         
-        if (res.ok) {
-          const fullData = await res.json();
+        if (response.status === 200) {
+          const fullData = response.data;
           if (fullData) {
             const steps = fullData.canvasSteps || fullData.steps || [];
             console.log(`[Home] ✅ Full state fetched. Restoring timeline (${steps.length} steps)...`);
@@ -862,18 +835,11 @@ const Home = ({ isDark }) => {
         const dbId = sessionToRestore.chatSessionId || id;
         if (isAuthenticated && !isGuest && dbId && !dbId.startsWith('session-') && !dbId.startsWith('msg-')) {
           try {
-            const fetchOptions = { 
-              method: 'DELETE',
-              credentials: 'include'
-            };
-            if (token && token !== 'verified' && token !== 'guest') {
-              fetchOptions.headers = { 'Authorization': `Bearer ${token}` };
-            }
-            const res = await fetch(`${API_URL}/api/sessions/${dbId}`, fetchOptions);
-            if (res.ok) {
+            const res = await API.delete(`/api/sessions/${dbId}`);
+            if (res.status === 200) {
               console.log(`[Home] ✅ Session ${id} permanently deleted from cloud.`);
             } else {
-              const errData = await res.json().catch(() => ({}));
+              const errData = res.data || {};
               console.error(`[Home] ❌ Cloud deletion failed: ${res.status}`, errData);
             }
           } catch (err) {
@@ -920,18 +886,7 @@ const Home = ({ isDark }) => {
     // Persistent cloud update
     if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
       try {
-        const fetchOptions = {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ sessionId: id, title: newTitle }),
-          credentials: 'include'
-        };
-        if (token && token !== 'verified' && token !== 'guest') {
-          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-        }
-        await fetch(`${API_URL}/api/sessions`, fetchOptions);
+        await API.post('/api/sessions', { sessionId: id, title: newTitle });
         console.log(`[Home] ✅ Session ${id} renamed to "${newTitle}" in cloud.`);
       } catch (err) {
         console.error('[Home] Failed to rename session in cloud:', err);
@@ -1022,7 +977,10 @@ const Home = ({ isDark }) => {
     const { selectedTextContext, setSelectedTextContext } = useTutorStore.getState();
     const finalContext = selectedTextContext;
 
-    if ((!prompt.trim() && !textOverride && !fileData && !finalContext) || isSubmittingRef.current) return;
+    if ((!prompt.trim() && !textOverride && !fileData && !finalContext) || submittingSessionsRef.current.has(activeChatId || 'new')) return;
+    
+    const workingSessionId = activeChatId || `session-${Date.now()}`;
+    submittingSessionsRef.current.add(workingSessionId);
     
     let userPrompt = textOverride || prompt.trim();
     
@@ -1038,20 +996,18 @@ const Home = ({ isDark }) => {
     setPrompt('');  // Clear input immediately
     setSelectedTextContext(null); // Clear context immediately
     setActiveView('chat');
-    isSubmittingRef.current = true;
 
     // Guest Trial: Increment usage and block if exhausted
     if (isGuest) {
       const store = useTutorStore.getState();
       if (store.guestTrialStatus.isLimitReached) {
-        isSubmittingRef.current = false;
+        submittingSessionsRef.current.delete(workingSessionId);
         return;
       }
       store.incrementGuestUsage();
     }
 
     try {
-      const workingSessionId = activeChatId || `session-${Date.now()}`;
       if (!activeChatId) setActiveChatId(workingSessionId);
 
       // ── 1. Add user message to conversation slice ──
@@ -1090,7 +1046,7 @@ const Home = ({ isDark }) => {
         } else {
           startSession(userPrompt, userPrompt, activeMode, fileData);
         }
-        isSubmittingRef.current = false;
+        submittingSessionsRef.current.delete(workingSessionId);
         return;
       }
 
@@ -1101,6 +1057,7 @@ const Home = ({ isDark }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': getCookie('tb-csrf-token') || ''
         },
         body: JSON.stringify({
           sessionId: /^[0-9a-fA-F]{24}$/.test(workingSessionId) ? workingSessionId : undefined,
@@ -1114,17 +1071,19 @@ const Home = ({ isDark }) => {
         }),
         credentials: 'include'
       };
-      if (token && token !== 'verified' && token !== 'guest') {
-        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-      }
-
       isArtifactExpectedRef.current = false;
-      fetchAbortControllerRef.current = new AbortController();
-      fetchOptions.signal = fetchAbortControllerRef.current.signal;
+      // ── 2. Handle Abort Signals ──
+      if (abortControllersRef.current.has(workingSessionId)) {
+        abortControllersRef.current.get(workingSessionId).abort();
+      }
+      const controller = new AbortController();
+      abortControllersRef.current.set(workingSessionId, controller);
+      const { signal } = controller;
+      fetchOptions.signal = signal;
 
       const res = await fetch(`${API_URL}/api/chat/stream`, fetchOptions);
 
-      fetchAbortControllerRef.current = null;
+      // (Controller remains in Map until finally block)
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -1134,7 +1093,7 @@ const Home = ({ isDark }) => {
       // ── 4. Real SSE Streaming ──
       clearSources();
       const assistantMsgId = getMsgId('assistant');
-      storeStartStreaming(assistantMsgId);
+      storeStartStreaming(assistantMsgId, workingSessionId);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -1179,9 +1138,9 @@ const Home = ({ isDark }) => {
                 if (workingSessionId === activeChatIdRef.current) {
                   if (isArtifactExpectedRef.current) {
                     // Hide the raw JSON from the user, show a nice placeholder
-                    updateStreamingContent("### Generating Visual Model\n\nI'm building a custom artifact for this explanation. One moment...");
+                    updateStreamingContent("### Generating Visual Model\n\nI'm building a custom artifact for this explanation. One moment...", workingSessionId);
                   } else {
-                    appendStreamChunk(text);
+                    appendStreamChunk(text, workingSessionId);
                   }
                 } else {
                   addUnreadSession(workingSessionId);
@@ -1191,12 +1150,12 @@ const Home = ({ isDark }) => {
               const thought = eventData.thought || eventData.message || eventData.content || '';
               thoughtContent += thought + (eventType === 'status' ? '\n' : '');
               if (workingSessionId === activeChatIdRef.current) {
-                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''));
+                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), workingSessionId);
               } else {
                 addUnreadSession(workingSessionId);
               }
             } else if (eventType === 'sources') {
-              setSources(eventData.sources || []);
+              setSources(eventData.sources || [], workingSessionId);
             } else if (eventType === 'message_ids') {
               // Sync local ephemeral IDs with real MongoDB IDs (Fixed: Bug 2)
               const { userMessageId, assistantMessageId } = eventData;
@@ -1283,7 +1242,7 @@ const Home = ({ isDark }) => {
               }
             } else if (eventType === 'chat_override') {
               if (workingSessionId === activeChatIdRef.current) {
-                updateStreamingContent(eventData.content);
+                updateStreamingContent(eventData.content, workingSessionId);
               } else {
                 addUnreadSession(workingSessionId);
               }
@@ -1335,26 +1294,34 @@ const Home = ({ isDark }) => {
 
       // ── 6. Update sidebar history with session ID ──
       if (receivedSessionId && receivedSessionId !== workingSessionId) {
+        // CRITICAL: Migrate streaming/waiting state to the new MongoDB ID before swapping active ID
+        const { migrateSessionState } = useTutorStore.getState();
+        migrateSessionState(workingSessionId, receivedSessionId);
+
         setActiveChatId(receivedSessionId);
         setChatHistory(prev => prev.map(s => 
           s.id === workingSessionId ? { ...s, id: receivedSessionId, chatSessionId: receivedSessionId } : s
         ));
         useTutorStore.getState().setChatSessionId(receivedSessionId);
+        
+        // Update local working reference so remaining chunks use the correct ID
+        workingSessionId = receivedSessionId;
       }
     } catch (err) {
       if (err.name === 'AbortError') {
         console.log('[Home] AI request aborted by user.');
-        useTutorStore.getState().setWaitingForAI(false);
+        useTutorStore.getState().setWaitingForAI(false, workingSessionId);
         return;
       }
       console.error('[Home] handleSubmit failed:', err);
-      setLastAIError(err.message);
+      setLastAIError(err.message, workingSessionId);
       const store = useTutorStore.getState();
       store.finishStreaming(err.message.includes('unavailable') 
         ? "I'm having trouble connecting right now. Please try again in a moment."
-        : `⚠️ ${err.message}`);
+        : `⚠️ ${err.message}`, workingSessionId);
     } finally {
-      setTimeout(() => { isSubmittingRef.current = false; }, 500);
+      submittingSessionsRef.current.delete(workingSessionId);
+      abortControllersRef.current.delete(workingSessionId);
     }
   };
 
@@ -1369,54 +1336,39 @@ const Home = ({ isDark }) => {
 
     try {
       if (isMongoId) {
-        const fetchOptions = {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: dbSessionId, messageId, newContent }),
-          credentials: 'include'
-        };
-        if (token && token !== 'verified' && token !== 'guest') {
-          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-        }
-        const res = await fetch(`${API_URL}/api/chat/edit`, fetchOptions);
-        if (res.ok) {
-          const data = await res.json();
-          
+        const response = await API.post('/api/chat/edit', { 
+          sessionId: dbSessionId, 
+          messageId, 
+          newContent 
+        });
+        
+        if (response.status === 200) {
+          const data = response.data;
           // ── SYNC STATE: If edit truncated the conversation (branching), update store ──
           if (data.messagesAfterEdit) {
             useTutorStore.getState().setConversationMessages(data.messagesAfterEdit);
           }
 
           const assistantMsgId = data.assistantMessageId || getMsgId('assistant');
-          streamResponse(data.response, assistantMsgId);
+          streamResponse(data.response, assistantMsgId, dbSessionId);
           return;
         }
       }
 
-      // Fallback: call the regular chat API with truncated context
-      const fetchOptions = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: isMongoId ? dbSessionId : undefined,
-          userMessage: newContent,
-          mode: activeMode || 'quick',
-        }),
-        credentials: 'include'
-      };
-      if (token && token !== 'verified' && token !== 'guest') {
-        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-      }
+      // Fallback: call the regular chat API
+      const response = await API.post('/api/chat', {
+        sessionId: isMongoId ? dbSessionId : undefined,
+        userMessage: newContent,
+        mode: activeMode || 'quick',
+      });
 
-      const res = await fetch(`${API_URL}/api/chat`, fetchOptions);
-
-      if (res.ok) {
-        const data = await res.json();
-        streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
+      if (response.status === 200) {
+        const data = response.data;
+        streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'), dbSessionId);
       }
     } catch (err) {
       console.error('[Home] Edit failed:', err);
-      setLastAIError(err.message);
+      useTutorStore.getState().setLastAIError(err.message);
     }
   };
 
@@ -1431,96 +1383,68 @@ const Home = ({ isDark }) => {
 
     if (!finalTargetId) return;
 
-    useTutorStore.getState().setWaitingForAI(true);
-    useTutorStore.getState().setLastAIError(null);
-
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+
+    useTutorStore.getState().setWaitingForAI(true, dbSessionId);
+    useTutorStore.getState().setLastAIError(null, dbSessionId);
+
+    // 1. Prepare UI for regeneration (adds a new empty version slot)
+    prepareRegeneration(finalTargetId);
+    
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
     try {
       if (isMongoId) {
-        const fetchOptions = {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            sessionId: dbSessionId,
-            messageId: finalTargetId 
-          }),
-          credentials: 'include'
-        };
-        if (token && token !== 'verified' && token !== 'guest') {
-          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-        }
-        const res = await fetch(`${API_URL}/api/chat/regenerate`, fetchOptions);
-        if (res.ok) {
-          const data = await res.json();
+        const response = await API.post('/api/chat/regenerate', {
+          sessionId: dbSessionId,
+          messageId: finalTargetId
+        });
+
+        if (response.status === 200) {
+          const data = response.data;
           
           // ── SYNC STATE: If regeneration truncated the conversation (branching), update store ──
+          // ── SYNC STATE ──
           if (data.messagesAfterRegen) {
             useTutorStore.getState().setConversationMessages(data.messagesAfterRegen);
           }
 
-          // GUARD: data.response must be a non-empty string
           if (!data.response || typeof data.response !== 'string') {
-            console.error('[Home] Regenerate returned empty response:', data);
-            setLastAIError('Regeneration returned empty content. Please try again.');
+            useTutorStore.getState().setWaitingForAI(false, dbSessionId);
             return;
           }
 
-          // Determine the actual message ID to stream into. 
-          let streamTargetId = data.assistantMessageId || finalTargetId;
-          
-          if (!data.assistantMessageId) {
-            const messages = useTutorStore.getState().conversationMessages;
-            const targetIdx = messages.findIndex(m => m.id === finalTargetId);
-            if (targetIdx !== -1 && messages[targetIdx].role === 'user') {
-              const nextMsg = messages[targetIdx + 1];
-              if (nextMsg && nextMsg.role === 'assistant') {
-                streamTargetId = nextMsg.id;
-              }
-            }
-          }
-
-          useTutorStore.getState().setWaitingForAI(false);
-          streamResponse(data.response, streamTargetId);
+          // Transition directly to streaming (streamResponse calls startStreaming which clears waiting state)
+          streamResponse(data.response, data.assistantMessageId || finalTargetId, dbSessionId);
           return;
         } else {
-          // NEW: parse error from non-ok response
-          useTutorStore.getState().setWaitingForAI(false);
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Regenerate failed with status ${res.status}`);
+          useTutorStore.getState().setWaitingForAI(false, dbSessionId);
+          throw new Error(`Regenerate failed: ${response.status}`);
         }
       }
 
-      // Fallback: re-send last user message (destructive fallback)
-      removeLastAssistantMessage();
+      // Fallback: re-send last user message (non-destructive regeneration for guests)
       const lastUserMsg = useTutorStore.getState().conversationMessages
         .filter(m => m.role === 'user').pop();
+        
       if (lastUserMsg) {
-        const fetchOptions = {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userMessage: lastUserMsg.content, mode: activeMode || 'quick' }),
-          credentials: 'include'
-        };
-        if (token && token !== 'verified' && token !== 'guest') {
-          fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-        }
-        const res = await fetch(`${API_URL}/api/chat`, fetchOptions);
-        useTutorStore.getState().setWaitingForAI(false);
-        if (res.ok) {
-          const data = await res.json();
-          streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'));
+        const response = await API.post('/api/chat', {
+          userMessage: lastUserMsg.content,
+          mode: activeMode || 'quick'
+        });
+        if (response.status === 200) {
+          streamResponse(response.data.response, finalTargetId, dbSessionId);
         } else {
+          useTutorStore.getState().setWaitingForAI(false, dbSessionId);
           throw new Error('Regenerate fallback failed');
         }
       } else {
-        useTutorStore.getState().setWaitingForAI(false);
+        useTutorStore.getState().setWaitingForAI(false, dbSessionId);
       }
     } catch (err) {
       console.error('[Home] Regenerate failed:', err);
-      useTutorStore.getState().setWaitingForAI(false);
-      setLastAIError(err.message);
+      useTutorStore.getState().setWaitingForAI(false, dbSessionId);
+      setLastAIError(err.message, dbSessionId);
     }
   };
 
@@ -1530,16 +1454,8 @@ const Home = ({ isDark }) => {
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
     if (isMongoId) {
-      const fetchOptions = {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: dbSessionId, messageId }),
-        credentials: 'include'
-      };
-      if (token && token !== 'verified' && token !== 'guest') {
-        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-      }
-      fetch(`${API_URL}/api/chat/message`, fetchOptions).catch(err => console.error('[Home] Delete sync failed:', err));
+      API.delete(`/api/chat/${dbSessionId}/messages/${messageId}`)
+        .catch(err => console.error('[Home] Delete sync failed:', err));
     }
   };
 
@@ -1550,18 +1466,9 @@ const Home = ({ isDark }) => {
       const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
-      if (isMongoId && isAuthenticated && token) {
+      if (isMongoId && isAuthenticated) {
         try {
-          const fetchOptions = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId: dbSessionId, messageId, feedback }),
-            credentials: 'include'
-          };
-          if (token && token !== 'verified' && token !== 'guest') {
-            fetchOptions.headers['Authorization'] = `Bearer ${token}`;
-          }
-          await fetch(`${API_URL}/api/chat/feedback`, fetchOptions);
+          await API.post('/api/chat/feedback', { sessionId: dbSessionId, messageId, feedback });
         } catch (err) {
           console.error('[Home] Feedback sync failed:', err);
         }
@@ -1594,13 +1501,15 @@ const Home = ({ isDark }) => {
   };
 
   // ── Stop Generation Handler ──
-  const handleStopGeneration = () => {
-    stopStreaming();
-    if (fetchAbortControllerRef.current) {
-      fetchAbortControllerRef.current.abort();
-      fetchAbortControllerRef.current = null;
+  const handleStopGeneration = (sessionId) => {
+    const targetId = sessionId || useTutorStore.getState().chatSessionId || activeChatId;
+    const controller = abortControllersRef.current.get(targetId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(targetId);
     }
-    useTutorStore.getState().setWaitingForAI(false);
+    abortStreaming(targetId);
+    useTutorStore.getState().setWaitingForAI(false, targetId);
   };
 
   // ── Session Export Handler ──
@@ -1761,7 +1670,15 @@ const Home = ({ isDark }) => {
       chatHistory={chatHistory} activeChatId={activeChatId}
       onNewChat={handleNewChat} onSelectChat={handleSelectChat}
       onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
-      messages={messages} isGenerating={machineState === STATES.GENERATING || machineState === STATES.RESPONDING || isDoubtProcessing || isWaitingForAI || isStreaming}
+      messages={messages} isGenerating={(() => {
+        const sid = activeChatId || 'temp';
+        const sessionState = useTutorStore.getState().sessionStates[sid] || {};
+        return machineState === STATES.GENERATING || 
+               machineState === STATES.RESPONDING || 
+               isDoubtProcessing || 
+               sessionState.isWaitingForAI || 
+               sessionState.isStreaming;
+      })()}
       onOpenCanvas={handleOpenCanvas} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage}
       onRegenerateMessage={handleRegenerateMessage} onFeedback={handleFeedback} onStopGeneration={handleStopGeneration}
       onSwitchVersion={handleSwitchVersion}

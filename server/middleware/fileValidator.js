@@ -18,7 +18,15 @@ export const validateFile = async (req, res, next) => {
 
     // 1. Skip magic byte check for plain text files (they don't have consistent magic bytes)
     if (textExtensions.includes(fileExt)) {
-      // Basic sanity check: ensure it's not actually a binary file reporting as text
+      // Basic sanity check: read first 2KB to ensure it doesn't contain null bytes or suspicious binary sequences
+      const buffer = await fs.readFile(filePath);
+      const isBinary = buffer.slice(0, 2048).some(byte => byte === 0);
+      
+      if (isBinary) {
+        await fs.unlink(filePath).catch(() => {});
+        console.warn(`[Security] Blocked binary file disguised as text: ${req.file.originalname}`);
+        return res.status(400).json({ error: 'Security Alert: File content is binary, but extension is text.' });
+      }
       return next();
     }
 
@@ -37,9 +45,23 @@ export const validateFile = async (req, res, next) => {
 
     // 3. Double-check that magic bytes match the browser-reported extension
     // e.g., if content is PDF but extension is JPG, reject.
-    if (type.mime === 'application/pdf' && fileExt !== '.pdf') {
+    const isImage = type.mime.startsWith('image/');
+    const mimeToExt = {
+      'application/pdf': '.pdf',
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': '.png',
+      'image/gif': '.gif'
+    };
+
+    const expectedExt = mimeToExt[type.mime];
+    const isExtMatch = Array.isArray(expectedExt) 
+      ? expectedExt.includes(fileExt) 
+      : expectedExt === fileExt;
+
+    if (!isExtMatch) {
        await fs.unlink(filePath).catch(() => {});
-       return res.status(400).json({ error: 'Security Alert: File extension mismatch.' });
+       console.warn(`[Security] Extension mismatch: ${req.file.originalname} (Detected: ${type.mime}, Ext: ${fileExt})`);
+       return res.status(400).json({ error: 'Security Alert: File extension does not match content type.' });
     }
 
     next();

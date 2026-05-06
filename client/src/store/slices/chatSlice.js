@@ -1,3 +1,5 @@
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
+
 export const createChatSlice = (set, get) => ({
   doubtHistory:      [],
   deltaHistory:      [],
@@ -8,7 +10,7 @@ export const createChatSlice = (set, get) => ({
   showDoubtThread:   false,
 
   setDeltaRunning:   (running) => set({ isDeltaRunning: running }),
-  addDelta:          (delta) => set(s => ({ deltaHistory: [...s.deltaHistory, delta] })),
+  addDelta:          (delta) => set(s => ({ deltaHistory: [...s.deltaHistory, delta].slice(-50) })),
 
 
   setDoubtProcessing: (processing) => set({ isDoubtProcessing: processing }),
@@ -53,7 +55,7 @@ export const createChatSlice = (set, get) => ({
     const { addAssistantMessage } = get();
     if (addAssistantMessage) {
       addAssistantMessage(answer, null, {
-        hasCanvas,
+        hasCanvas: hasVisuals,
         canvasSnapshot: hasVisuals ? {
           objects: get().canvasObjects,
           connections: get().canvasConnections,
@@ -67,20 +69,38 @@ export const createChatSlice = (set, get) => ({
   },
 
   pinDoubtToCanvas: (doubtId) => {
-    const { doubtHistory, canvasTransform, addCanvasObjects } = get();
+    const { doubtHistory, canvasTransform, addCanvasObjects, canvasSteps, currentStepIndex } = get();
     const doubt = doubtHistory.find(d => d.id === doubtId);
     if (!doubt || !doubt.answer) return;
+
+    // ─── Smart Positioning ───
+    // If we are in the fixed-stage (no pan/zoom), use the current step's camera focus
+    // as the "where the user is looking" coordinate.
+    const currentStep = canvasSteps[currentStepIndex];
+    const focus = currentStep?.cameraFocus || { x: 0.5, y: 0.5 };
+    
+    // Default pinning logic (fallback to center or current transform)
+    const centerX = focus.x * CANVAS_WIDTH;
+    const centerY = focus.y * CANVAS_HEIGHT;
+
+    const x = canvasTransform.scale === 1 && canvasTransform.x === 0 
+      ? centerX 
+      : -canvasTransform.x / canvasTransform.scale + ((CANVAS_WIDTH / 2) / canvasTransform.scale);
+      
+    const y = canvasTransform.scale === 1 && canvasTransform.y === 0 
+      ? centerY 
+      : -canvasTransform.y / canvasTransform.scale + ((CANVAS_HEIGHT / 2) / canvasTransform.scale);
 
     const note = {
       id:           `pinned-${doubt.id}`,
       shape:        'doubt_note',
       type:         'doubt_note',
-      x:            -canvasTransform.x / canvasTransform.scale + (400 / canvasTransform.scale),
-      y:            -canvasTransform.y / canvasTransform.scale + (300 / canvasTransform.scale),
+      x,
+      y,
       text:         doubt.answer,
       question:     doubt.question,
       color:        '#fbbf24',
-      appearsAtStep: 0,
+      appearsAtStep: currentStepIndex,
       pinned:       true,
     };
 

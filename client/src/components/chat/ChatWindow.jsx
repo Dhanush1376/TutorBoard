@@ -1,154 +1,252 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+/**
+ * ChatWindow.jsx — TutorBoard v4.0
+ * Premium LLM-grade chat experience:
+ * - Smooth token streaming with cursor blink
+ * - Smart phase-aware thinking indicator (Thinking → Searching → Generating)
+ * - Scroll-to-latest pill when user scrolls up during generation
+ * - Canvas artifact cards inline in chat
+ * - Zero layout shift during streaming
+ */
+
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BookOpen, ClipboardCheck } from 'lucide-react';
+import { Layers, BookOpen, ClipboardCheck, ArrowDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import VisaiLogo from '../layout/VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
 
-// ── Premium Landing Interface ──────────────────────────────────────────────
+// ── Phase-aware thinking indicator ──────────────────────────────────────────
+const ThinkingIndicator = ({ phase }) => {
+  const label = {
+    waiting: 'Thinking',
+    searching: 'Searching the web',
+    generating: 'Generating response',
+    thinking: 'Thinking',
+  }[phase] || 'Thinking';
 
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 2 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -2 }}
+      transition={{ duration: 0.15 }}
+      className="w-full py-2.5 flex items-center gap-3"
+      style={{ minHeight: '36px' }}
+    >
+      <div className="flex items-center gap-[4px] opacity-40">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            animate={{ 
+              scale: [1, 1.3, 1],
+              opacity: [0.3, 1, 0.3] 
+            }}
+            transition={{
+              duration: 1.4,
+              repeat: Infinity,
+              delay: i * 0.2,
+              ease: 'easeInOut',
+            }}
+            style={{
+              width: 3.5,
+              height: 3.5,
+              borderRadius: '50%',
+              background: 'var(--text-tertiary)',
+            }}
+          />
+        ))}
+      </div>
+      
+      <span
+        style={{
+          fontSize: 11.5,
+          color: 'var(--text-tertiary)',
+          fontWeight: 500,
+          letterSpacing: '-0.01em',
+          opacity: 0.7,
+        }}
+      >
+        {label}...
+      </span>
+    </motion.div>
+  );
+};
+
+// ── Landing welcome screen ────────────────────────────────────────────────────
 const ChatLanding = ({ setActiveMode, activeMode }) => {
   const { user } = useAuth();
   const { isMobile } = useWindowSize();
-  
+
   const greeting = React.useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return "Good morning,";
-    if (hour >= 12 && hour < 17) return "Good afternoon,";
-    if (hour >= 17 && hour < 21) return "Good evening,";
-    return "Good evening,";
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return 'Good morning';
+    if (h >= 12 && h < 17) return 'Good afternoon';
+    return 'Good evening';
   }, []);
 
+  const firstName = user?.name?.split(' ')[0] || '';
+
   const modes = [
-    { id: 'quick', label: 'Quick Answer', icon: BookOpen, desc: 'Concise explanations' },
-    { id: 'deep', label: 'Visual Dive', icon: Layers, desc: 'Step-by-step canvas' },
-    { id: 'test_me', label: 'Test Me', icon: ClipboardCheck, desc: 'Interactive quiz' },
+    { id: 'quick', label: 'Quick Answer', icon: BookOpen, desc: 'Concise explanations', accent: 'var(--info)' },
+    { id: 'deep', label: 'Visual Dive', icon: Layers, desc: 'Step-by-step canvas', accent: 'var(--success)' },
+    { id: 'test_me', label: 'Test Me', icon: ClipboardCheck, desc: 'Interactive quiz', accent: 'var(--warning)' },
   ];
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`flex-1 flex flex-col justify-center ${isMobile ? 'px-5 py-6' : 'px-6 py-12'} select-none overflow-y-auto no-scrollbar`}
+      className={`flex-1 flex flex-col justify-center select-none overflow-y-auto no-scrollbar
+        ${isMobile ? 'px-5 py-8' : 'px-5 py-10'}`}
     >
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className={isMobile ? "mb-6" : "mb-10"}
+        className={isMobile ? 'mb-7' : 'mb-9'}
       >
-        <p className={`text-[var(--text-tertiary)] mb-1.5 font-normal ${isMobile ? 'text-[11px]' : 'text-[12px]'}`}>
-          {greeting}
+        <p style={{ fontSize: isMobile ? 11 : 11.5, color: 'var(--text-tertiary)', marginBottom: 6 }}>
+          {greeting}{firstName ? `, ${firstName}` : ''}
         </p>
-        <h1 className={`${isMobile ? '!text-[18px]' : '!text-[26px]'} font-normal text-[var(--text-primary)] leading-[1.25] tracking-tight`}>
+        <h1 style={{
+          fontSize: isMobile ? 22 : 26,
+          fontWeight: 400,
+          color: 'var(--text-primary)',
+          lineHeight: 1.25,
+          letterSpacing: '-0.02em',
+          margin: 0,
+        }}>
           What would you like<br />to learn today?
         </h1>
       </motion.div>
 
       <div className="flex flex-col gap-2">
-        {modes.map((mode, i) => (
-          <motion.button
-            key={mode.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            onClick={() => setActiveMode(activeMode === mode.id ? null : mode.id)}
-            className={`flex items-center ${isMobile ? 'gap-2.5 px-3.5 py-2.5' : 'gap-3 px-4 py-3'} rounded-xl border transition-all active:scale-[0.97] group ${
-              activeMode === mode.id 
-                ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
-                : 'bg-[var(--bg-secondary)]/60 border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)]/30'
-            }`}
-          >
-            <mode.icon size={isMobile ? 15 : 17} strokeWidth={2} className={activeMode === mode.id ? 'opacity-100' : 'opacity-50'} />
-            <div className="flex flex-col items-start gap-0">
-              <span className={`${isMobile ? 'text-[12.5px]' : 'text-[13.5px]'} font-medium tracking-tight`}>
-                {mode.label}
-              </span>
-              <span className={`text-[10px] font-normal ${activeMode === mode.id ? 'opacity-60' : 'opacity-40'}`}>
-                {mode.desc}
-              </span>
-            </div>
-          </motion.button>
-        ))}
+        {modes.map((mode, i) => {
+          const active = activeMode === mode.id;
+          return (
+            <motion.button
+              key={mode.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 + i * 0.07, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              onClick={() => setActiveMode(active ? null : mode.id)}
+              className="flex items-center gap-3 rounded-2xl border transition-all active:scale-[0.97]"
+              style={{
+                padding: isMobile ? '10px 14px' : '12px 16px',
+                background: active ? 'var(--text-primary)' : 'var(--bg-secondary)',
+                borderColor: active ? 'var(--text-primary)' : 'var(--border-color)',
+              }}
+            >
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
+                style={{ background: active ? 'rgba(255,255,255,0.15)' : `${mode.accent}1a` }}
+              >
+                <mode.icon
+                  size={15}
+                  strokeWidth={2}
+                  style={{ color: active ? 'var(--bg-primary)' : mode.accent }}
+                />
+              </div>
+              <div className="flex flex-col items-start">
+                <span style={{
+                  fontSize: isMobile ? 12.5 : 13,
+                  fontWeight: 500,
+                  letterSpacing: '-0.01em',
+                  color: active ? 'var(--bg-primary)' : 'var(--text-primary)',
+                }}>
+                  {mode.label}
+                </span>
+                <span style={{
+                  fontSize: 10,
+                  color: active ? 'rgba(255,255,255,0.55)' : 'var(--text-tertiary)',
+                }}>
+                  {mode.desc}
+                </span>
+              </div>
+            </motion.button>
+          );
+        })}
       </div>
     </motion.div>
   );
 };
 
-// ── Thinking / Typing indicator ──
-const ThinkingIndicator = () => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    className="w-full py-1 flex flex-col items-start"
-  >
-    <div className="relative group min-w-0 max-w-[96%] w-full">
-      <div className="flex flex-col gap-0 items-start w-full px-0 py-1 mt-1">
-        <div className="flex gap-1.5 items-center h-6">
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={i}
-              animate={{ 
-                scale: [0.8, 1.2, 0.8],
-                opacity: [0.4, 1, 0.4]
-              }}
-              transition={{ 
-                duration: 1, 
-                repeat: Infinity, 
-                delay: i * 0.2,
-                ease: "easeInOut" 
-              }}
-              className="w-2 h-2 rounded-full bg-[var(--text-primary)]"
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  </motion.div>
+// ── Scroll-to-bottom pill ────────────────────────────────────────────────────
+const ScrollPill = ({ visible, onClick }) => (
+  <AnimatePresence>
+    {visible && (
+      <motion.button
+        initial={{ opacity: 0, y: 8, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 8, scale: 0.9 }}
+        transition={{ duration: 0.15 }}
+        onClick={onClick}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 rounded-full border shadow-sm transition-all hover:scale-[1.04] active:scale-[0.97]"
+        style={{
+          padding: '5px 12px',
+          background: 'var(--bg-primary)',
+          borderColor: 'var(--border-color)',
+          fontSize: 11,
+          fontWeight: 500,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        <ArrowDown size={10} />
+        Latest response
+      </motion.button>
+    )}
+  </AnimatePresence>
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CHATWINDOW — Stream-aware, conversation-first rendering
+// CHATWINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const ChatWindow = ({
-  messages, isGenerating,
-  onOpenCanvas, onDeleteMessage, onEditMessage, onRegenerateMessage, onFeedback, onSwitchVersion,
+  messages,
+  isGenerating,
+  onOpenCanvas,
+  onDeleteMessage,
+  onEditMessage,
+  onRegenerateMessage,
+  onFeedback,
+  onSwitchVersion,
   onOpenArtifact,
-  activeMode, setActiveMode,
+  activeMode,
+  setActiveMode,
 }) => {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   const userScrolledRef = useRef(false);
+  const [showPill, setShowPill] = useState(false);
 
-  // Read streaming state from store
-  const isStreaming = useTutorStore((s) => s.isStreaming);
-  const streamingContent = useTutorStore((s) => s.streamingContent);
-  const streamingThought = useTutorStore((s) => s.streamingThought);
-  const streamingMessageId = useTutorStore((s) => s.streamingMessageId);
-  const streamingSessionId = useTutorStore((s) => s.streamingSessionId);
-  const streamingSources = useTutorStore((s) => s.conversationSources);
-  const isSearchPerformed = useTutorStore((s) => s.isSearchPerformed);
-  const currentCanvasType = useTutorStore((s) => s.currentCanvasType);
-  const isWaitingForAI = useTutorStore((s) => s.isWaitingForAI);
-  const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
   const currentSessionId = useTutorStore((s) => s.chatSessionId || s.sessionId);
+  const currentSessionState = useTutorStore(s => s.sessionStates[currentSessionId]);
+  const currentCanvasType = useTutorStore((s) => s.currentCanvasType);
+  
+  const isStreaming = currentSessionState?.isStreaming;
+  const currentStreamingContent = currentSessionState?.content || '';
+  const currentStreamingThought = currentSessionState?.thought || '';
+  const currentStreamingMessageId = currentSessionState?.messageId;
+  const currentStreamingSources = currentSessionState?.sources || [];
+  const currentSearchPerformed = currentSessionState?.searchPerformed || false;
+  const isWaitingForAI = currentSessionState?.isWaitingForAI;
+  const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
 
-  // Filter streaming/waiting status by session ID to prevent cross-chat UI bleed
-  const isCurrentlyStreaming = isStreaming && streamingSessionId === currentSessionId;
-  const isCurrentlyWaiting = isWaitingForAI && waitingSessionId === currentSessionId;
+  const isCurrentlyStreaming = isStreaming;
+  // Robust check: matches if either the current session ID or the waiting ID matches
+  const isCurrentlyWaiting = isWaitingForAI && (waitingSessionId === currentSessionId || waitingSessionId === 'temp');
+  const isActive = isCurrentlyStreaming || isCurrentlyWaiting;
 
-  // ── Smart Auto-Scroll ──
-  // Only auto-scroll if user hasn't manually scrolled up
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    userScrolledRef.current = !isNearBottom;
-  }, []);
+    const dist = scrollHeight - scrollTop - clientHeight;
+    const nearBottom = dist < 80;
+    userScrolledRef.current = !nearBottom;
+    setShowPill(!nearBottom && isActive);
+  }, [isActive]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -158,19 +256,34 @@ const ChatWindow = ({
     }
   }, [handleScroll]);
 
-  // Scroll to bottom on new messages or streaming content
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    bottomRef.current?.scrollIntoView({ behavior });
+    userScrolledRef.current = false;
+    setShowPill(false);
+  }, []);
+
   useEffect(() => {
     if (!userScrolledRef.current) {
-      // Use 'auto' behavior during streaming for perfect smoothness, 'smooth' for static messages
-      const behavior = isStreaming ? 'auto' : 'smooth';
-      bottomRef.current?.scrollIntoView({ behavior });
+      scrollToBottom(isCurrentlyStreaming ? 'auto' : 'smooth');
     }
-  }, [messages.length, streamingContent, isWaitingForAI, isStreaming]);
+  }, [messages.length, currentStreamingContent, isCurrentlyWaiting, isCurrentlyStreaming, scrollToBottom]);
 
-  const isEmpty = messages.length === 0 && !isGenerating && !isCurrentlyWaiting && !isCurrentlyStreaming;
+  const thinkingPhase = React.useMemo(() => {
+    if (currentSearchPerformed && !currentStreamingContent) return 'searching';
+    if (isCurrentlyStreaming) return 'generating';
+    return 'waiting';
+  }, [isCurrentlyStreaming, currentStreamingContent, currentSearchPerformed]);
+
+  const isEmpty =
+    messages.length === 0 && !isGenerating && !isCurrentlyWaiting && !isCurrentlyStreaming;
+
+  const streamingInList = messages.some((m) => m.id === currentStreamingMessageId);
 
   return (
-    <div ref={containerRef} className="chat-window flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar">
+    <div
+      ref={containerRef}
+      className="chat-window flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar relative"
+    >
       <AnimatePresence mode="wait">
         {isEmpty ? (
           <ChatLanding key="empty" activeMode={activeMode} setActiveMode={setActiveMode} />
@@ -179,11 +292,11 @@ const ChatWindow = ({
             key="messages"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-col px-3 py-3 gap-1"
+            className="flex flex-col px-3 py-3 gap-0.5"
           >
             {messages.map((msg) => {
-              const msgKey = msg.id || `msg-idx-${msg.role}-${msg.timestamp}`;
-              const isThisMessageStreaming = isCurrentlyStreaming && streamingMessageId === msg.id;
+              const msgKey = msg.id || `msg-${msg.role}-${msg.timestamp}`;
+              const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
 
               return (
                 <Message
@@ -193,9 +306,9 @@ const ChatWindow = ({
                   messageId={msg.id}
                   timestamp={msg.timestamp}
                   metadata={msg.metadata}
-                  isStreaming={isThisMessageStreaming}
-                  streamingContent={streamingContent}
-                  streamingThought={streamingThought}
+                  isStreaming={isThisStreaming}
+                  streamingContent={currentStreamingContent}
+                  streamingThought={currentStreamingThought}
                   onOpenCanvas={onOpenCanvas}
                   onDeleteMessage={onDeleteMessage}
                   onEditMessage={onEditMessage}
@@ -214,37 +327,46 @@ const ChatWindow = ({
                   objects={msg.objects || msg.elements}
                   hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
                   canvasType={msg.canvasType}
-                  isSearchPerformed={isSearchPerformed}
+                  isSearchPerformed={currentSearchPerformed}
+                  streamingSources={currentStreamingSources}
+                  showCursor={isThisStreaming}
                 />
               );
             })}
 
-            {/* ── Streaming Message (only for NEW messages not in list) ── */}
-            {isCurrentlyStreaming && !messages.some(m => m.id === streamingMessageId) && (streamingContent || streamingThought || streamingSources?.length > 0) && (
-              <Message
-                key="streaming-msg"
-                role="assistant"
-                content={streamingContent}
-                messageId={streamingMessageId}
-                timestamp={new Date().toISOString()}
-                isStreaming={true}
-                streamingContent={streamingContent}
-                streamingThought={streamingThought}
-                streamingSources={streamingSources}
-                canvasType={currentCanvasType} 
-                isSearchPerformed={isSearchPerformed}
-                onOpenArtifact={onOpenArtifact}
-              />
-            )}
+            {/* Streaming new message not yet in list */}
+            {isCurrentlyStreaming && !streamingInList &&
+              (currentStreamingContent || currentStreamingThought || currentStreamingSources?.length > 0) && (
+                <Message
+                  key="streaming-new"
+                  role="assistant"
+                  content={currentStreamingContent}
+                  messageId={currentStreamingMessageId}
+                  timestamp={new Date().toISOString()}
+                  isStreaming
+                  streamingContent={currentStreamingContent}
+                  streamingThought={currentStreamingThought}
+                  streamingSources={currentStreamingSources}
+                  canvasType={currentCanvasType}
+                  isSearchPerformed={currentSearchPerformed}
+                  onOpenArtifact={onOpenArtifact}
+                  showCursor
+                />
+              )}
 
-            {/* Thinking Indicator */}
+            {/* Thinking / waiting indicator */}
             <AnimatePresence>
-            {(isGenerating || isCurrentlyWaiting || (isCurrentlyStreaming && !streamingContent && !streamingThought)) && <ThinkingIndicator key="thinking" />}
+              {(isCurrentlyWaiting || isCurrentlyStreaming) && (
+                <ThinkingIndicator key="thinking" phase={thinkingPhase || 'waiting'} />
+              )}
             </AnimatePresence>
-            <div ref={bottomRef} className="h-2" />
+
+            <div ref={bottomRef} className="h-3" />
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ScrollPill visible={showPill} onClick={() => scrollToBottom('smooth')} />
     </div>
   );
 };

@@ -73,27 +73,13 @@ export async function checkSocketRate(key) {
   if (redisClient.isConnected) {
     const redisKey = `ratelimit:socket:${key}`;
     try {
-      // Add a 2s timeout to avoid hanging the entire event loop on Redis latency
-      const resultPromise = (async () => {
-        const multi = redisClient.client.multi();
-        multi.zremrangebyscore(redisKey, 0, now - SOCKET_WINDOW_MS);
-        multi.zadd(redisKey, now, now.toString());
-        multi.zcard(redisKey);
-        multi.expire(redisKey, 65);
-
-        const results = await multi.exec();
-        if (results) {
-          return results[2][1] <= limit;
-        }
-        return true;
-      })();
-
-      const isAllowed = await Promise.race([
-        resultPromise,
-        new Promise((resolve) => setTimeout(() => resolve(true), 2000))
-      ]);
+      // Use upgraded atomic methods with built-in racing/error handling
+      await redisClient.zremrangebyscore(redisKey, 0, now - SOCKET_WINDOW_MS);
+      await redisClient.zadd(redisKey, now, now.toString());
+      const count = await redisClient.zcard(redisKey);
+      await redisClient.expire(redisKey, 65);
       
-      return isAllowed;
+      return count <= limit;
     } catch (err) {
       console.warn('[RateLimit] Redis failed:', err.message);
     }

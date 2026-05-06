@@ -48,14 +48,15 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
       const payload = { label: editLabel.trim(), model: editModel.trim(), baseUrl: editBaseUrl.trim() };
       if (editKey && !editKey.includes('****')) payload.apiKey = editKey.trim();
 
-      const res = await fetch(`${API_URL}/api/apikeys/${keyData.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (res.ok) { showToast?.('Key updated', 'success'); setExpanded(false); onUpdated?.(); }
-      else setEditErr(data.details || data.error || 'Update failed');
+      const response = await API.put(`/api/apikeys/${keyData.id}`, payload);
+      
+      if (response.status === 200) {
+        showToast?.('Key updated', 'success');
+        setExpanded(false);
+        onUpdated?.();
+      } else {
+        setEditErr(response.data?.details || response.data?.error || 'Update failed');
+      }
     } catch { setEditErr('Network error'); }
     finally { setSaving(false); }
   };

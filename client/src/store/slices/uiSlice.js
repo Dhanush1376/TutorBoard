@@ -14,6 +14,7 @@ export const createUiSlice = (set, get) => ({
   settingsActiveSection: 'general', // 'general' | 'account' | 'appearance' | 'ai' | 'about'
   isExplainMinimized:  false,
   isVisualizerMinimized: false,
+  isSettingsMinimized: false,
   isMasteryOpen:        false,
   unreadSessions:       [], // Array of session IDs that have background updates
   
@@ -76,13 +77,23 @@ export const createUiSlice = (set, get) => ({
   },
   toasts: [], // { id, message, type, duration, onUndo }
   featureFlags: {
-    enableVisualizer: false,
-    enableVoice: false,
+    enableVisualizer: true,
+    enableVoice: true,
+    enableCodeExecution: true,
+    enable3DRenderer: false,
+    enableMatterPhysics: true
   },
 
 
   setLayoutView:    (view) => set({ layoutView: view }),
-  setGlobalOverlay: (overlay) => set({ globalOverlay: { ...get().globalOverlay, ...overlay } }),
+  setGlobalOverlay: (overlay) => {
+    const current = get().globalOverlay;
+    // SEC-UX: Avoid redundant updates to prevent loops in App.jsx
+    if (overlay.isActive === current.isActive && 
+        overlay.type === current.type && 
+        overlay.message === current.message) return;
+    set({ globalOverlay: { ...current, ...overlay } });
+  },
   
   showAlert: (config) => set({ 
     globalAlert: { 
@@ -250,5 +261,26 @@ export const createUiSlice = (set, get) => ({
       currentStepIndex:  snap.stepIndex,
       canvasTransform:   { ...snap.transform },
     });
+  },
+
+  addNoteToCanvas: (worldX, worldY) => {
+    const { noteColor, noteSize, notePinned, noteToolSize, addCanvasObjects } = get();
+    const note = {
+      id: `manual-note-${Date.now()}`,
+      type: 'note',
+      shape: 'note',
+      x: worldX,
+      y: worldY,
+      w: 0.225,   // ~180px on the 800-wide virtual canvas
+      h: 0.3,     // ~180px on the 600-tall virtual canvas
+      color: noteColor,
+      size: noteSize,
+      isPinned: notePinned,
+      label: '',  // StickyNoteShape reads 'label', NOT 'text'
+      content: '',
+      fontSize: noteToolSize,
+      appearsAtStep: 0,
+    };
+    addCanvasObjects([note]);
   },
 });

@@ -145,10 +145,10 @@ export const MODEL_REGISTRY = {
     chain: ['mistralai/Mixtral-8x7B-Instruct-v0.1', 'meta-llama/Meta-Llama-3.1-8B-Instruct', 'microsoft/WizardLM-2-7B']
   },
   nvidia: {
-    validation: 'meta/llama3-8b-instruct',
+    validation: 'meta/llama-3.1-8b-instruct',
     production: 'nvidia/llama-3.1-nemotron-70b-instruct',
-    fallback: 'meta/llama3-8b-instruct',
-    chain: ['meta/llama3-8b-instruct']
+    fallback: 'meta/llama-3.1-8b-instruct',
+    chain: ['meta/llama-3.1-8b-instruct', 'nvidia/llama-3.1-nemotron-70b-instruct', 'meta/llama-3.1-70b-instruct']
   },
   ollama: {
     validation: 'llama3',

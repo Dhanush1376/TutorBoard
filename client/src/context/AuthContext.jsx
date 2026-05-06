@@ -46,7 +46,6 @@ export const AuthProvider = ({ children }) => {
   const [dbOffline, setDbOffline] = useState(false);
   const [apiPrefs, setApiPrefs] = useState({ useCustomApi: false, activeProvider: null, activeLabel: null, activeIds: [], allKeys: [], status: 'stable' });
   const [connectionStatus, setConnectionStatus] = useState('stable'); // stable, slow, timeout
-  const [isExiting, setIsExiting] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const navigate = useNavigate();
   const { setMode, setCurrentThemeId } = useTheme();
@@ -230,7 +229,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             // DB_OFFLINE detection
-            const errorData = await meRes.json().catch(() => ({}));
+            const errorData = meRes?.data || {};
             if (errorData.code === 'DB_OFFLINE') {
               console.error('[Auth] Database is offline. Entering Degraded Mode.');
               setDbOffline(true);
@@ -333,13 +332,11 @@ export const AuthProvider = ({ children }) => {
       // SEC-15: Trigger an immediate cloud sync before clearing state to prevent data loss
       if (user && !user.isGuest) {
         useTutorStore.getState().triggerSync();
-        // Brief grace period to allow the immediate sync fetch to initiate
-        await new Promise(resolve => setTimeout(resolve, 600));
-      }
-
-      setIsExiting(true);
-      
-      // BUG FIX: Revoke token server-side before clearing client state
+      // Brief grace period to allow the immediate sync fetch to initiate
+      await new Promise(resolve => setTimeout(resolve, 600));
+    }
+    
+    // BUG FIX: Revoke token server-side before clearing client state
       // Using the API instance ensures headers are correctly set
       API.post('/api/auth/logout').catch(err => console.warn('[Auth] Server-side logout failed:', err));
       

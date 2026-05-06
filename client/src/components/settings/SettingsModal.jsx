@@ -22,12 +22,13 @@ import { useSettingsSync, SECTIONS } from './SettingsShared';
 const SettingsModal = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const { mode } = useTheme();
+  const store = useTutorStore();
   const { 
-    isSettingsMinimized, setSettingsMinimized,
+    isSettingsMinimized = false, setSettingsMinimized, // Defensive fallback
     isExplainMinimized, isVisualizerMinimized,
     layoutView, settingsActiveSection, setSettingsActiveSection,
     showToast
-  } = useTutorStore();
+  } = store;
   
   const { isMobile } = useWindowSize();
   const activeSection = settingsActiveSection;
@@ -85,7 +86,11 @@ const SettingsModal = ({ isOpen, onClose }) => {
               WebkitBackdropFilter: isSettingsMinimized ? 'none' : 'blur(12px)',
               zIndex: -1,
             }}
-            onClick={onClose}
+            onClick={() => {
+              if (isSettingsMinimized) return;
+              setSettingsMinimized(false);
+              onClose();
+            }}
           />
 
           <motion.div
@@ -209,7 +214,11 @@ const SettingsModal = ({ isOpen, onClose }) => {
                       <Minus size={14} strokeWidth={2} />
                     </button>
                     <button 
-                      onClick={(e) => { e.stopPropagation(); onClose(); }}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setSettingsMinimized(false); 
+                        onClose(); 
+                      }}
                       className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
                     >
                       <X size={14} strokeWidth={2} />

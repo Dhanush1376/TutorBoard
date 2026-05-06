@@ -34,6 +34,7 @@ export const createCanvasSlice = (set, get) => ({
   
   selectedElementIds: [],
   history: { past: [], future: [] },
+  lastHistoryVersion: 0,
 
   setCanvasMode: (mode) => set((state) => { state.canvasMode = mode; }),
   openCanvas:    ()     => set((state) => { state.canvasMode = CANVAS_MODE.FULLSCREEN; }),
@@ -45,6 +46,7 @@ export const createCanvasSlice = (set, get) => ({
   expandCanvas:  ()     => set((state) => { state.canvasMode = CANVAS_MODE.FULLSCREEN; }),
   setCanvasLocked:    (locked) => set((state) => { state.isCanvasLocked = locked; }),
   setInteracting:     (active) => set((state) => { state.isInteracting = active; }),
+  setSelectedElements: (ids) => set((state) => { state.selectedElementIds = ids; }),
   setCurrentStep: (index)      => set((state) => {
     state.currentStepIndex = index;
     state.deltaState = null;
@@ -86,9 +88,11 @@ export const createCanvasSlice = (set, get) => ({
     
     // BUG FIX: Only reset current step if it's a DIFFERENT lesson title.
     const isNewTopic = !oldTimeline || oldTimeline.title !== data.title;
-    const finalTransform = { x: 0, y: 0, scale: 1 }; // Default for fixed canvas
+    // MED-10: Only reset viewport for new topics — preserve user's zoom/pan during doubt resolutions
+    const finalTransform = isNewTopic ? { x: 0, y: 0, scale: 1 } : get().canvasTransform;
 
     set({
+      d3Narration: '',
       timeline: {
         ...data,
         elements:    canvasObjects,
@@ -217,6 +221,8 @@ export const createCanvasSlice = (set, get) => ({
         future: [canvasObjects, ...history.future]
       }
     });
+    // MED-5: Sync manifest so undo state survives session switch
+    get()._syncManifest(previousState);
   },
 
   redo: () => {
@@ -232,6 +238,8 @@ export const createCanvasSlice = (set, get) => ({
         future: newFuture
       }
     });
+    // MED-5: Sync manifest so redo state survives session switch
+    get()._syncManifest(nextState);
   },
 
   addCanvasObjects: (objects) => {
@@ -351,26 +359,40 @@ export const createCanvasSlice = (set, get) => ({
   },
 
   deleteCanvasObject: (id) => set(state => {
+    // SEC-22: History support for deletions
+    state.history.past.push([...state.canvasObjects]);
+    if (state.history.past.length > MAX_HISTORY) state.history.past.shift();
+    state.history.future = [];
+
     state.canvasObjects = state.canvasObjects.filter(o => o.id !== id);
+    state.canvasVersion += 1;
   }),
 
   toggleNotePin: (id) => set(state => {
     const obj = state.canvasObjects.find(o => o.id === id);
-    if (obj) obj.isPinned = !obj.isPinned;
+    if (obj) {
+      // SEC-23: History support for pin toggles
+      state.history.past.push([...state.canvasObjects]);
+      if (state.history.past.length > MAX_HISTORY) state.history.past.shift();
+      state.history.future = [];
+
+      obj.isPinned = !obj.isPinned;
+      state.canvasVersion += 1;
+    }
   }),
 
   commitHistory: () => {
-    const { canvasObjects, history } = get();
-    // Prevent duplicate history entries
-    const lastState = history.past[history.past.length - 1];
-    if (lastState && JSON.stringify(lastState) === JSON.stringify(canvasObjects)) return;
+    const { canvasObjects, history, canvasVersion, lastHistoryVersion } = get();
+    // Optimization: Skip expensive JSON.stringify comparison.
+    // Use the version counter to determine if the state has actually changed since the last commit.
+    if (canvasVersion === lastHistoryVersion) return;
 
     set({
       history: {
         past: [...history.past, canvasObjects].slice(-MAX_HISTORY),
         future: []
       },
-      canvasVersion: get().canvasVersion + 1,
+      lastHistoryVersion: canvasVersion,
     });
   },
 });

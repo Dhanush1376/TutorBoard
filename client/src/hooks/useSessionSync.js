@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import useSocket from './useSocket';
 import { getCanvasFingerprint } from '../lib/utils';
 
-import { BASE_URL as API_URL } from '../services/api';
+import API, { BASE_URL as API_URL } from '../services/api';
 
 // Generate a stable local UUID for sessions that haven't been assigned a server ID yet.
 // This ensures toolbar drawings are saved immediately without waiting for the socket handshake.
@@ -36,6 +36,7 @@ export const useSessionSync = (chatMessages) => {
     canvasVersion,
     syncTrigger,
     setChatSessionId,
+    setSyncError,
     pinnedNotes,
     activeSnapshotId,
   } = useTutorStore();
@@ -43,6 +44,8 @@ export const useSessionSync = (chatMessages) => {
   const syncTimerRef = useRef(null);
   const lastSyncedRef = useRef(0);
   const fallbackTimerRef = useRef(null);
+  const isSyncingRef = useRef(false);
+  const lastPayloadRef = useRef('');
 
   const latestRef = useRef({});
   useEffect(() => {
@@ -52,7 +55,9 @@ export const useSessionSync = (chatMessages) => {
       drawColor, drawWidth, textToolSize, noteToolSize,
       noteColor, noteSize, layoutView, gridType, gridSize, showGrid,
       setChatSessionId, 
+      setSyncError,
       pinnedNotes,
+      doubtHistory, // FIXED: Now captured in snapshot
       activeSnapshotId
     };
   });
@@ -62,6 +67,12 @@ export const useSessionSync = (chatMessages) => {
   const performSync = async (isBeacon = false) => {
     const state = latestRef.current;
     
+    // Concurrency Lock: Don't start a new sync if one is in flight
+    if (isSyncingRef.current) {
+      console.log('[Sync] Skip: Sync already in flight');
+      return;
+    }
+
     // ONLY sync for real users, skipping guests
     if (!state.user || state.user.isGuest || !state.token) {
       if (isBeacon) console.log('[Sync] Beacon skipped: Guest or No Token');
@@ -98,6 +109,7 @@ export const useSessionSync = (chatMessages) => {
       canvasState: state.canvasObjects || [],
       canvasSteps: state.canvasSteps || [],
       canvasVersion: state.canvasVersion || 0,
+      doubtHistory: state.doubtHistory || [],
       preferences: {
         drawColor: state.drawColor, drawWidth: state.drawWidth,
         textToolSize: state.textToolSize, noteToolSize: state.noteToolSize,
@@ -107,36 +119,30 @@ export const useSessionSync = (chatMessages) => {
       pinnedNotes: state.pinnedNotes || []
     };
 
+    // Redundancy Check: Skip if payload hasn't changed since last successful sync
+    const payloadStr = JSON.stringify(payload);
+    if (payloadStr === lastPayloadRef.current && !isBeacon) {
+      console.log('[Sync] Skip: Payload identical to last successful sync');
+      return;
+    }
+
     // Use Beacon for unload if supported
     if (isBeacon && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      // Beacon doesn't support headers, so we include the token in the payload body
+      // SEC-HIGH-3: Do NOT embed token in body — Beacon API sends cookies for same-origin.
+      // Including token here would leak it into request body logs.
       const url = `${API_URL}/api/sessions/beacon`;
-      const blob = new Blob([JSON.stringify({ ...payload, token: state.token })], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
       const success = navigator.sendBeacon(url, blob);
       console.log(`[Sync] Beacon flush ${success ? 'queued' : 'failed'}`);
       return;
     }
 
+    isSyncingRef.current = true;
     try {
-      const resOptions = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        credentials: 'include' // CRITICAL: Allows HttpOnly tb-token cookie to be sent
-      };
+      const response = await API.post('/api/sessions', payload);
 
-      // Only add Bearer header if we have a real JWT (e.g. for non-cookie fallback or legacy social auth)
-      // If token is just 'verified', we rely on the tb-token cookie.
-      if (state.token && state.token !== 'verified' && state.token !== 'guest') {
-        resOptions.headers['Authorization'] = `Bearer ${state.token}`;
-      }
-
-      const response = await fetch(`${API_URL}/api/sessions`, resOptions);
-
-      if (response.ok) {
-        const savedSession = await response.json();
+      if (response.status === 200) {
+        const savedSession = response.data;
         
         // CRITICAL FOR SYNC: If we sent a local UUID and MongoDB created a real _id,
         // we MUST update our local tracking ID so future saves update the same document!
@@ -149,9 +155,14 @@ export const useSessionSync = (chatMessages) => {
 
         console.log('[Sync] Session flushed to cloud successfully.');
         lastSyncedRef.current = Date.now();
+        lastPayloadRef.current = payloadStr; // Update fingerprint
+        state.setSyncError(null); // Clear any previous errors
       }
     } catch (err) {
       console.error('[Sync] Flush failed:', err);
+      state.setSyncError(err.response?.data?.error || err.message || 'Background sync failed');
+    } finally {
+      isSyncingRef.current = false;
     }
   };
 

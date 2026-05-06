@@ -109,6 +109,8 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
   const h = (obj.h ?? 0.1) * CANVAS_HEIGHT;
 
   const label = obj.label ? DOMPurify.sanitize(obj.label) : null;
+  const content = obj.content ? DOMPurify.sanitize(obj.content) : null;
+  const sanitizedTextAnnotation = textAnnotation ? DOMPurify.sanitize(textAnnotation) : (obj.textAnnotation ? DOMPurify.sanitize(obj.textAnnotation) : null);
   const shape = (obj.type || obj.shape || 'orb').toLowerCase();
 
   const props = { 
@@ -118,6 +120,8 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     r: w/2, rx: w/2, ry: h/2,
     color: obj.color, 
     label, 
+    content,
+    textAnnotation: sanitizedTextAnnotation,
     isPinned: obj.isPinned 
   };
 

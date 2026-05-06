@@ -1,4 +1,3 @@
-// Server boot — LLM Chat System v2
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +10,9 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import * as Sentry from "@sentry/node";
+// SEC-GDPR: Robust CSRF Protection (Double Submit Cookie Pattern)
+// @ts-ignore
+import { generateCsrfSecret, deriveCsrfToken, validateCsrf } from './utils/auth/csrf.js';
 
 // Component imports (Assuming .js extensions remain for now due to ESM/TS compatibility in transitions)
 // @ts-ignore
@@ -212,8 +214,63 @@ app.use(cors({
   credentials: true,
 }));
 app.use(cookieParser());
-
 app.use(requestIdMiddleware);
+
+// SEC-GDPR: Robust CSRF Protection (Double Submit Cookie Pattern)
+// 1. CSRF Seeding Middleware (Sets the cookie for the client to read)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const secret = req.cookies?.['tb-csrf-secret'];
+  const token = req.cookies?.['tb-csrf-token'];
+  
+  // Re-issue tokens if either is missing, or if they don't match (prevents permanent 403 lockouts)
+  const isMissing = !secret || !token;
+  const isInvalid = secret && token && !validateCsrf(secret, token);
+
+  if (isMissing || isInvalid) {
+    // Only re-seed on GET requests to avoid disrupting state-changing flows, 
+    // but ensure we always have a valid pair for the next request.
+    if (req.method === 'GET') {
+      const newSecret = generateCsrfSecret();
+      const newToken = deriveCsrfToken(newSecret);
+      
+      console.log(`[Security] Seeding new CSRF tokens. Reason: ${isMissing ? 'Missing' : 'Invalid/Mismatched'}`);
+
+      // Set HTTP-only secret
+      res.cookie('tb-csrf-secret', newSecret, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+      });
+
+      // Set plain token for client to read and send back in header
+      res.cookie('tb-csrf-token', newToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+      });
+    }
+  }
+  next();
+});
+
+// 2. CSRF Verification Middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+  if (safeMethods.includes(req.method)) return next();
+
+  // SEC-GDPR: Fail-closed CSRF validation
+  const secret = req.cookies?.['tb-csrf-secret'];
+  const token = req.headers['x-csrf-token'] as string;
+
+  if (!secret || !token || !validateCsrf(secret, token)) {
+    console.warn(`[Security] CSRF Blocked: ${req.method} ${req.path} | Origin: ${req.headers.origin || 'unknown'}`);
+    return res.status(403).json({ 
+      error: 'Security validation failed (CSRF)',
+      code: 'CSRF_INVALID'
+    });
+  }
+  next();
+});
 
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/tutorboard';
 mongoose.set('bufferCommands', false);

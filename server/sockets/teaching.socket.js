@@ -27,7 +27,7 @@ export function setupTeachingSocket(io) {
       const cookies = cookie.parse(socket.handshake.headers.cookie || '');
       const token = cookies['tb-token'] || socket.handshake.auth?.token;
       
-      if (token === 'guest' || !token) {
+      if (token === 'guest' || token === 'verified' || token === 'null' || !token) {
         socket.user = { id: 'guest', isGuest: true };
         return next();
       }
@@ -47,6 +47,14 @@ export function setupTeachingSocket(io) {
       
       if (!user) {
         return next(new Error('Authentication error: User account no longer exists or timeout'));
+      }
+      
+      // SEC-16: Reject tokens issued before password change
+      if (user.passwordChangedAt) {
+        const changedTimestamp = Math.floor(user.passwordChangedAt.getTime() / 1000);
+        if (decoded.iat < changedTimestamp) {
+          return next(new Error('Authentication error: Password has been changed since this session started'));
+        }
       }
 
       socket.user = {
@@ -72,6 +80,14 @@ export function setupTeachingSocket(io) {
           console.warn(`[Auth] Token expired mid-session for user ${socket.user.id}`);
           socket.emit('auth:token-expired', { reason: 'SESSION_EXPIRED' });
           return; // Block event execution
+        }
+
+        // SEC-03: Proactive Revocation Check
+        if (socket.user.jti && await tokenStore.isTokenRevoked(socket.user.jti)) {
+          console.warn(`[Auth] Token revoked mid-session for user ${socket.user.id}`);
+          socket.emit('auth:token-revoked', { reason: 'SESSION_REVOKED' });
+          socket.disconnect(); 
+          return;
         }
       }
 

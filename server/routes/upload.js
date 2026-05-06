@@ -46,6 +46,15 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-router.post('/upload', upload.single('file'), validateFile, uploadFile);
+router.post('/upload', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ error: `Upload error: ${err.message}` });
+    } else if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, validateFile, uploadFile);
 
 export default router;

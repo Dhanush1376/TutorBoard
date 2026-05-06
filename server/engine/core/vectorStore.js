@@ -2,6 +2,9 @@ import pool, { isPostgresReady } from '../../utils/core/postgres.js';
 import { getEmbeddings } from '../../utils/ai/llmClient.js';
 
 class VectorStoreService {
+  constructor() {
+    this.writeQueue = Promise.resolve();
+  }
   /**
    * Generates embedding for text using the LLM client.
    */
@@ -19,37 +22,40 @@ class VectorStoreService {
    * Stores a session summary with its embedding in Postgres.
    */
   async addSession(sessionId, summary, metadata = {}) {
-    const safeSessionId = String(sessionId || '').replace(/\.\.\//g, '').replace(/[^\w-]/g, '_');
-    const userId = metadata.userId || 'anonymous';
-    const topic = metadata.topic || 'General';
-    const summaryText = typeof summary === 'string' ? summary : JSON.stringify(summary);
+    // BUG-LOCK-09: Serialize writes to prevent potential race conditions or connection spikes
+    return this.writeQueue = this.writeQueue.then(async () => {
+      const safeSessionId = String(sessionId || '').replace(/\.\.\//g, '').replace(/[^\w-]/g, '_');
+      const userId = metadata.userId || 'anonymous';
+      const topic = metadata.topic || 'General';
+      const summaryText = typeof summary === 'string' ? summary : JSON.stringify(summary);
 
-    try {
-      const embedding = await this.generateEmbedding(summaryText);
-      if (!embedding) {
-        console.warn(`[VectorStore] Skipping storage for session ${safeSessionId} (no embedding)`);
-        return;
-      }
-
-      if (!isPostgresReady()) return;
-
-      const client = await pool.connect();
       try {
-        // Convert embedding array to string format for pgvector '[0.1, 0.2, ...]'
-        const vectorStr = `[${embedding.join(',')}]`;
-        
-        await client.query(
-          'INSERT INTO session_memory (user_id, session_id, topic, summary, embedding) VALUES ($1, $2, $3, $4, $5)',
-          [userId, safeSessionId, topic, summaryText, vectorStr]
-        );
-        
-        console.log(`[VectorStore] 🧠 Persisted memory for session: ${safeSessionId} (${topic})`);
-      } finally {
-        client.release();
+        const embedding = await this.generateEmbedding(summaryText);
+        if (!embedding) {
+          console.warn(`[VectorStore] Skipping storage for session ${safeSessionId} (no embedding)`);
+          return;
+        }
+
+        if (!isPostgresReady()) return;
+
+        const client = await pool.connect();
+        try {
+          // Convert embedding array to string format for pgvector '[0.1, 0.2, ...]'
+          const vectorStr = `[${embedding.join(',')}]`;
+          
+          await client.query(
+            'INSERT INTO session_memory (user_id, session_id, topic, summary, embedding) VALUES ($1, $2, $3, $4, $5)',
+            [userId, safeSessionId, topic, summaryText, vectorStr]
+          );
+          
+          console.log(`[VectorStore] 🧠 Persisted memory for session: ${safeSessionId} (${topic})`);
+        } finally {
+          client.release();
+        }
+      } catch (err) {
+        console.error(`[VectorStore] Failed to add session ${safeSessionId}:`, err.message);
       }
-    } catch (err) {
-      console.error(`[VectorStore] Failed to add session ${safeSessionId}:`, err.message);
-    }
+    });
   }
 
   /**

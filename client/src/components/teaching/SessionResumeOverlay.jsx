@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { History, PlayCircle } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
+import { useTeachingMachine } from '../../hooks/useTeachingMachine';
 
 /**
  * SessionResumeOverlay
@@ -9,15 +10,12 @@ import useTutorStore from '../../store/tutorStore';
  */
 const SessionResumeOverlay = () => {
   const { resumeContext, setResumeContext } = useTutorStore();
+  const { resume } = useTeachingMachine();
 
-  useEffect(() => {
-    if (resumeContext) {
-      const timer = setTimeout(() => {
-        setResumeContext(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [resumeContext, setResumeContext]);
+  const handleResume = () => {
+    resume();
+    setResumeContext(null);
+  };
 
   return (
     <AnimatePresence>
@@ -26,14 +24,14 @@ const SessionResumeOverlay = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-[10000] flex items-center justify-center pointer-events-none"
+          className="absolute inset-0 z-[10000] flex items-center justify-center"
           style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(8px)' }}
         >
           <motion.div
             initial={{ scale: 0.9, y: 20, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 1.1, opacity: 0 }}
-            className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-4 max-w-sm text-center"
+            className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-6 max-w-sm text-center"
           >
             <div className="w-16 h-16 rounded-full flex items-center justify-center mb-2"
               style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
@@ -54,6 +52,13 @@ const SessionResumeOverlay = () => {
                 Step {resumeContext.stepIndex + 1}
               </span>
             </div>
+
+            <button
+              onClick={handleResume}
+              className="mt-4 px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[13px] font-medium hover:scale-105 active:scale-95 transition-all shadow-xl"
+            >
+              Resume Lesson
+            </button>
 
             <p className="text-[10px] text-[var(--text-tertiary)] opacity-60 uppercase tracking-widest font-normal mt-2">
               Ready to learn

@@ -69,7 +69,7 @@ function classifyFast(topic) {
  * LLM-powered classification for ambiguous topics.
  * Only called if the fast classifier has low confidence.
  */
-async function classifyDeep(topic, domain, userConfig) {
+async function classifyDeep(topic, domain, userConfig, signal) {
   try {
     const res = await requestCompletion({
       model: getTextModel(),
@@ -94,12 +94,14 @@ Return ONLY a JSON: { "conceptType": "TYPE", "confidence": 0.0-1.0, "reason": "o
       temperature: 0,
       maxTokens: 120,
       userConfig,
-      responseMimeType: 'application/json'
+      responseMimeType: 'application/json',
+      signal
     });
 
     const parsed = JSON.parse(res.content || '{}');
     return parsed.conceptType || 'FLOW';
   } catch (err) {
+    if (err.name === 'AbortError') throw err;
     console.error(`[AnimationPlanner] ⚠️ Deep classification failed: ${err.message}. Falling back to heuristics.`);
     return classifyFast(topic);
   }
@@ -110,16 +112,18 @@ Return ONLY a JSON: { "conceptType": "TYPE", "confidence": 0.0-1.0, "reason": "o
  *
  * @param {string} topic - The user's topic
  * @param {string} domain - Detected domain from domainConfig
+ * @param {object} [options] - Options including AbortSignal
  * @returns {Promise<PlanningResult>}
  */
-export async function planAnimation(topic, domain, userConfig) {
+export async function planAnimation(topic, domain, userConfig, options = {}) {
+  const signal = options.signal;
   // 1. Fast classify
   const fastType = classifyFast(topic);
 
   // 2. Check confidence — if multiple patterns match (high ambiguity), use LLM
   const matchCount = Object.values(CONCEPT_PATTERNS).filter(p => p.test(topic)).length;
   const conceptType = matchCount > 3
-    ? await classifyDeep(topic, domain, userConfig)
+    ? await classifyDeep(topic, domain, userConfig, signal)
     : fastType;
 
   // 3. Select renderer and style

@@ -11,6 +11,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   const { emit, on, isConnected, connectionError } = useSocket(isAuthReady);
   const playIntervalRef = useRef(null);
   const safetyTimeoutRef = useRef(null);
+  const isStartingRef = useRef(false);
 
   // ─── Pull store state & actions ──────────────────────────────────────────
   const {
@@ -19,7 +20,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     currentStepIndex, totalSteps,
     canvasObjects, canvasConnections, canvasSteps,
     doubtResponse, isDoubtProcessing, doubtHistory, activeDoubtId,
-    error, greetingMessage, chatSessionId,
+    error, greetingMessage, chatSessionId, generationProgress,
 
     isPlaying, isPaused, playbackSpeed, isDeltaRunning,
     isInteracting, activeSnapshotId, guestTrialStatus,
@@ -27,7 +28,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
 
 
-    setMachineState, setSessionId, setConnected, setConnectionError,
+    setMachineState, setSessionId, setConnected, setConnectionError, syncConnection,
     setTimeline, setCurrentStep, setError, setGreeting, setChatSessionId,
     setLearnerProfile, setResumeContext, setLevelUpEvent,
 
@@ -82,6 +83,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     guestTrialStatus: s.guestTrialStatus,
     isConnected: s.isConnected,
     connectionError: s.connectionError,
+    generationProgress: s.generationProgress,
 
 
 
@@ -99,6 +101,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     addDoubt: s.addDoubt,
     setDoubtResponse: s.setDoubtResponse,
     setDeltaState: s.setDeltaState,
+    setGenerationProgress: s.setGenerationProgress,
 
     mutateCanvasObjects: s.mutateCanvasObjects,
     addCanvasObjects: s.addCanvasObjects,
@@ -123,6 +126,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     setTopic: s.setTopic,
     setCanvasObjectsWithHistory: s.setCanvasObjectsWithHistory,
     forceReset: s.forceReset,
+    syncConnection: s.syncConnection,
   })));
 
   // ─── Refs for Listener Stability ───
@@ -152,11 +156,6 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
 
 
-  // ─── Sync connection state ────────────────────────────────────────────────
-  useEffect(() => {
-    if (isConnected !== storeIsConnected) setConnected(isConnected);
-    if (connectionError !== storeConnectionError) setConnectionError(connectionError);
-  }, [isConnected, connectionError, storeIsConnected, storeConnectionError, setConnected, setConnectionError]);
 
 
   // ─── Notification Helper ──────────────────────────────────────────────────
@@ -271,6 +270,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // Generation progress message
     cleanups.push(on('teaching:progress', (data) => {
       console.log(`[Machine] Progress: ${data.message}`);
+      setGenerationProgress(data.message);
       setNarrationTokens(''); // Clear previous tokens when stage changes
     }));
 
@@ -480,14 +480,14 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
         }
       }, 20000);
 
-      // 2. Fatal timeout at 30s
+      // 2. Fatal timeout at 180s (autonomous agents can be slow)
       safetyTimeoutRef.current = setTimeout(() => {
         if (machineState === STATES.GENERATING) {
-          console.warn('[Machine] ⚠️ 30s timeout — no server response. Resetting.');
+          console.warn('[Machine] ⚠️ 180s timeout — no server response. Resetting.');
           setError('The AI is taking too long to respond. Please try again or check your connection.');
           forceReset();
         }
-      }, 30000);
+      }, 180000);
 
       return () => {
         clearTimeout(warningTimer);
@@ -540,6 +540,9 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   const startSession = useCallback((topicStr, initialQuestion, activeMode, file = null) => {
+    if (machineState === STATES.GENERATING || isStartingRef.current) return;
+    isStartingRef.current = true;
+    
     const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
 
     // Enforce Guest Limits locally
@@ -547,6 +550,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       const allowed = incrementGuestSession();
       if (!allowed) {
         console.warn('[Machine] Guest session limit reached.');
+        isStartingRef.current = false;
         return;
       }
       incrementGuestUsage(); // Initial question counts as a message
@@ -570,7 +574,10 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       chatId: undefined, // Force a new ID on server
       file // Multimodal support
     });
-  }, [emit, storeStartSession, selectedAgent, setChatSessionId, incrementGuestSession, incrementGuestUsage]);
+    
+    // Reset guard after short window
+    setTimeout(() => { isStartingRef.current = false; }, 2000);
+  }, [emit, storeStartSession, selectedAgent, setChatSessionId, incrementGuestSession, incrementGuestUsage, machineState]);
 
 
   const askDoubt = useCallback(async (question, activeMode, file = null) => {
@@ -702,6 +709,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     doubtResponse,
     isDoubtProcessing,
     doubtHistory,
+    generationProgress,
     error,
     greetingMessage,
     topic,

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Sun, Moon, Check, TableProperties,
   Grid3X3, PanelLeft, PanelRight, Eye,
-  Zap
+  Zap, Palette
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { useTheme } from '../../context/ThemeContext';
@@ -206,6 +206,52 @@ export default function AppearanceSection({ syncSettings }) {
             />
           ))}
         </div>
+      </div>
+
+      {/* ── Typography & Effects ───────────────────────────────────────── */}
+      <div>
+        <SectionTitle>Typography & Effects</SectionTitle>
+        <SettingsGroup>
+          <SettingsRow
+            icon={Zap}
+            label="Global Font"
+            description="Interface and canvas typography"
+            rightElement={
+              <RightInlineSelect
+                value={store.globalFont || 'geist'}
+                onChange={store.setGlobalFont}
+                options={[
+                  { value: 'geist', label: 'Geist Sans' },
+                  { value: 'inter', label: 'Inter' },
+                  { value: 'outfit', label: 'Outfit' },
+                  { value: 'serif', label: 'Classic Serif' },
+                ]}
+              />
+            }
+          />
+          <SettingsRow
+            icon={Palette}
+            label="Glass Intensity"
+            description="Frosted glass effect strength"
+            borderBottom={false}
+            rightElement={
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '160px' }}>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  value={store.glassIntensity || 80}
+                  onChange={(e) => store.setGlassIntensity(parseInt(e.target.value))}
+                  style={{ flex: 1, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', width: '32px', textAlign: 'right' }}>
+                  {store.glassIntensity}%
+                </span>
+              </div>
+            }
+          />
+        </SettingsGroup>
       </div>
 
       {/* ── Canvas Workspace ─────────────────────────────────────────── */}

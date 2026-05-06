@@ -11,13 +11,16 @@ export const STATES = {
   ERROR:           'ERROR',
 };
 
-export const capManifest = (manifest, limit = 20) => {
+export const capManifest = (manifest, limit = 20, getStore) => {
   const keys = Object.keys(manifest);
   if (keys.length <= limit) return manifest;
   
   const sorted = keys.sort((a, b) => (manifest[a]?.lastActive || 0) - (manifest[b]?.lastActive || 0));
   const evictedKey = sorted[0];
   const { [evictedKey]: _, ...rest } = manifest;
+  if (getStore && getStore().showToast) {
+    getStore().showToast({ message: 'Oldest canvas session archived to save space', type: 'info' });
+  }
   return rest;
 };
 
@@ -30,6 +33,7 @@ export const createSessionSlice = (set, get) => ({
   topic:              '',
   isConnected:        false,
   connectionError:    null,
+  syncError:          null,
   error:              null,
   greetingMessage:    null,
   generationProgress: null,
@@ -46,8 +50,6 @@ export const createSessionSlice = (set, get) => ({
     count: 0, 
     limit: 10 
   },
-  voiceEnabled: false,
-  toggleVoice: () => set(s => ({ voiceEnabled: !s.voiceEnabled })),
   resumeContext:      null, // { topic, stepIndex }
   activeSnapshotId:   null, // ID of message whose snapshot we are currently viewing/editing
   levelUpEvent:       null, // { message, newLevel, ts }
@@ -70,8 +72,10 @@ export const createSessionSlice = (set, get) => ({
 
   setMachineState:  (state) => set({ machineState: state, error: null }),
   setTopic:         (topic) => set({ topic }),
-  setConnected:     (connected) => set({ isConnected: connected, connectionError: null }),
-  setConnectionError: (err)     => set({ connectionError: err, isConnected: false }),
+  setConnected:     (connected) => set({ isConnected: connected }),
+  setConnectionError: (err)     => set({ connectionError: err }),
+  setSyncError:      (err)     => set({ syncError: err }),
+  syncConnection:   (connected, error) => set({ isConnected: connected, connectionError: error }),
   setError:         (err)       => set({ error: err, machineState: STATES.IDLE }),
   setGreeting:      (msg)       => set({ greetingMessage: msg, machineState: STATES.IDLE }),
   setChatSessionId: (id)        => set({ chatSessionId: id }),
@@ -122,29 +126,7 @@ export const createSessionSlice = (set, get) => ({
     } 
   }),
 
-  takeSnapshot: () => {
-    const { canvasObjects, canvasTransform, currentStepIndex, snapshots } = get();
-    const id = `snap-${Date.now()}`;
-    set({
-      snapshots: {
-        ...snapshots,
-        [id]: { canvasObjects: [...canvasObjects], canvasTransform, currentStepIndex }
-      }
-    });
-    return id;
-  },
 
-  restoreSnapshot: (id) => {
-    const { snapshots } = get();
-    const snap = snapshots[id];
-    if (snap) {
-      set({
-        canvasObjects: snap.canvasObjects,
-        canvasTransform: snap.canvasTransform,
-        currentStepIndex: snap.currentStepIndex
-      });
-    }
-  },
 
   setGenerationProgress: (progress)  => set({ 
 
@@ -207,7 +189,7 @@ export const createSessionSlice = (set, get) => ({
       updatedManifest[newId].lastActive = Date.now();
     }
 
-    const cappedManifest = capManifest(updatedManifest, 20);
+    const cappedManifest = capManifest(updatedManifest, 20, get);
 
     set({ 
       sessionId: newId, 
@@ -238,6 +220,7 @@ export const createSessionSlice = (set, get) => ({
     greetingMessage:    null,
     generationProgress: null,
     isTimelineReady:    false,
+    d3Narration:        '',
   }),
 
   resetTeaching: () => set({
@@ -255,33 +238,50 @@ export const createSessionSlice = (set, get) => ({
     snapshots:          {},
     error:              null,
     generationProgress: null,
+    d3Narration:        '',
   }),
 
-  endSession: () => set({
-    isPlaying:          false,
-    isPaused:           false,
-    canvasMode:         'CLOSED',
-    timeline:           null,
-    canvasObjects:      [],
-    canvasConnections:  [],
-    canvasSteps:        [],
-    currentStepIndex:   0,
-    totalSteps:         0,
-    doubtResponse:      null,
-    doubtHistory:       [],
-    snapshots:          {},
-    error:              null,
-    greetingMessage:    null,
-    generationProgress: null,
-    machineState:       STATES.IDLE,
-    sessionId:          null,
-    chatSessionId:      null,
-    topic:              '',
+  endSession: () => {
+    // MED-11: Save current canvas to manifest before clearing to prevent data loss
+    const { sessionId, canvasObjects, pinnedNotes, canvasTransform, sessionManifest, chatSessionId } = get();
+    const updatedManifest = { ...sessionManifest };
+    if (sessionId && (canvasObjects?.length > 0 || pinnedNotes?.length > 0)) {
+      updatedManifest[sessionId] = {
+        canvasObjects: [...(canvasObjects || [])],
+        pinnedNotes: [...(pinnedNotes || [])].slice(0, 20),
+        canvasTransform: { ...(canvasTransform || { x: 0, y: 0, scale: 1 }) },
+        chatSessionId,
+        lastActive: Date.now()
+      };
+    }
 
-    activeDoubtId:      null,
-    showDoubtThread:    false,
-    isTimelineReady:    false,
-  }),
+    set({
+      sessionManifest:    capManifest(updatedManifest, 20, get),
+      isPlaying:          false,
+      isPaused:           false,
+      canvasMode:         'CLOSED',
+      timeline:           null,
+      canvasObjects:      [],
+      canvasConnections:  [],
+      canvasSteps:        [],
+      currentStepIndex:   0,
+      totalSteps:         0,
+      doubtResponse:      null,
+      doubtHistory:       [],
+      snapshots:          {},
+      error:              null,
+      greetingMessage:    null,
+      generationProgress: null,
+      machineState:       STATES.IDLE,
+      sessionId:          null,
+      chatSessionId:      null,
+      topic:              '',
+      d3Narration:        '',
+      activeDoubtId:      null,
+      showDoubtThread:    false,
+      isTimelineReady:    false,
+    });
+  },
 
   startDoubtTransition: (initialDoubt = []) => {
     set({

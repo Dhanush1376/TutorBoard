@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useShallow } from 'zustand/react/shallow';
 import AuthLanding from './pages/AuthLanding';
 import Home from './pages/Home';
 import MasteryDashboard from './components/dashboard/MasteryDashboard';
@@ -17,12 +18,23 @@ import ThemedPopup from './components/layout/ThemedPopup';
 import IntroAnimation from './components/layout/IntroAnimation';
 import useTutorStore from './store/tutorStore';
 import GlobalOverlayManager from './components/common/GlobalOverlayManager';
+import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import ToastContainer from './components/layout/ToastContainer';
 import TrialLimitOverlay from './components/common/TrialLimitOverlay';
 
 function App() {
+  useKeyboardShortcuts();
   const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
-  const { setGlobalOverlay, hydrate, setSidebarOpen, globalOverlay } = useTutorStore();
+  const { 
+    setGlobalOverlay, hydrate, setSidebarOpen, 
+    globalOverlay, activeOverlay 
+  } = useTutorStore(useShallow(s => ({
+    setGlobalOverlay: s.setGlobalOverlay,
+    hydrate: s.hydrate,
+    setSidebarOpen: s.setSidebarOpen,
+    globalOverlay: s.globalOverlay,
+    activeOverlay: s.activeOverlay
+  })));
 
 
   // SEC-02 & FO-03: Initialize store from client environment and listen for resize
@@ -174,7 +186,7 @@ function App() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {!globalOverlay.isActive && <GlobalOverlayManager />}
+        {(activeOverlay || globalOverlay.isActive) && <GlobalOverlayManager />}
       </AnimatePresence>
       <GlobalStatusOverlay />
       <ThemedPopup />

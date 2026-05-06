@@ -278,7 +278,7 @@ ${userConfig.customInstructions ? `- Custom AI Behavior: ${userConfig.customInst
 }
 
 // ─── Single Stage Executor ────────────────────────────────────────────────────
-async function runStage({ stageName, prompt, input, model, onProgress, userConfig, onStream }) {
+async function runStage({ stageName, prompt, input, model, onProgress, userConfig, onStream, signal }) {
   onProgress(stageName);
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
@@ -322,6 +322,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
           onStream: attempt === 1 ? onStream : undefined,
           file: stageFile,
           skipRacing: true, // Don't double-race within the loop
+          signal,
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('STAGE_TIMEOUT')), STAGE_TIMEOUT))
       ]);
@@ -380,7 +381,7 @@ export async function runAgentLoop(params) {
   }
 }
 
-async function _runAgentLoopInternal({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null, file = null }) {
+async function _runAgentLoopInternal({ topic, domain, model = null, onProgress = () => {}, systemPrompt = null, maxSteps = null, planningResult = null, userConfig = null, learnerProfile = null, file = null, signal = null }) {
   console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
 
   // Use a deep reasoning model for planning/narrative, but a fast/cheap one for
@@ -399,7 +400,7 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
     const toolDecision = detectTools(topic);
     const doSearch = toolDecision.useWebSearch || shouldSearch(topic, domain);
 
-    console.log(`[AgentLoop] 🔍 Starting research phase for: "${topic}"`);
+    onProgress('🔍 Researching background context & web data...');
     const researchStart = Date.now();
 
     const [pastContext, webResults] = await Promise.all([
@@ -421,6 +422,7 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       console.log(`[AgentLoop] 🌐 Web search returned ${sources.length} sources for: "${topic.substring(0, 40)}..."`);
     }
 
+    onProgress('🧠 Synthesizing lesson plan & curriculum structure...');
     const plannerPrompt = (systemPrompt || getPrompt('planner'))
       .replace(/{{MIN_STEPS}}/g, String(minSteps))
       .replace(/{{MAX_STEPS}}/g, String(targetMax))
@@ -432,7 +434,7 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       stageName: '💡 Thinking deeply about the topic...',
       prompt: plannerPrompt,
       input: { topic, domain, maxSteps: targetMax, learnerProfile, file },
-      model: fullModel, onProgress, userConfig
+      model: fullModel, onProgress, userConfig, signal
     });
 
     // Capture normalized topic from planner if available
@@ -449,25 +451,28 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
         prompt: getPrompt('narrator'),
         input: { plannerOutput, learnerProfile, webContextStr },
         model: fullModel, onProgress, userConfig,
-        onStream: (chunk) => onProgress('narration_chunk', chunk)
+        onStream: (chunk) => onProgress('narration_chunk', chunk),
+        signal
       }),
       // Stage 3: VISUALIZATION — FAST MODEL
       runStage({
         stageName: '🎨 Designing visual representation...',
         prompt: getPrompt('visualizer'),
         input: { plannerOutput, learnerProfile, webContextStr }, // Pass webContext to visualizer too
-        model: fastModel, onProgress, userConfig
+        model: fastModel, onProgress, userConfig,
+        signal
       })
     ]);
 
     console.log(`[AgentLoop] ✅ Stages 2 & 3 COMPLETE — ${narratorOutput.narrations?.length || 0} narrations, ${visualizerOutput.visual_steps?.length || 0} visual steps`);
 
+    onProgress('🎞️ Generating cinematic animation sequences...');
     // Stage 4: ANIMATION — FAST MODEL
     let animatorOutput = await runStage({
       stageName: 'Choreographing cinematic motion...',
       prompt: getPrompt('animator'),
       input: { plannerOutput, visualizerOutput, learnerProfile },
-      model: fastModel, onProgress, userConfig
+      model: fastModel, onProgress, userConfig, signal
     });
 
     // FIX STAGE 4: Schema Normalization (Single object -> Array)
@@ -492,7 +497,7 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       stageName: '⚖️ Reviewing for consistency & clarity...',
       prompt: getPrompt('critic'),
       input: criticInput,
-      model: fastModel, onProgress, userConfig
+      model: fastModel, onProgress, userConfig, signal
     });
     console.log(`[AgentLoop] ✅ Stage 5 — approved: ${criticOutput.approved}, score: ${criticOutput.scores?.overall}`);
 
@@ -537,7 +542,7 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       stageName: '✨ Finalizing high-fidelity plan...',
       prompt: getPrompt('validator'),
       input: validatorInput,
-      model: fastModel, onProgress, userConfig
+      model: fastModel, onProgress, userConfig, signal
     });
     console.log(`[AgentLoop] ✅ Stage 6 — status: ${validatorRaw.status}`);
 

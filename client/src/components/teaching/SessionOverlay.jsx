@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Loader, AlertTriangle, RotateCcw, ArrowRight, 
+  AlertTriangle, RotateCcw, ArrowRight, 
   Rewind, Play, Dumbbell, Gauge, Bookmark,
   MessageCircleQuestion, Sparkles
 } from 'lucide-react';
@@ -71,7 +71,7 @@ const SessionOverlay = ({
 
             <div>
               <h3 className="text-lg font-normal text-[var(--text-primary)] mb-2">
-                Building your visual lesson
+                {store.generationProgress?.label || 'Building your visual lesson'}
               </h3>
               <p className="text-sm text-[var(--text-secondary)]">
                 Creating an interactive animated explanation for

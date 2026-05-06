@@ -8,7 +8,15 @@ import passport from '../utils/auth/passport.js';
 const router = express.Router();
 
 router.get('/exchange', exchangeToken);
-router.get('/me', protect, getMe);
+const inlineProtect = (req, res, next) => {
+  const url = req.originalUrl || req.url || '';
+  if (req.query.token || req.query.access_token || url.includes('token=') || url.includes('access_token=')) {
+    return res.status(400).json({ error: 'TOKEN_IN_URL_REJECTED' });
+  }
+  next();
+};
+
+router.get('/me', inlineProtect, protect, getMe);
 router.post('/signup', authSignupRateLimiter, validateBody(SignupSchema), signup);
 router.post('/signin', authSigninRateLimiter, validateBody(SigninSchema), signin);
 router.post('/logout', protect, logout);

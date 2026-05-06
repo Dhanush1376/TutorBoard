@@ -233,7 +233,8 @@ function postProcessTimeline(raw, topic, planningResult) {
 }
 
 // ─── Main Generation Entry Point ──────────────────────────────────────────────
-export async function generateTimeline(sessionId, topic, onProgress = () => { }, modelId = null, userConfig = null, file = null, intent = null) {
+export async function generateTimeline(sessionId, topic, onProgress = () => { }, modelId = null, userConfig = null, file = null, intent = null, options = {}) {
+  const signal = options.signal;
   const session = await sessionStore.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -319,7 +320,8 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
         topic,
         domain: intent.domain || 'science',
         modelId,
-        userConfig
+        userConfig,
+        signal
       });
 
       if (simulationHtml) {
@@ -345,7 +347,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
     // Stage 1: Animation Planner
     onProgress('Classifying concept & selecting renderer...');
     const domain = getPrimaryDomain(topic);
-    const planningResult = await planAnimation(topic, domain, userConfig);
+    const planningResult = await planAnimation(topic, domain, userConfig, { signal });
 
     // Stage 2: Execute Agent Loop
     onProgress('Running autonomous visual planning loop...');
@@ -361,6 +363,7 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
       userConfig,
       learnerProfile,
       file,
+      signal,
     });
 
     if (!rawSceneGraph || (!rawSceneGraph.timeline && !rawSceneGraph.steps)) {
@@ -531,7 +534,8 @@ export async function handleDoubt(sessionId, question, modelId = null, userConfi
   }
 }
 
-export async function generateTextResponse(sessionId, prompt, modelId = null, userConfig = null, file = null) {
+export async function generateTextResponse(sessionId, prompt, modelId = null, userConfig = null, file = null, options = {}) {
+  const signal = options.signal;
   try {
     const session = await sessionStore.get(sessionId);
     const topic = session?.topic || 'General Discussion';
@@ -552,11 +556,16 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
         { role: 'user', content: prompt },
       ],
       temperature: 0.7,
-      maxTokens: 500,
-      userConfig,
-      taskType: 'simple_qa',
-      file,
+      onStream: (token) => {
+        if (options.onProgress) {
+          // Standard text_chunk payload for the socket layer
+          options.onProgress('text_chunk', token);
+        }
+      },
+      signal,
     });
+
+    return response;
 
     if (response.error || !response.content) {
       const errorMsg = response.error || 'The AI provider returned an empty response.';

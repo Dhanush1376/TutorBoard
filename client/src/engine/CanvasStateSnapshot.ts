@@ -1,8 +1,12 @@
 /**
  * CanvasStateSnapshot v2.0
  * 
- * Purpose: Capture the CURRENT rendered state of the canvas in a clean, serializable structure.
- * Extract ONLY data (no DOM nodes, no GSAP instances).
+ * Specialized AI-facing utility for capturing the rendered board state.
+ * Unlike uiSlice.takeSnapshot (which persists store data for users), 
+ * this utility performs deep D3 DOM crawling to capture algorithmic visuals 
+ * (arrays, trees, pointers) that exist only in the SVG layer.
+ * 
+ * Used exclusively by the DeltaAgent to provide context-aware doubt responses.
  */
 
 export interface CanvasSnapshot {

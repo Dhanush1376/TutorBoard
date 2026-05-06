@@ -74,6 +74,7 @@ export const updatePassword = async (req, res) => {
     }
 
     user.password = newPassword;
+    user.passwordChangedAt = Date.now();
     await user.save(); // pre-save hook handles hashing
 
     // SEC-16: Revoke current session on password change for security

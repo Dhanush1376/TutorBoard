@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import DOMPurify from 'dompurify';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './CanvasContext';
 import { Handle, RotateHandle, DeleteHandle } from './ElementHandles.jsx';
@@ -23,6 +24,7 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
   
   const isEditing = editingObjectId === obj.id;
   const content = obj.content || obj.label || '';
+  const sanitizedContent = React.useMemo(() => DOMPurify.sanitize(content), [content]);
   const styles = obj.styles || {};
   
   // Normalized stored bounds

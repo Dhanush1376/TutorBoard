@@ -3,10 +3,10 @@ import ActionButtonBase from './ActionButtonBase';
 import useTutorStore from '../../../store/tutorStore';
 
 const VisualizerTool = (props) => {
-  const { setVisualizerOpen } = useTutorStore();
+  const { setCodeEditorOpen } = useTutorStore();
 
   const handleClick = () => {
-    setVisualizerOpen(true);
+    setCodeEditorOpen(true);
   };
 
   return (

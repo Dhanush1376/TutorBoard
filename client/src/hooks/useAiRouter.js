@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { API_URL } from '../components/settings/SettingsShared';
 import { useAuth } from '../context/AuthContext';
+import API from '../services/api';
 
 /**
  * Hook to interact with the new modular AI Router
@@ -16,27 +17,13 @@ export function useAiRouter() {
     setError(null);
     
     try {
-      const fetchOptions = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query, options }),
-        credentials: 'include'
-      };
+      const response = await API.post('/api/ai/ask', { query, options });
 
-      if (token && token !== 'verified' && token !== 'guest') {
-        fetchOptions.headers['Authorization'] = `Bearer ${token}`;
+      if (response.status !== 200) {
+        throw new Error(response.data?.message || 'AI Router failed');
       }
 
-      const response = await fetch(`${API_URL}/api/ai/ask`, fetchOptions);
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'AI Router failed');
-      }
-
-      const data = await response.json();
+      const data = response.data;
       setResult(data);
       return data;
 

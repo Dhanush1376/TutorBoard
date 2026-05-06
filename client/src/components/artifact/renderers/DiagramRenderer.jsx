@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GitBranch, Code, Eye, AlertTriangle, ZoomIn, ZoomOut, RotateCcw, Move } from 'lucide-react';
 import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
 import Editor from '@monaco-editor/react';
 
 let mermaidInitialized = false;
@@ -130,7 +131,7 @@ const DiagramRenderer = ({ content, isDark, onContentChange }) => {
       mermaid.initialize({
         startOnLoad: false,
         theme: isDark ? 'dark' : 'default',
-        securityLevel: 'loose',
+        securityLevel: 'strict',
         fontFamily: '"Inter", sans-serif',
         flowchart: { htmlLabels: true, curve: 'basis' },
       });
@@ -260,7 +261,7 @@ const DiagramRenderer = ({ content, isDark, onContentChange }) => {
                     transition: isDragging ? 'none' : 'transform 0.1s ease',
                   }}
                   className="mermaid-diagram"
-                  dangerouslySetInnerHTML={{ __html: svgHtml }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgHtml, { USE_PROFILES: { svg: true, svgFilters: true }, ADD_TAGS: ['foreignObject'] }) }}
                 />
               </div>
             )}

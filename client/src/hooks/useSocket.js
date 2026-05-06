@@ -8,6 +8,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 
 import { BASE_URL as SOCKET_URL } from '../services/api';
+import useTutorStore from '../store/tutorStore';
 
 // Socket Singleton instance
 let globalSocket = null;
@@ -15,6 +16,7 @@ let globalSocket = null;
 export function useSocket(isAuthReady = true) {
   const [isConnected, setIsConnected] = useState(globalSocket?.connected || false);
   const [connectionError, setConnectionError] = useState(null);
+  const { setConnected, setConnectionError: setStoreConnectionError } = useTutorStore();
   const listenersRef = useRef(new Map());
 
   // Handle global connection state
@@ -37,7 +39,9 @@ export function useSocket(isAuthReady = true) {
     const onConnect = () => {
       console.log('[Socket] Connected:', socket.id);
       setIsConnected(true);
+      setConnected(true);
       setConnectionError(null);
+      setStoreConnectionError(null);
 
       // SEC-18: Broadcast connection event to AuthContext to refresh API keys/prefs
       window.dispatchEvent(new CustomEvent('tb-refresh-api-prefs'));
@@ -46,12 +50,16 @@ export function useSocket(isAuthReady = true) {
     const onDisconnect = (reason) => {
       console.log('[Socket] Disconnected:', reason);
       setIsConnected(false);
+      setConnected(false);
     };
 
     const onError = (error) => {
       console.error('[Socket] Connection error:', error.message);
-      setConnectionError(error.message);
+      const msg = error.message || "Connection failed";
+      setConnectionError(msg);
+      setStoreConnectionError(msg);
       setIsConnected(false);
+      setConnected(false);
     };
 
     const onRetry = () => {

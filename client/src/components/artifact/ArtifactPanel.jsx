@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, Download, Maximize2, Minimize2, Save,
   History, Code, Globe, FileText, Table2, GitBranch,
-  Sparkles, Send, Loader
+  Sparkles, Send, Loader2
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { BASE_URL as API_URL } from '../../services/api';
@@ -109,21 +109,13 @@ const ArtifactPanel = ({ isDark }) => {
 
     setIsAiEditing(true);
     try {
-      const token = localStorage.getItem('tutorboard-token');
-      const res = await fetch(`${API_URL}/api/artifact/modify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && token !== 'guest' ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          artifactId: activeArtifact.dbId,
-          instruction: aiEditPrompt.trim(),
-        }),
+      const response = await API.post('/api/artifact/modify', {
+        artifactId: activeArtifact.dbId,
+        instruction: aiEditPrompt.trim(),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (response.status === 200) {
+        const data = response.data;
         // Update local store with new content and version
         updateArtifactContent(activeArtifactId, data.content);
         saveArtifactVersion(activeArtifactId);
@@ -404,7 +396,7 @@ const ArtifactPanel = ({ isDark }) => {
               disabled={!aiEditPrompt.trim() || !activeArtifact?.dbId || isAiEditing}
               className="flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-80 transition-all disabled:opacity-20 flex-shrink-0"
             >
-              {isAiEditing ? <Loader size={12} className="animate-spin" /> : <Send size={12} />}
+              {isAiEditing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
             </button>
           </div>
         </div>

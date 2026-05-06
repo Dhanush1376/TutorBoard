@@ -6,7 +6,7 @@
  * This version fixes ALL of them.
  */
 
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 15000;
 
 import { PROVIDER_CONFIG } from '../ai/providerFactory.js';
 import { MODEL_REGISTRY, suggestCorrectModel } from '../ai/modelRegistry.js';
@@ -205,11 +205,14 @@ export async function validateApiKey(provider, apiKey, model, baseUrl) {
         console.log(`[Validation] Model ${testModel} failed for ${provider}, trying next in chain...`);
       } catch (err) {
         console.error(`[Validation] Unexpected error for ${provider} with model ${testModel}:`, err);
+        if (!result) {
+          result = { valid: false, error: `Connection or Protocol Error: ${err.message}`, latencyMs: Date.now() - start };
+        }
       }
     }
 
     if (!result) {
-      result = { valid: false, error: 'Validation failed to start. Check provider configuration.', latencyMs: 0 };
+      result = { valid: false, error: 'Validation process failed to complete. Please check your network connection or try a different model.', latencyMs: 0 };
     }
 
     let status = result.valid ? 'valid' : 'invalid';

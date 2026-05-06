@@ -66,8 +66,13 @@ export function isDSAContent(timeline: any) {
 
 export function getRenderer(type: string) {
   const routed = RENDERER_MAP[type];
-  if (!routed && ['matter', 'physics', 'mechanics'].includes(type)) {
-    return 'd3'; // Safe fallback for physics topics
+  if (routed) return routed;
+
+  // Safe fallback for physics topics
+  if (['matter', 'physics', 'mechanics'].includes(type)) {
+    return RENDERER_MAP['physics'] || 'd3';
   }
-  return routed || null;
+
+  console.warn(`[RendererRouter] ⚠️ Unknown renderer type: "${type}". Falling back to cinematic D3 engine.`);
+  return 'd3';
 }

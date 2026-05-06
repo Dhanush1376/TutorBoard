@@ -8,9 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
-  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, Loader, LayoutDashboard,
+  ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, LayoutDashboard,
   FileText, Download, Volume2, VolumeX, Sparkles
 } from 'lucide-react';
+import Loader from './Loader';
 import VisaiLogo from './VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
 import { useAuth } from '../../context/AuthContext';
@@ -161,7 +162,7 @@ const LeftPanel = ({
                 className="w-full py-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[11px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
               >
                 {isLoadingMore ? (
-                  <Loader size={14} className="animate-spin" />
+                  <Loader size={14} />
                 ) : (
                   <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
                 )}

@@ -36,7 +36,13 @@ export default class SpacedRepetitionScheduler {
     const now = new Date();
     const due = [];
 
-    for (const [topic, node] of profile.topicsMastery.entries()) {
+    // DEFENSIVE: Ensure we handle both Mongoose Map and plain object (pre-migration)
+    const masteryMap = profile.topicsMastery instanceof Map 
+      ? profile.topicsMastery 
+      : new Map(Object.entries(profile.topicsMastery || {}));
+
+    for (const [topic, node] of masteryMap.entries()) {
+      if (!node) continue;
       // Handle potential legacy numeric values during read
       const data = typeof node === 'number' ? this.migrate(node) : node;
       

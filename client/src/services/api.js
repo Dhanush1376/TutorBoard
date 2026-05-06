@@ -1,12 +1,9 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-if (!BASE_URL && import.meta.env.PROD) {
-  console.error('[API] CRITICAL: VITE_API_BASE_URL is not defined. API calls will fail.');
-  // In production, we want a hard failure to avoid silent bugs, 
-  // but we'll use a console error + conditional throw to be safe during hydration
-  throw new Error('VITE_API_BASE_URL is missing. Please set it in your environment variables.');
+if (!import.meta.env.VITE_API_BASE_URL && import.meta.env.PROD) {
+  console.warn('[API] VITE_API_BASE_URL is not defined. Falling back to relative paths.');
 }
 
 const API = axios.create({
@@ -14,12 +11,29 @@ const API = axios.create({
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
   },
 });
 
-// Request Interceptor (currently unused as we moved to secure cookies, but kept for logging/extensibility)
+// Helper to read cookies in the browser
+export const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+};
+
+// Request Interceptor
 API.interceptors.request.use(
   (config) => {
+    // Add CSRF token for mutating requests
+    const safeMethods = ['get', 'head', 'options'];
+    if (!safeMethods.includes(config.method?.toLowerCase() || '')) {
+      const csrfToken = getCookie('tb-csrf-token');
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
     return config;
   },
   (error) => {

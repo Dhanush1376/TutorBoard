@@ -23,11 +23,34 @@ import {
 } from '../utils.js';
 import { generateSessionSummary } from '../../engine/core/pedagogyEngine.js';
 import { logActivity } from '../../controllers/session.controller.js';
+import { getAbortSignal, abortCurrent } from '../socketAbort.js';
+import redisClient from '../../utils/core/redis.js';
 
 export function registerSessionHandlers(socket, machine, sessionId, requestId) {
   
+  // ─── Redis Streaming Subscription (Multi-Instance support) ──────────
+  const streamChannel = `tutorboard:stream:${sessionId}`;
+  const handleStreamMessage = (msg) => {
+    try {
+      const { event, data } = JSON.parse(msg);
+      socket.emit(event, data);
+    } catch (_) { /* ignore parse errors */ }
+  };
+  
+  redisClient.subscribe(streamChannel, handleStreamMessage);
+
+  // Cleanup on disconnect (already handled by socket.on('disconnect') usually, 
+  // but we can add an internal cleanup here if needed)
+  socket.on('disconnect', () => {
+    redisClient.unsubscribe(streamChannel, handleStreamMessage);
+    abortCurrent(socket);
+  });
+
   // ─── START SESSION ──────────────────────────────────────────────────
   socket.on('session:start', async ({ topic, selectedAgent, activeMode, chatId, file }) => {
+    // ABORT PREVIOUS IN-FLIGHT REQUEST
+    const signal = getAbortSignal(socket);
+
     const rateKey = getRateKey(socket);
     
     if (!(await checkSocketRate(rateKey))) {
@@ -206,13 +229,25 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
 
       if (intentResult.intent === 'quick' || intentResult.intent === 'text_only') {
         const response = await withTimeout(
-          generateTextResponse(sessionId, cleanTopic, resolveModelId(selectedAgent), userConfig),
-          45000
+          generateTextResponse(sessionId, cleanTopic, resolveModelId(selectedAgent), userConfig, null, { 
+            signal,
+            onProgress: (stage, chunk) => {
+              const event = chunk ? 'teaching:progress-tokens' : 'teaching:progress';
+              const data = chunk ? { stage, text: chunk } : { message: stage };
+              socket.emit(event, data);
+              redisClient.publish(streamChannel, { event, data });
+            }
+          }),
+          60000
         );
         machine.forceReset();
         await sessionStore.addMessage(sessionId, 'assistant', response.answer);
         await syncToDatabase(sessionId);
-        socket.emit('teaching:greeting', { message: response.answer });
+        
+        const payload = { message: response.answer };
+        socket.emit('teaching:greeting', payload);
+        // Also publish to redis for consistency in multi-instance (optional for final greeting but good practice)
+        redisClient.publish(streamChannel, { event: 'teaching:greeting', data: payload });
         return;
       }
 
@@ -240,10 +275,17 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       try {
         const timeline = await withTimeout(
           generateTimeline(sessionId, cleanTopic, (stage, chunk) => {
+            if (signal.aborted) return; // safety check
             lastProgressAt = Date.now();
-            if (chunk) socket.emit('teaching:progress-tokens', { stage, token: chunk });
-            else socket.emit('teaching:progress', { message: stage });
-          }, resolveModelId(selectedAgent), userConfig, file, intentResult),
+            
+            const event = chunk ? 'teaching:progress-tokens' : 'teaching:progress';
+            const data = chunk ? { stage, text: chunk } : { message: stage };
+            
+            // Broadcast via Redis
+            redisClient.publish(streamChannel, { event, data });
+            // Immediate local emit for zero-latency in same instance
+            socket.emit(event, data);
+          }, resolveModelId(selectedAgent), userConfig, file, intentResult, { signal }),
           240000
         );
 

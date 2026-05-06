@@ -8,16 +8,24 @@ import tokenStore from '../utils/auth/tokenStore.js';
  * 
  */
 export const protect = async (req, res, next) => {
+  // SEC-GDPR: Explicitly reject tokens in query parameters to prevent leakage in server/proxy logs
+  const url = req.originalUrl || req.url || '';
+  if (req.query.token || req.query.access_token || url.includes('token=') || url.includes('access_token=')) {
+    console.warn(`[Security] Rejected request with token in URL: ${req.method} ${req.path}`);
+    return res.status(400).json({ 
+      error: 'Security violation: Authentication token detected in URL query string.',
+      code: 'TOKEN_IN_URL' 
+    });
+  }
+
   try {
     let token;
 
-    // Extract token from Cookie, Authorization header, or Query Param (_auth)
+    // Extract token from Cookie or Authorization header
     if (req.cookies && req.cookies['tb-token']) {
       token = req.cookies['tb-token'];
     } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
-    } else if (req.query._auth) {
-      token = req.query._auth;
     }
 
     if (!token) {
@@ -59,6 +67,17 @@ export const protect = async (req, res, next) => {
       });
     }
 
+    // SEC-16: Reject tokens issued before password change
+    if (user.passwordChangedAt) {
+      const changedTimestamp = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (decoded.iat < changedTimestamp) {
+        console.warn(`[Auth] Rejected stale token for user ${user._id} (issued before password change)`);
+        return res.status(401).json({
+          error: 'Not authorized — password has been changed since this session started',
+        });
+      }
+    }
+
     console.log(`[Auth] User ${user._id} authenticated successfully for ${req.path}`);
 
     // Attach actual user from DB (not mocked)
@@ -79,6 +98,15 @@ export const protect = async (req, res, next) => {
  * Used for routes that have different behavior or rate limits for guests vs users.
  */
 export const optionalProtect = async (req, res, next) => {
+  // SEC-GDPR: Explicitly reject tokens in query parameters even for optional auth
+  if (req.query.token || req.query.access_token) {
+    console.warn(`[Security] Rejected optional auth request with token in URL: ${req.path}`);
+    return res.status(400).json({ 
+      error: 'Security violation: Authentication token detected in URL query string.',
+      code: 'TOKEN_IN_URL' 
+    });
+  }
+
   try {
     let token;
     if (req.cookies && req.cookies['tb-token']) {
@@ -99,6 +127,12 @@ export const optionalProtect = async (req, res, next) => {
     const user = await User.findById(decoded.id);
     if (!user) return next();
 
+    // SEC-16: Reject tokens issued before password change
+    if (user.passwordChangedAt) {
+      const changedTimestamp = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (decoded.iat < changedTimestamp) return next();
+    }
+
     req.user = user;
     req.tokenJti = decoded.jti;
     req.tokenExp = decoded.exp;
@@ -106,4 +140,18 @@ export const optionalProtect = async (req, res, next) => {
   } catch (err) {
     next(); // Invalid token, still continue as guest
   }
+};
+
+/**
+ * Middleware to explicitly block users who are guests or don't have a DB profile.
+ * Use for account management, billing, and API keys.
+ */
+export const restrictToUsers = (req, res, next) => {
+  if (!req.user || req.user.isGuest) {
+    return res.status(403).json({
+      error: 'Forbidden — this section requires a persistent account',
+      code: 'USER_ONLY'
+    });
+  }
+  next();
 };

@@ -111,6 +111,16 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [currentPlaceholder, setCurrentPlaceholder] = useState(isLanding ? "" : "Message TutorBoard...");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isTabVisible, setIsTabVisible] = useState(document.visibilityState === 'visible');
+
+  // SEC-UX-02: Manage visibility separately to ensure reactivity
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(document.visibilityState === 'visible');
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     // Stop animation if not in landing mode or if a session has started/is generating
@@ -142,29 +152,15 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
       }
     };
 
-    if (document.visibilityState === 'visible') {
+    if (isTabVisible) {
       timeout = setTimeout(runAnimation, typingSpeed);
     } else {
       timeout = setTimeout(runAnimation, 1000);
     }
 
     return () => clearTimeout(timeout);
-  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isLanding, isGenerating, document.visibilityState]);
+  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isLanding, isGenerating, isTabVisible]);
 
-  // SEC-UX-02: Manage visibility separately to avoid adding/removing listener every frame
-  useEffect(() => {
-    if (!isLanding || isGenerating) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // The main animation effect will pick up the change via its dependencies
-        // if needed, but the stable listener prevents event spam
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isLanding, isGenerating]);
 
   // Cleanup recognition on unmount
   useEffect(() => {

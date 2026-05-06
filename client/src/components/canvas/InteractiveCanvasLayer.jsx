@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { getToolCursor } from '../../utils/cursors';
 import { getSvgPath, getStarPoints, getHexagonPoints, getDiamondPoints } from '../../utils/geometryUtils';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
+import { CanvasContext } from './CanvasContext';
 
 /**
  * InteractiveCanvasLayer
@@ -23,7 +24,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     selectedElementIds, setSelectedElements, undo, redo, isSnapToGrid, 
     drawColor, drawWidth, laserWidth, gridSize, noteColor, noteSize, shapeFill, 
     shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor,
-    addNoteToCanvas, addCanvasObjects, setActiveTool, setInteracting, setEditingObjectId,
+    addCanvasObjects, setActiveTool, setInteracting, setEditingObjectId,
     showNotes, setShowNotes, deselectAll, canvasTransform
   } = useTutorStore(useShallow(s => ({
     activeTool: s.activeTool, 
@@ -49,7 +50,6 @@ const InteractiveCanvasLayer = React.memo(() => {
     textUnderline: s.textUnderline, 
     textAlign: s.textAlign, 
     textBgColor: s.textBgColor,
-    addNoteToCanvas: s.addNoteToCanvas, 
     addCanvasObjects: s.addCanvasObjects, 
     setActiveTool: s.setActiveTool, 
     setInteracting: s.setInteracting, 
@@ -206,7 +206,7 @@ const InteractiveCanvasLayer = React.memo(() => {
     
     draftStateRef.current = newDraft;
     setDraftObject(newDraft);
-  }, [activeTool, transform, setInteracting, canvasObjects, drawColor, drawWidth, shapeFill, shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor, setSelectedElements, setCanvasObjectsWithHistory, setActiveTool, addNoteToCanvas, setEditingObjectId]);
+  }, [activeTool, transform, setInteracting, canvasObjects, drawColor, drawWidth, shapeFill, shapeStrokeStyle, textType, textToolSize, textWeight, textItalic, textUnderline, textAlign, textBgColor, setSelectedElements, setCanvasObjectsWithHistory, setActiveTool, setEditingObjectId]);
 
   const handlePointerMove = useCallback((e) => {
     if (!isDrawing.current || (!draftStateRef.current && activeTool !== 'draw:eraser')) return;
@@ -218,7 +218,6 @@ const InteractiveCanvasLayer = React.memo(() => {
     const rect = cachedRect.current || layerRef.current.getBoundingClientRect();
     const worldX = (e.clientX - rect.left - tx) / scale;
     const worldY = (e.clientY - rect.top - ty) / scale;
-    const { isSnapToGrid, gridSize } = state;
     const normalizedX = (isSnapToGrid ? Math.round(worldX / gridSize) * gridSize : worldX) / CANVAS_WIDTH;
     const normalizedY = (isSnapToGrid ? Math.round(worldY / gridSize) * gridSize : worldY) / CANVAS_HEIGHT;
 
@@ -240,10 +239,24 @@ const InteractiveCanvasLayer = React.memo(() => {
     } else if (activeTool.startsWith('draw:')) {
       if (activeTool === 'draw:eraser') {
         const currentObjects = canvasObjects;
-        const hit = currentObjects.find(obj => {
+        // Optimization: Iterate from top-to-bottom (reverse) so the user erases the visible element first
+        const hit = [...currentObjects].reverse().find(obj => {
+          // Bounding Box Pre-check for paths and complex shapes
           if (obj.points) {
-            // SEC-21: Check every point (i++) rather than skipping (i+=2) 
-            // for reliable erasure on thin/curved strokes.
+            // Find min/max points to build a quick bounding box
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const p of obj.points) {
+              if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+              if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+            }
+            // Add a buffer to the bounding box
+            const buffer = 0.04;
+            if (normalizedX < minX - buffer || normalizedX > maxX + buffer || 
+                normalizedY < minY - buffer || normalizedY > maxY + buffer) {
+              return false;
+            }
+
+            // Reliable erasure check on every point
             for (let i = 0; i < obj.points.length; i++) {
               const p = obj.points[i];
               if (Math.abs(p[0]-normalizedX) < 0.02 && Math.abs(p[1]-normalizedY) < 0.02) return true;
@@ -292,7 +305,7 @@ const InteractiveCanvasLayer = React.memo(() => {
       const isTiny = Math.abs(draft.w * CANVAS_WIDTH) < 5 && Math.abs(draft.h * CANVAS_HEIGHT) < 5;
       if (isTiny) {
         setDraftObject(null);
-        setActiveTool('hand'); 
+        // UX FIX: Do not switch to 'hand' on a tiny click; let the user keep their tool.
         return;
       }
     }

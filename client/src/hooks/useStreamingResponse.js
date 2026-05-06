@@ -12,12 +12,12 @@ export default function useStreamingResponse() {
   const abortedRef = useRef(false);
   const isActiveRef = useRef(false);
 
-  const startStreaming = useCallback((fullContent, messageId, onComplete = null) => {
+  const startStreaming = useCallback((fullContent, messageId, sessionId = null, onComplete = null) => {
     const store = useTutorStore.getState();
     abortedRef.current = false;
     isActiveRef.current = true;
 
-    store.startStreaming(messageId);
+    store.startStreaming(messageId, sessionId);
 
     // Split into words for natural-feeling streaming
     const words = fullContent.split(/(\s+)/);
@@ -31,7 +31,7 @@ export default function useStreamingResponse() {
       if (abortedRef.current || currentIndex >= words.length) {
         isActiveRef.current = false;
         if (!abortedRef.current) {
-          store.finishStreaming(fullContent);
+          store.finishStreaming(fullContent, sessionId);
           if (onComplete) onComplete(fullContent);
         }
         return;
@@ -44,7 +44,7 @@ export default function useStreamingResponse() {
       }
       currentIndex = end;
 
-      store.updateStreamingContent(accumulated);
+      store.updateStreamingContent(accumulated, sessionId);
 
       animFrameRef.current = setTimeout(tick, TICK_INTERVAL);
     };

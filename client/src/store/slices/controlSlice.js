@@ -122,27 +122,6 @@ export const createControlSlice = (set, get) => ({
     }
   },
 
-  addNoteToCanvas: (worldX, worldY) => {
-    const { pinnedNotes, noteColor, noteSize, notePinned, noteToolSize, addCanvasObjects } = get();
-    const note = {
-      id: `manual-note-${Date.now()}`,
-      type: 'note',
-      shape: 'note',
-      x: worldX,
-      y: worldY,
-      w: 0.225,   // ~180px on the 800-wide virtual canvas
-      h: 0.3,     // ~180px on the 600-tall virtual canvas
-      color: noteColor,
-      size: noteSize,
-      isPinned: notePinned,
-      label: '',  // StickyNoteShape reads 'label', NOT 'text'
-      content: '',
-      fontSize: noteToolSize,
-      appearsAtStep: 0,
-    };
-    addCanvasObjects([note]);
-  },
-
   // --- INTERACTIVE SIMULATOR STATE (KaTeX/Physics) ---
   interactiveValues: {},
   setInteractiveValue: (id, val) => set((state) => {

@@ -8,7 +8,8 @@
  * - Mastery Heatmap
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,18 +22,30 @@ import {
   MessageSquare, LayoutDashboard, ChevronRight, Activity, Sparkles,
   X, Minus, Plus, BookMarked, Trash2, Calendar, RefreshCw
 } from 'lucide-react';
-import axios from 'axios';
+import API from '../../services/api';
 import useTutorStore from '../../store/tutorStore';
 import Loader from '../layout/Loader';
 
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 
 export default function MasteryDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { learnerProfile, isMasteryOpen, setMasteryOpen, takeaways, removeTakeaway } = useTutorStore();
+  const [error, setError] = useState(null);
+  const { 
+    learnerProfile, isMasteryOpen, setMasteryOpen, takeaways, removeTakeaway: storeRemoveTakeaway,
+    isConnected, connectionError 
+  } = useTutorStore(useShallow(state => ({
+    learnerProfile: state.learnerProfile,
+    isMasteryOpen: state.isMasteryOpen,
+    setMasteryOpen: state.setMasteryOpen,
+    takeaways: state.takeaways,
+    removeTakeaway: state.removeTakeaway,
+    isConnected: state.isConnected,
+    connectionError: state.connectionError
+  })));
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -55,44 +68,43 @@ export default function MasteryDashboard() {
     setIsMinimized(!isMinimized);
   };
 
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await API.get('/api/learner/dashboard');
+      setData(response.data);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError('Failed to load dashboard. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const removeTakeaway = async (id) => {
+    try {
+      await API.delete(`/api/learner/takeaways/${id}`);
+      // Refresh local store to keep UI in sync
+      storeRemoveTakeaway(id);
+      // Refresh local dashboard data if needed
+      fetchDashboardData();
+    } catch (err) {
+      console.error('Failed to remove takeaway:', err);
+      setError('Failed to remove insight. Please check your connection.');
+    }
+  };
+
   useEffect(() => {
-    if (!isMasteryOpen) return;
-
-    const fetchDashboard = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem('token');
-        const response = await axios.get(`${API_BASE_URL}/api/learner/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setData(response.data);
-      } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboard();
-
-    // Cleanup/Refresh listener could go here if needed
-  }, [isMasteryOpen]);
+    // SEC-FO-01: Prevent redundant fetches if we already have data and aren't loading.
+    // Manual refreshes should still be handled via handleRefresh.
+    if (isMasteryOpen && !data && !loading) {
+      fetchDashboardData();
+    }
+  }, [isMasteryOpen, data, loading, fetchDashboardData]);
 
   const handleRefresh = () => {
-    const fetchDashboard = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem('token');
-        const response = await axios.get(`${API_BASE_URL}/api/learner/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setData(response.data);
-      } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboard();
+    fetchDashboardData();
   };
 
   const radarData = useMemo(() => {
@@ -135,12 +147,16 @@ export default function MasteryDashboard() {
             initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
             animate={{
               opacity: isClosing || isMinimized ? 0 : 1,
-              backdropFilter: isClosing || isMinimized ? 'blur(0px)' : 'blur(20px)'
+              backdropFilter: isClosing || isMinimized ? 'blur(0px)' : 'blur(20px)',
+              pointerEvents: isMinimized || isClosing ? 'none' : 'auto'
             }}
             exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
-            className={`fixed inset-0 bg-black/40 dark:bg-black/60 pointer-events-auto`}
+            className={`fixed inset-0 bg-black/40 dark:bg-black/60`}
             style={{ zIndex: -1 }}
-            onClick={handleClose}
+            onClick={(e) => {
+              if (isMinimized) return;
+              handleClose(e);
+            }}
           />
 
           <motion.div
@@ -148,12 +164,12 @@ export default function MasteryDashboard() {
             initial={{ opacity: 0, scale: 0.9, y: 20, filter: 'blur(10px)' }}
             animate={{
               opacity: isClosing ? 0 : 1,
-              scale: isClosing ? 0.95 : (isMinimized ? 0.4 : 1),
-              y: isClosing ? 10 : (isMinimized ? 400 : 0),
-              x: isMinimized ? -400 : 0,
-              width: isMaximized ? '100vw' : 'min(1100px, 95vw)',
-              height: isMaximized ? '100vh' : 'min(780px, 90vh)',
-              borderRadius: (isMaximized || isMinimized) ? '0px' : '28px',
+              scale: isClosing ? 0.95 : (isMinimized ? 0.25 : 1),
+              y: isClosing ? 10 : (isMinimized ? 'calc(50vh - 100px)' : 0),
+              x: isMinimized ? 'calc(50vw - 140px)' : 0,
+              width: isMaximized ? '100vw' : (isMinimized ? '400px' : 'min(1100px, 95vw)'),
+              height: isMaximized ? '100vh' : (isMinimized ? '120px' : 'min(780px, 90vh)'),
+              borderRadius: (isMaximized) ? '0px' : (isMinimized ? '20px' : '28px'),
               filter: isClosing ? 'blur(10px)' : 'blur(0px)',
               pointerEvents: isClosing ? 'none' : 'auto'
             }}
@@ -175,6 +191,22 @@ export default function MasteryDashboard() {
             {loading ? (
               <div className="flex-1 flex items-center justify-center">
                 <Loader glass={true} />
+              </div>
+            ) : error ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-6">
+                <div className="w-16 h-16 rounded-3xl bg-red-500/10 text-red-500 flex items-center justify-center">
+                  <Activity size={32} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-medium">Data Sync Failed</h3>
+                  <p className="text-sm text-[var(--text-tertiary)] max-w-xs">{error}</p>
+                </div>
+                <button 
+                  onClick={fetchDashboardData}
+                  className="px-6 py-2.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+                >
+                  <RefreshCw size={14} /> Retry Sync
+                </button>
               </div>
             ) : (
               <>
@@ -220,8 +252,8 @@ export default function MasteryDashboard() {
                       <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                     </button>
                     <div className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-primary)]/50 rounded-full border border-[var(--border-color)] text-[10px] font-medium text-[var(--text-secondary)]">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                      Live Sync Active
+                      <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${connectionError ? 'bg-red-500' : (isConnected ? 'bg-green-500' : 'bg-yellow-500')}`} />
+                      {connectionError ? 'Sync Connection Lost' : (isConnected ? 'Live Sync Active' : 'Reconnecting...')}
                     </div>
                   </div>
                 </div>
@@ -309,14 +341,14 @@ export default function MasteryDashboard() {
                               ))}
                             </div>
                           ) : (
-                            <div className="py-20 flex flex-col items-center justify-center text-center space-y-4 bg-[var(--bg-secondary)]/20 rounded-[3rem] border-2 border-dashed border-[var(--border-color)]/30">
-                              <div className="w-16 h-16 rounded-full bg-[var(--bg-tertiary)]/50 flex items-center justify-center text-[var(--text-tertiary)]">
-                                <BookMarked size={28} strokeWidth={1.5} />
+                            <div className="py-32 flex flex-col items-center justify-center text-center space-y-6 bg-[var(--bg-secondary)]/20 rounded-[3rem] border-2 border-dashed border-[var(--border-color)]/30">
+                              <div className="w-20 h-20 rounded-full bg-[var(--bg-tertiary)]/50 flex items-center justify-center text-[var(--text-tertiary)] shadow-inner">
+                                <BookMarked size={32} strokeWidth={1} />
                               </div>
-                              <div className="space-y-1">
-                                <h4 className="text-sm font-semibold">No insights captured yet</h4>
-                                <p className="text-[11px] text-[var(--text-tertiary)] max-w-[240px]">
-                                  Click the bookmark icon on any AI response to save key concepts here.
+                              <div className="space-y-2">
+                                <h4 className="text-lg font-medium text-[var(--text-primary)]">Your Knowledge Vault is Empty</h4>
+                                <p className="text-sm text-[var(--text-tertiary)] max-w-[320px] leading-relaxed">
+                                  Click the bookmark icon on any AI response during your lessons to save key insights and theoretical foundations here.
                                 </p>
                               </div>
                             </div>

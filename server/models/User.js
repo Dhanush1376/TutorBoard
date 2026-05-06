@@ -76,7 +76,14 @@ const userSchema = new mongoose.Schema({
   apiKeys: [{
     provider: {
       type: String,
-      enum: ['openai', 'deepseek', 'google', 'anthropic', 'openrouter', 'groq', 'custom'],
+      enum: [
+        'openai', 'deepseek', 'google', 'anthropic', 'openrouter', 'groq', 
+        'huggingface', 'mistral', 'together', 'cerebras', 'sambanova', 'novita', 
+        'deepinfra', 'fireworks', 'perplexity', 'lepton', 'cohere', 'xai', 
+        'replicate', 'voyage', 'azure', 'aws', 'nvidia', 'anyscale', 
+        'elevenlabs', 'stability', 'fal', 'runpod', 'upstage', 'ai21', 
+        'workers', 'ollama', 'vllm', 'lmstudio', 'custom'
+      ],
       required: true,
     },
     encryptedKey: { type: String, required: true },
@@ -110,6 +117,10 @@ const userSchema = new mongoose.Schema({
   lastActiveSessionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ChatSession',
+    default: null
+  },
+  passwordChangedAt: {
+    type: Date,
     default: null
   },
 }, { 

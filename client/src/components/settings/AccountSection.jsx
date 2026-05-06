@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { useAuth } from '../../context/AuthContext';
+import API from '../../services/api';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
   ContextButton, DialogModal, API_URL, AppleToggle
@@ -65,7 +66,7 @@ const SocialButton = ({ icon: Icon, label, isConnected, onClick, color }) => (
 
 // ─── Privacy / Data Section ──────────────────────────────────────────────────
 
-export const PrivacySection = ({ syncSettings, token, showToast }) => {
+export const PrivacySection = ({ syncSettings, showToast }) => {
   const { showAlert } = useTutorStore();
   const [cloudSync, setCloudSync] = useState(localStorage.getItem('tb-cloud-sync') !== 'false');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -87,11 +88,8 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
 
   const handleExport = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/user/export`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const res = await API.get('/api/user/export');
+      const data = res.data;
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -107,11 +105,8 @@ export const PrivacySection = ({ syncSettings, token, showToast }) => {
 
   const handleWipeData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/user/data`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) showToast?.('Cloud cache purged.', 'info');
+      const res = await API.delete('/api/user/data');
+      if (res.status === 200) showToast?.('Cloud cache purged.', 'info');
       else showToast?.('Purge failed.', 'error');
     } catch {
       showToast?.('Network error.', 'error');
@@ -249,9 +244,10 @@ function PasswordInput({ value, onChange, placeholder, showToggle, onToggle, suf
 
 // ─── Main AccountSection ─────────────────────────────────────────────────────
 
-export default function AccountSection({ user, logout, syncSettings, showToast }) {
+export default function AccountSection({ user: userProp, logout, syncSettings, showToast }) {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { user: authUser } = useAuth();
+  const user = userProp || authUser;
 
   const [modalType, setModalType] = useState(null);
   const [currentPw, setCurrentPw] = useState('');
@@ -279,21 +275,16 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
 
     setLoading(true); setErrorMsg(''); setSuccessMsg('');
     try {
-      const res = await fetch(`${API_URL}/api/user/password`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const res = await API.put('/api/user/password', { currentPassword: currentPw, newPassword: newPw });
+      if (res.status === 200) {
         setSuccessMsg('Password updated.');
         setTimeout(closeModals, 1500);
       } else {
-        setErrorMsg(data.error || 'Failed to update.');
+        setErrorMsg(res.data?.error || 'Failed to update.');
         setLoading(false);
       }
-    } catch {
-      setErrorMsg('Network error.');
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || 'Network error.');
       setLoading(false);
     }
   };
@@ -301,18 +292,15 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
   const handleDeleteSubmit = async () => {
     setLoading(true); setErrorMsg('');
     try {
-      const res = await fetch(`${API_URL}/api/user/account`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) { logout(); navigate('/'); }
+      const res = await API.delete('/api/user/account');
+      if (res.status === 200) { logout(); navigate('/'); }
       else {
-        const data = await res.json();
-        setErrorMsg(data.error || 'Could not delete account.');
+        const data = res.data;
+        setErrorMsg(data?.error || 'Could not delete account.');
         setLoading(false);
       }
-    } catch {
-      setErrorMsg('Network error.');
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || 'Network error.');
       setLoading(false);
     }
   };
@@ -449,7 +437,7 @@ export default function AccountSection({ user, logout, syncSettings, showToast }
       </div>
 
       {/* Privacy / Data */}
-      <PrivacySection syncSettings={syncSettings} token={token} showToast={showToast} />
+      <PrivacySection syncSettings={syncSettings} showToast={showToast} />
 
       {/* Session */}
       <div>
