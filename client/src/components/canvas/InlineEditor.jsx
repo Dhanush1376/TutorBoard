@@ -6,7 +6,7 @@ import {
   ChevronRight, Save, Wand2, Terminal
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import FloatingFormatBar from './FloatingFormatBar.jsx';
+import FloatingFormatBar from './FloatingFormatBar';
 import useClickOutside from '../../hooks/useClickOutside.js';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 

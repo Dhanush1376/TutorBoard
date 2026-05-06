@@ -118,6 +118,18 @@ const chatSessionSchema = new mongoose.Schema({
     type: [mongoose.Schema.Types.Mixed], // Serialized canvas versions
     default: [],
   },
+  requestLedger: {
+    type: [new mongoose.Schema({
+      requestId: { type: String, required: true },
+      status: { type: String, enum: ['requesting', 'streaming', 'completed', 'failed', 'aborted'], default: 'requesting' },
+      userMessageId: { type: String, default: null },
+      assistantMessageId: { type: String, default: null },
+      response: { type: String, default: null },
+      createdAt: { type: Date, default: Date.now },
+      updatedAt: { type: Date, default: Date.now },
+    }, { _id: false })],
+    default: [],
+  },
 }, { timestamps: true });
 chatSessionSchema.index({ userId: 1, createdAt: -1 });
 
@@ -125,6 +137,9 @@ chatSessionSchema.index({ userId: 1, createdAt: -1 });
 chatSessionSchema.pre('save', function() {
   if (this.messages && this.messages.length > 200) {
     this.messages = this.messages.slice(-200);
+  }
+  if (this.requestLedger && this.requestLedger.length > 100) {
+    this.requestLedger = this.requestLedger.slice(-100);
   }
 });
 

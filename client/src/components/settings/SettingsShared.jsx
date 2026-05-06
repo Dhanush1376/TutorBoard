@@ -4,7 +4,7 @@ import {
   ChevronRight, Check, Zap, Lock, 
   User, Shield, Palette, Key, Eye, Info 
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext.jsx';
+import { useAuth } from '../../context/AuthContext';
 
 import API, { BASE_URL as API_URL_IMPORT } from '../../services/api';
 export const API_URL = API_URL_IMPORT;

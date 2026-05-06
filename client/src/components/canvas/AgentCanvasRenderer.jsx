@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
-import ErrorBoundary from '../common/ErrorBoundary.jsx';
-import SVGCanvasRenderer from './SVGCanvasRenderer.jsx';
+import ErrorBoundary from '../common/ErrorBoundary';
+import SVGCanvasRenderer from './SVGCanvasRenderer';
 import KaTeXRenderer from '../../renderers/KaTeXRenderer';
 import { isDSAContent, getRenderer } from '../../engine/RendererRouter';
 import { VisualScriptInterpreter } from '../../engine/VisualScriptInterpreter';

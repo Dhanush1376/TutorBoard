@@ -71,6 +71,7 @@ function buildRichMemorySummary(session) {
 const sendMessageSchema = z.object({
   sessionId: z.string().optional().nullable(),
   userMessage: z.string().min(1).max(10000),
+  requestId: z.string().optional(),
   userMessageId: z.string().optional(),
   assistantMessageId: z.string().optional(),
   mode: z.enum(['quick', 'deep', 'test_me', 'explain']).optional().default('quick'),
@@ -114,6 +115,36 @@ function generateMessageId(prefix = 'msg') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+function resolveRequestId(req, providedId) {
+  return (
+    providedId ||
+    req.headers['x-request-id'] ||
+    req.headers['x-client-request-id'] ||
+    `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  );
+}
+
+function readLedgerEntry(session, requestId) {
+  if (!session?.requestLedger?.length) return null;
+  return session.requestLedger.find((r) => r.requestId === requestId) || null;
+}
+
+function writeLedgerEntry(session, payload) {
+  if (!session.requestLedger) session.requestLedger = [];
+  const idx = session.requestLedger.findIndex((r) => r.requestId === payload.requestId);
+  const next = {
+    requestId: payload.requestId,
+    status: payload.status || 'requesting',
+    userMessageId: payload.userMessageId || null,
+    assistantMessageId: payload.assistantMessageId || null,
+    response: payload.response || null,
+    createdAt: payload.createdAt || new Date(),
+    updatedAt: new Date(),
+  };
+  if (idx >= 0) session.requestLedger[idx] = { ...session.requestLedger[idx], ...next };
+  else session.requestLedger.push(next);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -129,7 +160,8 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
     }
 
-    const { sessionId, userMessage, mode, teachingContext } = validation.data;
+    const { sessionId, userMessage, mode, teachingContext, requestId: providedRequestId } = validation.data;
+    const requestId = resolveRequestId(req, providedRequestId);
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
@@ -156,7 +188,27 @@ export const sendMessage = async (req, res) => {
       const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
       session = await ChatSession.findOne(query);
       if (session) {
+        const existingReq = readLedgerEntry(session, requestId);
+        if (existingReq?.status === 'completed' && existingReq.response) {
+          return res.json({
+            response: existingReq.response,
+            sessionId: session._id.toString(),
+            userMessageId: existingReq.userMessageId || generateMessageId('user'),
+            assistantMessageId: existingReq.assistantMessageId || generateMessageId('assistant'),
+            replay: true,
+          });
+        }
+        if (existingReq && existingReq.status !== 'completed') {
+          return res.status(409).json({
+            error: 'Request already in progress',
+            sessionId: session._id.toString(),
+            requestId,
+            status: existingReq.status,
+          });
+        }
         session.messages.push(userMsg);
+        const persistedUserId = session.messages[session.messages.length - 1]?._id?.toString() || null;
+        writeLedgerEntry(session, { requestId, status: 'requesting', userMessageId: persistedUserId });
         await session.save();
         console.log(`[Chat] 📝 Appended user message to existing session: ${session._id}`);
       }
@@ -172,6 +224,9 @@ export const sendMessage = async (req, res) => {
         explanationMode: teachingContext?.explanationMode || 'basic',
       });
       console.log(`[Chat] ✨ Created new session and saved user message: ${session._id} (Guest: ${isGuest})`);
+      const persistedUserId = session.messages[session.messages.length - 1]?._id?.toString() || null;
+      writeLedgerEntry(session, { requestId, status: 'requesting', userMessageId: persistedUserId });
+      await session.save();
     }
 
     // ── 1.5 Update User Last Active Session ──
@@ -343,6 +398,16 @@ export const sendMessage = async (req, res) => {
     // ── 8. Return Response with Sources ──
     const userMessageId = session?.messages[session.messages.length - 2]?._id?.toString() || generateMessageId('user');
     const assistantMessageId = session?.messages[session.messages.length - 1]?._id?.toString() || generateMessageId('assistant');
+    if (session) {
+      writeLedgerEntry(session, {
+        requestId,
+        status: 'completed',
+        userMessageId,
+        assistantMessageId,
+        response: cleanContent,
+      });
+      await session.save();
+    }
 
     res.json({
       response: cleanContent,
@@ -366,12 +431,14 @@ export const sendMessage = async (req, res) => {
  * Send a message and get a real-time SSE streaming AI response.
  */
 export async function streamMessage(req, res) {
-  const requestId = req.headers['x-request-id'] || 'no-id';
-  console.log(`[Chat:Stream] 📨 Request received in streamMessage controller [${requestId}]`);
+  const incomingRequestId = req.headers['x-request-id'] || req.headers['x-client-request-id'] || 'no-id';
+  console.log(`[Chat:Stream] 📨 Request received in streamMessage controller [${incomingRequestId}]`);
   
   let heartbeat;
   let clientDisconnected = false;
   let lastStreamProvider = '';
+  let resolvedRequestId = incomingRequestId;
+  let session = null;
 
   try {
     const validation = sendMessageSchema.safeParse(req.body);
@@ -379,14 +446,15 @@ export async function streamMessage(req, res) {
       return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
     }
 
-    const { sessionId, userMessage, mode, teachingContext } = validation.data;
+    const { sessionId, userMessage, mode, teachingContext, requestId: providedRequestId } = validation.data;
+    const requestId = resolveRequestId(req, providedRequestId);
+    resolvedRequestId = requestId;
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
     console.log(`[Chat:Stream] 📨 Request received from ${userId || 'guest'} (Session: ${sessionId || 'new'})`);
 
     // ── 1. Load or Create Session ──
-    let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
 
     // ── 2. Build User Message ──
@@ -407,7 +475,32 @@ export async function streamMessage(req, res) {
       const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
       session = await ChatSession.findOne(query);
       if (session) {
+        const existingReq = readLedgerEntry(session, requestId);
+        if (existingReq?.status === 'completed' && existingReq.response) {
+          const replayUserMessageId = existingReq.userMessageId || generateMessageId('user');
+          const replayAssistantMessageId = existingReq.assistantMessageId || generateMessageId('assistant');
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+          res.flushHeaders();
+          res.write(`data: ${JSON.stringify({ type: 'meta', sessionId: session._id.toString(), replay: true })}\n\n`);
+          res.write(`event: message\n`);
+          res.write(`data: ${JSON.stringify({ type: 'chat_override', content: existingReq.response })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'message_ids', userMessageId: replayUserMessageId, assistantMessageId: replayAssistantMessageId })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'done', provider: 'replay' })}\n\n`);
+          return res.end();
+        }
+        if (existingReq && existingReq.status !== 'completed') {
+          return res.status(409).json({
+            error: 'Request already in progress',
+            sessionId: session._id.toString(),
+            requestId,
+            status: existingReq.status,
+          });
+        }
         session.messages.push(userMsg);
+        const persistedUserId = session.messages[session.messages.length - 1]?._id?.toString() || null;
+        writeLedgerEntry(session, { requestId, status: 'requesting', userMessageId: persistedUserId });
         await session.save();
         console.log(`[Chat:Stream] 📝 Appended user message to existing session: ${session._id}`);
       }
@@ -423,6 +516,9 @@ export async function streamMessage(req, res) {
         explanationMode: teachingContext?.explanationMode || 'basic',
       });
       console.log(`[Chat:Stream] ✨ Created new session and saved user message: ${session._id} (Guest: ${isGuest})`);
+      const persistedUserId = session.messages[session.messages.length - 1]?._id?.toString() || null;
+      writeLedgerEntry(session, { requestId, status: 'requesting', userMessageId: persistedUserId });
+      await session.save();
     }
 
     // ── 1.5 Update User Last Active Session ──
@@ -459,6 +555,8 @@ export async function streamMessage(req, res) {
 
     // Send session ID and "Thinking" state early
     const savedSessionId = session?._id?.toString() || sessionId;
+    writeLedgerEntry(session, { requestId, status: 'streaming' });
+    await session.save();
     res.write(`data: ${JSON.stringify({ type: 'meta', sessionId: savedSessionId })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'status', message: 'Planning lesson...' })}\n\n`);
     if (res.flush) res.flush();
@@ -808,6 +906,14 @@ export async function streamMessage(req, res) {
         res.write(`data: ${JSON.stringify({ type: 'message_ids', userMessageId, assistantMessageId })}\n\n`);
         if (res.flush) res.flush();
       }
+      writeLedgerEntry(session, {
+        requestId,
+        status: 'completed',
+        userMessageId,
+        assistantMessageId,
+        response: cleanContent,
+      });
+      await session.save().catch(err => console.error('[Chat:Stream] Ledger persist failed:', err.message));
 
       logActivity({
         userId,
@@ -876,6 +982,13 @@ export async function streamMessage(req, res) {
     }
   } catch (err) {
     console.error('[Chat:Stream] streamMessage error:', err);
+    if (session) {
+      writeLedgerEntry(session, {
+        requestId: resolvedRequestId,
+        status: clientDisconnected ? 'aborted' : 'failed',
+      });
+      await session.save().catch(() => {});
+    }
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to process streaming message' });
     } else {
@@ -1273,6 +1386,249 @@ export const regenerate = async (req, res) => {
   } catch (err) {
     console.error('[Chat] regenerate error:', err);
     res.status(500).json({ error: 'Failed to regenerate response' });
+  }
+};
+
+/**
+ * POST /api/chat/regenerate/stream
+ * Stream a regenerated response.
+ */
+export async function streamRegenerate(req, res) {
+  console.log('[SSE:Regen] Request started');
+  let heartbeat;
+  let clientDisconnected = false;
+
+  try {
+    const validation = regenerateSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
+    }
+
+    const { sessionId, messageId } = validation.data;
+    const userId = req.user?._id || req.user?.id;
+    const isGuest = !userId || req.user?.isGuest;
+
+    const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
+    const session = await ChatSession.findOne(query);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    console.log('[SSE:Regen] Session found:', session._id);
+
+    // ── 1. Set SSE Headers ──
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    heartbeat = setInterval(() => {
+      if (!clientDisconnected) {
+        res.write(': keep-alive\n\n');
+        if (res.flush) res.flush();
+      }
+    }, 15000);
+
+    req.on('close', () => {
+      clientDisconnected = true;
+      clearInterval(heartbeat);
+    });
+
+    res.write(`data: ${JSON.stringify({ type: 'status', message: 'Preparing regeneration...' })}\n\n`);
+    if (res.flush) res.flush();
+
+    // ── 2. Handle Non-Destructive Regeneration (Branching) ──
+    let targetMsgId = null;
+    let existingVersions = [];
+    let turnIndex = -1;
+
+    if (messageId) {
+      turnIndex = session.messages.findIndex(m => m._id.toString() === messageId || m.id === messageId);
+      console.log('[SSE:Regen] turnIndex for messageId', messageId, 'is', turnIndex);
+      if (turnIndex !== -1) {
+        const targetMsg = session.messages[turnIndex];
+        if (targetMsg.role === 'user') {
+          const nextMsg = session.messages[turnIndex + 1];
+          if (nextMsg && nextMsg.role === 'assistant') {
+            targetMsgId = nextMsg._id;
+            existingVersions = targetMsg.metadata?.versions || [{ text: targetMsg.content, subsequentMessages: [] }];
+            turnIndex = turnIndex + 1;
+          } else {
+            turnIndex = turnIndex + 1;
+          }
+        } else {
+          targetMsgId = targetMsg._id;
+          existingVersions = targetMsg.metadata?.versions || [{ text: targetMsg.content, subsequentMessages: [] }];
+        }
+      }
+    } else if (session.messages.length > 0) {
+      const lastMsg = session.messages[session.messages.length - 1];
+      if (lastMsg.role === 'assistant') {
+        targetMsgId = lastMsg._id;
+        existingVersions = lastMsg.metadata?.versions || [{ text: lastMsg.content, subsequentMessages: [] }];
+        turnIndex = session.messages.length - 1;
+      }
+    }
+
+    const messagesForContext = turnIndex !== -1 ? session.messages.slice(0, turnIndex) : session.messages;
+    const lastUserMsg = [...messagesForContext].reverse().find(m => m.role === 'user');
+    const userQuery = lastUserMsg?.content || session.currentTopic;
+
+    // ── 3. Parallel Pre-processing ──
+    const topic = session.currentTopic || detectTopic(userQuery);
+    const toolDecision = detectTools(userQuery);
+    const gateSearch = toolDecision.useWebSearch || shouldSearch(userQuery);
+
+    if (gateSearch) {
+      res.write(`data: ${JSON.stringify({ type: 'status', message: 'Searching web...' })}\n\n`);
+      if (res.flush) res.flush();
+    }
+
+    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+      userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
+      gateSearch ? searchWeb(userQuery, { count: 5 }) : Promise.resolve([]),
+      runChatPlanner(userQuery, '', gateSearch ? 'Searching...' : 'None', null).catch(e => null)
+    ]);
+
+    const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
+    let webResults = initialWebResults;
+    if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
+      res.write(`data: ${JSON.stringify({ type: 'status', message: 'Searching web...' })}\n\n`);
+      if (res.flush) res.flush();
+      webResults = await searchWeb(userQuery, { count: 5 });
+    }
+
+    const webContextStr = formatForPrompt(webResults);
+    const sources = extractSources(webResults);
+    if (sources.length > 0) {
+      res.write(`data: ${JSON.stringify({ type: 'sources', sources, searchPerformed: true })}\n\n`);
+    }
+
+    const memorySummary = buildRichMemorySummary(session);
+    const userName = req.user?.name || req.user?.settings?.general?.nickname || null;
+
+    const systemPrompt = buildSystemPrompt({
+      currentTopic: topic,
+      explanationMode: session.explanationMode,
+      pastContext,
+      webContext: webContextStr,
+      planner: plannerPlan,
+      memorySummary,
+      userName,
+    });
+
+    // Add a "regenerate" instruction to encourage variation
+    const regenPrompt = `${systemPrompt}\n\nIMPORTANT: This is a regeneration request. The user was not fully satisfied with the previous answer. Provide a fresh perspective, improve clarity, or add more depth/examples while remaining accurate.`;
+
+    const llmMessages = buildLLMMessages(messagesForContext, regenPrompt, 20);
+    console.log('[SSE:Regen] Context built. LLM Messages count:', llmMessages.length);
+
+    if (plannerPlan) {
+      res.write(`data: ${JSON.stringify({ type: 'plan', plan: plannerPlan })}\n\n`);
+      if (plannerPlan.generate_artifact) {
+        res.write(`data: ${JSON.stringify({ type: 'status', message: `Generating ${plannerPlan.artifact_type}...` })}\n\n`);
+      }
+    }
+    if (res.flush) res.flush();
+
+    // ── 4. Stream AI Response ──
+    let fullContent = '';
+    let lastProvider = '';
+    
+    const abortController = new AbortController();
+    req.on('close', () => abortController.abort());
+
+    console.log('[SSE:Regen] Starting LLM stream...');
+    const stream = routeConversationStream(llmMessages, { 
+      timeout: 90000, 
+      maxTokens: 4000,
+      signal: abortController.signal
+    });
+
+    try {
+      for await (const chunk of stream) {
+        if (clientDisconnected) break;
+        if (chunk.chunk) {
+          if (!fullContent) console.log('[SSE:Regen] FIRST CHUNK:', chunk.chunk.substring(0, 20));
+          fullContent += chunk.chunk;
+          lastProvider = chunk.provider;
+          res.write(`event: message\n`);
+          res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: chunk.chunk })}\n\n`);
+          if (res.flush) res.flush();
+        }
+      }
+    } catch (streamErr) {
+      console.error('[SSE:Regen] Stream iteration error:', streamErr);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`);
+    }
+
+    if (!fullContent && !clientDisconnected) {
+      console.warn('[SSE:Regen] Stream ended with NO CONTENT. Attempting non-streaming fallback...');
+      try {
+        const fallback = await routeConversation(llmMessages, { timeout: 30000 });
+        fullContent = fallback.content;
+        res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: fullContent })}\n\n`);
+        console.log('[SSE:Regen] Fallback successful. Content length:', fullContent.length);
+      } catch (fallbackErr) {
+        console.error('[SSE:Regen] Fallback failed:', fallbackErr);
+      }
+    }
+
+    // ── 5. Persist Result ──
+    let cleanContent = fullContent.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
+    let thoughtContent = (fullContent.match(/<thought>([\s\S]*?)<\/thought>/g) || [])
+      .map(t => t.replace(/<\/?thought>/g, '')).join('\n');
+
+    // Branching logic (Truncate)
+    if (turnIndex !== -1 && turnIndex < session.messages.length - 1) {
+      const targetMsg = session.messages[turnIndex];
+      const subsequentMessages = session.messages.slice(turnIndex + 1);
+      const activeIdx = targetMsg.metadata?.activeVersionIndex || 0;
+      const updatedVersions = (targetMsg.metadata?.versions || [{ text: targetMsg.content, subsequentMessages: [] }])
+        .map((v, i) => i === activeIdx ? { ...v, subsequentMessages } : v);
+      targetMsg.metadata = { ...targetMsg.metadata, versions: updatedVersions };
+      session.messages = session.messages.slice(0, turnIndex + 1);
+    }
+
+    let finalAssistantId = targetMsgId;
+
+    if (targetMsgId && turnIndex !== -1) {
+      const targetMsg = session.messages[turnIndex];
+      const newVersion = { text: cleanContent, subsequentMessages: [] };
+      const updatedVersions = [...(targetMsg.metadata?.versions || []), newVersion];
+      targetMsg.content = cleanContent;
+      targetMsg.metadata = {
+        ...targetMsg.metadata,
+        regenerated: true,
+        sources: sources || [],
+        thought: thoughtContent || undefined,
+        versions: updatedVersions,
+        activeVersionIndex: updatedVersions.length - 1
+      };
+      finalAssistantId = targetMsg._id.toString();
+    } else {
+      const assistantMsg = {
+        role: 'assistant', content: cleanContent, timestamp: new Date(),
+        metadata: { 
+          regenerated: true, sources: sources || [], thought: thoughtContent || undefined,
+          versions: [{ text: cleanContent, subsequentMessages: [] }], activeVersionIndex: 0
+        },
+      };
+      session.messages.push(assistantMsg);
+      finalAssistantId = session.messages[session.messages.length - 1]._id.toString();
+    }
+
+    await session.save();
+
+    res.write(`data: ${JSON.stringify({ 
+      type: 'done', 
+      assistantMessageId: finalAssistantId,
+      messagesAfterRegen: session.messages 
+    })}\n\n`);
+    res.end();
+
+  } catch (err) {
+    console.error('[Chat:RegenStream] Error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to stream regeneration' });
+    else res.end();
   }
 };
 

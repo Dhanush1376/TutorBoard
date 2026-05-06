@@ -9,14 +9,22 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  optimizeDeps: {
+    include: ['react-window'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/],
+    },
+  },
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       '/teaching': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3001',
         ws: true,
       }
     }

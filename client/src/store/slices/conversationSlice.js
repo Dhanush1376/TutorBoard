@@ -5,7 +5,56 @@
 const generateId = (prefix = 'msg') =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
+const buildNormalizedSession = () => ({
+  messagesById: {},
+  orderedMessageIds: [],
+  streamState: {
+    status: 'idle', // idle | requesting | streaming | completed | aborted | failed
+    streamId: null,
+    requestId: null,
+    messageId: null,
+    assistantMessageId: null,
+    createdAt: null,
+    latencyMs: null,
+    aborted: false,
+  },
+  metadata: {},
+});
+
+const toUiMessage = (msg) => {
+  const content = msg.content || '';
+  const defaultMetadata = {
+    edited: false,
+    regenerated: false,
+    feedback: null,
+    versions: [{ text: content, subsequentMessages: [] }],
+    activeVersionIndex: 0,
+  };
+
+  return {
+    ...msg,
+    metadata: {
+      ...defaultMetadata,
+      ...(msg.metadata || {}),
+    },
+  };
+};
+
+const ALLOWED_STREAM_TRANSITIONS = {
+  idle: new Set(['requesting']),
+  requesting: new Set(['streaming', 'failed', 'aborted']),
+  streaming: new Set(['completed', 'failed', 'aborted']),
+  completed: new Set(['requesting']),
+  failed: new Set(['requesting']),
+  aborted: new Set(['requesting']),
+};
+
+const canTransitionStream = (fromStatus = 'idle', toStatus = 'idle') =>
+  !!ALLOWED_STREAM_TRANSITIONS[fromStatus]?.has(toStatus);
+
 export const createConversationSlice = (set, get) => ({
+  conversationSessions: {},
+  activeConversationSessionId: null,
   conversationMessages: [],
   isStreaming: false,
   streamingContent: '',
@@ -25,6 +74,7 @@ export const createConversationSlice = (set, get) => ({
   isSearchPerformed: false,
   currentCanvasType: null,   // Track canvas_type for the active stream
   sessionStates: {},         // { [sessionId]: { isStreaming, isWaitingForAI, content, thought, messageId, sources, searchPerformed } }
+  streamTokenCounter: 0,
 
   addUserMessage: (content) => {
     const userId = generateId('user');
@@ -39,7 +89,12 @@ export const createConversationSlice = (set, get) => ({
     };
     const sid = get().chatSessionId || get().sessionId || 'temp';
     set((state) => {
-      state.conversationMessages = [...state.conversationMessages, msg];
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const session = state.conversationSessions[sid];
+      session.messagesById[userId] = toUiMessage(msg);
+      session.orderedMessageIds.push(userId);
+      state.activeConversationSessionId = sid;
+      state.conversationMessages = session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
       state.isWaitingForAI = true; 
       state.waitingSessionId = sid;
       state.lastAIError = null;
@@ -69,7 +124,12 @@ export const createConversationSlice = (set, get) => ({
       ...extraMetadata // Spread to root as well for hasCanvas etc
     };
     set((state) => {
-      state.conversationMessages = [...state.conversationMessages, msg];
+      const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const session = state.conversationSessions[sid];
+      session.messagesById[msgId] = toUiMessage(msg);
+      session.orderedMessageIds.push(msgId);
+      state.conversationMessages = session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
       state.isWaitingForAI = false;
       state.isStreaming = false;
       state.waitingSessionId = null;
@@ -86,9 +146,10 @@ export const createConversationSlice = (set, get) => ({
     return msgId;
   },
 
-  startStreaming: (messageId, sessionId = null) => {
+  startStreaming: (messageId, sessionId = null, streamToken = null) => {
     const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
     set((state) => {
+      const token = streamToken || `stream-${Date.now()}-${++state.streamTokenCounter}`;
       state.isStreaming = true;
       state.isWaitingForAI = false;
       state.waitingSessionId = null;
@@ -105,32 +166,52 @@ export const createConversationSlice = (set, get) => ({
         content: '',
         thought: '',
         messageId: messageId,
+        streamToken: token,
         sources: [],
         searchPerformed: false
+      };
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
+      const nextStatus = 'requesting';
+      if (canTransitionStream(currentStatus, nextStatus)) {
+        state.conversationSessions[sid].streamState.status = nextStatus;
+      }
+      const statusBeforeStreaming = state.conversationSessions[sid].streamState.status || currentStatus;
+      if (!canTransitionStream(statusBeforeStreaming, 'streaming')) {
+        return;
+      }
+      state.conversationSessions[sid].streamState = {
+        ...state.conversationSessions[sid].streamState,
+        status: 'streaming',
+        streamId: token,
+        requestId: token,
+        messageId,
+        assistantMessageId: messageId,
+        createdAt: Date.now(),
+        latencyMs: null,
+        aborted: false,
       };
     });
   },
 
   prepareRegeneration: (messageId) => {
+    // Do not optimistically mutate versions before server confirmation.
+    // This prevents duplicate/blank versions when regenerate fails or is retried.
     set((state) => {
-      const messages = state.conversationMessages.map(m => {
-        if (m.id === messageId) {
-          const versions = m.metadata?.versions || [{ text: m.content, subsequentMessages: [] }];
-          const newVersion = { text: '', subsequentMessages: [] };
-          return {
-            ...m,
-            content: '', // Clear content for the new version
-            metadata: {
-              ...m.metadata,
-              versions: [...versions, newVersion],
-              activeVersionIndex: versions.length,
-              regenerated: true
-            }
-          };
-        }
-        return m;
-      });
-      return { conversationMessages: messages };
+      const sid = get().chatSessionId || get().sessionId || 'temp';
+      state.isWaitingForAI = true;
+      state.waitingSessionId = sid;
+      state.streamingMessageId = messageId; // Track which message is being regenerated
+      if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
+      state.sessionStates[sid].isWaitingForAI = true;
+      state.sessionStates[sid].messageId = messageId; // Also track in session state
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
+      if (canTransitionStream(currentStatus, 'requesting')) {
+        state.conversationSessions[sid].streamState.status = 'requesting';
+        state.conversationSessions[sid].streamState.requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        state.conversationSessions[sid].streamState.createdAt = Date.now();
+      }
     });
   },
 
@@ -182,13 +263,16 @@ export const createConversationSlice = (set, get) => ({
         state.lastStreamSources = sources;
         state.isSearchPerformed = true;
       }
+      if (state.conversationSessions[sid]) {
+        state.conversationSessions[sid].metadata.lastSources = sources;
+      }
     });
   },
 
   // Clear sources
   clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
 
-  finishStreaming: (finalContent, sessionId = null, thoughtContent = '', sources = [], artifactId = null, canvasType = null, latencyMs = null) => {
+  finishStreaming: (finalContent, sessionId = null, thoughtContent = '', sources = [], artifactId = null, canvasType = null, latencyMs = null, streamToken = null) => {
     const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
     const { conversationMessages, chatSessionId, sessionId: activeSessionId } = get();
     const currentViewId = chatSessionId || activeSessionId;
@@ -200,12 +284,40 @@ export const createConversationSlice = (set, get) => ({
     const existingIdx = conversationMessages.findIndex(m => m.id === targetMsgId);
     
     set((state) => {
+      const activeStreamToken = state.sessionStates[sid]?.streamToken;
+      if (streamToken && activeStreamToken && streamToken !== activeStreamToken) {
+        return;
+      }
+      if (state.sessionStates[sid]?.aborted && (!streamToken || streamToken === activeStreamToken)) {
+        state.sessionStates[sid].aborted = false;
+        state.sessionStates[sid].isStreaming = false;
+        state.sessionStates[sid].isWaitingForAI = false;
+        state.sessionStates[sid].content = '';
+        state.sessionStates[sid].thought = '';
+        if (sid === state.streamingSessionId || sid === state.chatSessionId) {
+          state.isStreaming = false;
+          state.streamingContent = '';
+          state.streamingThought = '';
+          state.streamingMessageId = null;
+          state.streamingSessionId = null;
+          state.isWaitingForAI = false;
+          state.waitingSessionId = null;
+        }
+        return;
+      }
       // 1. Update session-specific map
       if (state.sessionStates[sid]) {
         state.sessionStates[sid].isStreaming = false;
         state.sessionStates[sid].isWaitingForAI = false;
         state.sessionStates[sid].content = '';
         state.sessionStates[sid].thought = '';
+        state.sessionStates[sid].streamToken = null;
+      }
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const normalizedSession = state.conversationSessions[sid];
+      const streamStatus = normalizedSession.streamState.status || 'idle';
+      if (!canTransitionStream(streamStatus, 'completed')) {
+        return;
       }
 
       // 2. Update global legacy state IF this was the active session
@@ -244,6 +356,11 @@ export const createConversationSlice = (set, get) => ({
             latencyMs: latencyMs || targetMsg.metadata.latencyMs
           }
         };
+        const updatedId = state.conversationMessages[existingIdx].id;
+        normalizedSession.messagesById[updatedId] = toUiMessage(state.conversationMessages[existingIdx]);
+        if (!normalizedSession.orderedMessageIds.includes(updatedId)) {
+          normalizedSession.orderedMessageIds.push(updatedId);
+        }
       } else if (isCurrentChat) {
         // APPEND NEW (Standard message case)
         const msg = {
@@ -263,10 +380,18 @@ export const createConversationSlice = (set, get) => ({
           },
         };
         state.conversationMessages = [...state.conversationMessages, msg];
+        normalizedSession.messagesById[msg.id] = toUiMessage(msg);
+        normalizedSession.orderedMessageIds.push(msg.id);
         state.conversationSources = [];
         state.isSearchPerformed = false;
         state.currentCanvasType = null;
       }
+      normalizedSession.streamState = {
+        ...normalizedSession.streamState,
+        status: 'completed',
+        latencyMs: latencyMs || normalizedSession.streamState.latencyMs || null,
+        aborted: false,
+      };
     });
   },
 
@@ -279,48 +404,31 @@ export const createConversationSlice = (set, get) => ({
     const content = sessionState.content || state.streamingContent || '';
     const msgId = sessionState.messageId || state.streamingMessageId;
 
-    if (content.trim()) {
-      const msg = {
-        id: msgId || generateId('assistant'),
-        role: 'assistant', content: content + '\n\n*[Response stopped]*',
-        timestamp: new Date().toISOString(),
-        metadata: { 
-          edited: false, regenerated: false, feedback: null,
-          versions: [{ text: content + '\n\n*[Response stopped]*', subsequentMessages: [] }], activeVersionIndex: 0
-        },
+    set((state) => {
+      if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
+      state.sessionStates[sid].aborted = true;
+      state.sessionStates[sid].isStreaming = false;
+      state.sessionStates[sid].isWaitingForAI = false;
+      state.sessionStates[sid].content = content || '';
+      state.sessionStates[sid].thought = '';
+      state.sessionStates[sid].messageId = msgId || state.sessionStates[sid].messageId;
+      state.isStreaming = false;
+      state.streamingContent = '';
+      state.streamingMessageId = null;
+      state.streamingSessionId = null;
+      state.isWaitingForAI = false;
+      state.waitingSessionId = null;
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
+      if (!canTransitionStream(currentStatus, 'aborted')) {
+        return;
+      }
+      state.conversationSessions[sid].streamState = {
+        ...state.conversationSessions[sid].streamState,
+        status: 'aborted',
+        aborted: true,
       };
-      set((state) => {
-        const update = {
-          conversationMessages: [...state.conversationMessages, msg],
-          isStreaming: false, 
-          streamingContent: '', 
-          streamingMessageId: null, 
-          streamingSessionId: null,
-          isWaitingForAI: false,
-          waitingSessionId: null
-        };
-        if (state.sessionStates[sid]) {
-          state.sessionStates[sid].isStreaming = false;
-          state.sessionStates[sid].isWaitingForAI = false;
-        }
-        return update;
-      });
-    } else {
-      set((state) => {
-        if (state.sessionStates[sid]) {
-          state.sessionStates[sid].isStreaming = false;
-          state.sessionStates[sid].isWaitingForAI = false;
-        }
-        return { 
-          isStreaming: false, 
-          streamingContent: '', 
-          streamingMessageId: null, 
-          streamingSessionId: null,
-          isWaitingForAI: false,
-          waitingSessionId: null
-        };
-      });
-    }
+    });
   },
 
   setWaitingForAI: (waiting, sessionId = null) => {
@@ -332,6 +440,12 @@ export const createConversationSlice = (set, get) => ({
 
       if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
       state.sessionStates[sid].isWaitingForAI = waiting;
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
+      if (waiting && canTransitionStream(currentStatus, 'requesting')) {
+        state.conversationSessions[sid].streamState.status = 'requesting';
+        state.conversationSessions[sid].streamState.createdAt = Date.now();
+      }
     });
   },
   setLastAIError: (error, sessionId = null) => {
@@ -340,6 +454,11 @@ export const createConversationSlice = (set, get) => ({
       state.lastAIError = error;
       state.isWaitingForAI = false;
       if (state.sessionStates[sid]) state.sessionStates[sid].isWaitingForAI = false;
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
+      if (canTransitionStream(currentStatus, 'failed')) {
+        state.conversationSessions[sid].streamState.status = 'failed';
+      }
     });
   },
 
@@ -390,6 +509,17 @@ export const createConversationSlice = (set, get) => ({
       } 
     };
     set({ conversationMessages: updated, editingMessageId: null, editingContent: '', isWaitingForAI: true });
+    const sid = get().activeConversationSessionId || get().chatSessionId || get().sessionId || 'temp';
+    set((state) => {
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const session = state.conversationSessions[sid];
+      session.messagesById = {};
+      session.orderedMessageIds = [];
+      updated.forEach((m) => {
+        session.messagesById[m.id] = toUiMessage(m);
+        session.orderedMessageIds.push(m.id);
+      });
+    });
     return updated;
   },
 
@@ -425,7 +555,18 @@ export const createConversationSlice = (set, get) => ({
       ...(targetVersion.subsequentMessages || [])
     ];
     
-    set({ conversationMessages: newConversation });
+    set((state) => {
+      state.conversationMessages = newConversation;
+      const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const session = state.conversationSessions[sid];
+      session.messagesById = {};
+      session.orderedMessageIds = [];
+      newConversation.forEach((m) => {
+        session.messagesById[m.id] = toUiMessage(m);
+        session.orderedMessageIds.push(m.id);
+      });
+    });
   },
 
   addMessageVersion: (messageId, text, metadata = {}) => {
@@ -462,19 +603,38 @@ export const createConversationSlice = (set, get) => ({
   },
 
   setConversationMessages: (messages) => {
-    set({
-      conversationMessages: messages.map((m) => {
+    set((state) => {
+      const sid = state.chatSessionId || state.sessionId || state.activeConversationSessionId || 'temp';
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const normalized = messages.map((m) => {
         const content = m.content || '';
+        const defaultMetadata = {
+          edited: false,
+          regenerated: false,
+          feedback: null,
+          versions: [{ text: content, subsequentMessages: [] }],
+          activeVersionIndex: 0,
+        };
         return {
           id: m.id || m._id?.toString() || generateId(m.role),
-          role: m.role, content,
+          role: m.role,
+          content,
           timestamp: m.timestamp || new Date().toISOString(),
-          metadata: m.metadata || { 
-            edited: false, regenerated: false, feedback: null,
-            versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0
+          metadata: {
+            ...defaultMetadata,
+            ...(m.metadata || {}),
           },
         };
-      }),
+      });
+      const session = state.conversationSessions[sid];
+      session.messagesById = {};
+      session.orderedMessageIds = [];
+      normalized.forEach((m) => {
+        session.messagesById[m.id] = toUiMessage(m);
+        session.orderedMessageIds.push(m.id);
+      });
+      state.activeConversationSessionId = sid;
+      state.conversationMessages = normalized;
     });
   },
 
@@ -521,6 +681,15 @@ export const createConversationSlice = (set, get) => ({
           });
         }
       }
+      const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const session = state.conversationSessions[sid];
+      session.messagesById = {};
+      session.orderedMessageIds = [];
+      msgs.forEach((m) => {
+        session.messagesById[m.id] = toUiMessage(m);
+        session.orderedMessageIds.push(m.id);
+      });
       return { conversationMessages: msgs };
     });
   },
@@ -538,6 +707,12 @@ export const createConversationSlice = (set, get) => ({
         // We keep the old one for a moment to prevent race conditions during render
         // but mark it as migrated or just let it be pruned later
       }
+      if (state.conversationSessions[oldId] && !state.conversationSessions[newId]) {
+        state.conversationSessions[newId] = state.conversationSessions[oldId];
+      }
+      if (state.activeConversationSessionId === oldId) {
+        state.activeConversationSessionId = newId;
+      }
 
       // 2. Update global pointers
       if (state.streamingSessionId === oldId) state.streamingSessionId = newId;
@@ -545,5 +720,22 @@ export const createConversationSlice = (set, get) => ({
       
       console.log(`[Store] 🔄 Migrated session state from ${oldId} to ${newId}`);
     });
+  },
+
+  setActiveConversationSession: (sessionId) => {
+    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    set((state) => {
+      state.activeConversationSessionId = sid;
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      const session = state.conversationSessions[sid];
+      state.conversationMessages = session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
+    });
+  },
+
+  getConversationMessagesForSession: (sessionId) => {
+    const sid = sessionId || get().activeConversationSessionId || get().chatSessionId || get().sessionId || 'temp';
+    const session = get().conversationSessions[sid];
+    if (!session) return [];
+    return session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
   },
 });

@@ -75,6 +75,8 @@ const Home = ({ isDark }) => {
     switchMessageVersion, setSources, clearSources, startStreaming: storeStartStreaming,
     appendStreamChunk, appendStreamThought, updateStreamingContent, lastStreamSources,
     setCurrentCanvasType,
+    syncMessageIds,
+    setActiveConversationSession,
     // Artifact system
     addArtifact, setArtifactDbId, setActiveArtifact, openArtifactPanel,
     // Unread tracking
@@ -102,6 +104,7 @@ const Home = ({ isDark }) => {
     switchMessageVersion: s.switchMessageVersion, setSources: s.setSources, clearSources: s.clearSources, startStreaming: s.startStreaming,
     appendStreamChunk: s.appendStreamChunk, appendStreamThought: s.appendStreamThought, updateStreamingContent: s.updateStreamingContent, lastStreamSources: s.lastStreamSources,
     setCurrentCanvasType: s.setCurrentCanvasType, syncMessageIds: s.syncMessageIds,
+    setActiveConversationSession: s.setActiveConversationSession,
     prepareRegeneration: s.prepareRegeneration,
     addArtifact: s.addArtifact, setArtifactDbId: s.setArtifactDbId, setActiveArtifact: s.setActiveArtifact, openArtifactPanel: s.openArtifactPanel,
     startStreamingArtifact: s.startStreamingArtifact, finalizeStreamingArtifact: s.finalizeStreamingArtifact,
@@ -239,7 +242,10 @@ const Home = ({ isDark }) => {
 
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
-  }, [activeChatId]);
+    if (activeChatId) {
+      setActiveConversationSession(activeChatId);
+    }
+  }, [activeChatId, setActiveConversationSession]);
 
   // ─── Leave Chat / Close Snapshot Logic ───
   useEffect(() => {
@@ -978,9 +984,10 @@ const Home = ({ isDark }) => {
     const finalContext = selectedTextContext;
 
     if ((!prompt.trim() && !textOverride && !fileData && !finalContext) || submittingSessionsRef.current.has(activeChatId || 'new')) return;
-    
-    const workingSessionId = activeChatId || `session-${Date.now()}`;
+
+    let workingSessionId = activeChatId || `session-${Date.now()}`;
     submittingSessionsRef.current.add(workingSessionId);
+    const streamToken = `stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     
     let userPrompt = textOverride || prompt.trim();
     
@@ -1051,16 +1058,19 @@ const Home = ({ isDark }) => {
       }
 
       const requestStartTime = Date.now();
+      const clientRequestId = `chat-${requestStartTime}-${Math.random().toString(36).slice(2, 8)}`;
 
       // ── 3. Call the SSE Streaming Chat API ──
       const fetchOptions = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': getCookie('tb-csrf-token') || ''
+          'X-CSRF-Token': getCookie('tb-csrf-token') || '',
+          'X-Request-Id': clientRequestId
         },
         body: JSON.stringify({
           sessionId: /^[0-9a-fA-F]{24}$/.test(workingSessionId) ? workingSessionId : undefined,
+          requestId: clientRequestId,
           userMessage: userPrompt,
           mode: activeMode || 'quick',
           teachingContext: {
@@ -1093,7 +1103,7 @@ const Home = ({ isDark }) => {
       // ── 4. Real SSE Streaming ──
       clearSources();
       const assistantMsgId = getMsgId('assistant');
-      storeStartStreaming(assistantMsgId, workingSessionId);
+      storeStartStreaming(assistantMsgId, workingSessionId, streamToken);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -1127,7 +1137,7 @@ const Home = ({ isDark }) => {
 
           try {
             const eventData = JSON.parse(dataStr);
-            const eventType = eventData.type || lastEventType;
+              const eventType = eventData.type || lastEventType;
 
             if (eventType === 'chunk' || eventType === 'message') {
               const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
@@ -1176,6 +1186,8 @@ const Home = ({ isDark }) => {
                 }
                 return s;
               }));
+            } else if (eventType === 'meta') {
+              receivedSessionId = eventData.sessionId || eventData.receivedSessionId || receivedSessionId;
             } else if (eventType === 'plan') {
               const plan = eventData.plan || {};
               if (plan.generate_artifact) {
@@ -1189,11 +1201,6 @@ const Home = ({ isDark }) => {
                 currentCanvasTypeRef.current = plan.canvas_type;
                 setCurrentCanvasType(plan.canvas_type);
               }
-            } else if (eventType === 'status') {
-              console.log('[Home] AI Status:', eventData.message);
-              appendStreamThought(`*${eventData.message}* `);
-            } else if (eventType === 'meta' || eventType === 'message_ids') {
-              receivedSessionId = eventData.sessionId || eventData.receivedSessionId;
             } else if (eventType === 'artifact') {
               const art = eventData.artifact || eventData;
               if (art.type && art.content) {
@@ -1267,7 +1274,7 @@ const Home = ({ isDark }) => {
             if (lastEventType === 'message' && !dataStr.startsWith('{')) {
               fullContent += dataStr;
               if (workingSessionId === activeChatIdRef.current) {
-                appendStreamChunk(dataStr);
+                appendStreamChunk(dataStr, workingSessionId);
               } else {
                 addUnreadSession(workingSessionId);
               }
@@ -1279,7 +1286,7 @@ const Home = ({ isDark }) => {
       console.log("FULL RESPONSE (Client):", fullContent);
 
       // ── 5. Finalize streaming ──
-      finishStreaming(fullContent, workingSessionId, thoughtContent, lastStreamSources, lastArtifactIdRef.current, currentCanvasTypeRef.current);
+      finishStreaming(fullContent, workingSessionId, thoughtContent, lastStreamSources, lastArtifactIdRef.current, currentCanvasTypeRef.current, Date.now() - requestStartTime, streamToken);
       lastArtifactIdRef.current = null; // Reset for next turn
       currentCanvasTypeRef.current = null;
 
@@ -1297,6 +1304,13 @@ const Home = ({ isDark }) => {
         // CRITICAL: Migrate streaming/waiting state to the new MongoDB ID before swapping active ID
         const { migrateSessionState } = useTutorStore.getState();
         migrateSessionState(workingSessionId, receivedSessionId);
+        
+        // SEC-UX: Migrate AbortController so "Stop" continues to work after ID swap
+        const existingController = abortControllersRef.current.get(workingSessionId);
+        if (existingController) {
+          abortControllersRef.current.set(receivedSessionId, existingController);
+          abortControllersRef.current.delete(workingSessionId);
+        }
 
         setActiveChatId(receivedSessionId);
         setChatHistory(prev => prev.map(s => 
@@ -1395,55 +1409,121 @@ const Home = ({ isDark }) => {
 
     try {
       if (isMongoId) {
-        const response = await API.post('/api/chat/regenerate', {
-          sessionId: dbSessionId,
-          messageId: finalTargetId
+        const clientRequestId = `regen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        
+        const fetchOptions = {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCookie('tb-csrf-token') || '',
+            'X-Request-Id': clientRequestId
+          },
+          body: JSON.stringify({
+            sessionId: dbSessionId,
+            messageId: finalTargetId,
+            requestId: clientRequestId
+          }),
+          credentials: 'include'
+        };
+
+        const controller = new AbortController();
+        abortControllersRef.current.set(dbSessionId, controller);
+        fetchOptions.signal = controller.signal;
+
+        const res = await fetch(`${API_URL}/api/chat/regenerate/stream`, fetchOptions).catch(e => {
+          console.error('[Home:Regen] Fetch failed:', e);
+          throw new Error(`Network error: ${e.message}`);
         });
 
-        if (response.status === 200) {
-          const data = response.data;
-          
-          // ── SYNC STATE: If regeneration truncated the conversation (branching), update store ──
-          // ── SYNC STATE ──
-          if (data.messagesAfterRegen) {
-            useTutorStore.getState().setConversationMessages(data.messagesAfterRegen);
-          }
-
-          if (!data.response || typeof data.response !== 'string') {
-            useTutorStore.getState().setWaitingForAI(false, dbSessionId);
-            return;
-          }
-
-          // Transition directly to streaming (streamResponse calls startStreaming which clears waiting state)
-          streamResponse(data.response, data.assistantMessageId || finalTargetId, dbSessionId);
-          return;
-        } else {
-          useTutorStore.getState().setWaitingForAI(false, dbSessionId);
-          throw new Error(`Regenerate failed: ${response.status}`);
+        console.log('[Home:Regen] Response status:', res.status);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Regeneration failed');
         }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        let thoughtContent = '';
+        let lastEventType = 'message';
+        const requestStartTime = Date.now();
+
+        // Start UI streaming state
+        storeStartStreaming(finalTargetId, dbSessionId);
+
+        let lastStreamSources = [];
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith('event: ')) {
+              lastEventType = trimmed.slice(7).trim();
+              continue;
+            }
+            if (!trimmed.startsWith('data: ')) continue;
+            const dataStr = trimmed.slice(6);
+
+            try {
+              const eventData = JSON.parse(dataStr);
+              const eventType = eventData.type || lastEventType;
+
+              if (eventType === 'chunk' || eventType === 'message') {
+                const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
+                if (text) {
+                  fullContent += text;
+                  appendStreamChunk(text, dbSessionId);
+                }
+              } else if (eventType === 'thought' || eventType === 'status') {
+                const thought = eventData.thought || eventData.message || eventData.content || '';
+                thoughtContent += thought + (eventType === 'status' ? '\n' : '');
+                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), dbSessionId);
+              } else if (eventType === 'sources') {
+                lastStreamSources = eventData.sources || [];
+                setSources(lastStreamSources, dbSessionId);
+              } else if (eventType === 'plan') {
+                if (eventData.plan?.suggest_canvas) setCurrentCanvasType(eventData.plan.canvas_type);
+              } else if (eventType === 'done') {
+                if (eventData.messagesAfterRegen) {
+                  // We'll sync this AFTER finishStreaming to ensure the final content is preserved
+                  console.log('[Home:Regen] Sync received from server');
+                }
+              }
+            } catch (e) {
+              // Ignore parse errors for keep-alive or malformed data
+            }
+          }
+        }
+
+        console.log('[Home:Regen] Finalizing stream, length:', fullContent.length);
+        finishStreaming(fullContent, dbSessionId, thoughtContent, lastStreamSources, null, null, Date.now() - requestStartTime);
+        return;
       }
 
-      // Fallback: re-send last user message (non-destructive regeneration for guests)
+      // Fallback: re-send last user message (for guests/non-persisted)
+      // (This could also be updated to stream, but let's keep it simple for now)
       const lastUserMsg = useTutorStore.getState().conversationMessages
         .filter(m => m.role === 'user').pop();
         
       if (lastUserMsg) {
-        const response = await API.post('/api/chat', {
-          userMessage: lastUserMsg.content,
-          mode: activeMode || 'quick'
-        });
-        if (response.status === 200) {
-          streamResponse(response.data.response, finalTargetId, dbSessionId);
-        } else {
-          useTutorStore.getState().setWaitingForAI(false, dbSessionId);
-          throw new Error('Regenerate fallback failed');
-        }
+        handleSubmit(lastUserMsg.content);
       } else {
         useTutorStore.getState().setWaitingForAI(false, dbSessionId);
       }
     } catch (err) {
+      if (err.name === 'AbortError') return;
       console.error('[Home] Regenerate failed:', err);
-      useTutorStore.getState().setWaitingForAI(false, dbSessionId);
+      // Ensure we clear the streaming state so the UI doesn't stay hidden
+      useTutorStore.getState().finishStreaming('⚠️ Regeneration failed. Please try again.', dbSessionId);
       setLastAIError(err.message, dbSessionId);
     }
   };

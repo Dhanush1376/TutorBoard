@@ -182,9 +182,20 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
   td: ({ children }) => (
     <td style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-color)', color: 'var(--text-primary)', opacity: 0.9 }}>{children}</td>
   ),
-  a: ({ children, href }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--info)', textDecoration: 'underline', textDecorationColor: 'var(--info)', opacity: 0.8 }}>{children}</a>
-  ),
+  a: ({ children, href }) => {
+    let safeHref = '#';
+    try {
+      const parsed = new URL(href, window.location.origin);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'mailto:') {
+        safeHref = parsed.toString();
+      }
+    } catch {
+      safeHref = '#';
+    }
+    return (
+      <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--info)', textDecoration: 'underline', textDecorationColor: 'var(--info)', opacity: 0.8 }}>{children}</a>
+    );
+  },
   hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '16px 0' }} />,
 });
 
@@ -415,8 +426,10 @@ const ArtifactChip = ({ artifactId }) => {
 
 const ActionBtn = ({ onClick, title, children, className = '' }) => (
   <button
+    type="button"
     onClick={onClick}
     title={title}
+    aria-label={title}
     className={`chat-action-btn ${className}`}
     style={{ padding: '3px 5px', borderRadius: 6, transition: 'all 0.15s', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
   >
@@ -437,6 +450,8 @@ const Message = ({
   metadata, onSwitchVersion,
   onOpenArtifact,
   steps,
+  isSessionActive,
+  streamingMessageId,
 }) => {
   const isAssistant = role === 'assistant';
   const [copied, setCopied] = useState(false);
@@ -447,6 +462,8 @@ const Message = ({
   const editRef = useRef(null);
 
   const displayContent = isStreaming ? streamingContent : content;
+  const isWaitingToRegenerate = isSessionActive && !isStreaming && streamingMessageId === messageId;
+  const isRegenerating = isSessionActive && isStreaming && streamingMessageId === messageId && !displayContent;
 
   const formatTime = (ts) => {
     try { return new Date(ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -487,6 +504,9 @@ const Message = ({
     () => buildMarkdownComponents(onOpenArtifact),
     [onOpenArtifact]
   );
+
+  const isBeingRegenerated = isSessionActive && streamingMessageId === messageId;
+  const showLocalIndicator = isBeingRegenerated && (!isStreaming || !displayContent);
 
   return (
     <div className={`w-full py-1.5 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}>
@@ -573,13 +593,25 @@ const Message = ({
               >
                 {isAssistant ? (
                   <div className="markdown-content" style={{ position: 'relative' }}>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={markdownComponents}
-                    >
-                      {displayContent || ''}
-                    </ReactMarkdown>
+                    {showLocalIndicator ? (
+                      <div className="flex items-center gap-3 py-2 px-1 text-slate-400 italic text-sm animate-pulse">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                        >
+                          <Check size={14} className="opacity-40" />
+                        </motion.div>
+                        <span>Regenerating answer...</span>
+                      </div>
+                    ) : (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={markdownComponents}
+                      >
+                        {displayContent || ''}
+                      </ReactMarkdown>
+                    )}
                     {/* Streaming cursor appended after last char */}
                     {showCursor && displayContent && (
                       <StreamCursor />
@@ -633,7 +665,7 @@ const Message = ({
 
               {/* Action bar — shown on hover after stream ends */}
               <AnimatePresence>
-                {!isEditing && !isStreaming && (
+                {!isEditing && !isStreaming && !isSessionActive && (
                   <motion.div
                     initial={{ opacity: 0, y: -2 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -713,7 +745,7 @@ const Message = ({
               </AnimatePresence>
 
               {/* Version switcher */}
-              {metadata?.versions?.length > 1 && !isStreaming && (
+              {metadata?.versions?.length > 1 && !isStreaming && !isSessionActive && (
                 <div className={`flex items-center gap-2.5 mt-2 ${isAssistant ? '' : 'justify-end'}`}>
                   <div
                     className="flex items-center rounded-full"
@@ -730,7 +762,7 @@ const Message = ({
                       <ChevronLeft size={13} strokeWidth={2.5} />
                     </button>
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-tertiary)', padding: '0 4px', minWidth: 32, textAlign: 'center' }}>
-                      {metadata.activeVersionIndex + 1} / {metadata.versions.length}
+                      {`<${metadata.activeVersionIndex + 1}/${metadata.versions.length}>`}
                     </span>
                     <button
                       onClick={() => onSwitchVersion?.(messageId, Math.min(metadata.versions.length - 1, metadata.activeVersionIndex + 1))}

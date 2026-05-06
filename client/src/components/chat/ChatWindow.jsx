@@ -12,6 +12,8 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, BookOpen, ClipboardCheck, ArrowDown } from 'lucide-react';
+import * as reactWindow from 'react-window';
+const { VariableSizeList } = reactWindow;
 import { useAuth } from '../../context/AuthContext';
 import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
@@ -38,9 +40,9 @@ const ThinkingIndicator = ({ phase }) => {
         {[0, 1, 2].map((i) => (
           <motion.span
             key={i}
-            animate={{ 
+            animate={{
               scale: [1, 1.3, 1],
-              opacity: [0.3, 1, 0.3] 
+              opacity: [0.3, 1, 0.3]
             }}
             transition={{
               duration: 1.4,
@@ -57,7 +59,7 @@ const ThinkingIndicator = ({ phase }) => {
           />
         ))}
       </div>
-      
+
       <span
         style={{
           fontSize: 11.5,
@@ -217,14 +219,16 @@ const ChatWindow = ({
   setActiveMode,
 }) => {
   const bottomRef = useRef(null);
+  const listRef = useRef(null);
   const containerRef = useRef(null);
   const userScrolledRef = useRef(false);
   const [showPill, setShowPill] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
-  const currentSessionId = useTutorStore((s) => s.chatSessionId || s.sessionId);
+  const currentSessionId = useTutorStore((s) => s.chatSessionId || s.sessionId || 'temp');
   const currentSessionState = useTutorStore(s => s.sessionStates[currentSessionId]);
   const currentCanvasType = useTutorStore((s) => s.currentCanvasType);
-  
+
   const isStreaming = currentSessionState?.isStreaming;
   const currentStreamingContent = currentSessionState?.content || '';
   const currentStreamingThought = currentSessionState?.thought || '';
@@ -238,6 +242,13 @@ const ChatWindow = ({
   // Robust check: matches if either the current session ID or the waiting ID matches
   const isCurrentlyWaiting = isWaitingForAI && (waitingSessionId === currentSessionId || waitingSessionId === 'temp');
   const isActive = isCurrentlyStreaming || isCurrentlyWaiting;
+
+  // Variables used by hooks must be defined before those hooks
+  const isEmpty =
+    messages.length === 0 && !isGenerating && !isCurrentlyWaiting && !isCurrentlyStreaming;
+
+  const streamingInList = messages.some((m) => m.id === currentStreamingMessageId);
+  const shouldVirtualize = !isActive && messages.length > 80;
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -257,10 +268,16 @@ const ChatWindow = ({
   }, [handleScroll]);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
+    if (shouldVirtualize && listRef.current) {
+      listRef.current.scrollToItem(Math.max(0, messages.length - 1), 'end');
+      userScrolledRef.current = false;
+      setShowPill(false);
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior });
     userScrolledRef.current = false;
     setShowPill(false);
-  }, []);
+  }, [messages.length, shouldVirtualize]);
 
   useEffect(() => {
     if (!userScrolledRef.current) {
@@ -274,10 +291,35 @@ const ChatWindow = ({
     return 'waiting';
   }, [isCurrentlyStreaming, currentStreamingContent, currentSearchPerformed]);
 
-  const isEmpty =
-    messages.length === 0 && !isGenerating && !isCurrentlyWaiting && !isCurrentlyStreaming;
+  const estimateMessageHeight = useCallback((msg) => {
+    const content = msg?.content || '';
+    const lineCount = Math.max(1, Math.ceil(content.length / 62));
+    const base = msg?.role === 'assistant' ? 130 : 96;
+    return Math.min(900, base + (lineCount * 20));
+  }, []);
 
-  const streamingInList = messages.some((m) => m.id === currentStreamingMessageId);
+  const rowSizeCacheRef = useRef({});
+  useEffect(() => {
+    rowSizeCacheRef.current = {};
+    if (listRef.current) listRef.current.resetAfterIndex(0, true);
+  }, [messages.length]);
+
+  const getItemSize = useCallback((index) => {
+    if (rowSizeCacheRef.current[index]) return rowSizeCacheRef.current[index];
+    const estimated = estimateMessageHeight(messages[index]);
+    rowSizeCacheRef.current[index] = estimated;
+    return estimated;
+  }, [messages, estimateMessageHeight]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setViewportHeight(el.clientHeight || 0);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div
@@ -294,45 +336,109 @@ const ChatWindow = ({
             animate={{ opacity: 1 }}
             className="flex flex-col px-3 py-3 gap-0.5"
           >
-            {messages.map((msg) => {
-              const msgKey = msg.id || `msg-${msg.role}-${msg.timestamp}`;
-              const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
+            {shouldVirtualize ? (
+              <VariableSizeList
+                ref={listRef}
+                height={Math.max(200, viewportHeight - 24)}
+                width="100%"
+                itemCount={messages.length}
+                itemSize={getItemSize}
+                overscanCount={8}
+                onScroll={({ scrollDirection, scrollOffset, scrollUpdateWasRequested }) => {
+                  if (scrollUpdateWasRequested) return;
+                  const totalEstimatedHeight = messages.reduce((acc, _, idx) => acc + getItemSize(idx), 0);
+                  const nearBottom = totalEstimatedHeight - (scrollOffset + Math.max(200, viewportHeight - 24)) < 120;
+                  if (scrollDirection === 'backward') userScrolledRef.current = true;
+                  if (nearBottom) userScrolledRef.current = false;
+                  setShowPill(!nearBottom && isActive);
+                }}
+              >
+                {({ index, style }) => {
+                  const msg = messages[index];
+                  const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
+                  return (
+                    <div style={{ ...style, paddingBottom: 2 }}>
+                      <Message
+                        key={msg.id || `msg-${msg.role}-${msg.timestamp}-${index}`}
+                        role={msg.role}
+                        content={msg.content}
+                        messageId={msg.id}
+                        timestamp={msg.timestamp}
+                        metadata={msg.metadata}
+                        isStreaming={isThisStreaming}
+                        isSessionActive={isActive}
+                        streamingContent={isThisStreaming ? currentStreamingContent : ""}
+                        streamingThought={isThisStreaming ? currentStreamingThought : ""}
+                        streamingMessageId={currentStreamingMessageId}
+                        onOpenCanvas={onOpenCanvas}
+                        onDeleteMessage={onDeleteMessage}
+                        onEditMessage={onEditMessage}
+                        onRegenerateMessage={onRegenerateMessage}
+                        onFeedback={onFeedback}
+                        onSwitchVersion={onSwitchVersion}
+                        onOpenArtifact={onOpenArtifact}
+                        steps={msg.steps}
+                        stepTitle={msg.stepTitle}
+                        domain={msg.domain}
+                        visualizationType={msg.visualizationType}
+                        elements={msg.elements || msg.objects}
+                        motion={msg.motion}
+                        connections={msg.connections}
+                        sequence={msg.sequence}
+                        objects={msg.objects || msg.elements}
+                        hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
+                        canvasType={msg.canvasType}
+                        isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
+                        streamingSources={isThisStreaming ? currentStreamingSources : []}
+                        showCursor={isThisStreaming}
+                      />
+                    </div>
+                  );
+                }}
+              </VariableSizeList>
+            ) : (
+              messages.map((msg) => {
+                const msgKey = msg.id || `msg-${msg.role}-${msg.timestamp}`;
+                const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
 
-              return (
-                <Message
-                  key={msgKey}
-                  role={msg.role}
-                  content={msg.content}
-                  messageId={msg.id}
-                  timestamp={msg.timestamp}
-                  metadata={msg.metadata}
-                  isStreaming={isThisStreaming}
-                  streamingContent={currentStreamingContent}
-                  streamingThought={currentStreamingThought}
-                  onOpenCanvas={onOpenCanvas}
-                  onDeleteMessage={onDeleteMessage}
-                  onEditMessage={onEditMessage}
-                  onRegenerateMessage={onRegenerateMessage}
-                  onFeedback={onFeedback}
-                  onSwitchVersion={onSwitchVersion}
-                  onOpenArtifact={onOpenArtifact}
-                  steps={msg.steps}
-                  stepTitle={msg.stepTitle}
-                  domain={msg.domain}
-                  visualizationType={msg.visualizationType}
-                  elements={msg.elements || msg.objects}
-                  motion={msg.motion}
-                  connections={msg.connections}
-                  sequence={msg.sequence}
-                  objects={msg.objects || msg.elements}
-                  hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
-                  canvasType={msg.canvasType}
-                  isSearchPerformed={currentSearchPerformed}
-                  streamingSources={currentStreamingSources}
-                  showCursor={isThisStreaming}
-                />
-              );
-            })}
+                return (
+                  <Message
+                    key={msgKey}
+                    role={msg.role}
+                    content={msg.content}
+                    messageId={msg.id}
+                    timestamp={msg.timestamp}
+                    metadata={msg.metadata}
+                    isStreaming={isThisStreaming}
+                    isSessionActive={isActive}
+                    streamingContent={currentStreamingContent}
+                    streamingThought={currentStreamingThought}
+                    streamingMessageId={currentStreamingMessageId}
+                    onOpenCanvas={onOpenCanvas}
+                    onDeleteMessage={onDeleteMessage}
+                    onEditMessage={onEditMessage}
+                    onRegenerateMessage={onRegenerateMessage}
+                    onFeedback={onFeedback}
+                    onSwitchVersion={onSwitchVersion}
+                    onOpenArtifact={onOpenArtifact}
+                    steps={msg.steps}
+                    stepTitle={msg.stepTitle}
+                    domain={msg.domain}
+                    visualizationType={msg.visualizationType}
+                    elements={msg.elements || msg.objects}
+                    motion={msg.motion}
+                    connections={msg.connections}
+                    sequence={msg.sequence}
+                    objects={msg.objects || msg.elements}
+                    hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
+                    canvasType={msg.canvasType}
+                    isSearchPerformed={currentSearchPerformed}
+                    streamingSources={currentStreamingSources}
+                    showCursor={isThisStreaming}
+                  />
+                );
+              })
+            )}
 
             {/* Streaming new message not yet in list */}
             {isCurrentlyStreaming && !streamingInList &&
@@ -344,6 +450,7 @@ const ChatWindow = ({
                   messageId={currentStreamingMessageId}
                   timestamp={new Date().toISOString()}
                   isStreaming
+                  isSessionActive={isActive}
                   streamingContent={currentStreamingContent}
                   streamingThought={currentStreamingThought}
                   streamingSources={currentStreamingSources}
@@ -356,7 +463,7 @@ const ChatWindow = ({
 
             {/* Thinking / waiting indicator */}
             <AnimatePresence>
-              {(isCurrentlyWaiting || isCurrentlyStreaming) && (
+              {(isCurrentlyWaiting || isCurrentlyStreaming) && !streamingInList && (
                 <ThinkingIndicator key="thinking" phase={thinkingPhase || 'waiting'} />
               )}
             </AnimatePresence>

@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './CanvasContext';
-import { Handle, RotateHandle, DeleteHandle } from './ElementHandles.jsx';
-import FloatingFormatBar from './FloatingFormatBar.jsx';
+import { Handle, RotateHandle, DeleteHandle } from './ElementHandles';
+import FloatingFormatBar from './FloatingFormatBar';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 
 

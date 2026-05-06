@@ -5,11 +5,11 @@
 import React, { useMemo, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
-import ErrorBoundary from '../common/ErrorBoundary.jsx';
+import ErrorBoundary from '../common/ErrorBoundary';
 import { resolve } from '../renderers/shapes/ShapeUtils.js';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
-import InlineEditor from './InlineEditor.jsx';
-import PremiumTextBox from './PremiumTextBox.jsx';
+import InlineEditor from './InlineEditor';
+import PremiumTextBox from './PremiumTextBox';
 import useTutorStore from '../../store/tutorStore.js';
 
 const CW = CANVAS_WIDTH;
