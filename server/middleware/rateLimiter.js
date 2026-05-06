@@ -1,19 +1,15 @@
 import { rateLimit } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-import { Redis } from 'ioredis';
 import redisClient from '../utils/core/redis.js';
 
 // ─── 1. HTTP Rate Limiter (Redis-backed) ───
-let httpStore;
-if (process.env.REDIS_URL) {
-  try {
-    const client = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
-    httpStore = new RedisStore({
-      sendCommand: (...args) => client.call(...args),
-    });
-  } catch (e) {
-    console.error('[RateLimit] CRITICAL: Redis unavailable.');
-  }
+let httpStore = null;
+const client = redisClient.client;
+
+if (redisClient.isConnected && client) {
+  httpStore = new RedisStore({
+    sendCommand: (...args) => client.call(...args),
+  });
 }
 
 export const httpRateLimiter = rateLimit({
@@ -65,6 +61,31 @@ const SOCKET_WINDOW_MS = 60_000;
 const AUTH_SOCKET_MAX_HITS = 2000;
 const GUEST_SOCKET_MAX_HITS = 200;
 export const GUEST_MONTHLY_LIMIT = 1000;
+
+// ─── 3. Periodic Cleanup (Fix R-03) ───
+// Sweeps the in-memory maps to prevent unbounded growth when Redis is offline.
+setInterval(() => {
+  const now = Date.now();
+  console.log('[RateLimiter] 🧹 Performing periodic memory cleanup...');
+  
+  // Clean hitsBySocket (stale if all timestamps are older than window)
+  for (const [key, timestamps] of hitsBySocket.entries()) {
+    const fresh = timestamps.filter(t => now - t < SOCKET_WINDOW_MS);
+    if (fresh.length === 0) {
+      hitsBySocket.delete(key);
+    } else if (fresh.length !== timestamps.length) {
+      hitsBySocket.set(key, fresh);
+    }
+  }
+
+  // Clean guestMonthlyHits (stale if it belongs to a previous month)
+  const currentMonthKey = new Date().toISOString().substring(0, 7);
+  for (const [key] of guestMonthlyHits.entries()) {
+    if (!key.endsWith(currentMonthKey)) {
+      guestMonthlyHits.delete(key);
+    }
+  }
+}, 10 * 60 * 1000); // 10 minute sweep
 
 export async function checkSocketRate(key) {
   const now = Date.now();

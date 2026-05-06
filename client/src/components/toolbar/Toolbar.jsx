@@ -20,9 +20,7 @@ import TextTool from './tools/TextTool';
 import DrawTool from './tools/DrawTool';
 import NoteTool from './tools/NoteTool';
 import ShapeTool from './tools/ShapeTool';
-import VisualizerTool from './tools/VisualizerTool';
 import CodeTool from './tools/CodeTool';
-import VoiceTool from './tools/VoiceTool';
 
 import ShareAction from './actions/ShareAction';
 import DeleteAction from './actions/DeleteAction';
@@ -208,20 +206,6 @@ const Toolbar = ({ onSettingsClick }) => {
             id="code"
             isHoveredExternally={hoveredId === 'code'} 
           />
-          {featureFlags?.enableVisualizer && (
-            <VisualizerTool 
-              {...commonToolProps} 
-              id="visualizer"
-              isHoveredExternally={hoveredId === 'visualizer'} 
-            />
-          )}
-          {featureFlags?.enableVoice && (
-            <VoiceTool 
-              {...commonToolProps} 
-              id="voice"
-              isHoveredExternally={hoveredId === 'voice'} 
-            />
-          )}
           
           <ShareAction 
             {...commonToolProps} 

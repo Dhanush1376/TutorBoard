@@ -3,8 +3,8 @@
  * Allows dynamic enabling/disabling and priority management
  */
 export const AI_CONFIG = {
-  // Priority list for fallbacks
-  priority: ["gemini", "groq", "openrouter"],
+  // Priority list for fallbacks (GROQ moved to top as it is the only working provider currently)
+  priority: ["groq", "gemini", "openrouter"],
   
   // Global timeout for any single provider request (increased for complex reasoning)
   timeout: 60000, 
@@ -16,7 +16,7 @@ export const AI_CONFIG = {
   providers: {
     gemini: {
       enabled: true,
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       baseUrl: "https://generativelanguage.googleapis.com"
     },
     groq: {
@@ -26,7 +26,7 @@ export const AI_CONFIG = {
     },
     openrouter: {
       enabled: true,
-      model: "anthropic/claude-3.5-sonnet",
+      model: "google/gemini-2.0-flash-001",
       baseUrl: "https://openrouter.ai/api/v1"
     },
     huggingface: {

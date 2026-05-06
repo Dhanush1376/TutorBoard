@@ -4,6 +4,7 @@
  */
 import React, { useMemo, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useShallow } from 'zustand/react/shallow';
 import DOMPurify from 'dompurify';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { resolve } from '../renderers/shapes/ShapeUtils.js';
@@ -153,7 +154,17 @@ export default function SVGCanvasRenderer({
     updateCanvasObject, deleteCanvasObject,
     editingObjectId, setEditingObjectId, activeTool,
     deltaState
-  } = useTutorStore();
+  } = useTutorStore(useShallow(state => ({
+    showNotes: state.showNotes,
+    selectedElementIds: state.selectedElementIds,
+    setSelectedElements: state.setSelectedElements,
+    updateCanvasObject: state.updateCanvasObject,
+    deleteCanvasObject: state.deleteCanvasObject,
+    editingObjectId: state.editingObjectId,
+    setEditingObjectId: state.setEditingObjectId,
+    activeTool: state.activeTool,
+    deltaState: state.deltaState
+  })));
   
   const showNotes = propShowNotes !== undefined ? propShowNotes : storeShowNotes;
 

@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, Pause, SkipBack, SkipForward, 
-  Settings, Maximize2, Minimize2, 
-  ChevronLeft, ChevronRight, Volume2, VolumeX 
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../layout/VisaiLogo';
@@ -23,8 +22,7 @@ const FixedTeachingStage = ({
   const isGuest = !user;
   
   const { 
-    isPlaying, play, pause, nextStep, prevStep, 
-    voiceEnabled, toggleVoice 
+    isPlaying, play, pause, nextStep, prevStep
   } = useTutorStore();
 
   const containerRef = useRef(null);
@@ -122,13 +120,7 @@ const FixedTeachingStage = ({
 
             <div className="w-[1px] h-6 bg-white/10 mx-1" />
 
-            {/* Volume Toggle (Optional but nice) */}
-            <button 
-              onClick={() => useTutorStore.getState().toggleVoice()}
-              className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
-            >
-              {voiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-            </button>
+
           </div>
         </div>
 

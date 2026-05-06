@@ -30,6 +30,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import useTutorStore from '../../store/tutorStore';
+import VisualArtifactCard from './VisualArtifactCard';
 
 // ─── Streaming cursor ─────────────────────────────────────────────────────────
 
@@ -422,7 +423,7 @@ const ArtifactChip = ({ artifactId }) => {
   );
 };
 
-// ─── Action bar ───────────────────────────────────────────────────────────────
+// ─── Action button (ghost, compact) ───────────────────────────────────────────
 
 const ActionBtn = ({ onClick, title, children, className = '' }) => (
   <button
@@ -431,7 +432,28 @@ const ActionBtn = ({ onClick, title, children, className = '' }) => (
     title={title}
     aria-label={title}
     className={`chat-action-btn ${className}`}
-    style={{ padding: '3px 5px', borderRadius: 6, transition: 'all 0.15s', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
+    style={{
+      padding: '3px',
+      borderRadius: 5,
+      transition: 'opacity 0.18s ease, background 0.18s ease',
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--text-tertiary)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      opacity: 0.45,
+      lineHeight: 0,
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.opacity = '0.9';
+      e.currentTarget.style.background = 'var(--bg-tertiary)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.opacity = '0.45';
+      e.currentTarget.style.background = 'transparent';
+    }}
   >
     {children}
   </button>
@@ -495,8 +517,11 @@ const Message = ({
 
   useEffect(() => {
     if (isEditing && editRef.current) {
-      editRef.current.style.height = 'auto';
-      editRef.current.style.height = `${Math.min(editRef.current.scrollHeight, 300)}px`;
+      requestAnimationFrame(() => {
+        if (!editRef.current) return;
+        editRef.current.style.height = 'auto';
+        editRef.current.style.height = `${Math.min(editRef.current.scrollHeight, 300)}px`;
+      });
     }
   }, [isEditing, editContent]);
 
@@ -594,14 +619,33 @@ const Message = ({
                 {isAssistant ? (
                   <div className="markdown-content" style={{ position: 'relative' }}>
                     {showLocalIndicator ? (
-                      <div className="flex items-center gap-3 py-2 px-1 text-slate-400 italic text-sm animate-pulse">
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                        >
-                          <Check size={14} className="opacity-40" />
-                        </motion.div>
-                        <span>Regenerating answer...</span>
+                      <div className="flex items-center gap-[4px] py-2 px-1 opacity-60">
+                        {[0, 1, 2].map((i) => (
+                          <motion.span
+                            key={i}
+                            animate={{ 
+                              scale: [1, 1.2, 1],
+                              opacity: [0.3, 1, 0.3] 
+                            }}
+                            transition={{
+                              duration: 1.2,
+                              repeat: Infinity,
+                              delay: i * 0.2,
+                              ease: 'easeInOut',
+                            }}
+                            style={{
+                              width: 4,
+                              height: 4,
+                              borderRadius: '50%',
+                              background: 'var(--text-tertiary)',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : isStreaming ? (
+                      <div className="whitespace-pre-wrap leading-relaxed" style={{ fontSize: 14 }}>
+                        {displayContent}
+                        <StreamCursor />
                       </div>
                     ) : (
                       <ReactMarkdown
@@ -611,10 +655,6 @@ const Message = ({
                       >
                         {displayContent || ''}
                       </ReactMarkdown>
-                    )}
-                    {/* Streaming cursor appended after last char */}
-                    {showCursor && displayContent && (
-                      <StreamCursor />
                     )}
                   </div>
                 ) : (
@@ -648,8 +688,18 @@ const Message = ({
                 )}
               </motion.div>
 
-              {/* Canvas card — only after streaming ends */}
-              {isAssistant && hasCanvas && !isStreaming && (
+              {/* Visual Artifact Card (Progressive & Final) */}
+              {isAssistant && (metadata?.artifactId || metadata?.hasVisualArtifact) && (
+                <VisualArtifactCard 
+                  artifactId={metadata.artifactId || metadata?.id || messageId}
+                  title={metadata.artifactTitle || (metadata.artifactId ? 'Visualization' : undefined)}
+                  rendererType={metadata.rendererType || (metadata.hasVisualArtifact ? 'cinematic' : 'd3')}
+                  status={metadata.artifactStatus || (isStreaming ? 'generating' : 'completed')}
+                />
+              )}
+
+              {/* Legacy Canvas card — only after streaming ends */}
+              {isAssistant && hasCanvas && !isStreaming && !metadata?.artifactId && (
                 <CanvasCard
                   onOpenCanvas={onOpenCanvas}
                   messageId={messageId}
@@ -658,125 +708,159 @@ const Message = ({
                 />
               )}
 
-              {/* Artifact chip */}
-              {isAssistant && metadata?.artifactId && (
-                <ArtifactChip artifactId={metadata.artifactId} />
-              )}
-
-              {/* Action bar — shown on hover after stream ends */}
-              <AnimatePresence>
+              {/* ── Compact Action Row ── */}
+              <div
+                className="flex items-center select-none"
+                style={{
+                  width: 'fit-content',
+                  marginTop: 4,
+                  marginLeft: isAssistant ? 0 : 'auto',
+                  flexDirection: isAssistant ? 'row' : 'row-reverse',
+                  gap: 6,
+                  height: 22,
+                }}
+              >
+                {/* Actions — always visible */}
                 {!isEditing && !isStreaming && !isSessionActive && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -2 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.12 }}
-                    className={`flex items-center gap-0 mt-1 ${isAssistant ? '' : 'flex-row-reverse'}`}
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 2,
+                    }}
                   >
+                    {onRegenerateMessage && isAssistant && (
+                      <ActionBtn onClick={() => onRegenerateMessage(messageId)} title="Regenerate">
+                        <RefreshCw size={14} strokeWidth={2} />
+                      </ActionBtn>
+                    )}
+
                     <ActionBtn onClick={handleCopy} title="Copy">
-                      {copied ? <Check size={12} style={{ color: '#10b981' }} /> : <Copy size={12} />}
+                      {copied ? <Check size={14} style={{ color: '#10b981' }} /> : <Copy size={14} strokeWidth={2} />}
                     </ActionBtn>
 
                     {!isAssistant && onEditMessage && (
                       <ActionBtn onClick={handleStartEdit} title="Edit">
-                        <Edit2 size={12} />
-                      </ActionBtn>
-                    )}
-
-                    {onRegenerateMessage && (
-                      <ActionBtn onClick={() => onRegenerateMessage(messageId)} title="Regenerate">
-                        <RefreshCw size={12} />
+                        <Edit2 size={14} strokeWidth={2} />
                       </ActionBtn>
                     )}
 
                     {isAssistant && (
-                      <>
-                        <ActionBtn
-                          onClick={() => handleFeedback('up')}
-                          title="Helpful"
-                          className={feedback === 'up' ? '!text-emerald-500' : ''}
-                        >
-                          <ThumbsUp size={12} style={feedback === 'up' ? { color: '#10b981' } : {}} />
-                        </ActionBtn>
-                        <ActionBtn
-                          onClick={() => handleFeedback('down')}
-                          title="Not helpful"
-                          className={feedback === 'down' ? '!text-red-400' : ''}
-                        >
-                          <ThumbsDown size={12} style={feedback === 'down' ? { color: '#f87171' } : {}} />
-                        </ActionBtn>
-
-                        <ActionBtn
-                          onClick={() => {
-                            const fullText = displayContent || '';
-                            let insight = fullText.split('\n\n').slice(0, 2).join('\n\n');
-                            if (insight.length > 300) insight = insight.substring(0, 297) + '...';
-                            useTutorStore.getState().addTakeaway?.(insight);
-                            useTutorStore.getState().showToast?.({
-                              message: 'Saved to Key Insights',
-                              type: 'success',
-                              duration: 3500,
-                              action: { label: 'View', onClick: () => useTutorStore.getState().setMasteryOpen?.(true) },
-                            });
-                          }}
-                          title="Save as Key Insight"
-                        >
-                          <BookMarked size={12} />
-                        </ActionBtn>
-                      </>
+                      <ActionBtn
+                        onClick={() => {
+                          const fullText = displayContent || '';
+                          let insight = fullText.split('\n\n').slice(0, 2).join('\n\n');
+                          if (insight.length > 300) insight = insight.substring(0, 297) + '...';
+                          useTutorStore.getState().addTakeaway?.(insight);
+                          useTutorStore.getState().showToast?.({
+                            message: 'Saved to Key Insights',
+                            type: 'success',
+                            duration: 3500,
+                            action: { label: 'View', onClick: () => useTutorStore.getState().setMasteryOpen?.(true) },
+                          });
+                        }}
+                        title="Save as Key Insight"
+                      >
+                        <BookMarked size={14} strokeWidth={2} />
+                      </ActionBtn>
                     )}
-
-                    <span
-                      className={`tabular-nums tracking-wide px-1 flex items-center gap-1.5 ${isAssistant ? '' : 'order-first'}`}
-                      style={{ fontSize: 9, color: 'var(--text-tertiary)', opacity: 0.5 }}
-                    >
-                      {isAssistant && metadata?.latencyMs && (
-                        <>
-                          <Activity size={8} style={{ color: 'var(--info)', opacity: 0.7 }} />
-                          <span>{(metadata.latencyMs / 1000).toFixed(1)}s</span>
-                          <span style={{ opacity: 0.3 }}>·</span>
-                        </>
-                      )}
-                      {formatTime(timestamp)}
-                      {metadata?.edited && <span style={{ marginLeft: 4, fontStyle: 'italic', opacity: 0.6 }}>· edited</span>}
-                    </span>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
 
-              {/* Version switcher */}
-              {metadata?.versions?.length > 1 && !isStreaming && !isSessionActive && (
-                <div className={`flex items-center gap-2.5 mt-2 ${isAssistant ? '' : 'justify-end'}`}>
+                {/* Version navigator — always visible when 2+ versions */}
+                {metadata?.versions?.length > 1 && !isStreaming && !isSessionActive && (
                   <div
-                    className="flex items-center rounded-full"
-                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '2px 6px' }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 0,
+                      userSelect: 'none',
+                    }}
                   >
                     <button
                       onClick={() => onSwitchVersion?.(messageId, Math.max(0, metadata.activeVersionIndex - 1))}
                       disabled={metadata.activeVersionIndex === 0}
                       style={{
-                        padding: 3, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer',
-                        opacity: metadata.activeVersionIndex === 0 ? 0.2 : 1,
+                        background: 'none',
+                        border: 'none',
+                        cursor: metadata.activeVersionIndex === 0 ? 'default' : 'pointer',
+                        padding: '0 1px',
+                        color: 'var(--text-tertiary)',
+                        opacity: metadata.activeVersionIndex === 0 ? 0.15 : 0.5,
+                        fontSize: 13,
+                        lineHeight: 1,
+                        transition: 'opacity 0.15s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                      }}
+                      onMouseEnter={(e) => { if (metadata.activeVersionIndex !== 0) e.currentTarget.style.opacity = '0.9'; }}
+                      onMouseLeave={(e) => { if (metadata.activeVersionIndex !== 0) e.currentTarget.style.opacity = '0.5'; }}
+                    >
+                      ‹
+                    </button>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: 'var(--text-tertiary)',
+                        opacity: 0.5,
+                        fontVariantNumeric: 'tabular-nums',
+                        padding: '0 2px',
+                        letterSpacing: '-0.01em',
+                        lineHeight: 1,
                       }}
                     >
-                      <ChevronLeft size={13} strokeWidth={2.5} />
-                    </button>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-tertiary)', padding: '0 4px', minWidth: 32, textAlign: 'center' }}>
-                      {`<${metadata.activeVersionIndex + 1}/${metadata.versions.length}>`}
+                      {metadata.activeVersionIndex + 1}/{metadata.versions.length}
                     </span>
                     <button
                       onClick={() => onSwitchVersion?.(messageId, Math.min(metadata.versions.length - 1, metadata.activeVersionIndex + 1))}
                       disabled={metadata.activeVersionIndex === metadata.versions.length - 1}
                       style={{
-                        padding: 3, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer',
-                        opacity: metadata.activeVersionIndex === metadata.versions.length - 1 ? 0.2 : 1,
+                        background: 'none',
+                        border: 'none',
+                        cursor: metadata.activeVersionIndex === metadata.versions.length - 1 ? 'default' : 'pointer',
+                        padding: '0 1px',
+                        color: 'var(--text-tertiary)',
+                        opacity: metadata.activeVersionIndex === metadata.versions.length - 1 ? 0.15 : 0.5,
+                        fontSize: 13,
+                        lineHeight: 1,
+                        transition: 'opacity 0.15s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
                       }}
+                      onMouseEnter={(e) => { if (metadata.activeVersionIndex !== metadata.versions.length - 1) e.currentTarget.style.opacity = '0.9'; }}
+                      onMouseLeave={(e) => { if (metadata.activeVersionIndex !== metadata.versions.length - 1) e.currentTarget.style.opacity = '0.5'; }}
                     >
-                      <ChevronRight size={13} strokeWidth={2.5} />
+                      ›
                     </button>
                   </div>
+                )}
+
+                {/* Metadata — visible on hover, secondary emphasis */}
+                <div
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-[180ms] ease-out"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 11,
+                    fontVariantNumeric: 'tabular-nums',
+                    color: 'var(--text-tertiary)',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1,
+                    fontWeight: 400,
+                  }}
+                >
+                  <div style={{ opacity: 0.35, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {isAssistant && metadata?.latencyMs && (
+                      <span>{(metadata.latencyMs / 1000).toFixed(1)}s</span>
+                    )}
+                    {isAssistant && metadata?.latencyMs && <span>·</span>}
+                    <span>{formatTime(timestamp)}</span>
+                    {metadata?.edited && <span>· edited</span>}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </AnimatePresence>

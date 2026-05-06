@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
+  X, Play, Pause, SkipBack, SkipForward,
   Minimize2, Maximize2, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
 import AgentCanvasRenderer from '../canvas/AgentCanvasRenderer';
 import FixedTeachingStage from '../canvas/FixedTeachingStage';
+import CinematicStage from '../canvas/CinematicStage';
 import FloatingSidebar from './FloatingSidebar';
 import StepPanel from './StepPanel';
 import NarrationBar from './NarrationBar';
 import InteractiveControlPanel from './InteractiveControlPanel';
-import StepFilmstrip from './StepFilmstrip';
+import UnifiedControlBar from './UnifiedControlBar';
 import { AlgoRightPanel } from './AlgoRightPanel';
 import StudyPanel from './StudyPanel';
 import { isDSAContent } from '../../engine/RendererRouter';
@@ -36,8 +37,8 @@ const TeachingSession = ({ initialTopic }) => {
   } = machine;
 
   const {
-    canvasMode, voiceEnabled, playbackSpeed,
-    setCanvasMode, toggleVoice,
+    canvasMode, playbackSpeed,
+    setCanvasMode,
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, showNotes, deselectAll,
     levelUpEvent, setLevelUpEvent, showToast,
@@ -75,17 +76,7 @@ const TeachingSession = ({ initialTopic }) => {
     }
   }, [isOpen, initialTopic, machineState, startSession, timeline, topic, endSession]);
 
-  // Voice
-  useEffect(() => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    if (voiceEnabled && currentStep?.narration && PANEL_VISIBLE_STATES.has(machineState)) {
-      const u = new SpeechSynthesisUtterance(currentStep.narration || currentStep.description);
-      u.rate = playbackSpeed; u.pitch = 1; u.volume = 0.8;
-      const t = setTimeout(() => window.speechSynthesis.speak(u), 50);
-      return () => { clearTimeout(t); window.speechSynthesis.cancel(); };
-    }
-  }, [currentStepIndex, voiceEnabled, currentStep, machineState, playbackSpeed]);
+
 
   // ── Keyboard Navigation ──────────────────────────────────
   useEffect(() => {
@@ -236,9 +227,7 @@ const TeachingSession = ({ initialTopic }) => {
                   <span style={{ color: 'var(--text-tertiary)' }} className="hidden md:block px-2 text-[12px] font-mono font-medium">
                     {currentStepIndex + 1}/{canvasSteps.length || 1}
                   </span>
-                  <Btn onClick={toggleVoice} active={voiceEnabled} className="hidden sm:flex rounded-full border-none shadow-none">
-                    {voiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-                  </Btn>
+
                   <Btn onClick={() => setStudyPanelOpen(!studyPanelOpen)} active={studyPanelOpen} title="Study Insights" className="hidden sm:flex rounded-full border-none shadow-none">
                     <Sparkles size={14} />
                   </Btn>
@@ -291,87 +280,31 @@ const TeachingSession = ({ initialTopic }) => {
               </div>
             )}
 
-            {/* ── Bottom Floating Controls Stack ── */}
+            {/* ── Unified Floating Controls ── */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[50] flex flex-col items-center gap-2 w-full max-w-[90%] md:max-w-4xl px-5 pointer-events-none">
-
-              {/* Step Filmstrip (Preview Area) */}
-              <AnimatePresence>
-                {isTeaching && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="w-full pointer-events-auto"
-                  >
-                    <StepFilmstrip steps={canvasSteps} currentStepIndex={currentStepIndex} goToStep={goToStep} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* 2 & 3. Playback Bar & Doubt Panel (Side by Side on Desktop) */}
-              <div className="flex flex-col xl:flex-row items-center xl:items-end justify-center gap-3 w-full">
-
-                {/* Floating Playback Bar */}
-                <AnimatePresence>
-                  {isTeaching && (
-                    <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-                      className="flex items-center justify-center gap-4 px-5 py-2.5 rounded-full pointer-events-auto shadow-2xl shrink-0"
-                      style={{
-                        background: 'var(--glass-bg)',
-                        border: '1px solid var(--glass-border)',
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-                        backdropFilter: 'blur(20px)',
-                        WebkitBackdropFilter: 'blur(20px)',
-                      }}>
-                      <div className="flex items-center gap-2">
-                        <Btn onClick={prevStep} disabled={currentStepIndex <= 0} className="w-8 h-8 rounded-full border-none shadow-none bg-[var(--bg-tertiary)] bg-opacity-50"><SkipBack size={14} /></Btn>
-                        <button onClick={isPlaying ? pause : play}
-                          style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
-                          className="w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:opacity-90 active:scale-95 transition-all">
-                          {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
-                        </button>
-                        <Btn onClick={nextStep} className="w-8 h-8 rounded-full border-none shadow-none bg-[var(--bg-tertiary)] bg-opacity-50"><SkipForward size={14} /></Btn>
-                      </div>
-
-                      <div className="h-6 w-px shrink-0 opacity-50" style={{ background: 'var(--border-color)' }} />
-
-                      {/* Scrubber */}
-                      <div className="flex flex-col gap-0.5 w-[160px]">
-                        <div className="flex justify-between px-0.5">
-                          <span style={{ color: 'var(--text-tertiary)' }} className="text-[10px] font-mono tracking-wide">{formatted}/{totalFormatted}</span>
-                          <span style={{ color: 'var(--text-secondary)' }} className="text-[10px] font-medium tracking-wide">Step {currentStepIndex + 1}</span>
-                        </div>
-                        <input type="range" min="0" max={totalSteps - 1} step="1" value={currentStepIndex}
-                          onChange={(e) => goToStep(parseInt(e.target.value))}
-                          className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                          style={{ background: 'var(--bg-tertiary)', accentColor: 'var(--text-primary)' }} />
-                      </div>
-
-                      <div className="h-6 w-px shrink-0 hidden sm:block opacity-50" style={{ background: 'var(--border-color)' }} />
-
-                      {/* Speed */}
-                      <div className="hidden sm:flex items-center rounded-full p-0.5 gap-0.5 bg-[var(--bg-tertiary)] bg-opacity-50 border border-[var(--border-color)]">
-                        {[1, 1.5, 2].map(s => (
-                          <button key={s} onClick={() => handleSpeed(s)}
-                            className="px-2.5 py-1 rounded-full text-[10px] font-bold transition-all"
-                            style={playbackSpeed === s
-                              ? { background: 'var(--text-primary)', color: 'var(--bg-primary)' }
-                              : { color: 'var(--text-tertiary)' }}>
-                            {s}×
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+              <div className="pointer-events-auto">
+                <UnifiedControlBar
+                  currentStepIndex={currentStepIndex}
+                  totalSteps={totalSteps}
+                  isPlaying={isPlaying}
+                  onPlay={play}
+                  onPause={pause}
+                  onPrevStep={prevStep}
+                  onNextStep={nextStep}
+                  onGoToStep={goToStep}
+                  onSpeedChange={handleSpeed}
+                  onAskDoubt={askDoubt}
+                />
               </div>
             </div>
 
             <div className="absolute inset-0 overflow-hidden">
-              <FixedTeachingStage
+              <CinematicStage
                 topic={topic}
                 currentStepIndex={currentStepIndex}
                 totalSteps={canvasSteps.length}
+                domain={timeline?.domain || 'general'}
+                isGenerating={machine.state === STATES.GENERATING}
                 hideControls={true}
               >
                 <AgentCanvasRenderer
@@ -383,7 +316,7 @@ const TeachingSession = ({ initialTopic }) => {
                   onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
                   hideAlgoPanel={true}
                 />
-              </FixedTeachingStage>
+              </CinematicStage>
             </div>
 
             {/* Expand Panel Handle (Appears when panel is closed) */}

@@ -7,6 +7,8 @@ import CanvasStateSnapshot from '../engine/CanvasStateSnapshot';
 
 export { STATES };
 
+const EMPTY_ARRAY = [];
+
 export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   const { emit, on, isConnected, connectionError } = useSocket(isAuthReady);
   const playIntervalRef = useRef(null);
@@ -14,7 +16,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   const isStartingRef = useRef(false);
 
   // ─── Pull store state & actions ──────────────────────────────────────────
-  const {
+    const {
     machineState, sessionId, topic,
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
     currentStepIndex, totalSteps,
@@ -29,7 +31,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
 
     setMachineState, setSessionId, setConnected, setConnectionError, syncConnection,
-    setTimeline, setCurrentStep, setError, setGreeting, setChatSessionId,
+    setTimeline, loadScene, setCurrentStep, setError, setGreeting, setChatSessionId,
     setLearnerProfile, setResumeContext, setLevelUpEvent,
 
     setDoubtProcessing, addDoubt, setDoubtResponse, setDeltaState,
@@ -56,18 +58,18 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     machineState: s.machineState,
     sessionId: s.sessionId,
     topic: s.topic,
-    timeline: s.timeline,
-    learningNodes: s.learningNodes,
-    mode: s.mode,
-    difficulty: s.difficulty,
-    professorNote: s.professorNote,
-    memoryAnchor: s.memoryAnchor,
-    keyFormula: s.keyFormula,
+    timeline: s.activeScene,
+    learningNodes: s.activeScene?.learningNodes || EMPTY_ARRAY,
+    mode: s.activeScene?.mode || 'explain',
+    difficulty: s.activeScene?.difficulty || 'beginner',
+    professorNote: s.activeScene?.professorNote || '',
+    memoryAnchor: s.activeScene?.memoryAnchor || '',
+    keyFormula: s.activeScene?.keyFormula || '',
     currentStepIndex: s.currentStepIndex,
-    totalSteps: s.totalSteps,
+    totalSteps: s.activeScene?.steps?.length || 0,
     canvasObjects: s.canvasObjects,
-    canvasConnections: s.canvasConnections,
-    canvasSteps: s.canvasSteps,
+    canvasConnections: s.activeScene?.connections || EMPTY_ARRAY,
+    canvasSteps: s.activeScene?.steps || EMPTY_ARRAY,
     doubtResponse: s.doubtResponse,
     isDoubtProcessing: s.isDoubtProcessing,
     doubtHistory: s.doubtHistory,
@@ -93,6 +95,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     setConnected: s.setConnected,
     setConnectionError: s.setConnectionError,
     setTimeline: s.setTimeline,
+    loadScene: s.loadScene,
     setCurrentStep: s.setCurrentStep,
     setError: s.setError,
     setGreeting: s.setGreeting,
@@ -230,7 +233,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     cleanups.push(on('teaching:timeline', (data) => {
       console.log(`[Machine] Timeline received: "${data.title}" (${data.totalSteps} steps, renderer: ${data.renderer})`);
 
-      setTimeline({
+      const normalizedTimeline = {
         ...data,
         // Guarantee the store always gets the normalized field names
         elements: data.elements || data.objects || [],
@@ -240,7 +243,10 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
         objects: data.objects || data.elements || [],
         renderer: data.renderer || 'cinematic',
         totalSteps: data.totalSteps || (data.steps || data.timeline || []).length || 0,
-      });
+      };
+
+      setTimeline(normalizedTimeline);
+      loadScene(normalizedTimeline);
 
       if (data.title) setTopic(data.title);
 

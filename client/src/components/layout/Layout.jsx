@@ -43,9 +43,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
   // Responsive logic
   const { isMobile } = useWindowSize();
-  const baseSidebarWidth = isSplitView ? '40%' : SIDEBAR_WIDTH;
+  const baseSidebarWidth = SIDEBAR_WIDTH; // Fixed width for chatbox as requested by user
   const currentSidebarWidth = isMobile ? '100%' : baseSidebarWidth;
-  const sidebarVisible = (isSidebarOpen || isSplitView) && !forceCollapse;
+  const sidebarVisible = isSidebarOpen && !forceCollapse;
 
   return (
     <div

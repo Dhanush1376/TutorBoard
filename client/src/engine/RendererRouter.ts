@@ -1,8 +1,16 @@
-import KaTeXRenderer from '../renderers/KaTeXRenderer';
 import React from 'react';
+import KaTeXRenderer from '../renderers/KaTeXRenderer';
 
-// Heavy renderers are lazy-loaded to prevent crashing the initial bundle
-// (Three.js / Matter.js module-level code can fail without WebGL context)
+// ── Types ────────────────────────────────────────────────────────────────────
+
+export type RendererType = 
+  | 'd3' | 'katex' | 'desmos' | 'matter' | 'three' 
+  | 'monaco' | 'simulator' | 'narrative';
+
+export type RoutedRenderer = string | React.LazyExoticComponent<React.ComponentType<any>>;
+
+// ── Heavy renderers are lazy-loaded ──────────────────────────────────────────
+
 const MatterRenderer     = React.lazy(() => import('../components/renderers/MatterRenderer'));
 const NarrativeRenderer  = React.lazy(() => import('../components/renderers/NarrativeRenderer'));
 const DesmosRenderer     = React.lazy(() => import('../components/renderers/DesmosRenderer'));
@@ -10,7 +18,7 @@ const ThreeRenderer      = React.lazy(() => import('../components/renderers/Thre
 const MonacoRenderer     = React.lazy(() => import('../components/renderers/MonacoRenderer'));
 const SimulatorRenderer  = React.lazy(() => import('../components/renderers/SimulatorRenderer'));
 
-export const RENDERER_MAP: Record<string, any> = {
+export const RENDERER_MAP: Record<string, RoutedRenderer> = {
   'cinematic':  'd3',
   'simulator':  SimulatorRenderer,
   'matter':     MatterRenderer,
@@ -24,10 +32,10 @@ export const RENDERER_MAP: Record<string, any> = {
   'statistics': 'd3',
   'stats':      'd3',
   'data':       'd3',
-  'math':       KaTeXRenderer,
-  'equation':   KaTeXRenderer,
-  'katex':      KaTeXRenderer,
-  'calculus':   KaTeXRenderer,
+  'math':       KaTeXRenderer as any, // Typed specifically in component
+  'equation':   KaTeXRenderer as any,
+  'katex':      KaTeXRenderer as any,
+  'calculus':   KaTeXRenderer as any,
   'desmos':     DesmosRenderer,
   'graph':      DesmosRenderer,
   'algorithm':  'd3',
@@ -50,7 +58,7 @@ const DSA_KEYWORDS = [
   'array','tree','graph','stack','queue','linked','heap','bfs','dfs','traversal',
 ];
 
-export function isDSAContent(timeline: any) {
+export function isDSAContent(timeline: any): boolean {
   if (!timeline) return false;
   const rendererType = (timeline.renderer || '').toLowerCase();
   
@@ -59,17 +67,21 @@ export function isDSAContent(timeline: any) {
   if (DSA_KEYWORDS.some(k => rendererType.includes(k))) return true;
   const title = (timeline.title || timeline.topic || '').toLowerCase();
   if (DSA_KEYWORDS.some(k => title.includes(k))) return true;
+  
   const elements = timeline.elements || timeline.objects || [];
-  if (elements.some((e: any) => (e.type || '').toLowerCase() === 'array' && Array.isArray(e.values))) return true;
+  if (Array.isArray(elements)) {
+    if (elements.some((e: any) => (e.type || '').toLowerCase() === 'array' && Array.isArray(e.values))) return true;
+  }
+  
   return false;
 }
 
-export function getRenderer(type: string) {
-  const routed = RENDERER_MAP[type];
+export function getRenderer(type: string): RoutedRenderer {
+  const routed = RENDERER_MAP[type.toLowerCase()];
   if (routed) return routed;
 
   // Safe fallback for physics topics
-  if (['matter', 'physics', 'mechanics'].includes(type)) {
+  if (['matter', 'physics', 'mechanics'].includes(type.toLowerCase())) {
     return RENDERER_MAP['physics'] || 'd3';
   }
 

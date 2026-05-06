@@ -258,7 +258,7 @@ export async function* routeConversationStream(messages, options = {}) {
 
   logger.info(`[Chat:Stream] Routing streaming conversation (${messages.length} messages)...`);
 
-  const conversationPriority = ['openrouter', 'groq', 'gemini'];
+  const conversationPriority = AI_CONFIG.priority || ['groq', 'gemini', 'openrouter'];
   let succeeded = false;
 
   for (const providerKey of conversationPriority) {

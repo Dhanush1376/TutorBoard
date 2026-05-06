@@ -11,7 +11,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BookOpen, ClipboardCheck, ArrowDown } from 'lucide-react';
+import { Layers, BookOpen, ClipboardCheck, ArrowDown, AlertCircle, RotateCcw } from 'lucide-react';
 import * as reactWindow from 'react-window';
 const { VariableSizeList } = reactWindow;
 import { useAuth } from '../../context/AuthContext';
@@ -174,6 +174,82 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
   );
 };
 
+// ── Row Wrapper for Dynamic Height ──────────────────────────────────────────
+const MessageRow = ({ index, style, data }) => {
+  const { 
+    messages, onHeightChange, 
+    isCurrentlyStreaming, currentStreamingMessageId, currentStreamingContent,
+    currentStreamingThought, currentStreamingSources, currentSearchPerformed,
+    isActive, ...callbacks 
+  } = data;
+  
+  const msg = messages[index];
+  const rowRef = useRef(null);
+  const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
+
+  useEffect(() => {
+    if (!rowRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const height = Math.ceil(entry.contentRect.height) + 4; // Add small buffer
+        onHeightChange(index, height);
+      }
+    });
+    observer.observe(rowRef.current);
+    return () => observer.disconnect();
+  }, [index, onHeightChange]);
+
+  return (
+    <div style={{ ...style, overflow: 'hidden' }}>
+      <div ref={rowRef} className="py-0.5 px-3">
+        <Message 
+          {...msg} 
+          {...callbacks}
+          isStreaming={isThisStreaming}
+          isSessionActive={isActive}
+          streamingContent={isThisStreaming ? currentStreamingContent : ""}
+          streamingThought={isThisStreaming ? currentStreamingThought : ""}
+          streamingMessageId={currentStreamingMessageId}
+          isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
+          streamingSources={isThisStreaming ? currentStreamingSources : []}
+          showCursor={isThisStreaming}
+          hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
+        />
+      </div>
+    </div>
+  );
+};
+
+// ── Error recovery card ──────────────────────────────────────────────────────
+const ErrorCard = ({ error, onRetry }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="mx-3 my-4 p-4 rounded-2xl border bg-red-50/30 border-red-200/50 flex flex-col gap-3"
+  >
+    <div className="flex items-start gap-3">
+      <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+        <AlertCircle size={16} className="text-red-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="text-[13px] font-semibold text-red-900 mb-1">Generation failed</h4>
+        <p className="text-[12px] text-red-700 leading-relaxed">
+          {error || "An unexpected error occurred while generating the response."}
+        </p>
+      </div>
+    </div>
+    <div className="flex justify-end">
+      <button
+        onClick={onRetry}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold transition-all hover:bg-red-700 active:scale-95 shadow-sm shadow-red-200"
+      >
+        <RotateCcw size={12} />
+        Try again
+      </button>
+    </div>
+  </motion.div>
+);
+
 // ── Scroll-to-bottom pill ────────────────────────────────────────────────────
 const ScrollPill = ({ visible, onClick }) => (
   <AnimatePresence>
@@ -237,6 +313,7 @@ const ChatWindow = ({
   const currentSearchPerformed = currentSessionState?.searchPerformed || false;
   const isWaitingForAI = currentSessionState?.isWaitingForAI;
   const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
+  const lastAIError = useTutorStore((s) => s.lastAIError);
 
   const isCurrentlyStreaming = isStreaming;
   // Robust check: matches if either the current session ID or the waiting ID matches
@@ -267,16 +344,27 @@ const ChatWindow = ({
     }
   }, [handleScroll]);
 
+  const scrollRAFRef = useRef(null);
+  const lastScrollTimeRef = useRef(0);
+
   const scrollToBottom = useCallback((behavior = 'smooth') => {
-    if (shouldVirtualize && listRef.current) {
-      listRef.current.scrollToItem(Math.max(0, messages.length - 1), 'end');
+    // 16ms debounce + requestAnimationFrame to prevent layout thrashing (Fixed: CRITICAL)
+    const now = Date.now();
+    if (now - lastScrollTimeRef.current < 16) return;
+    
+    if (scrollRAFRef.current) cancelAnimationFrame(scrollRAFRef.current);
+    
+    scrollRAFRef.current = requestAnimationFrame(() => {
+      if (shouldVirtualize && listRef.current) {
+        listRef.current.scrollToItem(Math.max(0, messages.length - 1), 'end');
+      } else if (bottomRef.current) {
+        bottomRef.current.scrollIntoView({ behavior });
+      }
       userScrolledRef.current = false;
       setShowPill(false);
-      return;
-    }
-    bottomRef.current?.scrollIntoView({ behavior });
-    userScrolledRef.current = false;
-    setShowPill(false);
+      lastScrollTimeRef.current = Date.now();
+      scrollRAFRef.current = null;
+    });
   }, [messages.length, shouldVirtualize]);
 
   useEffect(() => {
@@ -299,16 +387,16 @@ const ChatWindow = ({
   }, []);
 
   const rowSizeCacheRef = useRef({});
-  useEffect(() => {
-    rowSizeCacheRef.current = {};
-    if (listRef.current) listRef.current.resetAfterIndex(0, true);
-  }, [messages.length]);
+  const onHeightChange = useCallback((index, height) => {
+    if (rowSizeCacheRef.current[index] === height) return;
+    rowSizeCacheRef.current[index] = height;
+    if (listRef.current) {
+      listRef.current.resetAfterIndex(index, true);
+    }
+  }, []);
 
   const getItemSize = useCallback((index) => {
-    if (rowSizeCacheRef.current[index]) return rowSizeCacheRef.current[index];
-    const estimated = estimateMessageHeight(messages[index]);
-    rowSizeCacheRef.current[index] = estimated;
-    return estimated;
+    return rowSizeCacheRef.current[index] || estimateMessageHeight(messages[index]);
   }, [messages, estimateMessageHeight]);
 
   useEffect(() => {
@@ -344,6 +432,24 @@ const ChatWindow = ({
                 itemCount={messages.length}
                 itemSize={getItemSize}
                 overscanCount={8}
+                itemData={{
+                  messages,
+                  onHeightChange,
+                  isCurrentlyStreaming,
+                  currentStreamingMessageId,
+                  currentStreamingContent,
+                  currentStreamingThought,
+                  currentStreamingSources,
+                  currentSearchPerformed,
+                  isActive,
+                  onOpenCanvas,
+                  onDeleteMessage,
+                  onEditMessage,
+                  onRegenerateMessage,
+                  onFeedback,
+                  onSwitchVersion,
+                  onOpenArtifact,
+                }}
                 onScroll={({ scrollDirection, scrollOffset, scrollUpdateWasRequested }) => {
                   if (scrollUpdateWasRequested) return;
                   const totalEstimatedHeight = messages.reduce((acc, _, idx) => acc + getItemSize(idx), 0);
@@ -353,48 +459,7 @@ const ChatWindow = ({
                   setShowPill(!nearBottom && isActive);
                 }}
               >
-                {({ index, style }) => {
-                  const msg = messages[index];
-                  const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
-                  return (
-                    <div style={{ ...style, paddingBottom: 2 }}>
-                      <Message
-                        key={msg.id || `msg-${msg.role}-${msg.timestamp}-${index}`}
-                        role={msg.role}
-                        content={msg.content}
-                        messageId={msg.id}
-                        timestamp={msg.timestamp}
-                        metadata={msg.metadata}
-                        isStreaming={isThisStreaming}
-                        isSessionActive={isActive}
-                        streamingContent={isThisStreaming ? currentStreamingContent : ""}
-                        streamingThought={isThisStreaming ? currentStreamingThought : ""}
-                        streamingMessageId={currentStreamingMessageId}
-                        onOpenCanvas={onOpenCanvas}
-                        onDeleteMessage={onDeleteMessage}
-                        onEditMessage={onEditMessage}
-                        onRegenerateMessage={onRegenerateMessage}
-                        onFeedback={onFeedback}
-                        onSwitchVersion={onSwitchVersion}
-                        onOpenArtifact={onOpenArtifact}
-                        steps={msg.steps}
-                        stepTitle={msg.stepTitle}
-                        domain={msg.domain}
-                        visualizationType={msg.visualizationType}
-                        elements={msg.elements || msg.objects}
-                        motion={msg.motion}
-                        connections={msg.connections}
-                        sequence={msg.sequence}
-                        objects={msg.objects || msg.elements}
-                        hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
-                        canvasType={msg.canvasType}
-                        isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
-                        streamingSources={isThisStreaming ? currentStreamingSources : []}
-                        showCursor={isThisStreaming}
-                      />
-                    </div>
-                  );
-                }}
+                {MessageRow}
               </VariableSizeList>
             ) : (
               messages.map((msg) => {
@@ -411,8 +476,8 @@ const ChatWindow = ({
                     metadata={msg.metadata}
                     isStreaming={isThisStreaming}
                     isSessionActive={isActive}
-                    streamingContent={currentStreamingContent}
-                    streamingThought={currentStreamingThought}
+                    streamingContent={isThisStreaming ? currentStreamingContent : ""}
+                    streamingThought={isThisStreaming ? currentStreamingThought : ""}
                     streamingMessageId={currentStreamingMessageId}
                     onOpenCanvas={onOpenCanvas}
                     onDeleteMessage={onDeleteMessage}
@@ -432,8 +497,8 @@ const ChatWindow = ({
                     objects={msg.objects || msg.elements}
                     hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
                     canvasType={msg.canvasType}
-                    isSearchPerformed={currentSearchPerformed}
-                    streamingSources={currentStreamingSources}
+                    isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
+                    streamingSources={isThisStreaming ? currentStreamingSources : []}
                     showCursor={isThisStreaming}
                   />
                 );
@@ -463,8 +528,21 @@ const ChatWindow = ({
 
             {/* Thinking / waiting indicator */}
             <AnimatePresence>
-              {(isCurrentlyWaiting || isCurrentlyStreaming) && !streamingInList && (
+              {(isCurrentlyWaiting !== isCurrentlyStreaming) && !streamingInList && (
                 <ThinkingIndicator key="thinking" phase={thinkingPhase || 'waiting'} />
+              )}
+            </AnimatePresence>
+
+            {/* Error recovery card */}
+            <AnimatePresence>
+              {lastAIError && (
+                <ErrorCard 
+                  error={lastAIError} 
+                  onRetry={() => {
+                    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+                    onRegenerateMessage(lastAssistant?.id);
+                  }} 
+                />
               )}
             </AnimatePresence>
 

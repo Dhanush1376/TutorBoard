@@ -27,7 +27,7 @@ import VisaiLogo from '../components/layout/VisaiLogo';
 import SelectionPopover from '../components/chat/SelectionPopover';
 
 import { 
-  Volume2, VolumeX, Minimize2, Maximize2, Menu, 
+  Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
   Check, Wifi, WifiOff, Key
 } from 'lucide-react';
@@ -52,8 +52,8 @@ const Home = ({ isDark }) => {
   } = machine;
 
   const {
-    canvasMode, voiceEnabled, playbackSpeed,
-    setCanvasMode, toggleVoice,
+    canvasMode, playbackSpeed,
+    setCanvasMode,
     setPlaybackSpeed: storeSetSpeed,
     openFloatingSidebar, toggleDoubtThread, showDoubtThread,
     selectedAgent, setSelectedAgent, isSidebarOpen, setSidebarOpen,
@@ -79,11 +79,18 @@ const Home = ({ isDark }) => {
     setActiveConversationSession,
     // Artifact system
     addArtifact, setArtifactDbId, setActiveArtifact, openArtifactPanel,
+    startStreamingArtifact, finalizeStreamingArtifact,
     // Unread tracking
-    addUnreadSession, markSessionRead
+    addUnreadSession, markSessionRead,
+    // CanvasSession architecture
+    canvasLayout,
+    activeArtifactId,
+    openedArtifacts,
+    activeTeachingMode,
+    canvasSessionVersion,
   } = useTutorStore(useShallow(s => ({
-    canvasMode: s.canvasMode, voiceEnabled: s.voiceEnabled, playbackSpeed: s.playbackSpeed,
-    setCanvasMode: s.setCanvasMode, toggleVoice: s.toggleVoice,
+    canvasMode: s.canvasMode, playbackSpeed: s.playbackSpeed,
+    setCanvasMode: s.setCanvasMode,
     setPlaybackSpeed: s.setPlaybackSpeed,
     openFloatingSidebar: s.openFloatingSidebar, toggleDoubtThread: s.toggleDoubtThread, showDoubtThread: s.showDoubtThread,
     selectedAgent: s.selectedAgent, setSelectedAgent: s.setSelectedAgent, isSidebarOpen: s.isSidebarOpen, setSidebarOpen: s.setSidebarOpen,
@@ -108,7 +115,13 @@ const Home = ({ isDark }) => {
     prepareRegeneration: s.prepareRegeneration,
     addArtifact: s.addArtifact, setArtifactDbId: s.setArtifactDbId, setActiveArtifact: s.setActiveArtifact, openArtifactPanel: s.openArtifactPanel,
     startStreamingArtifact: s.startStreamingArtifact, finalizeStreamingArtifact: s.finalizeStreamingArtifact,
-    addUnreadSession: s.addUnreadSession, markSessionRead: s.markSessionRead
+    addUnreadSession: s.addUnreadSession, markSessionRead: s.markSessionRead,
+    // CanvasSession architecture
+    canvasLayout: s.canvasLayout,
+    activeArtifactId: s.activeArtifactId,
+    openedArtifacts: s.openedArtifacts,
+    activeTeachingMode: s.activeTeachingMode,
+    canvasSessionVersion: s.canvasSessionVersion,
   })));
 
 
@@ -668,20 +681,7 @@ const Home = ({ isDark }) => {
   // ── Passive Sync (Canvas/Prefs Debounce) ──
   useSessionSync(conversationMessages);
 
-  // ── Voice Narration for Chat ──
-  useEffect(() => {
-    if (!voiceEnabled || isStreaming || !window.speechSynthesis) return;
-    const lastMsg = conversationMessages[conversationMessages.length - 1];
-    if (lastMsg?.role === 'assistant' && lastMsg.content) {
-      window.speechSynthesis.cancel();
-      // Remove markdown characters for cleaner speech
-      const cleanText = lastMsg.content.replace(/[*#`$]/g, '').replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
-      const u = new SpeechSynthesisUtterance(cleanText);
-      u.rate = 1.05; u.pitch = 1; u.volume = 0.8;
-      window.speechSynthesis.speak(u);
-    }
-    return () => window.speechSynthesis.cancel();
-  }, [conversationMessages.length, isStreaming, voiceEnabled]);
+
 
 
   // ─── Logic ───
@@ -929,8 +929,8 @@ const Home = ({ isDark }) => {
           canvasSteps: store.canvasSteps || [],
           totalSteps: store.totalSteps || store.canvasSteps?.length || 0,
           currentStepIndex: store.currentStepIndex || 0,
-          renderer: store.renderer || 'cinematic',
-          title: store.timeline?.title || 'Visual Lesson',
+          renderer: store.activeScene?.renderer || 'cinematic',
+          title: store.activeScene?.title || 'Visual Lesson',
         };
         console.log('[Home] Using live store state as canvas snapshot fallback');
       }
@@ -979,16 +979,17 @@ const Home = ({ isDark }) => {
     }
   }, [chatInputText, setPrompt, setSidebarOpen, setActiveView, setChatInputText]);
 
-  const handleSubmit = async (textOverride, fileData = null) => {
-    const { selectedTextContext, setSelectedTextContext } = useTutorStore.getState();
+  const handleSubmit = async (textOverride, fileData = null, modeOverride = null, isRegeneration = false, targetAssistantId = null) => {
+    const { selectedTextContext, setSelectedTextContext, getPlatformMemorySummary } = useTutorStore.getState();
     const finalContext = selectedTextContext;
-
-    if ((!prompt.trim() && !textOverride && !fileData && !finalContext) || submittingSessionsRef.current.has(activeChatId || 'new')) return;
+    const platformMemory = getPlatformMemorySummary ? getPlatformMemorySummary() : null;
 
     let workingSessionId = activeChatId || `session-${Date.now()}`;
-    submittingSessionsRef.current.add(workingSessionId);
-    const streamToken = `stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    
+    if (submittingSessionsRef.current.has(workingSessionId)) {
+      console.warn('[Home] Submission already in progress for session:', workingSessionId);
+      return;
+    }
+
     let userPrompt = textOverride || prompt.trim();
     
     // If we have context but NO user prompt, we might want a default question
@@ -999,6 +1000,15 @@ const Home = ({ isDark }) => {
       // For now, we'll prepend it in a clean way for the AI to see
       userPrompt = `Context: "${finalContext}"\n\nQuestion: ${userPrompt}`;
     }
+
+    if (!userPrompt && !fileData && !finalContext) {
+      console.warn('[Home] Empty submission blocked');
+      return;
+    }
+
+    submittingSessionsRef.current.add(workingSessionId);
+    activeChatIdRef.current = workingSessionId; // SYNC IMMEDIATELY to catch first stream chunks
+    const streamToken = `stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     setPrompt('');  // Clear input immediately
     setSelectedTextContext(null); // Clear context immediately
@@ -1015,43 +1025,52 @@ const Home = ({ isDark }) => {
     }
 
     try {
-      if (!activeChatId) setActiveChatId(workingSessionId);
+      if (!activeChatId) {
+        setActiveChatId(workingSessionId);
+      }
 
-      // ── 1. Add user message to conversation slice ──
-      const { userId, assistantId } = addUserMessage(userPrompt);
+      let userId;
+      let sessionTitle = activeSession?.title;
 
-      // ── Smart Title Generation: Only if session is currently generic ──
-      const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
-      const currentTitle = activeSession?.title;
-      const sessionTitle = isGeneric(currentTitle) ? generateCleanTitle(userPrompt) : currentTitle;
-      
-      // Update local chat history for sidebar display
-      const userMessage = { 
-        id: userId, role: 'user', content: userPrompt, 
-        timestamp: new Date().toISOString(), file: fileData,
-        metadata: { edited: false, regenerated: false, feedback: null },
-      };
-      setChatHistory(prev => {
-        const idx = prev.findIndex(s => s.id === workingSessionId);
-        if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
-        const next = [...prev]; 
-        next[idx] = { ...next[idx], title: sessionTitle, messages: [...next[idx].messages, userMessage] }; 
-        return next;
-      });
+      // ── 1. Add user message ONLY if not regenerating ──
+      if (!isRegeneration) {
+        const result = addUserMessage(userPrompt);
+        userId = result.userId;
+
+        // ── Smart Title Generation: Only if session is currently generic ──
+        const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
+        const currentTitle = activeSession?.title;
+        sessionTitle = isGeneric(currentTitle) ? generateCleanTitle(userPrompt) : currentTitle;
+        
+        // Update local chat history for sidebar display
+        const userMessage = { 
+          id: userId, role: 'user', content: userPrompt, 
+          timestamp: new Date().toISOString(), file: fileData,
+          metadata: { edited: false, regenerated: false, feedback: null },
+        };
+        setChatHistory(prev => {
+          const idx = prev.findIndex(s => s.id === workingSessionId);
+          if (idx === -1) return [{ id: workingSessionId, title: sessionTitle, messages: [userMessage] }, ...prev];
+          const next = [...prev]; 
+          next[idx] = { ...next[idx], title: sessionTitle, messages: [...next[idx].messages, userMessage] }; 
+          return next;
+        });
+      }
 
       // ── 2. Determine if this is a teaching-related query ──
       // If a teaching session is active, route all chat input to the doubt pipeline
       const isTeachingActive = machine.isTeaching || machine.isGenerating || machine.isDoubtTriggered;
       
-      if (activeMode === 'deep' || isTeachingActive) {
-        const history = chatHistory.find(s => s.id === workingSessionId)?.messages || [];
+      if ((activeMode === 'deep' || isTeachingActive) && !isRegeneration) {
+        const store = useTutorStore.getState();
+        const history = store.conversationMessages;
         const isFollowUp = (activeChatId && history.length > 0) || isTeachingActive;
         
         if (isFollowUp) {
           console.log('[Home] Routing chat query to doubt pipeline...');
-          askDoubt(userPrompt, activeMode, fileData);
+          askDoubt(userPrompt, modeOverride || activeMode, fileData);
         } else {
-          startSession(userPrompt, userPrompt, activeMode, fileData);
+          startSession(userPrompt, userPrompt, modeOverride || activeMode, fileData);
         }
         submittingSessionsRef.current.delete(workingSessionId);
         return;
@@ -1072,12 +1091,13 @@ const Home = ({ isDark }) => {
           sessionId: /^[0-9a-fA-F]{24}$/.test(workingSessionId) ? workingSessionId : undefined,
           requestId: clientRequestId,
           userMessage: userPrompt,
-          mode: activeMode || 'quick',
+          mode: modeOverride || activeMode || 'quick',
           teachingContext: {
             currentTopic: conversationTopic || undefined,
             explanationMode: 'basic',
             learnerLevel: 'intermediate',
           },
+          platformMemory,
         }),
         credentials: 'include'
       };
@@ -1091,9 +1111,10 @@ const Home = ({ isDark }) => {
       const { signal } = controller;
       fetchOptions.signal = signal;
 
-      const res = await fetch(`${API_URL}/api/chat/stream`, fetchOptions);
-
-      // (Controller remains in Map until finally block)
+      const res = await fetch('/api/chat/stream', fetchOptions).catch(e => {
+        console.error('[Chat:Stream] Network/Proxy error:', e);
+        throw new Error(`Connection failed: ${e.message}`);
+      });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -1102,7 +1123,7 @@ const Home = ({ isDark }) => {
 
       // ── 4. Real SSE Streaming ──
       clearSources();
-      const assistantMsgId = getMsgId('assistant');
+      const assistantMsgId = targetAssistantId || getMsgId('assistant');
       storeStartStreaming(assistantMsgId, workingSessionId, streamToken);
 
       const reader = res.body.getReader();
@@ -1137,9 +1158,12 @@ const Home = ({ isDark }) => {
 
           try {
             const eventData = JSON.parse(dataStr);
-              const eventType = eventData.type || lastEventType;
+            const eventType = eventData.type || lastEventType;
+            console.log(`[SSE] Received event: ${eventType}`, eventData);
 
-            if (eventType === 'chunk' || eventType === 'message') {
+            if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
+              useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+            } else if (eventType === 'chunk' || eventType === 'message') {
               const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
               
               if (text) {
@@ -1147,10 +1171,29 @@ const Home = ({ isDark }) => {
                 // Isolation check: Only stream to UI if this is the active chat
                 if (workingSessionId === activeChatIdRef.current) {
                   if (isArtifactExpectedRef.current) {
-                    // Hide the raw JSON from the user, show a nice placeholder
-                    updateStreamingContent("### Generating Visual Model\n\nI'm building a custom artifact for this explanation. One moment...", workingSessionId);
+                    // HEURISTIC: Extract chat_response from JSON stream
+                    let displayChunk = text;
+                    const jsonStartIdx = fullContent.indexOf('"chat_response":');
+                    
+                    if (jsonStartIdx !== -1) {
+                      const artifactStartIdx = fullContent.indexOf('","artifact"');
+                      
+                      if (artifactStartIdx === -1) {
+                        // We are currently streaming the chat_response string
+                        displayChunk = text.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/"$/, '');
+                        if (fullContent.endsWith('"')) displayChunk = displayChunk.slice(0, -1);
+                      } else {
+                        displayChunk = '';
+                      }
+                    } else if (fullContent.length < 200) {
+                      displayChunk = text;
+                    }
+
+                    if (displayChunk && !displayChunk.startsWith('{') && !displayChunk.startsWith('"chat_response"')) {
+                      appendStreamChunk(displayChunk, workingSessionId, streamToken);
+                    }
                   } else {
-                    appendStreamChunk(text, workingSessionId);
+                    appendStreamChunk(text, workingSessionId, streamToken);
                   }
                 } else {
                   addUnreadSession(workingSessionId);
@@ -1160,7 +1203,7 @@ const Home = ({ isDark }) => {
               const thought = eventData.thought || eventData.message || eventData.content || '';
               thoughtContent += thought + (eventType === 'status' ? '\n' : '');
               if (workingSessionId === activeChatIdRef.current) {
-                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), workingSessionId);
+                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), workingSessionId, streamToken);
               } else {
                 addUnreadSession(workingSessionId);
               }
@@ -1246,10 +1289,24 @@ const Home = ({ isDark }) => {
               const savedLocalId = eventData.localId || lastArtifactLocalId;
               if (savedLocalId && eventData.artifactId) {
                 setArtifactDbId(savedLocalId, eventData.artifactId);
+                
+                // Update message metadata to reflect the real ID
+                setChatHistory(prev => prev.map(s => {
+                  if (s.id === (receivedSessionId || workingSessionId)) {
+                    const msgs = s.messages.map(m => {
+                      if (m.metadata?.artifactId === savedLocalId) {
+                        return { ...m, metadata: { ...m.metadata, artifactId: eventData.artifactId } };
+                      }
+                      return m;
+                    });
+                    return { ...s, messages: msgs };
+                  }
+                  return s;
+                }));
               }
             } else if (eventType === 'chat_override') {
               if (workingSessionId === activeChatIdRef.current) {
-                updateStreamingContent(eventData.content, workingSessionId);
+                updateStreamingContent(eventData.content, workingSessionId, streamToken);
               } else {
                 addUnreadSession(workingSessionId);
               }
@@ -1274,7 +1331,7 @@ const Home = ({ isDark }) => {
             if (lastEventType === 'message' && !dataStr.startsWith('{')) {
               fullContent += dataStr;
               if (workingSessionId === activeChatIdRef.current) {
-                appendStreamChunk(dataStr, workingSessionId);
+                appendStreamChunk(dataStr, workingSessionId, streamToken);
               } else {
                 addUnreadSession(workingSessionId);
               }
@@ -1286,7 +1343,7 @@ const Home = ({ isDark }) => {
       console.log("FULL RESPONSE (Client):", fullContent);
 
       // ── 5. Finalize streaming ──
-      finishStreaming(fullContent, workingSessionId, thoughtContent, lastStreamSources, lastArtifactIdRef.current, currentCanvasTypeRef.current, Date.now() - requestStartTime, streamToken);
+      finishStreaming(fullContent, workingSessionId, thoughtContent, lastStreamSources, lastArtifactIdRef.current, currentCanvasTypeRef.current, Date.now() - requestStartTime, streamToken, isRegeneration);
       lastArtifactIdRef.current = null; // Reset for next turn
       currentCanvasTypeRef.current = null;
 
@@ -1312,14 +1369,21 @@ const Home = ({ isDark }) => {
           abortControllersRef.current.delete(workingSessionId);
         }
 
+        const finalMessages = useTutorStore.getState().conversationMessages;
         setActiveChatId(receivedSessionId);
         setChatHistory(prev => prev.map(s => 
-          s.id === workingSessionId ? { ...s, id: receivedSessionId, chatSessionId: receivedSessionId } : s
+          s.id === workingSessionId ? { ...s, id: receivedSessionId, chatSessionId: receivedSessionId, messages: finalMessages } : s
         ));
         useTutorStore.getState().setChatSessionId(receivedSessionId);
         
         // Update local working reference so remaining chunks use the correct ID
         workingSessionId = receivedSessionId;
+      } else {
+        // Just sync messages if ID didn't change
+        const finalMessages = useTutorStore.getState().conversationMessages;
+        setChatHistory(prev => prev.map(s => 
+          s.id === workingSessionId ? { ...s, messages: finalMessages } : s
+        ));
       }
     } catch (err) {
       if (err.name === 'AbortError') {
@@ -1333,6 +1397,12 @@ const Home = ({ isDark }) => {
       store.finishStreaming(err.message.includes('unavailable') 
         ? "I'm having trouble connecting right now. Please try again in a moment."
         : `⚠️ ${err.message}`, workingSessionId);
+      
+      // Sync error message to sidebar
+      const errorMessages = store.conversationMessages;
+      setChatHistory(prev => prev.map(s => 
+        s.id === workingSessionId ? { ...s, messages: errorMessages } : s
+      ));
     } finally {
       submittingSessionsRef.current.delete(workingSessionId);
       abortControllersRef.current.delete(workingSessionId);
@@ -1398,6 +1468,27 @@ const Home = ({ isDark }) => {
     if (!finalTargetId) return;
 
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+
+    if (!isMongoId) {
+      const lastUserMsg = [...conversationMessages].reverse().find(m => m.role === 'user');
+      if (lastUserMsg) {
+        handleSubmit(lastUserMsg.content, null, null, true, finalTargetId || null);
+        return;
+      }
+    }
+
+    if (!finalTargetId) {
+      // If we are here and have no target ID, but it's a Mongo session,
+      // it means there's no assistant message yet to regenerate.
+      // We should probably just trigger a new handleSubmit.
+      const lastUserMsg = [...conversationMessages].reverse().find(m => m.role === 'user');
+      if (lastUserMsg) {
+        handleSubmit(lastUserMsg.content, null, null, true, null);
+        return;
+      }
+      return;
+    }
 
     useTutorStore.getState().setWaitingForAI(true, dbSessionId);
     useTutorStore.getState().setLastAIError(null, dbSessionId);
@@ -1405,8 +1496,6 @@ const Home = ({ isDark }) => {
     // 1. Prepare UI for regeneration (adds a new empty version slot)
     prepareRegeneration(finalTargetId);
     
-    const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
-
     try {
       if (isMongoId) {
         const clientRequestId = `regen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1427,10 +1516,11 @@ const Home = ({ isDark }) => {
         };
 
         const controller = new AbortController();
+        const streamToken = `regen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         abortControllersRef.current.set(dbSessionId, controller);
         fetchOptions.signal = controller.signal;
 
-        const res = await fetch(`${API_URL}/api/chat/regenerate/stream`, fetchOptions).catch(e => {
+        const res = await fetch('/api/chat/regenerate/stream', fetchOptions).catch(e => {
           console.error('[Home:Regen] Fetch failed:', e);
           throw new Error(`Network error: ${e.message}`);
         });
@@ -1450,7 +1540,7 @@ const Home = ({ isDark }) => {
         const requestStartTime = Date.now();
 
         // Start UI streaming state
-        storeStartStreaming(finalTargetId, dbSessionId);
+        storeStartStreaming(finalTargetId, dbSessionId, streamToken);
 
         let lastStreamSources = [];
 
@@ -1477,16 +1567,18 @@ const Home = ({ isDark }) => {
               const eventData = JSON.parse(dataStr);
               const eventType = eventData.type || lastEventType;
 
-              if (eventType === 'chunk' || eventType === 'message') {
+              if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
+                useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+              } else if (eventType === 'chunk' || eventType === 'message') {
                 const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
                 if (text) {
                   fullContent += text;
-                  appendStreamChunk(text, dbSessionId);
+                  appendStreamChunk(text, dbSessionId, streamToken);
                 }
               } else if (eventType === 'thought' || eventType === 'status') {
                 const thought = eventData.thought || eventData.message || eventData.content || '';
                 thoughtContent += thought + (eventType === 'status' ? '\n' : '');
-                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), dbSessionId);
+                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), dbSessionId, streamToken);
               } else if (eventType === 'sources') {
                 lastStreamSources = eventData.sources || [];
                 setSources(lastStreamSources, dbSessionId);
@@ -1505,7 +1597,7 @@ const Home = ({ isDark }) => {
         }
 
         console.log('[Home:Regen] Finalizing stream, length:', fullContent.length);
-        finishStreaming(fullContent, dbSessionId, thoughtContent, lastStreamSources, null, null, Date.now() - requestStartTime);
+        finishStreaming(fullContent, dbSessionId, thoughtContent, lastStreamSources, null, null, Date.now() - requestStartTime, streamToken, true);
         return;
       }
 
@@ -1515,7 +1607,7 @@ const Home = ({ isDark }) => {
         .filter(m => m.role === 'user').pop();
         
       if (lastUserMsg) {
-        handleSubmit(lastUserMsg.content);
+        handleSubmit(lastUserMsg.content, null, null, true, finalTargetId);
       } else {
         useTutorStore.getState().setWaitingForAI(false, dbSessionId);
       }
@@ -1741,7 +1833,10 @@ const Home = ({ isDark }) => {
   const setSelectedElements = useTutorStore(state => state.setSelectedElements);
   const setHasTextSelection = useTutorStore(state => state.setHasTextSelection);
 
-  const isTeachingActive = machineState !== STATES.IDLE;
+  const isCanvasVisible = canvasLayout !== 'inline' || machineState !== STATES.IDLE;
+  const isTeachingActive = isCanvasVisible;
+  const isSplitView = canvasLayout === 'split' || (isCanvasVisible && canvasLayout !== 'fullscreen');
+  const isFullscreen = canvasLayout === 'fullscreen';
 
   const leftPanel = (
     <ErrorBoundary reloadOnRetry={true}>
@@ -1774,7 +1869,7 @@ const Home = ({ isDark }) => {
       isLoadingMore={pagination.loading && chatHistory.length > 0}
       onLoadMore={() => fetchCloudSessions(pagination.page + 1)}
       onQuickAsk={() => setIsQuickAskOpen(true)}
-      isSplitView={isTeachingActive}
+      isSplitView={isSplitView}
     />
     </ErrorBoundary>
   );
@@ -1786,7 +1881,8 @@ const Home = ({ isDark }) => {
         title={activeSession?.title || "TutorBoard AI"}
         onBack={handleNewChat}
         sidebar={leftPanel}
-        isSplitView={isTeachingActive}
+        isSplitView={isSplitView}
+        forceCollapse={isFullscreen}
       >
         {/* 2. Main Background Canvas */}
         {!isTeachingActive && (
@@ -1818,35 +1914,30 @@ const Home = ({ isDark }) => {
                 </FixedTeachingStage>
               </div>
             ) : !pagination.loading && (
-              <div className="w-full h-full flex items-center justify-center relative p-4 md:p-6">
-                {/* The "Empty" Stage Frame (3D Glassy) */}
-                <div 
-                  className="absolute inset-4 md:inset-6 rounded-[2.5rem] bg-[var(--bg-secondary)] opacity-20 pointer-events-none"
-                  style={{
-                    boxShadow: `
-                      0 0 0 1px var(--border-color),
-                      inset 0 1px 2px rgba(255,255,255,0.05)
-                    `
-                  }}
-                />
+              <div className="w-full h-full flex items-center justify-center relative">
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="relative z-10 flex flex-col items-center gap-8 text-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                  className="relative z-10 flex flex-col items-center gap-0 select-none pointer-events-none"
                 >
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-[var(--text-primary)] opacity-5 blur-3xl rounded-full" />
-                    <VisaiLogo size="xl" className="relative opacity-20 grayscale brightness-150 animate-pulse-logo" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '32px', height: '1px', background: 'var(--text-primary)', opacity: 0.08 }} />
+                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--text-primary)', opacity: 0.1 }} />
+                    <div style={{ width: '32px', height: '1px', background: 'var(--text-primary)', opacity: 0.08 }} />
                   </div>
-                  
-                  <div className="space-y-3">
-                    <h2 className="text-sm font-heading font-extrabold uppercase tracking-[0.3em] text-[var(--text-primary)] opacity-20">
-                      TutorBoard AI
-                    </h2>
-                    <p className="text-[10px] uppercase tracking-[0.15em] font-medium text-[var(--text-tertiary)] max-w-xs leading-relaxed">
-                      Visual Learning Ready
-                    </p>
-                  </div>
+                  <p style={{ 
+                    fontSize: '10px', 
+                    fontWeight: 400, 
+                    letterSpacing: '0.18em', 
+                    textTransform: 'uppercase',
+                    color: 'var(--text-primary)', 
+                    opacity: 0.1,
+                    marginTop: '10px',
+                    fontFamily: 'inherit'
+                  }}>
+                    tutorboard
+                  </p>
                 </motion.div>
               </div>
             )}

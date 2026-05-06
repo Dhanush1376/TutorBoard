@@ -77,8 +77,6 @@ export const createUiSlice = (set, get) => ({
   },
   toasts: [], // { id, message, type, duration, onUndo }
   featureFlags: {
-    enableVisualizer: true,
-    enableVoice: true,
     enableCodeExecution: true,
     enable3DRenderer: false,
     enableMatterPhysics: true

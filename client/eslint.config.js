@@ -26,4 +26,36 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  // --- Architectural Boundary Enforcement ---
+  {
+    files: [
+      'src/store/slices/artifactSlice.js',
+      'src/store/slices/platformMemorySlice.js',
+      'src/store/slices/sessionSlice.js',
+      'src/engine/systemBoundaries.js'
+    ],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/components/canvas/**', '**/renderers/**'],
+            message: 'Architectural Violation: Pure logic/persistence modules must not import from the rendering layer (Canvas/Renderers).'
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ['src/engine/SceneOrchestrator.ts', 'src/engine/SceneGraph.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['**/services/api/**', '**/services/persistence/**'],
+            message: 'Architectural Violation: Rendering engines must be ephemeral and should not import persistence or API services directly.'
+          }
+        ]
+      }]
+    }
+  }
 ])

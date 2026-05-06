@@ -14,10 +14,20 @@ export default function useStreamingResponse() {
 
   const startStreaming = useCallback((fullContent, messageId, sessionId = null, onComplete = null) => {
     const store = useTutorStore.getState();
+    const streamToken = `sim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     abortedRef.current = false;
     isActiveRef.current = true;
 
-    store.startStreaming(messageId, sessionId);
+    // FIX I-02: If real SSE streaming is already active, bypass simulation to avoid UI collision
+    if (store.isStreaming) {
+      console.log('[useStreamingResponse] ⏩ Real stream active, bypassing simulation.');
+      store.finishStreaming(fullContent, sessionId, null, [], null, null, 0, streamToken);
+      isActiveRef.current = false;
+      if (onComplete) onComplete(fullContent);
+      return;
+    }
+
+    store.startStreaming(messageId, sessionId, streamToken);
 
     // Split into words for natural-feeling streaming
     const words = fullContent.split(/(\s+)/);
@@ -31,7 +41,7 @@ export default function useStreamingResponse() {
       if (abortedRef.current || currentIndex >= words.length) {
         isActiveRef.current = false;
         if (!abortedRef.current) {
-          store.finishStreaming(fullContent, sessionId);
+          store.finishStreaming(fullContent, sessionId, null, [], null, null, 0, streamToken);
           if (onComplete) onComplete(fullContent);
         }
         return;
@@ -44,7 +54,7 @@ export default function useStreamingResponse() {
       }
       currentIndex = end;
 
-      store.updateStreamingContent(accumulated, sessionId);
+      store.updateStreamingContent(accumulated, sessionId, streamToken);
 
       animFrameRef.current = setTimeout(tick, TICK_INTERVAL);
     };

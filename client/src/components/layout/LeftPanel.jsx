@@ -9,7 +9,7 @@ import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
   ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, LayoutDashboard,
-  FileText, Download, Volume2, VolumeX, Sparkles
+  FileText, Download, Sparkles
 } from 'lucide-react';
 import Loader from './Loader';
 import VisaiLogo from './VisaiLogo';
@@ -41,7 +41,7 @@ const LeftPanel = ({
   isSplitView = false
 }) => {
   const navigate = useNavigate();
-  const { setSidebarOpen, layoutView, setOverlay, voiceEnabled, toggleVoice } = useTutorStore();
+  const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
   const { user } = useAuth();
   const isGuest = !!user?.isGuest;
   const hasStarted = messages.length > 0;
@@ -78,7 +78,7 @@ const LeftPanel = ({
 
   // ── RENDER HELPERS ──
   const renderScrollContent = () => {
-    if (activeView === 'chat' || isSplitView) {
+    if (activeView === 'chat') {
       return (
         <div className="flex flex-col gap-2 relative min-h-full">
           {/* Compact Back Button for Sidebar Chat */}
@@ -274,13 +274,7 @@ const LeftPanel = ({
             </span>
           </div>
 
-            <button
-              onClick={toggleVoice}
-              className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
-              title={voiceEnabled ? "Turn off narration" : "Turn on narration"}
-            >
-              {voiceEnabled ? <Volume2 size={isMobile ? 22 : 20} strokeWidth={1.8} /> : <VolumeX size={isMobile ? 22 : 20} strokeWidth={1.8} />}
-            </button>
+
             <button
               onClick={() => useTutorStore.getState().setMasteryOpen(true)}
               className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}

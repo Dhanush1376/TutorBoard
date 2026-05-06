@@ -9,12 +9,13 @@ import { immer } from 'zustand/middleware/immer';
 
 // Slices
 import { createSessionSlice } from './slices/sessionSlice.js';
-import { createCanvasSlice } from './slices/canvasSlice.js';
 import { createChatSlice } from './slices/chatSlice.js';
 import { createUiSlice } from './slices/uiSlice.js';
-import { createControlSlice } from './slices/controlSlice.js';
 import { createConversationSlice } from './slices/conversationSlice.js';
 import { createArtifactSlice } from './slices/artifactSlice.js';
+import { createSceneSlice } from './slices/sceneSlice.js';
+import { createCanvasSessionSlice } from './slices/canvasSessionSlice.js';
+import { createPlatformMemorySlice } from './slices/platformMemorySlice.js';
 
 const safeStorage = {
   getItem: (name) => {
@@ -41,12 +42,13 @@ const useTutorStore = create(
     immer((set, get) => ({
       // Merge all slices into one store
       ...createSessionSlice(set, get),
-      ...createCanvasSlice(set, get),
       ...createChatSlice(set, get),
       ...createUiSlice(set, get),
-      ...createControlSlice(set, get),
       ...createConversationSlice(set, get),
       ...createArtifactSlice(set, get),
+      ...createSceneSlice(set, get),
+      ...createCanvasSessionSlice(set, get),
+      ...createPlatformMemorySlice(set, get),
 
       // Global Actions / Hydration
       hydrate: () => {
@@ -66,6 +68,98 @@ const useTutorStore = create(
           }
         });
       },
+
+      /**
+       * handleProgressiveStreamEvent — Central Orchestrator for SSE events.
+       * Decouples SSE event arrival from UI implementation.
+       */
+      handleProgressiveStreamEvent: (eventData) => set((state) => {
+        const { type } = eventData;
+
+        switch (type) {
+          case 'meta':
+            if (eventData.teachingMode) {
+              state.activeTeachingMode = eventData.teachingMode;
+            }
+            if (eventData.activeArtifactId) {
+              state.activeArtifactId = eventData.activeArtifactId;
+            }
+            break;
+
+          case 'canvas_skeleton':
+            // The router decided we need a canvas.
+            // eventData: { layout: 'split'|'fullscreen', rendererType: 'd3'|... }
+            state.canvasLayout = eventData.layout || 'split';
+            if (eventData.rendererType && !state.rendererStack.includes(eventData.rendererType)) {
+              state.rendererStack.push(eventData.rendererType);
+            }
+            state.canvasSessionVersion++;
+            
+            // Link to the active streaming message so the card appears
+            if (state.streamingMessageId) {
+              state.updateMessageMetadata(state.streamingMessageId, {
+                hasVisualArtifact: true,
+                artifactStatus: 'generating',
+                rendererType: eventData.rendererType
+              });
+            }
+
+            // If it's a skeleton, clear current nodes to prepare for new ones
+            state.setTimeline({ timeline: [], objects: [] });
+            break;
+
+          case 'scene_nodes':
+            // eventData: { nodes: [...], renderer: '...' }
+            // Feed the nodes directly into the teaching engine (canvasSlice)
+            if (eventData.nodes) {
+              const adaptedTimeline = { 
+                steps: eventData.nodes, 
+                timeline: eventData.nodes,
+                objects: [], // Objects will be instantiated by the renderer
+                renderer: eventData.renderer,
+                title: state.conversationTopic || 'Visualization'
+              };
+
+              state.setTimeline(adaptedTimeline);
+              state.loadScene(adaptedTimeline); // Wire to sceneSlice for CinematicStage
+
+              if (state.streamingMessageId) {
+                state.updateMessageMetadata(state.streamingMessageId, {
+                  artifactStatus: 'completed',
+                  artifactTitle: state.conversationTopic || 'Visualization'
+                });
+              }
+            }
+            
+            // Auto-open canvas if it's currently hidden
+            if (state.canvasLayout === 'inline') {
+              state.canvasLayout = 'split';
+            }
+            state.canvasSessionVersion++;
+            break;
+
+          case 'artifact_saved':
+            // eventData: { artifactId: '...', title: '...', rendererType: '...' }
+            if (state.streamingMessageId) {
+              state.updateMessageMetadata(state.streamingMessageId, {
+                artifactId: eventData.artifactId,
+                artifactStatus: 'completed'
+              });
+            }
+            // Link the DB ID to any local artifact that matches (if applicable)
+            state.artifacts.forEach(art => {
+              const isMatch = (eventData.localId && art.id === eventData.localId) || 
+                              (!eventData.localId && art.title === eventData.title);
+              if (isMatch && !art.dbId) {
+                state.setArtifactDbId(art.id, eventData.artifactId);
+              }
+            });
+            break;
+
+          default:
+            break;
+        }
+      }),
     })),
     {
       name: 'tutorboard-session',
@@ -75,7 +169,6 @@ const useTutorStore = create(
         sessionId: state.sessionId,
         chatSessionId: state.chatSessionId,
         playbackSpeed: state.playbackSpeed,
-        voiceEnabled: state.voiceEnabled,
         layoutView: state.layoutView,
         isSidebarOpen: state.isSidebarOpen,
         recentColors: state.recentColors,
@@ -97,13 +190,35 @@ const useTutorStore = create(
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
         guestTrialStatus: state.guestTrialStatus,
+        // Scene state is ephemeral — never persist (Fix D-03)
+        activeScene: null,
+        canvasObjects: [],
+        canvasSteps: [],
+        currentStepIndex: 0,
+        totalSteps: 0,
+        stepSnapshots: {},
+        stepMessageMap: {},
+        rendererStack: [],
+        sceneReady: false,
+        sceneDomain: 'general',
+        isPlaying: false,
+        isPaused: false,
+        sceneInteraction: { hoveredEntityId: null, selectedEntityId: null, tooltip: null },
+        activeStepHighlight: null,
+        canvasAnnotations: [],
         isArtifactPanelOpen: false,
+        viewportState: { x: 0, y: 0, zoom: 1, rotation: 0 },
+        interactionMode: 'view',
+        focusedLayer: null,
+        canvasSessionVersion: 0,
         // Explicitly exclude conversation state from persistence
         conversationMessages: [],
         isStreaming: false,
         streamingContent: '',
         streamingMessageId: null,
         isWaitingForAI: false,
+        deltaState: null,
+        d3Narration: '',
       }),
     }
   )
@@ -111,4 +226,5 @@ const useTutorStore = create(
 
 export default useTutorStore;
 export { STATES } from './slices/sessionSlice.js';
-export { CANVAS_MODE } from './slices/canvasSlice.js';
+export { CANVAS_MODE } from './slices/sceneSlice.js';
+export { CANVAS_LAYOUT } from './slices/canvasSessionSlice.js';

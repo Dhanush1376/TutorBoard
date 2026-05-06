@@ -1,6 +1,6 @@
 import gsap from 'gsap';
 import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
-import { Command, RendererSystem } from './VisualScriptInterpreter';
+import { Command, RendererSystem } from './types';
 
 gsap.registerPlugin(MotionPathPlugin);
 
@@ -291,6 +291,67 @@ export class GSAPExecutor {
   public resume() { this.masterTimeline?.resume(); }
   public kill()   { this.masterTimeline?.kill(); this.masterTimeline = null; }
   public setSpeed(speed: number) { this.masterTimeline?.timeScale(speed); }
+
+  // ── Timeline Scrubbing & Progress ───────────────────────────────────────
+
+  /**
+   * Seek to a specific time in the master timeline (in seconds).
+   * Useful for scrubber UI controls.
+   */
+  public seekTo(time: number): void {
+    if (!this.masterTimeline) return;
+    this.masterTimeline.seek(time, false);
+  }
+
+  /**
+   * Get the current playback progress as a ratio [0, 1].
+   */
+  public getProgress(): number {
+    if (!this.masterTimeline) return 0;
+    return this.masterTimeline.progress();
+  }
+
+  /**
+   * Get the total duration of the master timeline in seconds.
+   */
+  public getDuration(): number {
+    if (!this.masterTimeline) return 0;
+    return this.masterTimeline.duration();
+  }
+
+  /**
+   * Get the current playback time in seconds.
+   */
+  public getCurrentTime(): number {
+    if (!this.masterTimeline) return 0;
+    return this.masterTimeline.time();
+  }
+
+  /**
+   * Check if the timeline is currently playing.
+   */
+  public isActive(): boolean {
+    return this.masterTimeline?.isActive() || false;
+  }
+
+  // ── GPU Hints ───────────────────────────────────────────────────────────
+
+  /**
+   * Apply will-change hints to elements that will be animated.
+   * This tells the browser to promote them to their own compositing layer.
+   */
+  private _applyGPUHints(el: HTMLElement | null): void {
+    if (!el) return;
+    el.style.willChange = 'transform, opacity';
+  }
+
+  /**
+   * Remove will-change hints after animation completes to free GPU memory.
+   */
+  private _removeGPUHints(el: HTMLElement | null): void {
+    if (!el) return;
+    el.style.willChange = 'auto';
+  }
 
   private _getElement(id: string): HTMLElement | null {
     if (!id) return null;

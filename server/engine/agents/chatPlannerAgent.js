@@ -59,6 +59,8 @@ YOUR DECISIONS
    - "draw diagram/flowchart/hierarchy" → diagram artifact
    - "explain concept X" → NO artifact (just explain in chat)
    - "what is X" → NO artifact
+   - "hello/hi/thanks" → NO artifact
+   - If the user query is less than 5 words and doesn't explicitly ask for a "diagram", "table", or "code" → NO artifact.
    - Maximum 3 artifacts per response
 
 7. CANVAS:
@@ -74,6 +76,15 @@ YOUR DECISIONS
    - Historical events, biographies, definitions → suggest_canvas: false
    - Coding syntax, debugging → suggest_canvas: false
    - Math formulas (without visual processes) → suggest_canvas: false
+
+8. INTENT (MANDATORY):
+   - intent → "deep" | "quick" | "test_me"
+   - intent_confidence → 0-1
+   
+   INTENT RULES:
+   - deep: User wants a visualization, diagram, or deep explanation.
+   - quick: User wants a fast answer, summary, or simple fact.
+   - test_me: User wants a quiz or assessment.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT (strict JSON only)
@@ -93,7 +104,9 @@ OUTPUT (strict JSON only)
   "artifact_count": 1,
   "artifact_types": [],
   "suggest_canvas": false,
-  "canvas_type": null
+  "canvas_type": null,
+  "intent": "deep",
+  "intent_confidence": 0.95
 }`;
 
 // ─── Regex Fallback Classifier ────────────────────────────────────────────────
@@ -146,7 +159,8 @@ function buildFallbackPlan(query) {
     artifact_type: isUI ? 'ui' : wantsDiagram ? 'diagram' : wantsTable ? 'table' : wantsCode ? 'code' : null,
     artifact_count: 1,
     artifact_types: [],
-    suggest_canvas: suggestCanvas,
+    intent: 'quick',
+    intent_confidence: 0.5,
     canvas_type: canvasType,
   };
 }
@@ -170,6 +184,7 @@ export async function runChatPlanner(userMessage, pastContext = '', webContext =
       temperature: 0,
       max_tokens: 600,
       responseMimeType: 'application/json',
+      taskType: 'planning',
     });
 
     const raw = (res.content || '{}').replace(/```json|```/g, '').trim();
@@ -184,7 +199,7 @@ export async function runChatPlanner(userMessage, pastContext = '', webContext =
     // Validate required fields exist
     if (!parsed.content_type || !parsed.tone) throw new Error('Missing required fields');
 
-    console.log(`[Planner] ✓ Plan: type=${parsed.content_type}, artifact=${parsed.generate_artifact}, canvas=${parsed.suggest_canvas}, canvas_type=${parsed.canvas_type}`);
+    console.log(`[Planner] ✓ Plan: type=${parsed.content_type}, artifact=${parsed.generate_artifact}, intent=${parsed.intent}`);
     return parsed;
   } catch (err) {
     console.warn('[Planner] LLM classification failed, using regex fallback:', err.message);

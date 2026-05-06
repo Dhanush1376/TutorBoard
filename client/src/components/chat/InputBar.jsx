@@ -5,7 +5,6 @@ import {
   Square,
   Plus,
   ChevronDown,
-  Mic,
   BookOpen,
   Lightbulb,
   GraduationCap,
@@ -48,12 +47,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [attachedFile, setAttachedFile] = useState(null);
-  const [isListening, setIsListening] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const fileInputRef = useRef(null);
-  const recognitionRef = useRef(null);
   const cooldownTimerRef = useRef(null);
-  const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
 
   // ─── Guest Trial State ───
   const isGuest = !!user?.isGuest;
@@ -100,6 +96,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     };
   }, [isGuest, guestTrialStatus.lastMessageAt]);
 
+  const [isFocused, setIsFocused] = useState(false);
+
   // Animated typing placeholder
   const placeholders = [
     "How does a Hash Map work?",
@@ -112,6 +110,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const [currentPlaceholder, setCurrentPlaceholder] = useState(isLanding ? "" : "Message TutorBoard...");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isTabVisible, setIsTabVisible] = useState(document.visibilityState === 'visible');
+  const [isStopping, setIsStopping] = useState(false);
 
   // SEC-UX-02: Manage visibility separately to ensure reactivity
   useEffect(() => {
@@ -124,7 +123,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   useEffect(() => {
     // Stop animation if not in landing mode or if a session has started/is generating
-    if (!isLanding || isGenerating) {
+    // Also pause if user is currently typing or focused (Fixed: UX-01)
+    if (!isLanding || isGenerating || isFocused || (value && value.length > 0)) {
       setCurrentPlaceholder("Message TutorBoard...");
       return;
     }
@@ -159,44 +159,15 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     }
 
     return () => clearTimeout(timeout);
-  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isLanding, isGenerating, isTabVisible]);
+  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isLanding, isGenerating, isTabVisible, isFocused, value]);
 
 
-  // Cleanup recognition on unmount
   useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-    };
-  }, []);
-
-  const startListening = () => {
-    if (!isSpeechSupported) return;
-
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      return;
+    if (!isGenerating) {
+      setIsStopping(false);
     }
+  }, [isGenerating]);
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = navigator.language || 'en-US';
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => {
-      setIsListening(false);
-      recognitionRef.current = null;
-    };
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      onChange(value + (value ? ' ' : '') + transcript);
-    };
-    recognition.start();
-  };
 
   // Auto-resize textarea
   useEffect(() => {
@@ -212,8 +183,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     if (e.key === 'Enter' && (!e.shiftKey || e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       if (isTrialExhausted || isOnCooldown) return;
-      if (!isGenerating && (value.trim() || attachedFile)) {
-        onSubmit(value, attachedFile);
+      if (value.trim() || attachedFile) {
+        onSubmit(value, attachedFile, activeMode);
         setAttachedFile(null); // Clear after submit
         setIsPlusMenuOpen(false);
         setIsAgentMenuOpen(false);
@@ -348,8 +319,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   };
 
   const { isMobile } = useWindowSize();
-
-  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <div className={`w-full max-w-4xl mx-auto transition-transform duration-500 ${isFocused ? 'scale-[1.005]' : 'scale-100'}`}>
@@ -705,28 +674,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
           {/* Right Cluster */}
           <div className="flex items-center justify-end gap-1">
-            {isSpeechSupported && (
-              <div className="relative">
-                <AnimatePresence>
-                  {isListening && (
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 2.2, opacity: 0 }} exit={{ opacity: 0 }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
-                      className="absolute inset-0 rounded-full bg-red-500/20"
-                    />
-                  )}
-                </AnimatePresence>
-                <button
-                  onClick={startListening}
-                  className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 ${isListening
-                      ? 'text-red-500 bg-red-500/15 ring-1 ring-red-500/20'
-                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
-                    }`}
-                >
-                  <Mic size={20} strokeWidth={2} />
-                </button>
-              </div>
-            )}
+
 
             {/* Trial Badge */}
 
@@ -739,39 +687,38 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </div>
             )}
 
-            {isGenerating ? (
-              <button
-                onClick={onStopGeneration}
-                className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all active:scale-90 group shadow-lg shadow-red-500/10 ring-1 ring-red-500/20"
-              >
-                <div className="absolute inset-0 rounded-xl border-[1.5px] border-red-500/20" />
-                <motion.div
-                  className="absolute inset-0 rounded-xl border-[1.5px] border-red-500 border-t-transparent border-l-transparent"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-                />
-                <Square size={13} strokeWidth={3} className="fill-current group-hover:scale-110 transition-transform" />
-              </button>
-            ) : (
+            {isGenerating && (
               <button
                 onClick={() => {
-                  if (isTrialExhausted || isOnCooldown) return;
-                  if (value.trim() || attachedFile) {
-                    onSubmit(value, attachedFile);
-                    setAttachedFile(null);
-                  }
+                  setIsStopping(true);
+                  onStopGeneration();
                 }}
-                disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${activeMode === 'teach' && (value.trim() || attachedFile || selectedTextContext)
-                    ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
-                    : (value.trim() || attachedFile || selectedTextContext)
-                      ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20 hover:shadow-[var(--text-primary)]/30 hover:-translate-y-0.5'
-                      : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/40 shadow-none cursor-not-allowed'
-                  }`}
+                disabled={isStopping}
+                className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 group shadow-lg ring-1 mr-1 ${isStopping ? 'bg-red-500 text-white shadow-red-500/20 ring-red-500' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20 shadow-red-500/10 ring-red-500/20'}`}
+                title="Stop Generation"
               >
-                {activeMode === 'teach' ? <GraduationCap size={22} strokeWidth={2} /> : <ArrowUp size={22} strokeWidth={2} />}
+                <Square size={13} strokeWidth={3} className={`fill-current transition-transform ${isStopping ? 'scale-90' : 'group-hover:scale-110'}`} />
               </button>
             )}
+
+            <button
+              onClick={() => {
+                if (isTrialExhausted || isOnCooldown) return;
+                if (value.trim() || attachedFile) {
+                  onSubmit(value, attachedFile, activeMode);
+                  setAttachedFile(null);
+                }
+              }}
+              disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${activeMode === 'teach' && (value.trim() || attachedFile || selectedTextContext)
+                  ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
+                  : (value.trim() || attachedFile || selectedTextContext)
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20 hover:shadow-[var(--text-primary)]/30 hover:-translate-y-0.5'
+                    : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/40 shadow-none cursor-not-allowed'
+                }`}
+            >
+              {activeMode === 'teach' ? <GraduationCap size={22} strokeWidth={2} /> : <ArrowUp size={22} strokeWidth={2} />}
+            </button>
           </div>
         </div>
       </div>

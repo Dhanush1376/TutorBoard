@@ -364,8 +364,8 @@ app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
 app.use('/api/learner', httpRateLimiter, dbCheck, learnerRoutes);
 app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
 app.use('/api/artifact', httpRateLimiter, dbCheck, artifactRoutes);
-app.use('/', httpRateLimiter, compilerRoutes);
 app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
+app.use('/', httpRateLimiter, compilerRoutes);
 
 // @ts-ignore
 Sentry.setupExpressErrorHandler(app);

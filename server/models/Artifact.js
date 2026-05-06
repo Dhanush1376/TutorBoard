@@ -26,7 +26,7 @@ const artifactSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['code', 'ui', 'document', 'table', 'diagram'],
+    enum: ['code', 'ui', 'document', 'table', 'diagram', 'visual'],
     required: true,
   },
   title: {
@@ -75,6 +75,17 @@ artifactSchema.pre('save', function () {
       version: 1,
       createdAt: new Date(),
     }];
+  } else if (this.isModified('content')) {
+    // Update — push new version
+    const newVersionNumber = (this.version || 1) + 1;
+    this.version = newVersionNumber;
+    this.versions.push({
+      content: this.content,
+      language: this.language,
+      metadata: this.metadata,
+      version: newVersionNumber,
+      createdAt: new Date(),
+    });
   }
 });
 

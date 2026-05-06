@@ -154,6 +154,33 @@
     /* Toolbar Sizing */
     --tool-size: 34px;
     --tool-gap: 6px;
+
+    /* ── Cinematic Transition System ── */
+    --transition-scene: 800ms cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-element: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    --transition-micro: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-morph: 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+    /* ── Depth System ── */
+    --depth-near: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --depth-mid: 0 8px 24px -4px rgba(0, 0, 0, 0.10), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
+    --depth-far: 0 20px 50px -12px rgba(0, 0, 0, 0.15), 0 8px 20px -8px rgba(0, 0, 0, 0.08);
+    --depth-canvas: 0 12px 40px -8px rgba(0, 0, 0, 0.12), 0 4px 12px -4px rgba(0, 0, 0, 0.06),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+
+    /* ── Canvas SVG Theme Variables ── */
+    --canvas-cell-bg: var(--bg-secondary);
+    --canvas-cell-border: var(--border-color);
+    --canvas-cell-text: var(--text-primary);
+    --canvas-accent: #6366f1;
+    --canvas-success: #10b981;
+    --canvas-warning: #f59e0b;
+    --canvas-danger: #ef4444;
+    --canvas-glow: rgba(99, 102, 241, 0.3);
+
+    /* ── Stage Ambient ── */
+    --stage-bg: var(--bg-primary);
+    --stage-vignette: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 60%, var(--bg-primary) 100%);
   }
 
   /* Selection */
@@ -785,6 +812,55 @@ option {
 
 @utility scroll-smooth {
   scroll-behavior: smooth;
+}
+
+/* ── Cinematic Stage Utilities ──────────────────────────────────────────── */
+
+@utility cinematic-panel {
+  background: var(--stage-bg, var(--bg-primary));
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--depth-canvas);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+@utility scene-transition {
+  transition: opacity var(--transition-scene),
+              transform var(--transition-scene);
+}
+
+@utility cinematic-glow {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -40px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, var(--canvas-glow, rgba(99,102,241,0.08)), transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.6;
+    filter: blur(40px);
+  }
+}
+
+/* ── Prefers Reduced Motion ─────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .cinematic-stage-ambient,
+  .canvas-floating-panel {
+    animation: none !important;
+  }
 }
 
 /* ─── Loader SVG Animations & Themes ────────────────────────────────────── */

@@ -8,8 +8,20 @@ import { shouldSearch, detectTools, applyPlannerOverride } from '../utils/ai/sea
 import { formatForPrompt, extractSources } from '../utils/ai/searchContextFormatter.js';
 import VectorStoreService from '../engine/core/vectorStore.js';
 import { runChatPlanner } from '../engine/agents/chatPlannerAgent.js';
+import { understandQuery } from '../engine/core/queryUnderstandingEngine.js';
+import { routeVisualIntent } from '../engine/core/visualIntentRouter.js';
+import { generateVisualScript } from '../engine/core/visualScriptGenerator.js';
+import { adaptScriptToRenderer } from '../engine/core/rendererAdapter.js';
+import PlatformMemoryService from '../engine/core/platformMemoryService.js';
 import Artifact from '../models/Artifact.js';
 import { buildSystemPrompt, buildLLMMessages } from '../engine/agents/BuildSystemPrompt.js';
+
+// ─── Constants & Keylists ───────────────────────────────────────────────────
+const DSA_KEYWORDS = [
+  'algorithm','dsa','sorting','searching','sort','search',
+  'binary','linear','bubble','merge','quick','insertion','selection',
+  'array','tree','graph','stack','queue','linked','heap','bfs','dfs','traversal',
+];
 
 // ─── Rich Memory Context Builder ─────────────────────────────────────────────
 
@@ -276,14 +288,23 @@ export const sendMessage = async (req, res) => {
       console.log(`[Chat] 🌐 Web search returned ${sources.length} sources for: "${userMessage.substring(0, 40)}..."`);
     }
     if (plannerPlan) {
-      console.log(`[Chat] 🧠 Planner: ${plannerPlan.content_type}/${plannerPlan.complexity} | tone: ${plannerPlan.tone}`);
+      console.log(`[Chat] 🧠 Planner: ${plannerPlan.content_type}/${plannerPlan.complexity} | tone: ${plannerPlan.tone} | intent: ${plannerPlan.intent}`);
     }
 
-    // ── 4. Build LLM Context with Fusion + Planner ──
     const effectiveContext = {
       currentTopic: topic,
       explanationMode: session?.explanationMode || teachingContext?.explanationMode || 'basic',
       learnerLevel: teachingContext?.learnerLevel || 'intermediate',
+    };
+
+    // ── 3.5 Intent Detection (Unified) ──
+    const queryUnderstanding = await understandQuery(userMessage, null, null);
+    
+    // Resolve intent result for backward compatibility with prompt builder
+    const intentResult = {
+      intent: queryUnderstanding.educational_intent,
+      renderer: queryUnderstanding.renderer,
+      confidence: queryUnderstanding.confidence
     };
 
     // Build rich memory context from session history
@@ -363,16 +384,25 @@ export const sendMessage = async (req, res) => {
     if (session) {
       session.messages.push(assistantMsg);
 
-      // Update title using AI output if it's the first message
+      // Update title using AI output if it's the first message (Fix D-01)
       if (session.messages.length <= 2) {
-        try {
-          const aiTitle = await generateSessionTitle(userMessage);
-          session.title = aiTitle;
-          console.log(`[Chat] 🏷️ Generated title: "${aiTitle}"`);
-        } catch (e) {
-          console.error('[Chat] Failed to generate title:', e.message);
-        }
+        // Fire-and-forget title generation to avoid blocking the main save
+        generateSessionTitle(userMessage)
+          .then(aiTitle => {
+            if (aiTitle) {
+              ChatSession.updateOne({ _id: session._id }, { title: aiTitle }).catch(() => {});
+              console.log(`[Chat] 🏷️ Generated title: "${aiTitle}"`);
+            }
+          })
+          .catch(e => console.warn('[Chat] Title generation failed:', e.message));
       }
+
+      // Record interaction in platform memory (Fix A-03)
+      PlatformMemoryService.recordTeachingInteraction(userId?.toString() || 'guest', savedSessionId, {
+        topic,
+        mode: mode || 'quick',
+        renderer: plannerPlan?.canvas_type || null
+      });
 
       session.lastUpdated = Date.now();
       await session.save();
@@ -446,11 +476,16 @@ export async function streamMessage(req, res) {
       return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
     }
 
-    const { sessionId, userMessage, mode, teachingContext, requestId: providedRequestId } = validation.data;
+    const { sessionId, userMessage, mode, teachingContext, platformMemory, requestId: providedRequestId, userConfig = null } = validation.data;
     const requestId = resolveRequestId(req, providedRequestId);
     resolvedRequestId = requestId;
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
+
+    // --- 0. Sync Platform Memory from Client ---
+    if (platformMemory && sessionId) {
+      PlatformMemoryService.updateMemory(userId, sessionId, platformMemory);
+    }
 
     console.log(`[Chat:Stream] 📨 Request received from ${userId || 'guest'} (Session: ${sessionId || 'new'})`);
 
@@ -571,19 +606,74 @@ export async function streamMessage(req, res) {
       if (res.flush) res.flush();
     }
 
-    // Run RAG, Search, and Planner in parallel to minimize time-to-first-token
-    let webContextStr = '';
-    console.log(`[Chat:Stream] 🔍 Starting Parallel Pre-processing...`);
-    const [pastContext, initialWebResults, plannerPlan] = await Promise.all([
+    // ── 3.3 Run Fast Intent Check ──
+    const fastQueryUnder = await understandQuery(userMessage, null, userConfig);
+    const fastVisualIntent = routeVisualIntent({
+      userMessage,
+      plannerResult: null,
+      queryUnderstanding: fastQueryUnder,
+      sessionContext: { activeTopic: topic, currentTeachingMode: session?.currentTeachingMode || 'explain' }
+    });
+
+    // ── 3.4 Run RAG and Search in parallel ──
+    const [pastContext, initialWebResults] = await Promise.all([
       userId ? VectorStoreService.getContextForTopic(topic, 3, userId) : Promise.resolve(''),
-      gateSearch ? searchWeb(userMessage, { count: 5 }) : Promise.resolve([]),
-      // Run planner in parallel — it primarily needs to know IF web search is being done
-      runChatPlanner(userMessage, '', gateSearch ? 'Searching...' : 'None', null).catch(err => {
-        console.warn(`[Chat:Stream] Planner failed: ${err.message}`);
-        return null;
-      })
+      gateSearch ? searchWeb(userMessage, { count: 8 }) : Promise.resolve([])
     ]);
-    console.log(`[Chat:Stream] ✅ Pre-processing complete.`);
+
+    // ── 3.5 Unified Planner + Intent Execution (Fix A-04) ──
+    const plannerWebContext = initialWebResults.length > 0 
+      ? formatForPrompt(initialWebResults) 
+      : (gateSearch ? 'Search pending or empty' : 'None');
+
+    const plannerPlan = await runChatPlanner(userMessage, pastContext, plannerWebContext, userConfig).catch(err => {
+      console.warn(`[Chat:Stream] Unified Planner failed: ${err.message}`);
+      return null;
+    });
+
+    // Extract intent result from query understanding
+    const intentResult = fastQueryUnder ? {
+      intent: fastQueryUnder.educational_intent || 'quick',
+      renderer: fastQueryUnder.renderer || 'cinematic',
+      confidence: fastQueryUnder.confidence || 0.5
+    } : null;
+
+    // ── 3.6 Core Decision Brain: VisualIntentRouter ──
+    const sessionContextForRouter = {
+      activeTopic: topic,
+      currentTeachingMode: session?.currentTeachingMode || 'explain',
+      messageCount: session?.messages?.length || 0,
+    };
+    
+    const visualIntent = routeVisualIntent({
+      userMessage,
+      plannerResult: plannerPlan,
+      queryUnderstanding: fastQueryUnder,
+      sessionContext: sessionContextForRouter,
+    });
+
+    // ── 3.6.5 Notify client of the plan (Critical for heuristic parsing) ──
+    if (plannerPlan && !clientDisconnected) {
+      // Fix: Set generate_artifact to false to prevent the frontend from trying to parse the plain-text stream as JSON
+      const safePlan = { ...plannerPlan, generate_artifact: false };
+      res.write(`data: ${JSON.stringify({ type: 'plan', plan: safePlan })}\n\n`);
+      if (res.flush) res.flush();
+    }
+
+    
+    if (session) {
+      session.currentTeachingMode = visualIntent.teachingMode;
+    }
+
+    // ── 3.7 Record Interaction in Platform Memory (Fix A-03 & S-01) ──
+    const userIdForMemory = userId?.toString() || 'guest';
+    PlatformMemoryService.recordTeachingInteraction(userIdForMemory, savedSessionId, {
+      topic,
+      mode: visualIntent.teachingMode,
+      renderer: visualIntent.rendererType
+    });
+    PlatformMemoryService.setActiveTeachingMode(userIdForMemory, savedSessionId, visualIntent.teachingMode);
+    PlatformMemoryService.setActiveRenderer(userIdForMemory, savedSessionId, visualIntent.rendererType);
 
     // Apply planner override to search decision
     const finalSearchNeeded = applyPlannerOverride(plannerPlan, gateSearch);
@@ -593,37 +683,120 @@ export async function streamMessage(req, res) {
     if (finalSearchNeeded && (!initialWebResults || initialWebResults.length === 0)) {
       console.log('[Chat:Stream] Planner requested web search — executing late search...');
       res.write(`data: ${JSON.stringify({ type: 'status', message: 'Searching web...' })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: 'sources', sources: [], searchPerformed: true })}\n\n`);
       if (res.flush) res.flush();
-      webResults = await searchWeb(userMessage, { count: 5 });
+      webResults = await searchWeb(userMessage, { count: 8 });
     }
 
-    webContextStr = formatForPrompt(webResults);
+    const webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
     if (sources.length > 0) {
       res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
     }
 
-    if (plannerPlan) {
-      console.log(`[Chat:Stream] 🧠 Planner: ${plannerPlan.content_type}/${plannerPlan.complexity} | tone: ${plannerPlan.tone}`);
-    }
+    // ── 3.7 Domain Detection (Fix A-02) ──
+    const isDSA = DSA_KEYWORDS.some(k => topic.toLowerCase().includes(k)) || 
+                  (visualIntent.teachingMode === 'visualize' && visualIntent.rendererType === 'algorithm');
+    const derivedDomain = isDSA ? 'dsa' : 'general';
 
-    // ── 4. Build LLM Context with Planner ──
+    // ── 3.8 Visual Script Generation (Fire-and-Forget, Fix A-01) ──
+    // Use fastVisualIntent as a hint to start script generation even earlier if it's high confidence
+    const isVisualNeeded = ['chat_plus_live_canvas', 'immersive_teaching', 'artifact_only'].includes(visualIntent.responseMode) || 
+                          (fastVisualIntent.confidence > 0.8 && ['chat_plus_live_canvas', 'immersive_teaching'].includes(fastVisualIntent.responseMode));
+
+    let scriptPromise = null;
+    let visualScript = null;
+
+    if (isVisualNeeded) {
+      // Use the best available renderer decision
+      const activeRenderer = visualIntent.rendererType || fastVisualIntent.rendererType || 'cinematic';
+      const activeTeachingMode = visualIntent.teachingMode || fastVisualIntent.teachingMode || 'explain';
+
+      res.write(`data: ${JSON.stringify({ type: 'status', message: 'Preparing visualization...' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ 
+        type: 'canvas_skeleton', 
+        layout: visualIntent.canvasLayout || fastVisualIntent.canvasLayout, 
+        rendererType: activeRenderer
+      })}\n\n`);
+      if (res.flush) res.flush();
+
+      scriptPromise = generateVisualScript({
+        topic,
+        domain: derivedDomain,
+        teachingMode: activeTeachingMode,
+        learnerProfile: { level: teachingContext?.learnerLevel },
+        webContext: webContextStr,
+        userConfig: null,
+      }).then(async (script) => {
+        if (script) {
+          visualScript = script;
+          const adaptedTimeline = adaptScriptToRenderer(script, activeRenderer);
+          
+          if (!clientDisconnected) {
+            res.write(`data: ${JSON.stringify({ 
+              type: 'scene_nodes', 
+              nodes: adaptedTimeline.steps || [],
+              scriptVersion: script.scriptVersion,
+              renderer: activeRenderer
+            })}\n\n`);
+            if (res.flush) res.flush();
+
+            // ── Fix A-05: Persist Visual Artifact to DB ──
+            try {
+              const newArtifact = await Artifact.create({
+                sessionId: savedSessionId,
+                userId: userId || null,
+                type: 'visual',
+                title: script.topic || 'Interactive Visualization',
+                content: JSON.stringify(script),
+                metadata: {
+                  rendererType: activeRenderer,
+                  scriptVersion: script.scriptVersion,
+                  teachingMode: activeTeachingMode
+                },
+                version: 1
+              });
+
+              res.write(`data: ${JSON.stringify({ 
+                type: 'artifact_saved', 
+                artifactId: newArtifact._id.toString(),
+                title: newArtifact.title,
+                rendererType: activeRenderer
+              })}\n\n`);
+              if (res.flush) res.flush();
+            } catch (dbErr) {
+              console.error(`[Chat:Stream] Failed to persist visual artifact: ${dbErr.message}`);
+            }
+          }
+        }
+        return script;
+      }).catch(err => {
+        console.error(`[Chat:Stream] VisualScriptGenerator background task failed: ${err.message}`);
+        return null;
+      });
+
+      // Only await if we are in artifact_only mode (Fix A-05)
+      if (visualIntent.responseMode === 'artifact_only') {
+        visualScript = await scriptPromise;
+      }
+    }
+    
+    // ── 4. Build LLM Context ──
     const effectiveContext = {
       currentTopic: topic,
       explanationMode: session?.explanationMode || teachingContext?.explanationMode || 'basic',
       learnerLevel: teachingContext?.learnerLevel || 'intermediate',
     };
 
-    // Build rich memory context for personalization
-    const memorySummary = buildRichMemorySummary(session);
+    // Inject Platform Memory (Contextual state, Fix S-01)
+    const platformMemoryContext = PlatformMemoryService.buildContextForPrompt(userId?.toString() || 'guest', savedSessionId);
+    const memorySummary = buildRichMemorySummary(session) + '\n' + platformMemoryContext;
     const userName = req.user?.name || req.user?.settings?.general?.nickname || null;
 
     const systemPrompt = buildSystemPrompt({
       currentTopic: topic,
       explanationMode: effectiveContext.explanationMode,
       learnerLevel: effectiveContext.learnerLevel,
-      mode,
+      mode: visualIntent.teachingMode,
       webContext: webContextStr,
       pastContext,
       planner: plannerPlan,
@@ -632,46 +805,40 @@ export async function streamMessage(req, res) {
     });
     const llmMessages = buildLLMMessages(allMessages, systemPrompt, 20);
 
-    // Send sources and planner result
-    if (sources.length > 0 || gateSearch || finalSearchNeeded) {
-      res.write(`data: ${JSON.stringify({ 
-        type: 'sources', 
-        sources,
-        searchPerformed: !!(gateSearch || finalSearchNeeded)
-      })}\n\n`);
-    }
-
-    if (plannerPlan) {
-      res.write(`data: ${JSON.stringify({ type: 'plan', plan: plannerPlan })}\n\n`);
-    }
-    if (res.flush) res.flush();
-
-    const isArtifactExpected = !!(plannerPlan?.generate_artifact);
-    if (isArtifactExpected) {
-      res.write(`data: ${JSON.stringify({ type: 'status', message: `Generating ${plannerPlan.artifact_type} artifact...` })}\n\n`);
-      if (res.flush) res.flush();
+    // ── 5.5 Short-circuit if response is visual only (Fix A-05) ──
+    if (visualIntent.responseMode === 'artifact_only' && visualScript) {
+      res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: "I've prepared a visual learning model for you. Click 'Launch Lesson' below to explore!" })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'done', sessionId: savedSessionId })}\n\n`);
+      res.end();
+      return;
     }
 
     // ── 6. Stream AI Response ──
+    // CONVERSATIONAL FIRST ARCHITECTURE: Main LLM always returns text.
     let fullContent = '';
-    let streamProvider = null;
-    lastStreamProvider = '';
     let cleanContent = '';
     let thoughtContent = '';
+    const isArtifactExpected = visualIntent.responseMode === 'chat_plus_visual' || visualIntent.responseMode === 'artifact_only';
 
     try {
       // Create a combined signal that aborts if the client disconnects
       const abortController = new AbortController();
       req.on('close', () => abortController.abort());
 
+      console.log(`[Chat:Stream] 🚀 Starting LLM stream (Conversational)...`);
       const stream = routeConversationStream(llmMessages, { 
         timeout: 90000, 
-        maxTokens: isArtifactExpected ? 8000 : 4000, 
-        responseMimeType: isArtifactExpected ? 'application/json' : 'text/plain',
+        maxTokens: 4000, 
+        responseMimeType: 'text/plain',
         signal: abortController.signal
       });
 
+      let chunkCount = 0;
       for await (const streamChunk of stream) {
+        if (clientDisconnected) break;
+        chunkCount++;
+        if (chunkCount === 1) console.log(`[Chat:Stream] ⚡ First chunk received from ${streamChunk.provider}`);
+
         if (clientDisconnected) break;
 
         const { chunk, provider } = streamChunk;
@@ -712,157 +879,54 @@ export async function streamMessage(req, res) {
       }
     }
 
-    // ── 7. Finalize: Check for JSON artifact(s) in response ──
+    // ── 7. Finalize: Optional Artifact Extraction ──
+    // If the conversational LLM naturally generated JSON code blocks (e.g. for a document), we can extract it.
     let chatResponseText = cleanContent;
-    let artifactsArray = []; // Unified array for both single and multi-artifact
+    let artifactsArray = []; 
     const planWantsArtifact = plannerPlan && plannerPlan.generate_artifact;
 
-    if (planWantsArtifact && cleanContent) {
-      const cleanArtifactContent = (content, title) => {
-        if (typeof content !== 'string') return content;
-        let cleaned = content.replace(/\r\n/g, '\n').trim();
-        
-        let lines = cleaned.split('\n');
-        let linesToSkip = 0;
-
-        for (let i = 0; i < Math.min(lines.length, 5); i++) {
-          const stripped = lines[i].trim().replace(/[#\s\*_:]/g, '');
-          if (stripped.toLowerCase() === 'title' || stripped.toLowerCase() === 'introduction') {
-            linesToSkip = i + 1; 
-            while (linesToSkip < lines.length && lines[linesToSkip].trim() === '') {
-              linesToSkip++;
-            }
-            break;
-          }
-        }
-
-        if (linesToSkip > 0) {
-          cleaned = lines.slice(linesToSkip).join('\n').trim();
-        }
-
-        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Title:?\s*/i, '$1');
-        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Introduction:?\s*/i, '$1');
-
-        return cleaned;
-      };
-
-      const cleanChatResponse = (text) => {
-        if (!text) return text;
-        let cleaned = text.trim();
-        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Title:?\s*/i, '$1');
-        cleaned = cleaned.replace(/^(\s*(?:#+\s*|\*\*|__)?)\s*Introduction:?\s*/i, '$1');
-        return cleaned;
-      };
-
-      const robustParse = (str) => {
+    if (planWantsArtifact && cleanContent && isArtifactExpected) {
+      // Very loose check to see if the LLM outputted a JSON block we can use as an artifact
+      const jsonMatch = cleanContent.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
         try {
-          return JSON.parse(str);
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed.artifact && parsed.artifact.type && parsed.artifact.content) {
+             artifactsArray.push(parsed.artifact);
+             chatResponseText = cleanContent.replace(/```json\n([\s\S]*?)\n```/, '').trim();
+             if (!chatResponseText) chatResponseText = "Here is the artifact you requested.";
+             
+             // Emit the artifact
+             const artLocalId = `art-${Date.now()}-0`;
+             if (!clientDisconnected) {
+               res.write(`event: artifact\n`);
+               res.write(`data: ${JSON.stringify({
+                 id: artLocalId,
+                 type: parsed.artifact.type,
+                 title: parsed.artifact.title || 'Untitled',
+                 content: parsed.artifact.content,
+                 language: parsed.artifact.language || null,
+                 metadata: parsed.artifact.metadata || {},
+               })}\n\n`);
+               if (res.flush) res.flush();
+               
+               // Override chat if we removed the JSON block
+               res.write(`event: message\n`);
+               res.write(`data: ${JSON.stringify({ 
+                 type: 'chat_override',
+                 content: chatResponseText 
+               })}\n\n`);
+               if (res.flush) res.flush();
+             }
+             artifactsArray[0].localId = artLocalId;
+             cleanContent = chatResponseText;
+             fullContent = chatResponseText;
+          }
         } catch (e) {
-          try {
-            const sanitized = str.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (match, p1) => {
-              return '"' + p1.replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"';
-            });
-            return JSON.parse(sanitized);
-          } catch (e2) {
-            return null;
-          }
-        }
-      };
-
-      /** Normalize parsed JSON into an array of artifacts */
-      const extractArtifacts = (parsed) => {
-        if (!parsed) return [];
-        // Multi-artifact format: { artifacts: [...] }
-        if (Array.isArray(parsed.artifacts) && parsed.artifacts.length > 0) {
-          return parsed.artifacts.filter(a => a && a.type && a.content);
-        }
-        // Single artifact format: { artifact: {...} }
-        if (parsed.artifact && parsed.artifact.type && parsed.artifact.content) {
-          return [parsed.artifact];
-        }
-        return [];
-      };
-
-      const tryParse = (str) => {
-        const jsonStr = str.replace(/^```json\s*|```\s*$/g, '').trim();
-        let parsed = robustParse(jsonStr);
-        let arts = extractArtifacts(parsed);
-
-        // Fallback: try to extract embedded JSON
-        if (arts.length === 0) {
-          const jsonMatch = str.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            parsed = robustParse(jsonMatch[0]);
-            arts = extractArtifacts(parsed);
-          }
-        }
-
-        return { parsed, arts };
-      };
-
-      try {
-        const { parsed, arts } = tryParse(cleanContent);
-
-        if (arts.length > 0 && parsed) {
-          chatResponseText = cleanChatResponse(parsed.chat_response || 'Here is what I created.');
-
-          // Emit SSE events for each artifact
-          arts.forEach((art, idx) => {
-            art.content = cleanArtifactContent(art.content, art.title);
-            const artLocalId = `art-${Date.now()}-${idx}`;
-
-            if (!clientDisconnected) {
-              res.write(`event: artifact\n`);
-              res.write(`data: ${JSON.stringify({
-                id: artLocalId,
-                type: art.type,
-                title: art.title || 'Untitled',
-                content: art.content,
-                language: art.language || null,
-                metadata: art.metadata || {},
-              })}\n\n`);
-              if (res.flush) res.flush();
-            }
-
-            artifactsArray.push({ ...art, localId: artLocalId });
-          });
-
-          // Send clean chat override
-          if (!clientDisconnected) {
-            res.write(`event: message\n`);
-            res.write(`data: ${JSON.stringify({ 
-              type: 'chat_override',
-              content: chatResponseText 
-            })}\n\n`);
-            if (res.flush) res.flush();
-          }
-
-          fullContent = chatResponseText;
-          cleanContent = chatResponseText;
-        } else {
-          console.warn('[Chat:Stream] Parsed JSON missing required artifact fields');
-          if (!clientDisconnected && isArtifactExpected) {
-             res.write(`event: message\n`);
-             res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
-             if (res.flush) res.flush();
-          }
-        }
-      } catch (parseErr) {
-        console.warn('[Chat:Stream] Artifact JSON parse failed:', parseErr.message);
-        // FALLBACK: Send raw content as message if parsing failed
-        if (!clientDisconnected && isArtifactExpected) {
-          res.write(`event: message\n`);
-          res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
-          if (res.flush) res.flush();
+          console.warn('[Chat:Stream] Failed to parse embedded artifact JSON:', e.message);
         }
       }
-    } else if (isArtifactExpected && !clientDisconnected) {
-      // We expected an artifact but got nothing or no plan match
-      res.write(`event: message\n`);
-      res.write(`data: ${JSON.stringify({ type: 'chat_override', content: cleanContent })}\n\n`);
-      if (res.flush) res.flush();
     }
-
     // ── 8. Persist Assistant Message to DB (background, after stream ends) ──
     if (session && fullContent) {
       const assistantMsg = {
@@ -876,6 +940,8 @@ export async function streamMessage(req, res) {
           sources: sources || [],
           searchPerformed: gateSearch || finalSearchNeeded,
           thought: thoughtContent || undefined,
+          interrupted: clientDisconnected, // Fix D-02: Mark as interrupted if client disconnected
+          interruptionReason: clientDisconnected ? 'client_disconnect' : undefined,
           versions: [{ text: cleanContent, subsequentMessages: [] }],
           activeVersionIndex: 0
         },
@@ -884,14 +950,21 @@ export async function streamMessage(req, res) {
       // PERSIST ASSISTANT MESSAGE
       session.messages.push(assistantMsg);
 
-      // Update title using AI output if it's the first message
+      // Update title using AI output if it's the first message (Fix D-01)
       if (session.messages.length <= 2) {
         try {
-          const aiTitle = await generateSessionTitle(userMessage);
-          session.title = aiTitle;
-          console.log(`[Chat:Stream] 🏷️ Generated title: "${aiTitle}"`);
+          // Fire-and-forget title generation to avoid blocking the main save
+          generateSessionTitle(userMessage)
+            .then(aiTitle => {
+              if (aiTitle) {
+                // Perform a standalone update for the title to avoid race conditions with the main session.save()
+                ChatSession.updateOne({ _id: session._id }, { title: aiTitle }).catch(() => {});
+                console.log(`[Chat:Stream] 🏷️ Generated title: "${aiTitle}"`);
+              }
+            })
+            .catch(e => console.warn('[Chat:Stream] Title generation background task failed:', e.message));
         } catch (e) {
-          console.error('[Chat:Stream] Failed to generate title:', e.message);
+          console.error('[Chat:Stream] Critical failure in title generation:', e.message);
         }
       }
 
@@ -987,6 +1060,26 @@ export async function streamMessage(req, res) {
         requestId: resolvedRequestId,
         status: clientDisconnected ? 'aborted' : 'failed',
       });
+
+      // Fix D-02: Save partial response if interrupted mid-stream
+      const hasAssistantResponse = session.messages.some(m => m.role === 'assistant' && m.content === (cleanContent || fullContent));
+      if (fullContent && !hasAssistantResponse) {
+        const assistantMsg = {
+          role: 'assistant',
+          content: cleanContent || fullContent,
+          timestamp: new Date(),
+          metadata: { 
+            interrupted: true,
+            reason: clientDisconnected ? 'client_disconnect' : 'stream_error',
+            thought: thoughtContent || undefined,
+            versions: [{ text: cleanContent || fullContent, subsequentMessages: [] }],
+            activeVersionIndex: 0
+          },
+        };
+        session.messages.push(assistantMsg);
+        session.lastUpdated = Date.now();
+      }
+
       await session.save().catch(() => {});
     }
     if (!res.headersSent) {
@@ -1002,8 +1095,32 @@ export async function streamMessage(req, res) {
     // Final closure of SSE stream — ALWAYS close even on error
     clearInterval(heartbeat);
     
+    // Fix D-02: Ensure partial message is saved on abort/disconnect
+    // If the client disconnected and no assistant message was persisted in Step 8 or Catch block
+    if (session && clientDisconnected) {
+      const hasAssistantResponse = session.messages.some(m => m.role === 'assistant');
+      const finalContent = cleanContent || fullContent;
+      
+      if (!hasAssistantResponse) {
+        console.log('[Chat:Stream] ⚠️ Client disconnected early — saving partial assistant message.');
+        const assistantMsg = {
+          role: 'assistant',
+          content: finalContent || 'Response was interrupted.',
+          timestamp: new Date(),
+          metadata: { 
+            interrupted: true,
+            interruptionReason: 'client_disconnect',
+            thought: thoughtContent || undefined,
+            versions: [{ text: finalContent || 'Response was interrupted.', subsequentMessages: [] }],
+            activeVersionIndex: 0
+          },
+        };
+        session.messages.push(assistantMsg);
+        session.lastUpdated = Date.now();
+      }
+    }
+
     // BUG-SYNC-01: Ensure critical background tasks finish before res.end() 
-    // to prevent potential thread termination/interruption on some hosts
     if (session && session.isModified && session.isModified()) {
       try {
         await session.save();

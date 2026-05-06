@@ -308,9 +308,10 @@ ${artifactTypes.map((t, i) => `    {
 `;
     } else {
       prompt += `
-Return ONLY this JSON (no text before or after):
+Return ONLY this JSON (no text before or after). IMPORTANT: The "chat_response" property MUST come FIRST in the JSON object to enable smooth streaming for the user.
+
 {
-  "chat_response": "**[Topic Name]**\n\nA detailed, step-by-step explanation of the concept, following all 'OUTPUT FORMAT RULES'. The chat response is your PRIMARY teaching tool — use it to explain the 'how' and 'why' in depth, then refer to the artifact for the implementation/visuals.\n\n---\n\n**Want to go deeper?** I can help you explore:\n- [suggestion 1]\n- [suggestion 2]\n- [suggestion 3]",
+  "chat_response": "**[Topic Name]**\n\nA detailed, step-by-step explanation...",
   "artifact": {
     "type": "${planner.artifact_type}",
     "title": "Descriptive Title",

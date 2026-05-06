@@ -133,13 +133,23 @@ const chatSessionSchema = new mongoose.Schema({
 }, { timestamps: true });
 chatSessionSchema.index({ userId: 1, createdAt: -1 });
 
-// INFRA-12: Cap messages at 200 entries to prevent MongoDB document size limits.
+// INFRA-12: Cap messages at 200 entries and ledger at 50 entries with TTL eviction.
 chatSessionSchema.pre('save', function() {
   if (this.messages && this.messages.length > 200) {
     this.messages = this.messages.slice(-200);
   }
-  if (this.requestLedger && this.requestLedger.length > 100) {
-    this.requestLedger = this.requestLedger.slice(-100);
+  
+  if (this.requestLedger && this.requestLedger.length > 0) {
+    // D-04: TTL-based eviction (10 minutes)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    this.requestLedger = this.requestLedger.filter(entry => 
+      entry.updatedAt > tenMinutesAgo || entry.status === 'streaming'
+    );
+
+    // Hard cap at 50 most recent entries
+    if (this.requestLedger.length > 50) {
+      this.requestLedger = this.requestLedger.slice(-50);
+    }
   }
 });
 

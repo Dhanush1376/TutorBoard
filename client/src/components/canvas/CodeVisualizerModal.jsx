@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play, Square, ChevronRight, ChevronDown, Globe, Circle, Minus, AlertCircle, CheckCircle2, Copy, Trash2, Layout, Terminal } from 'lucide-react';
+import { X, Play, Square, ChevronRight, ChevronLeft, ChevronDown, Globe, Circle, Minus, AlertCircle, CheckCircle2, Copy, Trash2, Layout, Terminal } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import useTutorStore from '../../store/tutorStore';
 import { useTheme } from '../../context/ThemeContext';
@@ -122,22 +122,24 @@ const CodeVisualizerModal = () => {
   return createPortal(
     <AnimatePresence>
       {(isVisualizerOpen || isVisualizerMinimized) && (
-        <div className={`fixed inset-0 z-[99999] pointer-events-none ${(!isVisualizerMinimized && !isDocked && !isMaximized) ? 'flex items-center justify-center' : ''}`}>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: isVisualizerMinimized || isDocked ? 0 : 1 }} exit={{ opacity: 0 }} onClick={() => setVisualizerOpen(false)} className={`fixed inset-0 bg-black/60 ${isVisualizerMinimized || isDocked ? 'pointer-events-none' : 'backdrop-blur-xl pointer-events-auto'}`} style={{ zIndex: -1 }} />
-          <motion.div layout initial={{ scale: 0.9, opacity: 0 }} animate={
-            isVisualizerMinimized ? { position: 'fixed', bottom: '80px', left: layoutView === 'right' ? '24px' : 'auto', right: layoutView === 'right' ? 'auto' : '24px', width: '190px', height: '40px', borderRadius: '20px', scale: 1, opacity: 1 } :
-            isMaximized ? { position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, width: '100vw', height: '100vh', borderRadius: 0, scale: 1, opacity: 1 } :
-            isDocked ? { position: 'fixed', top: '88px', bottom: '88px', left: layoutView === 'right' ? '16px' : 'auto', right: layoutView === 'right' ? 'auto' : '16px', width: 'min(450px, 45vw)', height: 'calc(100vh - 176px)', borderRadius: '24px', scale: 1, opacity: 1 } :
-            { position: 'relative', width: 'min(900px, 95vw)', height: 'min(650px, 88vh)', borderRadius: '16px', scale: 1, opacity: 1 }
-          } exit={{ scale: 0.9, opacity: 0 }} className="pointer-events-auto" style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(20px)', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-color)', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', zIndex: 100000 }}>
+        <div className="fixed inset-0 z-[99999] pointer-events-none">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: isVisualizerMinimized || isDocked ? 0 : 1 }} exit={{ opacity: 0 }} onClick={() => setVisualizerOpen(false)} className={`fixed inset-0 ${isVisualizerMinimized || isDocked ? 'pointer-events-none' : 'pointer-events-auto'}`} style={{ zIndex: -1 }} />
+          {/* Minimized Tab */}
+          <motion.div initial={{ x: '100%' }} animate={{ x: isVisualizerMinimized ? 0 : '100%' }} transition={{ type: 'tween', ease: [0.25, 1, 0.5, 1], duration: 0.4 }} style={{ position: 'fixed', top: 'calc(50vh - 48px)', right: 0, width: '40px', height: '96px', zIndex: 100000 }} className="pointer-events-auto">
+            <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border-color)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', borderRadius: '16px 0 0 16px', boxShadow: '-4px 0 16px rgba(0,0,0,0.1)' }} onClick={() => setVisualizerMinimized(false)}>
+              <ChevronLeft size={20} color="var(--text-secondary)" />
+            </div>
+          </motion.div>
+
+          <motion.div layout initial={{ x: '100%', y: 0, scale: 1, opacity: 1 }} animate={
+            isMaximized ? { position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, width: '100vw', height: '100vh', borderRadius: 0, scale: 1, opacity: 1, y: 0, x: isVisualizerMinimized ? '100%' : 0 } :
+            isDocked ? { position: 'fixed', top: 'auto', bottom: '100px', left: layoutView === 'right' ? '24px' : 'auto', right: layoutView === 'right' ? 'auto' : '24px', width: 'min(500px, 45vw)', height: 'min(550px, 70vh)', borderRadius: '24px', scale: 1, opacity: 1, y: 0, x: isVisualizerMinimized ? (layoutView === 'right' ? '-100vw' : '100vw') : 0 } :
+            { position: 'fixed', bottom: 0, right: 0, width: 'min(900px, 95vw)', height: 'min(650px, 88vh)', borderRadius: '16px 0 0 0', scale: 1, opacity: 1, y: 0, x: isVisualizerMinimized ? '100%' : 0 }
+          } exit={{ x: '100%', y: 0, scale: 1, opacity: 1 }} transition={{ type: 'tween', ease: [0.25, 1, 0.5, 1], duration: 0.4 }} className="pointer-events-auto" style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(20px)', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-color)', borderBottom: 'none', borderRight: 'none', boxShadow: '0 16px 64px rgba(0,0,0,0.2)', zIndex: 100000 }}>
             
-            {isVisualizerMinimized ? (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '0 16px', fontSize: 12 }} onClick={() => setVisualizerMinimized(false)}>
-                <VisaiLogo size="xxs" style={{ color: '#febc2e' }} /><span style={{ color: 'var(--text-primary)', opacity: 0.9 }}>Code Visualizer</span>
-              </div>
-            ) : (
-              <>
-                <div style={{ height: 44, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
+            <>
+              <div style={{ height: 44, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
+
                   <div onMouseEnter={() => setIsTrafficHovered(true)} onMouseLeave={() => setIsTrafficHovered(false)} style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => setVisualizerOpen(false)} style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{isTrafficHovered && <X size={7} />}</button>
                     <button onClick={(e) => { e.stopPropagation(); setVisualizerMinimized(true); }} style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{isTrafficHovered && <Minus size={8} />}</button>
@@ -280,7 +282,6 @@ const CodeVisualizerModal = () => {
                   </motion.button>
                 </div>
               </>
-            )}
           </motion.div>
         </div>
       )}

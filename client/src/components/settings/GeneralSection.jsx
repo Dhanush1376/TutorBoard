@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Volume2, Bell, BellOff, Sparkles, User, Mail, GraduationCap } from 'lucide-react';
+import { Check, Bell, BellOff, Sparkles, User, Mail, GraduationCap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
@@ -67,17 +67,35 @@ const ROLE_OPTIONS = [
 export default function GeneralSection({ user, syncSettings, showToast }) {
   const { updateUser } = useAuth();
   const [displayName, setDisplayName] = useState(user?.name || '');
-  const [nickname, setNickname] = useState(
-    localStorage.getItem('tb-nickname') || user?.name?.split(' ')[0] || ''
-  );
-  const [role, setRole] = useState(localStorage.getItem('tb-role') || '');
-  const [preferences, setPreferences] = useState(localStorage.getItem('tb-ai-preferences') || '');
-  const [notifCompletion, setNotifCompletion] = useState(
-    localStorage.getItem('tb-notif-completion') !== 'false'
-  );
-  const [notifSound, setNotifSound] = useState(
-    localStorage.getItem('tb-notif-sound') !== 'false'
-  );
+  
+  // Fix S-05: Initialize from user settings (server-side) or sessionStorage (ephemeral fallback)
+  const [nickname, setNickname] = useState(() => {
+    return user?.settings?.general?.nickname || 
+           sessionStorage.getItem('tb-nickname') || 
+           user?.name?.split(' ')[0] || '';
+  });
+  
+  const [role, setRole] = useState(() => {
+    return user?.settings?.general?.role || 
+           sessionStorage.getItem('tb-role') || '';
+  });
+  
+  const [preferences, setPreferences] = useState(() => {
+    return user?.settings?.general?.preferences || 
+           sessionStorage.getItem('tb-ai-preferences') || '';
+  });
+  
+  const [notifCompletion, setNotifCompletion] = useState(() => {
+    const serverVal = user?.settings?.general?.notifCompletion;
+    if (serverVal !== undefined) return serverVal;
+    return sessionStorage.getItem('tb-notif-completion') !== 'false';
+  });
+  
+  const [notifSound, setNotifSound] = useState(() => {
+    const serverVal = user?.settings?.general?.notifSound;
+    if (serverVal !== undefined) return serverVal;
+    return sessionStorage.getItem('tb-notif-sound') !== 'false';
+  });
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved'
   const lastSavedName = useRef(user?.name);
   const isFirstRender = useRef(true);
@@ -100,11 +118,19 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
     if (!hasChanged) return;
 
     const timeout = setTimeout(() => {
-      localStorage.setItem('tb-nickname', nickname);
-      localStorage.setItem('tb-role', role);
-      localStorage.setItem('tb-ai-preferences', preferences);
-      localStorage.setItem('tb-notif-completion', String(notifCompletion));
-      localStorage.setItem('tb-notif-sound', String(notifSound));
+      // Fix S-05: Migrate from localStorage to sessionStorage for guests
+      sessionStorage.setItem('tb-nickname', nickname);
+      sessionStorage.setItem('tb-role', role);
+      sessionStorage.setItem('tb-ai-preferences', preferences);
+      sessionStorage.setItem('tb-notif-completion', String(notifCompletion));
+      sessionStorage.setItem('tb-notif-sound', String(notifSound));
+      
+      // Cleanup insecure localStorage if present
+      localStorage.removeItem('tb-nickname');
+      localStorage.removeItem('tb-role');
+      localStorage.removeItem('tb-ai-preferences');
+      localStorage.removeItem('tb-notif-completion');
+      localStorage.removeItem('tb-notif-sound');
 
       setSaveStatus('saving');
       if (displayName && displayName !== lastSavedName.current) {
@@ -325,14 +351,8 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
             icon={notifCompletion ? Bell : BellOff}
             label="Push Notifications"
             description="Updates when an agent finishes a task"
-            rightElement={<AppleToggle value={notifCompletion} onChange={handleNotifToggle} />}
-          />
-          <SettingsRow
-            icon={Volume2}
-            label="Sound Effects"
-            description="Subtle audio feedback for transitions"
             borderBottom={false}
-            rightElement={<AppleToggle value={notifSound} onChange={setNotifSound} />}
+            rightElement={<AppleToggle value={notifCompletion} onChange={handleNotifToggle} />}
           />
         </SettingsGroup>
       </div>

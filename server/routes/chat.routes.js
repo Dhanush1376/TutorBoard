@@ -11,10 +11,10 @@ router.post('/', optionalProtect, strictGuestLimiter, sendMessage);
 // SSE streaming endpoint — real-time token-by-token response
 router.post('/stream', optionalProtect, strictGuestLimiter, streamMessage);
 
-// These support both authenticated users and guests
-router.post('/edit', optionalProtect, editMessage);
-router.post('/regenerate', optionalProtect, regenerate);
-router.post('/regenerate/stream', optionalProtect, streamRegenerate);
+// These support both authenticated users and guests (Fix S-03: Add rate limits)
+router.post('/edit', optionalProtect, strictGuestLimiter, editMessage);
+router.post('/regenerate', optionalProtect, strictGuestLimiter, regenerate);
+router.post('/regenerate/stream', optionalProtect, strictGuestLimiter, streamRegenerate);
 router.delete('/message', optionalProtect, deleteMessage);
 router.post('/feedback', optionalProtect, updateMessageFeedback);
 router.post('/switch-version', optionalProtect, switchMessageVersion);
