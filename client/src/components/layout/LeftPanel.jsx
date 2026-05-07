@@ -80,10 +80,10 @@ const LeftPanel = ({
   const renderScrollContent = () => {
     if (activeView === 'chat') {
       return (
-        <div className="flex flex-col gap-2 relative min-h-full">
+        <div className="flex flex-col gap-2 relative h-full">
           {/* Compact Back Button for Sidebar Chat */}
           {/* Sticky Header with Back Button - Fixed overlap */}
-          <div className="sticky top-0 z-[15] pt-1 pb-2.5 -mx-1 px-1 bg-[var(--bg-primary)]">
+          <div className="sticky top-0 z-[15] pt-1 pb-2.5 -mx-1 px-1 bg-[var(--bg-primary)] flex items-center justify-between">
             <button
               onClick={() => { setActiveView('history'); }}
               className="flex items-center gap-1.5 px-1 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all group"
@@ -92,7 +92,7 @@ const LeftPanel = ({
               <p className="px-0.5 tracking-[0.1em]">All Sessions</p>
             </button>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 onClick={() => onExport?.('pdf')}
                 className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]/60 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
@@ -109,7 +109,7 @@ const LeftPanel = ({
               </button>
             </div>
           </div>
-          <div className="pt-1">
+          <div className="flex-1 flex flex-col min-h-0 pt-1">
             <ChatWindow
               messages={messages}
               isGenerating={isGenerating}
@@ -370,7 +370,7 @@ const LeftPanel = ({
       </div>
 
       {/* ─── 2. SCROLLABLE MIDDLE SECTION ─── */}
-      <div className={`flex-1 overflow-y-auto no-scrollbar ${isMobile ? 'px-3' : 'px-4'} pt-0 pb-2 min-h-0 relative`}>
+      <div className={`flex-1 flex flex-col min-h-0 ${activeView === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'} thin-scrollbar ${isMobile ? 'px-3' : 'px-4'} pt-0 pb-2 relative`}>
 
 
         {/* List content (Messages OR History + Suggestions) */}

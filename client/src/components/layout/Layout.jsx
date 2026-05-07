@@ -170,10 +170,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             {children}
           </div>
           {isArtifactPanelOpen && !isMobile && (
-            <div 
-              className="h-full overflow-hidden border-l border-[var(--border-color)]" 
-              style={{ 
-                width: artifactPanelFullscreen ? '100%' : '50%', 
+            <div
+              className="h-full overflow-hidden border-l border-[var(--border-color)]"
+              style={{
+                width: artifactPanelFullscreen ? '100%' : '50%',
                 maxWidth: artifactPanelFullscreen ? 'none' : 800,
                 minWidth: artifactPanelFullscreen ? 'none' : 380,
                 zIndex: 20

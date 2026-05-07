@@ -244,7 +244,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         await sessionStore.addMessage(sessionId, 'assistant', response.answer);
         await syncToDatabase(sessionId);
         
-        const payload = { message: response.answer };
+        const payload = { message: response.answer, sessionId }; // FIX: include sessionId so client can key to correct session
         socket.emit('teaching:greeting', payload);
         // Also publish to redis for consistency in multi-instance (optional for final greeting but good practice)
         redisClient.publish(streamChannel, { event: 'teaching:greeting', data: payload });
@@ -293,7 +293,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           machine.forceReset();
           await sessionStore.addMessage(sessionId, 'assistant', timeline.answer);
           await syncToDatabase(sessionId);
-          socket.emit('teaching:greeting', { message: timeline.answer });
+          socket.emit('teaching:greeting', { message: timeline.answer, sessionId });
           return;
         }
 
@@ -316,12 +316,12 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         if (payload.timeline.length > 0) {
           socket.emit('teaching:step', { step: payload.timeline[0], index: 0, total: payload.timeline.length });
         }
-
-        // Persist full state (intro message + timeline) to MongoDB
-        await syncToDatabase(sessionId);
       } finally {
         clearInterval(heartbeat);
       }
+
+      // Persist full state (intro message + timeline) to MongoDB
+      await syncToDatabase(sessionId);
 
 
     } catch (err) {

@@ -335,12 +335,13 @@ STRICT: No text outside the JSON. The artifact panel will show the artifact — 
  * Limits context window to last 20 messages to prevent token overflow.
  */
 export function buildLLMMessages(messages, systemPrompt, limit = 20) {
-  const history = messages.slice(-limit).map(m => ({
-    role: m.role === 'user' ? 'user' : 'assistant',
-    content: typeof m.content === 'string'
+  const history = messages.slice(-limit).map(m => {
+    const role = m.role === 'user' ? 'user' : 'assistant';
+    const content = typeof m.content === 'string'
       ? m.content.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim()
-      : String(m.content || ''),
-  })).filter(m => m.content);
+      : String(m.content || '');
+    return { role, content };
+  }).filter(m => m.content && m.content.length > 0);
 
   return [
     { role: 'system', content: systemPrompt },

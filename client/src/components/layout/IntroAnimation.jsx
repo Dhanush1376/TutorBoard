@@ -1,4 +1,5 @@
 import React from 'react';
+import ParticleWaves from '../canvas/ParticleWaves';
 
 /**
  * IntroAnimation Component
@@ -8,9 +9,19 @@ import React from 'react';
 const IntroAnimation = () => {
   return (
     <div 
-      className="fixed inset-0 z-[2000] flex items-center justify-center overflow-hidden select-none loader-fade bg-[var(--bg-primary)]"
+      className="fixed inset-0 z-[2000] flex items-center justify-center overflow-hidden select-none loader-fade"
+      style={{ backgroundColor: 'transparent' }}
     >
-      <div className="w-[min(480px,90vw)]">
+      {/* Base Background Layer */}
+      <div 
+        className="absolute inset-0 bg-[var(--bg-primary)]" 
+        style={{ zIndex: -1 }}
+      />
+      
+      {/* Particle Waves Animation */}
+      <ParticleWaves opacity={0.6} />
+
+      <div className="w-[min(480px,90vw)]" style={{ position: 'relative', zIndex: 1 }}>
         <svg 
           width="100%" 
           viewBox="0 0 680 530" 

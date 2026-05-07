@@ -28,7 +28,6 @@ AUTO-REPAIR RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - If renderer is "d3" and x/y are present, remove them.
 - If duration is < 10, assume seconds and multiply by 1000.
-- If "cmd" is used instead of "action", normalize to "action".
 - Renumber steps if gaps are found.
 - If a step is missing an animation action but has visual elements, inject a "fade_in" action for new elements.
 
@@ -43,7 +42,7 @@ OUTPUT SCHEMA
   ],
   "final_output": {
     "meta": { "topic": "...", "renderer": "d3 | cinematic", "concept_type": "...", "step_count": X },
-    "narration_steps": [ { 
+    "narrations": [ { 
       "step": 1, "text": "...", "howItWorks": [], "pseudocode": "", 
       "timeComplexity": "", "spaceComplexity": "",
       "variables": {}, "activeStates": [] 

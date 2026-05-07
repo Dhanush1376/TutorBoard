@@ -138,7 +138,25 @@ const Home = ({ isDark }) => {
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
 
-  const [chatHistory, setChatHistory] = useState([]);
+  const { 
+    chatHistory, 
+    setChatHistory: storeSetChatHistory,
+    promoteChatHistoryId
+  } = useTutorStore(useShallow(s => ({
+    chatHistory: s.chatHistory,
+    setChatHistory: s.setChatHistory,
+    promoteChatHistoryId: s.promoteChatHistoryId
+  })));
+
+  // Compatibility wrapper for functional updates in Home.jsx
+  const setChatHistory = useCallback((updater) => {
+    if (typeof updater === 'function') {
+      const current = useTutorStore.getState().chatHistory;
+      storeSetChatHistory(updater(current));
+    } else {
+      storeSetChatHistory(updater);
+    }
+  }, [storeSetChatHistory]);
   const [historyFetched, setHistoryFetched] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, hasMore: false, loading: false });
   const [isDbOffline, setIsDbOffline] = useState(false);
@@ -179,18 +197,29 @@ const Home = ({ isDark }) => {
           }));
 
         setChatHistory(prev => {
+          let merged;
           if (pageNum === 1) {
             // MongoDB is the source of truth on fresh login/refresh.
             // Only preserve truly local in-progress sessions that have not yet been persisted.
             const cloudIds = new Set(cloudSessions.map(s => s.id));
             const localOnlySessions = prev.filter(
-              s => s.id && !cloudIds.has(s.id)
+              s => s.id && !cloudIds.has(s.id) && (s.id.startsWith('temp-') || s.id.startsWith('local-') || s.id.startsWith('session-'))
             );
-            return [...localOnlySessions, ...cloudSessions];
+            merged = [...localOnlySessions, ...cloudSessions];
+          } else {
+            // For subsequent pages, append without duplicates.
+            const existingIds = new Set(prev.map(s => s.id));
+            merged = [...prev, ...cloudSessions.filter(s => !existingIds.has(s.id))];
           }
-          // For subsequent pages, append without duplicates.
-          const existingIds = new Set(prev.map(s => s.id));
-          return [...prev, ...cloudSessions.filter(s => !existingIds.has(s.id))];
+
+          // FINAL DE-DUPLICATION: Ensure no session ID appears twice
+          const finalIds = new Set();
+          return merged.filter(s => {
+            const sid = s.id || s.chatSessionId;
+            if (!sid || finalIds.has(sid)) return false;
+            finalIds.add(sid);
+            return true;
+          });
         });
 
         setPagination({
@@ -259,6 +288,19 @@ const Home = ({ isDark }) => {
       setActiveConversationSession(activeChatId);
     }
   }, [activeChatId, setActiveConversationSession]);
+  
+  // ── ID SYNC: Promote temp ID to real Mongo ID in sidebar ──
+  const lastIdRef = useRef(activeChatId);
+  useEffect(() => {
+    const oldId = lastIdRef.current;
+    const newId = activeChatId;
+    
+    if (oldId && newId && oldId !== newId && (oldId.startsWith('temp-') || oldId.startsWith('local-') || oldId.startsWith('session-'))) {
+      console.log(`[Home:Sync] Promoting sidebar session via store: ${oldId} -> ${newId}`);
+      promoteChatHistoryId(oldId, newId);
+    }
+    lastIdRef.current = newId;
+  }, [activeChatId, promoteChatHistoryId]);
 
   // ─── Leave Chat / Close Snapshot Logic ───
   useEffect(() => {
@@ -612,17 +654,31 @@ const Home = ({ isDark }) => {
     if (user?.isGuest) {
       console.log(`[Persistence:Guest] 🏠 Updating local history: ${targetSessionId}`);
       setChatHistory(prev => {
-        const idx = prev.findIndex(s => s.id === targetSessionId);
+        // Promotion-aware index finding: Match the ID, or find a temp ID that this real ID is replacing
+        const idx = prev.findIndex(s => 
+          s.id === targetSessionId || 
+          (s.id?.startsWith('temp-') && targetSessionId && !targetSessionId.startsWith('temp-'))
+        );
+        
         let next;
         if (idx === -1) {
           next = [payload, ...prev];
         } else {
           next = [...prev];
-          next[idx] = { ...next[idx], ...payload };
+          next[idx] = { ...next[idx], ...payload, id: targetSessionId }; // Ensure ID is updated if promoted
         }
-        const pruned = next.slice(0, 10);
+        
+        // Final de-duplication safety
+        const finalIds = new Set();
+        const cleaned = next.filter(s => {
+          if (!s.id || finalIds.has(s.id)) return false;
+          finalIds.add(s.id);
+          return true;
+        });
+        
+        const pruned = cleaned.slice(0, 10);
         localStorage.setItem('tutorboard-guest-history', JSON.stringify(pruned));
-        return next;
+        return cleaned;
       });
       // Continue to API call if we have a valid session ID or just started one
     }
@@ -645,20 +701,31 @@ const Home = ({ isDark }) => {
         }
 
         // ── SYNC LOCAL CACHE: Update the chatHistory entry with full state ──
-        setChatHistory(prev => prev.map(s => {
-          if (s.id === targetSessionId || s.id === saved._id) {
-            return {
-              ...s,
-              id: saved._id || s.id,
-              chatSessionId: saved._id || s.id,
-              canvasState: canvasObjects || [],
-              messages: updatedMessages,
-              pinnedNotes: pinnedNotes || [],
-              updatedAt: Date.now()
-            };
+        setChatHistory(prev => {
+          // Promotion-aware index finding
+          const idx = prev.findIndex(s => 
+            s.id === targetSessionId || 
+            s.id === saved._id || 
+            (s.id?.startsWith('temp-') && (saved._id || targetSessionId) && !(saved._id || targetSessionId).startsWith('temp-'))
+          );
+          
+          let next;
+          if (idx !== -1) {
+            next = [...prev];
+            // If the ID changed (e.g. from temp- to real MongoDB ID), update it
+            next[idx] = { ...next[idx], ...payload, id: saved._id || targetSessionId, chatSessionId: saved._id };
+          } else {
+            next = [{ ...payload, id: saved._id || targetSessionId, chatSessionId: saved._id }, ...prev];
           }
-          return s;
-        }));
+
+          // Final de-duplication safety
+          const finalIds = new Set();
+          return next.filter(s => {
+            if (!s.id || finalIds.has(s.id)) return false;
+            finalIds.add(s.id);
+            return true;
+          });
+        });
 
         // If we were using a local UUID, swap it for the permanent Mongo ID everywhere.
         if (saved._id && saved._id !== targetSessionId) {
@@ -696,8 +763,17 @@ const Home = ({ isDark }) => {
   // Sidebar shortcut removed per user request
 
   const handleNewChat = () => { 
+    // FIX: Clear any in-progress submission tracking so the new chat isn't blocked
+    // by a stale "already submitting" entry from the previous session
+    submittingSessionsRef.current.clear();
+    // Cancel any in-flight requests from the previous session
+    abortControllersRef.current.forEach(ctrl => { try { ctrl.abort(); } catch(_) {} });
+    abortControllersRef.current.clear();
+
     useTutorStore.getState().triggerSync();
     useTutorStore.getState().setChatSessionId(null);
+    // FIX: Also reset sessionId in the store so addUserMessage doesn't key to the old session
+    useTutorStore.getState().setSessionId(null);
     clearConversation();
     setActiveChatId(null);
     setPrompt(''); 
@@ -937,12 +1013,24 @@ const Home = ({ isDark }) => {
     }
 
     if (snapshot) {
-      setCanvasSnapshot({
-        ...snapshot,
-        currentStepIndex: snapshot.currentStepIndex || 0,
-      });
-      useTutorStore.getState().setActiveSnapshotId(messageId);
-      console.log('[Home] Canvas snapshot opened for message:', messageId);
+      const store = useTutorStore.getState();
+      const isCurrentlyActive = store.activeSnapshotId === messageId;
+      
+      if (isCurrentlyActive && store.canvasLayout !== 'inline') {
+        // Toggle CLOSE: If already active and visible, hide it
+        store.setCanvasLayout('inline');
+        store.setActiveSnapshotId(null);
+        console.log('[Home] Canvas closed for message:', messageId);
+      } else {
+        // OPEN / SWITCH: Show canvas and set snapshot
+        setCanvasSnapshot({
+          ...snapshot,
+          currentStepIndex: snapshot.currentStepIndex || 0,
+        });
+        store.setActiveSnapshotId(messageId);
+        store.setCanvasLayout('split');
+        console.log('[Home] Canvas snapshot opened for message:', messageId);
+      }
     } else {
       console.warn('[Home] No canvas data found for message:', messageId);
     }
@@ -984,8 +1072,15 @@ const Home = ({ isDark }) => {
     const finalContext = selectedTextContext;
     const platformMemory = getPlatformMemorySummary ? getPlatformMemorySummary() : null;
 
-    let workingSessionId = activeChatId || `session-${Date.now()}`;
-    if (submittingSessionsRef.current.has(workingSessionId)) {
+    // FIX: Generate the working session ID FIRST, before any store reads
+    // This ensures addUserMessage, startStreaming, and appendStreamChunk all key to the same session
+    let workingSessionId = activeChatId || `session-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+
+    // FIX: Guard against double-submission but DON'T block if it's a genuinely new session
+    // Old bug: on new chat, activeChatId was null so workingSessionId was always unique and guard never fired,
+    // but on repeat submit activeChatId was stale from previous session causing false-block.
+    const alreadySubmitting = submittingSessionsRef.current.has(workingSessionId);
+    if (alreadySubmitting) {
       console.warn('[Home] Submission already in progress for session:', workingSessionId);
       return;
     }
@@ -1004,6 +1099,18 @@ const Home = ({ isDark }) => {
     if (!userPrompt && !fileData && !finalContext) {
       console.warn('[Home] Empty submission blocked');
       return;
+    }
+
+    // FIX: Set the active session ID in the store BEFORE addUserMessage is called
+    // addUserMessage reads chatSessionId||sessionId from the store to key messages.
+    // If these are null it falls back to 'temp', meaning stream chunks go to 'temp' 
+    // but startStreaming is called with workingSessionId — they never match and no response appears.
+    if (!activeChatId) {
+      setActiveChatId(workingSessionId);
+      // Also sync the store's session IDs so addUserMessage and useSessionSync pick them up immediately.
+      // We set BOTH to ensure the background sync hook doesn't generate a separate local ID.
+      useTutorStore.getState().setSessionId(workingSessionId);
+      useTutorStore.getState().setChatSessionId(workingSessionId);
     }
 
     submittingSessionsRef.current.add(workingSessionId);
@@ -1025,10 +1132,6 @@ const Home = ({ isDark }) => {
     }
 
     try {
-      if (!activeChatId) {
-        setActiveChatId(workingSessionId);
-      }
-
       let userId;
       let sessionTitle = activeSession?.title;
 
@@ -1066,6 +1169,9 @@ const Home = ({ isDark }) => {
         const history = store.conversationMessages;
         const isFollowUp = (activeChatId && history.length > 0) || isTeachingActive;
         
+        // FIX: Show thinking indicator before the socket event fires (previously spinner never appeared)
+        setWaitingForAI(true, workingSessionId);
+
         if (isFollowUp) {
           console.log('[Home] Routing chat query to doubt pipeline...');
           askDoubt(userPrompt, modeOverride || activeMode, fileData);
@@ -1092,6 +1198,7 @@ const Home = ({ isDark }) => {
           requestId: clientRequestId,
           userMessage: userPrompt,
           mode: modeOverride || activeMode || 'quick',
+          modelId: selectedAgent,
           teachingContext: {
             currentTopic: conversationTopic || undefined,
             explanationMode: 'basic',
@@ -1111,7 +1218,7 @@ const Home = ({ isDark }) => {
       const { signal } = controller;
       fetchOptions.signal = signal;
 
-      const res = await fetch('/api/chat/stream', fetchOptions).catch(e => {
+      const res = await fetch(`${API_URL}/api/chat/stream`, fetchOptions).catch(e => {
         console.error('[Chat:Stream] Network/Proxy error:', e);
         throw new Error(`Connection failed: ${e.message}`);
       });
@@ -1135,6 +1242,27 @@ const Home = ({ isDark }) => {
       let receivedSessionId = null;
       let lastArtifactLocalId = null;
       let lastEventType = 'message';
+
+      // ── STREAM THROTTLING ──
+      // Throttle UI updates to 10Hz (every 100ms) to prevent React render-flooding
+      let chunkBuffer = '';
+      let thoughtBuffer = '';
+      let lastUpdateTs = Date.now();
+
+      const flushBuffers = () => {
+        const now = Date.now();
+        const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+        
+        if (chunkBuffer) {
+          appendStreamChunk(chunkBuffer, currentSessionId, streamToken);
+          chunkBuffer = '';
+        }
+        if (thoughtBuffer) {
+          appendStreamThought(thoughtBuffer, currentSessionId, streamToken);
+          thoughtBuffer = '';
+        }
+        lastUpdateTs = now;
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1161,64 +1289,52 @@ const Home = ({ isDark }) => {
             const eventType = eventData.type || lastEventType;
             console.log(`[SSE] Received event: ${eventType}`, eventData);
 
-            if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
+            if (eventType === 'meta') {
+              receivedSessionId = eventData.sessionId || receivedSessionId;
+              useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+            } else if (eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
               useTutorStore.getState().handleProgressiveStreamEvent(eventData);
             } else if (eventType === 'chunk' || eventType === 'message') {
               const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
               
               if (text) {
                 fullContent += text;
-                // Isolation check: Only stream to UI if this is the active chat
-                if (workingSessionId === activeChatIdRef.current) {
+                const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+                if (currentSessionId === activeChatIdRef.current) {
                   if (isArtifactExpectedRef.current) {
-                    // HEURISTIC: Extract chat_response from JSON stream
-                    let displayChunk = text;
-                    const jsonStartIdx = fullContent.indexOf('"chat_response":');
-                    
-                    if (jsonStartIdx !== -1) {
-                      const artifactStartIdx = fullContent.indexOf('","artifact"');
-                      
-                      if (artifactStartIdx === -1) {
-                        // We are currently streaming the chat_response string
-                        displayChunk = text.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/"$/, '');
-                        if (fullContent.endsWith('"')) displayChunk = displayChunk.slice(0, -1);
-                      } else {
-                        displayChunk = '';
-                      }
-                    } else if (fullContent.length < 200) {
-                      displayChunk = text;
-                    }
-
-                    if (displayChunk && !displayChunk.startsWith('{') && !displayChunk.startsWith('"chat_response"')) {
-                      appendStreamChunk(displayChunk, workingSessionId, streamToken);
-                    }
+                    appendStreamChunk(text, currentSessionId, streamToken);
                   } else {
-                    appendStreamChunk(text, workingSessionId, streamToken);
+                    chunkBuffer += text;
+                    if (Date.now() - lastUpdateTs > 100) flushBuffers();
                   }
                 } else {
-                  addUnreadSession(workingSessionId);
+                  addUnreadSession(currentSessionId);
                 }
               }
             } else if (eventType === 'thought' || eventType === 'status') {
               const thought = eventData.thought || eventData.message || eventData.content || '';
-              thoughtContent += thought + (eventType === 'status' ? '\n' : '');
-              if (workingSessionId === activeChatIdRef.current) {
-                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), workingSessionId, streamToken);
+              const thoughtStr = thought + (eventType === 'status' ? '\n' : '');
+              thoughtContent += thoughtStr;
+              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+              if (currentSessionId === activeChatIdRef.current) {
+                thoughtBuffer += thoughtStr;
+                if (Date.now() - lastUpdateTs > 100) flushBuffers();
               } else {
-                addUnreadSession(workingSessionId);
+                addUnreadSession(currentSessionId);
               }
             } else if (eventType === 'sources') {
               setSources(eventData.sources || [], workingSessionId);
             } else if (eventType === 'message_ids') {
               // Sync local ephemeral IDs with real MongoDB IDs (Fixed: Bug 2)
               const { userMessageId, assistantMessageId } = eventData;
+              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
               
-              if (workingSessionId === activeChatIdRef.current) {
+              if (currentSessionId === activeChatIdRef.current) {
                 syncMessageIds(userMessageId, assistantMessageId);
               }
               
               setChatHistory(prev => prev.map(s => {
-                if (s.id === workingSessionId || s.id === receivedSessionId) {
+                if (s.id === currentSessionId || s.id === receivedSessionId) {
                   const msgs = [...s.messages];
                   // Update last two messages (user and assistant)
                   if (msgs.length >= 2) {
@@ -1229,8 +1345,6 @@ const Home = ({ isDark }) => {
                 }
                 return s;
               }));
-            } else if (eventType === 'meta') {
-              receivedSessionId = eventData.sessionId || eventData.receivedSessionId || receivedSessionId;
             } else if (eventType === 'plan') {
               const plan = eventData.plan || {};
               if (plan.generate_artifact) {
@@ -1270,8 +1384,9 @@ const Home = ({ isDark }) => {
                 lastArtifactIdRef.current = localId;
 
                 // Attach this artifact ID to the CURRENT assistant message metadata if it exists
+                const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
                 setChatHistory(prev => prev.map(s => {
-                  if (s.id === workingSessionId || s.id === receivedSessionId) {
+                  if (s.id === currentSessionId || s.id === receivedSessionId) {
                     const msgs = [...s.messages];
                     if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
                       msgs[msgs.length - 1] = { 
@@ -1305,14 +1420,15 @@ const Home = ({ isDark }) => {
                 }));
               }
             } else if (eventType === 'chat_override') {
-              if (workingSessionId === activeChatIdRef.current) {
-                updateStreamingContent(eventData.content, workingSessionId, streamToken);
+              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+              if (currentSessionId === activeChatIdRef.current) {
+                updateStreamingContent(eventData.content, currentSessionId, streamToken);
               } else {
-                addUnreadSession(workingSessionId);
+                addUnreadSession(currentSessionId);
               }
               fullContent = eventData.content;
               setChatHistory(prev => prev.map(s => {
-                if (s.id === (receivedSessionId || workingSessionId)) {
+                if (s.id === (receivedSessionId || currentSessionId)) {
                   const msgs = [...s.messages];
                   if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
                     msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: eventData.content };
@@ -1324,26 +1440,37 @@ const Home = ({ isDark }) => {
             } else if (eventType === 'done') {
               // Streaming complete
             } else if (eventType === 'error') {
-              throw new Error(eventData.error || 'Streaming error');
+              const errorMessage = eventData.error || 'Streaming error';
+              const fullError = eventData.details ? `${errorMessage} (${eventData.details})` : errorMessage;
+              throw new Error(fullError);
             }
           } catch (parseErr) {
+            // Re-throw our explicit errors, only swallow JSON parse errors
+            if (parseErr.name === 'Error') {
+              throw parseErr;
+            }
+            
             // Not JSON data, could be raw string
             if (lastEventType === 'message' && !dataStr.startsWith('{')) {
               fullContent += dataStr;
-              if (workingSessionId === activeChatIdRef.current) {
-                appendStreamChunk(dataStr, workingSessionId, streamToken);
+              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+              if (currentSessionId === activeChatIdRef.current) {
+                chunkBuffer += dataStr;
+                if (Date.now() - lastUpdateTs > 100) flushBuffers();
               } else {
-                addUnreadSession(workingSessionId);
+                addUnreadSession(currentSessionId);
               }
             }
           }
         }
       }
 
+      flushBuffers(); // FINAL FLUSH of any remaining tokens
       console.log("FULL RESPONSE (Client):", fullContent);
 
       // ── 5. Finalize streaming ──
-      finishStreaming(fullContent, workingSessionId, thoughtContent, lastStreamSources, lastArtifactIdRef.current, currentCanvasTypeRef.current, Date.now() - requestStartTime, streamToken, isRegeneration);
+      const finalSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+      finishStreaming(fullContent, finalSessionId, thoughtContent, lastStreamSources, lastArtifactIdRef.current, currentCanvasTypeRef.current, Date.now() - requestStartTime, streamToken, isRegeneration);
       lastArtifactIdRef.current = null; // Reset for next turn
       currentCanvasTypeRef.current = null;
 
@@ -1351,7 +1478,7 @@ const Home = ({ isDark }) => {
       if (isAuthenticated) {
         saveCurrentSession(
           useTutorStore.getState().conversationMessages,
-          receivedSessionId || workingSessionId,
+          useTutorStore.getState().chatSessionId || receivedSessionId || workingSessionId,
           sessionTitle
         ).catch(err => console.error('[Home] Background persistence failed:', err));
       }
@@ -1510,7 +1637,8 @@ const Home = ({ isDark }) => {
           body: JSON.stringify({
             sessionId: dbSessionId,
             messageId: finalTargetId,
-            requestId: clientRequestId
+            requestId: clientRequestId,
+            modelId: selectedAgent
           }),
           credentials: 'include'
         };
@@ -1520,12 +1648,24 @@ const Home = ({ isDark }) => {
         abortControllersRef.current.set(dbSessionId, controller);
         fetchOptions.signal = controller.signal;
 
-        const res = await fetch('/api/chat/regenerate/stream', fetchOptions).catch(e => {
+        // Set a safety timeout for the initial connection (60s)
+        const initialTimeout = setTimeout(() => {
+          if (useTutorStore.getState().isWaitingForAI) {
+            console.warn('[Home:Regen] Initial connection timeout (60s)');
+            controller.abort();
+          }
+        }, 60000);
+
+        const res = await fetch(`${API_URL}/api/chat/regenerate/stream`, fetchOptions).catch(e => {
+          clearTimeout(initialTimeout);
           console.error('[Home:Regen] Fetch failed:', e);
-          throw new Error(`Network error: ${e.message}`);
+          if (e.name === 'AbortError') throw new Error('Regeneration request timed out or was cancelled.');
+          throw new Error(`Network error: ${e.message}. Please check your connection and try again.`);
         });
 
+        clearTimeout(initialTimeout);
         console.log('[Home:Regen] Response status:', res.status);
+        
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.error || 'Regeneration failed');
@@ -1537,6 +1677,7 @@ const Home = ({ isDark }) => {
         let fullContent = '';
         let thoughtContent = '';
         let lastEventType = 'message';
+        let lastActivityTime = Date.now();
         const requestStartTime = Date.now();
 
         // Start UI streaming state
@@ -1544,56 +1685,77 @@ const Home = ({ isDark }) => {
 
         let lastStreamSources = [];
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        // Activity monitor to detect stalled streams (45s silence)
+        const activityMonitor = setInterval(() => {
+          if (Date.now() - lastActivityTime > 45000) {
+            console.error('[Home:Regen] Stream stalled (45s silence)');
+            controller.abort();
+            clearInterval(activityMonitor);
+          }
+        }, 5000);
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            lastActivityTime = Date.now(); // Reset on any activity (including heartbeats)
+            
+            if (done) break;
 
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-            if (trimmed.startsWith('event: ')) {
-              lastEventType = trimmed.slice(7).trim();
-              continue;
-            }
-            if (!trimmed.startsWith('data: ')) continue;
-            const dataStr = trimmed.slice(6);
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
 
-            try {
-              const eventData = JSON.parse(dataStr);
-              const eventType = eventData.type || lastEventType;
-
-              if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
-                useTutorStore.getState().handleProgressiveStreamEvent(eventData);
-              } else if (eventType === 'chunk' || eventType === 'message') {
-                const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
-                if (text) {
-                  fullContent += text;
-                  appendStreamChunk(text, dbSessionId, streamToken);
-                }
-              } else if (eventType === 'thought' || eventType === 'status') {
-                const thought = eventData.thought || eventData.message || eventData.content || '';
-                thoughtContent += thought + (eventType === 'status' ? '\n' : '');
-                appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), dbSessionId, streamToken);
-              } else if (eventType === 'sources') {
-                lastStreamSources = eventData.sources || [];
-                setSources(lastStreamSources, dbSessionId);
-              } else if (eventType === 'plan') {
-                if (eventData.plan?.suggest_canvas) setCurrentCanvasType(eventData.plan.canvas_type);
-              } else if (eventType === 'done') {
-                if (eventData.messagesAfterRegen) {
-                  // We'll sync this AFTER finishStreaming to ensure the final content is preserved
-                  console.log('[Home:Regen] Sync received from server');
-                }
+              if (trimmed.startsWith('event: ')) {
+                lastEventType = trimmed.slice(7).trim();
+                continue;
               }
-            } catch (e) {
-              // Ignore parse errors for keep-alive or malformed data
+              if (!trimmed.startsWith('data: ')) continue;
+              const dataStr = trimmed.slice(6);
+
+              try {
+                const eventData = JSON.parse(dataStr);
+                const eventType = eventData.type || lastEventType;
+
+                if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
+                  useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+                } else if (eventType === 'chunk' || eventType === 'message') {
+                  const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
+                  if (text) {
+                    fullContent += text;
+                    appendStreamChunk(text, dbSessionId, streamToken);
+                  }
+                } else if (eventType === 'thought' || eventType === 'status') {
+                  const thought = eventData.thought || eventData.message || eventData.content || '';
+                  thoughtContent += thought + (eventType === 'status' ? '\n' : '');
+                  appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), dbSessionId, streamToken);
+                } else if (eventType === 'sources') {
+                  lastStreamSources = eventData.sources || [];
+                  setSources(lastStreamSources, dbSessionId);
+                } else if (eventType === 'plan') {
+                  if (eventData.plan?.suggest_canvas) setCurrentCanvasType(eventData.plan.canvas_type);
+                } else if (eventType === 'done') {
+                  if (eventData.messagesAfterRegen) {
+                    console.log('[Home:Regen] Syncing conversation state from server');
+                    useTutorStore.getState().setConversationMessages(eventData.messagesAfterRegen);
+                    
+                    setChatHistory(prev => prev.map(s => 
+                      s.id === dbSessionId ? { ...s, messages: eventData.messagesAfterRegen } : s
+                    ));
+                  }
+                } else if (eventType === 'error') {
+                  throw new Error(eventData.error || 'Regeneration error');
+                }
+              } catch (e) {
+                if (e.name === 'Error') throw e;
+              }
             }
           }
+        } finally {
+          clearInterval(activityMonitor);
         }
 
         console.log('[Home:Regen] Finalizing stream, length:', fullContent.length);

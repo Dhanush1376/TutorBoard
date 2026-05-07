@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import VisaiLogo from '../components/layout/VisaiLogo';
 import useTutorStore from '../store/tutorStore';
 import LoginNavbar from '../components/layout/LoginNavbar';
-import CinematicTransition from '../components/auth/CinematicTransition';
+const CinematicTransition = React.lazy(() => import('../components/auth/CinematicTransition'));
 import { BASE_URL as API_URL } from '../services/api';
 
 const AuthLanding = () => {
@@ -163,12 +163,14 @@ const AuthLanding = () => {
       
       <AnimatePresence mode="wait">
         {isSuccess ? (
-          <CinematicTransition
-            key="cinematic"
-            userName={user?.name || formData.name || (formData.email ? formData.email.split('@')[0] : 'Explorer')}
-            isLogin={isLogin}
-            onComplete={() => navigate('/session')}
-          />
+          <React.Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+            <CinematicTransition
+              key="cinematic"
+              userName={user?.name || formData.name || (formData.email ? formData.email.split('@')[0] : 'Explorer')}
+              isLogin={isLogin}
+              onComplete={() => navigate('/session')}
+            />
+          </React.Suspense>
         ) : (
           <motion.div 
             key="auth-ui"

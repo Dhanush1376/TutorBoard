@@ -35,6 +35,11 @@ const initClients = () => {
   const gemKey = process.env.GEMINI_API_KEY;
   const groqKey = process.env.GROQ_API_KEY;
 
+  console.log('[AI:Init] Checking environment keys...');
+  console.log('[AI:Init] OPENROUTER_API_KEY found:', !!orKey);
+  console.log('[AI:Init] GEMINI_API_KEY found:', !!gemKey);
+  console.log('[AI:Init] GROQ_API_KEY found:', !!groqKey);
+
   if (!openRouterClient && orKey) {
     openRouterClient = new OpenAI({
       apiKey: orKey,
@@ -105,7 +110,7 @@ function setCachedResponse(key, response) {
 }
 
 // ── Semantic Deduplication Layer ──────────────────────────────────────────────
-const SEMANTIC_CACHE_MAX = 100;
+const SEMANTIC_CACHE_MAX = 20; // 20 is plenty for session-scoped cache
 const SIMILARITY_THRESHOLD = 0.96; 
 const semanticStore = []; // { embedding, lastMessage, cacheKey, model, isCustomKey }
 
@@ -171,12 +176,12 @@ export function resolveModelId(modelId) {
   // Model Aliases & Direct Mapping
   const mapping = {
     // Agents / Brand Names
-    'Bytez': 'anthropic/claude-sonnet-4-20250514',
-    'Bytez (Opus)': 'anthropic/claude-opus-20240229',
+    'Bytez': 'anthropic/claude-sonnet-4-5',
+    'Bytez (Opus)': 'anthropic/claude-3-opus-20240229',
     'Tutubot': 'openai/gpt-4o',
     
     // UI Label Map
-    'Claude Sonnet 4': 'anthropic/claude-sonnet-4-20250514',
+    'Claude Sonnet 4': 'anthropic/claude-sonnet-4-5',
     'Claude 3.5 Sonnet': 'anthropic/claude-3-5-sonnet-20241022',
     'Gemini 2.0 Flash': 'gemini-2.0-flash',
     'Gemini 1.5 Pro': 'gemini-1.5-pro',
@@ -284,9 +289,15 @@ async function checkCostLimit(userId, costControl) {
 // ── Request timeout ───────────────────────────────────────────────────────────
 const DEFAULT_TIMEOUT_MS = 60_000;
 
-function createTimeoutController(timeoutMs = DEFAULT_TIMEOUT_MS) {
+function createTimeoutController(timeoutMs = DEFAULT_TIMEOUT_MS, externalSignal = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    externalSignal.addEventListener('abort', () => controller.abort());
+  }
+  
   return { signal: controller.signal, cleanup: () => clearTimeout(timer), controller };
 }
 
@@ -356,11 +367,17 @@ function classifyCustomError(err) {
  *      └── System Mode  → platform fallback chain   → HARD RETURN
  */
 export async function requestCompletion(params = {}) {
-  const { model, messages, temperature, maxTokens, tools, responseSchema, responseMimeType, userConfig, taskType, onStream, file } = params;
+  // Ensure params is an object to prevent destructuring failures
+  const safeParams = params || {};
+  const { 
+    model, messages, temperature, maxTokens, tools, 
+    responseSchema, responseMimeType, userConfig, 
+    taskType, onStream, file, signal 
+  } = safeParams;
 
   const startTime = Date.now();
   const userId = userConfig?.userId || null;
-  const skipRacing = params?.skipRacing || false;
+  const skipRacing = safeParams?.skipRacing || false;
   
   // Resolve the canonical model ID once
   const canonicalModel = resolveModelId(model);
@@ -398,14 +415,34 @@ export async function requestCompletion(params = {}) {
   const cacheKey = getCacheKey(messages, model, userId, isCustomKey);
   const cached = getCachedResponse(cacheKey);
   if (cached) {
-    console.log('[AI:Cache] Direct hit — returning cached response');
+    console.log('[AI:Cache] Direct hit — simulating stream');
+    if (onStream && cached.content) {
+      const words = cached.content.split(' ');
+      // Simulate typing at ~30ms per word
+      (async () => {
+        for (const word of words) {
+          onStream(word + ' ');
+          await sleep(30);
+        }
+      })();
+    }
     return { ...cached, _meta: { ...cached._meta, cached: true } };
   }
 
   // ── Semantic hit (similar questions) ──
-  if (!onStream && !file) { // Don't semantic-cache streams or files yet
+  if (!file) { // Don't semantic-cache files yet
     const semanticHit = await findSemanticHit(messages, model, userId, isCustomKey);
     if (semanticHit) {
+      console.log('[AI:Semantic] Similarity hit — simulating stream');
+      if (onStream && semanticHit.content) {
+        const words = semanticHit.content.split(' ');
+        (async () => {
+          for (const word of words) {
+            onStream(word + ' ');
+            await sleep(30);
+          }
+        })();
+      }
       return { ...semanticHit, _meta: { ...semanticHit._meta, cached: true, semantic: true } };
     }
   }
@@ -415,25 +452,21 @@ export async function requestCompletion(params = {}) {
   // ═════════════════════════════════════════════════════════════════════════════
 
   if (userConfig?.useCustomApi && userConfig?.getApiKey && userConfig?.provider) {
-    console.log("MODE: custom");
+    console.log(`MODE: custom (${userConfig.provider})`);
     
-    // MULTI-PROVIDER FAILOVER CHAIN
-    // If the user has multiple keys enabled, we should be able to failover between them.
-    // However, the current `userConfig` usually represents the SELECTED provider.
-    // If we want true failover, we need to access all enabled keys.
-    // For now, we implement "Self-Healing" for the current provider (Model Auto-Switch).
-    
-    const result = await _executeCustomPath(params, {
+    const result = await _executeCustomPath(safeParams, {
       userConfig, canonicalModel, response_format, isJson,
       cacheKey, startTime, userId, taskType, skipRacing, onStream,
-      messages, temperature, maxTokens, tools, file
+      messages, temperature, maxTokens, tools, file, signal
     });
 
-    // If custom failed completely and it's a fatal error (invalid key/quota), return it.
-    // If it's a network/timeout error, we could potentially try a system fallback if allowed,
-    // but the policy is "STRICT ISOLATION".
-    
-    return result;
+    // SOFT FIREWALL: If custom failed completely, fall through to system APIs 
+    // to ensure the user gets a response even if their specific provider is down.
+    if (result.error && !result.content && !result.tool_calls) {
+      console.warn(`[AI:Orchestrator] ⚠️ Custom path (${userConfig.provider}) failed: ${result.error}. Falling back to System APIs...`);
+    } else {
+      return result;
+    }
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -443,10 +476,10 @@ export async function requestCompletion(params = {}) {
   // ╚═══════════════════════════════════════════════════════════════════════════╝
     console.log("MODE: tutorboard (System)");
     console.log("USING API: YES (Platform Env Keys)");
-    return await _executeSystemPath(params, {
+    return await _executeSystemPath(safeParams, {
     canonicalModel, response_format, isJson,
     cacheKey, startTime: Date.now(), userId, taskType, onStream,
-    messages, temperature, maxTokens, tools, file
+    messages, temperature, maxTokens, tools, file, signal
   });
 }
 
@@ -455,12 +488,13 @@ export async function requestCompletion(params = {}) {
 // No .env dependencies. No system client imports. No fallback leakage.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function _executeCustomPath(params, ctx) {
-  const { userConfig, canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, skipRacing, onStream, messages, temperature, maxTokens, tools, file } = ctx;
-  const provider = userConfig.provider;
+async function _executeCustomPath(params = {}, ctx = {}) {
+  const safeParams = params || {};
+  const { userConfig, canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, skipRacing, onStream, messages, temperature, maxTokens, tools, file, signal } = ctx;
+  const provider = userConfig?.provider;
   // FIX: For custom providers, use the model ID exactly as stored — do NOT run it through
   // resolveModelId() which has fuzzy Gemini matching and alias maps that corrupt custom IDs.
-  const rawCustomModel = userConfig.model || params.model || '';
+  const rawCustomModel = userConfig?.model || safeParams.model || '';
   const userModel = provider === 'custom'
     ? rawCustomModel.trim()   // pass through verbatim for custom
     : resolveModelId(rawCustomModel);
@@ -468,7 +502,7 @@ async function _executeCustomPath(params, ctx) {
   // ── Strategy 0: Parallel Racing (custom keys only) ──
   if (!skipRacing && userConfig?.racingConfigs) {
     try {
-      return await requestCompletionRaced(params, userConfig.racingConfigs.primary, userConfig.racingConfigs.secondary);
+      return await requestCompletionRaced(safeParams, userConfig.racingConfigs.primary, userConfig.racingConfigs.secondary);
     } catch (err) {
       console.warn('[AI:Custom:Racing] Racing failed, continuing with single-provider path');
       // Fall through to single-provider custom execution below — NOT to system path
@@ -476,18 +510,19 @@ async function _executeCustomPath(params, ctx) {
   }
 
   // ── Circuit Breaker Check ──
-  if (!circuitBreaker.isAvailable(provider)) {
-    console.warn(`[AI:Custom] ⛔ Circuit for ${provider} is OPEN.`);
+  const cbId = `custom:${provider}`;
+  if (!circuitBreaker.isAvailable(cbId)) {
+    console.warn(`[AI:Custom] ⛔ Circuit for ${cbId} is OPEN.`);
     return {
       content: '',
-      error: `Your ${provider} API is temporarily blocked due to repeated failures. Please wait 60 seconds or update your key in Settings.`,
+      error: `Your ${provider} API is temporarily blocked due to repeated failures. Please wait 90 seconds or update your key in Settings.`,
       provider,
       _meta: { provider_used: provider, model_used: userModel, fallback_triggered: false, cached: false },
     };
   }
 
   // ── Execute Custom Request ──
-  const timeout = createTimeoutController(DEFAULT_TIMEOUT_MS);
+  const timeout = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
 
   try {
     console.log(`[AI:Custom:${provider}] Calling: ${userModel} (JSON: ${isJson})`);
@@ -537,7 +572,7 @@ async function _executeCustomPath(params, ctx) {
     
     timeout.cleanup();
     const responseTimeMs = Date.now() - startTime;
-    circuitBreaker.reportSuccess(provider, responseTimeMs);
+    circuitBreaker.reportSuccess(`custom:${provider}`, responseTimeMs);
 
     const activeModel = result._fallbackUsed ? result._finalModel : userModel;
     const usage = result.usage || {};
@@ -582,7 +617,7 @@ async function _executeCustomPath(params, ctx) {
     timeout.cleanup();
     const { errorType, userMessage, technicalMessage } = classifyCustomError(err);
     console.error(`[AI:Custom:${provider}] ❌ FAILED: ${technicalMessage} (${errorType})`);
-    circuitBreaker.reportFailure(provider, err.status || 500, errorType);
+    circuitBreaker.reportFailure(`custom:${provider}`, err.status || 500, errorType);
     logUsage({ userId, provider, model: userModel, responseTimeMs: Date.now() - startTime, taskType, success: false, errorType, isCustomKey: true });
 
     return {
@@ -600,9 +635,10 @@ async function _executeCustomPath(params, ctx) {
 // Only uses .env-configured clients. Never touches user keys.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function _executeSystemPath(params, ctx) {
-  const { canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, onStream, messages, temperature, maxTokens, tools, file } = ctx;
-  const skipRacing = params?.skipRacing || false;
+async function _executeSystemPath(params = {}, ctx = {}) {
+  const safeParams = params || {};
+  const { canonicalModel, response_format, isJson, cacheKey, startTime, userId, taskType, onStream, messages, temperature, maxTokens, tools, file, signal } = ctx;
+  const skipRacing = safeParams?.skipRacing || false;
 
   // Initialize system clients from .env
   initClients();
@@ -615,10 +651,10 @@ async function _executeSystemPath(params, ctx) {
     throw new Error('SYSTEM_NOT_CONFIGURED: TutorBoard system APIs are not available. Please add your own API key in Settings → AI Configuration.');
   }
 
-  // ── Strategy 0: Parallel Racing (system keys — unlikely but supported) ──
-  if (!skipRacing && params.userConfig?.racingConfigs) {
+  // 🚀 Strategy 0: Parallel Racing (system keys — unlikely but supported) 🚀
+  if (!skipRacing && safeParams.userConfig?.racingConfigs) {
     try {
-      return await requestCompletionRaced(params, params.userConfig.racingConfigs.primary, params.userConfig.racingConfigs.secondary);
+      return await requestCompletionRaced(safeParams, safeParams.userConfig.racingConfigs.primary, safeParams.userConfig.racingConfigs.secondary);
     } catch (err) {
       console.warn('[AI:System:Racing] Racing failed, continuing with fallback chain');
     }
@@ -645,25 +681,44 @@ async function _executeSystemPath(params, ctx) {
     }
 
     let currentModel;
-    if (!canonicalModel || canonicalModel.includes('Universal')) {
+    if (!canonicalModel || canonicalModel.toLowerCase().includes('universal')) {
       currentModel = defaultModel;
     } else if (providerId === 'openrouter') {
-      currentModel = canonicalModel;
+      // FIX: OpenRouter requires provider-prefixed model IDs (e.g. 'google/gemini-2.0-flash')
+      // If canonicalModel has no slash, auto-prefix based on model family
+      if (!canonicalModel.includes('/')) {
+        const m = canonicalModel.toLowerCase();
+        if (m.includes('gemini')) currentModel = `google/${canonicalModel}`;
+        else if (m.includes('gpt')) currentModel = `openai/${canonicalModel}`;
+        else if (m.includes('claude')) currentModel = `anthropic/${canonicalModel}`;
+        else if (m.includes('llama') || m.includes('mixtral') || m.includes('gemma')) currentModel = `meta-llama/${canonicalModel}`;
+        else currentModel = defaultModel; // Unknown bare model → use default
+        console.log(`[AI:System] Auto-prefixed OpenRouter model: ${canonicalModel} → ${currentModel}`);
+      } else {
+        currentModel = canonicalModel;
+      }
     } else {
       // Native providers (Google, Groq, etc.) expect IDs without the "provider/" prefix
+      // Use a more robust split to handle cases like "google/gemini-2.0-flash-001"
       currentModel = canonicalModel.includes('/') ? canonicalModel.split('/').pop() : canonicalModel;
       
-      // Fallback to provider's default model if the canonical one is incompatible
-      if (providerId === 'google' && !currentModel.toLowerCase().includes('gemini')) {
-        currentModel = defaultModel;
+      // Remove any trailing version numbers like -001 which are specific to OpenRouter
+      if (providerId === 'google') {
+        currentModel = currentModel.replace(/-001$/, '');
+        
+        // Ensure it starts with gemini
+        if (!currentModel.toLowerCase().includes('gemini')) {
+          currentModel = defaultModel;
+        }
       }
+      
       if (providerId === 'groq' && !currentModel.toLowerCase().includes('llama') && 
           !currentModel.toLowerCase().includes('mixtral') && !currentModel.toLowerCase().includes('gemma')) {
         currentModel = defaultModel;
       }
     }
 
-    const timeout = createTimeoutController(90_000);
+    const timeout = createTimeoutController(90_000, signal);
     
     try {
       console.log(`[AI:System] Attempting ${providerId} with model ${currentModel}...`);
@@ -728,7 +783,7 @@ async function _executeSystemPath(params, ctx) {
   // All system providers failed
   const errMsg = lastError 
     ? `Last error: ${lastError.message}` 
-    : `No platform keys configured in .env`;
+    : `No platform providers available (either skipped due to open circuits or missing .env keys).`;
   throw new Error(`SYSTEM_FAILURE: All TutorBoard system providers failed. ${errMsg}`);
 }
 
@@ -829,22 +884,22 @@ export async function requestCompletionRaced(params, primaryConfig, secondaryCon
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function getModel() {
-  return process.env.AI_MODEL || 'openai/gpt-4o';
+  return process.env.AI_MODEL || 'gemini-2.0-flash';
 }
 
 export function getTextModel() {
-  return process.env.AI_TEXT_MODEL || 'openai/gpt-4o-mini';
+  return process.env.AI_TEXT_MODEL || 'gemini-2.0-flash';
 }
 
 export function getFastModel() {
-  return process.env.AI_FAST_MODEL || 'openai/gpt-4o-mini';
+  return process.env.AI_FAST_MODEL || 'gemini-2.0-flash';
 }
 
 export function getModelForAgent(agent) {
   if (!agent) return null;
   const mapping = {
-    'Bytez': 'anthropic/claude-sonnet-4-20250514',
-    'Bytez (Opus)': 'anthropic/claude-opus-20240229',
+    'Bytez': 'anthropic/claude-sonnet-4-5',
+    'Bytez (Opus)': 'anthropic/claude-3-opus-20240229',
     'OpenRouter': getModel(),
     'OpenRouterAI': getModel(),
     'Universal': getModel(),

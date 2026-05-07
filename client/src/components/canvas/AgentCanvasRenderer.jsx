@@ -208,28 +208,47 @@ export default function AgentCanvasRenderer({
         {/* Other Specialized Renderers (Matter, Three, Desmos) — lazy loaded */}
         {!isKaTeX && !isD3 && SpecializedRenderer && (
           <div className="absolute inset-0 z-0">
-            <React.Suspense fallback={
-              <div className="flex items-center justify-center w-full h-full text-white/30 text-sm">
-                Loading renderer...
-              </div>
-            }>
-              <SpecializedRenderer
-                ref={(node) => {
-                  if (!node) return;
-                  if (['physics', 'matter', 'mechanics'].includes(rendererType)) physicsRef.current = node;
-                  if (['graph', 'desmos'].includes(rendererType)) graphRef.current = node;
-                  if (['code', 'monaco', 'algorithm'].includes(rendererType)) codeRef.current = node;
-                  if (['math', 'equation'].includes(rendererType)) equationRef.current = node;
-                }}
-                timeline={timeline}
-                currentStepIndex={currentStepIndex}
-                elements={combinedElements}
-                connections={extConnections}
-                steps={extSteps}
-                onGoToStep={onGoToStep}
-                {...doubtProps}
-              />
-            </React.Suspense>
+            <ErrorBoundary 
+              key={rendererType} 
+              fallback={(error) => (
+                <div className="flex flex-col items-center justify-center w-full h-full bg-black/40 backdrop-blur-sm rounded-3xl border border-red-500/20 text-center p-6">
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4 border border-red-500/20">
+                    <AlertTriangle size={24} className="text-red-500" />
+                  </div>
+                  <h3 className="text-white font-medium mb-1">Animation failed</h3>
+                  <p className="text-zinc-400 text-xs max-w-xs">{error.message}</p>
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="mt-4 text-xs text-white/60 hover:text-white underline underline-offset-4"
+                  >
+                    Reload interface
+                  </button>
+                </div>
+              )}
+            >
+              <React.Suspense fallback={
+                <div className="flex items-center justify-center w-full h-full text-white/30 text-sm">
+                  Loading renderer...
+                </div>
+              }>
+                <SpecializedRenderer
+                  ref={(node) => {
+                    if (!node) return;
+                    if (['physics', 'matter', 'mechanics'].includes(rendererType)) physicsRef.current = node;
+                    if (['graph', 'desmos'].includes(rendererType)) graphRef.current = node;
+                    if (['code', 'monaco', 'algorithm'].includes(rendererType)) codeRef.current = node;
+                    if (['math', 'equation'].includes(rendererType)) equationRef.current = node;
+                  }}
+                  timeline={timeline}
+                  currentStepIndex={currentStepIndex}
+                  elements={combinedElements}
+                  connections={extConnections}
+                  steps={extSteps}
+                  onGoToStep={onGoToStep}
+                  {...doubtProps}
+                />
+              </React.Suspense>
+            </ErrorBoundary>
           </div>
         )}
 

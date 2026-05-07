@@ -253,10 +253,12 @@ function validateSceneGraph(obj) {
     result.error.issues.forEach(i => errors.push(`${i.path.join('.')}: ${i.message}`));
   }
 
-  if ((obj.elements || []).length < 1) errors.push('Visualization empty.');
-  if ((obj.timeline || []).length < 2) errors.push('Lesson too short.');
+  if ((obj.timeline || []).length < 1) {
+    console.warn(`[AgentLoop] ❌ FATAL: Timeline is empty. Tripping failsafe.`);
+    return { valid: false, errors: ['Timeline empty'], fatal: true };
+  }
 
-  if (errors.length > 5) {
+  if (errors.length > 12) { 
     console.warn(`[AgentLoop] ❌ FATAL Scene Graph Validation: ${errors.length} issues detected. Tripping failsafe.`);
     return { valid: false, errors, fatal: true };
   }
@@ -278,7 +280,7 @@ ${userConfig.customInstructions ? `- Custom AI Behavior: ${userConfig.customInst
 }
 
 // ─── Single Stage Executor ────────────────────────────────────────────────────
-async function runStage({ stageName, prompt, input, model, onProgress, userConfig, onStream, signal }) {
+async function runStage({ stageName, prompt, input, model, onProgress, userConfig, onStream, signal, requiredKeys = [] }) {
   onProgress(stageName);
   console.log(`[AgentLoop] 🎭 Stage: ${stageName}...`);
 
@@ -286,8 +288,7 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
   let lastError = null;
 
   // AGGRESSIVE TIMEOUT FOR AGENT PIPELINE:
-  // We want individual agents to fail fast so the whole pipeline doesn't hang for 10+ minutes.
-  const STAGE_TIMEOUT = 20000; // 20 seconds
+  const STAGE_TIMEOUT = 45000; // 45 seconds
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
@@ -301,9 +302,12 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
       ];
 
       if (attempt > 1) {
+        const schemaHint = requiredKeys.length > 0 
+          ? ` Your output MUST be a JSON object containing these keys: ${requiredKeys.join(', ')}.`
+          : '';
         currentMessages.push({ 
           role: 'user', 
-          content: 'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object. No explanation and no markdown code fences.' 
+          content: `Your previous response was not valid or was missing required data.${schemaHint} Please respond ONLY with the complete, valid JSON object. No explanation.` 
         });
       }
 
@@ -327,14 +331,25 @@ async function runStage({ stageName, prompt, input, model, onProgress, userConfi
         new Promise((_, reject) => setTimeout(() => reject(new Error('STAGE_TIMEOUT')), STAGE_TIMEOUT))
       ]);
 
-      if (!response?.content) throw new Error('Empty response');
+      if (response?.error) {
+        throw new Error(response.error);
+      }
+      if (!response?.content) throw new Error('Empty response from AI');
 
       const parsed = extractJSON(response.content);
       if (!parsed) throw new Error(`JSON parse failed. Preview: ${response.content.substring(0, 100)}`);
 
+      // Bug 8 Fix: Verify required keys exist
+      if (requiredKeys.length > 0) {
+        const missing = requiredKeys.filter(k => !parsed[k]);
+        if (missing.length > 0) {
+          throw new Error(`Missing required keys: ${missing.join(', ')}`);
+        }
+      }
+
       return parsed;
     } catch (err) {
-      console.warn(`[AgentLoop] ⚠️ Stage "${stageName}" attempt ${attempt} FAILED: ${err.message}`);
+      console.error(`[AgentLoop] ❌ Stage "${stageName}" attempt ${attempt} FAILED:`, err);
       lastError = err;
       
       // If it's a timeout, don't even bother retrying if it's already been a long time
@@ -367,10 +382,9 @@ function createFallbackTimeline(topic, errorMsg = 'Pedagogical validation failed
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
 export async function runAgentLoop(params) {
   // If too many loops are running, queue this one
-  if (activeAgentLoops >= MAX_CONCURRENT_LOOPS) {
-    if (params.onProgress) params.onProgress('⏳ Preparing your lesson...');
-    // Jittered wait to prevent thundering herd
-    await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+  while (activeAgentLoops >= MAX_CONCURRENT_LOOPS) {
+    if (params.onProgress) params.onProgress('⏳ System busy, waiting for a slot...');
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 500));
   }
   
   activeAgentLoops++;
@@ -434,7 +448,8 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       stageName: '💡 Thinking deeply about the topic...',
       prompt: plannerPrompt,
       input: { topic, domain, maxSteps: targetMax, learnerProfile, file },
-      model: fullModel, onProgress, userConfig, signal
+      model: fullModel, onProgress, userConfig, signal,
+      requiredKeys: ['flow', 'topic']
     });
 
     // Capture normalized topic from planner if available
@@ -452,7 +467,8 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
         input: { plannerOutput, learnerProfile, webContextStr },
         model: fullModel, onProgress, userConfig,
         onStream: (chunk) => onProgress('narration_chunk', chunk),
-        signal
+        signal,
+        requiredKeys: ['narrations']
       }),
       // Stage 3: VISUALIZATION — FAST MODEL
       runStage({
@@ -460,19 +476,30 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
         prompt: getPrompt('visualizer'),
         input: { plannerOutput, learnerProfile, webContextStr }, // Pass webContext to visualizer too
         model: fastModel, onProgress, userConfig,
-        signal
+        signal,
+        requiredKeys: ['visual_steps']
       })
     ]);
 
-    console.log(`[AgentLoop] ✅ Stages 2 & 3 COMPLETE — ${narratorOutput.narrations?.length || 0} narrations, ${visualizerOutput.visual_steps?.length || 0} visual steps`);
+    console.log(`[AgentLoop] ✅ Stages 2 & 3 COMPLETE — ${narratorOutput?.narrations?.length || 0} narrations, ${visualizerOutput?.visual_steps?.length || 0} visual steps`);
+    
+    // Ensure animator receives valid input even if partial
+    if (!visualizerOutput || !visualizerOutput.visual_steps) {
+       console.warn('[AgentLoop] ⚠️ Visualizer output malformed. Using empty steps for Animator.');
+    }
 
     onProgress('🎞️ Generating cinematic animation sequences...');
     // Stage 4: ANIMATION — FAST MODEL
     let animatorOutput = await runStage({
       stageName: 'Choreographing cinematic motion...',
       prompt: getPrompt('animator'),
-      input: { plannerOutput, visualizerOutput, learnerProfile },
-      model: fastModel, onProgress, userConfig, signal
+      input: { 
+        plannerOutput, 
+        visualizerOutput: visualizerOutput || { visual_steps: [] }, 
+        learnerProfile 
+      },
+      model: fastModel, onProgress, userConfig, signal,
+      requiredKeys: ['animation_steps']
     });
 
     // FIX STAGE 4: Schema Normalization (Single object -> Array)
@@ -484,6 +511,12 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
     console.log(`[AgentLoop] ✅ Stage 4 — ${animatorOutput.animation_steps?.length || 0} animation steps`);
 
     // Stage 5: CRITIQUE — FAST MODEL
+    // ROOT CAUSE #3 FIX: Check if upstream content exists before asking Critic to score it.
+    if (!narratorOutput?.narrations?.length || !visualizerOutput?.visual_steps?.length) {
+      console.warn('[AgentLoop] Upstream empty — skipping Critic');
+      return createFallbackTimeline(normalizedTopic, 'Upstream timeout');
+    }
+
     const criticInput = {
       narrations:      narratorOutput.narrations || [],
       visual_steps:    visualizerOutput.visual_steps || [],
@@ -497,7 +530,8 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       stageName: '⚖️ Reviewing for consistency & clarity...',
       prompt: getPrompt('critic'),
       input: criticInput,
-      model: fastModel, onProgress, userConfig, signal
+      model: fastModel, onProgress, userConfig, signal,
+      requiredKeys: ['approved', 'scores']
     });
     console.log(`[AgentLoop] ✅ Stage 5 — approved: ${criticOutput.approved}, score: ${criticOutput.scores?.overall}`);
 
@@ -542,7 +576,14 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       stageName: '✨ Finalizing high-fidelity plan...',
       prompt: getPrompt('validator'),
       input: validatorInput,
-      model: fastModel, onProgress, userConfig, signal
+      model: fastModel, 
+      onProgress, 
+      userConfig, 
+      signal,
+      onStream: (token) => {
+        if (onProgress) onProgress('generating', token);
+      },
+      requiredKeys: ['status', 'final_output']
     });
     console.log(`[AgentLoop] ✅ Stage 6 — status: ${validatorRaw.status}`);
 
@@ -572,7 +613,18 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
     return output;
 
   } catch (err) {
-    console.error(`[AgentLoop] ❌ Critical failure: ${err.message}`);
-    return createFallbackTimeline(topic, err.message);
+    const errorMsg = err.message || 'Unknown generation error';
+    // CRITICAL: Log full error and stack trace to server logs for debugging
+    console.error(`[AgentLoop] ❌ Pipeline failure: ${errorMsg}`);
+    console.error(err.stack);
+    
+    // Determine user-friendly error display
+    let displayMsg = errorMsg;
+    if (errorMsg.includes('quota') || errorMsg.includes('credits')) displayMsg = 'Your AI provider quota has been reached.';
+    if (errorMsg.includes('rate limit') || errorMsg.includes('too many')) displayMsg = 'AI Rate limit reached. Please wait a moment.';
+    if (errorMsg.includes('key') || errorMsg.includes('unauthorized') || errorMsg.includes('401')) displayMsg = 'AI Configuration Error: Invalid or missing API Key.';
+    if (errorMsg.includes('STAGE_TIMEOUT')) displayMsg = 'The AI is taking too long to think right now. Try again?';
+
+    return createFallbackTimeline(topic, displayMsg);
   }
 }

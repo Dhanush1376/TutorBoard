@@ -163,6 +163,24 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
 
       if (selectedKey) {
         console.log(`[UserConfig] Found explicit agent match via provider/brand for "${selectedAgentId}": ${selectedKey.label}`);
+      } else {
+        // PRIORITY 0.7: Smart provider matching for model names
+        const modelLower = target.toLowerCase();
+        if (modelLower.includes('gemini')) {
+          selectedKey = activeKeys.find(k => k.provider === 'google' || k.provider === 'openrouter');
+        } else if (modelLower.includes('gpt')) {
+          selectedKey = activeKeys.find(k => k.provider === 'openai' || k.provider === 'openrouter');
+        } else if (modelLower.includes('claude')) {
+          selectedKey = activeKeys.find(k => k.provider === 'anthropic' || k.provider === 'openrouter');
+        } else if (modelLower.includes('llama')) {
+          selectedKey = activeKeys.find(k => k.provider === 'groq' || k.provider === 'openrouter');
+        } else if (modelLower.includes('deepseek')) {
+          selectedKey = activeKeys.find(k => k.provider === 'deepseek' || k.provider === 'openrouter');
+        }
+        
+        if (selectedKey) {
+          console.log(`[UserConfig] Smart-matched model "${selectedAgentId}" to provider: ${selectedKey.provider}`);
+        }
       }
     }
 

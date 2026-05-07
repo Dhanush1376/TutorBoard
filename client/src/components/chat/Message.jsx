@@ -21,7 +21,7 @@ import {
   Layers, ThumbsUp, ThumbsDown,
   ChevronRight as ChevronRightIcon,
   Play, FlaskConical, Network, BookMarked, Activity,
-  Loader2, Image as ImageIcon, Sparkles, Eye,
+  Loader2, Image as ImageIcon, Sparkles, Eye, Quote,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -31,6 +31,8 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import useTutorStore from '../../store/tutorStore';
 import VisualArtifactCard from './VisualArtifactCard';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 // ─── Streaming cursor ─────────────────────────────────────────────────────────
 
@@ -49,6 +51,33 @@ const StreamCursor = () => (
     }}
   />
 );
+
+const extractJsonResponse = (text) => {
+  if (!text || typeof text !== 'string') return { content: text };
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return { content: text };
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed.chat_response) {
+      return {
+        content: parsed.chat_response,
+        artifact: parsed.artifact || null,
+        canvasType: parsed.canvasType || parsed.artifact?.type || null
+      };
+    }
+    if (parsed.text && typeof parsed.text === 'string') {
+      return { content: parsed.text, artifact: parsed.artifact || null };
+    }
+  } catch (e) {
+    // If it's a partial JSON during streaming, we might be able to extract chat_response via regex
+    const chatResponseMatch = trimmed.match(/"chat_response"\s*:\s*"([^"]*)"/);
+    if (chatResponseMatch) {
+      return { content: chatResponseMatch[1].replace(/\\n/g, '\n'), artifact: null };
+    }
+  }
+  return { content: text };
+};
 
 // ─── Language label colors ────────────────────────────────────────────────────
 
@@ -73,7 +102,7 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
   const [copied, setCopied] = useState(false);
   const lang = (className || '').replace(/^language-/, '').toLowerCase();
   const langColor = LANG_COLORS[lang] || '#888';
-  const isRunnable = ['javascript','js','python','py','java','cpp','c++','c','rust','rs','go','ruby','ts','typescript'].includes(lang);
+  const isRunnable = ['javascript', 'js', 'python', 'py', 'java', 'cpp', 'c++', 'c', 'rust', 'rs', 'go', 'ruby', 'ts', 'typescript'].includes(lang);
   const code = String(children).replace(/\n$/, '');
 
   const handleCopy = useCallback(async () => {
@@ -84,57 +113,72 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
 
   return (
     <div
-      className="my-3 rounded-xl overflow-hidden"
+      className="my-4 rounded-xl overflow-hidden border shadow-xl group/code"
       style={{
-        border: '1px solid var(--border-color)',
-        background: 'var(--bg-secondary)',
+        borderColor: 'var(--border-color)',
+        background: '#1e1e1e', // Editor background
       }}
     >
-      {/* Header */}
+      {/* Header — macOS style dots + language */}
       <div
-        className="flex items-center justify-between px-3 py-1.5 border-b"
-        style={{ borderColor: 'var(--border-color)', background: 'var(--bg-tertiary)' }}
+        className="flex items-center justify-between px-3 py-2 border-b"
+        style={{ borderColor: 'rgba(255,255,255,0.1)', background: '#252526' }}
       >
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ background: langColor }} />
-          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            {lang || 'code'}
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] opacity-80" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] opacity-80" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f] opacity-80" />
+          </div>
+          <div className="w-[1px] h-3 bg-white/10 mx-1" />
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: langColor }} />
+            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {lang || 'code'}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           {isRunnable && (
             <button
               onClick={() => onOpenArtifact?.(code, lang)}
-              className="flex items-center gap-1 rounded-md transition-all hover:opacity-80"
-              style={{ padding: '2px 8px', fontSize: 10, fontWeight: 500, background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
+              className="flex items-center gap-1.5 rounded-md transition-all hover:bg-white/10"
+              style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' }}
             >
-              <Play size={8} /> Run
-            </button>
-          )}
-          {onOpenArtifact && !isRunnable && (
-            <button
-              onClick={() => onOpenArtifact(code, lang)}
-              className="flex items-center gap-1 rounded-md transition-all hover:opacity-80"
-              style={{ padding: '2px 8px', fontSize: 10, fontWeight: 500, background: 'var(--text-primary)', color: 'var(--bg-primary)', opacity: 0.8 }}
-            >
-              <FlaskConical size={8} /> Open
+              <Play size={10} className="text-green-400" /> Run
             </button>
           )}
           <button
             onClick={handleCopy}
-            className="rounded-md transition-all"
-            style={{
-              padding: '2px 8px', fontSize: 10, fontWeight: 500,
-              background: 'transparent', color: 'var(--text-tertiary)',
-            }}
+            className="flex items-center gap-1.5 rounded-md transition-all hover:bg-white/10 ml-1"
+            style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, color: '#94a3b8' }}
           >
-            {copied ? '✓' : 'Copy'}
+            {copied ? <Check size={10} /> : <Copy size={10} />}
+            {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
       </div>
-      <pre className="p-4 overflow-x-auto" style={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', lineHeight: 1.65, color: 'var(--text-primary)', margin: 0 }}>
-        <code>{code}</code>
-      </pre>
+
+      {/* Code Body */}
+      <div className="relative">
+        <SyntaxHighlighter
+          language={lang || 'text'}
+          style={vscDarkPlus}
+          customStyle={{
+            margin: 0,
+            padding: '16px 20px',
+            fontSize: '13.5px',
+            lineHeight: '1.65',
+            background: 'transparent',
+            fontFamily: 'var(--font-mono)',
+          }}
+          codeTagProps={{
+            style: { fontFamily: 'var(--font-mono)', background: 'transparent' }
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
     </div>
   );
 });
@@ -143,28 +187,62 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
 
 const buildMarkdownComponents = (onOpenArtifact) => ({
   p: ({ children }) => (
-    <p style={{ marginBottom: 12, lineHeight: 1.75, fontSize: 13.5, color: 'var(--text-primary)', opacity: 0.92, wordBreak: 'break-word' }}>
+    <p style={{ marginBottom: 14, lineHeight: 1.75, fontSize: 14, color: 'var(--text-primary)', opacity: 0.95, wordBreak: 'break-word' }}>
       {children}
     </p>
   ),
-  strong: ({ children }) => <strong style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{children}</strong>,
-  em: ({ children }) => <em style={{ opacity: 0.8 }}>{children}</em>,
-  h1: ({ children }) => <h1 style={{ fontSize: 17, fontWeight: 700, marginBottom: 12, marginTop: 20, letterSpacing: '-0.01em', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>{children}</h1>,
-  h2: ({ children }) => <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, marginTop: 18, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>{children}</h2>,
-  h3: ({ children }) => <h3 style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8, marginTop: 14, color: 'var(--text-primary)' }}>{children}</h3>,
-  ul: ({ children }) => <ul style={{ paddingLeft: 20, marginBottom: 12 }}>{children}</ul>,
-  ol: ({ children }) => <ol style={{ paddingLeft: 20, marginBottom: 12 }}>{children}</ol>,
-  li: ({ children }) => <li style={{ marginBottom: 5, lineHeight: 1.65, fontSize: 13.5, color: 'var(--text-primary)', opacity: 0.9 }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{children}</strong>,
+  em: ({ children }) => <em style={{ fontStyle: 'italic', opacity: 0.85 }}>{children}</em>,
+  h1: ({ children }) => (
+    <h1 style={{ 
+      fontSize: 18, fontWeight: 800, marginBottom: 14, marginTop: 24, 
+      letterSpacing: '-0.02em', color: 'var(--text-primary)', 
+      borderBottom: '2px solid var(--border-color)', paddingBottom: 10 
+    }}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 style={{ 
+      fontSize: 16, fontWeight: 700, marginBottom: 12, marginTop: 20, 
+      letterSpacing: '-0.01em', color: 'var(--text-primary)' 
+    }}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children }) => (
+    <h3 style={{ 
+      fontSize: 14.5, fontWeight: 700, marginBottom: 10, marginTop: 16, 
+      color: 'var(--text-primary)', letterSpacing: '-0.01em' 
+    }}>
+      {children}
+    </h3>
+  ),
+  ul: ({ children }) => <ul style={{ paddingLeft: 22, marginBottom: 14, listStyleType: 'disc' }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ paddingLeft: 22, marginBottom: 14, listStyleType: 'decimal' }}>{children}</ol>,
+  li: ({ children }) => (
+    <li style={{ marginBottom: 6, lineHeight: 1.7, fontSize: 14, color: 'var(--text-primary)', opacity: 0.9 }}>
+      {children}
+    </li>
+  ),
   blockquote: ({ children }) => (
-    <blockquote style={{ borderLeft: '3px solid var(--text-tertiary)', paddingLeft: 14, marginLeft: 0, opacity: 0.7, fontStyle: 'italic' }}>{children}</blockquote>
+    <blockquote style={{ 
+      borderLeft: '4px solid var(--text-tertiary)', 
+      paddingLeft: 20, marginLeft: 0, marginTop: 18, marginBottom: 18, 
+      opacity: 0.95, fontStyle: 'italic', 
+      background: 'rgba(var(--bg-secondary-rgb), 0.5)',
+      paddingTop: 8, paddingBottom: 8, borderRadius: '0 8px 8px 0'
+    }}>
+      {children}
+    </blockquote>
   ),
   code: ({ className, children, inline }) => {
     if (inline) {
       return (
         <code style={{
-          fontFamily: 'var(--font-mono)', fontSize: 12,
+          fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600,
           background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
-          borderRadius: 5, padding: '1px 5px', color: 'var(--text-primary)',
+          borderRadius: 6, padding: '1px 5px', color: 'var(--text-primary)',
         }}>
           {children}
         </code>
@@ -173,15 +251,15 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
     return <CodeBlock className={className} onOpenArtifact={onOpenArtifact}>{children}</CodeBlock>;
   },
   table: ({ children }) => (
-    <div style={{ overflowX: 'auto', marginBottom: 16 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>{children}</table>
+    <div style={{ overflowX: 'auto', marginBottom: 20, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>{children}</table>
     </div>
   ),
   th: ({ children }) => (
-    <th style={{ textAlign: 'left', padding: '6px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>{children}</th>
+    <th style={{ textAlign: 'left', padding: '10px 14px', background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)', fontWeight: 700, fontSize: 12, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{children}</th>
   ),
   td: ({ children }) => (
-    <td style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-color)', color: 'var(--text-primary)', opacity: 0.9 }}>{children}</td>
+    <td style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-color)', color: 'var(--text-primary)', opacity: 0.9 }}>{children}</td>
   ),
   a: ({ children, href }) => {
     let safeHref = '#';
@@ -194,10 +272,10 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
       safeHref = '#';
     }
     return (
-      <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--info)', textDecoration: 'underline', textDecorationColor: 'var(--info)', opacity: 0.8 }}>{children}</a>
+      <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: 'var(--info)', opacity: 0.9 }}>{children}</a>
     );
   },
-  hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '16px 0' }} />,
+  hr: () => <hr style={{ border: 'none', borderTop: '2px solid var(--border-color)', margin: '20px 0' }} />,
 });
 
 // ─── Source grid ──────────────────────────────────────────────────────────────
@@ -215,9 +293,9 @@ const SourceGrid = ({ sources, searchPerformed }) => {
         {sources?.length > 0 ? (
           <div className="flex items-center gap-2">
             <BookOpen size={13} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
-            <span style={{ 
-              fontSize: 11.5, 
-              fontWeight: 500, 
+            <span style={{
+              fontSize: 11.5,
+              fontWeight: 500,
               color: 'var(--text-tertiary)',
               letterSpacing: '-0.01em',
               opacity: 0.8
@@ -227,13 +305,13 @@ const SourceGrid = ({ sources, searchPerformed }) => {
           </div>
         ) : (
           <div className="flex items-center gap-3">
-             <div className="flex items-center gap-[4px] opacity-40">
+            <div className="flex items-center gap-[4px] opacity-40">
               {[0, 1, 2].map((i) => (
                 <motion.span
                   key={i}
-                  animate={{ 
+                  animate={{
                     scale: [1, 1.3, 1],
-                    opacity: [0.3, 1, 0.3] 
+                    opacity: [0.3, 1, 0.3]
                   }}
                   transition={{
                     duration: 1.4,
@@ -250,9 +328,9 @@ const SourceGrid = ({ sources, searchPerformed }) => {
                 />
               ))}
             </div>
-            <span style={{ 
-              fontSize: 11.5, 
-              fontWeight: 500, 
+            <span style={{
+              fontSize: 11.5,
+              fontWeight: 500,
               color: 'var(--text-tertiary)',
               letterSpacing: '-0.01em',
               opacity: 0.8
@@ -272,7 +350,7 @@ const SourceGrid = ({ sources, searchPerformed }) => {
               const url = new URL(source.url);
               hostname = url.hostname.replace('www.', '');
               favicon = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
-            } catch {}
+            } catch { }
             return (
               <a
                 key={idx}
@@ -308,12 +386,18 @@ const SourceGrid = ({ sources, searchPerformed }) => {
 
 const CANVAS_CONFIGS = {
   cinematic: { icon: Layers, label: 'Visual Explanation', desc: 'Watch animated canvas breakdown', color: 'var(--success)' },
-  d3: { icon: Network, label: 'Data Structure', desc: 'Interactive graph / tree', color: 'var(--info)' },
+  d3: { icon: Network, label: 'Visual Canvas', desc: 'Interactive concept map', color: 'var(--info)' },
   physics: { icon: FlaskConical, label: 'Physics Simulation', desc: 'Interactive physics canvas', color: 'var(--warning)' },
-  default: { icon: Layers, label: 'Open on Canvas', desc: 'Step-by-step visual', color: 'var(--text-tertiary)' },
+  default: { icon: Layers, label: 'Interactive Canvas', desc: 'Step-by-step visual', color: 'var(--text-tertiary)' },
 };
 
-const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount }) => {
+const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount, title }) => {
+  const activeSnapshotId = useTutorStore(s => s.activeSnapshotId);
+  const isActive = activeSnapshotId === messageId;
+  const setCanvasLayout = useTutorStore(s => s.setCanvasLayout);
+
+  console.log('[CanvasCard] Rendering', { messageId, isActive, title });
+
   const cfg = CANVAS_CONFIGS[canvasType] || CANVAS_CONFIGS.default;
   const Icon = cfg.icon;
 
@@ -341,7 +425,7 @@ const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount }) => {
       {/* Labels */}
       <div className="flex-1 min-w-0">
         <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
-          {cfg.label}
+          {title || cfg.label}
         </p>
         <p style={{ fontSize: 10.5, color: 'var(--text-tertiary)', margin: '2px 0 0' }}>
           {cfg.desc}{stepCount ? ` · ${stepCount} steps` : ''}
@@ -353,15 +437,15 @@ const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount }) => {
         className="flex items-center gap-1 rounded-lg flex-shrink-0"
         style={{
           padding: '4px 10px',
-          background: 'var(--text-primary)',
+          background: isActive ? 'var(--success)' : 'var(--text-primary)',
           color: 'var(--bg-primary)',
           fontSize: 10.5,
           fontWeight: 600,
           letterSpacing: '0.01em',
         }}
       >
-        <Eye size={9} />
-        Open
+        {isActive ? <Check size={9} /> : <Eye size={9} />}
+        {isActive ? 'Active' : 'Open'}
       </div>
     </motion.button>
   );
@@ -370,11 +454,11 @@ const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount }) => {
 // ─── Artifact chip (linked artifact in panel) ─────────────────────────────────
 
 const ARTIFACT_TYPE_CONFIG = {
-  code:     { icon: Code,     label: 'Code',       color: '#3b82f6' },
-  ui:       { icon: Globe,    label: 'UI Preview',  color: '#8b5cf6' },
-  document: { icon: FileText, label: 'Document',    color: '#10b981' },
-  table:    { icon: Table2,   label: 'Table',       color: '#f59e0b' },
-  diagram:  { icon: GitBranch,label: 'Diagram',     color: '#ec4899' },
+  code: { icon: Code, label: 'Code', color: '#3b82f6' },
+  ui: { icon: Globe, label: 'UI Preview', color: '#8b5cf6' },
+  document: { icon: FileText, label: 'Document', color: '#10b981' },
+  table: { icon: Table2, label: 'Table', color: '#f59e0b' },
+  diagram: { icon: GitBranch, label: 'Diagram', color: '#ec4899' },
 };
 
 const ArtifactChip = ({ artifactId }) => {
@@ -443,15 +527,15 @@ const ActionBtn = ({ onClick, title, children, className = '' }) => (
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
-      opacity: 0.45,
+      opacity: 0.7,
       lineHeight: 0,
     }}
     onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '0.9';
+      e.currentTarget.style.opacity = '1';
       e.currentTarget.style.background = 'var(--bg-tertiary)';
     }}
     onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.45';
+      e.currentTarget.style.opacity = '0.7';
       e.currentTarget.style.background = 'transparent';
     }}
   >
@@ -472,6 +556,7 @@ const Message = ({
   metadata, onSwitchVersion,
   onOpenArtifact,
   steps,
+  canvasSnapshot,
   isSessionActive,
   streamingMessageId,
 }) => {
@@ -481,9 +566,19 @@ const Message = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isContextExpanded, setIsContextExpanded] = useState(false);
   const editRef = useRef(null);
 
-  const displayContent = isStreaming ? streamingContent : content;
+  const isThisStreaming = isSessionActive && streamingMessageId === messageId;
+  const isCurrentlyStreaming = isStreaming && isThisStreaming;
+
+  const rawContent = isStreaming ? streamingContent : content;
+  const { content: displayContent, artifact: extractedArtifact } = React.useMemo(
+    () => extractJsonResponse(rawContent),
+    [rawContent]
+  );
+
+  const artifactData = metadata?.artifactData || extractedArtifact;
   const isWaitingToRegenerate = isSessionActive && !isStreaming && streamingMessageId === messageId;
   const isRegenerating = isSessionActive && isStreaming && streamingMessageId === messageId && !displayContent;
 
@@ -540,9 +635,9 @@ const Message = ({
           {isEditing ? (
             <motion.div
               key="editing"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="w-full"
             >
               <div
@@ -601,19 +696,23 @@ const Message = ({
               {/* Message bubble */}
               <motion.div
                 key="bubble"
-                initial={isStreaming ? { opacity: 1 } : { opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={isStreaming ? { duration: 0 } : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="relative min-w-0 max-w-full break-words overflow-hidden"
+                initial={isStreaming ? { opacity: 1 } : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={isStreaming ? { duration: 0 } : { duration: 0.2 }}
+                className="relative min-w-0 max-w-full break-words overflow-hidden transition-all duration-300"
                 style={isAssistant ? {
                   color: 'var(--text-primary)',
-                  padding: '4px 0',
+                  padding: '4px 0 12px 0',
+                  background: 'transparent',
+                  border: 'none',
                 } : {
-                  background: 'var(--text-primary)',
-                  color: 'var(--bg-primary)',
-                  borderRadius: '20px 20px 4px 20px',
-                  padding: '10px 16px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
+                  background: 'var(--user-bubble-bg)',
+                  color: 'var(--bg-primary)', // User bubble uses primary text as background, so inverse text
+                  borderRadius: '22px 22px 4px 22px',
+                  padding: '12px 18px',
+                  boxShadow: 'var(--shadow-md)',
+                  border: '1px solid var(--border-color)',
+                  backdropFilter: 'blur(12px)',
                 }}
               >
                 {isAssistant ? (
@@ -623,9 +722,9 @@ const Message = ({
                         {[0, 1, 2].map((i) => (
                           <motion.span
                             key={i}
-                            animate={{ 
+                            animate={{
                               scale: [1, 1.2, 1],
-                              opacity: [0.3, 1, 0.3] 
+                              opacity: [0.3, 1, 0.3]
                             }}
                             transition={{
                               duration: 1.2,
@@ -642,46 +741,102 @@ const Message = ({
                           />
                         ))}
                       </div>
-                    ) : isStreaming ? (
-                      <div className="whitespace-pre-wrap leading-relaxed" style={{ fontSize: 14 }}>
-                        {displayContent}
-                        <StreamCursor />
-                      </div>
                     ) : (
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[rehypeKatex]}
                         components={markdownComponents}
                       >
-                        {displayContent || ''}
+                        {(displayContent || '') + (isStreaming ? '█' : '')}
                       </ReactMarkdown>
                     )}
                   </div>
                 ) : (
-                  <div>
-                    <p
-                      style={{
-                        color: 'inherit',
-                        whiteSpace: 'pre-wrap',
-                        lineHeight: 1.6,
-                        fontWeight: 500,
-                        letterSpacing: '-0.01em',
-                        fontSize: 13.5,
-                        margin: 0,
-                        display: !isExpanded && displayContent?.length > 400 ? '-webkit-box' : 'block',
-                        WebkitLineClamp: !isExpanded && displayContent?.length > 400 ? 8 : undefined,
-                        WebkitBoxOrient: !isExpanded && displayContent?.length > 400 ? 'vertical' : undefined,
-                        overflow: !isExpanded && displayContent?.length > 400 ? 'hidden' : 'visible',
-                      }}
-                    >
-                      {displayContent}
-                    </p>
+                  <div className="flex flex-col gap-2.5">
+                    {(() => {
+                      // Detect "Context: ... Question: ..." pattern
+                      const contextMatch = displayContent?.match(/^Context: "([\s\S]*?)"\n\nQuestion: ([\s\S]*)$/);
+
+                      if (contextMatch) {
+                        const [, context, question] = contextMatch;
+                        return (
+                          <>
+                            {/* Context Card */}
+                            <div
+                              className="py-1.5 mb-2 mt-1"
+                              style={{ borderLeft: '4px solid currentColor', paddingLeft: 18, opacity: 0.6 }}
+                            >
+                              <div className="flex items-center gap-2 mb-1 opacity-80">
+                                <Quote size={10} className="fill-current" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Context</span>
+                              </div>
+                              <p
+                                className="text-[13px] leading-relaxed italic font-normal"
+                                style={{
+                                  color: 'inherit',
+                                  opacity: 1,
+                                  display: isContextExpanded ? 'block' : '-webkit-box',
+                                  WebkitLineClamp: isContextExpanded ? 'none' : 3,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: isContextExpanded ? 'visible' : 'hidden',
+                                }}
+                              >
+                                "{context}"
+                              </p>
+                              {context.length > 100 && (
+                                <button
+                                  onClick={() => setIsContextExpanded(!isContextExpanded)}
+                                  className="mt-2 text-[10px] font-bold uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity block text-left"
+                                >
+                                  {isContextExpanded ? 'Collapse' : 'READ MORE ...'}
+                                </button>
+                              )}
+                            </div>
+                            {/* Question text */}
+                            <p 
+                              className="text-[14px] leading-relaxed font-medium px-1"
+                              style={{ color: 'var(--bg-primary)', opacity: 1 }}
+                            >
+                              {question}
+                            </p>
+                          </>
+                        );
+                      }
+
+                      return (
+                        <p
+                          style={{
+                            color: 'var(--bg-primary)',
+                            opacity: 1,
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: 1.6,
+                            fontWeight: 500,
+                            letterSpacing: '-0.01em',
+                            fontSize: 14,
+                            margin: 0,
+                            display: !isExpanded && displayContent?.length > 400 ? '-webkit-box' : 'block',
+                            WebkitLineClamp: !isExpanded && displayContent?.length > 400 ? 8 : undefined,
+                            WebkitBoxOrient: !isExpanded && displayContent?.length > 400 ? 'vertical' : undefined,
+                            overflow: !isExpanded && displayContent?.length > 400 ? 'hidden' : 'visible',
+                          }}
+                        >
+                          {displayContent}
+                        </p>
+                      );
+                    })()}
+
                     {displayContent?.length > 400 && (
                       <button
                         onClick={() => setIsExpanded(!isExpanded)}
-                        style={{ marginTop: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.6, color: 'inherit', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        style={{ 
+                          marginTop: 6, fontSize: 11, fontWeight: 700, 
+                          textTransform: 'uppercase', letterSpacing: '0.08em', 
+                          opacity: 0.8, color: 'var(--bg-primary)', 
+                          background: 'none', border: 'none', cursor: 'pointer', 
+                          padding: 0, textAlign: 'left', display: 'block', width: 'fit-content'
+                        }}
                       >
-                        {isExpanded ? 'Show less' : 'Read more'}
+                        {isExpanded ? 'Show less' : 'READ MORE ...'}
                       </button>
                     )}
                   </div>
@@ -689,12 +844,13 @@ const Message = ({
               </motion.div>
 
               {/* Visual Artifact Card (Progressive & Final) */}
-              {isAssistant && (metadata?.artifactId || metadata?.hasVisualArtifact) && (
-                <VisualArtifactCard 
-                  artifactId={metadata.artifactId || metadata?.id || messageId}
-                  title={metadata.artifactTitle || (metadata.artifactId ? 'Visualization' : undefined)}
-                  rendererType={metadata.rendererType || (metadata.hasVisualArtifact ? 'cinematic' : 'd3')}
-                  status={metadata.artifactStatus || (isStreaming ? 'generating' : 'completed')}
+              {isAssistant && (metadata?.artifactId || metadata?.hasVisualArtifact || artifactData) && (
+                <VisualArtifactCard
+                  artifactId={metadata?.artifactId}
+                  artifactData={artifactData}
+                  title={artifactData?.title || metadata?.artifactTitle}
+                  rendererType={artifactData?.rendererType || artifactData?.type || metadata?.rendererType}
+                  status={metadata?.artifactStatus || (isStreaming ? 'generating' : 'completed')}
                 />
               )}
 
@@ -705,6 +861,7 @@ const Message = ({
                   messageId={messageId}
                   canvasType={canvasType}
                   stepCount={steps?.length}
+                  title={canvasSnapshot?.title || metadata?.canvasSnapshot?.title}
                 />
               )}
 
@@ -786,7 +943,7 @@ const Message = ({
                         cursor: metadata.activeVersionIndex === 0 ? 'default' : 'pointer',
                         padding: '0 1px',
                         color: 'var(--text-tertiary)',
-                        opacity: metadata.activeVersionIndex === 0 ? 0.15 : 0.5,
+                        opacity: metadata.activeVersionIndex === 0 ? 0.15 : 0.8,
                         fontSize: 13,
                         lineHeight: 1,
                         transition: 'opacity 0.15s ease',
@@ -803,7 +960,7 @@ const Message = ({
                         fontSize: 11,
                         fontWeight: 500,
                         color: 'var(--text-tertiary)',
-                        opacity: 0.5,
+                        opacity: 0.8,
                         fontVariantNumeric: 'tabular-nums',
                         padding: '0 2px',
                         letterSpacing: '-0.01em',
@@ -851,7 +1008,7 @@ const Message = ({
                     fontWeight: 400,
                   }}
                 >
-                  <div style={{ opacity: 0.35, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ opacity: 0.8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     {isAssistant && metadata?.latencyMs && (
                       <span>{(metadata.latencyMs / 1000).toFixed(1)}s</span>
                     )}

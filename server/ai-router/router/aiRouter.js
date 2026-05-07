@@ -106,8 +106,19 @@ export async function routeConversation(messages, options = {}) {
 
   logger.info(`[Chat] Routing conversation (${messages.length} messages)...`);
 
-  // Priority: OpenRouter (Claude) → Groq → Gemini for conversation quality
-  const conversationPriority = ['openrouter', 'groq', 'gemini'];
+  // Use centralized priority from AI_CONFIG
+  const conversationPriority = AI_CONFIG.priority || ['groq', 'gemini', 'openrouter'];
+  
+  // SANITIZATION: Ensure messages are clean before sending to providers
+  const cleanMessages = messages.map(m => ({
+    role: m.role || 'user',
+    content: typeof m.content === 'string' ? m.content.trim() : String(m.content || '')
+  })).filter(m => m.content && m.content.length > 0);
+
+  if (cleanMessages.length === 0) {
+    throw new Error('INTERNAL_ERROR: No valid messages found to send to AI.');
+  }
+
   let fallbackUsed = false;
 
   for (const providerKey of conversationPriority) {
@@ -144,7 +155,7 @@ export async function routeConversation(messages, options = {}) {
 
         try {
           const completion = await or.chat.completions.create(
-            { messages, model: config.model },
+            { messages: cleanMessages, model: config.model },
             { signal: controller.signal }
           );
           content = completion.choices[0].message.content;
@@ -168,7 +179,7 @@ export async function routeConversation(messages, options = {}) {
               'Authorization': `Bearer ${apiKey}`,
             },
             signal: controller.signal,
-            body: JSON.stringify({ messages, model: config.model }),
+            body: JSON.stringify({ messages: cleanMessages, model: config.model }),
           });
 
           if (!response.ok) {
@@ -187,7 +198,7 @@ export async function routeConversation(messages, options = {}) {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error('Gemini API key missing');
 
-        const prompt = messages
+        const prompt = cleanMessages
           .map((m) => `[${m.role.toUpperCase()}]: ${m.content}`)
           .join('\n\n');
 

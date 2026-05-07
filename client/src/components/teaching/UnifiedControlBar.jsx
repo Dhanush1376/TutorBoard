@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipBack, SkipForward,
   Gauge, MessageSquare, ChevronUp, ChevronDown,
-  Keyboard,
+  Keyboard, Volume2, VolumeX
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 
@@ -137,6 +137,8 @@ const UnifiedControlBar = ({
       );
     });
   }, [totalSteps, currentStepIndex, onGoToStep]);
+
+  const { isVoiceEnabled, toggleVoice } = useTutorStore();
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -273,6 +275,14 @@ const UnifiedControlBar = ({
         icon={Keyboard}
         onClick={() => setShowKeyHints(prev => !prev)}
         label={showKeyHints ? 'On' : null}
+        size={13}
+      />
+
+      {/* ── Volume Toggle ── */}
+      <ControlButton
+        icon={isVoiceEnabled ? Volume2 : VolumeX}
+        onClick={toggleVoice}
+        keyHint={showKeyHints ? 'V' : null}
         size={13}
       />
 

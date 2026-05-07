@@ -15,6 +15,30 @@
 const generateId = (prefix = 'msg') =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
+const extractJsonResponse = (text) => {
+  if (!text || typeof text !== 'string') return { content: text };
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return { content: text };
+  
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed.chat_response) {
+      return {
+        content: parsed.chat_response,
+        artifact: parsed.artifact || null,
+        canvasType: parsed.canvasType || parsed.artifact?.type || null
+      };
+    }
+    // If it's a generic JSON but has a text-like field
+    if (parsed.text && typeof parsed.text === 'string') {
+      return { content: parsed.text, artifact: parsed.artifact || null };
+    }
+  } catch (e) {
+    // Not valid JSON or different structure, return as is
+  }
+  return { content: text };
+};
+
 const buildNormalizedSession = () => ({
   messagesById: {},
   orderedMessageIds: [],
@@ -53,11 +77,11 @@ const toUiMessage = (msg) => {
 
 const ALLOWED_STREAM_TRANSITIONS = {
   idle:       new Set(['requesting']),
-  requesting: new Set(['streaming', 'failed', 'aborted']),
+  requesting: new Set(['streaming', 'failed', 'aborted', 'completed']),
   streaming:  new Set(['completed', 'failed', 'aborted']),
   completed:  new Set(['requesting']),
-  failed:     new Set(['requesting']),
-  aborted:    new Set(['requesting']),
+  failed:     new Set(['requesting', 'completed']),
+  aborted:    new Set(['requesting', 'completed']),
 };
 
 const canTransitionStream = (fromStatus = 'idle', toStatus = 'idle') =>
@@ -325,7 +349,13 @@ export const createConversationSlice = (set, get) => ({
     const currentViewId = chatSessionId || activeSessionId;
     const isCurrentChat = sid === currentViewId || sid === chatSessionId || sid === activeSessionId;
     const targetMsgId = get().sessionStates[sid]?.messageId || get().streamingMessageId;
-    const existingIdx = conversationMessages.findIndex((m) => m.id === targetMsgId);
+    let existingIdx = conversationMessages.findIndex((m) => m.id === targetMsgId);
+
+    // Extraction logic for JSON-wrapped responses
+    const { content: cleanContent, artifact, canvasType: extractedCanvasType } = extractJsonResponse(finalContent);
+    const effectiveContent = cleanContent;
+    const effectiveCanvasType = canvasType || extractedCanvasType;
+    const effectiveArtifactId = artifactId || (artifact ? `art-${Date.now()}` : null);
 
     set((state) => {
       // FIX: Validate streamToken before committing
@@ -363,7 +393,11 @@ export const createConversationSlice = (set, get) => ({
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
       const normalizedSession = state.conversationSessions[sid];
       const streamStatus = normalizedSession.streamState.status || 'idle';
-      if (!canTransitionStream(streamStatus, 'completed')) return;
+      // FIX: Allow 'idle→completed' as a fallback for race conditions where
+      // startStreaming ran against a different sid than finishStreaming resolves.
+      // Without this, finishStreaming silently returns and no message ever appears.
+      const canComplete = canTransitionStream(streamStatus, 'completed') || streamStatus === 'idle';
+      if (!canComplete) return;
 
       if (sid === state.streamingSessionId || sid === state.chatSessionId) {
         state.isStreaming = false;
@@ -392,11 +426,16 @@ export const createConversationSlice = (set, get) => ({
 
         let updatedVersions;
         if (isRegeneration) {
-          // FIX: Append version ONLY here (not in prepareRegeneration)
-          updatedVersions = [
-            ...existingVersions,
-            { text: finalContent, subsequentMessages: [] },
-          ];
+          // Idempotency check: if this version already exists (e.g. from server 'done' sync), don't double-append
+          const alreadyExists = existingVersions.some(v => v.text === finalContent);
+          if (alreadyExists) {
+            updatedVersions = existingVersions;
+          } else {
+            updatedVersions = [
+              ...existingVersions,
+              { text: finalContent, subsequentMessages: [] },
+            ];
+          }
         } else {
           updatedVersions = existingVersions.map((v, i) =>
             i === activeIdx ? { ...v, text: finalContent } : v
@@ -407,17 +446,20 @@ export const createConversationSlice = (set, get) => ({
 
         state.conversationMessages[existingIdx] = {
           ...targetMsg,
-          content: finalContent,
-          hasCanvas: !!canvasType || targetMsg.hasCanvas,
-          canvasType: canvasType || targetMsg.canvasType,
+          content: effectiveContent,
+          hasCanvas: !!effectiveCanvasType || targetMsg.hasCanvas,
+          canvasType: effectiveCanvasType || targetMsg.canvasType,
           metadata: {
             ...targetMsg.metadata,
             regenerated: isRegeneration,
             thought: thoughtContent || targetMsg.metadata.thought,
             sources: sources.length > 0 ? sources : targetMsg.metadata.sources,
             searchPerformed: state.isSearchPerformed || targetMsg.metadata.searchPerformed,
-            artifactId: artifactId || targetMsg.metadata.artifactId,
-            versions: updatedVersions,
+            artifactId: effectiveArtifactId || targetMsg.metadata.artifactId,
+            artifactData: artifact || targetMsg.metadata.artifactData,
+            versions: updatedVersions.map((v, i) => 
+              i === newActiveIdx ? { ...v, text: effectiveContent } : v
+            ),
             activeVersionIndex: newActiveIdx,
             latencyMs: latencyMs || targetMsg.metadata.latencyMs,
             aborted: false,
@@ -432,17 +474,18 @@ export const createConversationSlice = (set, get) => ({
       } else if (isCurrentChat) {
         const msg = {
           id: targetMsgId || generateId('assistant'),
-          role: 'assistant', content: finalContent,
+          role: 'assistant', content: effectiveContent,
           timestamp: new Date().toISOString(),
-          hasCanvas: !!canvasType,
-          canvasType,
+          hasCanvas: !!effectiveCanvasType,
+          canvasType: effectiveCanvasType,
           metadata: {
             edited: false, regenerated: false, feedback: null, aborted: false, error: null,
             thought: thoughtContent,
             sources,
             searchPerformed: state.isSearchPerformed,
-            artifactId,
-            versions: [{ text: finalContent, subsequentMessages: [] }],
+            artifactId: effectiveArtifactId,
+            artifactData: artifact,
+            versions: [{ text: effectiveContent, subsequentMessages: [] }],
             activeVersionIndex: 0,
             latencyMs,
           },
@@ -664,24 +707,28 @@ export const createConversationSlice = (set, get) => ({
   },
 
   addMessageVersion: (messageId, text, metadata = {}) => {
-    set((state) => ({
-      conversationMessages: state.conversationMessages.map((m) => {
-        if (m.id !== messageId) return m;
-        const versions = m.metadata.versions || [{ text: m.content, subsequentMessages: [] }];
-        return {
-          ...m, content: text,
-          metadata: {
-            ...m.metadata, ...metadata,
-            versions: [...versions, { text, subsequentMessages: [] }],
-            activeVersionIndex: versions.length,
-          },
-        };
-      }),
-    }));
+    // ✅ FIX: mutate draft — do NOT return new object from immer producer
+    set((state) => {
+      const idx = state.conversationMessages.findIndex(m => m.id === messageId);
+      if (idx === -1) return;
+      const m = state.conversationMessages[idx];
+      const versions = m.metadata.versions || [{ text: m.content, subsequentMessages: [] }];
+      state.conversationMessages[idx] = {
+        ...m, content: text,
+        metadata: {
+          ...m.metadata, ...metadata,
+          versions: [...versions, { text, subsequentMessages: [] }],
+          activeVersionIndex: versions.length,
+        },
+      };
+    });
   },
 
   deleteMessageById: (messageId) => {
-    set((state) => ({ conversationMessages: state.conversationMessages.filter((m) => m.id !== messageId) }));
+    // ✅ FIX: mutate draft
+    set((state) => {
+      state.conversationMessages = state.conversationMessages.filter((m) => m.id !== messageId);
+    });
   },
 
   removeLastAssistantMessage: () => {
@@ -717,28 +764,45 @@ export const createConversationSlice = (set, get) => ({
   },
 
   clearConversation: () => {
+    // FIX: Also clear sessionStates and conversationSessions so stale streamTokens
+    // from the previous session don't block appendStreamChunk on the new session.
     set({
-      conversationMessages: [], isStreaming: false, streamingContent: '', streamingMessageId: null,
-      isWaitingForAI: false, lastAIError: null, conversationTopic: null,
-      conversationIntent: null, editingMessageId: null, editingContent: '',
-      conversationSources: [], lastStreamSources: [],
+      conversationMessages: [],
+      conversationSessions: {},
+      sessionStates: {},
+      activeConversationSessionId: null,
+      isStreaming: false,
+      streamingContent: '',
+      streamingThought: '',
+      streamingMessageId: null,
+      streamingSessionId: null,
+      streamTokenCounter: 0,
+      isWaitingForAI: false,
+      waitingSessionId: null,
+      lastAIError: null,
+      conversationTopic: null,
+      conversationIntent: null,
+      editingMessageId: null,
+      editingContent: '',
+      conversationSources: [],
+      lastStreamSources: [],
     });
   },
 
   setMessageFeedback: (messageId, feedback) => {
-    set((state) => ({
-      conversationMessages: state.conversationMessages.map((m) =>
-        m.id === messageId ? { ...m, metadata: { ...m.metadata, feedback } } : m
-      ),
-    }));
+    // ✅ FIX: mutate draft
+    set((state) => {
+      const idx = state.conversationMessages.findIndex(m => m.id === messageId);
+      if (idx !== -1) state.conversationMessages[idx].metadata.feedback = feedback;
+    });
   },
 
   updateMessageMetadata: (messageId, metadata) => {
-    set((state) => ({
-      conversationMessages: state.conversationMessages.map((m) =>
-        m.id === messageId ? { ...m, metadata: { ...m.metadata, ...metadata } } : m
-      ),
-    }));
+    // ✅ FIX: mutate draft
+    set((state) => {
+      const idx = state.conversationMessages.findIndex(m => m.id === messageId);
+      if (idx !== -1) Object.assign(state.conversationMessages[idx].metadata, metadata);
+    });
   },
 
   setConversationTopic: (topic) => set({ conversationTopic: topic }),
@@ -762,7 +826,7 @@ export const createConversationSlice = (set, get) => ({
       }
       const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
       resyncNormalizedSession(state, sid, msgs);
-      return { conversationMessages: msgs };
+      state.conversationMessages = msgs;
     });
   },
 

@@ -33,6 +33,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     setMachineState, setSessionId, setConnected, setConnectionError, syncConnection,
     setTimeline, loadScene, setCurrentStep, setError, setGreeting, setChatSessionId,
     setLearnerProfile, setResumeContext, setLevelUpEvent,
+    setGenerationProgress,
 
     setDoubtProcessing, addDoubt, setDoubtResponse, setDeltaState,
     mutateCanvasObjects, addCanvasObjects,
@@ -340,12 +341,31 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     cleanups.push(on('teaching:error', (data) => {
       console.error('[Machine] Error:', data.message);
       setError(data.message);
+      // FIX: Clear the waiting indicator so the spinner doesn't spin forever after an error
+      const store = useTutorStore.getState();
+      const sid = store.chatSessionId || store.sessionId || 'temp';
+      store.setWaitingForAI(false, sid);
     }));
 
     // Greeting (quick text answer or fallback)
+    // FIX: Route through startStreaming/finishStreaming so the response appears in the chat window.
+    // The old setGreeting() wrote to greetingMessage state which is read by a chatHistory useEffect in Home.jsx
+    // but conversationMessages (what ChatWindow renders) never got updated — so nothing showed.
     cleanups.push(on('teaching:greeting', (data) => {
       console.log('[Machine] Greeting received:', (data.message || '').substring(0, 60));
-      setGreeting(data.message);
+      if (!data.message) return;
+      const store = useTutorStore.getState();
+      // FIX: Prefer sessionId from server payload (most reliable), then fall back to store state.
+      // Without this, store.chatSessionId may be null (reset by setSessionId) and
+      // store.sessionId may not yet match the socket session, causing sid mismatch.
+      const sid = data.sessionId || store.chatSessionId || store.sessionId || store.activeConversationSessionId || 'temp';
+      const msgId = `greeting-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+      const token = `gtok-${Date.now()}`;
+      store.startStreaming(msgId, sid, token);
+      // Small delay so isWaitingForAI clears before we finalize, avoiding a flicker
+      setTimeout(() => {
+        store.finishStreaming(data.message, sid, null, [], null, null, 0, token);
+      }, 50);
     }));
 
     // ─── Adaptive Replanning Events ─────────────────────────────────────────

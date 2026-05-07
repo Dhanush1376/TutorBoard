@@ -70,6 +70,42 @@ export const createSessionSlice = (set, get) => ({
   setLevelUpEvent: (evt) => set({ levelUpEvent: evt }),
 
 
+  chatHistory: [],
+  setChatHistory: (history) => set({ chatHistory: history }),
+  
+  /** Update an existing entry in the sidebar history */
+  updateChatHistoryEntry: (id, updates) => set(state => {
+    const idx = state.chatHistory.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      state.chatHistory[idx] = { ...state.chatHistory[idx], ...updates };
+    }
+  }),
+
+  /** Add a new entry to the top of the history */
+  addChatHistoryEntry: (entry) => set(state => {
+    // Prevent duplicate IDs
+    if (state.chatHistory.some(s => s.id === entry.id)) return;
+    state.chatHistory.unshift(entry);
+    // Limit local history to 50 entries
+    if (state.chatHistory.length > 50) state.chatHistory.pop();
+  }),
+
+  /** Swap a temporary ID for a permanent one in the history */
+  promoteChatHistoryId: (oldId, newId) => set(state => {
+    const idx = state.chatHistory.findIndex(s => s.id === oldId);
+    if (idx !== -1) {
+      // Check if the new ID already exists (collision)
+      const existingIdx = state.chatHistory.findIndex(s => s.id === newId);
+      if (existingIdx !== -1) {
+        // Merge or just remove the old one
+        state.chatHistory.splice(idx, 1);
+      } else {
+        state.chatHistory[idx].id = newId;
+        state.chatHistory[idx].chatSessionId = newId;
+      }
+    }
+  }),
+
   setMachineState:  (state) => set({ machineState: state, error: null }),
   setTopic:         (topic) => set({ topic }),
   setConnected:     (connected) => set({ isConnected: connected }),
@@ -77,7 +113,7 @@ export const createSessionSlice = (set, get) => ({
   setSyncError:      (err)     => set({ syncError: err }),
   syncConnection:   (connected, error) => set({ isConnected: connected, connectionError: error }),
   setError:         (err)       => set({ error: err, machineState: STATES.IDLE }),
-  setGreeting:      (msg)       => set({ greetingMessage: msg, machineState: STATES.IDLE }),
+  setGreeting:      (msg)       => set({ greetingMessage: msg }), 
   setChatSessionId: (id)        => set({ chatSessionId: id }),
   setNarrationTokens: (tokens)  => set({ narrationTokens: tokens }),
   triggerSync:      ()          => set({ syncTrigger: Date.now() }),

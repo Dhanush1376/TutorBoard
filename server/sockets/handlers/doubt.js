@@ -81,7 +81,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
             snapshot,
             mode
           ),
-          45000
+          90000
         );
 
         machine.send(EVENTS.DOUBT_RESPONSE_READY, { response });
@@ -220,6 +220,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         // Classify error source for targeted frontend messaging
         const isCustomApiError = err.message?.includes('Your API') || err.message?.includes('Custom API');
         const isSystemError = err.message?.includes('SYSTEM_NOT_CONFIGURED') || err.message?.includes('SYSTEM_FAILURE');
+        const isTimeout = err.message?.includes('timed out');
 
         let errorMessage = 'Something went wrong while processing your question.';
         let errorType = 'generic';
@@ -230,7 +231,13 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         } else if (isSystemError) {
           errorMessage = 'TutorBoard system APIs are not available. Please add your own API key in Settings → AI Configuration.';
           errorType = 'system_not_configured';
+        } else if (isTimeout) {
+          errorMessage = 'The AI is taking too long to respond. Please try again or rephrase your question.';
+          errorType = 'timeout';
         }
+
+        // Emit fatal error event for store's lastAIError
+        socket.emit('teaching:error', { message: errorMessage, errorType });
 
         socket.emit('teaching:doubt-response', {
           _question: cleanQuestion,

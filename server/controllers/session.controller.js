@@ -124,53 +124,82 @@ export const saveSession = async (req, res) => {
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
 
-    if (sessionId && isMongoId) {
-      // Build update object — only include fields that were actually sent
-      const updateFields = { lastUpdated: Date.now() };
-      if (title !== undefined) updateFields.title = title;
-      
-      // Always sync top-level canvas state if provided
-      if (canvasState !== undefined) updateFields.canvasState = canvasState;
-      if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
-      if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
+    // Build update object — only include fields that were actually sent
+    const updateFields = { lastUpdated: Date.now() };
+    if (title !== undefined) updateFields.title = title;
+    if (canvasState !== undefined) updateFields.canvasState = canvasState;
+    if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
+    if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
+    if (preferences !== undefined) updateFields.preferences = preferences;
 
-      // If we're editing a specific message's snapshot, inject the state there
-      if (activeSnapshotId && messages) {
-        const msgIndex = messages.findIndex(m => m.id === activeSnapshotId);
-        if (msgIndex !== -1) {
-          messages[msgIndex].canvasSnapshot = {
-            canvasObjects: canvasState,
-            canvasSteps,
-            canvasVersion,
-            totalSteps: canvasSteps?.length || 0,
-            currentStepIndex: req.body.currentStepIndex || 0,
-          };
-          messages[msgIndex].hasCanvas = true;
-        }
-        updateFields.messages = messages;
-      } else {
-        // Normal session-wide message update
-        if (messages !== undefined) updateFields.messages = messages;
+    if (activeSnapshotId && messages) {
+      const msgIndex = messages.findIndex(m => m.id === activeSnapshotId);
+      if (msgIndex !== -1) {
+        messages[msgIndex].canvasSnapshot = {
+          canvasObjects: canvasState,
+          canvasSteps,
+          canvasVersion,
+          totalSteps: canvasSteps?.length || 0,
+          currentStepIndex: req.body.currentStepIndex || 0,
+        };
+        messages[msgIndex].hasCanvas = true;
       }
+      updateFields.messages = messages;
+    } else if (messages !== undefined) {
+      updateFields.messages = messages;
+    }
 
-      if (preferences !== undefined) updateFields.preferences = preferences;
+    if (sessionId) {
+      const query = isMongoId 
+        ? (isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() })
+        : (isGuest ? { engineSessionId: sessionId, userId: null } : { engineSessionId: sessionId, userId: userId.toString() });
 
-      const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
-      
+      // ATOMIC UPSERT: Ensure only one document is created/updated for this ID
       session = await ChatSession.findOneAndUpdate(
         query,
-        { $set: updateFields },
-        { new: true, runValidators: true }
+        { 
+          $set: updateFields,
+          $setOnInsert: {
+            userId: isGuest ? null : userId,
+            title: title || 'New Session',
+            engineSessionId: isMongoId ? null : sessionId,
+            messages: messages || [],
+            canvasState: canvasState || [],
+            canvasSteps: canvasSteps || [],
+            canvasVersion: canvasVersion || 0,
+            preferences: preferences || {},
+          }
+        },
+        { 
+          new: true, 
+          upsert: true, 
+          runValidators: true,
+          setDefaultsOnInsert: true 
+        }
       );
       
       if (session) {
-        console.log(`[DB] ✅ Updated existing session: ${session._id}`);
+        const wasCreated = session.createdAt && (Date.now() - session.createdAt.getTime() < 1000);
+        console.log(`[DB] ${wasCreated ? '✨ Created' : '✅ Updated'} session via ${isMongoId ? 'ObjectId' : 'EngineId'}: ${session._id}`);
+        
+        if (wasCreated) {
+          logActivity({
+            userId: isGuest ? null : userId,
+            sessionId: session._id.toString(),
+            eventType: 'session_start',
+            eventData: { title: session.title }
+          });
+        } else {
+          logActivity({
+            userId: isGuest ? null : userId,
+            sessionId: session._id.toString(),
+            eventType: 'canvas_action',
+            eventData: { version: canvasVersion }
+          });
+        }
       }
-    }
-
-    if (!session) {
-      // Create new session if document not found or if sessionId is a local UUID
-      // This handles the "Initial Save" from the client before a MongoDB ID is assigned.
+    } else {
+      // No sessionId provided at all (rare fallback)
       session = await ChatSession.create({
         userId: isGuest ? null : userId,
         title: title || 'New Session',
@@ -179,26 +208,8 @@ export const saveSession = async (req, res) => {
         canvasSteps: canvasSteps || [],
         canvasVersion: canvasVersion || 0,
         preferences: preferences || {},
-        engineSessionId: sessionId // Store the client's local ID for audit/linking
       });
-      console.log(`[DB] ✨ Created new session: ${session._id} (Client UUID: ${sessionId}) (Guest: ${isGuest})`);
-      
-      // LOG ACTIVITY: Session Start
-      logActivity({
-        userId: isGuest ? null : userId,
-        sessionId: session._id.toString(),
-        eventType: 'session_start',
-        eventData: { title: session.title }
-      });
-    }
-  else {
-    // LOG ACTIVITY: Session Update (e.g. canvas action)
-    logActivity({
-      userId: isGuest ? null : userId,
-        sessionId: session._id.toString(),
-        eventType: 'canvas_action',
-        eventData: { version: canvasVersion }
-      });
+      console.log(`[DB] 🌟 Created fallback session: ${session._id}`);
     }
 
     res.json(session);

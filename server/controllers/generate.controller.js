@@ -22,7 +22,7 @@ export const generateExplanation = async (req, res) => {
     console.log(`[Generate] Orchestrating timeline for: "${prompt}" (Agent: ${agentId})`);
     const timeline = await generateTimeline(sessionId, prompt, undefined, modelId, userConfig);
 
-    if (timeline && timeline.steps) {
+    if (timeline && (timeline.steps || timeline.timeline)) {
       console.log(`[Generate] ✅ Orchestration Success`);
       return res.json(timeline);
     }

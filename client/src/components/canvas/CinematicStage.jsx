@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import VisaiLogo from '../layout/VisaiLogo';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
+import ParticleWaves from './ParticleWaves';
 
 /**
  * CinematicStage v1.0 — Premium Teaching Canvas Container
@@ -149,6 +150,11 @@ const CinematicStage = ({
         isolation: 'isolate',
       }}
     >
+      {/* ── Ambient Particle Waves ── */}
+      {!activeScene && !isGenerating && (
+        <ParticleWaves opacity={0.8} />
+      )}
+
       {/* ── Ambient Glow Layer ── */}
       <AnimatePresence mode="popLayout">
         <motion.div
@@ -283,9 +289,13 @@ const CinematicStage = ({
                 justifyContent: 'center',
                 gap: 16,
                 zIndex: 55,
-                background: 'var(--bg-primary)',
               }}
             >
+              <div 
+                className="absolute inset-0 bg-[var(--bg-primary)]" 
+                style={{ zIndex: -2 }}
+              />
+              <ParticleWaves opacity={0.5} />
               {/* Shimmer skeleton blocks */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
                 <motion.div

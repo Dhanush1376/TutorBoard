@@ -23,13 +23,16 @@ import {
   Sparkles,
   Lock,
   Timer,
-  SkipBack
+  SkipBack,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
 import useWindowSize from '../../hooks/useWindowSize';
+import useVoiceInput from '../../hooks/useVoiceInput';
 import { TRIAL_LIMITS, isFeatureBlocked } from '../../constants/trialConfig';
 
 import { BASE_URL as API_URL } from '../../services/api';
@@ -319,6 +322,17 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   };
 
   const { isMobile } = useWindowSize();
+
+  const { isListening, toggleListening } = useVoiceInput({
+    onTranscript: (transcript) => {
+      onChange(value ? `${value} ${transcript}` : transcript);
+    },
+    onStateChange: (listening) => {
+      if (listening) {
+        showToast({ message: "Listening... Talk to TutorBoard", type: "success", duration: 2000 });
+      }
+    }
+  });
 
   return (
     <div className={`w-full max-w-4xl mx-auto transition-transform duration-500 ${isFocused ? 'scale-[1.005]' : 'scale-100'}`}>
@@ -687,38 +701,77 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
               </div>
             )}
 
-            {isGenerating && (
-              <button
-                onClick={() => {
-                  setIsStopping(true);
-                  onStopGeneration();
-                }}
-                disabled={isStopping}
-                className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 group shadow-lg ring-1 mr-1 ${isStopping ? 'bg-red-500 text-white shadow-red-500/20 ring-red-500' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20 shadow-red-500/10 ring-red-500/20'}`}
-                title="Stop Generation"
-              >
-                <Square size={13} strokeWidth={3} className={`fill-current transition-transform ${isStopping ? 'scale-90' : 'group-hover:scale-110'}`} />
-              </button>
-            )}
-
+            {/* Voice / Mic Button */}
             <button
-              onClick={() => {
-                if (isTrialExhausted || isOnCooldown) return;
-                if (value.trim() || attachedFile) {
-                  onSubmit(value, attachedFile, activeMode);
-                  setAttachedFile(null);
-                }
-              }}
-              disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${activeMode === 'teach' && (value.trim() || attachedFile || selectedTextContext)
-                  ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
-                  : (value.trim() || attachedFile || selectedTextContext)
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20 hover:shadow-[var(--text-primary)]/30 hover:-translate-y-0.5'
-                    : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/40 shadow-none cursor-not-allowed'
-                }`}
+              onClick={toggleListening}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 group active:scale-95 ${isListening ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] ring-2 ring-red-500/20' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
+              title={isListening ? "Stop Listening" : "Voice Input"}
             >
-              {activeMode === 'teach' ? <GraduationCap size={22} strokeWidth={2} /> : <ArrowUp size={22} strokeWidth={2} />}
+              <div className="relative">
+                {isListening ? (
+                  <>
+                    <Mic size={18} strokeWidth={2.5} />
+                    <motion.div 
+                      initial={{ scale: 0.8, opacity: 0.5 }}
+                      animate={{ scale: 1.5, opacity: 0 }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      className="absolute inset-0 bg-white rounded-full -z-10"
+                    />
+                  </>
+                ) : (
+                  <Mic size={18} strokeWidth={2} className="group-hover:scale-110 transition-transform" />
+                )}
+              </div>
             </button>
+
+            {/* Dynamic Stop/Send Cluster */}
+            <div className="flex items-center gap-1">
+              <AnimatePresence mode="popLayout">
+                {isGenerating && (
+                  <motion.button
+                    key="stop-btn"
+                    initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, x: 20 }}
+                    onClick={() => {
+                      setIsStopping(true);
+                      onStopGeneration();
+                    }}
+                    disabled={isStopping}
+                    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 group shadow-lg ring-1 ${isStopping ? 'bg-red-500 text-white shadow-red-500/20 ring-red-500' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20 shadow-red-500/10 ring-red-500/20'}`}
+                    title="Stop Generation"
+                  >
+                    <Square size={13} strokeWidth={3} className={`fill-current transition-transform ${isStopping ? 'scale-90' : 'group-hover:scale-110'}`} />
+                  </motion.button>
+                )}
+
+                {/* Send Button: Visible if typing OR if NOT generating */}
+                {((value.trim() || attachedFile || selectedTextContext) || !isGenerating) && (
+                  <motion.button
+                    key="send-btn"
+                    initial={{ opacity: 0, scale: 0.8, x: -10 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, x: -10 }}
+                    onClick={() => {
+                      if (isTrialExhausted || isOnCooldown) return;
+                      if (value.trim() || attachedFile) {
+                        onSubmit(value, attachedFile, activeMode);
+                        setAttachedFile(null);
+                      }
+                    }}
+                    disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
+                    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${activeMode === 'teach' && (value.trim() || attachedFile || selectedTextContext)
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
+                        : (value.trim() || attachedFile || selectedTextContext)
+                          ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20 hover:shadow-[var(--text-primary)]/30 hover:-translate-y-0.5'
+                          : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/40 shadow-none cursor-not-allowed'
+                      }`}
+                  >
+                    {activeMode === 'teach' ? <GraduationCap size={22} strokeWidth={2} /> : <ArrowUp size={22} strokeWidth={2} />}
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>

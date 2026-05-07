@@ -10,7 +10,8 @@
 
 import redis from '../../utils/core/redis.js';
 
-const COOLDOWN_MS = 60_000;
+const DEFAULT_COOLDOWN_MS = 60_000;
+const GROQ_COOLDOWN_MS = 90_000; // Groq needs more time to reset rate limits
 const TRIP_THRESHOLD = 3;
 const REDIS_KEY_PREFIX = 'cb:provider:';
 
@@ -19,7 +20,7 @@ class CircuitBreaker {
     this.providers = {};
     const ids = ['openrouter', 'openai', 'google', 'anthropic', 'groq', 'deepseek', 'custom'];
     for (const id of ids) {
-      this.providers[id] = this._newProviderState();
+      this.providers[id] = this._newProviderState(id);
     }
     
     // Attempt local state hydration from Redis if possible
@@ -55,12 +56,14 @@ class CircuitBreaker {
     }
   }
 
-  _newProviderState() {
+  _newProviderState(id) {
     return {
+      id,
       // State machine
       state: 'CLOSED',       // CLOSED | OPEN | HALF_OPEN
       consecutiveFailures: 0,
       nextRetryAt: 0,
+      cooldownMs: id === 'groq' ? GROQ_COOLDOWN_MS : DEFAULT_COOLDOWN_MS,
 
       // Health metrics (rolling)
       totalRequests: 0,
@@ -77,8 +80,10 @@ class CircuitBreaker {
    * Check if provider is healthy enough to receive requests
    */
   isAvailable(provider) {
+    if (!this.providers[provider]) {
+      this.providers[provider] = this._newProviderState(provider);
+    }
     const p = this.providers[provider];
-    if (!p) return false;
 
     if (p.state === 'CLOSED' || p.state === 'HALF_OPEN') return true;
 
@@ -97,8 +102,10 @@ class CircuitBreaker {
    * Report a successful request
    */
   reportSuccess(provider, latencyMs = 0) {
+    if (!this.providers[provider]) {
+      this.providers[provider] = this._newProviderState(provider);
+    }
     const p = this.providers[provider];
-    if (!p) return;
 
     p.totalRequests++;
     p.totalSuccesses++;
@@ -117,8 +124,10 @@ class CircuitBreaker {
    * Report a failed request — may trip the breaker
    */
   reportFailure(provider, statusCode = 500, errorType = 'unknown') {
+    if (!this.providers[provider]) {
+      this.providers[provider] = this._newProviderState(provider);
+    }
     const p = this.providers[provider];
-    if (!p) return;
 
     p.totalRequests++;
     p.totalFailures++;
@@ -126,11 +135,13 @@ class CircuitBreaker {
     p.lastFailureAt = Date.now();
     p.lastErrorType = errorType;
 
+    const cooldown = p.cooldownMs || DEFAULT_COOLDOWN_MS;
+
     // HALF_OPEN failed — slam back to OPEN
     if (p.state === 'HALF_OPEN') {
       p.state = 'OPEN';
-      p.nextRetryAt = Date.now() + COOLDOWN_MS;
-      console.warn(`[CircuitBreaker] ⚠️ ${provider}: HALF_OPEN → OPEN (probe failed, cooldown ${COOLDOWN_MS / 1000}s)`);
+      p.nextRetryAt = Date.now() + cooldown;
+      console.warn(`[CircuitBreaker] ⚠️ ${provider}: HALF_OPEN → OPEN (probe failed, cooldown ${cooldown / 1000}s)`);
       this._persistToRedis(provider);
       return;
     }
@@ -140,9 +151,9 @@ class CircuitBreaker {
     
     if (instantTrip || p.consecutiveFailures >= TRIP_THRESHOLD) {
       p.state = 'OPEN';
-      p.nextRetryAt = Date.now() + COOLDOWN_MS;
+      p.nextRetryAt = Date.now() + cooldown;
       const reason = instantTrip ? `HTTP ${statusCode}` : `${p.consecutiveFailures} consecutive failures`;
-      console.warn(`[CircuitBreaker] ⚠️ ${provider}: CLOSED → OPEN (${reason}, cooldown ${COOLDOWN_MS / 1000}s)`);
+      console.warn(`[CircuitBreaker] ⚠️ ${provider}: CLOSED → OPEN (${reason}, cooldown ${cooldown / 1000}s)`);
       this._persistToRedis(provider);
     } else {
       // Just normal failure increment, still persist
@@ -155,7 +166,7 @@ class CircuitBreaker {
    */
   reset(provider) {
     if (this.providers[provider]) {
-      this.providers[provider] = this._newProviderState();
+      this.providers[provider] = this._newProviderState(provider);
       console.log(`[CircuitBreaker] 🔄 ${provider}: Force reset to CLOSED`);
       this._persistToRedis(provider);
     }

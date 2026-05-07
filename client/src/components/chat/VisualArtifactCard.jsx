@@ -17,6 +17,7 @@ const RENDERER_ICONS = {
 
 const VisualArtifactCard = ({ 
   artifactId, 
+  artifactData,
   title, 
   type = 'visual', 
   rendererType = 'cinematic',
@@ -25,20 +26,21 @@ const VisualArtifactCard = ({
   const { openArtifactOnCanvas } = useTutorStore();
   const artifact = useTutorStore(state => 
     state.artifacts?.find(a => a.id === artifactId || a.dbId === artifactId)
-  );
+  ) || artifactData;
 
-  const isPersisting = status === 'completed' && artifact && !artifact.dbId;
-  const canOpen = status === 'completed' && artifact && (artifact.dbId || artifact.id);
+  const isPersisting = status === 'completed' && artifact && !artifact.dbId && !artifactData;
+  const canOpen = status === 'completed' && (artifactData || (artifact && (artifact.dbId || artifact.id)));
 
   const Icon = RENDERER_ICONS[rendererType] || Layers;
 
   const handleOpen = () => {
     if (!canOpen || isPersisting) return;
     openArtifactOnCanvas({ 
-      id: artifact.dbId || artifact.id, 
+      id: artifact.dbId || artifact.id || artifactId, 
       title: artifact.title || title, 
       type: artifact.type || type, 
-      rendererType: artifact.metadata?.rendererType || rendererType 
+      content: artifact.content,
+      rendererType: artifact.metadata?.rendererType || artifact.rendererType || rendererType 
     });
   };
 

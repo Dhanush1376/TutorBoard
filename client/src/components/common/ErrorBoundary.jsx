@@ -26,6 +26,13 @@ class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      if (typeof this.props.fallback === 'function') {
+        return this.props.fallback(this.state.error);
+      }
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
       return (
         <div className="fixed inset-0 z-[2147483647] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
           <motion.div 

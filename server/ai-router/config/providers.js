@@ -7,7 +7,7 @@ export const AI_CONFIG = {
   priority: ["groq", "gemini", "openrouter"],
   
   // Global timeout for any single provider request (increased for complex reasoning)
-  timeout: 60000, 
+  timeout: 90000, 
   
   // Retry configuration
   maxRetries: 2,

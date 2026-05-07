@@ -565,8 +565,6 @@ export async function generateTextResponse(sessionId, prompt, modelId = null, us
       signal,
     });
 
-    return response;
-
     if (response.error || !response.content) {
       const errorMsg = response.error || 'The AI provider returned an empty response.';
       const isCustomError = response._meta?.mode === 'custom' || response.errorType;

@@ -78,6 +78,12 @@ const useTutorStore = create(
 
         switch (type) {
           case 'meta':
+            if (eventData.sessionId) {
+              // Adopt the real MongoDB ID immediately to prevent duplicate session creation
+              // during background auto-syncs.
+              state.setSessionId(eventData.sessionId);
+              state.setChatSessionId(eventData.sessionId);
+            }
             if (eventData.teachingMode) {
               state.activeTeachingMode = eventData.teachingMode;
             }

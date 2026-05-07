@@ -42,10 +42,10 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
           return (
             <motion.div 
               key={sessionKey} 
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.2) }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
             className="relative group/item px-0.5"
           >
             {editingId === chat.id ? (

@@ -148,10 +148,21 @@ export const useSessionSync = (chatMessages) => {
         // we MUST update our local tracking ID so future saves update the same document!
         if (savedSession._id && savedSession._id !== state.chatSessionId) {
           console.log(`[Sync] Adopted MongoDB ID: ${savedSession._id}`);
+          
+          // CRITICAL: Promote the ID in the sidebar history immediately!
+          const oldId = state.chatSessionId || localSessionIdRef.current;
+          state.promoteChatHistoryId(oldId, savedSession._id);
+          
           state.setChatSessionId(savedSession._id);
-          // Clear the local fallback ID — from now on, use the real server ID
-          localSessionIdRef.current = null;
+          localSessionIdRef.current = null; // Clear local fallback
         }
+        
+        // Always update the history entry with latest data (messages, canvas, etc.)
+        state.updateChatHistoryEntry(savedSession._id || state.chatSessionId || localSessionIdRef.current, {
+          messages: savedSession.messages || payload.messages,
+          canvasState: savedSession.canvasState || payload.canvasState,
+          updatedAt: Date.now()
+        });
 
         console.log('[Sync] Session flushed to cloud successfully.');
         lastSyncedRef.current = Date.now();

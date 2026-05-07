@@ -77,7 +77,7 @@ function App() {
 
       const timer = setTimeout(() => {
         setWelcomeLoading(false);
-      }, 5000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [welcomeLoading]);
@@ -185,13 +185,8 @@ function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {(activeOverlay || globalOverlay.isActive) && <GlobalOverlayManager />}
-      </AnimatePresence>
-      <GlobalStatusOverlay />
-      <ThemedPopup />
+      <GlobalOverlayManager />
       <ToastContainer />
-      <TrialLimitOverlay />
       <MasteryDashboard />
 
       <main className="app-main">
@@ -216,3 +211,4 @@ function App() {
 }
 
 export default App;
+ 

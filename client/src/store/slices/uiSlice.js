@@ -1,3 +1,18 @@
+/**
+ * uiSlice.js — TutorBoard UI State
+ *
+ * IMMER FIXES:
+ *   - addRecentColor: was set(state => ({...})) — returns new object inside Immer draft → CRASH
+ *   - markSessionRead: same pattern → CRASH
+ *   - removeToast: same pattern → CRASH
+ *   - closeAlert: same pattern → CRASH
+ *   - setAlertPref: same pattern → CRASH
+ *   - toggleSidebar, toggleSidebarPosition, toggleVoice, etc.: same pattern → CRASH
+ *
+ * Rule: Inside immer()-wrapped zustand, NEVER return a new object from set(state => ...).
+ *   Either: mutate state directly, OR use set({ key: value }) (plain object, no callback).
+ */
+
 export const createUiSlice = (set, get) => ({
   showFloatingSidebar: false,
   showMinimap:         false,
@@ -6,29 +21,32 @@ export const createUiSlice = (set, get) => ({
   isSidebarOpen:       true,
   activeTool:          'select',
   editingObjectId:     null,
-  
+
   showGrid:            true,
   isSnapToGrid:        true,
   isProfileOpen:       false,
-  activeOverlay:       null, // 'settings' | 'visualizer' | 'profile' (if as overlay) | null
-  settingsActiveSection: 'general', // 'general' | 'account' | 'appearance' | 'ai' | 'about'
+  activeOverlay:       null,
+  settingsActiveSection: 'general',
   isExplainMinimized:  false,
   isVisualizerMinimized: false,
   isSettingsMinimized: false,
   isMasteryOpen:        false,
-  unreadSessions:       [], // Array of session IDs that have background updates
-  
+  unreadSessions:       [],
+
+  // ✅ FIX: mutate draft instead of returning new object
   addUnreadSession: (sessionId) => set(s => {
-    if (s.unreadSessions.includes(sessionId)) return {};
-    return { unreadSessions: [...s.unreadSessions, sessionId] };
+    if (s.unreadSessions.includes(sessionId)) return;
+    s.unreadSessions.push(sessionId);
   }),
-  markSessionRead: (sessionId) => set(s => ({
-    unreadSessions: s.unreadSessions.filter(id => id !== sessionId)
-  })),
-  
+
+  // ✅ FIX: plain set() call — no callback returning new object
+  markSessionRead: (sessionId) => set((s) => {
+    s.unreadSessions = s.unreadSessions.filter(id => id !== sessionId);
+  }),
+
   codeEditorCode:      '',
   codeEditorLang:      'javascript',
-  
+
   drawColor:           'var(--text-primary)',
   drawWidth:           3,
   laserWidth:          6,
@@ -45,7 +63,7 @@ export const createUiSlice = (set, get) => ({
   noteToolSize:        16,
 
   shapeStrokeStyle:    'solid',
-  shapeFill:           'transparent', // FIX: was missing, caused shapes to draw with fill:undefined
+  shapeFill:           'transparent',
 
   textType:            'standard',
   textToolSize:        24,
@@ -54,81 +72,93 @@ export const createUiSlice = (set, get) => ({
   textUnderline:       false,
   textAlign:           'center',
   textBgColor:         'transparent',
-  globalOverlay:       { isActive: false, message: '', type: 'sync' }, // sync | network | error
-  
-  // Appearance Expansion
+  globalOverlay:       { isActive: false, message: '', type: 'sync' },
+
   globalFont:          'geist',
   glassIntensity:      80,
   canvasTone:          'neutral',
   motionMode:          'fluid',
-  alertPrefs:          {}, // { [key]: boolean }
+  alertPrefs:          {},
   chatInputText:       '',
   selectedTextContext: null,
+  isVoiceEnabled:      true,
 
-  globalAlert: { 
-    isActive: false, 
-    type: 'info', 
-    title: '', 
-    message: '', 
-    confirmLabel: 'OK', 
+  globalAlert: {
+    isActive: false,
+    type: 'info',
+    title: '',
+    message: '',
+    confirmLabel: 'OK',
     cancelLabel: 'Cancel',
     onConfirm: null,
     onCancel: null
   },
-  toasts: [], // { id, message, type, duration, onUndo }
+  toasts: [],
   featureFlags: {
     enableCodeExecution: true,
     enable3DRenderer: false,
     enableMatterPhysics: true
   },
 
+  setLayoutView: (view) => set({ layoutView: view }),
 
-  setLayoutView:    (view) => set({ layoutView: view }),
   setGlobalOverlay: (overlay) => {
     const current = get().globalOverlay;
-    // SEC-UX: Avoid redundant updates to prevent loops in App.jsx
-    if (overlay.isActive === current.isActive && 
-        overlay.type === current.type && 
+    if (overlay.isActive === current.isActive &&
+        overlay.type === current.type &&
         overlay.message === current.message) return;
     set({ globalOverlay: { ...current, ...overlay } });
   },
-  
-  showAlert: (config) => set({ 
-    globalAlert: { 
-      isActive: true, 
-      type: 'info', 
-      confirmLabel: 'OK', 
-      cancelLabel: 'Cancel', 
-      onConfirm: null, 
-      onCancel: null, 
-      ...config 
-    } 
+
+  showAlert: (config) => set({
+    globalAlert: {
+      isActive: true,
+      type: 'info',
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      onConfirm: null,
+      onCancel: null,
+      ...config
+    }
   }),
-  
-  closeAlert: () => set(s => ({ 
-    globalAlert: { ...s.globalAlert, isActive: false } 
-  })),
+
+  // ✅ FIX: mutate draft
+  closeAlert: () => set((s) => {
+    s.globalAlert.isActive = false;
+  }),
 
   showToast: (config) => {
     const id = Date.now();
+    // ✅ CORRECT: already uses draft mutation — no return value inside set()
     set(s => {
-      const newToasts = [...s.toasts, { id, type: 'info', duration: 5000, ...config }];
-      // Keep only the last 3 toasts
-      return { toasts: newToasts.slice(-3) };
+      s.toasts.push({ id, type: 'info', duration: 5000, ...config });
+      if (s.toasts.length > 3) s.toasts.shift();
     });
-    return id;
+    return id; // ✅ Safe: returned from outer function, not from inside set()
   },
 
-  removeToast: (id) => set(s => ({ toasts: s.toasts.filter(t => t.id !== id) })),
+  // ✅ FIX: mutate draft
+  removeToast: (id) => set((s) => {
+    s.toasts = s.toasts.filter(t => t.id !== id);
+  }),
 
-  setAlertPref: (key, val) => set(s => ({
-    alertPrefs: { ...s.alertPrefs, [key]: val }
-  })),
+  // ✅ FIX: mutate draft
+  setAlertPref: (key, val) => set((s) => {
+    s.alertPrefs[key] = val;
+  }),
 
   setSidebarOpen:   (open)  => set({ isSidebarOpen: open }),
-  toggleSidebar:    ()      => set(s => ({ isSidebarOpen: !s.isSidebarOpen })),
+
+  // ✅ FIX: mutate draft
+  toggleSidebar:    ()      => set(s => { s.isSidebarOpen = !s.isSidebarOpen; }),
+
   setChatInputText: (text)  => set({ chatInputText: text }),
-  toggleSidebarPosition: () => set(s => ({ layoutView: s.layoutView === 'left' ? 'right' : 'left' })),
+
+  // ✅ FIX: mutate draft
+  toggleSidebarPosition: () => set(s => {
+    s.layoutView = s.layoutView === 'left' ? 'right' : 'left';
+  }),
+
   setSelectedTextContext: (text) => set({ selectedTextContext: text }),
   setSelectedAgent: (agent) => {
     localStorage.setItem('tutorboard-agent', agent);
@@ -137,27 +167,40 @@ export const createUiSlice = (set, get) => ({
   setEditingObjectId: (id) => set({ editingObjectId: id }),
   setHasTextSelection: (val) => set({ hasTextSelection: val }),
 
-  toggleFloatingSidebar: () => set(s => ({ showFloatingSidebar: !s.showFloatingSidebar })),
+  // ✅ FIX: mutate draft
+  toggleVoice: () => set(s => { s.isVoiceEnabled = !s.isVoiceEnabled; }),
+
+  // ✅ FIX: mutate draft
+  toggleFloatingSidebar: () => set(s => { s.showFloatingSidebar = !s.showFloatingSidebar; }),
   openFloatingSidebar:   () => set({ showFloatingSidebar: true }),
   closeFloatingSidebar:  () => set({ showFloatingSidebar: false }),
   setShowMinimap:         (show) => set({ showMinimap: show }),
-  toggleMinimap:         () => set(s => ({ showMinimap: !s.showMinimap })),
+
+  // ✅ FIX: mutate draft
+  toggleMinimap:         () => set(s => { s.showMinimap = !s.showMinimap; }),
+
   setActiveTool:         (tool) => set({ activeTool: tool }),
   deselectAll: () => {
-    set({ 
-      activeTool: 'select', 
-      selectedElementIds: [], 
+    set({
+      activeTool: 'select',
+      selectedElementIds: [],
       editingObjectId: null,
-      hasTextSelection: false 
+      hasTextSelection: false
     });
   },
   setShowGrid:           (show) => set({ showGrid: show }),
-  toggleGrid:            ()     => set(s => ({ showGrid: !s.showGrid })),
+
+  // ✅ FIX: mutate draft
+  toggleGrid:            ()     => set(s => { s.showGrid = !s.showGrid; }),
   setSnapToGrid:         (snap) => set({ isSnapToGrid: snap }),
-  toggleSnap:            ()     => set(s => ({ isSnapToGrid: !s.isSnapToGrid })),
+
+  // ✅ FIX: mutate draft
+  toggleSnap:            ()     => set(s => { s.isSnapToGrid = !s.isSnapToGrid; }),
   setGridType:           (type) => set({ gridType: type }),
   setGridSize:           (size) => set({ gridSize: size }),
-  toggleProfile:         ()     => set(s => ({ isProfileOpen: !s.isProfileOpen })),
+
+  // ✅ FIX: mutate draft
+  toggleProfile:         ()     => set(s => { s.isProfileOpen = !s.isProfileOpen; }),
   setOverlay:            (id)   => set({ activeOverlay: id }),
   setSettingsActiveSection: (section) => set({ settingsActiveSection: section }),
   setVisualizerOpen:     (open) => set({ activeOverlay: open ? 'scene-visualizer' : null }),
@@ -166,9 +209,9 @@ export const createUiSlice = (set, get) => ({
   setVisualizerMinimized: (min) => set({ isVisualizerMinimized: min }),
   setSettingsMinimized: (min) => set({ isSettingsMinimized: min }),
   setMasteryOpen: (open) => set({ isMasteryOpen: open }),
-  
-  setCodeEditorData: (code, lang) => set({ 
-    codeEditorCode: code, 
+
+  setCodeEditorData: (code, lang) => set({
+    codeEditorCode: code,
     codeEditorLang: lang || 'javascript',
     activeOverlay: 'code-editor'
   }),
@@ -176,11 +219,13 @@ export const createUiSlice = (set, get) => ({
   setDrawColor:          (color) => set({ drawColor: color }),
   setDrawWidth:          (width) => set({ drawWidth: width }),
   setLaserWidth:         (width) => set({ laserWidth: width }),
-  addRecentColor: (color) => set(state => {
-    if (color === '__clear__') return { recentColors: [] };
-    if (color.startsWith('var')) return {};
+
+  // ✅ FIX: mutate draft — no return value inside set() callback
+  addRecentColor: (color) => set((state) => {
+    if (color === '__clear__') { state.recentColors = []; return; }
+    if (color.startsWith('var')) return;
     const filtered = (state.recentColors || []).filter(c => c !== color);
-    return { recentColors: [color, ...filtered].slice(0, 8) };
+    state.recentColors = [color, ...filtered].slice(0, 8);
   }),
 
   setNoteColor:          (color) => set({ noteColor: color }),
@@ -190,10 +235,9 @@ export const createUiSlice = (set, get) => ({
   setShapeStrokeStyle:   (style) => set({ shapeStrokeStyle: style }),
   setShapeFill:          (fill)  => set({ shapeFill: fill }),
 
-  // Show/hide notes layer — was missing, caused InteractiveCanvasLayer to get undefined
   showNotes:             true,
   setShowNotes:          (show) => set({ showNotes: show }),
-  toggleNotes:           () => set(s => ({ showNotes: !s.showNotes })),
+  toggleNotes:           () => set(s => { s.showNotes = !s.showNotes; }),
 
   setTextType:      (type)  => set({ textType: type }),
   setTextToolSize:  (size)  => set({ textToolSize: size }),
@@ -212,37 +256,20 @@ export const createUiSlice = (set, get) => ({
     const { canvasObjects, canvasConnections, currentStepIndex, canvasTransform, canvasSteps } = get();
     const id = `snap-${Date.now()}`;
     set(state => {
-      const currentSnaps = state.snapshots || {};
+      if (!state.snapshots) state.snapshots = {};
+      const currentSnaps = state.snapshots;
       const keys = Object.keys(currentSnaps);
       if (keys.length >= 10) {
         const oldestKey = keys.sort()[0];
-        const { [oldestKey]: _, ...rest } = currentSnaps;
-        return {
-          snapshots: {
-            ...rest,
-            [id]: {
-              objects:     [...(canvasObjects || [])],
-              connections: [...(canvasConnections || [])],
-              steps:       [...(canvasSteps || [])],
-              stepIndex:   currentStepIndex,
-              transform:   { ...(canvasTransform || { x: 0, y: 0, scale: 1 }) },
-              timestamp:   Date.now(),
-            },
-          },
-        };
+        delete currentSnaps[oldestKey];
       }
-      return {
-        snapshots: {
-          ...currentSnaps,
-          [id]: {
-            objects:     [...canvasObjects],
-            connections: [...canvasConnections],
-            steps:       [...canvasSteps],
-            stepIndex:   currentStepIndex,
-            transform:   { ...canvasTransform },
-            timestamp:   Date.now(),
-          },
-        },
+      currentSnaps[id] = {
+        objects:     [...(canvasObjects || [])],
+        connections: [...(canvasConnections || [])],
+        steps:       [...(canvasSteps || [])],
+        stepIndex:   currentStepIndex,
+        transform:   { ...(canvasTransform || { x: 0, y: 0, scale: 1 }) },
+        timestamp:   Date.now(),
       };
     });
     return id;
@@ -269,12 +296,12 @@ export const createUiSlice = (set, get) => ({
       shape: 'note',
       x: worldX,
       y: worldY,
-      w: 0.225,   // ~180px on the 800-wide virtual canvas
-      h: 0.3,     // ~180px on the 600-tall virtual canvas
+      w: 0.225,
+      h: 0.3,
       color: noteColor,
       size: noteSize,
       isPinned: notePinned,
-      label: '',  // StickyNoteShape reads 'label', NOT 'text'
+      label: '',
       content: '',
       fontSize: noteToolSize,
       appearsAtStep: 0,

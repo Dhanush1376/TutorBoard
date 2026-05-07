@@ -1,8 +1,14 @@
 /**
  * ArtifactSlice — Zustand state management for the Artifact System
- * 
- * Manages artifact lifecycle: creation from SSE events, editing,
- * version history, tab switching, and panel visibility.
+ *
+ * FIX (Immer): addArtifact and addMultipleArtifacts previously called
+ *   set(state => ({ ...newState }))   ← returns a NEW object (Immer "replacement" mode)
+ * and then returned `id` from outside, which confused Immer when the store
+ * is wrapped with the `immer()` middleware.
+ *
+ * The fix: pre-compute the id BEFORE calling set(), so set() can mutate the
+ * draft directly (no return value inside the producer), while the outer function
+ * still returns the id normally.
  */
 
 const generateArtifactId = () =>
@@ -10,16 +16,18 @@ const generateArtifactId = () =>
 
 export const createArtifactSlice = (set, get) => ({
   // ─── State ───
-  artifacts: [],                 // All artifacts in current session
-  activeArtifactId: null,        // Currently viewed artifact tab
-  streamingArtifact: null,       // Artifact being streamed in (temp)
-  isArtifactPanelOpen: false,    // Panel visibility
+  artifacts: [],                  // All artifacts in current session
+  activeArtifactId: null,         // Currently viewed artifact tab
+  streamingArtifact: null,        // Artifact being streamed in (temp)
+  isArtifactPanelOpen: false,     // Panel visibility
   artifactPanelFullscreen: false, // Fullscreen mode
 
   // ─── Actions ───
 
   /** Add a completed artifact and open the panel */
   addArtifact: (artifact) => {
+    // ✅ FIX: pre-compute id outside set() so we can return it without
+    //    touching the Immer draft inside the producer callback.
     const id = artifact.id || generateArtifactId();
     const newArtifact = {
       id,
@@ -34,24 +42,26 @@ export const createArtifactSlice = (set, get) => ({
         version: 1,
         createdAt: new Date().toISOString(),
       }],
-      dbId: artifact.dbId || null, // MongoDB _id after persistence
+      dbId: artifact.dbId || null,
       createdAt: new Date().toISOString(),
     };
 
-    set((state) => ({
-      artifacts: [...state.artifacts, newArtifact],
-      activeArtifactId: id,
-      isArtifactPanelOpen: true,
-      streamingArtifact: null,
-    }));
+    // ✅ FIX: mutate the draft — do NOT return a new object from this callback
+    set((state) => {
+      state.artifacts.push(newArtifact);
+      state.activeArtifactId = id;
+      state.isArtifactPanelOpen = true;
+      state.streamingArtifact = null;
+    });
 
-    return id;
+    return id; // Safe: returned from the outer function, not from inside set()
   },
 
   /** Add multiple artifacts at once (for multi-artifact responses) */
   addMultipleArtifacts: (artifactArray) => {
     if (!Array.isArray(artifactArray) || artifactArray.length === 0) return null;
 
+    // ✅ FIX: pre-compute everything before set()
     const newArtifacts = artifactArray.map((artifact) => {
       const id = artifact.id || generateArtifactId();
       return {
@@ -74,12 +84,13 @@ export const createArtifactSlice = (set, get) => ({
 
     const firstId = newArtifacts[0].id;
 
-    set((state) => ({
-      artifacts: [...state.artifacts, ...newArtifacts],
-      activeArtifactId: firstId,
-      isArtifactPanelOpen: true,
-      streamingArtifact: null,
-    }));
+    // ✅ FIX: mutate draft — do NOT return new object from producer
+    set((state) => {
+      newArtifacts.forEach(a => state.artifacts.push(a));
+      state.activeArtifactId = firstId;
+      state.isArtifactPanelOpen = true;
+      state.streamingArtifact = null;
+    });
 
     return firstId;
   },
@@ -101,51 +112,39 @@ export const createArtifactSlice = (set, get) => ({
 
   /** Toggle the artifact panel */
   toggleArtifactPanel: () => {
-    set((state) => ({
-      isArtifactPanelOpen: !state.isArtifactPanelOpen,
-      artifactPanelFullscreen: state.isArtifactPanelOpen ? false : state.artifactPanelFullscreen,
-    }));
+    set((state) => {
+      state.artifactPanelFullscreen = state.isArtifactPanelOpen ? false : state.artifactPanelFullscreen;
+      state.isArtifactPanelOpen = !state.isArtifactPanelOpen;
+    });
   },
 
   /** Toggle fullscreen mode */
   toggleArtifactFullscreen: () => {
-    set((state) => ({
-      artifactPanelFullscreen: !state.artifactPanelFullscreen,
-    }));
+    set((state) => {
+      state.artifactPanelFullscreen = !state.artifactPanelFullscreen;
+    });
   },
 
   /** Update content of an artifact (for editing) */
   updateArtifactContent: (id, content) => {
-    set((state) => ({
-      artifacts: state.artifacts.map(a =>
-        a.id === id ? { ...a, content } : a
-      ),
-    }));
+    set((state) => {
+      const artifact = state.artifacts.find(a => a.id === id);
+      if (artifact) artifact.content = content;
+    });
   },
 
   /** Save a new version of an artifact */
   saveArtifactVersion: (id) => {
     set((state) => {
       const artifact = state.artifacts.find(a => a.id === id);
-      if (!artifact) return state;
-
+      if (!artifact) return;
       const newVersion = artifact.version + 1;
-      const updatedVersions = [
-        ...artifact.versions,
-        {
-          content: artifact.content,
-          version: newVersion,
-          createdAt: new Date().toISOString(),
-        },
-      ];
-
-      return {
-        artifacts: state.artifacts.map(a =>
-          a.id === id
-            ? { ...a, version: newVersion, versions: updatedVersions }
-            : a
-        ),
-      };
+      artifact.versions.push({
+        content: artifact.content,
+        version: newVersion,
+        createdAt: new Date().toISOString(),
+      });
+      artifact.version = newVersion;
     });
   },
 
@@ -153,41 +152,34 @@ export const createArtifactSlice = (set, get) => ({
   revertArtifact: (id, versionIndex) => {
     set((state) => {
       const artifact = state.artifacts.find(a => a.id === id);
-      if (!artifact || !artifact.versions[versionIndex]) return state;
-
+      if (!artifact || !artifact.versions[versionIndex]) return;
       const targetVersion = artifact.versions[versionIndex];
-
-      return {
-        artifacts: state.artifacts.map(a =>
-          a.id === id
-            ? { ...a, content: targetVersion.content, version: targetVersion.version }
-            : a
-        ),
-      };
+      artifact.content = targetVersion.content;
+      artifact.version = targetVersion.version;
     });
   },
 
   /** Remove an artifact */
   removeArtifact: (id) => {
     set((state) => {
-      const remaining = state.artifacts.filter(a => a.id !== id);
-      return {
-        artifacts: remaining,
-        activeArtifactId: remaining.length > 0
-          ? (state.activeArtifactId === id ? remaining[0].id : state.activeArtifactId)
-          : null,
-        isArtifactPanelOpen: remaining.length > 0 ? state.isArtifactPanelOpen : false,
-      };
+      const index = state.artifacts.findIndex(a => a.id === id);
+      if (index === -1) return;
+      state.artifacts.splice(index, 1);
+      if (state.activeArtifactId === id) {
+        state.activeArtifactId = state.artifacts.length > 0 ? state.artifacts[0].id : null;
+      }
+      if (state.artifacts.length === 0) {
+        state.isArtifactPanelOpen = false;
+      }
     });
   },
 
   /** Link a persisted MongoDB ID to a local artifact */
   setArtifactDbId: (localId, dbId) => {
-    set((state) => ({
-      artifacts: state.artifacts.map(a =>
-        a.id === localId ? { ...a, dbId } : a
-      ),
-    }));
+    set((state) => {
+      const artifact = state.artifacts.find(a => a.id === localId);
+      if (artifact) artifact.dbId = dbId;
+    });
   },
 
   /** Clear all artifacts (e.g. on session change) */
@@ -218,22 +210,20 @@ export const createArtifactSlice = (set, get) => ({
 
   /** Update streaming artifact content */
   updateStreamingArtifact: (content) => {
-    set((state) => ({
-      streamingArtifact: state.streamingArtifact 
-        ? { ...state.streamingArtifact, content: state.streamingArtifact.content + content }
-        : null
-    }));
+    set((state) => {
+      if (state.streamingArtifact) {
+        state.streamingArtifact.content += content;
+      }
+    });
   },
 
   /** Finalize streaming artifact and move to main list */
   finalizeStreamingArtifact: (finalArtifact = null) => {
     const { streamingArtifact, addArtifact } = get();
     const artToFinalize = finalArtifact || streamingArtifact;
-    
     if (artToFinalize) {
       addArtifact(artToFinalize);
     }
-    
     set({ streamingArtifact: null });
   },
 

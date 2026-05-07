@@ -2,6 +2,8 @@ import { z } from 'zod';
 import ChatSession from '../models/ChatSession.js';
 import User from '../models/User.js';
 import { routeConversation, routeConversationStream } from '../ai-router/router/aiRouter.js';
+import { requestCompletion, resolveModelId, getTextModel } from '../utils/ai/llmClient.js';
+import { resolveUserConfig } from '../sockets/utils.js';
 import { logActivity } from './session.controller.js';
 import { searchWeb } from '../utils/ai/webSearchService.js';
 import { shouldSearch, detectTools, applyPlannerOverride } from '../utils/ai/searchGate.js';
@@ -333,10 +335,17 @@ export const sendMessage = async (req, res) => {
 
     while (retryCount <= MAX_RETRIES) {
       try {
-        aiResponse = await routeConversation(llmMessages, {
-          timeout: 30000,
-          maxRetries: 2,
+        aiResponse = await requestCompletion({
+          model: resolveModelId(modelId || getTextModel()),
+          messages: llmMessages,
+          temperature: 0.7,
+          maxTokens: 4000,
+          responseMimeType: 'text/plain',
+          userConfig: userConfig,
+          skipRacing: true,
         });
+        if (aiResponse.error) throw new Error(aiResponse.error);
+        aiResponse.content = aiResponse.content || '';
         break;
       } catch (err) {
         retryCount++;
@@ -476,11 +485,12 @@ export async function streamMessage(req, res) {
       return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
     }
 
-    const { sessionId, userMessage, mode, teachingContext, platformMemory, requestId: providedRequestId, userConfig = null } = validation.data;
+    const { sessionId, userMessage, mode, teachingContext, platformMemory, requestId: providedRequestId, modelId = null } = validation.data;
     const requestId = resolveRequestId(req, providedRequestId);
     resolvedRequestId = requestId;
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
+    const userConfig = await resolveUserConfig(req, req.user, userMessage, modelId);
 
     // --- 0. Sync Platform Memory from Client ---
     if (platformMemory && sessionId) {
@@ -506,12 +516,40 @@ export async function streamMessage(req, res) {
       },
     };
 
-    if (sessionId && isMongoId) {
-      const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
-      session = await ChatSession.findOne(query);
+    if (sessionId) {
+      const query = isMongoId 
+        ? (isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() })
+        : (isGuest ? { engineSessionId: sessionId, userId: null } : { engineSessionId: sessionId, userId: userId.toString() });
+
+      // ATOMIC UPSERT: Handle potential parallel requests for the same session
+      session = await ChatSession.findOneAndUpdate(
+        query,
+        { 
+          $push: { messages: userMsg },
+          $set: { lastUpdated: Date.now() },
+          $setOnInsert: {
+            userId: isGuest ? null : userId,
+            title: detectTopic(userMessage) || 'New Session',
+            engineSessionId: isMongoId ? null : sessionId,
+            currentTopic: teachingContext?.currentTopic || null,
+            explanationMode: teachingContext?.explanationMode || 'basic',
+          }
+        },
+        { 
+          new: true, 
+          upsert: true, 
+          runValidators: true,
+          setDefaultsOnInsert: true 
+        }
+      );
+      
       if (session) {
+        const wasCreated = session.createdAt && (Date.now() - session.createdAt.getTime() < 1000);
+        console.log(`[Chat:Stream] ${wasCreated ? '✨ Created' : '📝 Appended to'} session via ${isMongoId ? 'ObjectId' : 'EngineId'}: ${session._id}`);
+
         const existingReq = readLedgerEntry(session, requestId);
         if (existingReq?.status === 'completed' && existingReq.response) {
+          // ... Replay logic (already implemented in original but simplified here for the diff)
           const replayUserMessageId = existingReq.userMessageId || generateMessageId('user');
           const replayAssistantMessageId = existingReq.assistantMessageId || generateMessageId('assistant');
           res.setHeader('Content-Type', 'text/event-stream');
@@ -525,33 +563,36 @@ export async function streamMessage(req, res) {
           res.write(`data: ${JSON.stringify({ type: 'done', provider: 'replay' })}\n\n`);
           return res.end();
         }
-        if (existingReq && existingReq.status !== 'completed') {
-          return res.status(409).json({
-            error: 'Request already in progress',
-            sessionId: session._id.toString(),
-            requestId,
-            status: existingReq.status,
-          });
+
+        if (existingReq && existingReq.status !== 'completed' && existingReq.status !== 'requesting') {
+          return res.status(409).json({ error: 'Request already in progress', sessionId: session._id.toString(), requestId });
         }
-        session.messages.push(userMsg);
+
+        // Initialize ledger entry for the new request
         const persistedUserId = session.messages[session.messages.length - 1]?._id?.toString() || null;
         writeLedgerEntry(session, { requestId, status: 'requesting', userMessageId: persistedUserId });
         await session.save();
-        console.log(`[Chat:Stream] 📝 Appended user message to existing session: ${session._id}`);
+
+        if (wasCreated) {
+          logActivity({
+            userId: isGuest ? null : userId,
+            sessionId: session._id.toString(),
+            eventType: 'session_start',
+            eventData: { title: session.title }
+          });
+        }
       }
     }
 
     if (!session) {
-      const initialTopic = detectTopic(userMessage);
+      // Fallback for cases with NO sessionId (should not happen with latest client)
       session = await ChatSession.create({
         userId: isGuest ? null : userId,
-        title: initialTopic,
-        messages: [userMsg], // Save immediately
-        currentTopic: teachingContext?.currentTopic || initialTopic,
-        explanationMode: teachingContext?.explanationMode || 'basic',
+        title: detectTopic(userMessage),
+        messages: [userMsg],
       });
-      console.log(`[Chat:Stream] ✨ Created new session and saved user message: ${session._id} (Guest: ${isGuest})`);
-      const persistedUserId = session.messages[session.messages.length - 1]?._id?.toString() || null;
+      console.log(`[Chat:Stream] 🌟 Created fallback session: ${session._id}`);
+      const persistedUserId = session.messages[0]?._id?.toString();
       writeLedgerEntry(session, { requestId, status: 'requesting', userMessageId: persistedUserId });
       await session.save();
     }
@@ -826,44 +867,39 @@ export async function streamMessage(req, res) {
       req.on('close', () => abortController.abort());
 
       console.log(`[Chat:Stream] 🚀 Starting LLM stream (Conversational)...`);
-      const stream = routeConversationStream(llmMessages, { 
-        timeout: 90000, 
-        maxTokens: 4000, 
+      
+      const response = await requestCompletion({
+        model: resolveModelId(modelId || getTextModel()),
+        messages: llmMessages,
+        temperature: 0.7,
+        maxTokens: 4000,
         responseMimeType: 'text/plain',
-        signal: abortController.signal
-      });
-
-      let chunkCount = 0;
-      for await (const streamChunk of stream) {
-        if (clientDisconnected) break;
-        chunkCount++;
-        if (chunkCount === 1) console.log(`[Chat:Stream] ⚡ First chunk received from ${streamChunk.provider}`);
-
-        if (clientDisconnected) break;
-
-        const { chunk, provider } = streamChunk;
-        if (chunk) {
+        userConfig: userConfig,
+        signal: abortController.signal,
+        onStream: (chunk) => {
+          if (clientDisconnected) return;
           fullContent += chunk;
-          lastStreamProvider = provider;
-
-          // Stream chunks immediately to keep the UI responsive
-          res.write(`event: message\n`);
-          res.write(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
+          
+          res.write(`event: message\ndata: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
           if (res.flush) res.flush();
-
-          // Extract and send thoughts immediately even if buffering the rest
+          
           const thoughtMatch = chunk.match(/<thought>([\s\S]*?)<\/thought>/) || 
                              chunk.match(/<thought>([\s\S]*)$/) ||
                              (fullContent.includes('<thought>') && !fullContent.includes('</thought>') ? { 1: chunk } : null);
           
           if (thoughtMatch) {
             const thought = thoughtMatch[1] || '';
-            res.write(`event: thought\n`);
-            res.write(`data: ${JSON.stringify({ thought })}\n\n`);
+            res.write(`event: thought\ndata: ${JSON.stringify({ thought })}\n\n`);
             if (res.flush) res.flush();
           }
         }
+      });
+
+      if (response.error && !fullContent) {
+        throw new Error(response.error);
       }
+      
+      lastStreamProvider = response._meta?.provider || 'llmClient';
 
       // For artifact parsing, we'll use fullContent.
       // We need to clean fullContent of thought tags for the robust parser if it's mixed
@@ -872,10 +908,56 @@ export async function streamMessage(req, res) {
         .map(t => t.replace(/<\/?thought>/g, '')).join('\n');
 
     } catch (streamErr) {
-      console.error('[Chat:Stream] Streaming failed:', streamErr.message);
-      if (!clientDisconnected) {
+      console.error('[Chat:Stream] Primary streaming failed:', {
+        error: streamErr.message,
+        status: streamErr.status,
+        model: resolveModelId(modelId || getTextModel())
+      });
+    }
+
+    // ── 6.5 Fallback if Stream Failed / Empty ──
+    if (!fullContent && !clientDisconnected) {
+      console.warn('[Chat:Stream] Stream ended with NO CONTENT. Attempting non-streaming fallback...');
+      try {
+        // FIX: Use requestCompletion (llmClient) for fallback — same path as primary,
+        // avoids the legacy routeConversation which lacks userConfig and uses stale provider logic.
+        const fallback = await requestCompletion({
+          model: resolveModelId(modelId || getTextModel()),
+          messages: llmMessages,
+          temperature: 0.7,
+          maxTokens: 4000,
+          responseMimeType: 'text/plain',
+          userConfig: userConfig,
+          skipRacing: true,
+        });
+        if (fallback.error) throw new Error(fallback.error);
+        fullContent = fallback.content || '';
+        lastStreamProvider = fallback._meta?.provider_used || 'fallback';
         res.write(`event: message\n`);
-        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Streaming failed.' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: fullContent })}\n\n`);
+        if (res.flush) res.flush();
+        console.log('[Chat:Stream] Fallback successful. Content length:', fullContent.length);
+        
+        // Re-clean for the rest of the pipeline
+        cleanContent = fullContent.replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
+        thoughtContent = (fullContent.match(/<thought>([\s\S]*?)<\/thought>/g) || [])
+          .map(t => t.replace(/<\/?thought>/g, '')).join('\n');
+      } catch (fallbackErr) {
+        console.error('[Chat:Stream] Fallback failed (CRITICAL):', {
+          error: fallbackErr.message,
+          stack: fallbackErr.stack,
+          messagesCount: llmMessages.length,
+          model: lastStreamProvider
+        });
+        if (!clientDisconnected) {
+          res.write(`event: message\n`);
+          res.write(`data: ${JSON.stringify({ 
+            type: 'error', 
+            error: 'Streaming and fallback both failed.',
+            details: fallbackErr.message
+          })}\n\n`);
+          if (res.flush) res.flush();
+        }
       }
     }
 
@@ -899,8 +981,7 @@ export async function streamMessage(req, res) {
              // Emit the artifact
              const artLocalId = `art-${Date.now()}-0`;
              if (!clientDisconnected) {
-               res.write(`event: artifact\n`);
-               res.write(`data: ${JSON.stringify({
+               res.write(`event: artifact\ndata: ${JSON.stringify({
                  id: artLocalId,
                  type: parsed.artifact.type,
                  title: parsed.artifact.title || 'Untitled',
@@ -988,12 +1069,16 @@ export async function streamMessage(req, res) {
       });
       await session.save().catch(err => console.error('[Chat:Stream] Ledger persist failed:', err.message));
 
-      logActivity({
-        userId,
-        sessionId: session._id.toString(),
-        eventType: 'chat_message_stream',
-        eventData: { mode, messageCount: session.messages.length, provider: streamProvider },
-      });
+      try {
+        logActivity({
+          userId,
+          sessionId: session._id.toString(),
+          eventType: 'chat_message_stream',
+          eventData: { mode, messageCount: session.messages.length, provider: lastStreamProvider },
+        });
+      } catch (logErr) {
+        console.error('[Chat:Stream] logActivity failed (non-fatal):', logErr.message);
+      }
 
       // Background: Persist to long-term memory (RAG)
       if (fullContent) {
@@ -1235,7 +1320,17 @@ export const editMessage = async (req, res) => {
 
     let aiResponse;
     try {
-      aiResponse = await routeConversation(llmMessages, { timeout: 30000, maxRetries: 2 });
+      aiResponse = await requestCompletion({
+        model: resolveModelId(modelId || getTextModel()),
+        messages: llmMessages,
+        temperature: 0.7,
+        maxTokens: 4000,
+        responseMimeType: 'text/plain',
+        userConfig: userConfig,
+        skipRacing: true,
+      });
+      if (aiResponse.error) throw new Error(aiResponse.error);
+      aiResponse.content = aiResponse.content || '';
       // Attach metadata for the standard buildAssistantMsg helper if needed
       aiResponse.sources = sources; 
     } catch (err) {
@@ -1407,7 +1502,17 @@ export const regenerate = async (req, res) => {
 
     let aiResponse;
     try {
-      aiResponse = await routeConversation(llmMessages, { timeout: 30000, maxRetries: 2 });
+      aiResponse = await requestCompletion({
+        model: resolveModelId(modelId || getTextModel()),
+        messages: llmMessages,
+        temperature: 0.7,
+        maxTokens: 4000,
+        responseMimeType: 'text/plain',
+        userConfig: userConfig,
+        skipRacing: true,
+      });
+      if (aiResponse.error) throw new Error(aiResponse.error);
+      aiResponse.content = aiResponse.content || '';
       aiResponse.sources = sources;
     } catch (err) {
       return res.status(503).json({
@@ -1515,42 +1620,57 @@ export async function streamRegenerate(req, res) {
   let heartbeat;
   let clientDisconnected = false;
 
+  // ── 1. Set SSE Headers IMMEDIATELY ──
+  // This prevents the browser/proxy from timing out while we do DB/AI preprocessing.
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  heartbeat = setInterval(() => {
+    if (!clientDisconnected) {
+      try {
+        res.write(': keep-alive\n\n');
+        if (res.flush) res.flush();
+      } catch (err) {
+        console.error('[SSE:Regen] Heartbeat write failed:', err.message);
+      }
+    }
+  }, 15000);
+
+  req.on('close', () => {
+    clientDisconnected = true;
+    clearInterval(heartbeat);
+    console.log('[SSE:Regen] Client disconnected.');
+  });
+
   try {
+    res.write(`data: ${JSON.stringify({ type: 'status', message: 'Preparing regeneration...' })}\n\n`);
+    if (res.flush) res.flush();
+
     const validation = regenerateSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Invalid request parameters' })}\n\n`);
+      return res.end();
     }
 
-    const { sessionId, messageId } = validation.data;
+    const { sessionId, messageId, modelId = null } = validation.data;
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
+    
+    console.log(`[SSE:Regen] Resolving config for session ${sessionId}...`);
+    const userConfig = await resolveUserConfig(req, req.user, null, modelId);
 
     const query = isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() };
     const session = await ChatSession.findOne(query);
-    if (!session) return res.status(404).json({ error: 'Session not found' });
+    
+    if (!session) {
+      console.warn(`[SSE:Regen] Session ${sessionId} not found.`);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Session not found' })}\n\n`);
+      return res.end();
+    }
     console.log('[SSE:Regen] Session found:', session._id);
-
-    // ── 1. Set SSE Headers ──
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-
-    heartbeat = setInterval(() => {
-      if (!clientDisconnected) {
-        res.write(': keep-alive\n\n');
-        if (res.flush) res.flush();
-      }
-    }, 15000);
-
-    req.on('close', () => {
-      clientDisconnected = true;
-      clearInterval(heartbeat);
-    });
-
-    res.write(`data: ${JSON.stringify({ type: 'status', message: 'Preparing regeneration...' })}\n\n`);
-    if (res.flush) res.flush();
 
     // ── 2. Handle Non-Destructive Regeneration (Branching) ──
     let targetMsgId = null;
@@ -1654,34 +1774,47 @@ export async function streamRegenerate(req, res) {
     req.on('close', () => abortController.abort());
 
     console.log('[SSE:Regen] Starting LLM stream...');
-    const stream = routeConversationStream(llmMessages, { 
-      timeout: 90000, 
+    const response = await requestCompletion({
+      model: resolveModelId(modelId || getTextModel()),
+      messages: llmMessages,
+      temperature: 0.7,
       maxTokens: 4000,
-      signal: abortController.signal
+      responseMimeType: 'text/plain',
+      userConfig: userConfig,
+      signal: abortController.signal,
+      onStream: (chunk) => {
+        if (clientDisconnected) return;
+        
+        if (!fullContent) console.log('[SSE:Regen] FIRST CHUNK:', chunk.substring(0, 20));
+        fullContent += chunk;
+        
+        res.write(`event: message\n`);
+        res.write(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
+        if (res.flush) res.flush();
+      }
     });
 
-    try {
-      for await (const chunk of stream) {
-        if (clientDisconnected) break;
-        if (chunk.chunk) {
-          if (!fullContent) console.log('[SSE:Regen] FIRST CHUNK:', chunk.chunk.substring(0, 20));
-          fullContent += chunk.chunk;
-          lastProvider = chunk.provider;
-          res.write(`event: message\n`);
-          res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: chunk.chunk })}\n\n`);
-          if (res.flush) res.flush();
-        }
-      }
-    } catch (streamErr) {
-      console.error('[SSE:Regen] Stream iteration error:', streamErr);
-      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`);
+    if (response.error && !fullContent) {
+      console.error('[SSE:Regen] Stream iteration error:', response.error);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: response.error })}\n\n`);
     }
+
+    lastProvider = response._meta?.provider || 'llmClient';
 
     if (!fullContent && !clientDisconnected) {
       console.warn('[SSE:Regen] Stream ended with NO CONTENT. Attempting non-streaming fallback...');
       try {
-        const fallback = await routeConversation(llmMessages, { timeout: 30000 });
-        fullContent = fallback.content;
+        const fallback = await requestCompletion({
+          model: resolveModelId(modelId || getTextModel()),
+          messages: llmMessages,
+          temperature: 0.7,
+          maxTokens: 4000,
+          responseMimeType: 'text/plain',
+          userConfig: userConfig,
+          skipRacing: true,
+        });
+        if (fallback.error) throw new Error(fallback.error);
+        fullContent = fallback.content || '';
         res.write(`data: ${JSON.stringify({ type: 'chunk', chunk: fullContent })}\n\n`);
         console.log('[SSE:Regen] Fallback successful. Content length:', fullContent.length);
       } catch (fallbackErr) {
@@ -1744,8 +1877,14 @@ export async function streamRegenerate(req, res) {
 
   } catch (err) {
     console.error('[Chat:RegenStream] Error:', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Failed to stream regeneration' });
-    else res.end();
+    if (res.headersSent) {
+      try {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: err.message || 'Regeneration failed' })}\n\n`);
+      } catch (e) { /* client likely already closed */ }
+      res.end();
+    } else {
+      res.status(500).json({ error: 'Failed to stream regeneration' });
+    }
   }
 };
 
@@ -1933,18 +2072,20 @@ const generateSessionTitle = async (userMsg) => {
     }
 
     // Use the LLM to generate a professional title that captures the intent
-    const response = await routeConversation([
-      { 
-        role: 'system', 
-        content: 'You are a session title generator. Create a title for the conversation based on the user\'s first message. Preserve the core intent. If it\'s a question, keep it as a concise question. Output ONLY the title, no punctuation, no quotes, no labels. Max 5 words.' 
-      },
-      { role: 'user', content: userMsg }
-    ], { 
-      timeout: 5000, 
-      maxTokens: 15
+    const response = await requestCompletion({
+      model: getTextModel(),
+      messages: [
+        { 
+          role: 'system', 
+          content: 'You are a session title generator. Create a title for the conversation based on the user\'s first message. Preserve the core intent. If it\'s a question, keep it as a concise question. Output ONLY the title, no punctuation, no quotes, no labels. Max 5 words.' 
+        },
+        { role: 'user', content: userMsg }
+      ],
+      temperature: 0.3,
+      maxTokens: 15,
     });
 
-    let title = response.content.trim();
+    let title = (response.content || '').trim();
     
     // Fallback cleanup
     title = title.replace(/[".!?]$/, '').replace(/^["']|["']$/g, '');
@@ -1972,4 +2113,3 @@ const generateSessionTitle = async (userMsg) => {
     return fallback || 'New Session';
   }
 };
-
