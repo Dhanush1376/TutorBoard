@@ -464,12 +464,22 @@ export class SceneOrchestrator {
     if (!this.scene) return [];
 
     const commands: Command[] = [];
-    const elements = this.scene.elements || this.scene.objects || [];
+    const rootElements = this.scene.elements || this.scene.objects || [];
+    const stepElements = step.elements || [];
+    const elements = [...rootElements, ...stepElements];
     const stepObjects = step.objects || [];
 
     // Find elements that belong to this step
     for (const element of elements) {
-      if (stepObjects.length > 0 && !stepObjects.includes(element.id)) continue;
+      // 1. If explicit objects IDs are provided for this step, use them strictly
+      if (stepObjects.length > 0) {
+        if (!stepObjects.includes(element.id)) continue;
+      } else {
+        // 2. If no explicit objects list, default to elements belonging to step 0 (base state)
+        // or the current step if it was tagged. This prevents all objects from rendering at once.
+        const elementStep = element.step ?? 0;
+        if (elementStep !== 0 && elementStep !== stepIndex) continue;
+      }
 
       switch (element.type) {
         case 'array':

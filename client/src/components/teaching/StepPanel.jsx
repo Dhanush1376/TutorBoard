@@ -391,7 +391,7 @@ function useTypewriter(text = '', durationMs = 3500) {
     };
     timerRef.current = setTimeout(tick, 55);
     return () => clearTimeout(timerRef.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, durationMs]);
 
   return {
@@ -458,7 +458,7 @@ const SocraticGate = ({ content, cfg }) => {
   const [revealed, setRevealed] = useState(false);
   const dot = content.indexOf('. ');
   const question = dot > 0 ? content.slice(0, dot + 1) : content;
-  const answer   = dot > 0 ? content.slice(dot + 2) : '';
+  const answer = dot > 0 ? content.slice(dot + 2) : '';
   return (
     <div>
       <p style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6, margin: '0 0 10px', fontStyle: 'italic' }}>{question}</p>
@@ -519,17 +519,17 @@ const StepPanel = ({
   const { displayedText, done } = useTypewriter(narrationText, duration);
 
   const isMicroStep = nodeType === 'step_by_step' || nodeType === 'process_breakdown' || nodeType === 'timeline_walk';
-  const isMistake   = nodeType === 'common_mistake' || nodeType === 'common_confusion' || nodeType === 'common_pitfall';
-  const isSocratic  = nodeType === 'socratic_moment';
-  const microSteps  = isMicroStep ? parseMicroSteps(narrationText) : null;
+  const isMistake = nodeType === 'common_mistake' || nodeType === 'common_confusion' || nodeType === 'common_pitfall';
+  const isSocratic = nodeType === 'socratic_moment';
+  const microSteps = isMicroStep ? parseMicroSteps(narrationText) : null;
 
   return (
     <AnimatePresence>
       <motion.div
         key={`sp-${currentStepIndex}`}
         initial={{ opacity: 0, x: -22, scale: 0.97 }}
-        animate={{ opacity: 1, x: 0,   scale: 1 }}
-        exit={{   opacity: 0, x: -16,  scale: 0.97 }}
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        exit={{ opacity: 0, x: -16, scale: 0.97 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         style={{
           background: 'var(--bg-secondary)',
@@ -650,7 +650,7 @@ const StepPanel = ({
                 background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
                 borderRadius: 10, fontSize: 10.5,
                 fontFamily: "'JetBrains Mono','Fira Code',monospace",
-                color: 'var(--text-primary)', textAlign: 'left', letterSpacing: '0.02em', 
+                color: 'var(--text-primary)', textAlign: 'left', letterSpacing: '0.02em',
                 whiteSpace: 'pre-wrap', overflowX: 'auto'
               }}
             >

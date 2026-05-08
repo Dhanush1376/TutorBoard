@@ -16,6 +16,10 @@ import InteractiveControlPanel from './InteractiveControlPanel';
 import UnifiedControlBar from './UnifiedControlBar';
 import { AlgoRightPanel } from './AlgoRightPanel';
 import StudyPanel from './StudyPanel';
+import MasteryHUD from './MasteryHUD';
+import ProgressArc from './ProgressArc';
+import StepFilmstrip from './StepFilmstrip';
+import ParticleWaves from '../canvas/ParticleWaves';
 import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
@@ -44,10 +48,12 @@ const TeachingSession = ({ initialTopic }) => {
     levelUpEvent, setLevelUpEvent, showToast,
     isExplainMinimized: isMinimized,
     setExplainMinimized: setIsMinimized,
+    canvasLayout,
+    activeArtifactId
   } = useTutorStore();
 
-  const isOpen = machineState !== STATES.IDLE;
-  const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING;
+  const isOpen = machineState !== STATES.IDLE || canvasLayout !== 'inline';
+  const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING || machineState === STATES.GENERATING || (machineState === STATES.IDLE && activeArtifactId);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelWide, setPanelWide] = useState(false);
   const [studyPanelOpen, setStudyPanelOpen] = useState(false);
@@ -157,10 +163,11 @@ const TeachingSession = ({ initialTopic }) => {
 
   const domain = timeline?.domain?.toLowerCase() || 'general';
   const ds = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
+  const domainColor = ds.accent || '#6366f1';
   const isGenerating = machineState === STATES.GENERATING;
   const isAlgo = isDSAContent(timeline);
   const isD3 = (timeline?.renderer || '').toLowerCase() === 'd3';
-  const useAlgoPanel = isAlgo || isD3;
+  const useAlgoPanel = true; // Consolidate to the richer panel for all sessions
 
   // ── Minimized pill ────────────────────────────────────────
   if (isMinimized && isTeaching) {
@@ -191,25 +198,68 @@ const TeachingSession = ({ initialTopic }) => {
       tabIndex="-1"
     >
       {/* ── Body ─────────────────────────────────────────── */}
-      {isTeaching && (
-        <div className="teaching-body">
-          {/* Canvas */}
-          <div className="teaching-canvas-area">
-            {/* Generating Overlay Removed - Progress now shown in NarrationBar */}
+       {isTeaching && (
+        <div 
+          className="teaching-body"
+          style={{
+            '--theme-color': domainColor,
+            '--theme-color-light': `${domainColor}20`,
+            '--theme-color-glow': `${domainColor}40`,
+          }}
+        >
+          {/* Global Ambient Background */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            {/* ── Subtle Grid Pattern ── */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundSize: '40px 40px',
+                backgroundImage: `
+                  linear-gradient(to right, var(--border-color) 1px, transparent 1px),
+                  linear-gradient(to bottom, var(--border-color) 1px, transparent 1px)
+                `,
+                opacity: 0.15,
+                maskImage: 'radial-gradient(ellipse 120% 120% at 50% 50%, black, transparent)',
+                WebkitMaskImage: 'radial-gradient(ellipse 120% 120% at 50% 50%, black, transparent)',
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            />
+            <ParticleWaves opacity={0.3} />
+          </div>
+
+          {/* Canvas Area (Flex sibling for dynamic adjustment) */}
+          <motion.div layout className="teaching-canvas-area" style={{ background: 'transparent' }}>
+            <div className="absolute inset-0 overflow-visible">
+              <CinematicStage
+                topic={topic}
+                currentStepIndex={currentStepIndex}
+                totalSteps={canvasSteps.length}
+                domain={timeline?.domain || 'general'}
+                isGenerating={isGenerating}
+                hideControls={true}
+                activeScene={timeline}
+              >
+                <AgentCanvasRenderer
+                  width={800} height={600}
+                  timeline={timeline} objects={canvasObjects || []} steps={canvasSteps}
+                  currentStepIndex={currentStepIndex} onGoToStep={goToStep}
+                  doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
+                  activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
+                  onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
+                  hideAlgoPanel={true}
+                />
+              </CinematicStage>
+            </div>
 
             {/* ── Floating Canvas Header (Replaces Navbar) ── */}
-            <div className="absolute top-4 left-4 right-4 z-[50] flex justify-start pointer-events-none">
+            <div className="absolute top-5 left-5 right-5 z-[50] flex justify-start pointer-events-none">
 
               {/* Unified Toolbar Pill */}
               <div
-                className="flex items-center gap-3 pointer-events-auto px-3 py-2 rounded-full shadow-md max-w-full"
-                style={{
-                  background: 'var(--glass-bg)',
-                  border: '1px solid var(--glass-border)',
-                  boxShadow: 'var(--glass-shadow)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                }}
+                className="flex items-center gap-3 pointer-events-auto px-4 py-[7px] rounded-[28px] max-w-full liquid-glass"
+                style={{ height: '54px' }}
               >
                 {/* Left: Title & Menu */}
                 <div className="flex items-center gap-3 shrink-0">
@@ -224,7 +274,7 @@ const TeachingSession = ({ initialTopic }) => {
 
                 {/* Right: Tools */}
                 <div className="flex items-center gap-1 shrink-0">
-                  <span style={{ color: 'var(--text-tertiary)' }} className="hidden md:block px-2 text-[12px] font-mono font-medium">
+                  <span style={{ color: 'var(--text-secondary)' }} className="hidden md:block px-2 text-[12px] font-mono font-medium">
                     {currentStepIndex + 1}/{canvasSteps.length || 1}
                   </span>
 
@@ -241,17 +291,12 @@ const TeachingSession = ({ initialTopic }) => {
             </div>
 
             {/* ── Step Orientation Pill (Floating Context) ── */}
-            <div className="absolute top-[76px] left-6 z-[45] pointer-events-none">
+            <div className="absolute top-[84px] left-5 z-[45] pointer-events-none">
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 key={`step-pill-${currentStepIndex}`}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full shadow-sm border border-[var(--glass-border)]"
-                style={{
-                  background: 'var(--glass-bg)',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-[20px] liquid-glass"
               >
                 <div
                   className="w-1.5 h-1.5 rounded-full"
@@ -267,9 +312,41 @@ const TeachingSession = ({ initialTopic }) => {
               </motion.div>
             </div>
 
+            {/* ── Canvas Empty State Placeholder ── */}
+            {(!isGenerating && !canvasSteps[currentStepIndex]?.objects?.length && !canvasObjects?.length) && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[40]">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex flex-col items-center gap-6"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 blur-3xl bg-[var(--text-primary)] opacity-[0.03] rounded-full" />
+                    <div className="relative">
+                      <Sparkles className="w-12 h-12 text-[var(--text-primary)] opacity-[0.07] animate-pulse" />
+                      {/* Subtle loading ring when active but empty */}
+                      <motion.div 
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                        className="absolute inset-[-12px] border border-[var(--text-primary)] opacity-[0.05] rounded-full border-t-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <h3 className="text-xl font-light tracking-[0.2em] text-[var(--text-primary)] opacity-[0.15] uppercase">
+                      {topic ? `Visualizing ${topic}` : "Intelligent Visualizer"}
+                    </h3>
+                    <p className="text-[10px] font-bold text-[var(--text-primary)] opacity-[0.1] tracking-[0.3em] uppercase">
+                      Initializing Canvas...
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+
             {/* 1. Narration Subtitle (Fixed Position Above Controls) */}
-            {(!isAlgo || isD3) && (
-              <div className="absolute bottom-[104px] left-1/2 -translate-x-1/2 z-[50] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
+            {!useAlgoPanel && (
+              <div className="absolute bottom-[140px] left-1/2 -translate-x-1/2 z-[50] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
                 <div className="pointer-events-auto w-full flex justify-center">
                   <NarrationBar 
                     text={currentStep?.narration || currentStep?.explanation} 
@@ -281,8 +358,19 @@ const TeachingSession = ({ initialTopic }) => {
             )}
 
             {/* ── Unified Floating Controls ── */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[50] flex flex-col items-center gap-2 w-full max-w-[90%] md:max-w-4xl px-5 pointer-events-none">
-              <div className="pointer-events-auto">
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[50] flex flex-col items-center pointer-events-none w-full">
+              {/* ── Visual Timeline (Filmstrip) ── */}
+              {isAlgo && canvasSteps.length > 1 && (
+                <div className="mb-4 pointer-events-auto">
+                  <StepFilmstrip 
+                    steps={canvasSteps} 
+                    currentStepIndex={currentStepIndex} 
+                    goToStep={goToStep} 
+                  />
+                </div>
+              )}
+              
+              <div className="relative pointer-events-auto">
                 <UnifiedControlBar
                   currentStepIndex={currentStepIndex}
                   totalSteps={totalSteps}
@@ -298,26 +386,9 @@ const TeachingSession = ({ initialTopic }) => {
               </div>
             </div>
 
-            <div className="absolute inset-0 overflow-hidden">
-              <CinematicStage
-                topic={topic}
-                currentStepIndex={currentStepIndex}
-                totalSteps={canvasSteps.length}
-                domain={timeline?.domain || 'general'}
-                isGenerating={machine.state === STATES.GENERATING}
-                hideControls={true}
-              >
-                <AgentCanvasRenderer
-                  width={800} height={600}
-                  timeline={timeline} objects={canvasObjects || []} steps={canvasSteps}
-                  currentStepIndex={currentStepIndex} onGoToStep={goToStep}
-                  doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
-                  activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
-                  onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
-                  hideAlgoPanel={true}
-                />
-              </CinematicStage>
-            </div>
+            {/* Progress indicators moved to right panel for cleaner canvas */}
+
+
 
             {/* Expand Panel Handle (Appears when panel is closed) */}
             <AnimatePresence>
@@ -327,14 +398,11 @@ const TeachingSession = ({ initialTopic }) => {
                   animate={{ x: 0, opacity: 1 }}
                   exit={{ x: 20, opacity: 0 }}
                   onClick={() => setPanelOpen(true)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-[45] flex items-center justify-center w-6 h-16 pointer-events-auto shadow-md transition-colors"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-[45] flex items-center justify-center w-6 h-16 pointer-events-auto transition-colors liquid-glass"
                   style={{
-                    background: 'var(--glass-bg)',
-                    border: '1px solid var(--glass-border)',
                     borderRight: 'none',
-                    backdropFilter: 'blur(8px)',
-                    borderTopLeftRadius: '12px',
-                    borderBottomLeftRadius: '12px',
+                    borderTopLeftRadius: '16px',
+                    borderBottomLeftRadius: '16px',
                   }}
                   title="Open Session Guide"
                 >
@@ -342,74 +410,93 @@ const TeachingSession = ({ initialTopic }) => {
                 </motion.button>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
 
-          {/* Right Panel */}
-          <div
-            className={`teaching-right-panel ${panelOpen ? '' : 'collapsed'}`}
-            style={{
-              ...(panelOpen ? {
-                width: panelWide ? 420 : 320,
-                marginRight: '16px',
-                borderRadius: '16px',
-                border: '1px solid var(--border-color)',
-                boxShadow: 'var(--glass-shadow)',
-              } : {}),
-              marginTop: '84px',
-              marginBottom: '84px',
-              height: 'calc(100% - 168px)',
-              overflow: 'hidden', // Forces children to scroll
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            {/* Header (Sticky) */}
+          {/* Right Panel (Flex Sibling for Dynamic Adjustment) */}
+          <AnimatePresence>
             {panelOpen && (
-              <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', borderTopLeftRadius: '16px', borderTopRightRadius: '16px' }}>
-                <span className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
-                  Session Guide
-                </span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setPanelWide(!panelWide)} className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-tertiary)]" style={{ color: 'var(--text-tertiary)' }} title={panelWide ? "Shrink" : "Expand"}>
-                    {panelWide ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                  </button>
-                  <button onClick={() => setPanelOpen(false)} className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-[#ff5f56]/20 hover:text-[#ff5f56]" style={{ color: 'var(--text-tertiary)' }} title="Close">
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Scrollable Content Wrapper */}
-            <div className="flex-1 overflow-y-auto flex flex-col custom-scrollbar">
-              {useAlgoPanel ? (
-                <AlgoRightPanel
-                  step={{ ...canvasSteps[currentStepIndex], narration: currentStep?.narration || canvasSteps[currentStepIndex]?.narration }}
-                  stepIndex={currentStepIndex} totalSteps={timeline?.steps?.length || 0}
-                  variables={canvasSteps[currentStepIndex]?.variables}
-                  activeStates={canvasSteps[currentStepIndex]?.activeStates}
-                  algorithmName={timeline?.title} timeline={timeline} onGoToStep={goToStep}
-                  doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
-                  activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
-                  onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
-                />
-              ) : (
-                <>
-                  <div className="teaching-panel-section shrink-0">
-                    <StepPanel currentStep={currentStep} currentStepIndex={currentStepIndex}
-                      totalSteps={totalSteps} learningNodes={learningNodes}
-                      memoryAnchor={memoryAnchor} keyFormula={keyFormula} />
+              <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.95, x: 20 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.95, x: 20 }}
+                transition={{ 
+                  type: 'spring',
+                  damping: 25,
+                  stiffness: 200,
+                  opacity: { duration: 0.2 }
+                }}
+                className="teaching-right-panel liquid-glass"
+                style={{
+                  marginRight: '32px',
+                  marginTop: '84px',
+                  marginBottom: '84px',
+                  borderRadius: '32px',
+                  maxHeight: 'calc(100% - 168px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  zIndex: 60,
+                  overflow: 'hidden',
+                  pointerEvents: 'auto',
+                  '--theme-color': domainColor,
+                  '--theme-color-light': `${domainColor}20`,
+                  '--theme-color-glow': `${domainColor}40`
+                }}
+              >
+                {/* Header (Sticky) */}
+                <div className="flex items-center justify-between px-6 py-5 shrink-0 border-b border-white/[0.08]" style={{ borderTopLeftRadius: '32px', borderTopRightRadius: '32px' }}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-2 h-2 rounded-full bg-[var(--text-primary)] opacity-40 animate-pulse" />
+                    <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                      Session Guide
+                    </span>
                   </div>
-                  {currentStep?.interactiveControls && (
-                    <div className="teaching-panel-section shrink-0">
-                      <InteractiveControlPanel data={currentStep.interactiveControls} />
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setPanelWide(!panelWide)} className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-tertiary)]" style={{ color: 'var(--text-tertiary)' }} title={panelWide ? "Shrink" : "Expand"}>
+                      {panelWide ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                    </button>
+                    <button onClick={() => setPanelOpen(false)} className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-[#ff5f56]/20 hover:text-[#ff5f56]" style={{ color: 'var(--text-tertiary)' }} title="Close">
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Content Wrapper */}
+                <div className="flex-1 overflow-y-auto flex flex-col custom-scrollbar">
+                  {/* Mastery & Progress Indicators (Integrated into Guide) */}
+                  {isAlgo && (
+                    <div className="px-6 py-4 border-b border-white/[0.05]">
+                      <div className="flex items-center gap-4">
+                        <ProgressArc />
+                        <MasteryHUD />
+                      </div>
                     </div>
                   )}
-                </>
-              )}
-            </div>
 
-          </div>
+                  <AlgoRightPanel
+                    step={{ 
+                      ...currentStep, 
+                      narration: currentStepIndex === 0 ? (timeline?.professorNote || currentStep?.narration) : currentStep?.narration || canvasSteps[currentStepIndex]?.narration 
+                    }}
+                    stepIndex={currentStepIndex} 
+                    totalSteps={totalSteps}
+                    variables={canvasSteps[currentStepIndex]?.variables || currentStep?.variables}
+                    activeStates={canvasSteps[currentStepIndex]?.activeStates || currentStep?.activeStates}
+                    algorithmName={timeline?.title || topic} 
+                    timeline={timeline} 
+                    onGoToStep={goToStep}
+                    doubtHistory={doubtHistory} 
+                    isDoubtProcessing={isDoubtProcessing}
+                    activeDoubtId={machine.activeDoubtId} 
+                    onJumpToDoubt={machine.jumpToDoubt}
+                    onPinDoubt={machine.pinDoubtToCanvas} 
+                    onResume={resume} 
+                    onAskDoubt={askDoubt}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 

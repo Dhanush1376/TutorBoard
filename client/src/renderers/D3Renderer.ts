@@ -1,15 +1,18 @@
 import * as d3 from 'd3';
+import gsap from 'gsap';
+
 
 export class D3Renderer {
   private container: d3.Selection<HTMLDivElement, unknown, null, undefined>;
+  private mainLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
 
   // Layout constants
-  private readonly CELL_WIDTH = 60;
-  private readonly CELL_HEIGHT = 60;
-  private readonly CELL_GAP = 10;
+  private readonly CELL_WIDTH = 72;
+  private readonly CELL_HEIGHT = 72;
+  private readonly CELL_GAP = 8;
   private currentWidth = 800;
   private currentHeight = 600;
-  private nextY = 120;
+  private nextY = 160;
   private resizeObserver: ResizeObserver | null = null;
 
   constructor(containerElement: HTMLDivElement, initialWidth?: number, initialHeight?: number) {
@@ -31,8 +34,16 @@ export class D3Renderer {
     // The CSS transform: scale() in FixedTeachingStage handles visual fitting.
     // We observe the container only to ensure we can initialize, not to update our internal logic.
     this.resizeObserver = new ResizeObserver(entries => {
-      // Logic removed: never update currentWidth/Height from physical DOM measurements
-      // to avoid breaking the 800x600 logical layout.
+      const entry = entries[0];
+      if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+        // Update logical width based on aspect ratio, keeping height baseline at 600
+        const aspect = entry.contentRect.width / entry.contentRect.height;
+        this.currentWidth = 600 * aspect;
+        this.currentHeight = 600;
+        
+        // Update SVG ViewBox
+        svg.attr('viewBox', `0 0 ${this.currentWidth} ${this.currentHeight}`);
+      }
     });
     this.resizeObserver.observe(containerElement);
 
@@ -44,7 +55,7 @@ export class D3Renderer {
       .attr('id', 'cell-gradient')
       .attr('x1', '0%').attr('y1', '0%')
       .attr('x2', '0%').attr('y2', '100%');
-    cellGradient.append('stop').attr('offset', '0%').attr('stop-color', 'rgba(255, 255, 255, 0.15)');
+    cellGradient.append('stop').attr('offset', '0%').attr('stop-color', 'rgba(255, 255, 255, 0.12)');
     cellGradient.append('stop').attr('offset', '100%').attr('stop-color', 'rgba(255, 255, 255, 0.0)');
 
     // Neon Glow filter
@@ -62,12 +73,36 @@ export class D3Renderer {
       .attr('id', 'bar-gradient')
       .attr('x1', '0%').attr('y1', '100%')
       .attr('x2', '0%').attr('y2', '0%');
-    barGradient.append('stop').attr('offset', '0%').attr('stop-color', 'var(--accent-secondary, rgba(59,130,246,0.6))');
-    barGradient.append('stop').attr('offset', '100%').attr('stop-color', 'var(--accent-primary)');
+    barGradient.append('stop').attr('offset', '0%').attr('stop-color', 'var(--text-secondary, rgba(0,0,0,0.2))');
+    barGradient.append('stop').attr('offset', '100%').attr('stop-color', 'var(--text-primary)');
+
+    // ── Interactive Zoom Layer ──────────────────────────────────────────
+    // This group holds all generated visuals, allowing pan/zoom on items 
+    // without affecting the global canvas grid or gradients.
+    this.mainLayer = svg.append('g').attr('class', 'visuals-layer');
+
+    const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.4, 4]) // Zoom range from 40% to 400%
+      .on('zoom', (event) => {
+        this.mainLayer.attr('transform', event.transform);
+      });
+
+    // Attach zoom to SVG but apply transform to mainLayer
+    (svg as any).call(zoomBehavior);
+    
+    // Initial zoom state
+    (svg as any).call(zoomBehavior.transform, d3.zoomIdentity);
   }
 
   public destroy() {
     this.resizeObserver?.disconnect();
+  }
+
+  public resize(width: number, height: number) {
+    const aspect = width / height;
+    this.currentWidth = 600 * aspect;
+    this.currentHeight = 600;
+    this.svg.attr('viewBox', `0 0 ${this.currentWidth} ${this.currentHeight}`);
   }
 
   private get ARRAY_Y() {
@@ -84,8 +119,8 @@ export class D3Renderer {
   }
 
   clear() {
-    this.svg.selectAll('*').remove();
-    this.nextY = 120; // Reset for next step
+    this.mainLayer.selectAll('*').remove();
+    this.nextY = 160; // Reset for next step
   }
 
   private getWidth(): number {
@@ -96,12 +131,8 @@ export class D3Renderer {
     return this.currentHeight;
   }
 
-  private async animate(selector: string, stagger = 0.05) {
-    const m = await import('gsap');
-    const gsap = m.gsap || m.default;
-    if (!gsap) return;
-    
-    gsap.fromTo(this.svg.selectAll(selector).nodes(), 
+  private animate(selector: string, stagger = 0.05) {
+    gsap.fromTo(this.mainLayer.selectAll(selector).nodes(), 
       { opacity: 0, scale: 0.8, y: 15 },
       { opacity: 1, scale: 1, y: 0, duration: 0.4, stagger, ease: 'back.out(1.4)' }
     );
@@ -111,14 +142,14 @@ export class D3Renderer {
     const containerWidth = this.getWidth() || 800;
     
     // Bug 07 Fix: Responsive CELL_WIDTH
-    const cellWidth = Math.min(72, (containerWidth - 100) / values.length);
-    const cellGap = Math.min(10, cellWidth / 6);
+    const cellWidth = Math.min(84, (containerWidth - 80) / values.length);
+    const cellGap = Math.min(8, cellWidth / 8);
     
     const totalWidth = values.length * cellWidth + (values.length - 1) * cellGap;
     const offsetX = (containerWidth / 2) - (totalWidth / 2);
     const currentY = this.nextY;
 
-    const arrayGroup = this.svg.append('g')
+    const arrayGroup = this.mainLayer.append('g')
       .attr('id', id)
       .attr('transform', `translate(${offsetX}, ${currentY})`);
 
@@ -134,12 +165,12 @@ export class D3Renderer {
       .attr('width', cellWidth)
       .attr('height', this.CELL_HEIGHT)
       .attr('rx', 12)
-      .attr('fill', 'var(--bg-secondary)')
-      .attr('stroke', 'var(--border-color)')
-      .attr('stroke-width', 2)
-      .attr('class', 'cell-bg shadow-sm')
-      .style('filter', 'drop-shadow(0 10px 15px rgba(0,0,0,0.4))'); 
-
+      .attr('fill', 'var(--bg-tertiary)')
+      .attr('stroke', 'var(--border-strong)')
+      .attr('stroke-width', 2.5)
+      .attr('class', 'cell-bg shadow-md')
+      .style('filter', 'drop-shadow(0 12px 24px rgba(0,0,0,0.18))'); 
+      
     // Glossy Overlay
     cells.append('rect')
       .attr('width', cellWidth)
@@ -178,13 +209,13 @@ export class D3Renderer {
     (arrayGroup.node() as any)._arrayData = { offsetX, cellWidth, cellGap, y: currentY };
     
     // Advance Y for next array
-    this.nextY += this.CELL_HEIGHT + 100;
+    this.nextY += this.CELL_HEIGHT + 60;
   }
 
   createPointer(id: string, atIndex: number, label: string, color: string = 'var(--accent-danger, #ef4444)', targetArrayId?: string) {
     const arrayGroup = targetArrayId 
-      ? this.svg.select(`#${targetArrayId}`) 
-      : this.svg.select('g[id*="array"]');
+      ? this.mainLayer.select(`#${targetArrayId}`) 
+      : this.mainLayer.select('g[id*="array"]');
     
     if (arrayGroup.empty()) return;
 
@@ -214,8 +245,8 @@ export class D3Renderer {
 
   updatePointer(id: string, atIndex: number, targetArrayId?: string) {
     const arrayGroup = targetArrayId 
-      ? this.svg.select(`#${targetArrayId}`) 
-      : this.svg.select('g[id*="array"]');
+      ? this.mainLayer.select(`#${targetArrayId}`) 
+      : this.mainLayer.select('g[id*="array"]');
     
     if (arrayGroup.empty()) return;
 
@@ -223,20 +254,31 @@ export class D3Renderer {
     const x = meta.offsetX + (atIndex * (meta.cellWidth + meta.cellGap)) + (meta.cellWidth / 2);
     const y = meta.y + this.CELL_HEIGHT + 40;
 
-    this.svg.select(`#${id}`)
+    this.mainLayer.select(`#${id}`)
       .transition()
       .duration(300)
       .attr('transform', `translate(${x}, ${y})`);
   }
 
   highlightCell(id: string, color: string, duration: number = 0) {
-    const rect = this.svg.select(`#${id}`).select('.cell-bg');
+    const group = this.mainLayer.select(`#${CSS.escape(id)}`);
+    const rect = group.select('.cell-bg');
     if (!rect.empty()) {
-      if (duration > 0) {
-        rect.transition().duration(duration).attr('fill', color);
-      } else {
-        rect.attr('fill', color);
-      }
+      // Color transition via GSAP for better smoothness than D3 transitions
+      gsap.to(rect.node(), {
+        fill: color,
+        duration: duration > 0 ? duration / 1000 : 0.3,
+        ease: 'power2.out'
+      });
+
+      // Scale pop animation for visual emphasis
+      gsap.fromTo(group.node(), 
+        { scale: 1 }, 
+        { scale: 1.08, yoyo: true, repeat: 1, duration: 0.15, ease: 'back.out(2)' }
+      );
+
+      // Add breathing pulse-glow
+      rect.classed('pulse-glow', true);
     }
   }
 
@@ -244,7 +286,7 @@ export class D3Renderer {
     this.removeElement('comparator');
     const containerWidth = this.getWidth();
 
-    const compGroup = this.svg.append('g')
+    const compGroup = this.mainLayer.append('g')
       .attr('id', 'comparator')
       .attr('transform', `translate(${containerWidth / 2}, ${this.ARRAY_Y - 80})`);
 
@@ -255,7 +297,7 @@ export class D3Renderer {
       .attr('height', 60)
       .attr('rx', 30)
       .attr('fill', 'var(--bg-tertiary)')
-      .attr('stroke', 'var(--accent-primary)')
+      .attr('stroke', 'var(--border-strong)')
       .attr('stroke-width', 2)
       .style('filter', 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))');
 
@@ -269,19 +311,13 @@ export class D3Renderer {
       .text(`${left} ${op} ${right}`);
 
     // ─── Entrance Animation (GSAP) ───
-    (async () => {
-      const m = await import('gsap');
-      const gsap = m.gsap || m.default;
-      if (gsap) {
-        gsap.from('#comparator', {
-          opacity: 0,
-          scale: 0.5,
-          y: -50,
-          duration: 0.5,
-          ease: 'back.out(1.7)'
-        });
-      }
-    })();
+    gsap.from('#comparator', {
+      opacity: 0,
+      scale: 0.5,
+      y: -50,
+      duration: 0.5,
+      ease: 'back.out(1.7)'
+    });
   }
 
   createTimeline(id: string, events: { date: string; label: string; description?: string }[]) {
@@ -290,7 +326,7 @@ export class D3Renderer {
     const padding = 100;
     const timelineY = height / 2;
 
-    const group = this.svg.append('g')
+    const group = this.mainLayer.append('g')
       .attr('id', id)
       .attr('transform', `translate(0, 0)`);
 
@@ -362,7 +398,7 @@ export class D3Renderer {
       .range([height - margin.bottom, margin.top])
       .domain([0, d3.max(data, d => d.value) || 100]);
 
-    const group = this.svg.append('g').attr('id', id);
+    const group = this.mainLayer.append('g').attr('id', id);
 
     if (type === 'bar') {
       group.selectAll('rect')
@@ -379,10 +415,10 @@ export class D3Renderer {
         .attr('rx', 6)
         .style('filter', 'drop-shadow(0 6px 12px rgba(59,130,246,0.3))')
         .on('mouseenter', function(event, d) {
-          d3.select(this).transition().duration(200).attr('fill', 'var(--accent-primary)').attr('filter', 'brightness(1.2)');
+          gsap.to(this, { fill: 'var(--accent-primary)', filter: 'brightness(1.2)', duration: 0.2 });
         })
         .on('mouseleave', function(event, d) {
-          d3.select(this).transition().duration(200).attr('fill', 'var(--accent-secondary)').attr('filter', 'none');
+          gsap.to(this, { fill: 'var(--accent-secondary)', filter: 'none', duration: 0.2 });
         });
     } else {
       const line = d3.line<any>()
@@ -417,7 +453,7 @@ export class D3Renderer {
     const treemap = d3.tree().size([width - margin.left - margin.right, height - margin.top - margin.bottom]);
     const nodes = treemap(d3.hierarchy(data));
 
-    const group = this.svg.append('g')
+    const group = this.mainLayer.append('g')
       .attr('id', id)
       .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
@@ -454,7 +490,7 @@ export class D3Renderer {
     node.append('circle')
       .attr('r', 24)
       .attr('fill', 'var(--bg-secondary)')
-      .attr('stroke', 'var(--accent-primary)')
+      .attr('stroke', 'var(--border-strong)')
       .attr('stroke-width', 3)
       .style('filter', 'drop-shadow(0 8px 12px rgba(0,0,0,0.5))')
       .on('mouseenter', function() {
@@ -562,7 +598,7 @@ export class D3Renderer {
     const width = x2 - x1;
 
     this.removeElement(id);
-    const group = this.svg.append('g').attr('id', id);
+    const group = this.mainLayer.append('g').attr('id', id);
 
     group.append('rect')
       .attr('x', x1)
@@ -611,7 +647,7 @@ export class D3Renderer {
     const width = this.getWidth();
     const height = this.getHeight();
 
-    const group = this.svg.append('g')
+    const group = this.mainLayer.append('g')
       .attr('id', 'step-result')
       .attr('transform', `translate(${width / 2}, ${height - 100})`);
 
@@ -638,22 +674,16 @@ export class D3Renderer {
       .text(text);
 
     // Animation
-    (async () => {
-      const m = await import('gsap');
-      const gsap = m.gsap || m.default;
-      if (gsap) {
-        gsap.from('#step-result', {
-          opacity: 0,
-          y: '+=30',
-          duration: 0.6,
-          ease: 'power3.out'
-        });
-      }
-    })();
+    gsap.from('#step-result', {
+      opacity: 0,
+      y: '+=30',
+      duration: 0.6,
+      ease: 'power3.out'
+    });
   }
 
   removeElement(id: string) {
-    this.svg.select(`#${CSS.escape(id)}`).remove();
+    this.mainLayer.select(`#${CSS.escape(id)}`).remove();
   }
 }
 

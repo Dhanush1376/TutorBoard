@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipBack, SkipForward,
   Gauge, MessageSquare, ChevronUp, ChevronDown,
-  Keyboard, Volume2, VolumeX
+  Keyboard, Volume2, VolumeX, ChevronRight
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 
@@ -42,20 +42,23 @@ const UnifiedControlBar = ({
 }) => {
   const [speedIndex, setSpeedIndex] = useState(SPEEDS.indexOf(1));
   const [isDoubtExpanded, setIsDoubtExpanded] = useState(false);
+  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
   const [doubtText, setDoubtText] = useState('');
   const [showKeyHints, setShowKeyHints] = useState(false);
   const doubtInputRef = useRef(null);
+  const speedMenuRef = useRef(null);
 
   const currentSpeed = SPEEDS[speedIndex] || 1;
   const progress = totalSteps > 0 ? ((currentStepIndex + 1) / totalSteps) * 100 : 0;
 
   // ── Speed Cycling ──────────────────────────────────────────────────────
 
-  const cycleSpeed = useCallback(() => {
-    const nextIndex = (speedIndex + 1) % SPEEDS.length;
-    setSpeedIndex(nextIndex);
-    onSpeedChange?.(SPEEDS[nextIndex]);
-  }, [speedIndex, onSpeedChange]);
+  const handleSpeedSelect = useCallback((speed) => {
+    const index = SPEEDS.indexOf(speed);
+    setSpeedIndex(index);
+    onSpeedChange?.(speed);
+    setIsSpeedMenuOpen(false);
+  }, [onSpeedChange]);
 
   // ── Doubt Submission ───────────────────────────────────────────────────
 
@@ -98,6 +101,18 @@ const UnifiedControlBar = ({
     }
   }, [isDoubtExpanded]);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (speedMenuRef.current && !speedMenuRef.current.contains(e.target)) {
+        setIsSpeedMenuOpen(false);
+      }
+    };
+    if (isSpeedMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSpeedMenuOpen]);
+
   // ── Step Dots ──────────────────────────────────────────────────────────
 
   const stepDots = useMemo(() => {
@@ -123,10 +138,11 @@ const UnifiedControlBar = ({
             height: 6,
             borderRadius: 3,
             background: isCurrent
-              ? 'white'
+              ? 'var(--text-primary)'
               : isPast
-                ? 'rgba(255,255,255,0.5)'
-                : 'rgba(255,255,255,0.2)',
+                ? 'var(--text-secondary)'
+                : 'var(--text-tertiary)',
+            opacity: isCurrent ? 1 : 0.3,
             border: 'none',
             cursor: 'pointer',
             transition: 'all 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -148,24 +164,19 @@ const UnifiedControlBar = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`unified-control-bar ${className}`}
+      className={`unified-control-bar ${className} liquid-glass`}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        padding: '8px 16px',
-        borderRadius: 20,
-        background: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(24px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 20px 60px -12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+        padding: '10px 20px',
+        borderRadius: 28,
         maxWidth: isDoubtExpanded ? 600 : 420,
         transition: 'max-width 400ms cubic-bezier(0.16, 1, 0.3, 1)',
-        userSelect: 'none',
+        border: '1px solid var(--border-color)',
+        background: 'var(--bg-overlay)',
+        boxShadow: 'var(--shadow-xl)',
       }}
-      onMouseEnter={() => setShowKeyHints(true)}
-      onMouseLeave={() => setShowKeyHints(false)}
     >
       {/* ── Transport Controls ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -180,7 +191,7 @@ const UnifiedControlBar = ({
 
         <motion.button
           whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.93 }}
+          whileTap={{ scale: 0.88, transition: { type: 'spring', stiffness: 500, damping: 15 } }}
           onClick={isPlaying ? onPause : onPlay}
           style={{
             width: 36,
@@ -189,17 +200,35 @@ const UnifiedControlBar = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'white',
-            color: 'black',
+            background: 'var(--text-primary)',
+            color: 'var(--bg-primary)',
             border: 'none',
             cursor: 'pointer',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
           }}
         >
           {isPlaying
-            ? <Pause size={16} fill="black" />
-            : <Play size={16} fill="black" style={{ marginLeft: 2 }} />
+            ? <Pause size={16} fill="currentColor" />
+            : <Play size={16} fill="currentColor" style={{ marginLeft: 2 }} />
           }
+          
+          <AnimatePresence>
+            {isPlaying && (
+              <motion.div
+                initial={{ scale: 1, opacity: 0.6 }}
+                animate={{ scale: 2.2, opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: "easeOut" }}
+                style={{
+                  position: 'absolute',
+                  inset: -2,
+                  borderRadius: '50%',
+                  border: '2px solid var(--text-primary)',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </AnimatePresence>
         </motion.button>
 
         <ControlButton
@@ -213,7 +242,7 @@ const UnifiedControlBar = ({
       </div>
 
       {/* ── Divider ── */}
-      <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+      <div style={{ width: 1, height: 24, background: 'var(--border-color)', flexShrink: 0 }} />
 
       {/* ── Step Progress ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 auto', minWidth: 0 }}>
@@ -227,7 +256,7 @@ const UnifiedControlBar = ({
           width: '100%',
           height: 2,
           borderRadius: 1,
-          background: 'rgba(255,255,255,0.1)',
+          background: 'var(--bg-tertiary)',
           overflow: 'hidden',
         }}>
           <motion.div
@@ -235,7 +264,7 @@ const UnifiedControlBar = ({
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             style={{
               height: '100%',
-              background: 'white',
+              background: 'var(--text-primary)',
               borderRadius: 1,
             }}
           />
@@ -249,7 +278,7 @@ const UnifiedControlBar = ({
         }}>
           <span style={{
             fontSize: 10,
-            color: 'rgba(255,255,255,0.4)',
+            color: 'var(--text-tertiary)',
             fontWeight: 500,
             fontVariantNumeric: 'tabular-nums',
           }}>
@@ -259,24 +288,75 @@ const UnifiedControlBar = ({
       </div>
 
       {/* ── Divider ── */}
-      <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+      <div style={{ width: 1, height: 24, background: 'var(--border-color)', flexShrink: 0 }} />
 
       {/* ── Speed Control ── */}
-      <ControlButton
-        icon={Gauge}
-        onClick={cycleSpeed}
-        label={SPEED_LABELS[currentSpeed]}
-        keyHint={showKeyHints ? 'S' : null}
-        size={13}
-      />
+      <div style={{ position: 'relative' }} ref={speedMenuRef}>
+        <ControlButton
+          icon={Gauge}
+          onClick={() => setIsSpeedMenuOpen(!isSpeedMenuOpen)}
+          label={SPEED_LABELS[currentSpeed]}
+          keyHint={showKeyHints ? 'S' : null}
+          size={13}
+          extra={<ChevronUp size={10} style={{ opacity: 0.5, marginLeft: -2, transform: isSpeedMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+        />
+        <AnimatePresence>
+          {isSpeedMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.9 }}
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                marginBottom: 12,
+                background: 'var(--bg-overlay)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 12,
+                padding: 4,
+                boxShadow: 'var(--shadow-lg)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                zIndex: 100,
+                minWidth: 80,
+                backdropFilter: 'blur(16px)',
+              }}
+            >
+              {SPEEDS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => handleSpeedSelect(s)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    background: currentSpeed === s ? 'var(--text-primary)' : 'transparent',
+                    color: currentSpeed === s ? 'var(--bg-primary)' : 'var(--text-primary)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentSpeed !== s) e.target.style.background = 'var(--bg-tertiary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentSpeed !== s) e.target.style.background = 'transparent';
+                  }}
+                >
+                  {SPEED_LABELS[s]}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-      {/* ── Key Hints Toggle ── */}
-      <ControlButton
-        icon={Keyboard}
-        onClick={() => setShowKeyHints(prev => !prev)}
-        label={showKeyHints ? 'On' : null}
-        size={13}
-      />
+
 
       {/* ── Volume Toggle ── */}
       <ControlButton
@@ -293,7 +373,7 @@ const UnifiedControlBar = ({
             <motion.div
               key="doubt-input"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 180, opacity: 1 }}
+              animate={{ width: 200, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               style={{ overflow: 'hidden', flexShrink: 0 }}
@@ -305,14 +385,15 @@ const UnifiedControlBar = ({
                 onKeyDown={handleDoubtKeyDown}
                 onBlur={() => { if (!doubtText) setIsDoubtExpanded(false); }}
                 placeholder="Ask a doubt..."
+                className="transition-all placeholder:text-[var(--text-tertiary)] focus:bg-[var(--bg-tertiary)]"
                 style={{
                   width: '100%',
-                  padding: '6px 10px',
-                  borderRadius: 10,
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'rgba(255,255,255,0.08)',
-                  color: 'white',
-                  fontSize: 11,
+                  padding: '8px 16px',
+                  borderRadius: 20,
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  fontSize: 12,
                   fontWeight: 500,
                   outline: 'none',
                 }}
@@ -335,9 +416,9 @@ const UnifiedControlBar = ({
 
 // ── Shared Button ────────────────────────────────────────────────────────────
 
-const ControlButton = ({ icon: Icon, onClick, disabled, keyHint, label, size = 14, fill = false }) => (
+const ControlButton = ({ icon: Icon, onClick, disabled, keyHint, label, size = 14, fill = false, extra }) => (
   <motion.button
-    whileHover={{ scale: 1.08, background: 'rgba(255,255,255,0.12)' }}
+    whileHover={{ scale: 1.08, background: 'var(--bg-tertiary)' }}
     whileTap={{ scale: 0.92 }}
     onClick={onClick}
     disabled={disabled}
@@ -349,7 +430,8 @@ const ControlButton = ({ icon: Icon, onClick, disabled, keyHint, label, size = 1
       padding: label ? '5px 10px' : 8,
       borderRadius: label ? 10 : 8,
       background: 'transparent',
-      color: disabled ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)',
+      color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
+      opacity: disabled ? 0.3 : 0.8,
       border: 'none',
       cursor: disabled ? 'default' : 'pointer',
       transition: 'all 150ms ease',
@@ -357,10 +439,11 @@ const ControlButton = ({ icon: Icon, onClick, disabled, keyHint, label, size = 1
   >
     <Icon size={size} fill={fill ? 'currentColor' : 'none'} />
     {label && (
-      <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>
+      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase' }}>
         {label}
       </span>
     )}
+    {extra}
 
     {/* Keyboard shortcut hint */}
     <AnimatePresence>
@@ -377,7 +460,7 @@ const ControlButton = ({ icon: Icon, onClick, disabled, keyHint, label, size = 1
             transform: 'translateX(-50%)',
             fontSize: 8,
             fontWeight: 600,
-            color: 'rgba(255,255,255,0.3)',
+            color: 'var(--text-tertiary)',
             fontFamily: 'monospace',
             letterSpacing: '0.05em',
             pointerEvents: 'none',

@@ -239,14 +239,14 @@ app.use((req: Request, res: Response, next: NextFunction) => {
       res.cookie('tb-csrf-secret', newSecret, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       });
 
       // Set plain token for client to read and send back in header
       res.cookie('tb-csrf-token', newToken, {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       });
     }
   }

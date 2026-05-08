@@ -58,22 +58,46 @@ export default function AgentCanvasRenderer({
   const codeRef = useRef(null);
   const orchestratorRef = useRef(null);
   const [layoutReady, setLayoutReady] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   // Wait for layout
   useEffect(() => {
     const node = d3ContainerRef.current;
     if (!node) return;
-    if (node.clientWidth > 0 && node.clientHeight > 0) setLayoutReady(true);
+
+    const check = () => {
+      if (node.clientWidth > 0 && node.clientHeight > 0) {
+        requestAnimationFrame(() => setLayoutReady(true));
+        return true;
+      }
+      return false;
+    };
+
+    if (check()) return;
+
     if (typeof ResizeObserver === 'undefined') {
       setLayoutReady(true);
       return;
     }
 
     const observer = new ResizeObserver((entries) => {
-      if (entries[0].contentRect.width > 0 && entries[0].contentRect.height > 0) setLayoutReady(true);
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) {
+        setDimensions({ width, height });
+        requestAnimationFrame(() => setLayoutReady(true));
+      }
     });
     observer.observe(node);
-    return () => observer.disconnect();
+
+    // Fallback if ResizeObserver never fires with positive dimensions
+    const fallback = setTimeout(() => {
+      setLayoutReady(true);
+    }, 150);
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(fallback);
+    };
   }, []);
 
   const onDeltaComplete = useCallback(() => {
@@ -83,21 +107,24 @@ export default function AgentCanvasRenderer({
     if (doubtProps.onResume) doubtProps.onResume();
   }, [setDeltaRunning, setDeltaState, doubtProps.onResume]);
 
+  const lastSceneIdRef = useRef(null);
+
   // 1. Orchestrator Initialization
   useEffect(() => {
     const canInitialize = d3ContainerRef.current && (layoutReady || (width && height));
-    
-    if (canInitialize) {
+    if (!canInitialize) return;
+
+    // Only re-initialize if the scene actually changed (by ID or title)
+    const sceneId = timeline?.id || timeline?.title || 'default';
+    const isNewScene = lastSceneIdRef.current !== sceneId;
+
+    if (isNewScene) {
       if (orchestratorRef.current) orchestratorRef.current.destroy();
 
-      console.log('[AgentCanvasRenderer] 🏗️ Initializing SceneOrchestrator');
+      console.log('[AgentCanvasRenderer] 🏗️ Initializing SceneOrchestrator for scene:', sceneId);
       orchestratorRef.current = new SceneOrchestrator(d3ContainerRef.current, {
-        onNarrate: (text) => {
-          // If we have a NarrationBar listener, we could pass it here
-        },
-        onStepChange: (idx) => {
-          // Sync back to store if needed
-        }
+        onNarrate: (text) => {},
+        onStepChange: (idx) => {}
       });
 
       // Register D3 renderer immediately
@@ -107,60 +134,58 @@ export default function AgentCanvasRenderer({
       if (timeline) {
         orchestratorRef.current.loadScene(timeline);
       }
+      lastSceneIdRef.current = sceneId;
     }
 
     return () => {
-      if (orchestratorRef.current) {
-        orchestratorRef.current.destroy();
-        orchestratorRef.current = null;
-      }
+      // Don't destroy on every effect run unless it's a genuine unmount
+      // or we have a new scene (handled above)
     };
-  }, [layoutReady, width, height, timeline]); // Re-load if scene object changes (identity based)
+  }, [layoutReady, width, height, timeline?.id, timeline?.title]); // Use primitive properties for stability
 
-  // 2. Renderer Registration
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const orch = orchestratorRef.current;
-      if (!orch) return;
+  // 2. Renderer Registration via Ref Callbacks
+  const registerSpecialized = useCallback((type, node) => {
+    const orch = orchestratorRef.current;
+    if (!orch || !node) return;
+    
+    console.log(`[AgentCanvasRenderer] 🛰️ Registering specialized renderer: ${type}`);
+    orch.registerRenderer(type, node);
+  }, []);
 
-      if (['physics', 'matter', 'mechanics'].includes(rendererType) && physicsRef.current) {
-        orch.registerRenderer('physics', physicsRef.current);
-      }
-      if (['math', 'katex', 'equation', 'calculus'].includes(rendererType) && equationRef.current) {
-        orch.registerRenderer('equation', equationRef.current);
-      }
-      if (['graph', 'desmos'].includes(rendererType) && graphRef.current) {
-        orch.registerRenderer('graph', graphRef.current);
-      }
-      if (['code', 'monaco', 'algorithm'].includes(rendererType) && codeRef.current) {
-        orch.registerRenderer('code', codeRef.current);
-      }
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [rendererType, layoutReady]);
 
   // 3. Playback Orchestration
   const lastPlayedStepRef = useRef(-1);
   const lastPlayedDeltaRef = useRef(null);
+  const lastWidthRef = useRef(0);
 
   useEffect(() => {
     const orch = orchestratorRef.current;
-    if (!orch || !layoutReady) return;
+    if (!orch || (!layoutReady && !(width && height))) return;
 
     const hasDelta = deltaState?.actions?.length > 0;
+    const dimensionsChanged = lastWidthRef.current !== dimensions.width;
+    lastWidthRef.current = dimensions.width;
 
     if (hasDelta) {
       if (lastPlayedDeltaRef.current === deltaState.timestamp) return;
       lastPlayedDeltaRef.current = deltaState.timestamp;
       orch.playDelta(deltaState.actions, onDeltaComplete);
     } else {
-      if (lastPlayedStepRef.current === currentStepIndex) return;
+      if (lastPlayedStepRef.current === currentStepIndex && !dimensionsChanged) return;
+      
+      // If dimensions changed, sync the renderer's logical coordinate system first
+      if (dimensions.width > 0 && dimensions.height > 0) {
+        const d3Renderer = orch.getRenderer('d3');
+        if (d3Renderer && typeof d3Renderer.resize === 'function') {
+          d3Renderer.resize(dimensions.width, dimensions.height);
+        }
+      }
+
       lastPlayedStepRef.current = currentStepIndex;
       lastPlayedDeltaRef.current = null;
       orch.playStep(currentStepIndex);
     }
-  }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, layoutReady]);
+  }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, layoutReady, dimensions.width]);
 
   // Sync Playback State
   useEffect(() => {
@@ -191,14 +216,20 @@ export default function AgentCanvasRenderer({
         <div 
           ref={d3ContainerRef} 
           className="absolute inset-0 z-10 w-full h-full overflow-visible" 
-          style={{ pointerEvents: (isD3 || !!deltaState) ? 'auto' : 'none' }} 
+          style={{ 
+            pointerEvents: (isD3 || !!deltaState) ? 'auto' : 'none',
+            minHeight: '400px' // Ensure ResizeObserver always fires
+          }} 
         />
 
         {/* KaTeX Content */}
         {isKaTeX && (
           <div className="absolute inset-0 z-0 flex items-center justify-center p-8">
             <KaTeXRenderer 
-              ref={equationRef}
+              ref={(node) => {
+                equationRef.current = node;
+                if (node) registerSpecialized('equation', node);
+              }}
               timeline={timeline} 
               currentStepIndex={currentStepIndex} 
             />
@@ -234,10 +265,22 @@ export default function AgentCanvasRenderer({
                 <SpecializedRenderer
                   ref={(node) => {
                     if (!node) return;
-                    if (['physics', 'matter', 'mechanics'].includes(rendererType)) physicsRef.current = node;
-                    if (['graph', 'desmos'].includes(rendererType)) graphRef.current = node;
-                    if (['code', 'monaco', 'algorithm'].includes(rendererType)) codeRef.current = node;
-                    if (['math', 'equation'].includes(rendererType)) equationRef.current = node;
+                    if (['physics', 'matter', 'mechanics'].includes(rendererType)) {
+                      physicsRef.current = node;
+                      registerSpecialized('physics', node);
+                    }
+                    if (['graph', 'desmos'].includes(rendererType)) {
+                      graphRef.current = node;
+                      registerSpecialized('graph', node);
+                    }
+                    if (['code', 'monaco', 'algorithm'].includes(rendererType)) {
+                      codeRef.current = node;
+                      registerSpecialized('code', node);
+                    }
+                    if (['math', 'equation'].includes(rendererType)) {
+                      equationRef.current = node;
+                      registerSpecialized('equation', node);
+                    }
                   }}
                   timeline={timeline}
                   currentStepIndex={currentStepIndex}

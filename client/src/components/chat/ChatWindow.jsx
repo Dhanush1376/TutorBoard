@@ -558,7 +558,7 @@ const ChatWindow = ({
                 )}
               </AnimatePresence>
 
-              <div ref={bottomRef} className="h-20" />
+              <div ref={bottomRef} className="h-1" />
             </motion.div>
           )}
         </AnimatePresence>

@@ -16,6 +16,8 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
   const INTERVAL = 25;
 
   useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
     if (isGenerating) {
       const w = (Array.isArray(narrationTokens) ? narrationTokens : (narrationTokens || '').split(' ')).filter(w => w.trim());
       setWords(w);
@@ -27,7 +29,6 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
     const w = text.split(' ').filter(w => w.trim());
     setWords(w);
     setVisibleCount(0);
-    if (timerRef.current) clearInterval(timerRef.current);
 
     timerRef.current = setInterval(() => {
       setVisibleCount(p => {
@@ -60,13 +61,8 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
         <motion.div
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
           className="w-full">
-          <div className="relative rounded-xl px-5 py-3 text-center overflow-hidden"
+          <div className="relative rounded-[24px] px-6 py-4 text-center overflow-hidden liquid-glass"
             style={{
-              background: 'var(--glass-bg)',
-              border: '1px solid var(--glass-border)',
-              boxShadow: 'var(--glass-shadow)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
             }}>
             
             {/* Progress Bar (GitHub Style) */}

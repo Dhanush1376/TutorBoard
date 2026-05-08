@@ -9,9 +9,9 @@ import useTutorStore from '../../store/tutorStore';
 const ProgressArc = () => {
   const { currentStepIndex, totalSteps } = useTutorStore();
 
-  const radius = 40;
+  const radius = 20;
   const strokeWidth = 4;
-  const size = (radius + strokeWidth) * 2;
+  const size = 48;
   const center = size / 2;
   
   // Arc parameters (90 degree arc in top right)
@@ -47,7 +47,7 @@ const ProgressArc = () => {
   const isComplete = totalSteps > 0 && currentStepIndex === totalSteps - 1;
 
   return (
-    <div className="fixed top-24 right-8 z-[100] flex flex-col items-end pointer-events-none">
+    <div className="relative flex flex-col items-end">
       <div className="relative">
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="drop-shadow-lg">
           {segments.map((seg, i) => {
@@ -85,22 +85,6 @@ const ProgressArc = () => {
           )}
         </svg>
 
-        {/* Floating Counter Label */}
-        <div className="absolute bottom-0 right-0 transform translate-y-full mt-2 text-right">
-          <motion.div
-            key={currentStepIndex}
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-end"
-          >
-            <span className="text-[14px] font-normal text-[var(--text-primary)] tracking-tighter">
-              {currentStepIndex + 1}<span className="text-[10px] text-[var(--text-tertiary)] ml-0.5">/ {totalSteps}</span>
-            </span>
-            <span className="text-[7px] font-normal uppercase tracking-[0.2em] text-[var(--text-tertiary)] -mt-1">
-              {isComplete ? 'Lesson Complete' : 'Progress'}
-            </span>
-          </motion.div>
-        </div>
       </div>
     </div>
   );

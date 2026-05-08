@@ -17,6 +17,7 @@ import API, { BASE_URL as API_URL, getCookie } from '../services/api';
 import AgentCanvasRenderer from '../components/canvas/AgentCanvasRenderer';
 import FixedTeachingStage from '../components/canvas/FixedTeachingStage';
 import CodeVisualizerModal from '../components/canvas/CodeVisualizerModal';
+import ParticleWaves from '../components/canvas/ParticleWaves';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
@@ -2048,7 +2049,7 @@ const Home = ({ isDark }) => {
       >
         {/* 2. Main Background Canvas */}
         {!isTeachingActive && (
-          <div className="absolute inset-0 z-0 bg-[var(--bg-secondary)] overflow-hidden">
+          <div className="absolute inset-0 z-0 bg-[var(--bg-primary)] overflow-hidden">
             {/* Ambient Background Elements */}
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-[10%] left-[5%] w-[30%] h-[30%] bg-[var(--text-primary)] opacity-[0.02] blur-[120px] rounded-full" />
@@ -2076,31 +2077,33 @@ const Home = ({ isDark }) => {
                 </FixedTeachingStage>
               </div>
             ) : !pagination.loading && (
-              <div className="w-full h-full flex items-center justify-center relative">
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.2 }}
-                  className="relative z-10 flex flex-col items-center gap-0 select-none pointer-events-none"
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '32px', height: '1px', background: 'var(--text-primary)', opacity: 0.08 }} />
-                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--text-primary)', opacity: 0.1 }} />
-                    <div style={{ width: '32px', height: '1px', background: 'var(--text-primary)', opacity: 0.08 }} />
-                  </div>
-                  <p style={{ 
-                    fontSize: '10px', 
-                    fontWeight: 400, 
-                    letterSpacing: '0.18em', 
-                    textTransform: 'uppercase',
-                    color: 'var(--text-primary)', 
-                    opacity: 0.1,
-                    marginTop: '10px',
-                    fontFamily: 'inherit'
-                  }}>
-                    tutorboard
-                  </p>
-                </motion.div>
+              <div className="w-full h-full relative overflow-hidden">
+                {/* ── Ambient Background Animation ── */}
+                <ParticleWaves opacity={0.6} />
+
+                {/* ── Branding Watermarks ── */}
+                <div className="absolute inset-0 z-10 pointer-events-none select-none overflow-hidden">
+                  {/* Top Left Watermark */}
+                  <motion.div 
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 1.2, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="absolute top-10 left-10 flex flex-col gap-1"
+                  >
+                    <h1 
+                      className="text-5xl font-light tracking-[0.4em] text-[var(--text-primary)] opacity-[0.25] dark:opacity-[0.12]"
+                      style={{ fontFamily: '"Outfit", sans-serif' }}
+                    >
+                      TUTORBOARD
+                    </h1>
+                    <p 
+                      className="text-[13px] font-medium tracking-wide text-[var(--text-primary)] opacity-[0.18] dark:opacity-[0.08] max-w-lg leading-relaxed italic"
+                      style={{ fontFamily: '"Inter", sans-serif' }}
+                    >
+                      Where AI meets understanding — turns complex concepts into visual intelligence.
+                    </p>
+                  </motion.div>
+                </div>
               </div>
             )}
           </div>

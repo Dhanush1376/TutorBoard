@@ -162,8 +162,8 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             borderTopRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
             borderBottomRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
             overflow: 'hidden',
-            borderLeft: !isMobile && !isRightHand && sidebarVisible ? '1px solid var(--border-color)' : 'none',
-            borderRight: !isMobile && isRightHand && sidebarVisible ? '1px solid var(--border-color)' : 'none',
+            borderLeft: !isMobile && !isRightHand && sidebarVisible ? 'var(--glass-border-width) solid var(--border-color)' : 'none',
+            borderRight: !isMobile && isRightHand && sidebarVisible ? 'var(--glass-border-width) solid var(--border-color)' : 'none',
           }}
         >
           <div className={`relative h-full overflow-hidden transition-all duration-300 ${isArtifactPanelOpen && !isMobile ? 'flex-1 min-w-0' : 'w-full'}`}>
@@ -226,7 +226,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
                     className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:bg-[var(--bg-tertiary)]/40"
                   >
                     {isSidebarOpen ? <PanelRight size={15} strokeWidth={2} /> : <PanelLeft size={15} strokeWidth={2} />}
-                    <span className="hidden md:block text-[10px] uppercase tracking-widest font-semibold opacity-70">
+                    <span className="hidden md:block text-[10px] uppercase tracking-[0.25em] font-bold opacity-90" style={{ color: 'var(--text-secondary)' }}>
                       {isSidebarOpen ? 'Close' : 'Workspace'}
                     </span>
                   </button>
@@ -240,12 +240,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             className={`pointer-events-auto transition-all duration-500 flex-1 flex ${isRightHand ? 'justify-start' : 'justify-end'} ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none -translate-y-10' : 'opacity-100'}`}
           >
             <div className="w-fit">
-              {!isSplitView && (
-                <Toolbar
-                  onShare={() => { }}
-                  onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
-                />
-              )}
+              <Toolbar
+                onShare={() => { }}
+                onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
+              />
             </div>
           </div>
         </div>

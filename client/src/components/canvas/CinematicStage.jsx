@@ -21,24 +21,24 @@ import ParticleWaves from './ParticleWaves';
 // ── Domain Color Map ────────────────────────────────────────────────────────
 
 const DOMAIN_AMBIENCE = {
-  dsa:        { from: 'rgba(99,102,241,0.06)', to: 'rgba(139,92,246,0.03)', glow: 'rgba(99,102,241,0.08)' },
-  algorithm:  { from: 'rgba(99,102,241,0.06)', to: 'rgba(139,92,246,0.03)', glow: 'rgba(99,102,241,0.08)' },
-  math:       { from: 'rgba(37,99,235,0.05)', to: 'rgba(79,70,229,0.03)', glow: 'rgba(37,99,235,0.06)' },
-  physics:    { from: 'rgba(234,88,12,0.05)', to: 'rgba(249,115,22,0.03)', glow: 'rgba(234,88,12,0.06)' },
-  chemistry:  { from: 'rgba(220,38,38,0.05)', to: 'rgba(185,28,28,0.03)', glow: 'rgba(220,38,38,0.06)' },
-  biology:    { from: 'rgba(22,163,74,0.05)', to: 'rgba(21,128,61,0.03)', glow: 'rgba(22,163,74,0.06)' },
-  history:    { from: 'rgba(217,119,6,0.05)', to: 'rgba(180,83,9,0.03)', glow: 'rgba(217,119,6,0.06)' },
-  medicine:   { from: 'rgba(236,72,153,0.05)', to: 'rgba(219,39,119,0.03)', glow: 'rgba(236,72,153,0.06)' },
-  law:        { from: 'rgba(202,138,4,0.05)', to: 'rgba(180,83,9,0.03)', glow: 'rgba(202,138,4,0.06)' },
-  business:   { from: 'rgba(20,184,166,0.05)', to: 'rgba(13,148,136,0.03)', glow: 'rgba(20,184,166,0.06)' },
-  general:    { from: 'rgba(100,116,139,0.04)', to: 'rgba(71,85,105,0.02)', glow: 'rgba(100,116,139,0.05)' },
+  dsa: { from: 'rgba(99,102,241,0.18)', to: 'rgba(139,92,246,0.12)', glow: 'rgba(99,102,241,0.22)' },
+  algorithm: { from: 'rgba(99,102,241,0.18)', to: 'rgba(139,92,246,0.12)', glow: 'rgba(99,102,241,0.22)' },
+  math: { from: 'rgba(37,99,235,0.15)', to: 'rgba(79,70,229,0.10)', glow: 'rgba(37,99,235,0.20)' },
+  physics: { from: 'rgba(234,88,12,0.15)', to: 'rgba(249,115,22,0.10)', glow: 'rgba(234,88,12,0.20)' },
+  chemistry: { from: 'rgba(220,38,38,0.15)', to: 'rgba(185,28,28,0.10)', glow: 'rgba(220,38,38,0.20)' },
+  biology: { from: 'rgba(22,163,74,0.15)', to: 'rgba(21,128,61,0.10)', glow: 'rgba(22,163,74,0.20)' },
+  history: { from: 'rgba(217,119,6,0.15)', to: 'rgba(180,83,9,0.10)', glow: 'rgba(217,119,6,0.20)' },
+  medicine: { from: 'rgba(236,72,153,0.15)', to: 'rgba(219,39,119,0.10)', glow: 'rgba(236,72,153,0.20)' },
+  law: { from: 'rgba(202,138,4,0.15)', to: 'rgba(180,83,9,0.10)', glow: 'rgba(202,138,4,0.20)' },
+  business: { from: 'rgba(20,184,166,0.15)', to: 'rgba(13,148,136,0.10)', glow: 'rgba(20,184,166,0.20)' },
+  general: { from: 'rgba(100,116,139,0.12)', to: 'rgba(71,85,105,0.08)', glow: 'rgba(100,116,139,0.15)' },
 };
 
 // ── Stage Dimensions ────────────────────────────────────────────────────────
 
 const STAGE_BASE_W = 800;
-const STAGE_BASE_H = 600;
-const STAGE_ASPECT = 16 / 10;
+const STAGE_BASE_H = 450; // Optimized for 16:9
+const STAGE_ASPECT = 16 / 9;
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
@@ -50,24 +50,19 @@ const CinematicStage = ({
   domain: propDomain = 'general',
   isGenerating = false,
   hideControls = true,
+  activeScene = null, // Added prop definition for clarity
 }) => {
   const { user } = useAuth();
   const isGuest = !user;
 
-  // Fix U-01: Wire to sceneSlice state
-  const { activeScene, currentStepIndex: storeStepIndex } = useTutorStore(useShallow(state => ({
-    activeScene: state.activeScene,
-    currentStepIndex: state.currentStepIndex
-  })));
-
-  // Derive values from activeScene if present, otherwise fallback to props
-  const currentStepIndex = activeScene ? storeStepIndex : propStepIndex;
-  const totalSteps = activeScene ? (activeScene.totalSteps || activeScene.steps?.length || 0) : propTotalSteps;
-  const topic = activeScene ? activeScene.title : propTopic;
-  const domain = activeScene ? (activeScene.domain || 'general') : propDomain;
+  // Derive values from props
+  const currentStepIndex = propStepIndex;
+  const totalSteps = propTotalSteps;
+  const topic = propTopic;
+  const domain = propDomain;
 
   const containerRef = useRef(null);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(0.1); // Start with a small default to prevent layout jump
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // ── Responsive Scaling ─────────────────────────────────────────────────
@@ -76,11 +71,13 @@ const CinematicStage = ({
     const handleResize = () => {
       if (!containerRef.current) return;
       const { clientWidth, clientHeight } = containerRef.current;
-      
+
+      if (clientWidth === 0 || clientHeight === 0) return;
+
       // Calculate fit scale: how much the 800px base width should scale 
-      // to fit within the current container while respecting the 16:10 ratio.
+      // to fit within the current container while respecting the 16:9 ratio.
       const containerAspect = clientWidth / clientHeight;
-      
+
       let targetW, targetH;
       if (containerAspect > STAGE_ASPECT) {
         // Container is wider than stage ratio — height is the constraint
@@ -91,9 +88,9 @@ const CinematicStage = ({
         targetW = clientWidth;
         targetH = targetW / STAGE_ASPECT;
       }
-      
+
       const newScale = targetW / STAGE_BASE_W;
-      setScale(Math.min(newScale, 3.0)); // Slightly higher cap for ultra-wide
+      setScale(Math.max(0.1, Math.min(newScale, 4.0))); // Increased max scale for high-res displays
     };
 
     const observer = new ResizeObserver(handleResize);
@@ -148,6 +145,8 @@ const CinematicStage = ({
         justifyContent: 'center',
         background: 'transparent',
         isolation: 'isolate',
+        opacity: 1, // Fixed visibility
+        transition: 'opacity 0.6s ease-in-out',
       }}
     >
       {/* ── Ambient Particle Waves ── */}
@@ -155,58 +154,23 @@ const CinematicStage = ({
         <ParticleWaves opacity={0.8} />
       )}
 
-      {/* ── Ambient Glow Layer ── */}
-      <AnimatePresence mode="popLayout">
-        <motion.div
-          key={domain || 'general'}
-          className="cinematic-stage-ambient"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 1.2, ease: 'easeInOut' }}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            zIndex: 0,
-            background: `radial-gradient(ellipse 70% 50% at 50% 45%, ${ambience.from}, ${ambience.to}, transparent)`,
-          }}
-        />
-      </AnimatePresence>
+      {/* ── Ambient Glow Layer (Removed for neutral canvas) ── */}
+      <div style={{ position: 'absolute', inset: 0, background: 'transparent' }} />
 
-      {/* ── Subtle Grid Pattern ── */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundSize: '40px 40px',
-          backgroundImage: `
-            linear-gradient(to right, var(--border-color) 1px, transparent 1px),
-            linear-gradient(to bottom, var(--border-color) 1px, transparent 1px)
-          `,
-          opacity: 0.06,
-          maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black, transparent)',
-          WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black, transparent)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+
 
       {/* ── The Stage Canvas ── */}
       <div
         className="cinematic-stage-canvas"
         style={{
-          width: STAGE_BASE_W,
-          height: STAGE_BASE_H,
-          aspectRatio: '16/10',
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
+          width: '100%',
+          height: '100%',
           position: 'relative',
           zIndex: 1,
-          willChange: 'transform',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          overflow: 'visible',
         }}
       >
         <div
@@ -215,6 +179,8 @@ const CinematicStage = ({
             inset: 0,
             pointerEvents: 'auto',
             overflow: 'visible',
+            transform: `scale(${scale})`,
+            transformOrigin: 'center center',
           }}
         >
           {children}
@@ -256,20 +222,22 @@ const CinematicStage = ({
 
         {/* ── Step Transition Overlay ── */}
         <AnimatePresence mode="wait">
-          <motion.div
-            key={`transition-${currentStepIndex}`}
-            initial={{ opacity: 0.6 }}
-            animate={{ opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'var(--bg-primary)',
-              pointerEvents: 'none',
-              zIndex: 50,
-            }}
-          />
+          {isTransitioning && (
+            <motion.div
+              key={`transition-${currentStepIndex}`}
+              initial={{ opacity: 0.6 }}
+              animate={{ opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'var(--bg-primary)',
+                pointerEvents: 'none',
+                zIndex: 50,
+              }}
+            />
+          )}
         </AnimatePresence>
 
         {/* ── Generation Loading Skeleton ── */}
@@ -291,8 +259,8 @@ const CinematicStage = ({
                 zIndex: 55,
               }}
             >
-              <div 
-                className="absolute inset-0 bg-[var(--bg-primary)]" 
+              <div
+                className="absolute inset-0 bg-[var(--bg-primary)]"
                 style={{ zIndex: -2 }}
               />
               <ParticleWaves opacity={0.5} />
@@ -316,7 +284,11 @@ const CinematicStage = ({
                     width: 200,
                     height: 24,
                     borderRadius: 8,
-                    background: `linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-secondary) 50%, var(--bg-tertiary) 75%)`,
+                    background: `linear-gradient(90deg, 
+                      rgba(255,255,255,0.03) 25%, 
+                      rgba(255,255,255,0.12) 50%, 
+                      rgba(255,255,255,0.03) 75%
+                    )`,
                     backgroundSize: '200% 100%',
                   }}
                 />
@@ -343,8 +315,8 @@ const CinematicStage = ({
           inset: 0,
           background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 60%, var(--bg-primary) 100%)',
           pointerEvents: 'none',
-          zIndex: 2,
-          opacity: 0.4,
+          zIndex: 0,
+          opacity: 0.15,
         }}
       />
     </div>

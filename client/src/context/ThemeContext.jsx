@@ -11,7 +11,7 @@ export const ThemeProvider = ({ children }) => {
   const [mode, setMode] = useState(() => {
     const saved = localStorage.getItem('tb-mode');
     if (saved === 'light' || saved === 'dark') return saved;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'dark'; // Force dark as default for cinematic experience
   });
 
   const currentTheme = themes.find(t => t.id === currentThemeId) || themes[0];

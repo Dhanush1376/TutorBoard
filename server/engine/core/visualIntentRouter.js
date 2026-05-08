@@ -53,6 +53,11 @@ const IMMERSIVE_PATTERNS = [
   /\b(cinematic|full walkthrough|complete tutorial)\b/i,
 ];
 
+const DSA_PATTERNS = [
+  /\b(array|sorting|searching|binary search|bubble sort|merge sort|quick sort|linked list|stack|queue|tree|graph|algorithm|visualize array|show the array)\b/i,
+  /\b(dsa|data structure|pathfinding|traversal|bfs|dfs)\b/i,
+];
+
 // ─── Router Class ────────────────────────────────────────────────────────────
 
 /**
@@ -146,7 +151,25 @@ export function routeVisualIntent({ userMessage, plannerResult, queryUnderstandi
     });
   }
 
-  // ── Step 4: Artifact-Only Check (Fix A-06) ─────────────────────────────
+  // ── Step 4: DSA/Algorithm Check (CRITICAL FIX) ────────────────────────
+  // If user is asking for DSA/Algorithm visualization, always favor canvas
+  const isDSA = DSA_PATTERNS.some(p => p.test(msg)) || (planner.intent === 'visualize' && ['d3', 'algorithm', 'sorting'].includes(planner.canvas_type));
+  if (isDSA) {
+    return buildDecision({
+      responseMode: 'chat_plus_live_canvas',
+      teachingMode: 'visualize',
+      rendererType: 'd3',
+      streamingStrategy: 'progressive',
+      interactionDepth: 'interactive',
+      artifactType: null,
+      canvasLayout: 'split',
+      confidence: 0.95,
+      visualBenefitScore: 1.0,
+      reasoning: 'DSA/Algorithm intent detected — routing to immersive D3 canvas',
+    });
+  }
+
+  // ── Step 5: Artifact-Only Check (Fix A-06) ─────────────────────────────
   // Remove the planner.generate_artifact gate. Pattern match alone is enough.
   const isArtifactOnly = ARTIFACT_ONLY_PATTERNS.some(p => p.test(msg));
   if (isArtifactOnly) {

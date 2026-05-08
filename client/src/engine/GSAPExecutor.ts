@@ -1,8 +1,7 @@
 import gsap from 'gsap';
-import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
 import { Command, RendererSystem } from './types';
 
-gsap.registerPlugin(MotionPathPlugin);
+
 
 /**
  * GSAPExecutor v4.0 — The Unified Animation Engine.
@@ -246,18 +245,12 @@ export class GSAPExecutor {
 
       const arcHeight = -Math.min(100, Math.abs(dx) * 0.4);
 
-      // Animation 1: Arcs UP
+      // Animation 1: Swap
       gsap.to(el1, {
         duration: dur,
-        motionPath: {
-          path: [
-            { x: 0, y: 0 },
-            { x: dx / 2, y: arcHeight },
-            { x: dx, y: dy }
-          ],
-          type: 'cubic'
-        },
-        scale: 1.15,
+        x: dx,
+        y: dy,
+        scale: 1.1,
         zIndex: 100,
         ease: 'power2.inOut',
         onComplete: () => {
@@ -266,17 +259,11 @@ export class GSAPExecutor {
         }
       });
 
-      // Animation 2: Arcs DOWN (Mirror)
+      // Animation 2: Mirror
       gsap.to(el2, {
         duration: dur,
-        motionPath: {
-          path: [
-            { x: 0, y: 0 },
-            { x: -dx / 2, y: -arcHeight },
-            { x: -dx, y: -dy }
-          ],
-          type: 'cubic'
-        },
+        x: -dx,
+        y: -dy,
         scale: 0.9,
         zIndex: 10,
         ease: 'power2.inOut',

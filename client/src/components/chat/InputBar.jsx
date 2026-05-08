@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   ArrowUp,
   Loader2,
@@ -172,15 +172,33 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   }, [isGenerating]);
 
 
-  // Auto-resize textarea
-  useEffect(() => {
+  // Auto-resize textarea logic
+  const adjustHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
       const newHeight = Math.min(textarea.scrollHeight, 200);
       textarea.style.height = `${newHeight}px`;
     }
-  }, [value, activeMode]);
+  }, []);
+
+  // Use useLayoutEffect for immediate height calculation before browser paint
+  useEffect(() => {
+    adjustHeight();
+  }, [value, activeMode, adjustHeight]);
+
+  // Handle container resize (e.g. sidebar open/close)
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const observer = new ResizeObserver(() => {
+      adjustHeight();
+    });
+
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [adjustHeight]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && (!e.shiftKey || e.ctrlKey || e.metaKey)) {
@@ -217,7 +235,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
       .map(k => ({
         id: k._id || k.id,
         name: k.label || k.provider,
-        icon: Key,
+        icon: Cpu, // Improved icon for custom models
         status: k.isExpired ? 'expired' : (k.isLowCredits ? 'low' : 'active'),
         isCustom: true,
       }))
@@ -336,7 +354,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   return (
     <div className={`w-full max-w-4xl mx-auto transition-transform duration-500 ${isFocused ? 'scale-[1.005]' : 'scale-100'}`}>
-      <div className={`flex flex-col h-auto glass-strong ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[28px] mx-4 mb-4'} p-1.5 relative shadow-2xl transition-shadow duration-500 ${isFocused ? 'shadow-[0_20px_60px_rgba(0,0,0,0.2)] ring-[var(--text-primary)]/20' : 'ring-[var(--border-color)]'} ring-1`}>
+      <div className={`flex flex-col h-auto liquid-glass ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[28px] mx-4 mb-4'} p-1.5 relative shadow-2xl transition-shadow duration-500 ${isFocused ? 'shadow-[0_20px_60px_rgba(0,0,0,0.2)] ring-[var(--text-primary)]/20' : 'ring-[var(--border-color)]'} ring-1`}>
 
         {/* Upload Progress Bar */}
         <AnimatePresence>
@@ -352,7 +370,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
         </AnimatePresence>
 
         {/* ── Textarea Area (Top Box) ── */}
-        <div className={`bg-[var(--bg-secondary)]/30 rounded-[22px] flex flex-col h-auto flex-shrink-0 transition-colors duration-300 ring-1 ring-inset relative overflow-hidden ${isFocused ? 'ring-[var(--text-primary)]/10 bg-[var(--bg-secondary)]/60' : 'ring-[var(--border-color)]/20 hover:bg-[var(--bg-secondary)]/50'}`}>
+        <div className={`bg-white/[0.03] dark:bg-white/[0.01] rounded-[22px] flex flex-col h-auto flex-shrink-0 transition-colors duration-300 ring-1 ring-inset relative overflow-hidden ${isFocused ? 'ring-[var(--text-primary)]/10 bg-white/[0.05] dark:bg-white/[0.02]' : 'ring-[var(--border-color)]/20 hover:bg-white/[0.04] dark:hover:bg-white/[0.015]'}`}>
 
           {/* Generating Animation Line */}
           {isGenerating && (
@@ -494,7 +512,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   placeholder={isOnCooldown ? `Wait ${cooldownRemaining}s...` : getPlaceholder()}
                   maxLength={isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000}
                   disabled={isOnCooldown}
-                  className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/60 resize-none px-4 ${isMobile ? 'py-2.5' : 'py-3.5'} outline-none text-[15px] transition-all duration-300 font-normal leading-relaxed ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/60 resize-none px-4 ${isMobile ? 'py-2.5' : 'py-3.5'} outline-none text-[15px] transition-colors duration-300 font-normal leading-relaxed ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
                   rows={1}
                   style={{ minHeight: isMobile ? '44px' : '48px' }}
                 />
@@ -529,7 +547,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-44' : 'w-52'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5`}
+                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-44' : 'w-52'} rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5 liquid-glass`}
                   >
                     <div className="flex flex-col gap-1">
                       {uploadActions.map((action) => (
@@ -572,7 +590,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-56' : 'w-64'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5`}
+                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-56' : 'w-64'} rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5 liquid-glass`}
                   >
                     <div className="flex flex-col gap-1">
                       {quickActions.map((action) => {
@@ -623,6 +641,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center z-10">
             <button
               onClick={() => { setIsAgentMenuOpen(!isAgentMenuOpen); setIsPlusMenuOpen(false); setIsToolsMenuOpen(false); }}
+              title={`Active Model: ${agents.find(a => a.id === selectedAgent)?.name || 'TutorBoard'}`}
               className={`flex items-center justify-center gap-2 h-10 px-3 min-w-[100px] rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] group active:scale-95 ${isAgentMenuOpen ? 'bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : ''}`}
             >
               {(() => {
@@ -633,7 +652,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     <Icon size={17} strokeWidth={2} className={`${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`} />
                     {!isMobile && (
                       <span className={`text-[9.5px] font-bold tracking-[0.05em] uppercase ${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
-                        {agent.name}
+                        Model: {agent.name}
                       </span>
                     )}
                     <ChevronDown size={10} strokeWidth={2} className={`transition-transform duration-300 ${isAgentMenuOpen ? 'rotate-180 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]/50 group-hover:text-[var(--text-tertiary)]'}`} />
@@ -648,7 +667,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 ${isMobile ? 'w-48' : 'w-56'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[20px] overflow-hidden z-[100] p-1.5 shadow-2xl flex flex-col gap-1`}
+                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 ${isMobile ? 'w-48' : 'w-56'} rounded-[20px] overflow-hidden z-[100] p-1.5 shadow-2xl flex flex-col gap-1 liquid-glass`}
                 >
                   {agents.map((agent, idx) => {
                     const Icon = agent.icon;
