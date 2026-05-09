@@ -1,4 +1,10 @@
-console.log('[Main] Script started');
+// SEC-LOG: Strip console.log in production to prevent leaking session/agent state
+if (import.meta.env.MODE === 'production') {
+  console.log = () => {};
+  console.debug = () => {};
+}
+
+import.meta.env.DEV && console.log('[Main] Script started');
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

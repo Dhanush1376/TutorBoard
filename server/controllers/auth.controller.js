@@ -77,6 +77,8 @@ export const signup = async (req, res) => {
       res.cookie('tb-token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
+        // SEC-22: 'lax' is safe for same-origin dev (localhost). 
+        // If using cross-origin dev (e.g. Codespaces), ensure both use HTTPS or a proxy.
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
@@ -257,23 +259,10 @@ export const exchangeToken = async (req, res) => {
  */
 export const logout = async (req, res) => {
   try {
-    const { tokenJti } = req;
+    const { tokenJti, tokenExp } = req;
     
     if (tokenJti) {
-      // Tokens usually have an 'exp' field (seconds since epoch)
-      // Extract it from req if possible, or use default
-      const authHeader = req.headers.authorization;
-      const token = authHeader?.split(' ')[1];
-      let exp;
-      
-      if (token) {
-        try {
-          const decoded = jwt.decode(token);
-          exp = decoded.exp;
-        } catch (e) { /* ignore */ }
-      }
-
-      await tokenStore.revokeToken(tokenJti, exp);
+      await tokenStore.revokeToken(tokenJti, tokenExp);
       console.log(`[Auth] User ${req.user?._id} logged out, token ${tokenJti} revoked`);
     }
 
@@ -341,10 +330,10 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
-    // Update password
+    // Update password and clear reset tokens BEFORE save
     user.password = password;
-    user.resetPasswordToken = null;
-    user.resetPasswordExpire = null;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
     user.passwordChangedAt = Date.now();
 
     await user.save();

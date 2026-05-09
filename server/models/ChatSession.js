@@ -19,6 +19,10 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  canvasType: {
+    type: String,
+    default: null,
+  },
   canvasSnapshot: {
     type: mongoose.Schema.Types.Mixed,
     default: null,
@@ -31,6 +35,10 @@ const messageSchema = new mongoose.Schema({
     sources: [{ title: String, url: String, snippet: String }],
     searchPerformed: { type: Boolean, default: false },
     artifactId: { type: String, default: null },
+    artifactData: { type: mongoose.Schema.Types.Mixed, default: null },
+    artifactTitle: { type: String, default: null },
+    artifactStatus: { type: String, default: null },
+    rendererType: { type: String, default: null },
     versions: { type: [mongoose.Schema.Types.Mixed], default: [] },
     activeVersionIndex: { type: Number, default: 0 }
   },

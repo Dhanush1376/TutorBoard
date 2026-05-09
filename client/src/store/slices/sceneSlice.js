@@ -156,6 +156,45 @@ export const createSceneSlice = (set, get) => ({
   },
 
   goToStep: (index) => set({ currentStepIndex: index, isPlaying: false, isPaused: true }),
+
+  /**
+   * setCanvasSnapshot — Restore a canvas snapshot from a chat message or session history.
+   * This loads objects, steps, and timeline data back into the canvas for viewing.
+   * Used by handleOpenCanvas and sidebar snapshot restoration.
+   */
+  setCanvasSnapshot: (snapshot) => {
+    if (!snapshot) return;
+
+    const canvasObjects = snapshot.canvasObjects || snapshot.objects || [];
+    const canvasSteps = snapshot.canvasSteps || snapshot.steps || snapshot.timeline || [];
+    const canvasConnections = snapshot.canvasConnections || snapshot.connections || [];
+    const totalSteps = snapshot.totalSteps || canvasSteps.length;
+    const currentStepIndex = snapshot.currentStepIndex || 0;
+
+    set((state) => {
+      state.canvasObjects = canvasObjects;
+      state.canvasSteps = canvasSteps;
+      state.canvasConnections = canvasConnections;
+      state.totalSteps = totalSteps;
+      state.currentStepIndex = currentStepIndex;
+      state.sceneReady = true;
+      state.isPlaying = false;
+      state.isPaused = false;
+
+      // Build an activeScene from the snapshot so renderers can access it
+      if (!state.activeScene || snapshot.title) {
+        state.activeScene = {
+          title: snapshot.title || state.activeScene?.title || 'Visual Lesson',
+          domain: snapshot.domain || state.activeScene?.domain || 'general',
+          renderer: snapshot.renderer || state.activeScene?.renderer || 'cinematic',
+          timeline: canvasSteps,
+          objects: canvasObjects,
+          steps: canvasSteps,
+        };
+      }
+    });
+  },
+
   
   setCurrentStep: (index) => set({ currentStepIndex: index }),
   

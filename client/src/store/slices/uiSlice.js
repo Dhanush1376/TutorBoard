@@ -82,6 +82,7 @@ export const createUiSlice = (set, get) => ({
   chatInputText:       '',
   selectedTextContext: null,
   isVoiceEnabled:      true,
+  isHydrated:          false,
 
   globalAlert: {
     isActive: false,
@@ -169,6 +170,8 @@ export const createUiSlice = (set, get) => ({
 
   // ✅ FIX: mutate draft
   toggleVoice: () => set(s => { s.isVoiceEnabled = !s.isVoiceEnabled; }),
+
+  setHydrated: (val) => set({ isHydrated: val }),
 
   // ✅ FIX: mutate draft
   toggleFloatingSidebar: () => set(s => { s.showFloatingSidebar = !s.showFloatingSidebar; }),

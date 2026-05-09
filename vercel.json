@@ -32,7 +32,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://app.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://tutorboard-backend.onrender.com https://app.posthog.com wss://tutorboard-backend.onrender.com; font-src 'self' https://fonts.gstatic.com;"
+          "value": "default-src 'self'; script-src 'self' https://app.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://tutorboard-backend.onrender.com https://app.posthog.com wss://tutorboard-backend.onrender.com; font-src 'self' https://fonts.gstatic.com;"
         }
       ]
     }

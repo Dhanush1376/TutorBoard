@@ -225,14 +225,14 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // State changes from server FSM
     cleanups.push(on('teaching:state', (data) => {
-      console.log(`[Machine] State: ${data.from} → ${data.state} (${data.event})`);
+      import.meta.env.DEV && console.log(`[Machine] State: ${data.from} → ${data.state} (${data.event})`);
       setMachineState(data.state);
       if (data.payload?.sessionId) setSessionId(data.payload.sessionId);
     }));
 
     // Full timeline received — primary data event
     cleanups.push(on('teaching:timeline', (data) => {
-      console.log(`[Machine] Timeline received: "${data.title}" (${data.totalSteps} steps, renderer: ${data.renderer})`);
+      import.meta.env.DEV && console.log(`[Machine] Timeline received: "${data.title}" (${data.totalSteps} steps, renderer: ${data.renderer})`);
 
       const normalizedTimeline = {
         ...data,
@@ -276,7 +276,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Generation progress message
     cleanups.push(on('teaching:progress', (data) => {
-      console.log(`[Machine] Progress: ${data.message}`);
+      import.meta.env.DEV && console.log(`[Machine] Progress: ${data.message}`);
       setGenerationProgress(data.message);
       setNarrationTokens(''); // Clear previous tokens when stage changes
     }));
@@ -289,6 +289,17 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // Doubt acknowledged by server
     cleanups.push(on('teaching:doubt-ack', () => {
       setDoubtProcessing(true);
+      
+      // Safety timeout: if no response in 60s, reset
+      const timer = setTimeout(() => {
+        const store = useTutorStore.getState();
+        if (store.isDoubtProcessing) {
+          console.warn('[Machine] Doubt response timeout (60s)');
+          store.setDoubtProcessing(false);
+          store.setWaitingForAI(false);
+        }
+      }, 60000);
+      cleanups.push(() => clearTimeout(timer));
     }));
 
     // Doubt response received
@@ -314,7 +325,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Doubt Delta received (Phase 3)
     cleanups.push(on('teaching:doubt-delta', (data) => {
-      console.log(`[Machine] 🚀 Doubt Delta received: ${data.actions?.length || 0} actions`);
+      import.meta.env.DEV && console.log(`[Machine] 🚀 Doubt Delta received: ${data.actions?.length || 0} actions`);
       
       if (!data.actions || data.actions.length === 0) {
         console.warn('[Machine] ⚠️ Received doubt-delta with 0 actions. Checking visualUpdate fallback...');
@@ -341,10 +352,12 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     cleanups.push(on('teaching:error', (data) => {
       console.error('[Machine] Error:', data.message);
       setError(data.message);
-      // FIX: Clear the waiting indicator so the spinner doesn't spin forever after an error
+      // FIX: Clear all waiting indicators so the spinner doesn't spin forever after an error
       const store = useTutorStore.getState();
       const sid = store.chatSessionId || store.sessionId || 'temp';
       store.setWaitingForAI(false, sid);
+      store.setDoubtProcessing(false);
+      store.setMachineState(STATES.IDLE);
     }));
 
     // Greeting (quick text answer or fallback)
@@ -352,7 +365,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // The old setGreeting() wrote to greetingMessage state which is read by a chatHistory useEffect in Home.jsx
     // but conversationMessages (what ChatWindow renders) never got updated — so nothing showed.
     cleanups.push(on('teaching:greeting', (data) => {
-      console.log('[Machine] Greeting received:', (data.message || '').substring(0, 60));
+      import.meta.env.DEV && console.log('[Machine] Greeting received:', (data.message || '').substring(0, 60));
       if (!data.message) return;
       const store = useTutorStore.getState();
       // FIX: Prefer sessionId from server payload (most reliable), then fall back to store state.
@@ -371,23 +384,25 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // ─── Adaptive Replanning Events ─────────────────────────────────────────
     // Server emits these when confusionIndex triggers a mid-lesson replan
     cleanups.push(on('teaching:replan', (data) => {
-      console.log(`[Machine] 🔄 Adaptive replan: "${data.message}" (${data.newTotalSteps} steps)`);
+      import.meta.env.DEV && console.log(`[Machine] 🔄 Adaptive replan: "${data.message}" (${data.newTotalSteps} steps)`);
       notifyUser('Lesson Adapted', data.message || 'Steps have been simplified for you.');
     }));
 
     cleanups.push(on('teaching:timeline-update', (data) => {
-      console.log(`[Machine] 🔄 Timeline update received: ${data.totalSteps} steps`);
+      import.meta.env.DEV && console.log(`[Machine] 🔄 Timeline update received: ${data.totalSteps} steps`);
+      
+      const oldTimeline = stateRef.current.timeline || {};
       setTimeline({
+        ...oldTimeline,
         steps: data.steps,
         timeline: data.steps,
         totalSteps: data.totalSteps,
-        // Preserve existing elements/connections — only steps changed
+        // Preserve existing state-driven objects/connections
         elements: stateRef.current.canvasObjects,
         objects: stateRef.current.canvasObjects,
         connections: stateRef.current.canvasConnections,
-        renderer: stateRef.current.timeline?.renderer || 'cinematic',
+        renderer: oldTimeline.renderer || 'cinematic',
       });
-
     }));
 
 
@@ -395,7 +410,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     // MongoDB session ID feedback
     cleanups.push(on('session:db-id', (data) => {
       if (data.chatSessionId) {
-        console.log(`[Machine] Received MongoDB chatSessionId: ${data.chatSessionId}`);
+        import.meta.env.DEV && console.log(`[Machine] Received MongoDB chatSessionId: ${data.chatSessionId}`);
         setChatSessionId(data.chatSessionId);
       }
     }));
@@ -406,7 +421,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       const currentCount = stateRef.current.guestTrialStatus?.messageCount || 0;
       if (data.count > currentCount) {
 
-        console.log(`[Machine] Syncing guest usage from server: ${data.count}`);
+        import.meta.env.DEV && console.log(`[Machine] Syncing guest usage from server: ${data.count}`);
         setGuestTrialStatus(data);
       }
     }));
@@ -427,13 +442,13 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Learner Profile update
     cleanups.push(on('teaching:profile', (data) => {
-      console.log(`[Machine] Learner Profile sync:`, data);
+      import.meta.env.DEV && console.log(`[Machine] Learner Profile sync:`, data);
       setLearnerProfile(data);
     }));
     
     // Level Up Event
     cleanups.push(on('teaching:level-up', (data) => {
-      console.log(`[Machine] 🏆 LEVEL UP: ${data.newLevel}`);
+      import.meta.env.DEV && console.log(`[Machine] 🏆 LEVEL UP: ${data.newLevel}`);
       setLevelUpEvent({ message: data.message, newLevel: data.newLevel, ts: Date.now() });
     }));
 
@@ -553,7 +568,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     const autoSaveMs = (parseInt(localStorage.getItem('tb-auto-save')) || 5) * 1000;
 
     const timer = setTimeout(() => {
-      console.log('[Machine] 🔄 Syncing board state to server...');
+      import.meta.env.DEV && console.log('[Machine] 🔄 Syncing board state to server...');
       emit('canvas:sync', { objects: canvasObjects });
     }, autoSaveMs);
 

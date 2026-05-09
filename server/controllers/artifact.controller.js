@@ -82,6 +82,11 @@ export const getArtifact = async (req, res) => {
       return res.status(404).json({ error: 'Artifact not found' });
     }
 
+    // Ownership check: Prevent reading artifacts owned by others
+    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden: Private artifact' });
+    }
+
     res.json({
       id: artifact._id,
       sessionId: artifact.sessionId,
@@ -119,6 +124,11 @@ export const updateArtifact = async (req, res) => {
     const artifact = await Artifact.findById(id);
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    // Ownership check: Prevent updating artifacts owned by others
+    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this artifact' });
     }
 
     // Push current state to version history before overwriting
@@ -174,6 +184,11 @@ export const getArtifactHistory = async (req, res) => {
 
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    // Ownership check: Prevent reading history of artifacts owned by others
+    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden: Private history' });
     }
 
     res.json({
@@ -245,6 +260,11 @@ export const modifyArtifact = async (req, res) => {
     const artifact = await Artifact.findById(artifactId);
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    // Ownership check: Prevent modifying artifacts owned by others
+    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this artifact' });
     }
 
     // Build a focused modification prompt

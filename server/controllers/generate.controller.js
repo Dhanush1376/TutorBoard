@@ -13,7 +13,7 @@ export const generateExplanation = async (req, res) => {
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
     const sessionId = `api-${Date.now()}`;
-    sessionStore.create(sessionId, 'api-request');
+    sessionStore.create(sessionId, { source: "api-request", userId: req.user?._id });
 
     const agentId = req.body?.agentId || req.body?.model;
     const userConfig = await resolveUserConfig(req, req.user, prompt, agentId);

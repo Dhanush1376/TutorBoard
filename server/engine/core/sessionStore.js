@@ -55,6 +55,7 @@ class SessionStore {
       chatSessionId: null,
       learnerProfileId: null,
       engineSessionId: id,
+      _lastPersistAt: null,
     };
 
 
@@ -102,6 +103,9 @@ class SessionStore {
         // Sliding window: refresh TTL on get
         const isIdle = !session.topic && !session.timeline;
         await redis.set(`${KEY_PREFIX}${id}`, JSON.stringify(session), isIdle ? IDLE_TTL_SEC : SESSION_TTL_SEC);
+        
+        // BUG-FALLBACK: Mirror to local memory as hot standby for Redis disconnects
+        this.localSessions.set(id, session);
         return session;
       }
       return null;
@@ -122,19 +126,28 @@ class SessionStore {
       session = data;
     } else {
       // Deep merge for learnerProfile if needed, or just regular assign
+      // Deep merge the nested objects:
       if (data.learnerProfile && session.learnerProfile) {
-        data.learnerProfile = { ...session.learnerProfile, ...data.learnerProfile };
+        data.learnerProfile = { 
+          ...session.learnerProfile, 
+          ...data.learnerProfile,
+          engagementMetrics: {
+            ...session.learnerProfile.engagementMetrics,
+            ...(data.learnerProfile.engagementMetrics || {})
+          }
+        };
       }
       Object.assign(session, data);
     }
     
     session.lastActivityAt = Date.now();
 
+    // Hot standby: always update local sessions to prevent loss if Redis fails mid-session
+    this.localSessions.set(id, session);
+
     if (redis.isConnected) {
       const isIdle = !session.topic && !session.timeline;
       await redis.set(`${KEY_PREFIX}${id}`, JSON.stringify(session), isIdle ? IDLE_TTL_SEC : SESSION_TTL_SEC);
-    } else {
-      this.localSessions.set(id, session);
     }
     
     return session;
@@ -201,6 +214,11 @@ class SessionStore {
     try {
       const s = await this.get(id);
       if (!s || !s.userId || !s.learnerProfileId) return;
+
+      // Add a "lastPersistAt" timestamp. Skip if persisted < 5 minutes ago:
+      if (s._lastPersistAt && Date.now() - s._lastPersistAt < 5 * 60 * 1000) return;
+      s._lastPersistAt = Date.now();
+      await this.update(id, { _lastPersistAt: s._lastPersistAt }, s);
 
       const profile = await LearnerProfile.findById(s.learnerProfileId);
       if (!profile) return;

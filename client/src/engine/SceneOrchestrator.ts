@@ -159,6 +159,11 @@ export class SceneOrchestrator {
    */
   setRenderers(renderers: RendererSystem): void {
     this.renderers = renderers;
+    if (this.renderers.d3) {
+      this.renderers.d3.onInteraction = (id, type) => {
+        this.callbacks.onInteraction?.(id, 'click', { type });
+      };
+    }
   }
 
   /**
@@ -275,7 +280,7 @@ export class SceneOrchestrator {
   playDelta(commands: Command[], onComplete?: () => void): void {
     if (this.isDestroyed || !this.renderers) return;
 
-    console.log(`[SceneOrchestrator] 🎯 Playing delta: ${commands.length} commands`);
+    import.meta.env.DEV && console.log(`[SceneOrchestrator] 🎯 Playing delta: ${commands.length} commands`);
 
     // Track new entities added by delta
     const deltaEntityIds: string[] = [];

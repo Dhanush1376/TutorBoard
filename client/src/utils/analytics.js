@@ -13,7 +13,7 @@ export const initPostHog = () => {
         capture_pageview: true,
         persistence: 'localStorage',
       });
-      console.log('[Analytics] PostHog initialized ✅');
+      import.meta.env.DEV && console.log('[Analytics] PostHog initialized ✅');
     }
   } catch (err) {
     console.warn('[Analytics] PostHog failed to initialize:', err);

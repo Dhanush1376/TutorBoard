@@ -34,16 +34,33 @@ export const executeCodeProxy = async (req, res) => {
     return res.status(400).json({ error: 'Source code is required' });
   }
 
-  console.log(`[Compiler Proxy] Executing ${language} (ID: ${langId}) via Judge0...`);
+  const host = process.env.JUDGE0_HOST || 'ce.judge0.com';
+  const isRapidAPI = host.includes('rapidapi.com');
+  
+  console.log(`[Compiler Proxy] Executing ${language} (ID: ${langId}) via Judge0 (${host})...`);
 
   try {
-    const response = await axios.post('https://ce.judge0.com/submissions?wait=true', {
+    const headers = { 'Content-Type': 'application/json' };
+    
+    if (process.env.JUDGE0_API_KEY) {
+      if (isRapidAPI) {
+        headers['X-RapidAPI-Key'] = process.env.JUDGE0_API_KEY;
+        headers['X-RapidAPI-Host'] = host;
+      } else {
+        headers['X-Auth-Token'] = process.env.JUDGE0_API_KEY;
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      console.error('[Compiler Proxy] ❌ CRITICAL: Running on public Judge0 instance in production. Access denied for security.');
+      return res.status(403).json({ error: 'Code execution is disabled in production without a private Judge0 instance.' });
+    }
+
+    const response = await axios.post(`https://${host}/submissions?wait=true`, {
       language_id: langId,
       source_code: sourceCode,
       stdin: '', // Optional: support stdin in the future
     }, {
       timeout: 20000,
-      headers: { 'Content-Type': 'application/json' }
+      headers
     });
 
     const data = response.data;

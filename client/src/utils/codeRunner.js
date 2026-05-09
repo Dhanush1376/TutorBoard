@@ -1,3 +1,5 @@
+import { BASE_URL as API_BASE } from '../services/api';
+
 /**
  * Unified Code Execution Engine for TutorBoard
  * Supports:
@@ -20,7 +22,6 @@ const PISTON_LANG_MAP = {
   c: { language: 'c', version: '*' },
   ruby: { language: 'ruby', version: '*' },
   go: { language: 'go', version: '*' },
-  rust: { language: 'rust', version: '*' },
 };
 
 // ─── JavaScript (Local) ───────────────────────────────────────────────────────
@@ -110,7 +111,10 @@ export async function executePistonAPI(code, lang, onLog) {
     return { success: false };
   }
 
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  if (!import.meta.env.VITE_API_BASE_URL && import.meta.env.PROD) {
+    throw new Error("VITE_API_BASE_URL must be set in production to enable remote code execution.");
+  }
+  const API_URL = API_BASE || 'http://localhost:5000';
   
   // 1. Try our own backend proxy first (More reliable, bypasses CORS)
   try {

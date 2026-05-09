@@ -27,7 +27,8 @@ export function setupTeachingSocket(io) {
       const cookies = cookie.parse(socket.handshake.headers.cookie || '');
       const token = cookies['tb-token'] || socket.handshake.auth?.token;
       
-      if (token === 'guest' || token === 'verified' || token === 'null' || !token) {
+      // SEC-GUARD: Only accept null/undefined/empty as guest. Reject explicit strings.
+      if (!token || token === '') {
         socket.user = { id: 'guest', isGuest: true };
         return next();
       }

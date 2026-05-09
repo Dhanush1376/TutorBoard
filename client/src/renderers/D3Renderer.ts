@@ -7,14 +7,15 @@ export class D3Renderer {
   private mainLayer: d3.Selection<SVGGElement, unknown, null, undefined>;
 
   // Layout constants
-  private readonly CELL_WIDTH = 72;
-  private readonly CELL_HEIGHT = 72;
-  private readonly CELL_GAP = 8;
+  private readonly CELL_WIDTH = 54;
+  private readonly CELL_HEIGHT = 54;
+  private readonly CELL_GAP = 10;
   private currentWidth = 800;
   private currentHeight = 600;
   private nextY = 160;
   private resizeObserver: ResizeObserver | null = null;
   private zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
+  public onInteraction?: (id: string, type: string) => void;
 
   constructor(containerElement: HTMLDivElement, initialWidth?: number, initialHeight?: number) {
     this.container = d3.select(containerElement);
@@ -154,8 +155,8 @@ export class D3Renderer {
     const containerWidth = this.getWidth() || 800;
     
     // Bug 07 Fix: Responsive CELL_WIDTH
-    const cellWidth = Math.min(84, (containerWidth - 80) / values.length);
-    const cellGap = Math.min(8, cellWidth / 8);
+    const cellWidth = Math.min(58, (containerWidth - 120) / values.length);
+    const cellGap = 10;
     
     const totalWidth = values.length * cellWidth + (values.length - 1) * cellGap;
     const offsetX = (containerWidth / 2) - (totalWidth / 2);
@@ -171,17 +172,31 @@ export class D3Renderer {
       .append('g')
       .attr('class', 'cell')
       .attr('id', (d, i) => `${id}[${i}]`)
-      .attr('transform', (d, i) => `translate(${i * (cellWidth + cellGap)}, 0)`);
+      .attr('transform', (d, i) => `translate(${i * (cellWidth + cellGap)}, 0)`)
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        const cellId = `${id}[${values.indexOf(d)}]`;
+        this.onInteraction?.(cellId, 'cell');
+        
+        // Visual feedback
+        gsap.to(event.currentTarget, {
+          scale: 1.1,
+          duration: 0.1,
+          yoyo: true,
+          repeat: 1,
+          ease: 'power2.out'
+        });
+      });
 
     cells.append('rect')
       .attr('width', cellWidth)
       .attr('height', this.CELL_HEIGHT)
-      .attr('rx', 12)
-      .attr('fill', 'var(--bg-tertiary)')
-      .attr('stroke', 'var(--border-strong)')
-      .attr('stroke-width', 2.5)
-      .attr('class', 'cell-bg shadow-md')
-      .style('filter', 'drop-shadow(0 12px 24px rgba(0,0,0,0.18))'); 
+      .attr('rx', 10)
+      .attr('fill', 'rgba(255, 255, 255, 0.03)')
+      .attr('stroke', 'rgba(255, 255, 255, 0.12)')
+      .attr('stroke-width', 1)
+      .attr('class', 'cell-bg shadow-premium')
+      .style('filter', 'drop-shadow(0 12px 32px rgba(0,0,0,0.25))'); 
       
     // Glossy Overlay
     cells.append('rect')
@@ -197,22 +212,23 @@ export class D3Renderer {
       .attr('y', this.CELL_HEIGHT / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'middle')
-      .attr('font-size', `${Math.min(20, cellWidth / 2.5)}px`)
+      .attr('font-size', `${Math.min(15, cellWidth / 3)}px`)
       .attr('font-family', 'var(--font-mono, monospace)')
-      .attr('font-weight', '700')
+      .attr('font-weight', '600')
       .attr('fill', 'var(--text-primary)')
       .text(d => d);
 
     // Index Text below
     cells.append('text')
       .attr('x', cellWidth / 2)
-      .attr('y', this.CELL_HEIGHT + 22)
+      .attr('y', this.CELL_HEIGHT + 24)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '10.5px')
+      .attr('font-size', '9px')
       .attr('font-family', 'var(--font-mono)')
       .attr('font-weight', '600')
-      .attr('fill', 'var(--text-secondary)')
-      .attr('opacity', 0.8)
+      .attr('fill', 'var(--text-tertiary)')
+      .attr('letter-spacing', '0.05em')
+      .attr('opacity', 0.4)
       .text((d, i) => i);
 
     this.animate(`#${id} .cell`, 0.06);
@@ -303,22 +319,22 @@ export class D3Renderer {
       .attr('transform', `translate(${containerWidth / 2}, ${this.ARRAY_Y - 80})`);
 
     compGroup.append('rect')
-      .attr('x', -80)
-      .attr('y', -30)
-      .attr('width', 160)
-      .attr('height', 60)
-      .attr('rx', 30)
+      .attr('x', -70)
+      .attr('y', -24)
+      .attr('width', 140)
+      .attr('height', 48)
+      .attr('rx', 24)
       .attr('fill', 'var(--bg-tertiary)')
       .attr('stroke', 'var(--border-strong)')
-      .attr('stroke-width', 2)
+      .attr('stroke-width', 1.5)
       .style('filter', 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))');
 
     compGroup.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
-      .attr('font-size', '20px')
+      .attr('font-size', '16px')
       .attr('font-family', 'var(--font-mono, monospace)')
-      .attr('font-weight', '800')
+      .attr('font-weight', '700')
       .attr('fill', 'var(--text-primary)')
       .text(`${left} ${op} ${right}`);
 
@@ -497,25 +513,30 @@ export class D3Renderer {
       .enter().append('g')
       .attr('class', 'node')
       .attr('data-type', 'tree-node')
-      .attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
+      .attr('transform', (d: any) => `translate(${d.x}, ${d.y})`)
+      .style('cursor', 'pointer')
+      .on('click', (event, d: any) => {
+        this.onInteraction?.(d.data.id || d.data.name, 'tree-node');
+        gsap.to(event.currentTarget, { scale: 1.1, duration: 0.1, yoyo: true, repeat: 1 });
+      });
 
     node.append('circle')
-      .attr('r', 24)
+      .attr('r', 20)
       .attr('fill', 'var(--bg-secondary)')
       .attr('stroke', 'var(--border-strong)')
       .attr('stroke-width', 3)
       .style('filter', 'drop-shadow(0 8px 12px rgba(0,0,0,0.5))')
       .on('mouseenter', function() {
-        d3.select(this).transition().duration(200).attr('stroke-width', 5).attr('r', 24);
+        d3.select(this).transition().duration(200).attr('stroke-width', 4).attr('r', 22);
       })
       .on('mouseleave', function() {
-        d3.select(this).transition().duration(200).attr('stroke-width', 3).attr('r', 22);
+        d3.select(this).transition().duration(200).attr('stroke-width', 3).attr('r', 20);
       });
 
     node.append('text')
       .attr('dy', '.35em')
       .attr('text-anchor', 'middle')
-      .attr('font-size', '14px')
+      .attr('font-size', '11px')
       .attr('font-weight', 'bold')
       .attr('fill', 'var(--text-primary)')
       .text((d: any) => d.data.name || d.data.value);
@@ -665,23 +686,23 @@ export class D3Renderer {
 
     // Banner Background
     group.append('rect')
-      .attr('x', -200)
-      .attr('y', -25)
-      .attr('width', 400)
-      .attr('height', 50)
-      .attr('rx', 25)
+      .attr('x', -160)
+      .attr('y', -21)
+      .attr('width', 320)
+      .attr('height', 42)
+      .attr('rx', 21)
       .attr('fill', 'rgba(16, 185, 129, 0.1)') // emerald-500/10
       .attr('stroke', '#10b981')
-      .attr('stroke-width', 2)
-      .style('filter', 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.4))');
+      .attr('stroke-width', 1.5)
+      .style('filter', 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))');
 
     // Text
     group.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
-      .attr('font-size', '16px')
+      .attr('font-size', '12px')
       .attr('font-family', 'var(--font-sans)')
-      .attr('font-weight', '700')
+      .attr('font-weight', '600')
       .attr('fill', '#10b981')
       .text(text);
 

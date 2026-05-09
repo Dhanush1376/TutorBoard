@@ -24,7 +24,7 @@ import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
 // @ts-ignore
 import passport from './utils/auth/passport.js';
 // @ts-ignore
-import { optionalProtect } from './middleware/auth.middleware.js';
+import { protect, optionalProtect } from './middleware/auth.middleware.js';
 // @ts-ignore
 import { initPostgres } from './utils/core/postgres.js';
 // @ts-ignore
@@ -213,6 +213,7 @@ app.use(cors({
   origin: isOriginAllowed as any,
   credentials: true,
 }));
+app.options("*", cors());
 app.use(cookieParser());
 app.use(requestIdMiddleware);
 
@@ -295,8 +296,14 @@ for (const { key, critical, label } of REQUIRED_ENV) {
 }
 console.log("=====================================");
 
-if (!process.env.ENCRYPTION_KEY) {
-  console.error('FATAL: ENCRYPTION_KEY is not set. Exiting.');
+const INSECURE_KEYS = [
+  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+  '1234567890123456789012345678901234567890123456789012345678901234'
+];
+
+if (!process.env.ENCRYPTION_KEY || INSECURE_KEYS.includes(process.env.ENCRYPTION_KEY)) {
+  console.error('FATAL: Insecure or missing ENCRYPTION_KEY. Please set a unique 64-char hex key.');
   process.exit(1);
 }
 
@@ -366,6 +373,19 @@ app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
 app.use('/api/artifact', httpRateLimiter, dbCheck, artifactRoutes);
 app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
 app.use('/', httpRateLimiter, compilerRoutes);
+
+// SEC-21: Authenticated File Serving (Replaces insecure express.static)
+// This ensures that even if files are stored locally, they cannot be accessed without a valid session.
+app.get('/uploads/:filename', protect, (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const safePath = path.join(__dirname, 'uploads', filename);
+  
+  res.sendFile(safePath, (err) => {
+    if (err) {
+      res.status(404).json({ error: 'File not found' });
+    }
+  });
+});
 
 // @ts-ignore
 Sentry.setupExpressErrorHandler(app);

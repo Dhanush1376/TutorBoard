@@ -4,6 +4,9 @@ import { getEmbeddings } from '../../utils/ai/llmClient.js';
 class VectorStoreService {
   constructor() {
     this.writeQueue = Promise.resolve();
+    if (!process.env.POSTGRES_URL) {
+      console.warn("[VectorStore] ⚠️ POSTGRES_URL not set — RAG/memory disabled for all sessions.");
+    }
   }
   /**
    * Generates embedding for text using the LLM client.

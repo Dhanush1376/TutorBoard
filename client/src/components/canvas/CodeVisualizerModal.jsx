@@ -9,12 +9,12 @@ import VisaiLogo from '../layout/VisaiLogo';
 import { executeCode } from '../../utils/codeRunner';
 
 const LANGUAGES = {
-  javascript: { name: 'JavaScript', boiler: 'console.log("Hello, World!");' },
+  javascript: { name: 'JavaScript', boiler: 'import.meta.env.DEV && console.log("Hello, World!");' },
   python: { name: 'Python', boiler: 'print("Hello, World!")' },
   java: { name: 'Java', boiler: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}' },
   cpp: { name: 'C++', boiler: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, World!" << std::endl;\n    return 0;\n}' },
   c: { name: 'C', boiler: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}' },
-  typescript: { name: 'TypeScript', boiler: 'const message: string = "Hello, World!";\nconsole.log(message);' },
+  typescript: { name: 'TypeScript', boiler: 'const message: string = "Hello, World!";\nimport.meta.env.DEV && console.log(message);' },
   ruby: { name: 'Ruby', boiler: 'puts "Hello, World!"' },
   go: { name: 'Go', boiler: 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}' },
   rust: { name: 'Rust', boiler: 'fn main() {\n    println!("Hello, World!");\n}' },
@@ -34,7 +34,7 @@ const CodeVisualizerModal = () => {
   const setVisualizerOpen = (val) => setOverlay(val ? 'code-editor' : null);
   const { mode } = useTheme();
   const [lang, setLang] = useState('javascript');
-  const [code, setCode] = useState('console.log("Hello, World!");');
+  const [code, setCode] = useState('import.meta.env.DEV && console.log("Hello, World!");');
   const [isMaximized, setIsMaximized] = useState(false);
   const [isTrafficHovered, setIsTrafficHovered] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);

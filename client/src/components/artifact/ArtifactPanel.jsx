@@ -6,7 +6,7 @@ import {
   Sparkles, Send, Loader2
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import { BASE_URL as API_URL } from '../../services/api';
+import API, { BASE_URL as API_URL } from '../../services/api';
 import CodeRenderer from './renderers/CodeRenderer';
 import UIRenderer from './renderers/UIRenderer';
 import DocumentRenderer from './renderers/DocumentRenderer';
@@ -121,7 +121,7 @@ const ArtifactPanel = ({ isDark }) => {
         saveArtifactVersion(activeArtifactId);
         setAiEditPrompt('');
       } else {
-        const err = await res.json().catch(() => ({}));
+        const err = response.data || {};
         console.error('[ArtifactPanel] AI edit failed:', err.error);
       }
     } catch (err) {
@@ -169,9 +169,9 @@ const ArtifactPanel = ({ isDark }) => {
 
   const displayContent = cleanContent(activeArtifact?.content);
 
-  if (!isArtifactPanelOpen || (!activeArtifact && !streamingArtifact)) return null;
+  if (!isArtifactPanelOpen) return null;
 
-  const TypeIcon = TYPE_ICONS[activeArtifact?.type] || Code;
+  const TypeIcon = activeArtifact ? (TYPE_ICONS[activeArtifact.type] || Code) : Code;
 
   return (
     <AnimatePresence>
@@ -321,43 +321,67 @@ const ArtifactPanel = ({ isDark }) => {
               </h1>
             </div>
           )}
-          <div className="flex-1 min-h-0 overflow-hidden">
-          {activeArtifact?.type === 'code' && (
-            <CodeRenderer
-              content={displayContent}
-              language={activeArtifact.language}
-              onContentChange={handleContentChange}
-              isDark={isDark}
-            />
+          
+          {activeArtifact && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {activeArtifact.type === 'code' && (
+                <CodeRenderer
+                  content={displayContent}
+                  language={activeArtifact.language}
+                  onContentChange={handleContentChange}
+                  isDark={isDark}
+                />
+              )}
+              {activeArtifact.type === 'ui' && (
+                <UIRenderer
+                  content={displayContent}
+                  onContentChange={handleContentChange}
+                  isDark={isDark}
+                />
+              )}
+              {activeArtifact.type === 'document' && (
+                <DocumentRenderer
+                  content={displayContent}
+                  onContentChange={handleContentChange}
+                  isDark={isDark}
+                />
+              )}
+              {activeArtifact.type === 'table' && (
+                <TableRenderer
+                  content={displayContent}
+                  onContentChange={handleContentChange}
+                  isDark={isDark}
+                />
+              )}
+              {activeArtifact.type === 'diagram' && (
+                <DiagramRenderer
+                  content={displayContent}
+                  onContentChange={handleContentChange}
+                  isDark={isDark}
+                />
+              )}
+            </div>
           )}
-          {activeArtifact?.type === 'ui' && (
-            <UIRenderer
-              content={displayContent}
-              onContentChange={handleContentChange}
-              isDark={isDark}
-            />
+
+          {!activeArtifact && !streamingArtifact && (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
+              <div className="relative mb-8">
+                <div className="absolute inset-0 blur-2xl bg-[var(--text-primary)] opacity-[0.03] rounded-full scale-150" />
+                <div className="relative w-20 h-20 rounded-3xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-center shadow-inner">
+                  <Sparkles size={32} className="text-[var(--text-tertiary)] opacity-40" />
+                </div>
+              </div>
+              <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3 uppercase tracking-[0.2em] opacity-80">Knowledge Repository</h3>
+              <p className="text-[12px] text-[var(--text-secondary)] max-w-[260px] leading-relaxed opacity-60">
+                Visual artifacts, code explanations, and deep-dive technical documents will appear here during your lesson.
+              </p>
+              <div className="mt-8 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] opacity-40">
+                <Info size={10} />
+                <span className="text-[9px] font-bold uppercase tracking-widest">Awaiting session data</span>
+              </div>
+            </div>
           )}
-          {activeArtifact?.type === 'document' && (
-            <DocumentRenderer
-              content={displayContent}
-              onContentChange={handleContentChange}
-              isDark={isDark}
-            />
-          )}
-          {activeArtifact?.type === 'table' && (
-            <TableRenderer
-              content={displayContent}
-              onContentChange={handleContentChange}
-              isDark={isDark}
-            />
-          )}
-          {activeArtifact?.type === 'diagram' && (
-            <DiagramRenderer
-              content={displayContent}
-              onContentChange={handleContentChange}
-              isDark={isDark}
-            />
-          )}
+
           {streamingArtifact && !artifacts.find(a => a.id === streamingArtifact.id) && (
             <div className="absolute inset-0 z-50 bg-[var(--bg-primary)]/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center space-y-4">
               <div className="w-16 h-16 rounded-full border-4 border-[var(--border-color)] border-t-[var(--text-primary)] animate-spin" />
@@ -400,8 +424,7 @@ const ArtifactPanel = ({ isDark }) => {
             </button>
           </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
     </AnimatePresence>
   );
 };

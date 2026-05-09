@@ -12,8 +12,6 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, BookOpen, ClipboardCheck, ArrowDown, AlertCircle, RotateCcw, MessageSquare } from 'lucide-react';
-import * as reactWindow from 'react-window';
-const { VariableSizeList } = reactWindow;
 import { useAuth } from '../../context/AuthContext';
 import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
@@ -32,41 +30,40 @@ const ThinkingIndicator = ({ phase, progress }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
-      className="w-full py-2.5 flex items-center gap-3"
-      style={{ minHeight: '36px' }}
+      transition={{ duration: 0.2 }}
+      className="w-full py-4 flex items-center gap-4"
+      style={{ minHeight: '44px' }}
     >
-      <div className="flex items-center justify-center w-5 h-5 opacity-40">
+      <div className="flex items-center justify-center w-6 h-6">
         <motion.div
           animate={{
-            scale: [1, 1.4, 1],
-            opacity: [0.4, 1, 0.4]
+            scale: [1, 1.3, 1],
+            opacity: [0.3, 0.8, 0.3],
+            boxShadow: [
+              '0 0 0px rgba(var(--theme-color-rgb), 0)',
+              '0 0 12px rgba(var(--theme-color-rgb), 0.4)',
+              '0 0 0px rgba(var(--theme-color-rgb), 0)'
+            ]
           }}
           transition={{
-            duration: 1.8,
+            duration: 2.2,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
           style={{
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             borderRadius: '50%',
-            background: 'var(--text-tertiary)',
-            boxShadow: '0 0 10px var(--text-tertiary)',
+            background: 'var(--text-primary)',
           }}
         />
       </div>
 
       <span
-        style={{
-          fontSize: 11.5,
-          color: 'var(--text-tertiary)',
-          fontWeight: 500,
-          letterSpacing: '-0.01em',
-          opacity: 0.7,
-        }}
+        className="text-[11px] font-bold uppercase tracking-[0.15em] opacity-40"
+        style={{ color: 'var(--text-primary)' }}
       >
-        {label}...
+        {label}
       </span>
     </motion.div>
   );
@@ -96,28 +93,30 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`flex-1 flex flex-col justify-center select-none overflow-y-auto no-scrollbar
-        ${isMobile ? 'px-5 py-8' : 'px-5 py-10'}`}
+      className={`flex-1 flex flex-col justify-start select-none overflow-y-auto no-scrollbar
+        ${isMobile ? 'px-6 pt-6 pb-8' : 'px-8 pt-8 pb-10'}`}
     >
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className={isMobile ? 'mb-7' : 'mb-9'}
+        transition={{ duration: 0.6, ease: 'ease-apple' }}
+        className={isMobile ? 'mb-6' : 'mb-8'}
       >
-        <p style={{ fontSize: isMobile ? 11 : 11.5, color: 'var(--text-tertiary)', marginBottom: 6 }}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-30 mb-2">
           {greeting}{firstName ? `, ${firstName}` : ''}
         </p>
-        <h1 style={{
-          fontSize: isMobile ? 22 : 26,
-          fontWeight: 400,
-          color: 'var(--text-primary)',
-          lineHeight: 1.25,
-          letterSpacing: '-0.02em',
-          margin: 0,
-        }}>
-          What would you like<br />to learn today?
-        </h1>
+        <div 
+          style={{ 
+            fontSize: isMobile ? 18 : 24, 
+            fontWeight: 400, 
+            lineHeight: 1.3, 
+            letterSpacing: '-0.015em', 
+            color: 'var(--text-primary)',
+            opacity: 0.85,
+          }}
+        >
+          What would you like to learn today?
+        </div>
       </motion.div>
 
       <div className="flex flex-col gap-2">
@@ -130,11 +129,11 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.08 + i * 0.07, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               onClick={() => setActiveMode(active ? null : mode.id)}
-              className="flex items-center gap-3 rounded-2xl border transition-all active:scale-[0.97]"
+              className="flex items-center gap-4 rounded-2xl transition-all active:scale-[0.98] sf-glass border border-white/5 hover:border-white/10"
               style={{
-                padding: isMobile ? '10px 14px' : '12px 16px',
-                background: active ? 'var(--text-primary)' : 'var(--bg-secondary)',
-                borderColor: active ? 'var(--text-primary)' : 'var(--border-color)',
+                padding: isMobile ? '12px 16px' : '14px 20px',
+                background: active ? 'var(--text-primary)' : 'rgba(var(--bg-secondary-rgb), 0.4)',
+                boxShadow: active ? '0 12px 32px rgba(0,0,0,0.15)' : 'none'
               }}
             >
               <div
@@ -171,51 +170,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
   );
 };
 
-// ── Row Wrapper for Dynamic Height ──────────────────────────────────────────
-const MessageRow = ({ index, style, data }) => {
-  const {
-    messages, onHeightChange,
-    isCurrentlyStreaming, currentStreamingMessageId, currentStreamingContent,
-    currentStreamingThought, currentStreamingSources, currentSearchPerformed,
-    isActive, ...callbacks
-  } = data;
 
-  const msg = messages[index];
-  const rowRef = useRef(null);
-  const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
-
-  useEffect(() => {
-    if (!rowRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        const height = Math.ceil(entry.contentRect.height) + 4; // Add small buffer
-        onHeightChange(index, height);
-      }
-    });
-    observer.observe(rowRef.current);
-    return () => observer.disconnect();
-  }, [index, onHeightChange]);
-
-  return (
-    <div style={{ ...style, overflow: 'hidden' }} data-message-id={msg.id}>
-      <div ref={rowRef} className="py-0.5 px-3">
-        <Message
-          {...msg}
-          {...callbacks}
-          isStreaming={isThisStreaming}
-          isSessionActive={isActive}
-          streamingContent={isThisStreaming ? currentStreamingContent : ""}
-          streamingThought={isThisStreaming ? currentStreamingThought : ""}
-          streamingMessageId={currentStreamingMessageId}
-          isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
-          streamingSources={isThisStreaming ? currentStreamingSources : []}
-          showCursor={isThisStreaming}
-          hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
-        />
-      </div>
-    </div>
-  );
-};
 
 // ── Error recovery card ──────────────────────────────────────────────────────
 const ErrorCard = ({ error, onRetry }) => (
@@ -382,11 +337,11 @@ const MessageNav = ({ messages, containerRef, hoveredMessageId, scrollToMessage 
                         initial={{ opacity: 0, x: -10, scale: 0.95 }}
                         animate={{ opacity: 1, x: -20, scale: 1 }}
                         exit={{ opacity: 0, x: -10, scale: 0.95 }}
-                        className="absolute right-6 whitespace-nowrap z-[50] liquid-glass"
+                        className="absolute right-6 whitespace-nowrap z-[50] sf-glass shadow-premium"
                         style={{
-                          borderRadius: 14,
-                          padding: '12px 16px',
-                          maxWidth: '240px',
+                          borderRadius: 18,
+                          padding: '12px 18px',
+                          maxWidth: '260px',
                         }}
                       >
                         <div className="flex flex-col gap-1.5">
@@ -459,7 +414,6 @@ const ChatWindow = ({
 }) => {
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const bottomRef = useRef(null);
-  const listRef = useRef(null);
   const containerRef = useRef(null);
   const userScrolledRef = useRef(false);
   const [showPill, setShowPill] = useState(false);
@@ -487,10 +441,9 @@ const ChatWindow = ({
 
   // Variables used by hooks must be defined before those hooks
   const isEmpty =
-    messages.length === 0 && !isGenerating && !isCurrentlyWaiting && !isCurrentlyStreaming;
+    messages.length === 0 && !isCurrentlyWaiting && !isCurrentlyStreaming && !lastAIError;
 
   const streamingInList = messages.some((m) => m.id === currentStreamingMessageId);
-  const shouldVirtualize = !isActive && messages.length > 80;
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -520,9 +473,7 @@ const ChatWindow = ({
     if (scrollRAFRef.current) cancelAnimationFrame(scrollRAFRef.current);
 
     scrollRAFRef.current = requestAnimationFrame(() => {
-      if (shouldVirtualize && listRef.current) {
-        listRef.current.scrollToItem(Math.max(0, messages.length - 1), 'end');
-      } else if (bottomRef.current) {
+      if (bottomRef.current) {
         bottomRef.current.scrollIntoView({ behavior });
       }
       userScrolledRef.current = false;
@@ -530,7 +481,7 @@ const ChatWindow = ({
       lastScrollTimeRef.current = Date.now();
       scrollRAFRef.current = null;
     });
-  }, [messages.length, shouldVirtualize]);
+  }, [messages.length]);
 
   useEffect(() => {
     if (!userScrolledRef.current) {
@@ -544,46 +495,12 @@ const ChatWindow = ({
     return 'waiting';
   }, [isCurrentlyStreaming, currentStreamingContent, currentSearchPerformed]);
 
-  const estimateMessageHeight = useCallback((msg) => {
-    const content = msg?.content || '';
-    const lineCount = Math.max(1, Math.ceil(content.length / 50));
-    const base = msg?.role === 'assistant' ? 160 : 100;
-    return Math.min(900, base + (lineCount * 20));
-  }, []);
-
-  const rowSizeCacheRef = useRef({});
-  const lastResetRef = useRef(0);
-  const onHeightChange = useCallback((index, height) => {
-    if (rowSizeCacheRef.current[index] === height) return;
-    rowSizeCacheRef.current[index] = height;
-
-    const now = Date.now();
-    // UX-05: Throttle virtualizer resets during streaming to prevent layout thrashing
-    if (now - lastResetRef.current > 500 || !isStreaming) {
-      if (listRef.current) {
-        listRef.current.resetAfterIndex(index, true);
-      }
-      lastResetRef.current = now;
-    }
-  }, [isStreaming]);
-
   const scrollToMessage = useCallback((id) => {
-    if (shouldVirtualize && listRef.current) {
-      const idx = messages.findIndex(m => m.id === id);
-      if (idx !== -1) {
-        listRef.current.scrollToItem(idx, 'center');
-      }
-    } else {
-      const el = containerRef.current?.querySelector(`[data-message-id="${id}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+    const el = containerRef.current?.querySelector(`[data-message-id="${id}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [messages, shouldVirtualize]);
-
-  const getItemSize = useCallback((index) => {
-    return rowSizeCacheRef.current[index] || estimateMessageHeight(messages[index]);
-  }, [messages, estimateMessageHeight]);
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -611,88 +528,49 @@ const ChatWindow = ({
               animate={{ opacity: 1 }}
               className="flex flex-col px-3 py-3 gap-0.5"
             >
-              {shouldVirtualize ? (
-                <VariableSizeList
-                  ref={listRef}
-                  height={Math.max(200, viewportHeight - 24)}
-                  width="100%"
-                  itemCount={messages.length}
-                  itemSize={getItemSize}
-                  overscanCount={8}
-                  itemData={{
-                    messages,
-                    onHeightChange,
-                    isCurrentlyStreaming,
-                    currentStreamingMessageId,
-                    currentStreamingContent,
-                    currentStreamingThought,
-                    currentStreamingSources,
-                    currentSearchPerformed,
-                    isActive,
-                    onOpenCanvas,
-                    onDeleteMessage,
-                    onEditMessage,
-                    onRegenerateMessage,
-                    onFeedback,
-                    onSwitchVersion,
-                    onOpenArtifact,
-                  }}
-                  onScroll={({ scrollDirection, scrollOffset, scrollUpdateWasRequested }) => {
-                    if (scrollUpdateWasRequested) return;
-                    const totalEstimatedHeight = messages.reduce((acc, _, idx) => acc + getItemSize(idx), 0);
-                    const nearBottom = totalEstimatedHeight - (scrollOffset + Math.max(200, viewportHeight - 24)) < 120;
-                    if (scrollDirection === 'backward') userScrolledRef.current = true;
-                    if (nearBottom) userScrolledRef.current = false;
-                    setShowPill(!nearBottom);
-                  }}
-                >
-                  {MessageRow}
-                </VariableSizeList>
-              ) : (
-                messages.map((msg) => {
-                  const msgKey = msg.id || `msg-${msg.role}-${msg.timestamp}`;
-                  const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
+              {messages.map((msg) => {
+                const msgKey = msg.id || `msg-${msg.role}-${msg.timestamp}`;
+                const isThisStreaming = isCurrentlyStreaming && currentStreamingMessageId === msg.id;
 
-                  return (
-                    <div key={msgKey} data-message-id={msg.id}>
-                      <Message
-                        role={msg.role}
-                        content={msg.content}
-                        messageId={msg.id}
-                        timestamp={msg.timestamp}
-                        metadata={msg.metadata}
-                        isStreaming={isThisStreaming}
-                        isSessionActive={isActive}
-                        streamingContent={isThisStreaming ? currentStreamingContent : ""}
-                        streamingThought={isThisStreaming ? currentStreamingThought : ""}
-                        streamingMessageId={currentStreamingMessageId}
-                        onOpenCanvas={onOpenCanvas}
-                        onDeleteMessage={onDeleteMessage}
-                        onEditMessage={onEditMessage}
-                        onRegenerateMessage={onRegenerateMessage}
-                        onFeedback={onFeedback}
-                        onSwitchVersion={onSwitchVersion}
-                        onOpenArtifact={onOpenArtifact}
-                        steps={msg.steps}
-                        stepTitle={msg.stepTitle}
-                        domain={msg.domain}
-                        visualizationType={msg.visualizationType}
-                        elements={msg.elements || msg.objects}
-                        motion={msg.motion}
-                        connections={msg.connections}
-                        sequence={msg.sequence}
-                        objects={msg.objects || msg.elements}
-                        hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
-                        canvasType={msg.canvasType}
-                        isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
-                        streamingSources={isThisStreaming ? currentStreamingSources : []}
-                        showCursor={isThisStreaming}
-                        onHover={setHoveredMessageId}
-                      />
-                    </div>
-                  );
-                })
-              )}
+                return (
+                  <div key={msgKey} data-message-id={msg.id}>
+                    <Message
+                      role={msg.role}
+                      content={msg.content}
+                      messageId={msg.id}
+                      timestamp={msg.timestamp}
+                      metadata={msg.metadata}
+                      isStreaming={isThisStreaming}
+                      isSessionActive={isActive}
+                      streamingContent={isThisStreaming ? currentStreamingContent : ""}
+                      streamingThought={isThisStreaming ? currentStreamingThought : ""}
+                      streamingMessageId={currentStreamingMessageId}
+                      onOpenCanvas={onOpenCanvas}
+                      onDeleteMessage={onDeleteMessage}
+                      onEditMessage={onEditMessage}
+                      onRegenerateMessage={onRegenerateMessage}
+                      onFeedback={onFeedback}
+                      onSwitchVersion={onSwitchVersion}
+                      onOpenArtifact={onOpenArtifact}
+                      steps={msg.steps}
+                      stepTitle={msg.stepTitle}
+                      domain={msg.domain}
+                      visualizationType={msg.visualizationType}
+                      elements={msg.elements || msg.objects}
+                      motion={msg.motion}
+                      connections={msg.connections}
+                      sequence={msg.sequence}
+                      objects={msg.objects || msg.elements}
+                      hasCanvas={msg.hasCanvas || !!(msg.elements?.length || msg.objects?.length || msg.steps?.length)}
+                      canvasType={msg.canvasType}
+                      isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
+                      streamingSources={isThisStreaming ? currentStreamingSources : []}
+                      showCursor={isThisStreaming}
+                      onHover={setHoveredMessageId}
+                    />
+                  </div>
+                );
+              })}
 
               {/* Streaming new message not yet in list */}
               {isCurrentlyStreaming && !streamingInList &&
@@ -753,9 +631,9 @@ const ChatWindow = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.9 }}
             onClick={() => scrollToBottom()}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 w-10 h-10 flex items-center justify-center rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-lg hover:scale-110 active:scale-90 transition-all group border border-white/10"
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 w-11 h-11 flex items-center justify-center rounded-full sf-glass shadow-premium hover:scale-110 active:scale-90 transition-all group border border-white/10"
           >
-            <ArrowDown size={20} strokeWidth={2.5} className="group-hover:translate-y-0.5 transition-transform" />
+            <ArrowDown size={20} strokeWidth={2.5} className="group-hover:translate-y-0.5 transition-transform text-[var(--text-primary)]" />
           </motion.button>
         )}
       </AnimatePresence>

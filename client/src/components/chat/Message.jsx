@@ -31,7 +31,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import useTutorStore from '../../store/tutorStore';
+import useTutorStore, { STATES } from '../../store/tutorStore';
 import VisualArtifactCard from './VisualArtifactCard';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism as prismTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -131,18 +131,18 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+          <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1 pt-1 px-1">
             {data.slice(0, 15).map((item, idx) => (
-              <div key={idx} className="flex flex-col items-center gap-1.5 group/node shrink-0">
-                <span className="text-[8px] font-bold opacity-20 uppercase tracking-tighter" style={{ color: 'var(--text-primary)' }}>{idx}</span>
+              <div key={idx} className="flex flex-col items-center gap-2 group/node shrink-0">
+                <span className="text-[8px] font-bold opacity-20 uppercase tracking-widest">{idx}</span>
                 <div 
-                  className="w-10 h-10 rounded-full border flex items-center justify-center transition-all group-hover/node:border-[var(--info)]/40"
+                  className="w-11 h-11 rounded-full border flex items-center justify-center transition-all group-hover/node:border-[var(--theme-color)]/50 group-hover/node:scale-110 shadow-sm"
                   style={{ 
-                    background: 'rgba(var(--text-primary-rgb, 0,0,0), 0.02)', 
-                    borderColor: 'var(--border-color)',
+                    background: 'rgba(var(--text-primary-rgb), 0.05)', 
+                    borderColor: 'rgba(var(--text-primary-rgb), 0.1)',
                     color: 'var(--text-primary)',
-                    fontSize: '13px',
-                    fontWeight: 600,
+                    fontSize: '14px',
+                    fontWeight: 700,
                     fontFamily: 'var(--font-mono)'
                   }}
                 >
@@ -247,7 +247,7 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
   }, [code]);
 
   const handleLaunchImmersive = useCallback((type, data) => {
-    console.log('[CodeBlock] 🚀 Launching immersive visualization:', { type, length: Array.isArray(data) ? data.length : Object.keys(data).length });
+    import.meta.env.DEV && console.log('[CodeBlock] 🚀 Launching immersive visualization:', { type, length: Array.isArray(data) ? data.length : Object.keys(data).length });
     
     const timeline = {
       title: type === 'array' ? 'Array Visualization' : 'Object Breakdown',
@@ -277,6 +277,10 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
     const state = useTutorStore.getState();
     state.setTimeline(timeline);
     state.setCanvasLayout('split');
+    
+    // CRITICAL: Set machine state to TEACHING so TeachingSession.jsx renders the body
+    state.setMachineState?.(STATES.TEACHING); 
+    
     state.setActiveArtifact?.('immersive-viz');
   }, []);
 
@@ -292,48 +296,45 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
 
   return (
     <div
-      className={`my-3 rounded-[24px] overflow-hidden border shadow-sm group/code transition-all duration-500 no-scrollbar ${!showHeader ? 'hover:shadow-xl' : ''}`}
+      className="my-4 rounded-[28px] overflow-hidden sf-glass shadow-premium group/code transition-all duration-500 no-scrollbar"
       style={{
-        borderColor: 'var(--border-color)',
-        background: 'var(--bg-secondary)', 
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        background: 'rgba(var(--bg-secondary-rgb), 0.3)', 
       }}
     >
-      {/* Header — macOS style dots + language */}
+      {/* Header — sleek language badge + actions */}
       {showHeader && (
         <div
-          className="flex items-center justify-between px-4 py-2 border-b"
+          className="flex items-center justify-between px-4 py-2 border-b border-white/5"
           style={{ 
-            borderColor: 'var(--border-color)', 
-            background: showHeader ? 'rgba(var(--text-primary-rgb, 0,0,0), 0.03)' : 'transparent' 
+            background: 'rgba(var(--text-primary-rgb), 0.02)',
           }}
         >
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10">
-              <Code2 size={11} className="opacity-40" />
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-60">
+          <div className="flex items-center">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--text-primary)]/10 border border-white/10">
+              <div className="w-1 h-1 rounded-full bg-[var(--theme-color, var(--text-primary))] shadow-[0_0_8px_var(--theme-color)]" />
+              <span className="text-[10px] font-medium uppercase tracking-[0.15em] opacity-70">
                 {lang || 'code'}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {isRunnable && (
               <button
                 onClick={() => onOpenArtifact?.(code, lang)}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-all hover:bg-[var(--text-primary)]/5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                style={{ fontSize: 10, fontWeight: 600 }}
+                className="apple-pill flex items-center gap-2 px-3 py-1.5 text-[var(--text-primary)] transition-all hover:scale-105 active:scale-95"
+                style={{ fontSize: 11, fontWeight: 500 }}
               >
-                <Play size={10} className="text-emerald-500" /> Run
+                <Play size={11} className="text-emerald-500 fill-emerald-500/20" /> 
+                <span className="opacity-80">Run</span>
               </button>
             )}
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-all hover:bg-[var(--text-primary)]/5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-              style={{ fontSize: 10, fontWeight: 600 }}
+              className="apple-pill flex items-center gap-2 px-3 py-1.5 text-[var(--text-primary)] transition-all hover:scale-105 active:scale-95"
+              style={{ fontSize: 11, fontWeight: 500 }}
             >
-              {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} />}
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} className="opacity-50" />}
+              <span className="opacity-80">{copied ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
         </div>
@@ -386,7 +387,7 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
 
 const buildMarkdownComponents = (onOpenArtifact) => ({
   p: ({ children }) => (
-    <p style={{ marginBottom: 14, lineHeight: 1.75, fontSize: 14, color: 'var(--text-primary)', opacity: 0.95, wordBreak: 'break-word' }}>
+    <p style={{ marginBottom: 18, lineHeight: 1.8, fontSize: 14.5, color: 'var(--text-primary)', opacity: 0.95, wordBreak: 'break-word' }}>
       {children}
     </p>
   ),
@@ -394,16 +395,16 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
   em: ({ children }) => <em style={{ fontStyle: 'italic', opacity: 0.85 }}>{children}</em>,
   h1: ({ children }) => (
     <h1 style={{ 
-      fontSize: 18, fontWeight: 800, marginBottom: 14, marginTop: 24, 
+      fontSize: 20, fontWeight: 800, marginBottom: 16, marginTop: 28, 
       letterSpacing: '-0.02em', color: 'var(--text-primary)', 
-      borderBottom: '2px solid var(--border-color)', paddingBottom: 10 
+      borderBottom: '2px solid var(--border-color)', paddingBottom: 12 
     }}>
       {children}
     </h1>
   ),
   h2: ({ children }) => (
     <h2 style={{ 
-      fontSize: 16, fontWeight: 700, marginBottom: 12, marginTop: 20, 
+      fontSize: 18, fontWeight: 700, marginBottom: 14, marginTop: 24, 
       letterSpacing: '-0.01em', color: 'var(--text-primary)' 
     }}>
       {children}
@@ -411,16 +412,16 @@ const buildMarkdownComponents = (onOpenArtifact) => ({
   ),
   h3: ({ children }) => (
     <h3 style={{ 
-      fontSize: 14.5, fontWeight: 700, marginBottom: 10, marginTop: 16, 
+      fontSize: 16, fontWeight: 700, marginBottom: 12, marginTop: 20, 
       color: 'var(--text-primary)', letterSpacing: '-0.01em' 
     }}>
       {children}
     </h3>
   ),
-  ul: ({ children }) => <ul style={{ paddingLeft: 22, marginBottom: 14, listStyleType: 'disc' }}>{children}</ul>,
-  ol: ({ children }) => <ol style={{ paddingLeft: 22, marginBottom: 14, listStyleType: 'decimal' }}>{children}</ol>,
+  ul: ({ children }) => <ul style={{ paddingLeft: 24, marginBottom: 18, listStyleType: 'disc' }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ paddingLeft: 24, marginBottom: 18, listStyleType: 'decimal' }}>{children}</ol>,
   li: ({ children }) => (
-    <li style={{ marginBottom: 6, lineHeight: 1.7, fontSize: 14, color: 'var(--text-primary)', opacity: 0.9 }}>
+    <li style={{ marginBottom: 8, lineHeight: 1.8, fontSize: 14.5, color: 'var(--text-primary)', opacity: 0.9 }}>
       {children}
     </li>
   ),
@@ -616,7 +617,7 @@ const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount, title }) =
   const isActive = activeSnapshotId === messageId;
   const setCanvasLayout = useTutorStore(s => s.setCanvasLayout);
 
-  console.log('[CanvasCard] Rendering', { messageId, isActive, title });
+  import.meta.env.DEV && console.log('[CanvasCard] Rendering', { messageId, isActive, title });
 
   const cfg = CANVAS_CONFIGS[canvasType] || CANVAS_CONFIGS.default;
   const Icon = cfg.icon;
@@ -627,11 +628,10 @@ const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount, title }) =
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       onClick={() => onOpenCanvas?.(messageId)}
-      className="mt-3 w-full flex items-center gap-3 rounded-2xl border transition-all hover:scale-[1.01] active:scale-[0.98] text-left"
+      className="mt-4 w-full flex items-center gap-4 rounded-[24px] transition-all hover:scale-[1.01] active:scale-[0.98] text-left sf-glass shadow-premium border border-white/5"
       style={{
-        padding: '12px 14px',
-        background: 'var(--bg-secondary)',
-        borderColor: 'var(--border-color)',
+        padding: '14px 18px',
+        background: 'rgba(var(--bg-secondary-rgb), 0.4)',
       }}
     >
       {/* Icon area */}
@@ -700,11 +700,10 @@ const ArtifactChip = ({ artifactId }) => {
         useTutorStore.getState().setActiveArtifact?.(artifactId);
         openArtifactPanel?.();
       }}
-      className="mt-3 flex items-center gap-2.5 rounded-xl border transition-all hover:scale-[1.01] active:scale-[0.98] text-left"
+      className="mt-3 flex items-center gap-3 rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.98] text-left sf-glass border border-white/5"
       style={{
-        padding: '9px 12px',
-        background: 'var(--bg-secondary)',
-        borderColor: 'var(--border-color)',
+        padding: '10px 14px',
+        background: 'rgba(var(--bg-secondary-rgb), 0.4)',
         maxWidth: '100%',
       }}
     >
@@ -735,28 +734,13 @@ const ActionBtn = ({ onClick, title, children, className = '' }) => (
     onClick={onClick}
     title={title}
     aria-label={title}
-    className={`chat-action-btn ${className}`}
+    className={`apple-pill p-1.5 opacity-40 hover:opacity-100 transition-all ${className}`}
     style={{
-      padding: '3px',
-      borderRadius: 5,
-      transition: 'opacity 0.18s ease, background 0.18s ease',
-      background: 'transparent',
-      border: 'none',
-      cursor: 'pointer',
       color: 'var(--text-tertiary)',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
-      opacity: 0.7,
       lineHeight: 0,
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.opacity = '1';
-      e.currentTarget.style.background = 'var(--bg-tertiary)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.opacity = '0.7';
-      e.currentTarget.style.background = 'transparent';
     }}
   >
     {children}
@@ -929,20 +913,18 @@ const Message = ({
                 initial={isStreaming ? { opacity: 1 } : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={isStreaming ? { duration: 0 } : { duration: 0.2 }}
-                className="relative min-w-0 max-w-full break-words overflow-hidden transition-all duration-300"
+                className="relative min-w-0 max-w-full break-words overflow-hidden transition-all duration-300 shadow-premium"
                 style={isAssistant ? {
                   color: 'var(--text-primary)',
-                  padding: '4px 0 12px 0',
+                  padding: '4px 0 16px 0',
                   background: 'transparent',
                   border: 'none',
                 } : {
-                  background: 'var(--user-bubble-bg)',
-                  color: 'var(--bg-primary)', // User bubble uses primary text as background, so inverse text
-                  borderRadius: '22px 22px 4px 22px',
-                  padding: '12px 18px',
-                  boxShadow: 'var(--shadow-md)',
-                  border: '1px solid var(--border-color)',
-                  backdropFilter: 'blur(12px)',
+                  background: 'var(--text-primary)',
+                  color: 'var(--bg-primary)', 
+                  borderRadius: '24px 24px 4px 24px',
+                  padding: '14px 20px',
+                  border: '1px solid rgba(var(--text-primary-rgb), 0.1)',
                 }}
               >
                 {isAssistant ? (

@@ -123,6 +123,7 @@ const Home = ({ isDark }) => {
     openedArtifacts: s.openedArtifacts,
     activeTeachingMode: s.activeTeachingMode,
     canvasSessionVersion: s.canvasSessionVersion,
+    forceReset: s.forceReset,
   })));
 
 
@@ -132,7 +133,7 @@ const Home = ({ isDark }) => {
 
   useEffect(() => {
     if (import.meta.env.DEV) {
-      console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
+      import.meta.env.DEV && console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
     }
   }, [user?.email, isGuest]);
   
@@ -251,7 +252,7 @@ const Home = ({ isDark }) => {
         const parsed = JSON.parse(local);
         if (Array.isArray(parsed)) {
           setChatHistory(parsed);
-          console.log('[Home] 🏠 Loaded guest local history:', parsed.length);
+          import.meta.env.DEV && console.log('[Home] 🏠 Loaded guest local history:', parsed.length);
         }
       }
     } catch (e) {
@@ -297,7 +298,7 @@ const Home = ({ isDark }) => {
     const newId = activeChatId;
     
     if (oldId && newId && oldId !== newId && (oldId.startsWith('temp-') || oldId.startsWith('local-') || oldId.startsWith('session-'))) {
-      console.log(`[Home:Sync] Promoting sidebar session via store: ${oldId} -> ${newId}`);
+      import.meta.env.DEV && console.log(`[Home:Sync] Promoting sidebar session via store: ${oldId} -> ${newId}`);
       promoteChatHistoryId(oldId, newId);
     }
     lastIdRef.current = newId;
@@ -307,7 +308,7 @@ const Home = ({ isDark }) => {
   useEffect(() => {
     // If sidebar is closed and we were viewing a snapshot, return to main lesson
     if (!isSidebarOpen && activeSnapshotId) {
-      console.log('[Home] Leaving chat, closing snapshot animation...');
+      import.meta.env.DEV && console.log('[Home] Leaving chat, closing snapshot animation...');
       setActiveSnapshotId(null);
       
       // Restore main lesson state from history if available
@@ -359,7 +360,7 @@ const Home = ({ isDark }) => {
     if (!activeChatId && savedActiveId && chatHistory.length > 0) {
       const session = chatHistory.find(s => s.id === savedActiveId);
       if (session) {
-        console.log('[Home] Hydrating active chat:', savedActiveId);
+        import.meta.env.DEV && console.log('[Home] Hydrating active chat:', savedActiveId);
         hasHydratedActive.current = true;
         // Restore active chat ID
         setActiveChatId(savedActiveId);
@@ -504,7 +505,7 @@ const Home = ({ isDark }) => {
     const urlPrompt = params.get('prompt');
     
     if (urlPrompt) {
-      console.log('[Home] Auto-start detected for prompt:', urlPrompt);
+      import.meta.env.DEV && console.log('[Home] Auto-start detected for prompt:', urlPrompt);
       hasAutoStarted.current = true;
       
       // Give the machine a moment to connect if it hasn't yet
@@ -613,7 +614,7 @@ const Home = ({ isDark }) => {
     };
     setChatHistory(prev => [newSession, ...prev]);
     setActiveChatId(localId);
-    console.log('[Home] 🎨 Auto-created Canvas Session for standalone drawing.');
+    import.meta.env.DEV && console.log('[Home] 🎨 Auto-created Canvas Session for standalone drawing.');
   }, [canvasObjects?.length, activeChatId, isAuthenticated, user]);
 
   // ── Persistent Cloud Sync (Immediate Actions) ──
@@ -653,7 +654,7 @@ const Home = ({ isDark }) => {
 
     // ── GUEST PERSISTENCE (LocalStorage fallback + MongoDB) ──
     if (user?.isGuest) {
-      console.log(`[Persistence:Guest] 🏠 Updating local history: ${targetSessionId}`);
+      import.meta.env.DEV && console.log(`[Persistence:Guest] 🏠 Updating local history: ${targetSessionId}`);
       setChatHistory(prev => {
         // Promotion-aware index finding: Match the ID, or find a temp ID that this real ID is replacing
         const idx = prev.findIndex(s => 
@@ -686,7 +687,7 @@ const Home = ({ isDark }) => {
 
     if (!isAuthenticated) return null;
     
-    console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
+    import.meta.env.DEV && console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
     
     try {
       const res = await API.post('/api/sessions', payload);
@@ -730,7 +731,7 @@ const Home = ({ isDark }) => {
 
         // If we were using a local UUID, swap it for the permanent Mongo ID everywhere.
         if (saved._id && saved._id !== targetSessionId) {
-          console.log(`[Persistence] 🔗 Adopting permanent Mongo ID: ${saved._id}`);
+          import.meta.env.DEV && console.log(`[Persistence] 🔗 Adopting permanent Mongo ID: ${saved._id}`);
           setActiveChatId(saved._id);
           return saved._id;
         }
@@ -789,7 +790,7 @@ const Home = ({ isDark }) => {
     // 1. Immediate local restore (minimal snapshot)
     const localSession = chatHistory.find(s => s.id === id);
     if (localSession) {
-      console.log(`[Home] Restoring local session: ${id} (${localSession.messages?.length || 0} messages)`);
+      import.meta.env.DEV && console.log(`[Home] Restoring local session: ${id} (${localSession.messages?.length || 0} messages)`);
       
       // Populate conversation slice with session messages
       if (localSession.messages?.length > 0) {
@@ -822,14 +823,14 @@ const Home = ({ isDark }) => {
     // 2. Full pedagogical restoration from Cloud (SEC-20)
     if (isAuthenticated && !user?.isGuest && id && !id.startsWith('session-')) {
       try {
-        console.log(`[Home] 🔄 Fetching full pedagogical state for session ${id}...`);
+        import.meta.env.DEV && console.log(`[Home] 🔄 Fetching full pedagogical state for session ${id}...`);
         const response = await API.get(`/api/sessions/${id}`);
         
         if (response.status === 200) {
           const fullData = response.data;
           if (fullData) {
             const steps = fullData.canvasSteps || fullData.steps || [];
-            console.log(`[Home] ✅ Full state fetched. Restoring timeline (${steps.length} steps)...`);
+            import.meta.env.DEV && console.log(`[Home] ✅ Full state fetched. Restoring timeline (${steps.length} steps)...`);
             
             // Restore actual pedagogical timeline
             if (steps.length > 0) {
@@ -920,7 +921,7 @@ const Home = ({ isDark }) => {
           try {
             const res = await API.delete(`/api/sessions/${dbId}`);
             if (res.status === 200) {
-              console.log(`[Home] ✅ Session ${id} permanently deleted from cloud.`);
+              import.meta.env.DEV && console.log(`[Home] ✅ Session ${id} permanently deleted from cloud.`);
             } else {
               const errData = res.data || {};
               console.error(`[Home] ❌ Cloud deletion failed: ${res.status}`, errData);
@@ -943,7 +944,7 @@ const Home = ({ isDark }) => {
             if (prev.some(s => s.id === id)) return prev;
             return [sessionToRestore, ...prev].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
           });
-          console.log(`[Home] ↩️ Deletion undone for ${id}`);
+          import.meta.env.DEV && console.log(`[Home] ↩️ Deletion undone for ${id}`);
         }
       });
     };
@@ -970,7 +971,7 @@ const Home = ({ isDark }) => {
     if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
       try {
         await API.post('/api/sessions', { sessionId: id, title: newTitle });
-        console.log(`[Home] ✅ Session ${id} renamed to "${newTitle}" in cloud.`);
+        import.meta.env.DEV && console.log(`[Home] ✅ Session ${id} renamed to "${newTitle}" in cloud.`);
       } catch (err) {
         console.error('[Home] Failed to rename session in cloud:', err);
       }
@@ -1009,7 +1010,7 @@ const Home = ({ isDark }) => {
           renderer: store.activeScene?.renderer || 'cinematic',
           title: store.activeScene?.title || 'Visual Lesson',
         };
-        console.log('[Home] Using live store state as canvas snapshot fallback');
+        import.meta.env.DEV && console.log('[Home] Using live store state as canvas snapshot fallback');
       }
     }
 
@@ -1021,7 +1022,7 @@ const Home = ({ isDark }) => {
         // Toggle CLOSE: If already active and visible, hide it
         store.setCanvasLayout('inline');
         store.setActiveSnapshotId(null);
-        console.log('[Home] Canvas closed for message:', messageId);
+        import.meta.env.DEV && console.log('[Home] Canvas closed for message:', messageId);
       } else {
         // OPEN / SWITCH: Show canvas and set snapshot
         setCanvasSnapshot({
@@ -1030,7 +1031,7 @@ const Home = ({ isDark }) => {
         });
         store.setActiveSnapshotId(messageId);
         store.setCanvasLayout('split');
-        console.log('[Home] Canvas snapshot opened for message:', messageId);
+        import.meta.env.DEV && console.log('[Home] Canvas snapshot opened for message:', messageId);
       }
     } else {
       console.warn('[Home] No canvas data found for message:', messageId);
@@ -1069,13 +1070,18 @@ const Home = ({ isDark }) => {
   }, [chatInputText, setPrompt, setSidebarOpen, setActiveView, setChatInputText]);
 
   const handleSubmit = async (textOverride, fileData = null, modeOverride = null, isRegeneration = false, targetAssistantId = null) => {
+    // ── 0. Capture State before potential resets ──
+    const isTeachingActive = machine.isTeaching || machine.isGenerating || machine.isDoubtTriggered;
+    const currentActiveChatId = activeChatId;
+
+    machine.cancelSession();
     const { selectedTextContext, setSelectedTextContext, getPlatformMemorySummary } = useTutorStore.getState();
     const finalContext = selectedTextContext;
     const platformMemory = getPlatformMemorySummary ? getPlatformMemorySummary() : null;
 
     // FIX: Generate the working session ID FIRST, before any store reads
     // This ensures addUserMessage, startStreaming, and appendStreamChunk all key to the same session
-    let workingSessionId = activeChatId || `session-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+    let workingSessionId = currentActiveChatId || `session-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
 
     // FIX: Guard against double-submission but DON'T block if it's a genuinely new session
     // Old bug: on new chat, activeChatId was null so workingSessionId was always unique and guard never fired,
@@ -1132,6 +1138,7 @@ const Home = ({ isDark }) => {
       store.incrementGuestUsage();
     }
 
+    let activityMonitor;
     try {
       let userId;
       let sessionTitle = activeSession?.title;
@@ -1163,8 +1170,7 @@ const Home = ({ isDark }) => {
 
       // ── 2. Determine if this is a teaching-related query ──
       // If a teaching session is active, route all chat input to the doubt pipeline
-      const isTeachingActive = machine.isTeaching || machine.isGenerating || machine.isDoubtTriggered;
-      
+      // We use the captured isTeachingActive from the start of the function
       if ((activeMode === 'deep' || isTeachingActive) && !isRegeneration) {
         const store = useTutorStore.getState();
         const history = store.conversationMessages;
@@ -1174,7 +1180,7 @@ const Home = ({ isDark }) => {
         setWaitingForAI(true, workingSessionId);
 
         if (isFollowUp) {
-          console.log('[Home] Routing chat query to doubt pipeline...');
+          import.meta.env.DEV && console.log('[Home] Routing chat query to doubt pipeline...');
           askDoubt(userPrompt, modeOverride || activeMode, fileData);
         } else {
           startSession(userPrompt, userPrompt, modeOverride || activeMode, fileData);
@@ -1265,9 +1271,18 @@ const Home = ({ isDark }) => {
         lastUpdateTs = now;
       };
 
+      let lastActivityTime = Date.now();
+      activityMonitor = setInterval(() => {
+        if (Date.now() - lastActivityTime > 45000) {
+          console.error('[Home] Stream stalled (45s silence)');
+          controller.abort();
+        }
+      }, 5000);
+
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          const { done, value } = await reader.read();
+          lastActivityTime = Date.now();
+          if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
@@ -1288,7 +1303,7 @@ const Home = ({ isDark }) => {
           try {
             const eventData = JSON.parse(dataStr);
             const eventType = eventData.type || lastEventType;
-            console.log(`[SSE] Received event: ${eventType}`, eventData);
+            import.meta.env.DEV && console.log(`[SSE] Received event: ${eventType}`, eventData);
 
             if (eventType === 'meta') {
               receivedSessionId = eventData.sessionId || receivedSessionId;
@@ -1446,8 +1461,8 @@ const Home = ({ isDark }) => {
               throw new Error(fullError);
             }
           } catch (parseErr) {
-            // Re-throw our explicit errors, only swallow JSON parse errors
-            if (parseErr.name === 'Error') {
+            // Re-throw our explicit errors and AbortError, only swallow JSON parse errors
+            if (parseErr.name === 'Error' || parseErr.name === 'AbortError') {
               throw parseErr;
             }
             
@@ -1466,8 +1481,8 @@ const Home = ({ isDark }) => {
         }
       }
 
-      flushBuffers(); // FINAL FLUSH of any remaining tokens
-      console.log("FULL RESPONSE (Client):", fullContent);
+    flushBuffers(); // FINAL FLUSH of any remaining tokens
+      import.meta.env.DEV && console.log("FULL RESPONSE (Client):", fullContent);
 
       // ── 5. Finalize streaming ──
       const finalSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
@@ -1515,15 +1530,21 @@ const Home = ({ isDark }) => {
       }
     } catch (err) {
       if (err.name === 'AbortError') {
-        console.log('[Home] AI request aborted by user.');
+        import.meta.env.DEV && console.log('[Home] AI request aborted by user.');
         useTutorStore.getState().setWaitingForAI(false, workingSessionId);
+        // Nuclear cleanup for UI state
+        forceReset();
         return;
       }
       console.error('[Home] handleSubmit failed:', err);
       setLastAIError(err.message, workingSessionId);
       const store = useTutorStore.getState();
-      store.finishStreaming(err.message.includes('unavailable') 
-        ? "I'm having trouble connecting right now. Please try again in a moment."
+      
+      // Nuclear cleanup for UI state on 503 or other fatal errors
+      forceReset();
+
+      store.finishStreaming(err.message.includes('unavailable') || err.message.includes('503')
+        ? "I'm having trouble connecting right now. Please try again in a moment. Our primary AI providers are currently rate-limited."
         : `⚠️ ${err.message}`, workingSessionId);
       
       // Sync error message to sidebar
@@ -1532,6 +1553,7 @@ const Home = ({ isDark }) => {
         s.id === workingSessionId ? { ...s, messages: errorMessages } : s
       ));
     } finally {
+      if (activityMonitor) clearInterval(activityMonitor);
       submittingSessionsRef.current.delete(workingSessionId);
       abortControllersRef.current.delete(workingSessionId);
     }
@@ -1665,7 +1687,7 @@ const Home = ({ isDark }) => {
         });
 
         clearTimeout(initialTimeout);
-        console.log('[Home:Regen] Response status:', res.status);
+        import.meta.env.DEV && console.log('[Home:Regen] Response status:', res.status);
         
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
@@ -1740,7 +1762,7 @@ const Home = ({ isDark }) => {
                   if (eventData.plan?.suggest_canvas) setCurrentCanvasType(eventData.plan.canvas_type);
                 } else if (eventType === 'done') {
                   if (eventData.messagesAfterRegen) {
-                    console.log('[Home:Regen] Syncing conversation state from server');
+                    import.meta.env.DEV && console.log('[Home:Regen] Syncing conversation state from server');
                     useTutorStore.getState().setConversationMessages(eventData.messagesAfterRegen);
                     
                     setChatHistory(prev => prev.map(s => 
@@ -1759,7 +1781,7 @@ const Home = ({ isDark }) => {
           clearInterval(activityMonitor);
         }
 
-        console.log('[Home:Regen] Finalizing stream, length:', fullContent.length);
+        import.meta.env.DEV && console.log('[Home:Regen] Finalizing stream, length:', fullContent.length);
         finishStreaming(fullContent, dbSessionId, thoughtContent, lastStreamSources, null, null, Date.now() - requestStartTime, streamToken, true);
         return;
       }
@@ -1838,11 +1860,18 @@ const Home = ({ isDark }) => {
   // ── Stop Generation Handler ──
   const handleStopGeneration = (sessionId) => {
     const targetId = sessionId || useTutorStore.getState().chatSessionId || activeChatId;
+    
+    // 1. Abort HTTP streaming requests
     const controller = abortControllersRef.current.get(targetId);
     if (controller) {
       controller.abort();
       abortControllersRef.current.delete(targetId);
     }
+    
+    // 2. Abort visual generation in teaching machine
+    machine.cancelSession();
+    
+    // 3. Clear store states
     abortStreaming(targetId);
     useTutorStore.getState().setWaitingForAI(false, targetId);
   };

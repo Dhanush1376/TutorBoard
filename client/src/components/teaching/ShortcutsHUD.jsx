@@ -9,6 +9,20 @@ import { HelpCircle, X, ArrowRight, ArrowLeft, Keyboard, MessageSquare, LogOut }
 const ShortcutsHUD = () => {
   const [isOpen, setIsOpen] = useState(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === '?' && !e.target.matches('input, textarea')) {
+        e.preventDefault();
+        setIsOpen(prev => !prev);
+      }
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   const shortcuts = [
     { key: '→', label: 'Next step', icon: <ArrowRight size={12} /> },
     { key: '←', label: 'Previous step', icon: <ArrowLeft size={12} /> },
@@ -18,30 +32,35 @@ const ShortcutsHUD = () => {
   ];
 
   return (
-    <div className="fixed bottom-32 right-6 z-[10010] flex flex-col items-end gap-3">
+    <div className="fixed bottom-8 left-20 z-[10010] flex flex-col items-start gap-3">
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="bg-[var(--bg-secondary)]/90 backdrop-blur-xl border border-[var(--border-strong)] rounded-2xl p-4 shadow-2xl min-w-[200px]"
+            className="sf-glass shadow-premium rounded-2xl p-5 min-w-[240px]"
           >
-            <div className="flex items-center justify-between mb-4 px-1">
-              <span className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-tertiary)]">Shortcuts</span>
-              <button onClick={() => setIsOpen(false)} className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+            <div className="flex items-center justify-between mb-5 px-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] opacity-80">System Shortcuts</span>
+              <button onClick={() => setIsOpen(false)} className="text-[var(--text-tertiary)] hover:text-red-400 transition-colors">
                 <X size={14} />
               </button>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-4">
               {shortcuts.map((s, i) => (
                 <div key={i} className="flex items-center justify-between group">
-                  <span className="text-[11px] font-normal text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
-                    {s.label}
-                  </span>
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-color)] shadow-sm">
-                    <span className="text-[9px] font-normal text-[var(--text-primary)]">{s.key}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[var(--text-tertiary)] group-hover:text-indigo-400 transition-colors">
+                      {s.icon}
+                    </span>
+                    <span className="text-[11px] font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                      {s.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-center min-w-[32px] h-6 px-2 rounded-lg bg-white/5 border border-white/10 shadow-inner">
+                    <span className="text-[9px] font-bold text-[var(--text-primary)] tracking-tighter">{s.key}</span>
                   </div>
                 </div>
               ))}
@@ -52,13 +71,13 @@ const ShortcutsHUD = () => {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-xl border ${
+        className={`w-11 h-11 rounded-full flex items-center justify-center transition-all shadow-premium sf-glass border ${
           isOpen 
             ? 'bg-[var(--text-primary)] border-[var(--text-primary)] text-[var(--bg-primary)]' 
-            : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-primary)] hover:text-[var(--text-primary)]'
+            : 'text-[var(--text-secondary)] hover:border-[var(--text-primary)] hover:text-[var(--text-primary)]'
         }`}
       >
-        <HelpCircle size={18} />
+        <HelpCircle size={20} />
       </button>
     </div>
   );

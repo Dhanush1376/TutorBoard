@@ -37,7 +37,7 @@ export function useSocket(isAuthReady = true) {
     };
 
     const onConnect = () => {
-      console.log('[Socket] Connected:', socket.id);
+      import.meta.env.DEV && console.log('[Socket] Connected:', socket.id);
       setIsConnected(true);
       setConnected(true);
       setConnectionError(null);
@@ -48,7 +48,7 @@ export function useSocket(isAuthReady = true) {
     };
 
     const onDisconnect = (reason) => {
-      console.log('[Socket] Disconnected:', reason);
+      import.meta.env.DEV && console.log('[Socket] Disconnected:', reason);
       setIsConnected(false);
       setConnected(false);
     };
@@ -63,7 +63,7 @@ export function useSocket(isAuthReady = true) {
     };
 
     const onRetry = () => {
-      console.log('[Socket] Reconnect attempt...');
+      import.meta.env.DEV && console.log('[Socket] Reconnect attempt...');
     };
 
     socket.on('connect', onConnect);
@@ -98,7 +98,7 @@ export function useSocket(isAuthReady = true) {
   const emit = useCallback((event, data) => {
     if (globalSocket) {
       if (!globalSocket.connected) {
-        console.log(`[Socket] Buffering emit '${event}' until connected`);
+        import.meta.env.DEV && console.log(`[Socket] Buffering emit '${event}' until connected`);
       }
       globalSocket.emit(event, data);
     } else {
@@ -154,7 +154,7 @@ export function useSocket(isAuthReady = true) {
  */
 export function disconnectSocket() {
   if (globalSocket) {
-    console.log('[Socket] Disconnecting and destroying global instance...');
+    import.meta.env.DEV && console.log('[Socket] Disconnecting and destroying global instance...');
     globalSocket.disconnect();
     globalSocket = null;
   }
@@ -166,7 +166,7 @@ export function disconnectSocket() {
  */
 export function syncSocketAuth(newToken = 'guest') {
   if (!globalSocket) {
-    console.log(`[Socket] Initializing explicitly via syncSocketAuth...`);
+    import.meta.env.DEV && console.log(`[Socket] Initializing explicitly via syncSocketAuth...`);
     globalSocket = io(`${SOCKET_URL}/teaching`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -182,7 +182,7 @@ export function syncSocketAuth(newToken = 'guest') {
   }
 
   if (globalSocket.auth?.token !== newToken) {
-    console.log(`[Socket] Explicit auth sync: Updating token...`);
+    import.meta.env.DEV && console.log(`[Socket] Explicit auth sync: Updating token...`);
     globalSocket.auth = { token: newToken };
     if (globalSocket.connected) {
       globalSocket.disconnect().connect();

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles,
-  RotateCcw, RefreshCw, Dices, Crosshair
+  RotateCcw, RefreshCw, Dices, Crosshair, Volume2, VolumeX, AlertTriangle, BookOpen
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
@@ -14,13 +15,15 @@ import StepPanel from './StepPanel';
 import NarrationBar from './NarrationBar';
 import InteractiveControlPanel from './InteractiveControlPanel';
 import UnifiedControlBar from './UnifiedControlBar';
-import { AlgoRightPanel } from './AlgoRightPanel';
-import StudyPanel from './StudyPanel';
-import MasteryHUD from './MasteryHUD';
-import StepFilmstrip from './StepFilmstrip';
+import { SessionGuide } from './SessionGuide';
+import SessionResumeOverlay from './SessionResumeOverlay';
+import ShortcutsHUD from './ShortcutsHUD';
+const MasteryHUD = lazy(() => import('./MasteryHUD'));
+const StepFilmstrip = lazy(() => import('./StepFilmstrip'));
 import ParticleWaves from '../canvas/ParticleWaves';
 import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
+import useVoiceNarrator from '../../hooks/useVoiceNarrator';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
 import { DOMAIN_STYLES, PANEL_VISIBLE_STATES as PANEL_VISIBLE_STATES_ARR, formatTopicTitle } from '../../lib/teaching';
 
@@ -71,22 +74,75 @@ const TeachingSession = ({ initialTopic }) => {
     isExplainMinimized: isMinimized,
     setExplainMinimized: setIsMinimized,
     canvasLayout,
-    activeArtifactId
+    activeArtifactId,
+    isVoiceEnabled,
+    toggleVoice,
+    isSidebarOpen,
+    setSidebarOpen,
+    takeaways,
+    removeTakeaway
   } = useTutorStore();
 
+  const toolbarLeft = isSidebarOpen ? 350 + 16 : 16;
+
   const isOpen = machineState !== STATES.IDLE || canvasLayout !== 'inline';
-  const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING || machineState === STATES.GENERATING || (machineState === STATES.IDLE && activeArtifactId);
+  const isGenerating = machineState === STATES.GENERATING;
+  // FIX: Also show the canvas body when viewing a snapshot (canvasLayout !== 'inline' but machineState === IDLE)
+  const isSnapshotView = canvasLayout !== 'inline' && machineState === STATES.IDLE;
+  const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING || isGenerating || isSnapshotView;
+  
+  const domain = timeline?.domain?.toLowerCase() || 'general';
+  const ds = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
+  const domainColor = ds.accent || '#6366f1';
+  const isAlgo = isDSAContent(timeline);
+  const isD3 = (timeline?.renderer || '').toLowerCase() === 'd3';
+  const useAlgoPanel = isAlgo;
+
+  const stepType = currentStep?.type || (
+    currentStep?.title?.toLowerCase().includes("intro") ? "Intro" : 
+    currentStep?.title?.toLowerCase().includes("example") ? "Example" : 
+    currentStep?.title?.toLowerCase().includes("summary") ? "Summary" : 
+    "Core"
+  );
+
   const [panelOpen, setPanelOpen] = useState(true);
-  const [panelWide, setPanelWide] = useState(false);
   const [studyPanelOpen, setStudyPanelOpen] = useState(false);
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
+  const { speak, cancel } = useVoiceNarrator();
+
+  // Voice narration trigger
+  useEffect(() => {
+    if (isTeaching && currentStep && !isGenerating) {
+      const text = currentStep.narration || currentStep.explanation;
+      if (text) speak(text);
+    } else {
+      cancel();
+    }
+  }, [currentStepIndex, isTeaching, isGenerating, speak, cancel]);
+
+  const handleElementClick = useCallback((id, event, data) => {
+    if (event === 'click') {
+      const question = `Can you explain what the element "${id}" representing ${data.type} is doing in this step?`;
+      showToast({ message: `Inquiring about ${id}...`, type: 'info', duration: 2000 });
+      askDoubt(question);
+    }
+  }, [askDoubt, showToast]);
 
   // ── Handlers ──────────────────────────────────────────────
 
   const handleClose = useCallback(() => {
+    // FIX: If we're in a snapshot view (not a live teaching session),
+    // just close the canvas layout without calling endSession which clears session IDs.
+    if (isSnapshotView) {
+      useTutorStore.getState().setCanvasLayout('inline');
+      useTutorStore.getState().setActiveSnapshotId(null);
+      return;
+    }
     endSession();
-  }, [endSession]);
+    // Also ensure canvas layout is reset
+    useTutorStore.getState().setCanvasLayout('inline');
+  }, [endSession, isSnapshotView]);
 
   const handleSpeed = useCallback((s) => {
     storeSetSpeed(s);
@@ -119,7 +175,9 @@ const TeachingSession = ({ initialTopic }) => {
         nextStep();
       } else if (e.key === 'ArrowLeft') {
         prevStep();
-      } else if (e.key === ' ' && !e.target.matches('input, textarea')) {
+      } else if (e.key.toLowerCase() === 'i') {
+        setStudyPanelOpen(prev => !prev);
+      } else if (e.key === ' ' && !e.target.matches('input, textarea, button, select, [role=button]')) {
         e.preventDefault();
         isPlaying ? pause() : play();
       }
@@ -181,18 +239,53 @@ const TeachingSession = ({ initialTopic }) => {
 
   // Time
   const { formatted, formatTime } = useElapsedTime(isPlaying, machineState === STATES.GENERATING);
-  const totalFormatted = formatTime(totalSteps * 8);
+  const totalFormatted = formatTime(totalSteps * 8); // Estimated 8s per step
 
   // ── Bail ──────────────────────────────────────────────────
   if (!isOpen) return null;
 
-  const domain = timeline?.domain?.toLowerCase() || 'general';
-  const ds = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
-  const domainColor = ds.accent || '#6366f1';
-  const isGenerating = machineState === STATES.GENERATING;
-  const isAlgo = isDSAContent(timeline);
-  const isD3 = (timeline?.renderer || '').toLowerCase() === 'd3';
-  const useAlgoPanel = true; // Consolidate to the richer panel for all sessions
+  if (machineState === STATES.ERROR) {
+    return (
+      <div className="teaching-session flex items-center justify-center p-6 bg-[var(--bg-primary)]">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="liquid-glass p-10 rounded-[32px] flex flex-col items-center gap-8 max-w-md text-center border border-red-500/20"
+          style={{ boxShadow: '0 32px 80px -16px rgba(0,0,0,0.3)' }}
+        >
+           <div className="w-20 h-20 rounded-3xl bg-red-500/10 flex items-center justify-center text-red-500 mb-2 border border-red-500/20">
+             <AlertTriangle size={40} strokeWidth={1.5} />
+           </div>
+           <div className="space-y-3">
+             <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Session Interrupted</h2>
+             <p className="text-[13px] text-[var(--text-secondary)] opacity-70 leading-relaxed">
+               {error || "TutorBoard encountered an unexpected glitch while orchestrating your lesson."}
+             </p>
+             <p className="text-[11px] text-red-400/60 font-mono bg-red-500/5 py-2 px-3 rounded-lg border border-red-500/10">
+               {typeof error === 'string' && error.startsWith('{') ? 'JSON_PAYLOAD_ERROR' : (error || 'UNKNOWN_SESSION_FAILURE')}
+             </p>
+           </div>
+           <div className="flex flex-col gap-3 w-full">
+             <button 
+               onClick={() => startSession(topic, topic)}
+               className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-[var(--text-primary)] text-[var(--bg-primary)] font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-black/20"
+             >
+               <RefreshCw size={16} />
+               Re-initialize Lesson
+             </button>
+             <button 
+               onClick={handleClose}
+               className="w-full px-6 py-3.5 rounded-2xl bg-transparent border border-[var(--border-color)] text-[var(--text-tertiary)] font-semibold text-[13px] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-[0.98] transition-all cursor-pointer"
+             >
+               Return to Workspace
+             </button>
+           </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+
 
   // ── Minimized pill ────────────────────────────────────────
   if (isMinimized && isTeaching) {
@@ -277,30 +370,30 @@ const TeachingSession = ({ initialTopic }) => {
                   doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
                   activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
                   onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
+                  onElementClick={handleElementClick}
                   hideAlgoPanel={true}
                 />
               </CinematicStage>
             </div>
 
             {/* ── Step Orientation Pill (Floating Context) ── */}
-            <div className="absolute top-[68px] left-4 z-[45] pointer-events-none">
+            <div className="absolute top-[80px] left-6 z-[30] pointer-events-none">
               <motion.div
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
                 key={`step-pill-${currentStepIndex}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[16px] liquid-glass"
-                style={{ boxShadow: '0 4px 16px -4px rgba(0,0,0,0.08)' }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full sf-glass shadow-premium"
               >
                 <div
-                  className="w-1.5 h-1.5 rounded-full animate-pulse"
+                  className="w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--theme-color-rgb),0.5)]"
                   style={{
-                    background: currentStep?.type === 'summary' ? '#ca8a04' :
-                      currentStep?.type === 'example' ? '#16a34a' :
-                        currentStep?.type === 'intro' ? '#2563eb' : 'var(--text-primary)'
+                    background: stepType?.toLowerCase() === 'summary' ? '#ca8a04' :
+                      stepType?.toLowerCase() === 'example' ? '#16a34a' :
+                        stepType?.toLowerCase() === 'intro' ? '#2563eb' : 'var(--text-primary)'
                   }}
                 />
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--text-secondary)' }}>
-                  {currentStep?.type || 'Core'} · {currentStepIndex + 1}
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
+                  {stepType ? `${stepType} · ` : ''}{currentStepIndex + 1}
                 </span>
               </motion.div>
             </div>
@@ -339,7 +432,7 @@ const TeachingSession = ({ initialTopic }) => {
 
             {/* 1. Narration Subtitle (Fixed Position Above Controls) */}
             {!useAlgoPanel && (
-              <div className="absolute bottom-[140px] left-1/2 -translate-x-1/2 z-[50] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
+              <div className="absolute bottom-[140px] left-1/2 -translate-x-1/2 z-[60] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
                 <div className="pointer-events-auto w-full flex justify-center">
                   <NarrationBar 
                     text={currentStep?.narration || currentStep?.explanation} 
@@ -351,33 +444,32 @@ const TeachingSession = ({ initialTopic }) => {
             )}
 
             {/* ── Vertical Session Actions Pill (Bottom Left) ── */}
-            <div className="absolute bottom-8 left-4 z-[50] pointer-events-none">
+            <div className="absolute bottom-8 left-6 z-[40] pointer-events-none">
               <motion.div 
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="flex flex-col gap-1 p-1.5 rounded-2xl liquid-glass pointer-events-auto"
-                style={{ boxShadow: '0 8px 24px -4px rgba(0,0,0,0.1)' }}
+                className="flex flex-col gap-2 p-1.5 rounded-2xl sf-glass shadow-premium pointer-events-auto"
               >
                 <Btn onClick={() => goToStep(0)} title="Reset to Start" className="rounded-xl">
-                  <RotateCcw size={14} />
+                  <RotateCcw size={13} />
                 </Btn>
                 <Btn onClick={() => goToStep(currentStepIndex)} title="Replay Step" className="rounded-xl">
-                  <RefreshCw size={13} />
+                  <RefreshCw size={12} />
                 </Btn>
                 <Btn onClick={() => canvasRef.current?.resetCamera()} title="Reset View" className="rounded-xl">
-                  <Crosshair size={14} />
+                  <Crosshair size={13} />
                 </Btn>
                 <Btn onClick={() => startSession(topic, topic)} title="New Example" className="rounded-xl">
-                  <Dices size={14} />
+                  <Dices size={13} />
                 </Btn>
               </motion.div>
             </div>
 
             {/* ── Unified Floating Controls (Bottom Center) ── */}
             <motion.div 
-              className="absolute bottom-8 left-1/2 z-[50] flex flex-col items-center pointer-events-none w-full"
+              className="absolute bottom-8 left-1/2 z-[60] flex flex-col items-center pointer-events-none w-full"
               animate={{ 
-                x: panelOpen ? (panelWide ? -210 : -160) : 0 
+                x: panelOpen ? -160 : 0 
               }}
               transition={{ type: 'spring', damping: 30, stiffness: 200 }}
               style={{ translateX: '-50%' }}
@@ -385,11 +477,13 @@ const TeachingSession = ({ initialTopic }) => {
               {/* ── Visual Timeline (Filmstrip) ── */}
               {isAlgo && canvasSteps.length > 1 && (
                 <div className="mb-3 pointer-events-auto">
-                  <StepFilmstrip 
-                    steps={canvasSteps} 
-                    currentStepIndex={currentStepIndex} 
-                    goToStep={goToStep} 
-                  />
+                  <Suspense fallback={null}>
+                    <StepFilmstrip 
+                      steps={canvasSteps} 
+                      currentStepIndex={currentStepIndex} 
+                      goToStep={goToStep} 
+                    />
+                  </Suspense>
                 </div>
               )}
               
@@ -405,6 +499,10 @@ const TeachingSession = ({ initialTopic }) => {
                   onGoToStep={goToStep}
                   onSpeedChange={handleSpeed}
                   onAskDoubt={askDoubt}
+                  isVoiceEnabled={isVoiceEnabled}
+                  onToggleVoice={toggleVoice}
+                  elapsedTime={formatted}
+                  totalTime={totalFormatted}
                 />
               </div>
             </motion.div>
@@ -417,132 +515,110 @@ const TeachingSession = ({ initialTopic }) => {
                   animate={{ x: 0, opacity: 1 }}
                   exit={{ x: 20, opacity: 0 }}
                   onClick={() => setPanelOpen(true)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-[45] flex items-center justify-center w-6 h-16 pointer-events-auto transition-colors liquid-glass"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-[30] flex items-center justify-center w-7 h-20 pointer-events-auto transition-all liquid-glass group hover:w-9"
                   style={{
                     borderRight: 'none',
-                    borderTopLeftRadius: '16px',
-                    borderBottomLeftRadius: '16px',
+                    borderTopLeftRadius: '20px',
+                    borderBottomLeftRadius: '20px',
+                    boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
                   }}
                   title="Open Session Guide"
                 >
-                  <ChevronLeft size={16} className="opacity-70 hover:opacity-100" style={{ color: 'var(--text-primary)' }} />
+                  <ChevronLeft size={18} className="opacity-50 group-hover:opacity-100 group-hover:-translate-x-0.5 transition-all" style={{ color: 'var(--text-primary)' }} />
+                  {/* Active indicator dot */}
+                  <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-info opacity-40 group-hover:opacity-100 transition-opacity" />
                 </motion.button>
               )}
             </AnimatePresence>
+
+            {/* Premium Liquid Glass Right Panel */}
+            <AnimatePresence>
+              {panelOpen && (
+                <motion.div
+                  layout
+                  initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                  className="absolute right-6 top-24 bottom-24 w-[340px] z-[50] pointer-events-auto"
+                >
+                  <div className="h-full w-full sf-glass shadow-premium flex flex-col overflow-hidden" 
+                       style={{ 
+                         borderRadius: 32,
+                         background: 'rgba(var(--bg-primary-rgb), 0.6)',
+                       }}>
+                    <SessionGuide
+                      step={{ 
+                        ...currentStep, 
+                        narration: currentStep?.narration || currentStep?.explanation || canvasSteps[currentStepIndex]?.narration 
+                      }}
+                      stepIndex={currentStepIndex} 
+                      totalSteps={totalSteps}
+                      variables={canvasSteps[currentStepIndex]?.variables || currentStep?.variables}
+                      activeStates={canvasSteps[currentStepIndex]?.activeStates || currentStep?.activeStates}
+                      algorithmName={timeline?.title || topic} 
+                      timeline={timeline} 
+                      professorNote={timeline?.professorNote || professorNote}
+                      onGoToStep={goToStep}
+                      doubtHistory={doubtHistory} 
+                      isDoubtProcessing={isDoubtProcessing}
+                      activeDoubtId={machine.activeDoubtId} 
+                      onJumpToDoubt={machine.jumpToDoubt}
+                      onPinDoubt={machine.pinDoubtToCanvas} 
+                      onResume={resume} 
+                      onAskDoubt={askDoubt}
+                      takeaways={takeaways}
+                      removeTakeaway={removeTakeaway}
+                      isAlgo={isAlgo}
+                      onReplay={() => goToStep(currentStepIndex)}
+                      onClose={() => setPanelOpen(false)}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
-
-          {/* Right Panel (Flex Sibling for Dynamic Adjustment) */}
-          <AnimatePresence>
-            {panelOpen && (
-               <motion.div
-                initial={{ opacity: 0, x: 50, scale: 0.98 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: 50, scale: 0.98 }}
-                transition={{ 
-                  type: 'spring',
-                  damping: 32,
-                  stiffness: 280,
-                  opacity: { duration: 0.2 }
-                }}
-                className="teaching-right-panel"
-                style={{
-                  position: 'absolute',
-                  right: '24px',
-                  top: '92px',
-                  bottom: '72px',
-                  width: panelWide ? '420px' : '320px',
-                  borderRadius: '32px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  zIndex: 100,
-                  overflow: 'hidden',
-                  pointerEvents: 'auto',
-                  background: 'var(--bg-primary)',
-                  border: '1px solid var(--border-color)',
-                  boxShadow: '0 24px 64px -12px rgba(0,0,0,0.4)',
-                  willChange: 'transform, opacity',
-                  backfaceVisibility: 'hidden',
-                  transformStyle: 'preserve-3d'
-                }}
-              >
-                {/* Header (Sticky) */}
-                <div className="flex items-center justify-between px-5 py-3.5 shrink-0" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <div className="flex items-center gap-2.5">
-                    <div className="relative">
-                      <div className="w-2 h-2 rounded-full" style={{ background: 'linear-gradient(135deg, #a78bfa, #6366f1)' }} />
-                      <motion.div 
-                        className="absolute inset-0 w-2 h-2 rounded-full"
-                        style={{ background: 'linear-gradient(135deg, #a78bfa, #6366f1)' }}
-                        animate={{ scale: [1, 1.8, 1], opacity: [0.6, 0, 0.6] }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
-                      Session Guide
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-
-                    <button onClick={() => setPanelOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-lg transition-all hover:bg-red-500/10 hover:text-red-400 active:scale-90 cursor-pointer" style={{ color: 'var(--text-tertiary)' }} title="Close">
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Scrollable Content Wrapper */}
-                <div className="flex-1 overflow-y-auto flex flex-col custom-scrollbar">
-                  {/* Mastery & Stats */}
-                  {isAlgo && (
-                    <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <MasteryHUD />
-                    </div>
-                  )}
-
-                  <AlgoRightPanel
-                    step={{ 
-                      ...currentStep, 
-                      narration: currentStepIndex === 0 ? (timeline?.professorNote || currentStep?.narration) : currentStep?.narration || canvasSteps[currentStepIndex]?.narration 
-                    }}
-                    stepIndex={currentStepIndex} 
-                    totalSteps={totalSteps}
-                    variables={canvasSteps[currentStepIndex]?.variables || currentStep?.variables}
-                    activeStates={canvasSteps[currentStepIndex]?.activeStates || currentStep?.activeStates}
-                    algorithmName={timeline?.title || topic} 
-                    timeline={timeline} 
-                    onGoToStep={goToStep}
-                    doubtHistory={doubtHistory} 
-                    isDoubtProcessing={isDoubtProcessing}
-                    activeDoubtId={machine.activeDoubtId} 
-                    onJumpToDoubt={machine.jumpToDoubt}
-                    onPinDoubt={machine.pinDoubtToCanvas} 
-                    onResume={resume} 
-                    onAskDoubt={askDoubt}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       )}
 
-      <StudyPanel isOpen={studyPanelOpen} onClose={() => setStudyPanelOpen(false)} />
+      <SessionResumeOverlay />
+      <ShortcutsHUD />
       {/* Removed old timeline since it's now a floating pill in the canvas area */}
 
       <FloatingSidebar />
 
       {/* ── 4. Top Toolbar (Last in DOM to stay on top) ── */}
-      {isTeaching && (
-        <div className="absolute top-4 left-4 z-[99999] pointer-events-auto">
+      {isTeaching && createPortal(
+        <div 
+          className="fixed top-4 z-[999999] pointer-events-auto transition-all duration-300"
+          style={{ left: toolbarLeft }}
+        >
           <div
-            className="flex items-center gap-2.5 px-3.5 py-[6px] rounded-[22px] w-max liquid-glass"
-            style={{ height: '48px', boxShadow: '0 8px 32px -4px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)' }}
+            className="flex items-center gap-3 px-5 py-2 rounded-full sf-glass shadow-premium transition-all hover:ring-1 hover:ring-white/10"
+            style={{ 
+              height: '54px', 
+            }}
           >
-            <div className="flex items-center gap-2.5 shrink-0">
-              <Btn onClick={openFloatingSidebar} title="Menu" className="rounded-full"><Menu size={15} /></Btn>
-              <div className="w-px h-4 bg-[var(--border-color)] opacity-40" />
-              <span style={{ color: 'var(--text-primary)' }} className="text-[13px] font-sans font-medium tracking-wide truncate max-w-[180px] md:max-w-[350px]">
-                {formatTopicTitle(timeline?.title || topic)}
-              </span>
+            <div className="flex items-center gap-3 shrink-0">
+              <button 
+                onClick={() => setSidebarOpen(!isSidebarOpen)} 
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all text-[var(--text-primary)]"
+                title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+              >
+                <Menu size={16} />
+              </button>
+              <div className="w-px h-5 bg-white/10" />
+              <button 
+                onClick={() => setPanelOpen(!panelOpen)}
+                className="flex flex-col text-left group cursor-pointer"
+              >
+                <span style={{ color: 'var(--text-primary)' }} className="text-[13px] font-sans font-bold tracking-tight group-hover:text-indigo-400 transition-colors">
+                  {formatTopicTitle(timeline?.title || topic)}
+                </span>
+                <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-widest opacity-60">
+                   {isAlgo ? 'Algorithm Session' : 'Pedagogical Guide'}
+                </span>
+              </button>
             </div>
 
             <div className="w-px h-4 bg-[var(--border-color)] opacity-40 shrink-0" />
@@ -552,31 +628,21 @@ const TeachingSession = ({ initialTopic }) => {
                 {currentStepIndex + 1}/{canvasSteps.length || 1}
               </span>
 
-              <Btn onClick={() => setStudyPanelOpen(!studyPanelOpen)} active={studyPanelOpen} title="Study Insights" className="hidden sm:flex rounded-full">
-                <Sparkles size={13} />
-              </Btn>
+
               <Btn onClick={() => setPanelOpen(!panelOpen)} title={panelOpen ? 'Hide panel' : 'Show panel'} className="rounded-full">
                 {panelOpen ? <PanelRightClose size={13} /> : <PanelRight size={13} />}
               </Btn>
               <Btn onClick={handleClose} danger title="Close" className="rounded-full"><X size={13} /></Btn>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 };
 
-/* ── Tiny helpers ─────────────────────────────────────────── */
 
-function Dot({ ok }) {
-  return (
-    <span className="flex items-center gap-1 text-[9px] shrink-0" style={{ color: 'var(--text-tertiary)' }}>
-      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-red-400'}`} />
-      {ok ? 'Live' : 'Offline'}
-    </span>
-  );
-}
 
 // BTN helper removed or moved if needed
 

@@ -750,6 +750,9 @@ export const createConversationSlice = (set, get) => ({
           id: m.id || m._id?.toString() || generateId(m.role),
           role: m.role, content,
           timestamp: m.timestamp || new Date().toISOString(),
+          hasCanvas: m.hasCanvas || false,
+          canvasType: m.canvasType || null,
+          canvasSnapshot: m.canvasSnapshot || null,
           metadata: {
             edited: false, regenerated: false, feedback: null, aborted: false, error: null,
             versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0,

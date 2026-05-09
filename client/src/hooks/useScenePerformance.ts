@@ -83,7 +83,7 @@ export function useScenePerformance(config: PerformanceConfig = {}) {
           tierIndexRef.current = nextIndex;
           setQualityTier(TIER_ORDER[nextIndex]);
           lastDowngradeRef.current = now;
-          console.log(`[ScenePerformance] ⬇️ Downgraded to ${TIER_ORDER[nextIndex]} (FPS: ${currentFps})`);
+          import.meta.env.DEV && console.log(`[ScenePerformance] ⬇️ Downgraded to ${TIER_ORDER[nextIndex]} (FPS: ${currentFps})`);
         }
       }
     }
@@ -94,7 +94,7 @@ export function useScenePerformance(config: PerformanceConfig = {}) {
           tierIndexRef.current = nextIndex;
           setQualityTier(TIER_ORDER[nextIndex]);
           lastUpgradeRef.current = now;
-          console.log(`[ScenePerformance] ⬆️ Upgraded to ${TIER_ORDER[nextIndex]} (FPS: ${currentFps})`);
+          import.meta.env.DEV && console.log(`[ScenePerformance] ⬆️ Upgraded to ${TIER_ORDER[nextIndex]} (FPS: ${currentFps})`);
         }
       }
     }

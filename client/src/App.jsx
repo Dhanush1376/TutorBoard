@@ -58,10 +58,9 @@ function App() {
 
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     try {
-      const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-      if (isGuest) return false;
-      // UX-01: Use localStorage so the intro only plays once per browser session lifecycle
-      return !localStorage.getItem('tb-welcome-played-v1');
+      // UX-01: Use sessionStorage so the intro only plays once per browser session lifecycle
+      // Versioned key to force a replay after critical UI updates
+      return !sessionStorage.getItem('tb-welcome-played-v9');
     } catch {
       return false;
     }
@@ -72,12 +71,12 @@ function App() {
     if (welcomeLoading) {
       // UX-01: Set flag immediately so a quick refresh doesn't replay the intro
       try {
-        localStorage.setItem('tb-welcome-played-v1', 'true');
+        sessionStorage.setItem('tb-welcome-played-v9', 'true');
       } catch { }
 
       const timer = setTimeout(() => {
         setWelcomeLoading(false);
-      }, 2000);
+      }, 5500); // Cinematic duration: Phase 1-5 + FadeOut
       return () => clearTimeout(timer);
     }
   }, [welcomeLoading]);

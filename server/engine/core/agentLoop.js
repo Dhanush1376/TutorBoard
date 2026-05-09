@@ -29,6 +29,7 @@ import { formatForPrompt, extractSources } from '../../utils/ai/searchContextFor
 // Global concurrency limiter — prevents provider rate limit saturation
 let activeAgentLoops = 0;
 const MAX_CONCURRENT_LOOPS = 3;
+const agentQueue = []; // FIFO queue to manage concurrency without spin-loops
 
 // ─── Robust JSON Extractor ────────────────────────────────────────────────────
 // FIX 1: Old code had a regex that only matched JSON with "elements"/"timeline" 
@@ -101,10 +102,10 @@ function unwrapValidatorOutput(raw) {
   }
 
   // FORCE NORMALIZATION: Always check for alternate field names like visual_steps vs steps
-  const meta        = inner.meta || {};
-  const rawNarrations  = inner.narrations    || inner.explanation_steps || inner.narration_steps || inner.narrative_steps || inner.steps || inner.sequence || inner.roadmap || [];
-  const rawVisualSteps = inner.visual_steps  || inner.visuals || inner.scene_steps || inner.visual_timeline || inner.visualization || inner.frames || inner.script || [];
-  const rawAnimSteps   = inner.animation_steps || inner.animations || inner.transitions || inner.motion_steps || inner.animation_timeline || [];
+  const meta           = inner.meta || {};
+  const rawNarrations  = inner.narrations    || inner.explanation_steps || inner.narration_steps || inner.narrative_steps || inner.steps || inner.sequence || inner.roadmap || inner.meta?.narrations || [];
+  const rawVisualSteps = inner.visual_steps  || inner.visuals || inner.meta?.visual_steps || inner.scene_steps || inner.visual_timeline || inner.visualization || inner.frames || inner.script || [];
+  const rawAnimSteps   = inner.animation_steps || inner.animations || inner.transitions || inner.motion_steps || inner.animation_timeline || inner.meta?.animation_steps || [];
 
   // If the Validator output was already in legacy format (raw.steps), 
   // but those steps had "elements" instead of "actions", we need to normalize them.
@@ -223,6 +224,7 @@ function unwrapValidatorOutput(raw) {
 // ─── objectIds cross-reference fix ───────────────────────────────────────────
 function fixObjectIds(obj) {
   const elements = obj.elements || obj.objects || [];
+  if (elements.length === 0) return obj; // Trust objectIds as-is if we have no element registry
   const validIds = new Set(elements.map(e => e?.id).filter(Boolean));
   const timeline = obj.timeline || obj.steps || [];
 
@@ -381,10 +383,10 @@ function createFallbackTimeline(topic, errorMsg = 'Pedagogical validation failed
 
 // ─── Main Autonomous Loop ─────────────────────────────────────────────────────
 export async function runAgentLoop(params) {
-  // If too many loops are running, queue this one
-  while (activeAgentLoops >= MAX_CONCURRENT_LOOPS) {
+  // If too many loops are running, wait in queue (non-blocking)
+  if (activeAgentLoops >= MAX_CONCURRENT_LOOPS) {
     if (params.onProgress) params.onProgress('⏳ System busy, waiting for a slot...');
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 500));
+    await new Promise(resolve => agentQueue.push(resolve));
   }
   
   activeAgentLoops++;
@@ -392,6 +394,11 @@ export async function runAgentLoop(params) {
     return await _runAgentLoopInternal(params);
   } finally {
     activeAgentLoops--;
+    // Trigger next in queue if available
+    if (agentQueue.length > 0) {
+      const next = agentQueue.shift();
+      next();
+    }
   }
 }
 
@@ -474,7 +481,11 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       runStage({
         stageName: '🎨 Designing visual representation...',
         prompt: getPrompt('visualizer'),
-        input: { plannerOutput, learnerProfile, webContextStr }, // Pass webContext to visualizer too
+        input: { 
+          plannerOutput, 
+          learnerProfile, 
+          webContextStr: webContextStr?.split("\n").slice(0, 10).join("\n") // Use summary to save tokens
+        },
         model: fastModel, onProgress, userConfig,
         signal,
         requiredKeys: ['visual_steps']
@@ -491,7 +502,7 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
     onProgress('🎞️ Generating cinematic animation sequences...');
     // Stage 4: ANIMATION — FAST MODEL
     let animatorOutput = await runStage({
-      stageName: 'Choreographing cinematic motion...',
+      stageName: '🎞️ Choreographing cinematic motion...',
       prompt: getPrompt('animator'),
       input: { 
         plannerOutput, 
@@ -499,6 +510,7 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
         learnerProfile 
       },
       model: fastModel, onProgress, userConfig, signal,
+      onStream: (token) => onProgress('animating', token),
       requiredKeys: ['animation_steps']
     });
 
@@ -531,19 +543,18 @@ async function _runAgentLoopInternal({ topic, domain, model = null, onProgress =
       prompt: getPrompt('critic'),
       input: criticInput,
       model: fastModel, onProgress, userConfig, signal,
+      onStream: (token) => onProgress('reviewing', token),
       requiredKeys: ['approved', 'scores']
     });
     console.log(`[AgentLoop] ✅ Stage 5 — approved: ${criticOutput.approved}, score: ${criticOutput.scores?.overall}`);
 
     // CRITIC GATING (STAGE 5)
     const overallScore = criticOutput.scores?.overall || 0;
-    if (criticOutput.approved === false) {
-      if (overallScore < 7) {
-         console.warn(`[AgentLoop] ❌ CRITICAL: Critic rejected pipeline with score ${overallScore}. Triggering failsafe.`);
-         throw new Error(`Critic rejection (score ${overallScore})`);
-      } else {
-         console.warn(`[AgentLoop] ⚠️ WARNING: Critic scored ${overallScore} but rejected. Proceeding with patches.`);
-      }
+    if (criticOutput.approved === false && overallScore < 8) {
+       console.warn(`[AgentLoop] ❌ CRITICAL: Critic rejected pipeline with score ${overallScore}. Triggering failsafe.`);
+       throw new Error(`Critic rejection (score ${overallScore})`);
+    } else if (criticOutput.approved === false) {
+       console.warn(`[AgentLoop] ⚠️ WARNING: Critic scored ${overallScore} but rejected. Proceeding with patches.`);
     }
 
     // APPLY PATCHES: Merge critic's patch_suggestions into prior outputs AFTER gating

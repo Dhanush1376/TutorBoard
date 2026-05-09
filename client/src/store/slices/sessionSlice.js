@@ -345,8 +345,9 @@ export const createSessionSlice = (set, get) => ({
   forceReset: () => set({
     machineState:       STATES.IDLE,
     topic:              '',
-    sessionId:          null,
-    chatSessionId:      null,
+    // FIX: Do NOT clear sessionId/chatSessionId here. 
+    // These should only be cleared by handleNewChat or endSession.
+    // Clearing them here causes follow-up queries to start new sessions.
     timeline:           null,
     canvasObjects:      [],
     canvasConnections:  [],
@@ -361,6 +362,14 @@ export const createSessionSlice = (set, get) => ({
     narrationTokens:    '',
     doubtResponse:      null,
     doubtHistory:       [],
+    // Nuclear Reset: Clear global states across slices
+    isDoubtProcessing:  false,
+    isWaitingForAI:     false,
+    isStreaming:        false,
+    streamingContent:   '',
+    streamingMessageId: null,
+    streamingSessionId: null,
+    waitingSessionId:   null,
   }),
 });
 

@@ -69,13 +69,13 @@ export const useSessionSync = (chatMessages) => {
     
     // Concurrency Lock: Don't start a new sync if one is in flight
     if (isSyncingRef.current) {
-      console.log('[Sync] Skip: Sync already in flight');
+      import.meta.env.DEV && console.log('[Sync] Skip: Sync already in flight');
       return;
     }
 
     // ONLY sync for real users, skipping guests
     if (!state.user || state.user.isGuest || !state.token) {
-      if (isBeacon) console.log('[Sync] Beacon skipped: Guest or No Token');
+      if (isBeacon) import.meta.env.DEV && console.log('[Sync] Beacon skipped: Guest or No Token');
       return;
     }
 
@@ -87,7 +87,7 @@ export const useSessionSync = (chatMessages) => {
     const hasUserContent = hasUserMessages || hasManualDrawings;
     
     if (!hasUserContent) {
-      if (isBeacon) console.log('[Sync] Beacon skipped: No user content');
+      if (isBeacon) import.meta.env.DEV && console.log('[Sync] Beacon skipped: No user content');
       return;
     }
 
@@ -96,7 +96,7 @@ export const useSessionSync = (chatMessages) => {
     // When the server later assigns a real MongoDB _id, we adopt it (see below).
     if (!state.chatSessionId && !localSessionIdRef.current) {
       localSessionIdRef.current = generateLocalId();
-      console.log(`[Sync] No chatSessionId yet — using local fallback ID: ${localSessionIdRef.current}`);
+      import.meta.env.DEV && console.log(`[Sync] No chatSessionId yet — using local fallback ID: ${localSessionIdRef.current}`);
     }
     const effectiveSessionId = state.chatSessionId || localSessionIdRef.current;
 
@@ -122,7 +122,7 @@ export const useSessionSync = (chatMessages) => {
     // Redundancy Check: Skip if payload hasn't changed since last successful sync
     const payloadStr = JSON.stringify(payload);
     if (payloadStr === lastPayloadRef.current && !isBeacon) {
-      console.log('[Sync] Skip: Payload identical to last successful sync');
+      import.meta.env.DEV && console.log('[Sync] Skip: Payload identical to last successful sync');
       return;
     }
 
@@ -133,7 +133,7 @@ export const useSessionSync = (chatMessages) => {
       const url = `${API_URL}/api/sessions/beacon`;
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
       const success = navigator.sendBeacon(url, blob);
-      console.log(`[Sync] Beacon flush ${success ? 'queued' : 'failed'}`);
+      import.meta.env.DEV && console.log(`[Sync] Beacon flush ${success ? 'queued' : 'failed'}`);
       return;
     }
 
@@ -147,7 +147,7 @@ export const useSessionSync = (chatMessages) => {
         // CRITICAL FOR SYNC: If we sent a local UUID and MongoDB created a real _id,
         // we MUST update our local tracking ID so future saves update the same document!
         if (savedSession._id && savedSession._id !== state.chatSessionId) {
-          console.log(`[Sync] Adopted MongoDB ID: ${savedSession._id}`);
+          import.meta.env.DEV && console.log(`[Sync] Adopted MongoDB ID: ${savedSession._id}`);
           
           // CRITICAL: Promote the ID in the sidebar history immediately!
           const oldId = state.chatSessionId || localSessionIdRef.current;
@@ -164,7 +164,7 @@ export const useSessionSync = (chatMessages) => {
           updatedAt: Date.now()
         });
 
-        console.log('[Sync] Session flushed to cloud successfully.');
+        import.meta.env.DEV && console.log('[Sync] Session flushed to cloud successfully.');
         lastSyncedRef.current = Date.now();
         lastPayloadRef.current = payloadStr; // Update fingerprint
         state.setSyncError(null); // Clear any previous errors
@@ -211,7 +211,7 @@ export const useSessionSync = (chatMessages) => {
   // 2. Immediate Flush Trigger (e.g. on Logout)
   useEffect(() => {
     if (syncTrigger > 0) {
-      console.log('[Sync] Force flush triggered...');
+      import.meta.env.DEV && console.log('[Sync] Force flush triggered...');
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
       performSync();
     }
@@ -227,7 +227,7 @@ export const useSessionSync = (chatMessages) => {
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = setTimeout(() => {
         if (!chatSessionId) {
-          console.log('[Sync] ⏳ chatSessionId still missing after 10s, re-requesting...');
+          import.meta.env.DEV && console.log('[Sync] ⏳ chatSessionId still missing after 10s, re-requesting...');
           emit('session:request-db-id');
         }
 

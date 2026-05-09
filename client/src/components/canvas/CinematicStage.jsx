@@ -90,7 +90,7 @@ const CinematicStage = ({
       }
 
       const newScale = targetW / STAGE_BASE_W;
-      setScale(Math.max(0.1, Math.min(newScale, 4.0))); // Increased max scale for high-res displays
+      setScale(Math.max(0.1, Math.min(newScale, 1.6))); // Capped at 1.6 to prevent over-scaling on 4K
     };
 
     const observer = new ResizeObserver(handleResize);
@@ -139,12 +139,10 @@ const CinematicStage = ({
         position: 'relative',
         width: '100%',
         height: '100%',
-        overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         background: 'transparent',
-        isolation: 'isolate',
         opacity: 1, // Fixed visibility
         transition: 'opacity 0.6s ease-in-out',
       }}

@@ -14,7 +14,8 @@ export const uploadFile = (req, res) => {
     baseUrl = `${protocol}://${req.get('host')}`;
   }
   
-  const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
+  // Check for S3 location first, then fallback to local
+  const fileUrl = req.file.location || `${baseUrl}/uploads/${req.file.filename}`;
 
   res.status(200).json({
     message: 'File uploaded successfully',

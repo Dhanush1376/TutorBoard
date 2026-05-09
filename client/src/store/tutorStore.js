@@ -62,7 +62,7 @@ const useTutorStore = create(
           if (guestStatus && guestStatus.lastMessageAt) {
             const oneDay = 24 * 60 * 60 * 1000;
             if (Date.now() - guestStatus.lastMessageAt > oneDay) {
-              console.log('[Store] 🕒 Guest trial reset: >24h elapsed since last activity.');
+              import.meta.env.DEV && console.log('[Store] 🕒 Guest trial reset: >24h elapsed since last activity.');
               state.resetGuestTrial();
             }
           }
@@ -170,6 +170,9 @@ const useTutorStore = create(
     {
       name: 'tutorboard-session',
       storage: safeStorage,
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true);
+      },
       // Only persist UI preferences and global context — never large session data (objects, steps, history)
       partialize: (state) => ({
         sessionId: state.sessionId,

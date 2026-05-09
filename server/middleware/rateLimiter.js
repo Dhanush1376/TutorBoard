@@ -31,6 +31,23 @@ export const httpRateLimiter = rateLimit({
   },
 });
 
+// Dedicated limiter for expensive AI LLM calls
+export const aiRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 50, // 50 AI modifications per hour per user/IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: httpStore,
+  keyGenerator: (req) => {
+    // SEC-RATE: Prioritize user-based limiting to prevent authenticated account abuse
+    return req.user ? `user:${req.user._id}` : `ip:${req.ip}`;
+  },
+  message: {
+    error: 'AI modification limit reached. Please try again in an hour.',
+    code: 'AI_RATE_LIMIT_EXCEEDED'
+  }
+});
+
 // ─── Auth Rate Limiters ───
 export const authSigninRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -107,7 +124,14 @@ export async function checkSocketRate(key) {
   }
 
   // Fallback to memory
-  if (!hitsBySocket.has(key)) hitsBySocket.set(key, []);
+  if (!hitsBySocket.has(key)) {
+    // SEC-MEMORY: Prevent OOM if Redis is offline by capping local map size
+    if (hitsBySocket.size > 10000) {
+      const oldestKeys = [...hitsBySocket.keys()].slice(0, 2000);
+      oldestKeys.forEach(k => hitsBySocket.delete(k));
+    }
+    hitsBySocket.set(key, []);
+  }
   const timestamps = hitsBySocket.get(key);
   const fresh = timestamps.filter(t => now - t < SOCKET_WINDOW_MS);
   fresh.push(now);

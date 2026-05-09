@@ -20,7 +20,7 @@ export default function useStreamingResponse() {
 
     // FIX I-02: If real SSE streaming is already active, bypass simulation to avoid UI collision
     if (store.isStreaming) {
-      console.log('[useStreamingResponse] ⏩ Real stream active, bypassing simulation.');
+      import.meta.env.DEV && console.log('[useStreamingResponse] ⏩ Real stream active, bypassing simulation.');
       store.finishStreaming(fullContent, sessionId, null, [], null, null, 0, streamToken);
       isActiveRef.current = false;
       if (onComplete) onComplete(fullContent);

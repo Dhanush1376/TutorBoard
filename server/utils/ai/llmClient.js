@@ -662,9 +662,11 @@ async function _executeSystemPath(params = {}, ctx = {}) {
 
   // ── Platform Fallback Chain ──
   const platformChain = [
-    { id: 'openrouter', client: openRouterClient, defaultModel: getModel() },
+    { id: 'openrouter', client: openRouterClient, defaultModel: 'openai/gpt-4o-mini' },
+    { id: 'groq', client: groqClient, defaultModel: 'llama-3.3-70b-versatile' },
     { id: 'google', client: geminiClient, defaultModel: 'gemini-2.0-flash' },
-    { id: 'groq', client: groqClient, defaultModel: 'llama-3.3-70b-versatile' }
+    { id: 'deepseek', client: deepseekClient, defaultModel: 'deepseek-chat' },
+    { id: 'huggingface', client: hfClient, defaultModel: 'mistralai/Mixtral-8x7B-Instruct-v0.1' }
   ];
 
 
@@ -722,7 +724,7 @@ async function _executeSystemPath(params = {}, ctx = {}) {
       }
     }
 
-    const timeout = createTimeoutController(90_000, signal);
+    const timeout = createTimeoutController(40_000, signal);
     
     try {
       console.log(`[AI:System] Attempting ${providerId} with model ${currentModel}...`);

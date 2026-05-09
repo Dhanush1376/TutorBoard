@@ -13,7 +13,10 @@ import { TRIAL_LIMITS } from '../../constants/trialConfig';
 const GuestTrialBanner = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { guestTrialStatus } = useTutorStore();
+  const { guestTrialStatus, isHydrated } = useTutorStore();
+
+  if (!isHydrated) return null;
+
   const { messageCount, isLimitReached, warning } = guestTrialStatus;
   const remaining = Math.max(0, TRIAL_LIMITS.MAX_MESSAGES - messageCount);
   const progress = messageCount / TRIAL_LIMITS.MAX_MESSAGES;

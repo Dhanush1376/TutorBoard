@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
   const hydrateSettings = useCallback((userData, isHydratedFlag) => {
     try {
       if (userData?.settings && !isHydratedFlag) {
-        console.log('[Auth] Hydrating settings for user:', userData.email);
+        import.meta.env.DEV && console.log('[Auth] Hydrating settings for user:', userData.email);
         const { general, appearance, canvas, privacy } = userData.settings;
         
         if (general) {
@@ -103,11 +103,11 @@ export const AuthProvider = ({ children }) => {
 
   // Verify token on mount
   useEffect(() => {
-    console.log('[Auth] Starting verification effect...');
+    import.meta.env.DEV && console.log('[Auth] Starting verification effect...');
     
     // SEC-13: Migration/Cleanup — Ensure old guest flag is purged from localStorage
     if (localStorage.getItem('tb-is-guest')) {
-      console.log('[Auth] Legacy guest flag detected in localStorage, purging for session-only mode.');
+      import.meta.env.DEV && console.log('[Auth] Legacy guest flag detected in localStorage, purging for session-only mode.');
       localStorage.removeItem('tb-is-guest');
     }
 
@@ -156,12 +156,12 @@ export const AuthProvider = ({ children }) => {
 
         if (exchangeCode) {
           // Exchange one-time code for real JWT (now in cookie)
-          console.log('[Auth] Exchange code detected, trading for session...');
+          import.meta.env.DEV && console.log('[Auth] Exchange code detected, trading for session...');
             const res = await API.get(`/api/auth/exchange?code=${exchangeCode}`);
             
             if (res.data?.success) {
               sessionStorage.setItem('tb-just-logged-in', 'true');
-              console.log('[Auth] Exchange successful ✨');
+              import.meta.env.DEV && console.log('[Auth] Exchange successful ✨');
             }
           // Clean up URL to prevent re-exchange
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -172,7 +172,7 @@ export const AuthProvider = ({ children }) => {
         // Guest flow restoration (Must check before the storedToken early return)
         const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
         if (isGuest) {
-          console.log('[Auth] Restoring Guest session');
+          import.meta.env.DEV && console.log('[Auth] Restoring Guest session');
           setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
           setToken(null);
           return;
@@ -181,14 +181,14 @@ export const AuthProvider = ({ children }) => {
         // AI Automation: If there's a prompt in the URL, auto-login as guest
         const prompt = urlParams.get('prompt');
         if (prompt && !user) {
-          console.log('[Auth] Prompt detected in URL, auto-logging in as Guest...');
+          import.meta.env.DEV && console.log('[Auth] Prompt detected in URL, auto-logging in as Guest...');
           sessionStorage.setItem('tb-is-guest', 'true');
           setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
           setToken(null);
           return;
         }
 
-        console.log('[Auth] Verifying session with backend...');
+        import.meta.env.DEV && console.log('[Auth] Verifying session with backend...');
         try {
           // Parallelize profile and API prefs fetch for high performance
           const [meRes, apiRes] = await Promise.all([
@@ -198,7 +198,7 @@ export const AuthProvider = ({ children }) => {
 
           if (meRes && meRes.data) {
             const data = meRes.data;
-            console.log('[Auth] Session verified for:', data.user?.email);
+            import.meta.env.DEV && console.log('[Auth] Session verified for:', data.user?.email);
             sessionStorage.removeItem('tb-is-guest'); // Clear guest flag if real token verified
             setUser(data.user);
             setToken('verified'); // Flag that we are logged in
@@ -248,7 +248,7 @@ export const AuthProvider = ({ children }) => {
       } catch (globalErr) {
         console.error('[Auth] CRITICAL Error in verifyToken:', globalErr);
       } finally {
-        console.log('[Auth] Verification logic finished, resolving state...');
+        import.meta.env.DEV && console.log('[Auth] Verification logic finished, resolving state...');
         setLoading(false);
         setIsAuthResolved(true);
       }
@@ -267,7 +267,7 @@ export const AuthProvider = ({ children }) => {
   // preventing "Guest" status for logged-in users on slow server cold starts.
   useEffect(() => {
     if (isAuthResolved) {
-      console.log(`[Auth] Resolving socket identity: ${user ? (user.isGuest ? 'Guest' : 'User') : 'Anonymous'}`);
+      import.meta.env.DEV && console.log(`[Auth] Resolving socket identity: ${user ? (user.isGuest ? 'Guest' : 'User') : 'Anonymous'}`);
       syncSocketAuth(user && !user.isGuest ? 'verified' : 'guest');
     }
   }, [isAuthResolved, user]);
@@ -414,7 +414,7 @@ export const AuthProvider = ({ children }) => {
   // SEC-18: Cross-device preference bridge — Listen for socket connect events to refresh keys
   useEffect(() => {
     const handleRefreshRequest = () => {
-      console.log('[Auth] External refresh request detected (Socket Connect), refreshing API Prefs...');
+      import.meta.env.DEV && console.log('[Auth] External refresh request detected (Socket Connect), refreshing API Prefs...');
       refreshApiPrefs();
     };
 

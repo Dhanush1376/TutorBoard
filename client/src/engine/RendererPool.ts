@@ -359,7 +359,7 @@ export class RendererPool {
 
     const promise = importer()
       .then(() => {
-        console.log(`[RendererPool] ✅ Warmed up: ${type}`);
+        import.meta.env.DEV && console.log(`[RendererPool] ✅ Warmed up: ${type}`);
       })
       .catch((err) => {
         console.warn(`[RendererPool] ⚠️ Failed to warm up ${type}:`, err.message);

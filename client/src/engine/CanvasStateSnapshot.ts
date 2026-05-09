@@ -34,7 +34,7 @@ export class CanvasStateSnapshot {
     // In DSA/Algorithm mode, visuals are in the D3 SVG, not the Zustand store.
     const d3Svg = document.querySelector('svg#teaching-canvas-svg') || document.querySelector('.infinite-canvas-content svg');
     if (d3Svg) {
-      console.log('[Snapshot] 🕵️ Crawling D3 SVG for rendered state...');
+      import.meta.env.DEV && console.log('[Snapshot] 🕵️ Crawling D3 SVG for rendered state...');
       
       // 1. Find Arrays
       d3Svg.querySelectorAll('g[id*="array"]').forEach(group => {

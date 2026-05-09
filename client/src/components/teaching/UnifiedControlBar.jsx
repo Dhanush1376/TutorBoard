@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipBack, SkipForward,
   Gauge, MessageSquare, ChevronUp, ChevronDown,
-  Keyboard, ChevronRight, Send
+  Keyboard, ChevronRight, Send, Volume2, VolumeX
 } from 'lucide-react';
 
 
@@ -31,6 +31,10 @@ const UnifiedControlBar = ({
   onGoToStep,
   onSpeedChange,
   onAskDoubt,
+  isVoiceEnabled = true,
+  onToggleVoice,
+  elapsedTime = '0:00',
+  totalTime = '0:00',
   showDoubtInput = true,
   className = '',
 }) => {
@@ -109,17 +113,17 @@ const UnifiedControlBar = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`unified-control-bar ${className} liquid-glass`}
+      className={`unified-control-bar ${className} sf-glass`}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '8px 16px',
-        borderRadius: 24,
-        maxWidth: isDoubtExpanded ? 640 : 480,
-        transition: 'max-width 400ms cubic-bezier(0.16, 1, 0.3, 1)',
-        border: '1px solid var(--border-color)',
-        boxShadow: '0 8px 32px -4px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+        gap: 12,
+        padding: '10px 20px',
+        borderRadius: 28,
+        maxWidth: isDoubtExpanded ? 680 : 500,
+        transition: 'max-width 500ms var(--ease-apple)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: 'var(--color-dark-shadow-xl)',
       }}
     >
       {/* ── Transport Controls ── */}
@@ -232,9 +236,9 @@ const UnifiedControlBar = ({
             onChange={(e) => onGoToStep?.(parseInt(e.target.value))}
             style={{
               width: '100%',
-              height: 3,
+              height: 4,
               appearance: 'none',
-              background: 'var(--bg-tertiary)',
+              background: 'rgba(255, 255, 255, 0.05)',
               borderRadius: 2,
               cursor: 'pointer',
               outline: 'none',
@@ -247,31 +251,44 @@ const UnifiedControlBar = ({
           <div style={{
             position: 'absolute',
             left: 0,
-            top: 'calc(50% - 1.5px)',
-            height: 3,
+            top: 'calc(50% - 2px)',
+            height: 4,
             background: 'var(--text-primary)',
             width: `${progress}%`,
             pointerEvents: 'none',
             zIndex: 1,
             borderRadius: 2,
-            transition: 'width 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: 'width 200ms ease-out',
+            boxShadow: '0 0 8px rgba(255, 255, 255, 0.3)',
           }} />
         </div>
 
-        {/* Step counter */}
+        {/* Step & Time counter */}
         <div style={{
           display: 'flex',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
           alignItems: 'center',
+          padding: '0 2px'
         }}>
           <span style={{
-            fontSize: 9.5,
+            fontSize: 9,
             color: 'var(--text-tertiary)',
-            fontWeight: 600,
+            fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
-            letterSpacing: '0.02em',
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase'
           }}>
-            {currentStepIndex + 1} <span style={{ opacity: 0.5 }}>/</span> {totalSteps}
+            Step {currentStepIndex + 1} <span style={{ opacity: 0.4 }}>/</span> {totalSteps}
+          </span>
+          <span style={{
+            fontSize: 9,
+            color: 'var(--text-tertiary)',
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '0.05em',
+            opacity: 0.8
+          }}>
+            {elapsedTime} <span style={{ opacity: 0.4 }}>/</span> {totalTime}
           </span>
         </div>
       </div>
@@ -297,21 +314,20 @@ const UnifiedControlBar = ({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="liquid-glass"
+              className="sf-glass shadow-premium"
               style={{
                 position: 'absolute',
                 bottom: '100%',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                marginBottom: 10,
-                borderRadius: 14,
-                padding: 4,
+                marginBottom: 14,
+                borderRadius: 18,
+                padding: 6,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 1,
+                gap: 2,
                 zIndex: 100,
-                minWidth: 80,
-                boxShadow: '0 12px 40px -8px rgba(0,0,0,0.2)',
+                minWidth: 90,
               }}
             >
               {SPEEDS.map((s) => (
@@ -341,6 +357,19 @@ const UnifiedControlBar = ({
           )}
         </AnimatePresence>
       </div>
+
+      <div style={{ width: 1, height: 20, background: 'var(--border-color)', opacity: 0.6, flexShrink: 0 }} />
+
+      {/* ── Voice Narration Toggle ── */}
+      <ControlButton
+        icon={isVoiceEnabled ? Volume2 : VolumeX}
+        onClick={onToggleVoice}
+        isActive={isVoiceEnabled}
+        size={13}
+        title={isVoiceEnabled ? "Mute Narration" : "Enable Narration"}
+      />
+
+      <div style={{ width: 1, height: 20, background: 'var(--border-color)', opacity: 0.6, flexShrink: 0 }} />
 
       {/* ── Doubt Input ── */}
       {showDoubtInput && (

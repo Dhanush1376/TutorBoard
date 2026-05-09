@@ -7,6 +7,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 const useVoiceInput = ({ onTranscript, onStateChange }) => {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
+  const callbacksRef = useRef({ onTranscript, onStateChange });
+
+  // Update refs when props change without re-triggering effects
+  useEffect(() => {
+    callbacksRef.current = { onTranscript, onStateChange };
+  }, [onTranscript, onStateChange]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -22,7 +28,7 @@ const useVoiceInput = ({ onTranscript, onStateChange }) => {
 
     recognition.onstart = () => {
       setIsListening(true);
-      onStateChange?.(true);
+      callbacksRef.current.onStateChange?.(true);
     };
 
     recognition.onresult = (event) => {
@@ -33,23 +39,29 @@ const useVoiceInput = ({ onTranscript, onStateChange }) => {
         }
       }
       if (transcript) {
-        onTranscript?.(transcript.trim());
+        callbacksRef.current.onTranscript?.(transcript.trim());
       }
     };
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
-      onStateChange?.(false);
+      callbacksRef.current.onStateChange?.(false);
     };
 
     recognition.onend = () => {
       setIsListening(false);
-      onStateChange?.(false);
+      callbacksRef.current.onStateChange?.(false);
     };
 
     recognitionRef.current = recognition;
-  }, [onTranscript, onStateChange]);
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []); // Only initialize once
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current) return;
@@ -57,7 +69,11 @@ const useVoiceInput = ({ onTranscript, onStateChange }) => {
     if (isListening) {
       recognitionRef.current.stop();
     } else {
-      recognitionRef.current.start();
+      try {
+        recognitionRef.current.start();
+      } catch (e) {
+        console.warn('Speech recognition already started:', e);
+      }
     }
   }, [isListening]);
 

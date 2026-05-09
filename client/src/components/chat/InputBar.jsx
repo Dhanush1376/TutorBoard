@@ -203,7 +203,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && (!e.shiftKey || e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      if (isTrialExhausted || isOnCooldown) return;
+      if (isTrialExhausted || isOnCooldown || isGenerating) return;
       if (value.trim() || attachedFile) {
         onSubmit(value, attachedFile, activeMode);
         setAttachedFile(null); // Clear after submit
@@ -353,8 +353,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   });
 
   return (
-    <div className={`w-full max-w-4xl mx-auto transition-transform duration-500 ${isFocused ? 'scale-[1.005]' : 'scale-100'}`}>
-      <div className={`flex flex-col h-auto liquid-glass ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[28px] mx-4 mb-4'} p-1.5 relative shadow-2xl transition-shadow duration-500 ${isFocused ? 'shadow-[0_20px_60px_rgba(0,0,0,0.2)] ring-[var(--text-primary)]/20' : 'ring-[var(--border-color)]'} ring-1`}>
+    <div className={`w-full max-w-4xl mx-auto transition-all duration-500`}>
+      <div className={`flex flex-col h-auto sf-glass ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[32px] mx-4 mb-4'} p-1.5 relative shadow-premium transition-all duration-500 ${isFocused ? 'ring-2 ring-[var(--text-primary)]/10 bg-white/[0.04]' : 'ring-1 ring-[var(--border-color)]/30'}`}>
 
         {/* Upload Progress Bar */}
         <AnimatePresence>
@@ -370,7 +370,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
         </AnimatePresence>
 
         {/* ── Textarea Area (Top Box) ── */}
-        <div className={`bg-white/[0.03] dark:bg-white/[0.01] rounded-[22px] flex flex-col h-auto flex-shrink-0 transition-colors duration-300 ring-1 ring-inset relative overflow-hidden ${isFocused ? 'ring-[var(--text-primary)]/10 bg-white/[0.05] dark:bg-white/[0.02]' : 'ring-[var(--border-color)]/20 hover:bg-white/[0.04] dark:hover:bg-white/[0.015]'}`}>
+        <div className={`bg-white/[0.04] dark:bg-white/[0.01] rounded-[26px] flex flex-col h-auto flex-shrink-0 transition-all duration-300 ring-1 ring-inset relative overflow-hidden ${isFocused ? 'ring-[var(--text-primary)]/20 bg-white/[0.06] dark:bg-white/[0.03]' : 'ring-[var(--border-color)]/20 hover:bg-white/[0.05]'}`}>
 
           {/* Generating Animation Line */}
           {isGenerating && (
@@ -423,22 +423,22 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 )}
 
                 {attachedFile && (
-                  <div className="flex items-center gap-2 px-2 py-1.5 bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl shadow-sm pr-1.5">
+                  <div className="flex items-center gap-2 px-2 py-1.5 sf-glass border border-white/10 text-[var(--text-primary)] rounded-xl shadow-premium pr-1.5">
                     {attachedFile.type.startsWith('image/') ? (
-                      <div className="w-6 h-6 rounded-lg overflow-hidden ring-1 ring-[var(--border-color)]">
+                      <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-white/20">
                         <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500">
-                        <FileText size={12} strokeWidth={2.5} />
+                        <FileText size={13} strokeWidth={2.5} />
                       </div>
                     )}
-                    <span className="text-[10px] font-medium tracking-tight max-w-[100px] truncate">{attachedFile.name}</span>
+                    <span className="text-[11px] font-semibold tracking-tight max-w-[120px] truncate">{attachedFile.name}</span>
                     <button
                       onClick={() => setAttachedFile(null)}
                       className="ml-1 p-1 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-lg transition-all"
                     >
-                      <X size={12} strokeWidth={2.5} />
+                      <X size={13} strokeWidth={2.5} />
                     </button>
                   </div>
                 )}
@@ -532,7 +532,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
         <div className="relative flex items-center justify-between px-2 py-1.5 min-h-[48px]">
 
           {/* Left Cluster */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 min-w-[80px]">
             <div className="relative">
               <button
                 onClick={() => { setIsPlusMenuOpen(!isPlusMenuOpen); setIsToolsMenuOpen(false); setIsAgentMenuOpen(false); }}
@@ -547,7 +547,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-44' : 'w-52'} rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5 liquid-glass`}
+                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-44' : 'w-52'} rounded-[24px] overflow-hidden z-[100] shadow-premium p-1.5 sf-glass border border-white/5`}
                   >
                     <div className="flex flex-col gap-1">
                       {uploadActions.map((action) => (
@@ -590,7 +590,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-56' : 'w-64'} rounded-[20px] overflow-hidden z-[100] shadow-2xl p-1.5 liquid-glass`}
+                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-56' : 'w-64'} rounded-[24px] overflow-hidden z-[100] shadow-premium p-1.5 sf-glass border border-white/5`}
                   >
                     <div className="flex flex-col gap-1">
                       {quickActions.map((action) => {
@@ -667,7 +667,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 ${isMobile ? 'w-48' : 'w-56'} rounded-[20px] overflow-hidden z-[100] p-1.5 shadow-2xl flex flex-col gap-1 liquid-glass`}
+                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 ${isMobile ? 'w-48' : 'w-56'} rounded-[24px] overflow-hidden z-[100] p-1.5 shadow-premium flex flex-col gap-1 sf-glass border border-white/5`}
                 >
                   {agents.map((agent, idx) => {
                     const Icon = agent.icon;
@@ -706,7 +706,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
           </div>
 
           {/* Right Cluster */}
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-1 min-w-[80px]">
 
 
             {/* Trial Badge */}
@@ -749,28 +749,28 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 {isGenerating && (
                   <motion.button
                     key="stop-btn"
-                    initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                    initial={{ opacity: 0, scale: 0.8, x: 10 }}
                     animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.8, x: 20 }}
+                    exit={{ opacity: 0, scale: 0.8, x: 10 }}
                     onClick={() => {
                       setIsStopping(true);
                       onStopGeneration();
                     }}
                     disabled={isStopping}
-                    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 group shadow-lg ring-1 ${isStopping ? 'bg-red-500 text-white shadow-red-500/20 ring-red-500' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20 shadow-red-500/10 ring-red-500/20'}`}
+                    className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 group shadow-lg ring-1 ${isStopping ? 'bg-red-500 text-white shadow-red-500/20 ring-red-500' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20 shadow-red-500/10 ring-red-500/20'}`}
                     title="Stop Generation"
                   >
                     <Square size={13} strokeWidth={3} className={`fill-current transition-transform ${isStopping ? 'scale-90' : 'group-hover:scale-110'}`} />
                   </motion.button>
                 )}
 
-                {/* Send Button: Visible if typing OR if NOT generating */}
-                {((value.trim() || attachedFile || selectedTextContext) || !isGenerating) && (
+                {/* Send Button: Visible if NOT generating OR if there is text (Interruption mode) */}
+                {(!isGenerating || (value.trim() || attachedFile)) && (
                   <motion.button
                     key="send-btn"
-                    initial={{ opacity: 0, scale: 0.8, x: -10 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.8, x: -10 }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
                     onClick={() => {
                       if (isTrialExhausted || isOnCooldown) return;
                       if (value.trim() || attachedFile) {
@@ -779,14 +779,13 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                       }
                     }}
                     disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
-                    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 focus:outline-none shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 ${activeMode === 'teach' && (value.trim() || attachedFile || selectedTextContext)
-                        ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5'
-                        : (value.trim() || attachedFile || selectedTextContext)
-                          ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20 hover:shadow-[var(--text-primary)]/30 hover:-translate-y-0.5'
-                          : 'bg-[var(--text-primary)]/10 text-[var(--text-primary)]/40 shadow-none cursor-not-allowed'
-                      }`}
+                    className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 shadow-premium active:scale-90 disabled:opacity-20 disabled:grayscale ${
+                      (value.trim() || attachedFile || selectedTextContext)
+                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20'
+                        : 'bg-[var(--text-primary)]/5 text-[var(--text-primary)]/20 shadow-none cursor-not-allowed'
+                    }`}
                   >
-                    {activeMode === 'teach' ? <GraduationCap size={22} strokeWidth={2} /> : <ArrowUp size={22} strokeWidth={2} />}
+                    <ArrowUp size={20} strokeWidth={3} className="transition-transform group-hover:-translate-y-0.5" />
                   </motion.button>
                 )}
               </AnimatePresence>

@@ -63,7 +63,9 @@ const AgentCanvasRenderer = forwardRef(({
   useImperativeHandle(ref, () => ({
     resetCamera: () => {
       if (orchestratorRef.current) {
-        orchestratorRef.current.resetCamera();
+        orchestratorRef.current.resetCamera?.();
+      } else {
+        console.warn('[AgentCanvasRenderer] Cannot reset camera: Orchestrator not initialized.');
       }
     }
   }));
@@ -109,7 +111,7 @@ const AgentCanvasRenderer = forwardRef(({
   }, []);
 
   const onDeltaComplete = useCallback(() => {
-    console.log('[AgentCanvasRenderer] ✅ Delta complete — resuming lesson step.');
+    import.meta.env.DEV && console.log('[AgentCanvasRenderer] ✅ Delta complete — resuming lesson step.');
     setDeltaRunning(false);
     setDeltaState(null);
     if (doubtProps.onResume) doubtProps.onResume();
@@ -122,17 +124,22 @@ const AgentCanvasRenderer = forwardRef(({
     const canInitialize = d3ContainerRef.current && (layoutReady || (width && height));
     if (!canInitialize) return;
 
-    // Only re-initialize if the scene actually changed (by ID or title)
-    const sceneId = timeline?.id || timeline?.title || 'default';
+    // Only re-initialize if the scene actually changed (strictly by ID)
+    const sceneId = timeline?.id || 'default';
     const isNewScene = lastSceneIdRef.current !== sceneId;
 
     if (isNewScene) {
       if (orchestratorRef.current) orchestratorRef.current.destroy();
 
-      console.log('[AgentCanvasRenderer] 🏗️ Initializing SceneOrchestrator for scene:', sceneId);
+      import.meta.env.DEV && console.log('[AgentCanvasRenderer] 🏗️ Initializing SceneOrchestrator for scene:', sceneId);
       orchestratorRef.current = new SceneOrchestrator(d3ContainerRef.current, {
         onNarrate: (text) => {},
-        onStepChange: (idx) => {}
+        onStepChange: (idx) => {},
+        onInteraction: (id, event, data) => {
+          if (doubtProps.onElementClick) {
+            doubtProps.onElementClick(id, event, data);
+          }
+        }
       });
 
       // Register D3 renderer immediately
@@ -149,14 +156,14 @@ const AgentCanvasRenderer = forwardRef(({
       // Don't destroy on every effect run unless it's a genuine unmount
       // or we have a new scene (handled above)
     };
-  }, [layoutReady, width, height, timeline?.id, timeline?.title]); // Use primitive properties for stability
+  }, [layoutReady, width, height, timeline?.id]); // Use ID for stability, avoid title changes
 
   // 2. Renderer Registration via Ref Callbacks
   const registerSpecialized = useCallback((type, node) => {
     const orch = orchestratorRef.current;
     if (!orch || !node) return;
     
-    console.log(`[AgentCanvasRenderer] 🛰️ Registering specialized renderer: ${type}`);
+    import.meta.env.DEV && console.log(`[AgentCanvasRenderer] 🛰️ Registering specialized renderer: ${type}`);
     orch.registerRenderer(type, node);
   }, []);
 
@@ -182,7 +189,7 @@ const AgentCanvasRenderer = forwardRef(({
       if (lastPlayedStepRef.current === currentStepIndex && !dimensionsChanged) return;
       
       // If dimensions changed, sync the renderer's logical coordinate system first
-      if (dimensions.width > 0 && dimensions.height > 0) {
+      if (layoutReady && dimensions.width > 0 && dimensions.height > 0) {
         const d3Renderer = orch.getRenderer('d3');
         if (d3Renderer && typeof d3Renderer.resize === 'function') {
           d3Renderer.resize(dimensions.width, dimensions.height);
