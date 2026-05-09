@@ -43,8 +43,8 @@ const InteractiveControlPanel = ({ data }) => {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
-      className="w-full rounded-xl overflow-hidden"
-      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+      className="w-full rounded-xl overflow-hidden liquid-glass"
+      style={{ boxShadow: '0 4px 16px -4px rgba(0,0,0,0.08)' }}>
 
       {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between"
@@ -56,8 +56,8 @@ const InteractiveControlPanel = ({ data }) => {
             <p className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Interactive</p>
           </div>
         </div>
-        <button onClick={handleReset} className="p-1.5 rounded-lg transition-all"
-          style={{ color: 'var(--text-tertiary)' }}>
+        <button onClick={handleReset} className="p-1.5 rounded-lg transition-all hover:bg-[var(--bg-tertiary)] active:scale-90"
+          style={{ color: 'var(--text-tertiary)' }} title="Reset values">
           <RefreshCw size={13} />
         </button>
       </div>
@@ -79,8 +79,8 @@ const InteractiveControlPanel = ({ data }) => {
               </div>
               <input type="range" min={ctrl.min} max={ctrl.max} step={ctrl.step || 1} value={val}
                 onChange={(e) => setVal(id, parseFloat(e.target.value))}
-                className="w-full h-1 rounded-full appearance-none cursor-pointer"
-                style={{ background: 'var(--bg-tertiary)', accentColor: 'var(--text-primary)' }} />
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer playback-scrubber"
+                style={{ background: 'var(--bg-tertiary)' }} />
             </div>
           );
         })}

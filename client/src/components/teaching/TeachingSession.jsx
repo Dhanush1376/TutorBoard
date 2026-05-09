@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Play, Pause, SkipBack, SkipForward,
-  Minimize2, Maximize2, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles
+  X, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles,
+  RotateCcw, RefreshCw, Dices, Crosshair
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
@@ -17,7 +17,6 @@ import UnifiedControlBar from './UnifiedControlBar';
 import { AlgoRightPanel } from './AlgoRightPanel';
 import StudyPanel from './StudyPanel';
 import MasteryHUD from './MasteryHUD';
-import ProgressArc from './ProgressArc';
 import StepFilmstrip from './StepFilmstrip';
 import ParticleWaves from '../canvas/ParticleWaves';
 import { isDSAContent } from '../../engine/RendererRouter';
@@ -26,6 +25,29 @@ import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
 import { DOMAIN_STYLES, PANEL_VISIBLE_STATES as PANEL_VISIBLE_STATES_ARR, formatTopicTitle } from '../../lib/teaching';
 
 const PANEL_VISIBLE_STATES = new Set(PANEL_VISIBLE_STATES_ARR);
+
+function Btn({ onClick, children, disabled, active, danger, className = '', title }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      type="button"
+      className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all active:scale-90 pointer-events-auto select-none ${className} ${
+        disabled ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'
+      } ${
+        active 
+          ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' 
+          : 'bg-transparent text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+      }`}
+      style={{
+        color: (danger && !active) ? '#ef4444' : undefined,
+        border: 'none',
+      }}>
+      {children}
+    </button>
+  );
+}
 
 const TeachingSession = ({ initialTopic }) => {
   const machine = useTeachingMachine(true, false);
@@ -58,10 +80,13 @@ const TeachingSession = ({ initialTopic }) => {
   const [panelWide, setPanelWide] = useState(false);
   const [studyPanelOpen, setStudyPanelOpen] = useState(false);
   const rootRef = useRef(null);
+  const canvasRef = useRef(null);
 
   // ── Handlers ──────────────────────────────────────────────
 
-  const handleClose = useCallback(() => endSession(), [endSession]);
+  const handleClose = useCallback(() => {
+    endSession();
+  }, [endSession]);
 
   const handleSpeed = useCallback((s) => {
     storeSetSpeed(s);
@@ -182,7 +207,7 @@ const TeachingSession = ({ initialTopic }) => {
           className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all"
         >
           <span className="text-[10px] font-medium truncate max-w-[120px]">{topic}</span>
-          <Maximize2 size={13} className="opacity-60" />
+          <ChevronLeft size={13} className="opacity-60 rotate-180" />
         </button>
       </motion.div>
     );
@@ -197,7 +222,10 @@ const TeachingSession = ({ initialTopic }) => {
       aria-labelledby="teaching-session-title"
       tabIndex="-1"
     >
-      {/* ── Body ─────────────────────────────────────────── */}
+      {/* ── 1. Floating Toolbar (Top Level for max interactivity) ── */}
+
+
+      {/* ── 2. Body ─────────────────────────────────────────── */}
        {isTeaching && (
         <div 
           className="teaching-body"
@@ -242,6 +270,7 @@ const TeachingSession = ({ initialTopic }) => {
                 activeScene={timeline}
               >
                 <AgentCanvasRenderer
+                  ref={canvasRef}
                   width={800} height={600}
                   timeline={timeline} objects={canvasObjects || []} steps={canvasSteps}
                   currentStepIndex={currentStepIndex} onGoToStep={goToStep}
@@ -253,61 +282,25 @@ const TeachingSession = ({ initialTopic }) => {
               </CinematicStage>
             </div>
 
-            {/* ── Floating Canvas Header (Replaces Navbar) ── */}
-            <div className="absolute top-5 left-5 right-5 z-[50] flex justify-start pointer-events-none">
-
-              {/* Unified Toolbar Pill */}
-              <div
-                className="flex items-center gap-3 pointer-events-auto px-4 py-[7px] rounded-[28px] max-w-full liquid-glass"
-                style={{ height: '54px' }}
-              >
-                {/* Left: Title & Menu */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <Btn onClick={openFloatingSidebar} title="Menu" className="border-none shadow-none rounded-full"><Menu size={16} /></Btn>
-                  <div className="w-px h-5 bg-[var(--border-color)] opacity-50" />
-                  <span style={{ color: 'var(--text-primary)' }} className="text-[14px] font-sans font-medium tracking-wide truncate max-w-[200px] md:max-w-[400px]">
-                    {formatTopicTitle(timeline?.title || topic)}
-                  </span>
-                </div>
-
-                <div className="w-px h-5 bg-[var(--border-color)] opacity-50 shrink-0" />
-
-                {/* Right: Tools */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <span style={{ color: 'var(--text-secondary)' }} className="hidden md:block px-2 text-[12px] font-mono font-medium">
-                    {currentStepIndex + 1}/{canvasSteps.length || 1}
-                  </span>
-
-                  <Btn onClick={() => setStudyPanelOpen(!studyPanelOpen)} active={studyPanelOpen} title="Study Insights" className="hidden sm:flex rounded-full border-none shadow-none">
-                    <Sparkles size={14} />
-                  </Btn>
-                  <Btn onClick={() => setPanelOpen(!panelOpen)} title={panelOpen ? 'Hide panel' : 'Show panel'} className="rounded-full border-none shadow-none">
-                    {panelOpen ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
-                  </Btn>
-                  <Btn onClick={() => setIsMinimized(true)} title="Minimize" className="rounded-full border-none shadow-none"><Minimize2 size={14} /></Btn>
-                  <Btn onClick={handleClose} danger title="Close" className="rounded-full border-none shadow-none"><X size={14} /></Btn>
-                </div>
-              </div>
-            </div>
-
             {/* ── Step Orientation Pill (Floating Context) ── */}
-            <div className="absolute top-[84px] left-5 z-[45] pointer-events-none">
+            <div className="absolute top-[68px] left-4 z-[45] pointer-events-none">
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
                 key={`step-pill-${currentStepIndex}`}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-[20px] liquid-glass"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[16px] liquid-glass"
+                style={{ boxShadow: '0 4px 16px -4px rgba(0,0,0,0.08)' }}
               >
                 <div
-                  className="w-1.5 h-1.5 rounded-full"
+                  className="w-1.5 h-1.5 rounded-full animate-pulse"
                   style={{
-                    background: currentStep?.type === 'summary' ? 'var(--warning)' :
-                      currentStep?.type === 'example' ? 'var(--success)' :
-                        currentStep?.type === 'intro' ? 'var(--info)' : 'var(--text-primary)'
+                    background: currentStep?.type === 'summary' ? '#ca8a04' :
+                      currentStep?.type === 'example' ? '#16a34a' :
+                        currentStep?.type === 'intro' ? '#2563eb' : 'var(--text-primary)'
                   }}
                 />
-                <span className="text-[10px] font-bold uppercase tracking-wider opacity-80" style={{ color: 'var(--text-primary)' }}>
-                  {currentStep?.type || 'Core'} {currentStepIndex + 1}
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--text-secondary)' }}>
+                  {currentStep?.type || 'Core'} · {currentStepIndex + 1}
                 </span>
               </motion.div>
             </div>
@@ -357,11 +350,41 @@ const TeachingSession = ({ initialTopic }) => {
               </div>
             )}
 
-            {/* ── Unified Floating Controls ── */}
-            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[50] flex flex-col items-center pointer-events-none w-full">
+            {/* ── Vertical Session Actions Pill (Bottom Left) ── */}
+            <div className="absolute bottom-8 left-4 z-[50] pointer-events-none">
+              <motion.div 
+                initial={{ opacity: 0, x: -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex flex-col gap-1 p-1.5 rounded-2xl liquid-glass pointer-events-auto"
+                style={{ boxShadow: '0 8px 24px -4px rgba(0,0,0,0.1)' }}
+              >
+                <Btn onClick={() => goToStep(0)} title="Reset to Start" className="rounded-xl">
+                  <RotateCcw size={14} />
+                </Btn>
+                <Btn onClick={() => goToStep(currentStepIndex)} title="Replay Step" className="rounded-xl">
+                  <RefreshCw size={13} />
+                </Btn>
+                <Btn onClick={() => canvasRef.current?.resetCamera()} title="Reset View" className="rounded-xl">
+                  <Crosshair size={14} />
+                </Btn>
+                <Btn onClick={() => startSession(topic, topic)} title="New Example" className="rounded-xl">
+                  <Dices size={14} />
+                </Btn>
+              </motion.div>
+            </div>
+
+            {/* ── Unified Floating Controls (Bottom Center) ── */}
+            <motion.div 
+              className="absolute bottom-8 left-1/2 z-[50] flex flex-col items-center pointer-events-none w-full"
+              animate={{ 
+                x: panelOpen ? (panelWide ? -210 : -160) : 0 
+              }}
+              transition={{ type: 'spring', damping: 30, stiffness: 200 }}
+              style={{ translateX: '-50%' }}
+            >
               {/* ── Visual Timeline (Filmstrip) ── */}
               {isAlgo && canvasSteps.length > 1 && (
-                <div className="mb-4 pointer-events-auto">
+                <div className="mb-3 pointer-events-auto">
                   <StepFilmstrip 
                     steps={canvasSteps} 
                     currentStepIndex={currentStepIndex} 
@@ -384,11 +407,7 @@ const TeachingSession = ({ initialTopic }) => {
                   onAskDoubt={askDoubt}
                 />
               </div>
-            </div>
-
-            {/* Progress indicators moved to right panel for cleaner canvas */}
-
-
+            </motion.div>
 
             {/* Expand Panel Handle (Appears when panel is closed) */}
             <AnimatePresence>
@@ -415,61 +434,67 @@ const TeachingSession = ({ initialTopic }) => {
           {/* Right Panel (Flex Sibling for Dynamic Adjustment) */}
           <AnimatePresence>
             {panelOpen && (
-              <motion.div
-                layout
-                initial={{ opacity: 0, scale: 0.95, x: 20 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.95, x: 20 }}
+               <motion.div
+                initial={{ opacity: 0, x: 50, scale: 0.98 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 50, scale: 0.98 }}
                 transition={{ 
                   type: 'spring',
-                  damping: 25,
-                  stiffness: 200,
+                  damping: 32,
+                  stiffness: 280,
                   opacity: { duration: 0.2 }
                 }}
-                className="teaching-right-panel liquid-glass"
+                className="teaching-right-panel"
                 style={{
-                  marginRight: '32px',
-                  marginTop: '84px',
-                  marginBottom: '84px',
+                  position: 'absolute',
+                  right: '24px',
+                  top: '92px',
+                  bottom: '72px',
+                  width: panelWide ? '420px' : '320px',
                   borderRadius: '32px',
-                  maxHeight: 'calc(100% - 168px)',
                   display: 'flex',
                   flexDirection: 'column',
-                  zIndex: 60,
+                  zIndex: 100,
                   overflow: 'hidden',
                   pointerEvents: 'auto',
-                  '--theme-color': domainColor,
-                  '--theme-color-light': `${domainColor}20`,
-                  '--theme-color-glow': `${domainColor}40`
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border-color)',
+                  boxShadow: '0 24px 64px -12px rgba(0,0,0,0.4)',
+                  willChange: 'transform, opacity',
+                  backfaceVisibility: 'hidden',
+                  transformStyle: 'preserve-3d'
                 }}
               >
                 {/* Header (Sticky) */}
-                <div className="flex items-center justify-between px-6 py-5 shrink-0 border-b border-white/[0.08]" style={{ borderTopLeftRadius: '32px', borderTopRightRadius: '32px' }}>
+                <div className="flex items-center justify-between px-5 py-3.5 shrink-0" style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <div className="flex items-center gap-2.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--text-primary)] opacity-40 animate-pulse" />
-                    <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                    <div className="relative">
+                      <div className="w-2 h-2 rounded-full" style={{ background: 'linear-gradient(135deg, #a78bfa, #6366f1)' }} />
+                      <motion.div 
+                        className="absolute inset-0 w-2 h-2 rounded-full"
+                        style={{ background: 'linear-gradient(135deg, #a78bfa, #6366f1)' }}
+                        animate={{ scale: [1, 1.8, 1], opacity: [0.6, 0, 0.6] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
                       Session Guide
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setPanelWide(!panelWide)} className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-tertiary)]" style={{ color: 'var(--text-tertiary)' }} title={panelWide ? "Shrink" : "Expand"}>
-                      {panelWide ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                    </button>
-                    <button onClick={() => setPanelOpen(false)} className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-[#ff5f56]/20 hover:text-[#ff5f56]" style={{ color: 'var(--text-tertiary)' }} title="Close">
-                      <X size={14} />
+
+                    <button onClick={() => setPanelOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-lg transition-all hover:bg-red-500/10 hover:text-red-400 active:scale-90 cursor-pointer" style={{ color: 'var(--text-tertiary)' }} title="Close">
+                      <X size={12} />
                     </button>
                   </div>
                 </div>
 
                 {/* Scrollable Content Wrapper */}
                 <div className="flex-1 overflow-y-auto flex flex-col custom-scrollbar">
-                  {/* Mastery & Progress Indicators (Integrated into Guide) */}
+                  {/* Mastery & Stats */}
                   {isAlgo && (
-                    <div className="px-6 py-4 border-b border-white/[0.05]">
-                      <div className="flex items-center gap-4">
-                        <ProgressArc />
-                        <MasteryHUD />
-                      </div>
+                    <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <MasteryHUD />
                     </div>
                   )}
 
@@ -504,42 +529,45 @@ const TeachingSession = ({ initialTopic }) => {
       {/* Removed old timeline since it's now a floating pill in the canvas area */}
 
       <FloatingSidebar />
+
+      {/* ── 4. Top Toolbar (Last in DOM to stay on top) ── */}
+      {isTeaching && (
+        <div className="absolute top-4 left-4 z-[99999] pointer-events-auto">
+          <div
+            className="flex items-center gap-2.5 px-3.5 py-[6px] rounded-[22px] w-max liquid-glass"
+            style={{ height: '48px', boxShadow: '0 8px 32px -4px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)' }}
+          >
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Btn onClick={openFloatingSidebar} title="Menu" className="rounded-full"><Menu size={15} /></Btn>
+              <div className="w-px h-4 bg-[var(--border-color)] opacity-40" />
+              <span style={{ color: 'var(--text-primary)' }} className="text-[13px] font-sans font-medium tracking-wide truncate max-w-[180px] md:max-w-[350px]">
+                {formatTopicTitle(timeline?.title || topic)}
+              </span>
+            </div>
+
+            <div className="w-px h-4 bg-[var(--border-color)] opacity-40 shrink-0" />
+
+            <div className="flex items-center gap-0.5 shrink-0">
+              <span style={{ color: 'var(--text-tertiary)' }} className="hidden md:block px-1.5 text-[11px] font-mono font-semibold tabular-nums">
+                {currentStepIndex + 1}/{canvasSteps.length || 1}
+              </span>
+
+              <Btn onClick={() => setStudyPanelOpen(!studyPanelOpen)} active={studyPanelOpen} title="Study Insights" className="hidden sm:flex rounded-full">
+                <Sparkles size={13} />
+              </Btn>
+              <Btn onClick={() => setPanelOpen(!panelOpen)} title={panelOpen ? 'Hide panel' : 'Show panel'} className="rounded-full">
+                {panelOpen ? <PanelRightClose size={13} /> : <PanelRight size={13} />}
+              </Btn>
+              <Btn onClick={handleClose} danger title="Close" className="rounded-full"><X size={13} /></Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 /* ── Tiny helpers ─────────────────────────────────────────── */
-
-function Btn({ onClick, children, disabled, active, danger, className = '', title }) {
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
-      disabled={disabled}
-      title={title}
-      className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all disabled:opacity-20 active:scale-95 ${className}`}
-      style={{
-        border: '1px solid var(--border-color)',
-        color: danger ? 'var(--text-tertiary)' : active ? 'var(--bg-primary)' : 'var(--text-tertiary)',
-        background: active ? 'var(--text-primary)' : 'transparent',
-      }}
-      onMouseEnter={(e) => {
-        if (!active) {
-          e.currentTarget.style.color = danger ? '#ef4444' : 'var(--text-primary)';
-          e.currentTarget.style.background = 'var(--bg-tertiary)';
-          if (danger) e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          e.currentTarget.style.color = 'var(--text-tertiary)';
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.borderColor = 'var(--border-color)';
-        }
-      }}>
-      {children}
-    </button>
-  );
-}
 
 function Dot({ ok }) {
   return (

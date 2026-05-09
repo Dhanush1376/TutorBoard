@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import ChatSession from '../models/ChatSession.js';
 import { validateAvatarUrl } from '../utils/validation/securityValidators.js';
 import tokenStore from '../utils/auth/tokenStore.js';
+import { sendSecurityAlertEmail, sendEmail } from '../utils/core/mailer.js';
 
 // Update User Settings (merges with existing)
 export const updateSettings = async (req, res) => {
@@ -83,6 +84,9 @@ export const updatePassword = async (req, res) => {
       console.log(`[Auth] Session ${req.tokenJti} revoked due to password change`);
     }
 
+    // Send Security Alert Email
+    sendSecurityAlertEmail(user).catch(e => console.error('[Mailer] Security alert failed:', e));
+
     res.status(200).json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     console.error('Update password error:', error);
@@ -158,7 +162,23 @@ export const deleteAccount = async (req, res) => {
       await tokenStore.revokeToken(req.tokenJti, req.tokenExp);
     }
 
-    // 3. Delete user
+    // 3. Send Goodbye Email (Transactional - send before we delete the record)
+    const user = await User.findById(req.user.id);
+    if (user) {
+      await sendEmail({
+        to: user.email,
+        subject: 'TutorBoard Account Deleted',
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #ffffff; padding: 40px; border-radius: 24px;">
+            <h2 style="color: #ff3e3e;">Your account has been deleted</h2>
+            <p style="color: #cccccc;">We're sorry to see you go. As requested, your account and all associated cloud data have been permanently deleted from our systems.</p>
+            <p style="color: #666666; font-size: 12px;">If this was a mistake, you can always create a new account anytime.</p>
+          </div>
+        `
+      }).catch(e => console.error('[Mailer] Goodbye email failed:', e));
+    }
+
+    // 4. Delete user
     await User.findByIdAndDelete(req.user.id);
     
     res.status(200).json({ success: true, message: 'Account deleted successfully' });

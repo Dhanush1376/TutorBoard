@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
 import ErrorBoundary from '../common/ErrorBoundary';
 import SVGCanvasRenderer from './SVGCanvasRenderer';
 import KaTeXRenderer from '../../renderers/KaTeXRenderer';
@@ -11,7 +11,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { SceneOrchestrator } from '../../engine/SceneOrchestrator';
 import { rendererPool } from '../../engine/RendererPool';
 
-export default function AgentCanvasRenderer({
+const AgentCanvasRenderer = forwardRef(({
   timeline: propTimeline, currentStepIndex: propStepIndex,
   elements: extElements = [], objects: extObjects = [],
   connections: extConnections, steps: extSteps,
@@ -19,7 +19,7 @@ export default function AgentCanvasRenderer({
   hideAlgoPanel = false,
   width, height, // Explicit dimensions to bypass DOM measurement
   ...doubtProps
-}) {
+}, ref) => {
   const { activeScene, currentStoreStepIndex, isPlaying, isPaused, playbackSpeed, setDeltaRunning, setDeltaState, deltaState } = useTutorStore(useShallow(s => ({
     activeScene: s.activeScene,
     currentStoreStepIndex: s.currentStepIndex,
@@ -59,6 +59,14 @@ export default function AgentCanvasRenderer({
   const orchestratorRef = useRef(null);
   const [layoutReady, setLayoutReady] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  useImperativeHandle(ref, () => ({
+    resetCamera: () => {
+      if (orchestratorRef.current) {
+        orchestratorRef.current.resetCamera();
+      }
+    }
+  }));
 
   // Wait for layout
   useEffect(() => {
@@ -319,4 +327,6 @@ export default function AgentCanvasRenderer({
       </div>
     </ErrorBoundary>
   );
-}
+});
+
+export default AgentCanvasRenderer;

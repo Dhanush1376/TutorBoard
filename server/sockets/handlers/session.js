@@ -25,6 +25,8 @@ import { generateSessionSummary } from '../../engine/core/pedagogyEngine.js';
 import { logActivity } from '../../controllers/session.controller.js';
 import { getAbortSignal, abortCurrent } from '../socketAbort.js';
 import redisClient from '../../utils/core/redis.js';
+import { sendSessionMilestoneEmail } from '../../utils/core/mailer.js';
+import { trackEvent } from '../../utils/core/analytics.js';
 
 export function registerSessionHandlers(socket, machine, sessionId, requestId) {
   
@@ -316,6 +318,14 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         if (payload.timeline.length > 0) {
           socket.emit('teaching:step', { step: payload.timeline[0], index: 0, total: payload.timeline.length });
         }
+
+        trackEvent(socket.user?.id || 'anonymous', 'session_started', {
+          topic: cleanTopic,
+          agent: selectedAgent,
+          mode: activeMode,
+          step_count: payload.timeline.length,
+          is_guest: socket.user?.isGuest || false,
+        });
       } finally {
         clearInterval(heartbeat);
       }
@@ -385,6 +395,11 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           }
           await sessionStore.update(sessionId, { learnerProfile: session.learnerProfile });
           console.log(`[Session:Finish] Mastery write → ${topicKey}: ${newMastery.toFixed(2)}`);
+
+          // Trigger Milestone Notification if mastery crossed threshold
+          if (newMastery >= 0.8 && existingMastery < 0.8 && socket.user && !socket.user.isGuest) {
+            sendSessionMilestoneEmail(socket.user, session.topic).catch(e => console.error('[Mailer] Milestone email failed:', e));
+          }
         }
 
         await LearnerProfile.updateMasteryFromSession(socket.user.id || socket.user._id, await sessionStore.get(sessionId));
@@ -433,6 +448,12 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           console.error(`[Session:Finish] Phase 4 update failed: ${err.message}`);
         }
       }
+
+      const finishedSession = await sessionStore.get(sessionId);
+      trackEvent(socket.user.id || socket.user._id, 'session_finished', {
+        topic: finishedSession?.topic,
+        step_count: finishedSession?.steps?.length || 0,
+      });
     }
   });
 

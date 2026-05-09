@@ -652,7 +652,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     <Icon size={17} strokeWidth={2} className={`${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`} />
                     {!isMobile && (
                       <span className={`text-[9.5px] font-bold tracking-[0.05em] uppercase ${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
-                        Model: {agent.name}
+                        {agent.name}
                       </span>
                     )}
                     <ChevronDown size={10} strokeWidth={2} className={`transition-transform duration-300 ${isAgentMenuOpen ? 'rotate-180 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]/50 group-hover:text-[var(--text-tertiary)]'}`} />

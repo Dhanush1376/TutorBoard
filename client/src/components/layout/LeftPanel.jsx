@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ChatWindow from '../chat/ChatWindow';
 import InputBar from '../chat/InputBar';
@@ -72,9 +72,18 @@ const LeftPanel = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onNewChat, setActiveView]);
 
-  const filteredHistory = searchQuery.trim()
-    ? chatHistory.filter(c => (c.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
-    : chatHistory;
+  const filteredHistory = useMemo(() => {
+    const base = searchQuery.trim()
+      ? chatHistory.filter(c => (c.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
+      : chatHistory;
+    
+    // SEC-UX-05: Latest messaged one should come on top
+    return [...base].sort((a, b) => {
+      const timeA = a.updatedAt || 0;
+      const timeB = b.updatedAt || 0;
+      return timeB - timeA;
+    });
+  }, [chatHistory, searchQuery]);
 
   // ── RENDER HELPERS ──
   const renderScrollContent = () => {

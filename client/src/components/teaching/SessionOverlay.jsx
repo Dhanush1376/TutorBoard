@@ -41,7 +41,7 @@ const SessionOverlay = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--bg-primary)]"
+          className="absolute inset-0 z-[100] flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -134,7 +134,8 @@ const SessionOverlay = ({
 
             <button
               onClick={() => store.setCanvasMode('FULLSCREEN')}
-              className="group flex items-center gap-3 px-8 py-4 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-2xl text-[14px] font-normal uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-2xl"
+              className="group flex items-center gap-3 px-8 py-4 rounded-2xl text-[14px] font-normal uppercase tracking-widest hover:scale-[1.02] active:scale-[0.96] transition-all"
+              style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)', boxShadow: '0 12px 32px -8px rgba(0,0,0,0.25)' }}
             >
               Start Discovery
               <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
@@ -157,7 +158,7 @@ const SessionOverlay = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--bg-primary)]"
+          className="absolute inset-0 z-[100] flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -188,7 +189,8 @@ const SessionOverlay = ({
             <div className="flex gap-3">
               <button
                 onClick={onRetry}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl text-[12px] font-normal uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-normal uppercase tracking-wider hover:opacity-90 active:scale-[0.96] transition-all"
+                style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
               >
                 <RotateCcw size={14} />
                 Retry
@@ -211,7 +213,7 @@ const SessionOverlay = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--bg-primary)]"
+          className="absolute inset-0 z-[100] flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -255,11 +257,12 @@ const SessionOverlay = ({
               {/* Replay Lesson */}
               <button
                 onClick={() => { if (onReplay) onReplay(); }}
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border text-left hover:border-[var(--text-tertiary)] transition-all group active:scale-[0.97]"
+                style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}
               >
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
-                  <RotateCcw size={16} style={{ color: 'var(--text-tertiary)' }} />
+                  <RotateCcw size={15} style={{ color: 'var(--text-tertiary)' }} />
                 </div>
                 <div>
                   <span className="text-[12px] font-normal text-[var(--text-primary)] block">Replay</span>
@@ -270,10 +273,11 @@ const SessionOverlay = ({
               {/* Step-by-step Rewind */}
               <button
                 onClick={() => { goToStep(0); }}
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border text-left hover:border-[var(--text-tertiary)] transition-all group active:scale-[0.97]"
+                style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}
               >
                 <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
-                  <Rewind size={16} className="text-purple-400" />
+                  <Rewind size={15} className="text-purple-400" />
                 </div>
                 <div>
                   <span className="text-[12px] font-normal text-[var(--text-primary)] block">Rewind</span>
@@ -284,14 +288,14 @@ const SessionOverlay = ({
               {/* Ask Doubt */}
               <button
                 onClick={() => {
-                  // Focus the doubt input
                   const el = document.querySelector('[data-doubt-input]') || document.querySelector('input[placeholder*="doubt"]');
                   if (el) el.focus();
                 }}
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border text-left hover:border-[var(--text-tertiary)] transition-all group active:scale-[0.97]"
+                style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}
               >
                 <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                  <MessageCircleQuestion size={16} className="text-emerald-400" />
+                  <MessageCircleQuestion size={15} className="text-emerald-400" />
                 </div>
                 <div>
                   <span className="text-[12px] font-normal text-[var(--text-primary)] block">Ask Doubt</span>
@@ -302,10 +306,11 @@ const SessionOverlay = ({
               {/* New Topic */}
               <button
                 onClick={onNewTopic}
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-left hover:bg-[var(--bg-tertiary)] hover:border-[var(--text-tertiary)] transition-all group"
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl border text-left hover:border-[var(--text-tertiary)] transition-all group active:scale-[0.97]"
+                style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}
               >
                 <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-                  <Sparkles size={16} className="text-amber-400" />
+                  <Sparkles size={15} className="text-amber-400" />
                 </div>
                 <div>
                   <span className="text-[12px] font-normal text-[var(--text-primary)] block">New Topic</span>

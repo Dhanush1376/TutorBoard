@@ -3,6 +3,8 @@ import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import tokenStore from '../utils/auth/tokenStore.js';
 import crypto from 'crypto';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendSecurityAlertEmail } from '../utils/core/mailer.js';
+import { trackEvent } from '../utils/core/analytics.js';
 
 // BUG FIX #47: Validate JWT configuration at module load
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -79,6 +81,14 @@ export const signup = async (req, res) => {
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
+      // Send Welcome Email (Fire and forget, don't block registration)
+      sendWelcomeEmail(user).catch(err => console.error('[Auth] Welcome email failed:', err));
+
+      trackEvent(user._id.toString(), 'user_signed_up', {
+        name: user.name,
+        auth_method: 'email',
+      });
+
       res.status(201).json({
         user: {
           id: user._id,
@@ -135,6 +145,10 @@ export const signin = async (req, res) => {
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
+      trackEvent(user._id.toString(), 'user_signed_in', {
+        auth_method: 'email',
+      });
+
       res.json({
         user: {
           id: userObj._id,
@@ -188,6 +202,9 @@ export const getMe = async (req, res) => {
 export const socialLoginSuccess = async (req, res) => {
   console.log('[Auth] Social Login Success for:', req.user?.email);
   if (req.user) {
+    trackEvent(req.user.id.toString(), 'user_signed_in', {
+      auth_method: req.user.googleId ? 'google' : req.user.githubId ? 'github' : 'social',
+    });
     const token = generateToken(req.user.id);
     const code = await tokenStore.createCode(token);
     const frontendUrl = process.env.FRONTEND_URL;
@@ -267,5 +284,77 @@ export const logout = async (req, res) => {
   } catch (err) {
     console.error('Logout error:', err);
     res.status(500).json({ error: 'Server error during logout' });
+  }
+};
+
+/**
+ * POST /api/auth/forgot-password
+ * Send reset token to email
+ */
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      // SEC-15: Don't reveal if user exists. Return success regardless.
+      return res.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' });
+    }
+
+    // Generate reset token (random hex)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Hash and set to user model
+    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1 hour
+
+    await user.save({ validateBeforeSave: false });
+
+    // Send the email
+    await sendPasswordResetEmail(user, resetToken);
+
+    res.json({ success: true, message: 'Reset email sent' });
+  } catch (err) {
+    console.error('ForgotPassword error:', err);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+};
+
+/**
+ * POST /api/auth/reset-password
+ * Validate token and change password
+ */
+export const resetPassword = async (req, res) => {
+  const { token, password } = req.body;
+
+  try {
+    // Hash the token from the URL to compare with the one in DB
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Update password
+    user.password = password;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+    user.passwordChangedAt = Date.now();
+
+    await user.save();
+
+    // Send Security Alert Email
+    sendSecurityAlertEmail(user).catch(e => console.error('[Auth] Security alert failed:', e));
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('ResetPassword error:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 };

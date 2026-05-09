@@ -664,8 +664,7 @@ async function _executeSystemPath(params = {}, ctx = {}) {
   const platformChain = [
     { id: 'openrouter', client: openRouterClient, defaultModel: getModel() },
     { id: 'google', client: geminiClient, defaultModel: 'gemini-2.0-flash' },
-    { id: 'groq', client: groqClient, defaultModel: 'llama-3.3-70b-versatile' },
-    { id: 'huggingface', client: hfClient, defaultModel: 'mistralai/Mixtral-8x7B-Instruct-v0.1' }
+    { id: 'groq', client: groqClient, defaultModel: 'llama-3.3-70b-versatile' }
   ];
 
 
@@ -714,6 +713,11 @@ async function _executeSystemPath(params = {}, ctx = {}) {
       
       if (providerId === 'groq' && !currentModel.toLowerCase().includes('llama') && 
           !currentModel.toLowerCase().includes('mixtral') && !currentModel.toLowerCase().includes('gemma')) {
+        currentModel = defaultModel;
+      }
+      
+      // Safety net: if it's a raw MongoDB ObjectID, fallback to default
+      if (/^[a-fA-F0-9]{24}$/.test(currentModel)) {
         currentModel = defaultModel;
       }
     }
@@ -781,10 +785,17 @@ async function _executeSystemPath(params = {}, ctx = {}) {
   }
 
   // All system providers failed
-  const errMsg = lastError 
-    ? `Last error: ${lastError.message}` 
-    : `No platform providers available (either skipped due to open circuits or missing .env keys).`;
-  throw new Error(`SYSTEM_FAILURE: All TutorBoard system providers failed. ${errMsg}`);
+  if (!lastError) {
+    // If we get here, it means all configured providers were skipped due to OPEN circuit breakers.
+    // Let's forcefully reset them so the user doesn't get permanently stuck waiting.
+    console.warn('[AI:System] All circuits are OPEN. Force-resetting circuit breakers to allow retry.');
+    for (const entry of platformChain) {
+      if (entry.client) circuitBreaker.reset(entry.id);
+    }
+    throw new Error('SYSTEM_FAILURE: All platform system APIs are currently rate-limited. Circuit breakers have been reset. Please wait a few seconds and try again, or add your own API key in Settings.');
+  }
+
+  throw new Error(`SYSTEM_FAILURE: All TutorBoard system providers failed. Last error: ${lastError.message}`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

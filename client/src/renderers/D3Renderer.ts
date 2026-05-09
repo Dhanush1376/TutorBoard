@@ -14,6 +14,7 @@ export class D3Renderer {
   private currentHeight = 600;
   private nextY = 160;
   private resizeObserver: ResizeObserver | null = null;
+  private zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
 
   constructor(containerElement: HTMLDivElement, initialWidth?: number, initialHeight?: number) {
     this.container = d3.select(containerElement);
@@ -81,17 +82,28 @@ export class D3Renderer {
     // without affecting the global canvas grid or gradients.
     this.mainLayer = svg.append('g').attr('class', 'visuals-layer');
 
-    const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.4, 4]) // Zoom range from 40% to 400%
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.4, 4])
       .on('zoom', (event) => {
         this.mainLayer.attr('transform', event.transform);
       });
 
-    // Attach zoom to SVG but apply transform to mainLayer
-    (svg as any).call(zoomBehavior);
+    this.zoomBehavior = zoom;
+
+    // Attach zoom to SVG
+    (svg as any).call(zoom);
     
     // Initial zoom state
-    (svg as any).call(zoomBehavior.transform, d3.zoomIdentity);
+    (svg as any).call(zoom.transform, d3.zoomIdentity);
+  }
+
+  public resetView() {
+    if (this.zoomBehavior) {
+      this.svg.transition()
+        .duration(750)
+        .ease(d3.easeCubicInOut)
+        .call(this.zoomBehavior.transform, d3.zoomIdentity);
+    }
   }
 
   public destroy() {
@@ -191,16 +203,16 @@ export class D3Renderer {
       .attr('fill', 'var(--text-primary)')
       .text(d => d);
 
-    // Bug 07 Fix: Index Text below
+    // Index Text below
     cells.append('text')
       .attr('x', cellWidth / 2)
       .attr('y', this.CELL_HEIGHT + 22)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '11px')
-      .attr('font-family', 'var(--font-sans)')
+      .attr('font-size', '10.5px')
+      .attr('font-family', 'var(--font-mono)')
       .attr('font-weight', '600')
-      .attr('fill', 'var(--text-tertiary)')
-      .attr('opacity', 0.6)
+      .attr('fill', 'var(--text-secondary)')
+      .attr('opacity', 0.8)
       .text((d, i) => i);
 
     this.animate(`#${id} .cell`, 0.06);

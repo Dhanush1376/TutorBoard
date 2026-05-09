@@ -302,6 +302,10 @@ export class SceneOrchestrator {
     this.executor.resume();
   }
 
+  resetCamera(): void {
+    this.renderers?.d3?.resetView?.();
+  }
+
   kill(): void {
     this.executor.kill();
   }

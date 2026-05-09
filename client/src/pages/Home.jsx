@@ -2088,7 +2088,7 @@ const Home = ({ isDark }) => {
                     initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 1.2, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    className="absolute top-10 left-10 flex flex-col gap-1"
+                    className="absolute top-5 left-5 flex flex-col gap-1"
                   >
                     <h1 
                       className="text-5xl font-light tracking-[0.4em] text-[var(--text-primary)] opacity-[0.25] dark:opacity-[0.12]"
@@ -2167,7 +2167,7 @@ const Home = ({ isDark }) => {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="absolute inset-0 z-[40] bg-[var(--bg-primary)] border-l border-[var(--border-color)] shadow-2xl"
+              className="absolute inset-0 z-[100] bg-[var(--bg-primary)] border-l border-[var(--border-color)] shadow-2xl"
             >
               <TeachingSession 
                 deselectAll={() => {

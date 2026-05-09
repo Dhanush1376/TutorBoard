@@ -15,9 +15,9 @@ const StudyPanel = ({ isOpen, onClose }) => {
           exit={{ opacity: 0, scale: 0.9, x: 20 }}
           className="fixed top-24 right-6 z-[100] w-80 max-h-[70vh] flex flex-col"
         >
-          <div className="bg-[var(--bg-secondary)]/80 backdrop-blur-2xl border border-[var(--border-color)] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="liquid-glass flex flex-col" style={{ borderRadius: 24, overflow: 'hidden', boxShadow: '0 20px 60px -12px rgba(0,0,0,0.2)' }}>
             {/* Header */}
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-primary)]/40">
+            <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between" style={{ background: 'var(--bg-tertiary)', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Sparkles size={16} />
@@ -72,7 +72,7 @@ const StudyPanel = ({ isOpen, onClose }) => {
 
             {/* Footer */}
             {takeaways.length > 0 && (
-              <div className="p-4 bg-[var(--bg-primary)]/40 border-t border-[var(--border-color)]">
+              <div className="p-4 border-t border-[var(--border-color)]" style={{ background: 'var(--bg-tertiary)' }}>
                 <button
                   onClick={clearTakeaways}
                   className="w-full py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/5 transition-all border border-red-500/10"

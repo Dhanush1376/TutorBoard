@@ -1,5 +1,5 @@
 import express from 'express';
-import { signup, signin, logout, getMe, socialLoginSuccess, exchangeToken } from '../controllers/auth.controller.js';
+import { signup, signin, logout, getMe, socialLoginSuccess, exchangeToken, forgotPassword, resetPassword } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { validateBody, SignupSchema, SigninSchema } from '../middleware/validation.middleware.js';
 import { authSigninRateLimiter, authSignupRateLimiter } from '../middleware/rateLimiter.js';
@@ -20,6 +20,8 @@ router.get('/me', inlineProtect, protect, getMe);
 router.post('/signup', authSignupRateLimiter, validateBody(SignupSchema), signup);
 router.post('/signin', authSigninRateLimiter, validateBody(SigninSchema), signin);
 router.post('/logout', protect, logout);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 // ─── GOOGLE OAUTH ───
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

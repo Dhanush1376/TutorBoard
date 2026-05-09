@@ -90,11 +90,9 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Abort generation and return to idle?')) {
-                        onCancel?.();
-                      }
+                      onCancel?.();
                     }}
-                    className="text-[9px] uppercase tracking-widest font-bold text-red-400 hover:text-red-500 transition-colors px-2 py-1 rounded-md hover:bg-red-500/10"
+                    className="text-[9px] uppercase tracking-widest font-bold text-red-400 hover:text-red-500 transition-colors px-2 py-1 rounded-md hover:bg-red-500/10 active:scale-95"
                   >
                     Cancel
                   </button>

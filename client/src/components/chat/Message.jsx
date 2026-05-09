@@ -22,7 +22,8 @@ import {
   ChevronRight as ChevronRightIcon,
   Play, FlaskConical, Network, BookMarked, Activity,
   Loader2, Image as ImageIcon, Sparkles, Eye, Quote,
-  ArrowRight, CornerDownRight, List, Info,
+  ArrowRight, CornerDownRight, List, Info, Code2,
+  Moon, Sun
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -33,24 +34,19 @@ import 'katex/dist/katex.min.css';
 import useTutorStore from '../../store/tutorStore';
 import VisualArtifactCard from './VisualArtifactCard';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, prism as prismTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 // ─── Streaming cursor ─────────────────────────────────────────────────────────
 
 const StreamCursor = () => (
   <motion.span
     animate={{ opacity: [1, 0, 1] }}
-    transition={{ duration: 0.65, repeat: Infinity, ease: 'linear' }}
-    style={{
-      display: 'inline-block',
-      width: 2,
-      height: '1em',
-      background: 'var(--text-primary)',
-      borderRadius: 1,
-      marginLeft: 1,
-      verticalAlign: 'text-bottom',
-    }}
-  />
+    transition={{ duration: 0.8, repeat: Infinity, ease: 'steps(2)' }}
+    className="inline-block ml-1 font-normal text-[var(--text-primary)]"
+    style={{ verticalAlign: 'baseline', lineHeight: 1 }}
+  >
+    |
+  </motion.span>
 );
 
 const extractJsonResponse = (text) => {
@@ -105,60 +101,56 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
 
   if (type === 'array') {
     return (
-      <div className={`flex flex-col gap-3 ${isSmall ? 'p-3' : 'p-4'}`}>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10 shrink-0">
-            <List size={10} className="opacity-50" />
-            <span className="text-[9px] font-bold uppercase tracking-widest opacity-70 whitespace-nowrap">Array ({data.length})</span>
+      <div className={`flex flex-col gap-3.5 ${isSmall ? 'p-3' : 'p-4'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-2 shrink-0">
+            <List size={11} className="opacity-30" />
+            <span className="text-[9px] font-bold uppercase tracking-[0.15em] opacity-40">Array · {data.length}</span>
           </div>
           <button 
             onClick={() => onLaunchImmersive?.(type, data)}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--info)]/10 text-[var(--info)] hover:bg-[var(--info)]/20 transition-colors shrink-0"
+            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-30 hover:opacity-100 transition-all hover:translate-x-0.5"
           >
-            <Layers size={10} /> 
-            <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">Visualize</span>
+            <Sparkles size={11} /> 
+            <span>Visualize</span>
           </button>
         </div>
         
         {isCongested ? (
-          <div className="py-6 px-4 rounded-xl border border-dashed border-white/10 bg-white/[0.02] flex flex-col items-center text-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[var(--info)]/10 flex items-center justify-center">
-              <Activity size={18} className="text-[var(--info)]" />
-            </div>
+          <div className="py-8 px-6 rounded-[24px] border border-dashed border-white/10 bg-white/[0.02] flex flex-col items-center text-center gap-4">
+            <Activity size={24} className="text-[var(--info)] opacity-40" />
             <div className="flex flex-col gap-1">
-              <p className="text-[12px] font-semibold text-white/80">Dataset is congested</p>
-              <p className="text-[10px] text-white/40 max-w-[180px]">This array is too large to explain here. Launch the immersive visualizer for a better view.</p>
+              <p className="text-[13px] font-semibold text-white/90">Dataset is large</p>
+              <p className="text-[11px] text-white/40 max-w-[220px]">This array contains {data.length} elements. Launch the canvas for the full interactive view.</p>
             </div>
             <button 
               onClick={() => onLaunchImmersive?.(type, data)}
-              className="mt-1 px-4 py-1.5 rounded-lg bg-[var(--info)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-wider hover:scale-105 transition-transform"
+              className="mt-1 px-5 py-2 rounded-xl bg-[var(--info)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-lg"
             >
               Launch Visualizer
             </button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-y-2 gap-x-1.5 opacity-90 scale-[0.9] origin-left">
-            {data.slice(0, 10).map((item, idx) => (
-              <React.Fragment key={idx}>
-                <div className="flex flex-col items-center gap-0.5 group/node">
-                  <span className="text-[7px] font-bold opacity-30 uppercase tracking-tight" style={{ color: 'var(--text-primary)' }}>{idx}</span>
-                  <div 
-                    className="px-2 py-0.5 rounded-lg border shadow-sm flex items-center justify-center min-w-[32px]"
-                    style={{ 
-                      background: 'rgba(255,255,255,0.02)', 
-                      borderColor: 'var(--border-color)',
-                      color: 'var(--text-primary)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      fontFamily: 'var(--font-mono)'
-                    }}
-                  >
-                    {String(item)}
-                  </div>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            {data.slice(0, 15).map((item, idx) => (
+              <div key={idx} className="flex flex-col items-center gap-1.5 group/node shrink-0">
+                <span className="text-[8px] font-bold opacity-20 uppercase tracking-tighter" style={{ color: 'var(--text-primary)' }}>{idx}</span>
+                <div 
+                  className="w-10 h-10 rounded-full border flex items-center justify-center transition-all group-hover/node:border-[var(--info)]/40"
+                  style={{ 
+                    background: 'rgba(var(--text-primary-rgb, 0,0,0), 0.02)', 
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-mono)'
+                  }}
+                >
+                  {String(item)}
                 </div>
-              </React.Fragment>
+              </div>
             ))}
-            {data.length > 10 && <span className="text-[10px] opacity-20">...</span>}
+            {data.length > 15 && <span className="text-[12px] opacity-20 font-mono self-center px-2">...</span>}
           </div>
         )}
       </div>
@@ -167,46 +159,44 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
 
   if (type === 'object') {
     return (
-      <div className={`flex flex-col gap-3 ${isSmall ? 'p-3' : 'p-4'}`}>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10 shrink-0">
-            <Layers size={10} className="opacity-50" />
-            <span className="text-[9px] font-bold uppercase tracking-widest opacity-70 whitespace-nowrap">Object ({Object.keys(data).length})</span>
+      <div className={`flex flex-col gap-4 ${isSmall ? 'p-3.5' : 'p-5'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10 shrink-0">
+            <Layers size={11} className="opacity-40" />
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Object · {Object.keys(data).length}</span>
           </div>
           <button 
             onClick={() => onLaunchImmersive?.(type, data)}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--info)]/10 text-[var(--info)] hover:bg-[var(--info)]/20 transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--info)]/10 text-[var(--info)] hover:bg-[var(--info)]/20 transition-all hover:scale-105 active:scale-95"
           >
-            <Layers size={10} /> 
-            <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">Visualize</span>
+            <Sparkles size={11} /> 
+            <span className="text-[10px] font-bold uppercase tracking-widest">Visualize</span>
           </button>
         </div>
 
         {isCongested ? (
-          <div className="py-6 px-4 rounded-xl border border-dashed border-white/10 bg-white/[0.02] flex flex-col items-center text-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[var(--info)]/10 flex items-center justify-center">
-              <Network size={18} className="text-[var(--info)]" />
-            </div>
+          <div className="py-8 px-6 rounded-[24px] border border-dashed border-white/10 bg-white/[0.02] flex flex-col items-center text-center gap-4">
+            <Network size={24} className="text-[var(--info)] opacity-40" />
             <div className="flex flex-col gap-1">
-              <p className="text-[12px] font-semibold text-white/80">Object is complex</p>
-              <p className="text-[10px] text-white/40 max-w-[180px]">This object has many properties. Open the immersive view for a detailed breakdown.</p>
+              <p className="text-[13px] font-semibold text-white/90">Complex Data Structure</p>
+              <p className="text-[11px] text-white/40 max-w-[220px]">This object contains many nested properties. Open the visualizer for a better representation.</p>
             </div>
             <button 
               onClick={() => onLaunchImmersive?.(type, data)}
-              className="mt-1 px-4 py-1.5 rounded-lg bg-[var(--info)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-wider hover:scale-105 transition-transform"
+              className="mt-1 px-5 py-2 rounded-xl bg-[var(--info)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-lg"
             >
               Launch Visualizer
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Object.entries(data).map(([key, val], idx) => (
-              <div key={idx} className="flex items-center gap-3 p-2.5 rounded-xl border bg-white/[0.01] hover:border-[var(--info)] transition-colors" style={{ borderColor: 'var(--border-color)' }}>
+              <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl border bg-white/[0.02] hover:border-[var(--info)]/50 transition-all group/item" style={{ borderColor: 'var(--border-color)' }}>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-[8.5px] font-bold opacity-30 uppercase tracking-wider">{key}</span>
-                  <span className="text-[12px] font-mono font-semibold truncate" style={{ color: 'var(--info)' }}>{String(val)}</span>
+                  <span className="text-[9px] font-bold opacity-40 uppercase tracking-widest">{key}</span>
+                  <span className="text-[13px] font-mono font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{String(val)}</span>
                 </div>
-                <CornerDownRight size={12} className="opacity-15" />
+                <CornerDownRight size={12} className="opacity-10 group-hover/item:opacity-30 transition-opacity" />
               </div>
             ))}
           </div>
@@ -290,50 +280,59 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
     state.setActiveArtifact?.('immersive-viz');
   }, []);
 
+  const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
+  
+  useEffect(() => {
+    const obs = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+
   return (
     <div
-      className={`my-2 rounded-xl overflow-hidden border shadow-sm group/code transition-all duration-300 ${!showHeader ? 'hover:shadow-md hover:border-white/20' : ''}`}
+      className={`my-3 rounded-[24px] overflow-hidden border shadow-sm group/code transition-all duration-500 no-scrollbar ${!showHeader ? 'hover:shadow-xl' : ''}`}
       style={{
         borderColor: 'var(--border-color)',
-        background: showHeader ? '#1e1e1e' : 'var(--bg-secondary)', 
+        background: 'var(--bg-secondary)', 
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
       }}
     >
       {/* Header — macOS style dots + language */}
       {showHeader && (
         <div
-          className="flex items-center justify-between px-3 py-2 border-b"
-          style={{ borderColor: 'rgba(255,255,255,0.1)', background: '#252526' }}
+          className="flex items-center justify-between px-4 py-2 border-b"
+          style={{ 
+            borderColor: 'var(--border-color)', 
+            background: showHeader ? 'rgba(var(--text-primary-rgb, 0,0,0), 0.03)' : 'transparent' 
+          }}
         >
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] opacity-80" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] opacity-80" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f] opacity-80" />
-            </div>
-            <div className="w-[1px] h-3 bg-white/10 mx-1" />
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: langColor }} />
-              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10">
+              <Code2 size={11} className="opacity-40" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-60">
                 {lang || 'code'}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {isRunnable && (
               <button
                 onClick={() => onOpenArtifact?.(code, lang)}
-                className="flex items-center gap-1.5 rounded-md transition-all hover:bg-white/10"
-                style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)' }}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-all hover:bg-[var(--text-primary)]/5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                style={{ fontSize: 10, fontWeight: 600 }}
               >
-                <Play size={10} className="text-green-400" /> Run
+                <Play size={10} className="text-emerald-500" /> Run
               </button>
             )}
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-md transition-all hover:bg-white/10 ml-1"
-              style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, color: '#94a3b8' }}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-all hover:bg-[var(--text-primary)]/5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              style={{ fontSize: 10, fontWeight: 600 }}
             >
-              {copied ? <Check size={10} /> : <Copy size={10} />}
+              {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} />}
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
@@ -347,17 +346,22 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
         ) : (
           <SyntaxHighlighter
             language={lang || 'text'}
-            style={vscDarkPlus}
+            style={isDarkMode ? vscDarkPlus : prismTheme}
             customStyle={{
               margin: 0,
               padding: showHeader ? '16px 20px' : '12px 16px',
-              fontSize: '13.5px',
-              lineHeight: '1.65',
+              fontSize: '13px',
+              lineHeight: '1.6',
               background: 'transparent',
               fontFamily: 'var(--font-mono)',
+              color: 'var(--text-primary)',
             }}
             codeTagProps={{
-              style: { fontFamily: 'var(--font-mono)', background: 'transparent' }
+              style: { 
+                fontFamily: 'var(--font-mono)', 
+                background: 'transparent',
+                color: 'inherit'
+              }
             }}
           >
             {code}
@@ -775,6 +779,7 @@ const Message = ({
   canvasSnapshot,
   isSessionActive,
   streamingMessageId,
+  onHover,
 }) => {
   const isAssistant = role === 'assistant';
   const [copied, setCopied] = useState(false);
@@ -784,6 +789,10 @@ const Message = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const editRef = useRef(null);
+
+  // Hover broadcasting
+  const handleMouseEnter = () => onHover?.(messageId);
+  const handleMouseLeave = () => onHover?.(null);
 
   const isThisStreaming = isSessionActive && streamingMessageId === messageId;
   const isCurrentlyStreaming = isStreaming && isThisStreaming;
@@ -845,7 +854,12 @@ const Message = ({
   const showLocalIndicator = isBeingRegenerated && (!isStreaming || !displayContent);
 
   return (
-    <div className={`w-full py-1.5 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}>
+    <div 
+      data-message-id={messageId} 
+      className={`w-full py-1.5 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className={`relative group min-w-0 ${isAssistant ? 'max-w-[96%] w-full' : 'max-w-[82%]'}`}>
         <AnimatePresence mode="wait">
           {isEditing ? (

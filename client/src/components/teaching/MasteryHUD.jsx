@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Brain, MessageSquare, BookOpen, ChevronRight, ChevronLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { MessageSquare, BookOpen } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 
 /**
- * Learner Mastery HUD
- * Collapsible side widget showing progress, confusion, and engagement stats.
+ * Learner Mastery HUD — Compact horizontal layout
+ * Shows mastery ring, mind state, doubts & sessions in a single row.
  */
 const MasteryHUD = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const { learnerProfile, topic, doubtHistory } = useTutorStore();
 
   const safeTopic = (topic || '').toLowerCase().trim();
@@ -23,82 +22,93 @@ const MasteryHUD = () => {
   const confusion = learnerProfile?.confusionIndex || 0;
   const doubtsCount = doubtHistory?.length || 0;
   
-  // Resolve confusion color
   const getConfusionColor = (val) => {
-    if (val < 0.3) return 'bg-emerald-500';
-    if (val < 0.6) return 'bg-amber-500';
-    return 'bg-red-500';
+    if (val < 0.3) return '#10b981';
+    if (val < 0.6) return '#f59e0b';
+    return '#ef4444';
   };
 
   const getConfusionLabel = (val) => {
     if (val < 0.3) return 'Clear';
-    if (val < 0.6) return 'Slightly Confused';
+    if (val < 0.6) return 'Confused';
     return 'Struggling';
   };
 
+  const confusionColor = getConfusionColor(confusion);
+
   return (
-    <div className="w-full flex items-center justify-between gap-3">
+    <div className="flex flex-col gap-3 w-full">
+      {/* Top Row: Mastery ring + Mind State */}
+      <div className="flex items-center gap-3">
         {/* Mastery Ring */}
-        <div className="relative w-12 h-12 flex-shrink-0">
-          <svg className="w-full h-full rotate-[-90deg]">
+        <div className="relative w-11 h-11 flex-shrink-0">
+          <svg className="w-full h-full" viewBox="0 0 44 44">
             <circle
-              cx="24" cy="24" r="20"
+              cx="22" cy="22" r="18"
               fill="none"
-              stroke="var(--bg-tertiary)"
-              strokeWidth="4"
+              stroke="rgba(255, 255, 255, 0.05)"
+              strokeWidth="3"
             />
             <motion.circle
-              cx="24" cy="24" r="20"
+              cx="22" cy="22" r="18"
               fill="none"
               stroke="var(--text-primary)"
-              strokeWidth="4"
-              strokeDasharray={126}
-              initial={{ strokeDashoffset: 126 }}
-              animate={{ strokeDashoffset: 126 - (126 * mastery) / 100 }}
-              transition={{ duration: 1, ease: "easeOut" }}
+              strokeWidth="3"
+              strokeDasharray={113}
+              initial={{ strokeDashoffset: 113 }}
+              animate={{ strokeDashoffset: 113 - (113 * mastery) / 100 }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
               strokeLinecap="round"
+              style={{ transform: 'rotate(-90deg)', transformOrigin: '22px 22px', opacity: 0.8 }}
             />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center flex-col">
-            <span className="text-[11px] font-normal text-[var(--text-primary)] leading-none">{Math.round(mastery)}%</span>
-            <span className="text-[6px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] mt-1">Mastery</span>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[11px] font-bold text-[var(--text-primary)] leading-none tabular-nums">
+              {Math.round(mastery)}%
+            </span>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="flex-1 flex flex-col gap-3">
-          {/* Confusion Dot */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${getConfusionColor(confusion)} animate-pulse shadow-[0_0_10px_rgba(0,0,0,0.2)]`} />
-              <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-wider">Mind State</span>
-            </div>
-            <span className="text-[10px] font-normal text-[var(--text-primary)]">{getConfusionLabel(confusion)}</span>
-          </div>
-
-          <div className="h-px bg-[var(--border-color)] opacity-40" />
-
-          {/* Engagement Stats */}
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-                <MessageSquare size={10} />
-                <span className="text-[8px] font-normal uppercase tracking-widest">Doubts</span>
-              </div>
-              <span className="text-[12px] font-normal text-[var(--text-primary)]">{doubtsCount}</span>
-            </div>
-
-            <div className="w-px h-6 bg-[var(--border-color)] opacity-40" />
-
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-                <BookOpen size={10} />
-                <span className="text-[8px] font-normal uppercase tracking-widest">Sessions</span>
-              </div>
-              <span className="text-[12px] font-normal text-[var(--text-primary)]">{learnerProfile?.totalSessions || 1}</span>
-            </div>
+        {/* Mind State + Label */}
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] opacity-60">
+            Mind State
+          </span>
+          <div className="flex items-center gap-1.5">
+            <div 
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ background: confusionColor }}
+            />
+            <span className="text-[11px] font-bold" style={{ color: confusionColor }}>
+              {getConfusionLabel(confusion)}
+            </span>
           </div>
         </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Stats: Doubts & Sessions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="flex items-center gap-1 text-[var(--text-tertiary)]">
+              <MessageSquare size={9} />
+              <span className="text-[7px] font-medium uppercase tracking-wider">Doubts</span>
+            </div>
+            <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular-nums leading-none">{doubtsCount}</span>
+          </div>
+
+          <div className="w-px h-6 bg-[var(--border-color)]" />
+
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="flex items-center gap-1 text-[var(--text-tertiary)]">
+              <BookOpen size={9} />
+              <span className="text-[7px] font-medium uppercase tracking-wider">Sessions</span>
+            </div>
+            <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular-nums leading-none">{learnerProfile?.totalSessions || 1}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

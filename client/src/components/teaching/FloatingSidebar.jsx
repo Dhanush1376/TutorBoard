@@ -45,8 +45,8 @@ const FloatingSidebar = () => {
           <motion.div
             initial={{ x: -340, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -340, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute top-4 left-4 bottom-4 w-[300px] flex flex-col rounded-2xl overflow-hidden z-[80]"
-            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-xl, 0 20px 50px rgba(0,0,0,0.15))' }}
+            className="absolute top-4 left-4 bottom-4 w-[300px] flex flex-col rounded-2xl overflow-hidden z-[80] liquid-glass"
+            style={{ boxShadow: '0 20px 60px -12px rgba(0,0,0,0.25), 0 8px 24px -8px rgba(0,0,0,0.15)' }}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
@@ -55,9 +55,9 @@ const FloatingSidebar = () => {
                 <span className="text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Session</span>
               </div>
               <button onClick={closeFloatingSidebar}
-                className="w-7 h-7 flex items-center justify-center rounded-lg transition-all active:scale-95"
+                className="w-7 h-7 flex items-center justify-center rounded-lg transition-all active:scale-90 hover:bg-red-500/10 hover:text-red-400"
                 style={{ color: 'var(--text-tertiary)', border: '1px solid var(--border-color)' }}>
-                <X size={14} />
+                <X size={13} />
               </button>
             </div>
 
@@ -91,11 +91,13 @@ const FloatingSidebar = () => {
                       const past = i < currentStepIndex;
                       return (
                         <button key={i} onClick={() => goToStep(i)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all text-[11px]"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all text-[11px] hover:translate-x-0.5 active:scale-[0.98]"
                           style={{
                             background: cur ? 'var(--bg-tertiary)' : 'transparent',
                             color: cur ? 'var(--text-primary)' : past ? 'var(--text-secondary)' : 'var(--text-tertiary)',
                             border: cur ? '1px solid var(--border-color)' : '1px solid transparent',
+                            boxShadow: cur ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                            cursor: 'pointer',
                           }}>
                           <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] shrink-0 transition-colors"
                             style={cur ? { background: ds.color || 'var(--text-primary)', color: 'var(--bg-primary)' }

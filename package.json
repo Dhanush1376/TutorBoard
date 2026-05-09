@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/Dhanush1376/TutorBoard#readme",
   "dependencies": {
+    "@sentry/react": "^10.52.0",
     "fs": "^0.0.1-security",
     "openai": "^6.34.0",
     "path": "^0.12.7"
