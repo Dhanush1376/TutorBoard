@@ -29,11 +29,11 @@ jobs:
 
     - name: Install Server Dependencies
       working-directory: ./server
-      run: npm ci
+      run: npm install
 
     - name: Install Client Dependencies
       working-directory: ./client
-      run: npm ci
+      run: npm install
 
     - name: Lint Server
       working-directory: ./server
