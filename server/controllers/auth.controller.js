@@ -76,10 +76,8 @@ export const signup = async (req, res) => {
       // Set httpOnly cookie for security
       res.cookie('tb-token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        // SEC-22: 'lax' is safe for same-origin dev (localhost). 
-        // If using cross-origin dev (e.g. Codespaces), ensure both use HTTPS or a proxy.
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
@@ -142,8 +140,8 @@ export const signin = async (req, res) => {
       // Set httpOnly cookie for security
       res.cookie('tb-token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
@@ -245,8 +243,8 @@ export const exchangeToken = async (req, res) => {
   // Set httpOnly cookie for security
   res.cookie('tb-token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: true,
+    sameSite: 'none',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
 

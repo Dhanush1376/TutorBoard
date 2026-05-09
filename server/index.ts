@@ -172,45 +172,13 @@ app.use(helmet({
   },
 }));
 
-// CORS Origins
-const DEFAULT_ORIGINS = [
-  'https://tutor-board-mocha.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-];
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
-  : DEFAULT_ORIGINS;
-
-function isOriginAllowed(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-  if (!origin) return callback(null, true);
-  
-  const isAllowed = allowedOrigins.includes(origin) ||
-    /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
-    /^https:\/\/tutor-board[a-z0-9-]*\.vercel\.app$/.test(origin);
-
-  if (isAllowed) {
-    callback(null, true);
-  } else {
-    callback(new Error('Not allowed by CORS'));
-  }
-}
-
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} ${res.statusCode} (${duration}ms)`);
-  });
-  next();
-});
-
 app.use(express.json({ limit: '1mb' }));
 app.use(cors({
-  origin: isOriginAllowed as any,
+  origin: process.env.FRONTEND_URL || [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://tutorboard.vercel.app"
+  ],
   credentials: true,
 }));
 app.options("*", cors());
@@ -239,25 +207,40 @@ app.use((req: Request, res: Response, next: NextFunction) => {
       // Set HTTP-only secret
       res.cookie('tb-csrf-secret', newSecret, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        secure: true,
+        sameSite: 'none',
       });
 
       // Set plain token for client to read and send back in header
       res.cookie('tb-csrf-token', newToken, {
         httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        secure: true,
+        sameSite: 'none',
       });
+      
+      // If this is the CSRF token endpoint, we want to return the newly generated token
+      if (req.path === '/api/csrf-token') {
+        req.cookies['tb-csrf-token'] = newToken;
+      }
     }
   }
   next();
+});
+
+// Explicit endpoint for frontend to fetch the CSRF token in a cross-domain setup
+app.get('/api/csrf-token', (req: Request, res: Response) => {
+  res.json({ csrfToken: req.cookies?.['tb-csrf-token'] });
 });
 
 // 2. CSRF Verification Middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
   if (safeMethods.includes(req.method)) return next();
+
+  // SEC-GDPR: Skip CSRF for OAuth callbacks as they use their own state mechanisms
+  if (req.path.includes('/auth/google/callback') || req.path.includes('/auth/github/callback')) {
+    return next();
+  }
 
   // SEC-GDPR: Fail-closed CSRF validation
   const secret = req.cookies?.['tb-csrf-secret'];

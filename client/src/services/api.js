@@ -23,13 +23,42 @@ export const getCookie = (name) => {
   return null;
 };
 
+// Cache token to prevent redundant fetches
+let cachedCsrfToken = null;
+
+// Helper to fetch CSRF token from the API if cross-domain cookies cannot be read
+export const fetchCsrfToken = async () => {
+  try {
+    const { data } = await axios.get(`${BASE_URL}/api/csrf-token`, { withCredentials: true });
+    if (data.csrfToken) {
+      cachedCsrfToken = data.csrfToken;
+      // Set as default for all future requests
+      API.defaults.headers.common['X-CSRF-Token'] = data.csrfToken;
+      return data.csrfToken;
+    }
+  } catch (err) {
+    console.error('[API] Failed to fetch CSRF token:', err);
+  }
+  return null;
+};
+
 // Request Interceptor
 API.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Add CSRF token for mutating requests
     const safeMethods = ['get', 'head', 'options'];
     if (!safeMethods.includes(config.method?.toLowerCase() || '')) {
-      const csrfToken = getCookie('tb-csrf-token');
+      // 1. Try reading from Document Cookie (works for same-domain)
+      let csrfToken = getCookie('tb-csrf-token');
+      
+      // 2. Try cached token (from cross-domain fetch)
+      if (!csrfToken) csrfToken = cachedCsrfToken;
+
+      // 3. Fallback to fetching it on-demand
+      if (!csrfToken) {
+        csrfToken = await fetchCsrfToken();
+      }
+
       if (csrfToken) {
         config.headers['X-CSRF-Token'] = csrfToken;
       }
