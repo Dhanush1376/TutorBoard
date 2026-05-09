@@ -172,13 +172,15 @@ app.use(helmet({
   },
 }));
 
+const CORS_ORIGINS = process.env.FRONTEND_URL || [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://tutorboard.vercel.app"
+];
+
 app.use(express.json({ limit: '1mb' }));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "https://tutorboard.vercel.app"
-  ],
+  origin: CORS_ORIGINS,
   credentials: true,
 }));
 app.options("*", cors());
@@ -306,7 +308,7 @@ const port = process.env.PORT || 5000;
 
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: isOriginAllowed as any,
+    origin: CORS_ORIGINS as any,
     methods: ['GET', 'POST'],
     credentials: true,
   },
