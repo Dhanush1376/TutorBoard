@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import ChatSession from '../models/ChatSession.js';
+import ChatMessage from '../models/ChatMessage.js';
 import ActivityLog from '../models/ActivityLog.js';
+import sessionRepository from '../repositories/session.repository.js';
 
 // Schema for request body validation — PERMISSIVE for client payloads
 // The client sends messages with `id`, `role`, `content` and other metadata.
@@ -9,13 +11,6 @@ import ActivityLog from '../models/ActivityLog.js';
 const saveSessionSchema = z.object({
   sessionId: z.string().optional().nullable(),
   title: z.string().max(200).optional(),
-  messages: z.array(z.object({
-    id: z.string().optional(),
-    role: z.enum(['user', 'assistant', 'system']),
-    content: z.string().max(50000),
-    timestamp: z.any().optional(),
-    canvasSnapshot: z.any().optional(),
-  }).passthrough()).max(200).optional(),
   canvasState: z.array(z.any()).max(500).optional(),
   canvasSteps: z.array(z.any()).max(100).optional(),
   canvasVersion: z.number().optional(),
@@ -51,7 +46,9 @@ export const getSessions = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const query = req.user?._id ? { userId: req.user._id } : { userId: null };
+    const query = req.user?._id 
+      ? { userId: req.user._id, isDeleted: { $ne: true } } 
+      : { userId: null, isDeleted: { $ne: true } };
     
     const [sessions, total] = await Promise.all([
       ChatSession.find(query)
@@ -59,11 +56,29 @@ export const getSessions = async (req, res) => {
         .skip(skip)
         .limit(limit)
         .lean(),
-      ChatSession.countDocuments({ userId: req.user._id })
+      ChatSession.countDocuments(query)
     ]);
 
+    // CRITICAL FIX: Fetch messages from the ChatMessage collection (source of truth)
+    // instead of the deprecated embedded ChatSession.messages[] array.
+    // The client filters sessions by whether they have user messages — if we return
+    // an empty array, ALL sessions without canvas data get filtered out and "vanish".
+    const sessionsWithMessages = await Promise.all(
+      sessions.map(async (s) => {
+        try {
+          const messages = await ChatMessage.find({ sessionId: s._id })
+            .sort({ timestamp: -1 })
+            .limit(50)
+            .lean();
+          return { ...s, messages: messages.reverse() };
+        } catch {
+          return { ...s, messages: s.messages || [] }; // Fallback to embedded array
+        }
+      })
+    );
+
     res.json({
-      sessions,
+      sessions: sessionsWithMessages,
       pagination: {
         total,
         page,
@@ -90,7 +105,27 @@ export const getSession = async (req, res) => {
     const session = await ChatSession.findOne(query);
     
     if (!session) return res.status(404).json({ error: 'Session not found' });
-    res.json(session);
+    
+    // SEC-STORAGE: Resolve offloaded canvas state for the client
+    const sessionObj = session.toObject();
+    sessionObj.canvasState = await session.resolveCanvasState();
+    
+    // CRITICAL FIX: Fetch messages from the ChatMessage collection (source of truth)
+    // instead of the deprecated embedded ChatSession.messages[] array.
+    try {
+      const chatMessages = await ChatMessage.find({ sessionId: session._id })
+        .sort({ timestamp: 1 })
+        .limit(200)
+        .lean();
+      if (chatMessages.length > 0) {
+        sessionObj.messages = chatMessages;
+      }
+      // If no ChatMessage docs found, fall through to whatever was in the embedded array
+    } catch (msgErr) {
+      console.warn('[Session] Failed to fetch ChatMessage history:', msgErr.message);
+    }
+    
+    res.json(sessionObj);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch session' });
   }
@@ -98,7 +133,7 @@ export const getSession = async (req, res) => {
 
 /**
  * POST /api/sessions
- * Create or Update a session
+ * Create or Update a session with optimistic locking for conflict detection
  */
 export const saveSession = async (req, res) => {
   try {
@@ -124,97 +159,125 @@ export const saveSession = async (req, res) => {
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
 
-    // Build update object — only include fields that were actually sent
-    const updateFields = { lastUpdated: Date.now() };
-    if (title !== undefined) updateFields.title = title;
-    if (canvasState !== undefined) updateFields.canvasState = canvasState;
-    if (canvasSteps !== undefined) updateFields.canvasSteps = canvasSteps;
-    if (canvasVersion !== undefined) updateFields.canvasVersion = canvasVersion;
-    if (preferences !== undefined) updateFields.preferences = preferences;
-
-    if (activeSnapshotId && messages) {
-      const msgIndex = messages.findIndex(m => m.id === activeSnapshotId);
-      if (msgIndex !== -1) {
-        messages[msgIndex].canvasSnapshot = {
-          canvasObjects: canvasState,
-          canvasSteps,
-          canvasVersion,
-          totalSteps: canvasSteps?.length || 0,
-          currentStepIndex: req.body.currentStepIndex || 0,
-        };
-        messages[msgIndex].hasCanvas = true;
-      }
-      updateFields.messages = messages;
-    } else if (messages !== undefined) {
-      updateFields.messages = messages;
-    }
-
-    if (sessionId) {
-      const query = isMongoId 
-        ? (isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() })
-        : (isGuest ? { engineSessionId: sessionId, userId: null } : { engineSessionId: sessionId, userId: userId.toString() });
-
-      // ATOMIC UPSERT: Ensure only one document is created/updated for this ID
-      session = await ChatSession.findOneAndUpdate(
-        query,
-        { 
-          $set: updateFields,
-          $setOnInsert: {
-            userId: isGuest ? null : userId,
-            title: title || 'New Session',
-            engineSessionId: isMongoId ? null : sessionId,
-            messages: messages || [],
-            canvasState: canvasState || [],
-            canvasSteps: canvasSteps || [],
-            canvasVersion: canvasVersion || 0,
-            preferences: preferences || {},
-          }
-        },
-        { 
-          new: true, 
-          upsert: true, 
-          runValidators: true,
-          setDefaultsOnInsert: true 
-        }
-      );
-      
-      if (session) {
-        const wasCreated = session.createdAt && (Date.now() - session.createdAt.getTime() < 1000);
-        console.log(`[DB] ${wasCreated ? '✨ Created' : '✅ Updated'} session via ${isMongoId ? 'ObjectId' : 'EngineId'}: ${session._id}`);
-        
-        if (wasCreated) {
-          logActivity({
-            userId: isGuest ? null : userId,
-            sessionId: session._id.toString(),
-            eventType: 'session_start',
-            eventData: { title: session.title }
-          });
-        } else {
-          logActivity({
-            userId: isGuest ? null : userId,
-            sessionId: session._id.toString(),
-            eventType: 'canvas_action',
-            eventData: { version: canvasVersion }
-          });
-        }
-      }
-    } else {
-      // No sessionId provided at all (rare fallback)
+    if (!sessionId) {
+      // Create new session
       session = await ChatSession.create({
         userId: isGuest ? null : userId,
         title: title || 'New Session',
-        messages: messages || [],
         canvasState: canvasState || [],
         canvasSteps: canvasSteps || [],
         canvasVersion: canvasVersion || 0,
         preferences: preferences || {},
+        docVersion: 0,
       });
-      console.log(`[DB] 🌟 Created fallback session: ${session._id}`);
+      console.log(`[DB] 🌟 Created new session: ${session._id}`);
+    } else {
+      // Update existing session with optimistic locking
+      const query = isMongoId 
+        ? (isGuest ? { _id: sessionId, userId: null } : { _id: sessionId, userId: userId.toString() })
+        : (isGuest ? { engineSessionId: sessionId, userId: null } : { engineSessionId: sessionId, userId: userId.toString() });
+
+      // Atomic Update Payload
+      const setFields = { lastUpdated: new Date() };
+      const incFields = { docVersion: 1 };
+      
+      if (title !== undefined) setFields.title = title;
+      if (canvasVersion !== undefined) setFields.canvasVersion = canvasVersion;
+      if (preferences !== undefined) setFields.preferences = preferences;
+      
+      // Use repository for canvas processing (handles compression/S3)
+      if (canvasState !== undefined) {
+        setFields.canvasState = await sessionRepository.prepareCanvasUpdate(sessionId, canvasState);
+        if (canvasSteps) setFields.canvasSteps = canvasSteps;
+      }
+
+      // Handle messages — persist to ChatMessage collection AFTER session upsert
+      // so we have a real MongoDB _id to link messages to.
+      const pendingMessages = (messages !== undefined && messages.length > 0) ? messages.slice(-50) : [];
+
+      const updatePayload = { $set: setFields, $inc: incFields };
+
+      try {
+        session = await ChatSession.findOneAndUpdate(
+          query,
+          updatePayload,
+          { 
+            returnDocument: 'after', 
+            upsert: true, 
+            runValidators: true,
+          }
+        );
+      } catch (err) {
+        if (err.code === 11000 && !isMongoId) {
+          console.log(`[SessionController] Concurrent upsert detected for ${sessionId}, retrying find...`);
+          session = await ChatSession.findOne(query);
+        } else {
+          throw err;
+        }
+      }
+
+      if (session) {
+        console.log(`[DB] ✅ Atomic update complete for session: ${session._id} (version: ${session.docVersion})`);
+      } else {
+        console.warn(`[DB] ⚠️  Session not found for update: ${sessionId}`);
+        return res.status(404).json({ error: 'Session not found or update failed' });
+      }
+
+      // Now persist messages using the real MongoDB session _id
+      if (pendingMessages.length > 0) {
+        const realSessionId = session._id;
+        try {
+          for (const msg of pendingMessages) {
+            if (msg.role && msg.content) {
+              const msgId = msg.id || msg._id;
+              const isMongoId = /^[0-9a-fA-F]{24}$/.test(msgId || '');
+              const filter = isMongoId 
+                ? { _id: msgId } 
+                : { sessionId: realSessionId, content: msg.content, role: msg.role };
+                
+              const updateDoc = {
+                $set: {
+                  content: msg.content,
+                  ...(msg.metadata ? { metadata: msg.metadata } : {})
+                },
+                $setOnInsert: {
+                  sessionId: realSessionId,
+                  role: msg.role,
+                  timestamp: msg.timestamp || new Date()
+                }
+              };
+              
+              await ChatMessage.updateOne(filter, updateDoc, { upsert: true });
+            }
+          }
+        } catch (msgErr) {
+          console.warn('[Session] Failed to sync messages to ChatMessage collection:', msgErr.message);
+        }
+      }
     }
 
-    res.json(session);
+    if (!session) return res.status(404).json({ error: 'Session not found or update failed' });
+
+    // SEC-STORAGE: Resolve offloaded canvas state for the client
+    const sessionObj = session.toObject();
+    sessionObj.canvasState = await session.resolveCanvasState();
+    
+    // CRITICAL FIX: Return messages from ChatMessage collection (source of truth)
+    try {
+      const chatMessages = await ChatMessage.find({ sessionId: session._id })
+        .sort({ timestamp: 1 })
+        .limit(200)
+        .lean();
+      if (chatMessages.length > 0) {
+        sessionObj.messages = chatMessages;
+      }
+    } catch (msgErr) {
+      console.warn('[Session:Save] Failed to fetch ChatMessage history:', msgErr.message);
+    }
+    
+    res.json(sessionObj);
   } catch (err) {
-    console.error('Save session error:', err);
+    console.error('[Session] Save error:', err.message);
     res.status(500).json({ error: 'Failed to save session' });
   }
 };
@@ -222,16 +285,14 @@ export const saveSession = async (req, res) => {
 /**
  * POST /api/sessions/beacon
  * Emergency flush via Beacon API (no auth header — token is in body)
+ * Includes optimistic locking to detect concurrent updates
  */
 export const beaconSave = async (req, res) => {
   try {
-    const token = req.body && req.body.token;
     const { sessionId, ...data } = req.body;
     
-    // Beacon requests include the token in the body since Beacon API doesn't support headers
-    // The `protect` middleware won't have run, so we need to verify inline
-    if (!token || !sessionId) {
-      return res.status(400).json({ error: 'Missing token or sessionId' });
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Missing sessionId' });
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
@@ -239,7 +300,13 @@ export const beaconSave = async (req, res) => {
       return res.status(400).json({ error: 'Invalid session ID for beacon' });
     }
 
+    // AUTH: Primary — use cookie-based auth (Beacon API sends cookies for same-origin)
+    // Fallback — body token for backward compatibility
     let userId = null;
+    const cookieToken = req.cookies?.['tb-access-token'] || req.cookies?.['tb-token'];
+    const bodyToken = req.body?.token;
+    const token = cookieToken || bodyToken;
+
     if (token && token !== 'guest') {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -251,7 +318,36 @@ export const beaconSave = async (req, res) => {
 
     const updateFields = { lastUpdated: Date.now() };
     if (data.title !== undefined) updateFields.title = data.title;
-    if (data.messages !== undefined) updateFields.messages = data.messages;
+    // Messages: persist to ChatMessage collection instead of embedded array
+    if (data.messages !== undefined && Array.isArray(data.messages)) {
+      try {
+        for (const msg of data.messages.slice(-20)) {
+          if (msg.role && msg.content) {
+            const msgId = msg.id || msg._id;
+            const isMongoId = /^[0-9a-fA-F]{24}$/.test(msgId || '');
+            const filter = isMongoId 
+              ? { _id: msgId } 
+              : { sessionId, content: msg.content, role: msg.role };
+              
+            const updateDoc = {
+              $set: {
+                content: msg.content,
+                ...(msg.metadata ? { metadata: msg.metadata } : {})
+              },
+              $setOnInsert: {
+                sessionId,
+                role: msg.role,
+                timestamp: msg.timestamp || new Date()
+              }
+            };
+            
+            await ChatMessage.updateOne(filter, updateDoc, { upsert: true });
+          }
+        }
+      } catch (msgErr) {
+        console.warn('[Beacon] Failed to sync messages to ChatMessage:', msgErr.message);
+      }
+    }
     if (data.canvasState !== undefined) updateFields.canvasState = data.canvasState;
     if (data.canvasSteps !== undefined) updateFields.canvasSteps = data.canvasSteps;
     if (data.canvasVersion !== undefined) updateFields.canvasVersion = data.canvasVersion;
@@ -259,9 +355,12 @@ export const beaconSave = async (req, res) => {
 
     const query = userId ? { _id: sessionId, userId } : { _id: sessionId, userId: null };
     
+    const updatePayload = { $set: updateFields, $inc: { docVersion: 1 } };
+    
     await ChatSession.findOneAndUpdate(
       query,
-      { $set: updateFields }
+      updatePayload,
+      { returnDocument: 'after', runValidators: true }
     );
 
     res.status(204).end();
@@ -285,6 +384,15 @@ export const deleteSession = async (req, res) => {
     const session = await ChatSession.findOneAndDelete(query);
     
     if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    // CASCADE: Clean up all associated ChatMessage documents to prevent orphaned data
+    try {
+      const deleteResult = await ChatMessage.deleteMany({ sessionId: session._id });
+      console.log(`[Session] Cascade deleted ${deleteResult.deletedCount} messages for session ${session._id}`);
+    } catch (msgErr) {
+      console.warn('[Session] Failed to cascade-delete messages:', msgErr.message);
+    }
+
     res.json({ message: 'Session deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete session' });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Bell, BellOff, Sparkles, User, Mail, GraduationCap } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
   AppleToggle, RightInlineInput, RightInlineSelect

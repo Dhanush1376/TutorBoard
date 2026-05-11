@@ -1,5 +1,4 @@
 import LearnerProfile from '../models/LearnerProfile.js';
-import SessionMemory from '../models/SessionMemory.js';
 import UsageLog from '../models/UsageLog.js';
 import SpacedRepetitionScheduler from '../engine/core/SpacedRepetitionScheduler.js';
 

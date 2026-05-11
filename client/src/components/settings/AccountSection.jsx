@@ -8,7 +8,7 @@ import {
   Cloud, RefreshCcw
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import API from '../../services/api';
 import {
   SectionTitle, SettingsGroup, SettingsRow,

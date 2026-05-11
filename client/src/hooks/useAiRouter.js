@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { API_URL } from '../components/settings/SettingsShared';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import API from '../services/api';
 
 /**

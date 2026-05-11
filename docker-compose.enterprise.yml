@@ -1,0 +1,109 @@
+# TutorBoard Enterprise — Decoupled Infrastructure Stack
+# Version: 1.0 (Enterprise Roadmap)
+# 
+# This configuration demonstrates the production-grade separation of:
+# 1. API Service (HTTP/WebSockets)
+# 2. Worker Service (Agentic Pipeline)
+# 3. Compiler Service (Isolated Code Execution)
+# 4. Persistence Tier (MongoDB, Redis, Postgres)
+
+services:
+  # ── API SERVICE ──
+  api:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: tb-api
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - ENABLE_WORKERS=false  # Decoupled: API does NOT run background tasks
+      - PROCESS_TYPE=api
+      - MONGO_URI=mongodb://mongodb:27017/tutorboard
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://tutorboard:tutorboard@postgres:5432/tutorboard
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tb-network
+
+  # ── WORKER SERVICE ──
+  worker:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: tb-worker
+    command: ["npm", "run", "worker"]
+    environment:
+      - NODE_ENV=production
+      - PROCESS_TYPE=worker
+      - MONGO_URI=mongodb://mongodb:27017/tutorboard
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tb-network
+    deploy:
+      replicas: 2 # Scale workers independently for 100k+ users
+
+  # ── COMPILER SERVICE ──
+  compiler:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: tb-compiler
+    command: ["npm", "run", "compiler"]
+    environment:
+      - NODE_ENV=production
+      - COMPILER_PORT=6000
+      - JUDGE0_HOST=${JUDGE0_HOST:-ce.judge0.com}
+      - JUDGE0_API_KEY=${JUDGE0_API_KEY}
+    networks:
+      - tb-network
+    deploy:
+      replicas: 1
+
+  # ── DATA STORES ──
+  mongodb:
+    image: mongo:7
+    container_name: tb-mongo
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+    networks:
+      - tb-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: tb-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+    networks:
+      - tb-network
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tb-postgres
+    environment:
+      POSTGRES_USER: tutorboard
+      POSTGRES_PASSWORD: tutorboard
+      POSTGRES_DB: tutorboard
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tutorboard"]
+    networks:
+      - tb-network
+
+networks:
+  tb-network:
+    driver: bridge
+
+volumes:
+  tb_mongo_data:
+  tb_redis_data:
+  tb_pg_data:

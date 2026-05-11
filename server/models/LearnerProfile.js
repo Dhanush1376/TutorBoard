@@ -69,7 +69,7 @@ LearnerProfileSchema.statics.updateMasteryFromSession = async function(userId, s
   return this.findOneAndUpdate(
     { userId },
     { $set: updateObject },
-    { new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 };
 

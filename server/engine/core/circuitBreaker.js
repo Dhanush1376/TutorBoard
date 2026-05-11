@@ -8,7 +8,7 @@
  * Cooldown: 60 seconds before HALF_OPEN probe
  */
 
-import redis from '../../utils/core/redis.js';
+import { container } from '../../core/container.js';
 
 const DEFAULT_COOLDOWN_MS = 60_000;
 const GROQ_COOLDOWN_MS = 90_000; // Groq needs more time to reset rate limits
@@ -28,10 +28,11 @@ class CircuitBreaker {
   }
 
   async _syncFromRedis() {
-    if (!redis.isConnected) return;
+    if (!container.has('redis-main')) return;
     try {
+      const client = container.resolve('redis-main');
       for (const id of Object.keys(this.providers)) {
-        const data = await redis.get(`${REDIS_KEY_PREFIX}${id}`);
+        const data = await client.get(`${REDIS_KEY_PREFIX}${id}`);
         if (data) {
           const remote = JSON.parse(data);
           // Only sync if remote state is more "critical" (OPEN) or newer
@@ -44,9 +45,10 @@ class CircuitBreaker {
   }
 
   async _persistToRedis(provider) {
-    if (!redis.isConnected) return;
+    if (!container.has('redis-main')) return;
     try {
-      await redis.set(
+      const client = container.resolve('redis-main');
+      await client.set(
         `${REDIS_KEY_PREFIX}${provider}`, 
         JSON.stringify(this.providers[provider]),
         3600 // 1 hour TTL for health stickiness
@@ -231,3 +233,23 @@ class CircuitBreaker {
 }
 
 export const circuitBreaker = new CircuitBreaker();
+
+/**
+ * Functional wrapper for circuit-protected execution
+ */
+export const withCircuitBreaker = async (provider, fn) => {
+  if (!circuitBreaker.isAvailable(provider)) {
+    throw new Error(`CIRCUIT_OPEN: ${provider} is currently unavailable.`);
+  }
+
+  const startTime = Date.now();
+  try {
+    const result = await fn();
+    circuitBreaker.reportSuccess(provider, Date.now() - startTime);
+    return result;
+  } catch (err) {
+    const statusCode = err.response?.status || err.status || 500;
+    circuitBreaker.reportFailure(provider, statusCode, err.message);
+    throw err;
+  }
+};

@@ -42,7 +42,6 @@ export function SessionGuide({
   algorithmName, timeline, professorNote, onGoToStep,
   doubtHistory = [], isDoubtProcessing = false, activeDoubtId = null,
   onJumpToDoubt = null, onPinDoubt = null, onResume = null, onAskDoubt = null,
-  takeaways = [], removeTakeaway = null,
   isAlgo = false, onReplay = null, onClose = null
 }) {
   const [activeTab, setActiveTab] = useState('guide');
@@ -58,7 +57,7 @@ export function SessionGuide({
 
   const progressPercent = totalSteps > 0 ? ((stepIndex + 1) / totalSteps) * 100 : 0;
 
-  const isEmpty = !narration && !stepTitles.length && !professorNote && takeaways.length === 0;
+  const isEmpty = !narration && !stepTitles.length && !professorNote;
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden select-none">
@@ -120,28 +119,6 @@ export function SessionGuide({
               </Section>
             )}
 
-            {/* Pinned Insights */}
-            {takeaways.length > 0 && (
-              <Section icon={<Sparkles size={12} />} label="Pinned Insights" color="#fbbf24">
-                <div className="flex flex-col gap-2">
-                  {takeaways.map((item) => (
-                    <motion.div
-                      key={item.id}
-                      layout
-                      className="group relative p-3 rounded-xl text-[10px] leading-relaxed bg-amber-500/[0.04] border border-amber-500/10 transition-all hover:bg-amber-500/[0.08]"
-                    >
-                      <p className="text-[var(--text-secondary)]">{item.text}</p>
-                      <button
-                        onClick={() => removeTakeaway?.(item.id)}
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded-md text-red-400 hover:bg-red-500/10 transition-all"
-                      >
-                        <Trash2 size={10} />
-                      </button>
-                    </motion.div>
-                  ))}
-                </div>
-              </Section>
-            )}
 
             {/* Concept Card */}
             {narration && (

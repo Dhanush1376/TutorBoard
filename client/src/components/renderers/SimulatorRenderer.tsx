@@ -6,6 +6,7 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react';
+import DOMPurify from 'dompurify';
 
 interface SimulatorRendererProps {
   timeline: {
@@ -28,21 +29,36 @@ export default function SimulatorRenderer({ timeline, currentStepIndex }: Simula
     setIsLoaded(false);
     setHasError(false);
 
-    const iframe = iframeRef.current;
-    
+    // SEC-03: Sanitize AI-generated HTML before rendering
+    // We allow scripts and styles because they are necessary for the simulations,
+    // but we rely on the strict CSP and 'sandbox' (without allow-same-origin) 
+    // to prevent those scripts from doing anything malicious.
+    const sanitizedHtml = DOMPurify.sanitize(html, {
+      ADD_TAGS: ['script', 'style'],
+      ADD_ATTR: ['onclick', 'onerror'], // Some simulations use these for interaction
+      WHOLE_DOCUMENT: true,
+      RETURN_TRUSTED_TYPE: false,
+    });
+
+    // SEC-25: Content Security Policy + srcDoc Isolation
+    // We wrap the AI-generated HTML with a strict CSP and use srcDoc
+    // which is more reliable for sandboxing than document.write.
+    const secureHtml = `
+      <meta http-equiv="Content-Security-Policy" 
+        content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:;">
+      ${sanitizedHtml}
+    `;
+
     try {
-      // Write the HTML directly into the iframe document
-      // This is safer than src=blob: because the sandbox attribute still applies
-      iframe.contentDocument?.open();
-      iframe.contentDocument?.write(html);
-      iframe.contentDocument?.close();
+      const iframe = iframeRef.current;
+      iframe.srcdoc = secureHtml;
       
       iframe.onload = () => setIsLoaded(true);
       
       // Fallback: mark loaded after 500ms regardless
       setTimeout(() => setIsLoaded(true), 500);
     } catch (err) {
-      console.error('[SimulatorRenderer] Failed to write HTML:', err);
+      console.error('[SimulatorRenderer] Failed to load simulation:', err);
       setHasError(true);
     }
   }, [html]);
@@ -81,7 +97,7 @@ export default function SimulatorRenderer({ timeline, currentStepIndex }: Simula
       <iframe
         ref={iframeRef}
         className="w-full h-full min-h-[520px] border-0 rounded-xl"
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-forms allow-modals"
         // allow-scripts but NOT allow-same-origin: 
         // This means the iframe JS cannot access parent window.
         // It CAN run scripts (required for Canvas/animations).

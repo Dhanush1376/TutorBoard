@@ -14,7 +14,7 @@ import {
 import Loader from './Loader';
 import VisaiLogo from './VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import GuestTrialBanner from '../common/GuestTrialBanner';
 
 
@@ -44,7 +44,7 @@ const LeftPanel = ({
   const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
   const { user } = useAuth();
   const isGuest = !!user?.isGuest;
-  const hasStarted = messages.length > 0;
+  const hasStarted = (messages || []).length > 0;
   const searchInputRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -77,12 +77,18 @@ const LeftPanel = ({
       ? chatHistory.filter(c => (c.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
       : chatHistory;
     
-    // SEC-UX-05: Latest messaged one should come on top
-    return [...base].sort((a, b) => {
-      const timeA = a.updatedAt || 0;
-      const timeB = b.updatedAt || 0;
-      return timeB - timeA;
+    // SEC-UX-05: Deduplicate by ID and sort by latest activity
+    const unique = [];
+    const seen = new Set();
+    
+    [...base].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).forEach(s => {
+      const sid = s.id || s._id;
+      if (!sid || seen.has(sid)) return;
+      seen.add(sid);
+      unique.push(s);
     });
+    
+    return unique;
   }, [chatHistory, searchQuery]);
 
   // ── RENDER HELPERS ──
@@ -92,33 +98,33 @@ const LeftPanel = ({
         <div className="flex flex-col gap-2 relative h-full">
           {/* Compact Back Button for Sidebar Chat */}
           {/* Sticky Header with Back Button - Fixed overlap */}
-          <div className="sticky top-0 z-[15] pt-1 pb-2.5 -mx-1 px-1 bg-[var(--bg-primary)] flex items-center justify-between">
+          <div className="sticky top-0 z-[15] pt-4 pb-2.5 -mx-1 px-2 bg-[var(--bg-primary)] flex items-center justify-between border-b border-[var(--border-color)]/20 mb-3">
             <button
               onClick={() => { setActiveView('history'); }}
-              className="flex items-center gap-1.5 px-1 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all group"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-[9.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all group border border-[var(--border-color)]/50 rounded-xl hover:bg-[var(--bg-tertiary)]/50 shadow-sm"
             >
-              <ChevronLeft size={12} strokeWidth={2} className="text-[var(--text-tertiary)]" />
+              <ChevronLeft size={12} strokeWidth={2.5} className="text-[var(--text-tertiary)] group-hover:-translate-x-0.5 transition-transform" />
               <p className="px-0.5 tracking-[0.1em]">All Sessions</p>
             </button>
 
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => onExport?.('pdf')}
-                className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]/60 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                className="p-2 rounded-xl bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]/50 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all hover:bg-[var(--bg-tertiary)]/60 shadow-sm"
                 title="Export as PDF"
               >
-                <FileText size={13} />
+                <FileText size={13} strokeWidth={2.5} />
               </button>
               <button
                 onClick={() => onExport?.('docx')}
-                className="p-1.5 rounded-lg hover:bg-[var(--bg-tertiary)]/60 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                className="p-2 rounded-xl bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]/50 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all hover:bg-[var(--bg-tertiary)]/60 shadow-sm"
                 title="Export as Word (DOCX)"
               >
-                <Download size={13} />
+                <Download size={13} strokeWidth={2.5} />
               </button>
             </div>
           </div>
-          <div className="flex-1 flex flex-col min-h-0 pt-1">
+          <div className="flex-1 flex flex-col min-h-0 pt-0">
             <ChatWindow
               messages={messages}
               isGenerating={isGenerating}
@@ -141,8 +147,8 @@ const LeftPanel = ({
       <div className="flex flex-col gap-0 w-full relative h-full">
         {/* Sticky Header for Recents - Show for guests if they have history */}
         {(!isGuest || chatHistory.length > 0) && (
-          <div className="sticky top-0 z-[15] pt-0 pb-1.5 -mx-1 px-1 bg-[var(--bg-primary)]">
-            <p className="text-[10px] font-medium uppercase tracking-[0.15em] px-2 py-2 text-[var(--text-tertiary)]">Recents</p>
+          <div className="sticky top-0 z-[15] pt-3 pb-2 -mx-1 px-1 bg-[var(--bg-primary)] border-b border-[var(--border-color)]/10 mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] px-2 py-1 text-[var(--text-tertiary)]">Recents</p>
           </div>
         )}
         <div className="flex flex-col w-full pt-1">
@@ -267,12 +273,12 @@ const LeftPanel = ({
   const { isMobile } = useWindowSize();
 
   return (
-    <div className={`flex flex-col h-full relative text-[var(--text-primary)] bg-transparent`}>
+    <div className={`flex flex-col h-full relative text-[var(--text-primary)] bg-transparent min-w-[280px]`}>
 
       {/* ─── 1. FIXED TOP SECTION ─── */}
       <div className="flex-shrink-0 relative z-20">
         {/* Top Controls (Fixed Header) */}
-        <div className={`${isMobile ? 'px-4 pt-4 pb-3' : 'px-5 pt-5 pb-4'} flex items-center justify-between`}>
+        <div className={`${isMobile ? 'px-4 pt-4 pb-1' : 'px-5 pt-5 pb-1'} flex items-center justify-between`}>
           <div className="flex items-center gap-2">
             <VisaiLogo size={isMobile ? "xs" : "xs"} className="text-[var(--text-primary)]" />
             <span
@@ -284,13 +290,6 @@ const LeftPanel = ({
           </div>
 
 
-            <button
-              onClick={() => useTutorStore.getState().setMasteryOpen(true)}
-              className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
-              title="Learner Dashboard"
-            >
-              <LayoutDashboard size={isMobile ? 22 : 20} strokeWidth={1.8} className="group-hover:scale-110 transition-transform" />
-            </button>
             <button
               onClick={() => setOverlay('settings')}
               className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
@@ -308,7 +307,7 @@ const LeftPanel = ({
           </div>
 
         {/* Top block visible only on landing/history (except for GuestTrialBanner) */}
-        <div className={`${isMobile ? 'px-3 mb-4' : 'px-4 mb-6'}`}>
+        <div className={`${isMobile ? 'px-3 mb-1' : 'px-4 mb-1.5'}`}>
           <div className="flex flex-col gap-3">
             {/* Guest Trial Banner — Persistent across all sidebar views */}
             {isGuest && (
@@ -354,7 +353,7 @@ const LeftPanel = ({
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                       placeholder="Search sessions..."
-                      className={`w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] focus:bg-[var(--bg-primary)] border border-[var(--border-color)] focus:border-[var(--text-tertiary)] ${isMobile ? 'rounded-xl pl-10 pr-9 py-2.5' : 'rounded-2xl pl-10 pr-10 py-2.5'} text-[13px] outline-none transition-all placeholder:text-[var(--text-tertiary)]/60 placeholder:font-normal shadow-sm`}
+                      className={`w-full bg-[var(--bg-secondary)] focus:bg-[var(--bg-secondary)] border-none focus:ring-0 focus:outline-none shadow-none focus:shadow-none ${isMobile ? 'rounded-xl pl-10 pr-9 py-2.5' : 'rounded-2xl pl-10 pr-10 py-2.5'} text-[13px] outline-none placeholder:text-[var(--text-tertiary)]/60 placeholder:font-normal`}
                     />
 
                     {/* Clear search or Keyboard Hint */}
@@ -381,7 +380,7 @@ const LeftPanel = ({
       </div>
 
       {/* ─── 2. SCROLLABLE MIDDLE SECTION ─── */}
-      <div className={`flex-1 flex flex-col min-h-0 ${activeView === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'} thin-scrollbar ${isMobile ? 'px-3' : 'px-4'} pt-0 pb-2 relative`}>
+      <div className={`flex-1 flex flex-col min-h-0 ${activeView === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} thin-scrollbar ${isMobile ? 'pl-3 pr-1 mr-1' : 'pl-4 pr-1 mr-1.5'} pt-0 pb-2 relative`}>
 
 
         {/* List content (Messages OR History + Suggestions) */}
@@ -389,7 +388,7 @@ const LeftPanel = ({
       </div>
 
       {/* ─── 3. FIXED BOTTOM SECTION ─── */}
-      <div className="flex-shrink-0 w-full relative z-20">
+      <div className="flex-shrink-0 w-full relative z-50">
         <InputBar
           value={prompt}
           onChange={setPrompt}

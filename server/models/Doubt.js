@@ -33,6 +33,9 @@ const doubtSchema = new mongoose.Schema({
 // Index for faster history retrieval
 doubtSchema.index({ user: 1, createdAt: -1 });
 
+// Full-text search index for questions and answers
+doubtSchema.index({ question: 'text', answer: 'text' });
+
 const Doubt = mongoose.model('Doubt', doubtSchema);
 
 export default Doubt;

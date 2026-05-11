@@ -1,48 +1,6 @@
 import mongoose from 'mongoose';
-
-const messageSchema = new mongoose.Schema({
-  role: {
-    type: String,
-    enum: ['user', 'assistant', 'system'],
-    required: true,
-  },
-  content: {
-    type: String,
-    required: true,
-    maxlength: [10000, 'Message content cannot exceed 10000 characters'],
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now,
-  },
-  hasCanvas: {
-    type: Boolean,
-    default: false,
-  },
-  canvasType: {
-    type: String,
-    default: null,
-  },
-  canvasSnapshot: {
-    type: mongoose.Schema.Types.Mixed,
-    default: null,
-  },
-  metadata: {
-    edited: { type: Boolean, default: false },
-    regenerated: { type: Boolean, default: false },
-    feedback: { type: String, enum: ['positive', 'negative', null], default: null },
-    thought: { type: String, default: null },
-    sources: [{ title: String, url: String, snippet: String }],
-    searchPerformed: { type: Boolean, default: false },
-    artifactId: { type: String, default: null },
-    artifactData: { type: mongoose.Schema.Types.Mixed, default: null },
-    artifactTitle: { type: String, default: null },
-    artifactStatus: { type: String, default: null },
-    rendererType: { type: String, default: null },
-    versions: { type: [mongoose.Schema.Types.Mixed], default: [] },
-    activeVersionIndex: { type: Number, default: 0 }
-  },
-});
+import zlib from 'zlib';
+import { s3Enabled, uploadBlob } from '../utils/core/s3.js';
 
 const chatSessionSchema = new mongoose.Schema({
   userId: {
@@ -55,15 +13,29 @@ const chatSessionSchema = new mongoose.Schema({
     type: String,
     default: 'Untitled Session',
   },
+  // DEPRECATED: Messages are now stored in the ChatMessage collection.
+  // This embedded array is kept only for backward compatibility during migration.
+  // DO NOT write to this field — use ChatMessage.create() or sessionRepository.addMessage() instead.
   messages: {
-    type: [messageSchema],
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+    select: false, // MONGO-02: Prevent loading/writing to this deprecated embedded array
+  },
+  // Note: Messages are now stored in the ChatMessage collection to support infinite history
+  // and prevent the 16MB MongoDB document limit.
+  canvasState: {
+    type: mongoose.Schema.Types.Mixed, // Store the serialized canvas objects array (may be Buffer if compressed)
+    default: [],
     validate: [
-      (val) => val.length <= 200,
-      '{PATH} exceeds the limit of 200 messages to prevent document bloat'
+      (val) => {
+        const str = Buffer.isBuffer(val) ? val.toString() : JSON.stringify(val);
+        return str.length < 2_000_000; // Increased limit to 2MB since we use compression
+      },
+      'Canvas state exceeds 2MB limit (pre-compression)'
     ]
   },
-  canvasState: {
-    type: [mongoose.Schema.Types.Mixed], // Store the serialized canvas objects array
+  canvasArchive: {
+    type: [mongoose.Schema.Types.Mixed], // Store archived canvas objects for large sessions
     default: [],
   },
   canvasSteps: {
@@ -115,51 +87,161 @@ const chatSessionSchema = new mongoose.Schema({
   engineSessionId: {
     type: String, // String ID used by sessionStore (socket-abc or api-123)
     default: null,
-    index: true,
   },
   lastUpdated: {
     type: Date,
     default: Date.now,
-    index: { expireAfterSeconds: 90 * 24 * 3600 }
   },
   snapshots: {
     type: [mongoose.Schema.Types.Mixed], // Serialized canvas versions
     default: [],
+    validate: [
+      (val) => val.length <= 20,
+      '{PATH} exceeds the limit of 20 snapshots'
+    ]
   },
-  requestLedger: {
-    type: [new mongoose.Schema({
-      requestId: { type: String, required: true },
-      status: { type: String, enum: ['requesting', 'streaming', 'completed', 'failed', 'aborted'], default: 'requesting' },
-      userMessageId: { type: String, default: null },
-      assistantMessageId: { type: String, default: null },
-      response: { type: String, default: null },
-      createdAt: { type: Date, default: Date.now },
-      updatedAt: { type: Date, default: Date.now },
-    }, { _id: false })],
-    default: [],
+  // ─── Optimistic Locking ───
+  docVersion: {
+    type: Number,
+    default: 0,
+  },
+  // ─── Soft Delete ───
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  deletedAt: {
+    type: Date,
+    default: null,
   },
 }, { timestamps: true });
-chatSessionSchema.index({ userId: 1, createdAt: -1 });
 
-// INFRA-12: Cap messages at 200 entries and ledger at 50 entries with TTL eviction.
-chatSessionSchema.pre('save', function() {
-  if (this.messages && this.messages.length > 200) {
-    this.messages = this.messages.slice(-200);
-  }
-  
-  if (this.requestLedger && this.requestLedger.length > 0) {
-    // D-04: TTL-based eviction (10 minutes)
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    this.requestLedger = this.requestLedger.filter(entry => 
-      entry.updatedAt > tenMinutesAgo || entry.status === 'streaming'
-    );
+/**
+ * ─── INFRA-15: Canvas State Compression & S3 Offloading ───
+ * Large canvas states (> 50KB) are compressed. 
+ * Very large states (> 100KB) are offloaded to S3 if enabled.
+ */
+chatSessionSchema.pre('save', async function() {
+  if (this.isModified('canvasState') && Array.isArray(this.canvasState)) {
+    const raw = JSON.stringify(this.canvasState);
+    if (raw.length > 512000) {
+      throw new Error('canvasState exceeds 500KB limit');
+    }
+    
+    // Enterprise Target: Offload to S3 if large and enabled
+    if (s3Enabled && raw.length > 102400) {
+      const key = `canvas/${this._id}/${Date.now()}.json`;
+      try {
+        await uploadBlob(key, raw);
+        this.canvasState = { s3Key: key, length: raw.length, offloaded: true };
+        this.markModified('canvasState');
+        console.log(`[ChatSession] ☁️ Offloaded large canvasState to S3: ${key}`);
+        return;
+      } catch (err) {
+        console.error('[ChatSession] S3 offload failed, falling back to compression:', err);
+      }
+    }
 
-    // Hard cap at 50 most recent entries
-    if (this.requestLedger.length > 50) {
-      this.requestLedger = this.requestLedger.slice(-50);
+    if (raw.length > 51200) { // 50KB threshold
+      try {
+        const compressed = zlib.gzipSync(raw);
+        this.canvasState = compressed;
+        this.markModified('canvasState');
+        console.log(`[ChatSession] 🧊 Compressed canvasState for ${this._id} (${raw.length} -> ${compressed.length})`);
+      } catch (err) {
+        console.error('[ChatSession] Compression failed:', err);
+      }
     }
   }
 });
+
+/**
+ * ─── Optimistic Locking Support ───
+ * Increment docVersion on every update to detect concurrent modifications.
+ */
+chatSessionSchema.pre('save', function() {
+  if (this.isModified()) {
+    this.docVersion = (this.docVersion || 0) + 1;
+  }
+});
+
+chatSessionSchema.post('init', function(doc) {
+  if (Buffer.isBuffer(doc.canvasState)) {
+    try {
+      const decompressed = zlib.gunzipSync(doc.canvasState).toString();
+      doc.canvasState = JSON.parse(decompressed);
+    } catch (err) {
+      console.error('[ChatSession] Decompression failed:', err);
+    }
+  }
+});
+
+chatSessionSchema.index({ userId: 1, createdAt: -1 });
+chatSessionSchema.index({ engineSessionId: 1 }, { unique: true, sparse: true });
+chatSessionSchema.index({ lastUpdated: 1 }, { expireAfterSeconds: 90 * 24 * 3600 });
+
+// INFRA-12: Cap messages at 200 entries and ledger at 50 entries with TTL eviction.
+chatSessionSchema.pre('validate', function() {
+  // SEC-BLOAT: Cap canvasState to prevent massive document growth
+  // Limit to 1000 objects which is plenty for a complex educational scene.
+  // DL-06: Archive rather than delete to prevent losing foundational objects.
+  if (this.canvasState && Array.isArray(this.canvasState) && this.canvasState.length > 1000) {
+    console.warn(`[ChatSession] 📏 Archiving canvasState for ${this._id} (${this.canvasState.length} -> 1000)`);
+    const toArchive = this.canvasState.slice(0, this.canvasState.length - 1000);
+    this.canvasArchive = [...(this.canvasArchive || []), ...toArchive].slice(-5000); // Hard cap archive at 5k
+    this.canvasState = this.canvasState.slice(-1000);
+  }
+  
+  if (this.snapshots && this.snapshots.length > 20) {
+    console.warn(`[ChatSession] 📏 Capping snapshots for ${this._id} (${this.snapshots.length} -> 20)`);
+    this.snapshots = this.snapshots.slice(-20);
+  }
+
+  if (this.canvasSteps && this.canvasSteps.length > 50) {
+    console.warn(`[ChatSession] 📏 Capping canvasSteps for ${this._id} (${this.canvasSteps.length} -> 50)`);
+    this.canvasSteps = this.canvasSteps.slice(-50);
+  }
+
+
+  // NOTE: messages array no longer capped here — messages are persisted to ChatMessage collection
+});
+
+/**
+ * Resolves the canvas state, whether it's stored in MongoDB (compressed) or S3 (offloaded).
+ * Fulfills Enterprise Architecture Target for Session Storage.
+ */
+chatSessionSchema.methods.resolveCanvasState = async function() {
+  if (!this.canvasState) return [];
+
+  // 1. Handle S3 Offloading
+  if (this.canvasState.offloaded && this.canvasState.s3Key) {
+    try {
+      const { getDownloadUrl } = await import('../utils/core/s3.js');
+      const url = await getDownloadUrl(this.canvasState.s3Key);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch from S3: ${response.statusText}`);
+      return await response.json();
+    } catch (err) {
+      console.error('[ChatSession] S3 resolution failed:', err.message);
+      return []; // Return empty or handle as needed
+    }
+  }
+
+  // 2. Handle MongoDB Compression
+  if (Buffer.isBuffer(this.canvasState)) {
+    try {
+      const decompressed = zlib.gunzipSync(this.canvasState).toString();
+      return JSON.parse(decompressed);
+    } catch (err) {
+      console.error('[ChatSession] Decompression failed:', err.message);
+      return [];
+    }
+  }
+
+  // 3. Fallback: Array (direct storage)
+  return Array.isArray(this.canvasState) ? this.canvasState : [];
+};
 
 const ChatSession = mongoose.model('ChatSession', chatSessionSchema);
 

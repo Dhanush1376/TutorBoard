@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
-import AuthLanding from './pages/AuthLanding';
-import Home from './pages/Home';
-import MasteryDashboard from './components/dashboard/MasteryDashboard';
+const AuthLanding = React.lazy(() => import('./pages/AuthLanding'));
+const Home = React.lazy(() => import('./pages/Home'));
+
 import Loader from './components/layout/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import MarketingLayout from './components/layout/MarketingLayout';
-import HowItWorks from './pages/Marketing/HowItWorks';
-import Features from './pages/Marketing/Features';
-import Solutions from './pages/Marketing/Solutions';
-import About from './pages/Marketing/About';
-import { useAuth } from './context/AuthContext';
+const HowItWorks = React.lazy(() => import('./pages/Marketing/HowItWorks'));
+const Features = React.lazy(() => import('./pages/Marketing/Features'));
+const Solutions = React.lazy(() => import('./pages/Marketing/Solutions'));
+const About = React.lazy(() => import('./pages/Marketing/About'));
+import { useAuth } from './hooks/useAuth';
 import GlobalStatusOverlay from './components/layout/GlobalStatusOverlay';
 import ThemedPopup from './components/layout/ThemedPopup';
 import IntroAnimation from './components/layout/IntroAnimation';
@@ -27,13 +27,14 @@ function App() {
   const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
   const { 
     setGlobalOverlay, hydrate, setSidebarOpen, 
-    globalOverlay, activeOverlay 
+    globalOverlay, activeOverlay, guestTrialStatus
   } = useTutorStore(useShallow(s => ({
     setGlobalOverlay: s.setGlobalOverlay,
     hydrate: s.hydrate,
     setSidebarOpen: s.setSidebarOpen,
     globalOverlay: s.globalOverlay,
-    activeOverlay: s.activeOverlay
+    activeOverlay: s.activeOverlay,
+    guestTrialStatus: s.guestTrialStatus
   })));
 
 
@@ -58,9 +59,12 @@ function App() {
 
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     try {
-      // UX-01: Use sessionStorage so the intro only plays once per browser session lifecycle
-      // Versioned key to force a replay after critical UI updates
-      return !sessionStorage.getItem('tb-welcome-played-v9');
+      // UI-11: Check for return visit to skip intro entirely
+      const hasSeenIntro = localStorage.getItem('tb-intro-seen') === '1';
+      if (hasSeenIntro) return false;
+      
+      // Also check sessionStorage for the current session lifecycle
+      return !sessionStorage.getItem('tb-welcome-played-v10');
     } catch {
       return false;
     }
@@ -69,22 +73,23 @@ function App() {
 
   useEffect(() => {
     if (welcomeLoading) {
-      // UX-01: Set flag immediately so a quick refresh doesn't replay the intro
-      try {
-        sessionStorage.setItem('tb-welcome-played-v9', 'true');
-      } catch { }
-
       const timer = setTimeout(() => {
         setWelcomeLoading(false);
-      }, 5500); // Cinematic duration: Phase 1-5 + FadeOut
+      }, 2000); // Optimized duration
+      
+      try {
+        localStorage.setItem('tb-intro-seen', '1');
+        sessionStorage.setItem('tb-welcome-played-v10', 'true');
+      } catch { }
+      
       return () => clearTimeout(timer);
     }
   }, [welcomeLoading]);
 
   useEffect(() => {
     if (welcomeLoading || authLoading) {
-      const timer = setTimeout(() => setShowSkip(true), 2500);
-      return () => clearTimeout(timer);
+      // UX-01: Show skip immediately to improve perceived performance
+      setShowSkip(true);
     } else {
       setShowSkip(false);
     }
@@ -106,7 +111,7 @@ function App() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [setGlobalOverlay]);
+  }, [setGlobalOverlay, globalOverlay]);
 
   useEffect(() => {
     if (connectionStatus === 'timeout') {
@@ -146,6 +151,13 @@ function App() {
 
   return (
     <div className="app-root">
+      {/* ACC-1: Skip-to-content link for keyboard navigation */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[99999] focus:px-4 focus:py-2 focus:bg-[var(--text-primary)] focus:text-[var(--bg-primary)] focus:rounded-xl focus:text-sm focus:font-semibold focus:shadow-xl focus:outline-none"
+      >
+        Skip to content
+      </a>
       {/* ── GLOBAL OVERLAYS ── */}
       <AnimatePresence>
         {authLoading && (
@@ -186,25 +198,34 @@ function App() {
 
       <GlobalOverlayManager />
       <ToastContainer />
-      <MasteryDashboard />
+      
+      {/* UX-05: Focus Trap for Trial Limit Overlay using inert attribute */}
+      <div 
+        className="app-content-wrapper" 
+        inert={guestTrialStatus?.isLimitReached ? true : undefined}
+        style={{ display: 'contents' }}
+      >
 
-      <main className="app-main">
-        <Routes>
-          <Route path="/" element={<AuthLanding />} />
-          <Route path="/login" element={<AuthLanding />} />
-          <Route path="/auth" element={<Navigate to="/" replace />} />
+        <main id="main-content" className="app-main" role="main">
+          <React.Suspense fallback={<Loader fullScreen={true} glass={true} />}>
+          <Routes>
+            <Route path="/" element={<AuthLanding />} />
+            <Route path="/login" element={<AuthLanding />} />
+            <Route path="/auth" element={<Navigate to="/" replace />} />
 
-          <Route element={<MarketingLayout />}>
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route path="/features" element={<Features />} />
-            <Route path="/solutions" element={<Solutions />} />
-            <Route path="/about" element={<About />} />
-          </Route>
+            <Route element={<MarketingLayout />}>
+              <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route path="/features" element={<Features />} />
+              <Route path="/solutions" element={<Solutions />} />
+              <Route path="/about" element={<About />} />
+            </Route>
 
-          <Route path="/session" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="/session" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </React.Suspense>
       </main>
+      </div>
     </div>
   );
 }

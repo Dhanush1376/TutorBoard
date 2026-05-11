@@ -11,6 +11,24 @@ import { useTeachingMachine } from '../../hooks/useTeachingMachine';
 const SessionResumeOverlay = () => {
   const { resumeContext, setResumeContext } = useTutorStore();
   const { resume } = useTeachingMachine();
+  const [timeLeft, setTimeLeft] = React.useState(30);
+
+  React.useEffect(() => {
+    if (!resumeContext) return;
+    
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setResumeContext(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [resumeContext, setResumeContext]);
 
   const handleResume = () => {
     resume();
@@ -53,16 +71,35 @@ const SessionResumeOverlay = () => {
               </span>
             </div>
 
-            <button
-              onClick={handleResume}
-              className="mt-4 px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[13px] font-medium hover:scale-105 active:scale-95 transition-all shadow-xl"
-            >
-              Resume Lesson
-            </button>
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                onClick={handleResume}
+                className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[13px] font-medium hover:scale-105 active:scale-95 transition-all shadow-xl"
+              >
+                Resume Lesson
+              </button>
+              
+              <div className="flex flex-col items-center gap-1.5 mt-2">
+                <p className="text-[10px] text-[var(--text-tertiary)] font-normal uppercase tracking-widest">
+                  Starting fresh in <span className="tabular-nums font-bold text-[var(--text-primary)]">{timeLeft}s</span>
+                </p>
+                <div className="w-24 h-0.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-[var(--text-tertiary)] opacity-40"
+                    initial={{ width: '100%' }}
+                    animate={{ width: `${(timeLeft / 30) * 100}%` }}
+                    transition={{ duration: 1, ease: "linear" }}
+                  />
+                </div>
+              </div>
+            </div>
 
-            <p className="text-[10px] text-[var(--text-tertiary)] opacity-60 uppercase tracking-widest font-normal mt-2">
-              Ready to learn
-            </p>
+            <button 
+              onClick={() => setResumeContext(null)}
+              className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] opacity-60 uppercase tracking-widest font-normal transition-colors"
+            >
+              Start fresh now
+            </button>
           </motion.div>
         </motion.div>
       )}

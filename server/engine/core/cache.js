@@ -12,20 +12,22 @@ class TopicCache {
       .replace(/\s+/g, ' ');
   }
 
-  _getKey(topic, userProfile) {
+  _getKey(topic, userProfile, userId) {
     const normalized = this._normalize(topic);
     const stableProfile = (userProfile || '').replace(/Confusion Level = \d+\/10/g, 'Confusion Level = *');
-    return `${REDIS_PREFIX}${normalized}:::${stableProfile}`;
+    // SEC-03: Scope cache per user to ensure data isolation
+    const scope = userId || 'anon';
+    return `${REDIS_PREFIX}${scope}:${normalized}:::${stableProfile}`;
   }
 
-  async get(topic, userProfile) {
+  async get(topic, userProfile, userId) {
     if (!redis.isConnected) return null;
-    const key = this._getKey(topic, userProfile);
+    const key = this._getKey(topic, userProfile, userId);
 
     try {
       const cached = await redis.get(key);
       if (cached) {
-        console.log(`[Cache] ❄️ HIT (Redis) for: ${topic}`);
+        console.log(`[Cache] ❄️ HIT (Redis) for: ${topic} (User: ${userId || 'anon'})`);
         return JSON.parse(cached);
       }
     } catch (e) {
@@ -34,21 +36,21 @@ class TopicCache {
     return null;
   }
 
-  async set(topic, userProfile, data) {
+  async set(topic, userProfile, data, userId) {
     if (!redis.isConnected) return;
-    const key = this._getKey(topic, userProfile);
+    const key = this._getKey(topic, userProfile, userId);
 
     try {
       await redis.set(key, JSON.stringify(data), CACHE_TTL_SEC);
-      console.log(`[Cache] 📦 STORED (Redis) for: ${topic}`);
+      console.log(`[Cache] 📦 STORED (Redis) for: ${topic} (User: ${userId || 'anon'})`);
     } catch (e) {
       console.warn(`[Cache] Redis set error: ${e.message}`);
     }
   }
 
-  async has(topic, userProfile) {
+  async has(topic, userProfile, userId) {
     if (!redis.isConnected) return false;
-    const key = this._getKey(topic, userProfile);
+    const key = this._getKey(topic, userProfile, userId);
 
     try {
       const cached = await redis.get(key);
@@ -59,13 +61,13 @@ class TopicCache {
     }
   }
 
-  async delete(topic, userProfile) {
+  async delete(topic, userProfile, userId) {
     if (!redis.isConnected) return;
-    const key = this._getKey(topic, userProfile);
+    const key = this._getKey(topic, userProfile, userId);
 
     try {
       await redis.del(key);
-      console.log(`[Cache] 🗑️ DELETED (Redis) for: ${topic}`);
+      console.log(`[Cache] 🗑️ DELETED (Redis) for: ${topic} (User: ${userId || 'anon'})`);
     } catch (e) {
       console.warn(`[Cache] Redis delete error: ${e.message}`);
     }

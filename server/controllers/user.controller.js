@@ -1,8 +1,17 @@
 import User from '../models/User.js';
 import ChatSession from '../models/ChatSession.js';
+import ChatMessage from '../models/ChatMessage.js';
+import Artifact from '../models/Artifact.js';
+import Doubt from '../models/Doubt.js';
+import EngineSessionState from '../models/EngineSessionState.js';
+import LearnerProfile from '../models/LearnerProfile.js';
+import ActivityLog from '../models/ActivityLog.js';
+import UsageLog from '../models/UsageLog.js';
+import VectorStoreService from '../engine/core/vectorStore.js';
 import { validateAvatarUrl } from '../utils/validation/securityValidators.js';
 import tokenStore from '../utils/auth/tokenStore.js';
 import { sendSecurityAlertEmail, sendEmail } from '../utils/core/mailer.js';
+import { container } from '../core/container.js';
 
 // Update User Settings (merges with existing)
 export const updateSettings = async (req, res) => {
@@ -10,7 +19,7 @@ export const updateSettings = async (req, res) => {
     const { settings = {} } = req.body;
     
     // Perform a deep merge or explicit update
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -49,6 +58,13 @@ export const updateSettings = async (req, res) => {
 
     await user.save();
     
+    // Invalidate user cache
+    if (container.has('redis-main')) {
+      try {
+        await container.resolve('redis-main').del(`user:${user._id}`);
+      } catch (err) {}
+    }
+    
     res.status(200).json({ success: true, settings: user.settings, name: user.name });
   } catch (error) {
     console.error('Update settings error:', error);
@@ -61,7 +77,7 @@ export const updatePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     
-    const user = await User.findById(req.user.id).select('+password');
+    const user = await User.findById(req.user._id).select('+password');
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // If user has no password (OAuth only), block this
@@ -77,6 +93,13 @@ export const updatePassword = async (req, res) => {
     user.password = newPassword;
     user.passwordChangedAt = Date.now();
     await user.save(); // pre-save hook handles hashing
+
+    // Invalidate user cache
+    if (container.has('redis-main')) {
+      try {
+        await container.resolve('redis-main').del(`user:${user._id}`);
+      } catch (err) {}
+    }
 
     // SEC-16: Revoke current session on password change for security
     if (req.tokenJti) {
@@ -97,30 +120,39 @@ export const updatePassword = async (req, res) => {
 // Export All Session Data
 export const exportData = async (req, res) => {
   try {
-    const sessions = await ChatSession.find({ userId: req.user.id });
+    const sessions = await ChatSession.find({ userId: req.user._id });
 
     // We could format this, but sending raw JSON is generally what's expected for export plugins
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename=tutorboard-export.json');
 
     // SEC-GDPR: Sanitize sessions to be human-readable and stripped of internal DB fields
-    const sanitizedSessions = sessions.map(session => ({
-      title: session.title || 'Untitled Session',
-      startTime: session.createdAt,
-      lastActive: session.updatedAt || session.lastUpdated,
-      messageCount: session.messages?.length || 0,
-      messages: (session.messages || []).map(m => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-        hasVisuals: !!m.hasCanvas
-      })),
-      canvasNodeCount: session.canvasState?.length || 0,
-      // We include canvas state but strip internal Mongoose/MongoDB keys if they leaked into the array
-      canvasState: (session.canvasState || []).map(obj => {
-        const { _id, __v, ...rest } = obj.toObject ? obj.toObject() : obj;
-        return rest;
-      })
+    const sanitizedSessions = await Promise.all(sessions.map(async session => {
+      // DL-01: Messages were migrated to ChatMessage collection
+      const messages = await ChatMessage.find({ sessionId: session._id }).sort({ timestamp: 1 }).lean();
+      
+      // DL-02: Decompress canvas state properly (resolves Buffer/S3 issues)
+      const resolvedCanvas = await session.resolveCanvasState();
+
+      return {
+        title: session.title || 'Untitled Session',
+        startTime: session.createdAt,
+        lastActive: session.updatedAt || session.lastUpdated,
+        messageCount: messages.length,
+        messages: messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+          hasVisuals: !!m.hasCanvas
+        })),
+        canvasNodeCount: resolvedCanvas.length,
+        // We include canvas state but strip internal Mongoose/MongoDB keys
+        canvasState: resolvedCanvas.map(obj => {
+          // obj is already a plain object from lean() or JSON.parse()
+          const { _id, __v, ...rest } = obj;
+          return rest;
+        })
+      };
     }));
 
     res.status(200).json({
@@ -141,10 +173,29 @@ export const exportData = async (req, res) => {
 
 // Wipe Cloud Data (Keep Account)
 export const wipeCloudData = async (req, res) => {
+  const userId = req.user._id;
   try {
-    await ChatSession.deleteMany({ userId: req.user.id });
+    // SEC-08: Complete GDPR-compliant data wipe
+    await Promise.all([
+      ChatSession.deleteMany({ userId }),
+      ChatMessage.deleteMany({ userId }),
+      Artifact.deleteMany({ userId }),
+      Doubt.deleteMany({ user: userId }),
+      LearnerProfile.deleteMany({ userId }),
+      ActivityLog.deleteMany({ userId }),
+      UsageLog.deleteMany({ userId }),
+      EngineSessionState.deleteMany({ userId }),
+      VectorStoreService.clearOwnerMemory(userId.toString())
+    ]);
     
-    res.status(200).json({ success: true, message: 'All cloud session data permanently deleted' });
+    // Invalidate cache
+    if (container.has('redis-main')) {
+      try {
+        await container.resolve<any>('redis-main').del(`user:${userId}`);
+      } catch (err) {}
+    }
+
+    res.status(200).json({ success: true, message: 'All cloud data permanently deleted' });
   } catch (error) {
     console.error('Wipe data error:', error);
     res.status(500).json({ error: 'Failed to wipe cloud data' });
@@ -153,17 +204,37 @@ export const wipeCloudData = async (req, res) => {
 
 // Delete Account completely
 export const deleteAccount = async (req, res) => {
+  const userId = req.user._id;
   try {
-    // 1. Delete all sessions
-    await ChatSession.deleteMany({ userId: req.user.id });
+    // 1. Full data wipe (GDPR compliance)
+    await Promise.all([
+      ChatSession.deleteMany({ userId }),
+      ChatMessage.deleteMany({ userId }),
+      Artifact.deleteMany({ userId }),
+      Doubt.deleteMany({ user: userId }),
+      LearnerProfile.deleteMany({ userId }),
+      ActivityLog.deleteMany({ userId }),
+      UsageLog.deleteMany({ userId }),
+      EngineSessionState.deleteMany({ userId }),
+      VectorStoreService.clearOwnerMemory(userId.toString())
+    ]);
     
-    // 2. Revoke current token
+    // 2. Revoke current token and clear Redis session data
     if (req.tokenJti) {
       await tokenStore.revokeToken(req.tokenJti, req.tokenExp);
     }
 
+    if (container.has('redis-main')) {
+      try {
+        const client = container.resolve<any>('redis-main');
+        await client.del(`user:${userId}`);
+        await client.del(`auth:refresh:${userId}`);
+      } catch (err) {}
+      // Note: We could also scan and delete all user-related keys if needed
+    }
+
     // 3. Send Goodbye Email (Transactional - send before we delete the record)
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(userId);
     if (user) {
       await sendEmail({
         to: user.email,
@@ -178,8 +249,8 @@ export const deleteAccount = async (req, res) => {
       }).catch(e => console.error('[Mailer] Goodbye email failed:', e));
     }
 
-    // 4. Delete user
-    await User.findByIdAndDelete(req.user.id);
+    // 4. Delete user record
+    await User.findByIdAndDelete(userId);
     
     res.status(200).json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {

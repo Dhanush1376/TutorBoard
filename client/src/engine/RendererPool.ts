@@ -10,7 +10,6 @@
  */
 
 import React from 'react';
-import { D3Renderer } from '../renderers/D3Renderer';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -261,12 +260,13 @@ export class RendererPool {
   /**
    * Get or create a D3Renderer instance for a given container element.
    */
-  getD3Renderer(container: HTMLDivElement, width?: number, height?: number): D3Renderer {
+  async getD3Renderer(container: HTMLDivElement, width?: number, height?: number): Promise<any> {
     const existing = this.instances.get('d3');
     if (existing?.instance && existing.isActive) {
-      return existing.instance as D3Renderer;
+      return existing.instance;
     }
 
+    const { D3Renderer } = await import('../renderers/D3Renderer');
     const renderer = new D3Renderer(container, width, height);
     this.instances.set('d3', {
       type: 'd3',

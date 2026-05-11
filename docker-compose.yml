@@ -1,0 +1,62 @@
+# TutorBoard — Local Development Services
+# Usage: docker compose up -d
+#
+# This provides the three data stores TutorBoard depends on.
+# The app itself (client + server) runs natively via `npm run dev`.
+#
+# Connection strings (add to server/.env):
+#   MONGODB_URI=mongodb://localhost:27017/tutorboard
+#   REDIS_URL=redis://localhost:6379
+#   POSTGRES_URL=postgresql://tutorboard:tutorboard@localhost:5433/tutorboard
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: tb-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - tb_mongo_data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tb-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - tb_redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tb-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: tutorboard
+      POSTGRES_PASSWORD: tutorboard
+      POSTGRES_DB: tutorboard
+    volumes:
+      - tb_pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tutorboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  tb_mongo_data:
+  tb_redis_data:
+  tb_pg_data:

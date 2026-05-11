@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Loader2, MessageCircleQuestion } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import API, { BASE_URL as API_URL } from '../../services/api';
 
 const InlineChat = ({ currentStep, stepDescription, stepData, onVisualUpdate }) => {

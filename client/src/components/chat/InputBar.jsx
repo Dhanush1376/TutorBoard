@@ -28,14 +28,14 @@ import {
   MicOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
 import useWindowSize from '../../hooks/useWindowSize';
 import useVoiceInput from '../../hooks/useVoiceInput';
 import { TRIAL_LIMITS, isFeatureBlocked } from '../../constants/trialConfig';
 
-import { BASE_URL as API_URL } from '../../services/api';
+import { BASE_URL as API_URL, getCookie } from '../../services/api';
 
 const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk, onStopGeneration }) => {
   const { apiPrefs, switchApi, user } = useAuth();
@@ -56,7 +56,11 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   // ─── Guest Trial State ───
   const isGuest = !!user?.isGuest;
-  const { guestTrialStatus, showToast } = useTutorStore();
+  // S-1 FIX: Use targeted selector instead of subscribing to entire store
+  const { guestTrialStatus, showToast } = useTutorStore(useShallow(s => ({
+    guestTrialStatus: s.guestTrialStatus,
+    showToast: s.showToast
+  })));
 
   const guestRemaining = Math.max(0, TRIAL_LIMITS.MAX_MESSAGES - (guestTrialStatus.messageCount || 0));
   const isTrialExhausted = isGuest && guestTrialStatus.isLimitReached;
@@ -124,10 +128,13 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
+  // Animation pause state consolidated to prevent unnecessary re-renders/effect triggers (Bug 5.3)
+  const isAnimationPaused = !isLanding || isGenerating || isFocused || (value && value.length > 0);
+
   useEffect(() => {
     // Stop animation if not in landing mode or if a session has started/is generating
     // Also pause if user is currently typing or focused (Fixed: UX-01)
-    if (!isLanding || isGenerating || isFocused || (value && value.length > 0)) {
+    if (isAnimationPaused) {
       setCurrentPlaceholder("Message TutorBoard...");
       return;
     }
@@ -138,7 +145,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
     const runAnimation = () => {
       // SEC-UX: Strictly check visibility and active state before scheduling next frame
-      if (document.visibilityState === 'hidden' || !isLanding || isGenerating) {
+      if (document.visibilityState === 'hidden' || isAnimationPaused) {
         timeout = setTimeout(runAnimation, 1000);
         return;
       }
@@ -162,7 +169,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     }
 
     return () => clearTimeout(timeout);
-  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isLanding, isGenerating, isTabVisible, isFocused, value]);
+  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isTabVisible, isAnimationPaused]);
 
 
   useEffect(() => {
@@ -294,7 +301,12 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     const xhr = new XMLHttpRequest();
     xhr.withCredentials = true; // Crucial for cookies
     xhr.open('POST', `${API_URL}/api/upload`, true);
-    // Authorization header removed — browser sends httpOnly cookie automatically
+
+    // SEC-GDPR: Add CSRF token to XHR request
+    const csrfToken = getCookie('tb-csrf-token');
+    if (csrfToken) {
+      xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+    }
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -353,8 +365,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   });
 
   return (
-    <div className={`w-full max-w-4xl mx-auto transition-all duration-500`}>
-      <div className={`flex flex-col h-auto sf-glass ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[32px] mx-4 mb-4'} p-1.5 relative shadow-premium transition-all duration-500 ${isFocused ? 'ring-2 ring-[var(--text-primary)]/10 bg-white/[0.04]' : 'ring-1 ring-[var(--border-color)]/30'}`}>
+    <div className={`w-full max-w-4xl mx-auto`}>
+      <div className={`flex flex-col h-auto sf-glass border-none ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[32px] mx-4 mb-4'} p-2 relative shadow-premium transition-all duration-500`}>
 
         {/* Upload Progress Bar */}
         <AnimatePresence>
@@ -370,16 +382,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
         </AnimatePresence>
 
         {/* ── Textarea Area (Top Box) ── */}
-        <div className={`bg-white/[0.04] dark:bg-white/[0.01] rounded-[26px] flex flex-col h-auto flex-shrink-0 transition-all duration-300 ring-1 ring-inset relative overflow-hidden ${isFocused ? 'ring-[var(--text-primary)]/20 bg-white/[0.06] dark:bg-white/[0.03]' : 'ring-[var(--border-color)]/20 hover:bg-white/[0.05]'}`}>
-
-          {/* Generating Animation Line */}
-          {isGenerating && (
-            <motion.div
-              className="absolute top-0 left-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--text-primary)] to-transparent z-10 w-1/2 opacity-70"
-              animate={{ x: ["-100%", "200%"] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
+        <div className={`bg-transparent flex flex-col h-auto flex-shrink-0 relative overflow-hidden`}>
 
           {/* Active Mode/File Chips */}
           <AnimatePresence>
@@ -393,7 +396,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 {activeMode && (
                   <motion.div
                     layoutId="activeMode"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-xl shadow-md ring-1 ring-white/10"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full shadow-md"
                   >
                     {(() => {
                       const action = quickActions.find(a => a.mode === activeMode);
@@ -401,8 +404,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                       const Icon = action.icon;
                       return (
                         <>
-                          <Icon size={12} strokeWidth={2} className="opacity-90" />
-                          <span className="text-[10px] font-medium tracking-tight">{action.label}</span>
+                          <Icon size={12} strokeWidth={2.5} className="opacity-90" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">{action.label}</span>
                         </>
                       );
                     })()}
@@ -416,27 +419,27 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 )}
 
                 {isUploading && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)] rounded-xl">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)]/50 text-[var(--text-tertiary)] rounded-full">
                     <Loader2 size={11} className="animate-spin" />
-                    <span className="text-[9px] font-medium uppercase tracking-widest">Uploading</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest">Uploading</span>
                   </div>
                 )}
 
                 {attachedFile && (
-                  <div className="flex items-center gap-2 px-2 py-1.5 sf-glass border border-white/10 text-[var(--text-primary)] rounded-xl shadow-premium pr-1.5">
+                  <div className="flex items-center gap-2 px-2 py-1.5 sf-glass border border-white/5 text-[var(--text-primary)] rounded-full shadow-sm pr-1.5">
                     {attachedFile.type.startsWith('image/') ? (
-                      <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-white/20">
+                      <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-white/20">
                         <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500">
+                      <div className="p-1.5 bg-blue-500/10 rounded-full text-blue-500">
                         <FileText size={13} strokeWidth={2.5} />
                       </div>
                     )}
                     <span className="text-[11px] font-semibold tracking-tight max-w-[120px] truncate">{attachedFile.name}</span>
                     <button
                       onClick={() => setAttachedFile(null)}
-                      className="ml-1 p-1 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-lg transition-all"
+                      className="ml-1 p-1 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-full transition-all"
                     >
                       <X size={13} strokeWidth={2.5} />
                     </button>
@@ -468,18 +471,18 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 5 }}
-                    className="mx-4 mt-3 mb-1 p-2 pl-3 bg-[var(--bg-tertiary)]/50 border-l-2 border-[var(--text-tertiary)] rounded-r-lg flex items-center justify-between gap-3 group"
+                    className="mx-4 mt-3 mb-1 p-2.5 px-4 bg-[var(--bg-tertiary)]/30 rounded-2xl flex items-center justify-between gap-3 group"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-[10px] text-[var(--text-tertiary)] font-medium truncate italic opacity-80">
+                      <span className="text-[11px] text-[var(--text-secondary)] font-medium truncate italic opacity-80">
                         "{selectedTextContext}"
                       </span>
                     </div>
                     <button
                       onClick={() => setSelectedTextContext(null)}
-                      className="p-1 hover:text-red-500 transition-colors"
+                      className="p-1.5 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all"
                     >
-                      <X size={12} />
+                      <X size={14} />
                     </button>
                   </motion.div>
                 )}
@@ -512,14 +515,15 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   placeholder={isOnCooldown ? `Wait ${cooldownRemaining}s...` : getPlaceholder()}
                   maxLength={isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000}
                   disabled={isOnCooldown}
-                  className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/60 resize-none px-4 ${isMobile ? 'py-2.5' : 'py-3.5'} outline-none text-[15px] transition-colors duration-300 font-normal leading-relaxed ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/40 resize-none px-5 ${isMobile ? 'py-4' : 'py-5'} text-[15px] outline-none focus:outline-none focus:ring-0 shadow-none focus:shadow-none font-medium leading-relaxed transition-all duration-300 ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
                   rows={1}
-                  style={{ minHeight: isMobile ? '44px' : '48px' }}
+                  style={{ minHeight: isMobile ? '56px' : '64px' }}
                 />
+
                 {/* Counter */}
-                {isGuest && value.length > 0 && (
-                  <div className="absolute right-4 bottom-2 text-[9px] font-medium text-[var(--text-tertiary)]/40 tabular-nums">
-                    {value.length}/{TRIAL_LIMITS.MAX_INPUT_LENGTH}
+                {(isGuest || value.length > 4000) && value.length > 0 && (
+                  <div className={`absolute right-4 bottom-2 text-[9px] font-medium tabular-nums ${value.length >= (isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000) - 200 ? 'text-red-400' : 'text-[var(--text-tertiary)]/40'}`}>
+                    {value.length}/{isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000}
                   </div>
                 )}
               </div>
@@ -536,9 +540,10 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             <div className="relative">
               <button
                 onClick={() => { setIsPlusMenuOpen(!isPlusMenuOpen); setIsToolsMenuOpen(false); setIsAgentMenuOpen(false); }}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isPlusMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
+                aria-label="Toggle upload and attachment menu"
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)] active:scale-90 ${isPlusMenuOpen ? 'text-[var(--text-primary)] bg-[var(--text-primary)]/10' : 'text-[var(--text-tertiary)]/70'}`}
               >
-                <Plus size={20} strokeWidth={2} />
+                <Plus size={22} strokeWidth={2} />
               </button>
               <AnimatePresence>
                 {isPlusMenuOpen && (
@@ -555,8 +560,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           key={action.label}
                           onClick={() => handleUploadAction(action.type)}
                           className={`flex items-center justify-between w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all ${import.meta.env.PROD
-                              ? 'opacity-50 cursor-not-allowed text-[var(--text-tertiary)] bg-[var(--bg-secondary)]/30'
-                              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                            ? 'opacity-50 cursor-not-allowed text-[var(--text-tertiary)] bg-[var(--bg-secondary)]/30'
+                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                             }`}
                         >
                           <div className="flex items-center gap-3">
@@ -579,7 +584,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             <div className="relative">
               <button
                 onClick={() => { setIsToolsMenuOpen(!isToolsMenuOpen); setIsPlusMenuOpen(false); setIsAgentMenuOpen(false); }}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] active:scale-95 ${isToolsMenuOpen ? 'text-[var(--text-primary)] bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : 'text-[var(--text-tertiary)]'}`}
+                aria-label="Toggle teaching modes and tools"
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)] active:scale-90 ${isToolsMenuOpen ? 'text-[var(--text-primary)] bg-[var(--text-primary)]/10' : 'text-[var(--text-tertiary)]/70'}`}
               >
                 <Settings2 size={20} strokeWidth={2} />
               </button>
@@ -608,10 +614,10 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                               handleQuickAction(action.mode);
                             }}
                             className={`flex items-center justify-between gap-3 w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all ${isBlocked
-                                ? 'opacity-40 cursor-not-allowed text-[var(--text-tertiary)]'
-                                : isActive
-                                  ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
-                                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                              ? 'opacity-40 cursor-not-allowed text-[var(--text-tertiary)]'
+                              : isActive
+                                ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                               }`}
                           >
                             <div className="flex items-center gap-3">
@@ -622,7 +628,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           </button>
                         );
                       })}
-                      <div className="h-[1px] bg-[var(--border-color)]/40 my-1 mx-2" />
+                      <div className="h-[0.5px] bg-[var(--text-primary)]/5 my-1.5 mx-2" />
                       <button
                         onClick={() => { onQuickAsk?.(); setIsToolsMenuOpen(false); }}
                         className="flex items-center gap-3 w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all text-[#8b5cf6] hover:bg-[#8b5cf6]/10"
@@ -642,7 +648,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             <button
               onClick={() => { setIsAgentMenuOpen(!isAgentMenuOpen); setIsPlusMenuOpen(false); setIsToolsMenuOpen(false); }}
               title={`Active Model: ${agents.find(a => a.id === selectedAgent)?.name || 'TutorBoard'}`}
-              className={`flex items-center justify-center gap-2 h-10 px-3 min-w-[100px] rounded-xl transition-all duration-200 hover:bg-[var(--bg-tertiary)] group active:scale-95 ${isAgentMenuOpen ? 'bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/30' : ''}`}
+              aria-label="Select AI model"
+              className={`flex items-center justify-center gap-2 h-10 px-4 min-w-[120px] rounded-full transition-all duration-300 hover:bg-[var(--text-primary)]/5 group active:scale-95 ${isAgentMenuOpen ? 'bg-[var(--text-primary)]/10' : ''}`}
             >
               {(() => {
                 const agent = agents.find(a => a.id === selectedAgent) || agents[0];
@@ -679,14 +686,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                         {isFirstCustom && (
                           <div className="pt-2 pb-1 px-3 flex items-center gap-3">
                             <span className="text-[9px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]/60">APIs</span>
-                            <div className="flex-1 h-[1px] bg-[var(--border-color)]/30" />
+                            <div className="flex-1 h-[0.5px] bg-[var(--text-primary)]/5" />
                           </div>
                         )}
                         <button
                           onClick={() => { setSelectedAgent(agent.id); setIsAgentMenuOpen(false); }}
                           className={`flex items-center justify-between w-full px-3 py-2 text-[12px] rounded-xl transition-all font-medium ${isActive
-                              ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
-                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                            ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                             }`}
                         >
                           <div className="flex items-center gap-3">
@@ -694,7 +701,10 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                             <span className="truncate max-w-[120px]">{agent.name}</span>
                           </div>
                           {isActive && (
-                            <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-white/20" />
+                            <>
+                              <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-white/20" aria-hidden="true" />
+                              <span className="sr-only">Active</span>
+                            </>
                           )}
                         </button>
                       </React.Fragment>
@@ -723,14 +733,15 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
             {/* Voice / Mic Button */}
             <button
               onClick={toggleListening}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 group active:scale-95 ${isListening ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] ring-2 ring-red-500/20' : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'}`}
+              aria-label={isListening ? "Stop voice input" : "Start voice input"}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 group active:scale-90 ${isListening ? 'bg-red-500 text-white shadow-lg' : 'text-[var(--text-tertiary)]/70 hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)]'}`}
               title={isListening ? "Stop Listening" : "Voice Input"}
             >
               <div className="relative">
                 {isListening ? (
                   <>
                     <Mic size={18} strokeWidth={2.5} />
-                    <motion.div 
+                    <motion.div
                       initial={{ scale: 0.8, opacity: 0.5 }}
                       animate={{ scale: 1.5, opacity: 0 }}
                       transition={{ duration: 1, repeat: Infinity }}
@@ -757,7 +768,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                       onStopGeneration();
                     }}
                     disabled={isStopping}
-                    className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 group shadow-lg ring-1 ${isStopping ? 'bg-red-500 text-white shadow-red-500/20 ring-red-500' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20 shadow-red-500/10 ring-red-500/20'}`}
+                    aria-label="Stop AI generation"
+                    className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 group ${isStopping ? 'bg-red-500 text-white' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'}`}
                     title="Stop Generation"
                   >
                     <Square size={13} strokeWidth={3} className={`fill-current transition-transform ${isStopping ? 'scale-90' : 'group-hover:scale-110'}`} />
@@ -779,13 +791,13 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                       }
                     }}
                     disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
-                    className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 shadow-premium active:scale-90 disabled:opacity-20 disabled:grayscale ${
-                      (value.trim() || attachedFile || selectedTextContext)
-                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[var(--text-primary)]/20'
-                        : 'bg-[var(--text-primary)]/5 text-[var(--text-primary)]/20 shadow-none cursor-not-allowed'
-                    }`}
+                    aria-label="Send message"
+                    className={`w-11 h-11 flex items-center justify-center rounded-full transition-all duration-500 shadow-premium active:scale-90 group ${(value.trim() || attachedFile || selectedTextContext)
+                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-lg scale-100'
+                        : 'bg-[var(--text-primary)]/5 text-[var(--text-tertiary)]/30 scale-95 cursor-not-allowed'
+                      }`}
                   >
-                    <ArrowUp size={20} strokeWidth={3} className="transition-transform group-hover:-translate-y-0.5" />
+                    <ArrowUp size={22} strokeWidth={2.5} className="transition-transform group-hover:-translate-y-0.5" />
                   </motion.button>
                 )}
               </AnimatePresence>

@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// In development, we use the Vite proxy ('') to avoid cross-origin cookie issues on localhost.
+// In production, we use the environment variable.
+const BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+export const SOCKET_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 if (!import.meta.env.VITE_API_BASE_URL && import.meta.env.PROD) {
   console.warn('[API] VITE_API_BASE_URL is not defined. Falling back to relative paths.');
@@ -71,10 +74,63 @@ API.interceptors.request.use(
 );
 
 // Response Interceptor
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 API.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
     const message = error.response?.data?.error || error.message || 'An unexpected error occurred';
+
+    // Handle 401 Unauthorized errors
+    const isRefreshRequest = originalRequest.url === '/api/auth/refresh';
+    const isAuthRoute = originalRequest.url === '/api/auth/signin' || originalRequest.url === '/api/auth/signup';
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest && !isAuthRoute) {
+      console.log('[API] 401 detected, attempting token refresh...');
+      if (isRefreshing) {
+        console.log('[API] Refresh already in progress, queuing request...');
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => API(originalRequest))
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Attempt to refresh the token using a clean axios call to avoid interceptor recursion
+        console.log('[API] Calling /api/auth/refresh...');
+        await axios.post(`${BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
+        console.log('[API] Refresh successful, processing queue...');
+        processQueue(null);
+        return API(originalRequest);
+      } catch (refreshError) {
+        console.error('[API] Refresh FAILED:', refreshError.response?.status, refreshError.message);
+        processQueue(refreshError);
+        // Let the caller (AuthProvider) handle the unauthenticated state.
+        // Do NOT hard-redirect here — it races with React's auth state management
+        // and causes page flicker / infinite redirect loops on normal page refreshes.
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
     console.error('[API Error]:', message);
     return Promise.reject(error);
   }

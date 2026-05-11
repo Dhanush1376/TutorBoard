@@ -80,6 +80,9 @@ export async function executePythonLocal(code, onLog) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
           script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.0/full/pyodide.js';
+          // SEC-13: Subresource Integrity (SRI)
+          script.integrity = 'sha384-KQtL+EUxNlEbNm6gFVMiDz6Glmgq4QV4VZdSHIrcpw4tCRUGtjUeLJbuQAIfxFfM';
+          script.crossOrigin = 'anonymous';
           script.onload = resolve;
           script.onerror = reject;
           document.head.appendChild(script);

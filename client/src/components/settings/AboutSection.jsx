@@ -5,7 +5,7 @@ import {
   MessageCircle, FileText, Code, RefreshCw, ChevronRight,
   Check, ShieldAlert, BookOpen
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import VisaiLogo from '../layout/VisaiLogo';
 import { SectionTitle, SettingsGroup, SettingsRow } from './SettingsShared';
 

@@ -25,13 +25,9 @@
     "url": "https://github.com/Dhanush1376/TutorBoard/issues"
   },
   "homepage": "https://github.com/Dhanush1376/TutorBoard#readme",
-  "dependencies": {
-    "@sentry/react": "^10.52.0",
-    "fs": "^0.0.1-security",
-    "openai": "^6.34.0",
-    "path": "^0.12.7"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "concurrently": "^9.2.1"
   }
 }

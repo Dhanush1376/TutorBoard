@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import useTutorStore from '../../store/tutorStore';
 import {
@@ -17,7 +17,8 @@ import AccountSection from './AccountSection';
 import AppearanceSection from './AppearanceSection';
 import APIConfigSection from './api-config/APIConfigSection';
 import AboutSection from './AboutSection';
-import { useSettingsSync, SECTIONS } from './SettingsShared';
+import { useSettingsSync } from './SettingsShared';
+import { SECTIONS } from './SettingsConstants';
 
 const SettingsModal = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();

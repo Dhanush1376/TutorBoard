@@ -10,6 +10,20 @@
 const MAX_CONTEXT_CHARS = 8000;
 
 /**
+ * Sanitize text to prevent prompt injection and enforce basic safety.
+ * @param {string} text 
+ * @returns {string}
+ */
+function sanitizeWebResult(text) {
+  if (!text) return '';
+  return text
+    .replace(/ignore\s+(?:all\s+)?(?:previous|prior)\s+instructions?/gi, '[redacted]')
+    .replace(/system\s+prompt/gi, '[redacted]')
+    .replace(/you\s+are\s+now/gi, '[redacted]')
+    .slice(0, 500); // Hard truncation to prevent long-form injection
+}
+
+/**
  * Format web search results into a structured string for LLM prompt injection.
  * 
  * @param {Array<{ title: string, snippet: string, url: string, age?: string }>} results
@@ -25,7 +39,9 @@ export function formatForPrompt(results) {
 
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
-    const entry = `[Source ${i + 1}] ${r.title}\n${r.snippet}\n${r.url}${r.age ? ` (${r.age})` : ''}\n\n`;
+    const cleanTitle = sanitizeWebResult(r.title);
+    const cleanSnippet = sanitizeWebResult(r.snippet);
+    const entry = `[Source ${i + 1}] ${cleanTitle}\n${cleanSnippet}\n${r.url}${r.age ? ` (${r.age})` : ''}\n\n`;
 
     // Enforce token budget
     if (totalLength + entry.length > MAX_CONTEXT_CHARS) {

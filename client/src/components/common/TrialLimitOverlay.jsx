@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, LogIn, BookOpen, Shield } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 /**
  * TrialLimitOverlay — A full-screen glassmorphic overlay that appears
@@ -12,14 +12,14 @@ import { useAuth } from '../../context/AuthContext';
  */
 const TrialLimitOverlay = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { guestTrialStatus } = useTutorStore();
 
   const isGuest = user?.isGuest;
   const isLimitReached = guestTrialStatus.isLimitReached;
 
-  // Only render for guests who hit their limit
-  if (!isGuest || !isLimitReached) return null;
+  // Only render for guests who hit their limit, and only after auth resolves
+  if (isLoading || !isGuest || !isLimitReached) return null;
 
   const handleSignUp = () => {
     sessionStorage.removeItem('tb-is-guest');

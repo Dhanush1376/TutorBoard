@@ -7,11 +7,11 @@ import {
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import API, { BASE_URL as API_URL } from '../../services/api';
-import CodeRenderer from './renderers/CodeRenderer';
-import UIRenderer from './renderers/UIRenderer';
-import DocumentRenderer from './renderers/DocumentRenderer';
-import TableRenderer from './renderers/TableRenderer';
-import DiagramRenderer from './renderers/DiagramRenderer';
+const CodeRenderer = React.lazy(() => import('./renderers/CodeRenderer'));
+const UIRenderer = React.lazy(() => import('./renderers/UIRenderer'));
+const DocumentRenderer = React.lazy(() => import('./renderers/DocumentRenderer'));
+const TableRenderer = React.lazy(() => import('./renderers/TableRenderer'));
+const DiagramRenderer = React.lazy(() => import('./renderers/DiagramRenderer'));
 import VersionHistory from './VersionHistory';
 
 // ─── Type Icon Map ──────────────────────────────────────────────────────────
@@ -324,42 +324,48 @@ const ArtifactPanel = ({ isDark }) => {
           
           {activeArtifact && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              {activeArtifact.type === 'code' && (
-                <CodeRenderer
-                  content={displayContent}
-                  language={activeArtifact.language}
-                  onContentChange={handleContentChange}
-                  isDark={isDark}
-                />
-              )}
-              {activeArtifact.type === 'ui' && (
-                <UIRenderer
-                  content={displayContent}
-                  onContentChange={handleContentChange}
-                  isDark={isDark}
-                />
-              )}
-              {activeArtifact.type === 'document' && (
-                <DocumentRenderer
-                  content={displayContent}
-                  onContentChange={handleContentChange}
-                  isDark={isDark}
-                />
-              )}
-              {activeArtifact.type === 'table' && (
-                <TableRenderer
-                  content={displayContent}
-                  onContentChange={handleContentChange}
-                  isDark={isDark}
-                />
-              )}
-              {activeArtifact.type === 'diagram' && (
-                <DiagramRenderer
-                  content={displayContent}
-                  onContentChange={handleContentChange}
-                  isDark={isDark}
-                />
-              )}
+              <React.Suspense fallback={
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-[var(--text-tertiary)]" />
+                </div>
+              }>
+                {activeArtifact.type === 'code' && (
+                  <CodeRenderer
+                    content={displayContent}
+                    language={activeArtifact.language}
+                    onContentChange={handleContentChange}
+                    isDark={isDark}
+                  />
+                )}
+                {activeArtifact.type === 'ui' && (
+                  <UIRenderer
+                    content={displayContent}
+                    onContentChange={handleContentChange}
+                    isDark={isDark}
+                  />
+                )}
+                {activeArtifact.type === 'document' && (
+                  <DocumentRenderer
+                    content={displayContent}
+                    onContentChange={handleContentChange}
+                    isDark={isDark}
+                  />
+                )}
+                {activeArtifact.type === 'table' && (
+                  <TableRenderer
+                    content={displayContent}
+                    onContentChange={handleContentChange}
+                    isDark={isDark}
+                  />
+                )}
+                {activeArtifact.type === 'diagram' && (
+                  <DiagramRenderer
+                    content={displayContent}
+                    onContentChange={handleContentChange}
+                    isDark={isDark}
+                  />
+                )}
+              </React.Suspense>
             </div>
           )}
 
@@ -418,6 +424,7 @@ const ArtifactPanel = ({ isDark }) => {
             <button
               onClick={handleAiEdit}
               disabled={!aiEditPrompt.trim() || !activeArtifact?.dbId || isAiEditing}
+              title={!activeArtifact?.dbId ? 'Save artifact to cloud to enable AI editing' : 'Send instruction to AI'}
               className="flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-80 transition-all disabled:opacity-20 flex-shrink-0"
             >
               {isAiEditing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}

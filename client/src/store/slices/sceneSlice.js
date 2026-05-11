@@ -206,6 +206,14 @@ export const createSceneSlice = (set, get) => ({
 
   setCanvasMode: (mode) => set({ canvasMode: mode }),
   
+  setCanvasObjectsWithHistory: (objects) => set((state) => {
+    state.history.past.push([...state.canvasObjects]);
+    if (state.history.past.length > MAX_HISTORY) state.history.past.shift();
+    state.canvasObjects = objects;
+    state.history.future = [];
+    state.canvasVersion += 1;
+  }),
+  
   addCanvasObjects: (objects) => set((state) => {
     const existingIds = new Set(state.canvasObjects.map(o => o.id));
     const newOnes = objects.filter(o => o && o.id && !existingIds.has(o.id));

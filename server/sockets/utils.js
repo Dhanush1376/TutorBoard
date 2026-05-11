@@ -5,7 +5,6 @@ import sessionStore from '../engine/core/sessionStore.js';
 import { decrypt } from '../utils/auth/encryption.js';
 import { classifyTask, selectOptimalModel } from '../utils/ai/taskClassifier.js';
 import { getAdaptiveScores } from '../utils/ai/adaptiveScorer.js';
-import redisClient from '../utils/core/redis.js';
 export { resolveModelId } from '../utils/ai/llmClient.js';
 
 /**
@@ -18,13 +17,16 @@ export async function syncToDatabase(sessionId) {
 
     // ── Update Logic ──
     // We update engine-specific fields that the socket manages directly.
+    // NOTE: Messages are NOT synced here — they are written directly to the
+    // ChatMessage collection by sessionStore.addMessage() and sessionRepository.addMessage().
+    // This prevents the dual-storage split where socket messages went to the embedded
+    // array and HTTP messages went to ChatMessage (causing invisible message silos).
     const update = {
       $set: {
         topic: s.topic,
         title: s.topic,
         steps: s.steps,
         canvasSteps: s.steps,
-        messages: s.messages || [],
         canvasState: s.canvasState || [],
         currentStepIndex: s.currentStepIndex,
         lastUpdated: Date.now(),
@@ -32,20 +34,42 @@ export async function syncToDatabase(sessionId) {
       }
     };
 
-    // If there are engine-generated messages (e.g., AI introduction), 
-    // we use $addToSet or a similar strategy to avoid wiping the REST-synced history.
-    // SEC-22: Prevent history wipe by using a conditional merge or $push instead of total $set.
-    // For simplicity and since Socket Engine only appends, we'll only update messages 
-    // if the socket session has more than what's expected or if it's the initialization phase.
-    // But since the REST API is the primary "History Source of Truth", we only sync 
-    // messages from socket to DB if they are non-empty, and we use a logic that 
-    // ensures the REST sync can still do its job.
-    
     await ChatSession.findByIdAndUpdate(s.chatSessionId, update);
 
     console.log(`[WS:Sync] Synced engine state for session ${sessionId} to Mongo ${s.chatSessionId}`);
   } catch (err) {
     console.error(`[WS:Sync] Error syncing to Mongo: ${err.message}`);
+  }
+}
+
+/**
+ * Emit the latest learner profile to the client
+ */
+export async function emitProfile(socket, sessionId) {
+  try {
+    const s = await sessionStore.get(sessionId);
+    if (s && s.learnerProfile) {
+      // Hardening: Ensure topicsMastery is a clean object for the frontend.
+      // Mongoose Maps require explicit conversion before being emitted via socket.
+      let topicsMastery = s.learnerProfile.topicsMastery || {};
+      
+      if (topicsMastery instanceof Map) {
+        topicsMastery = Object.fromEntries(topicsMastery);
+      } else if (topicsMastery.toObject && typeof topicsMastery.toObject === 'function') {
+        // Mongoose Map specific conversion
+        topicsMastery = topicsMastery.toObject();
+      }
+
+      const safeProfile = {
+        ...s.learnerProfile,
+        topicsMastery
+      };
+      
+      console.log(`[WS:Profile] Emitting mastery update for ${s.userId || 'guest'}`);
+      socket.emit('teaching:profile', safeProfile);
+    }
+  } catch (err) {
+    console.warn('[WS:Profile] Failed to emit profile:', err.message);
   }
 }
 

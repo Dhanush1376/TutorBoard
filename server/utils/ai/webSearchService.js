@@ -1,24 +1,24 @@
 /**
- * Web Search Service — Brave Search API Integration
+ * Web Search Service — Tavily Search API Integration
  * 
  * Provides real-time web data for LLM context augmentation.
  * Used by both the chat controller (conversational) and agent loop (teaching pipeline).
  * 
  * Features:
- *   - Brave Search API with 5s timeout
+ *   - Tavily Search API with 5s timeout
  *   - Result sanitization (strip HTML, truncate snippets)
  *   - Graceful degradation (returns [] on failure — never blocks the pipeline)
- *   - Rate limiting awareness
+ *   - Research-optimized results
  */
 
-const BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search';
-const SEARCH_TIMEOUT_MS = 3500;
+const TAVILY_SEARCH_URL = 'https://api.tavily.com/search';
+const SEARCH_TIMEOUT_MS = 5000;
 const MAX_RESULTS = 5;
-const MAX_SNIPPET_LENGTH = 300;
+const MAX_SNIPPET_LENGTH = 400;
 
 // Startup check
-if (!process.env.BRAVE_SEARCH_API_KEY) {
-  console.warn('[WebSearch] ⚠️ BRAVE_SEARCH_API_KEY is not set. Web search features will be disabled.');
+if (!process.env.TAVILY_API_KEY) {
+  console.info('[WebSearch] TAVILY_API_KEY is not set. Using offline search stubs in development.');
 }
 
 
@@ -38,20 +38,33 @@ function sanitizeSnippet(text) {
 }
 
 /**
- * Search the web using Brave Search API.
+ * Search the web using Tavily Search API.
  * 
  * @param {string} query — The search query
  * @param {object} [options]
  * @param {number} [options.count=5] — Number of results to return
- * @param {string} [options.freshness] — Freshness filter: 'pd' (past day), 'pw' (past week), 'pm' (past month)
- * @returns {Promise<Array<{ title: string, snippet: string, url: string, age?: string }>>}
+ * @param {string} [options.search_depth='basic'] — 'basic' or 'advanced'
+ * @returns {Promise<Array<{ title: string, snippet: string, url: string, score?: number }>>}
  */
 export async function searchWeb(query, options = {}) {
-  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  const apiKey = process.env.TAVILY_API_KEY;
   
   if (!apiKey) {
-    console.warn('[WebSearch] BRAVE_SEARCH_API_KEY not set — skipping web search.');
-    return [];
+    console.info(`[WebSearch] Using offline search stub for: "${query}"`);
+    return [
+      { 
+        title: `${query} - Concept Overview`, 
+        snippet: `This is a simulated search result for "${query}". In a production environment, this would contain real-time data from the Tavily Search API.`, 
+        url: 'https://simulated.tutorboard.app/concept',
+        isMock: true
+      },
+      { 
+        title: `Advanced Applications of ${query}`, 
+        snippet: `Exploring how ${query} is used in modern enterprise environments. Simulated data for development purposes.`, 
+        url: 'https://simulated.tutorboard.app/advanced',
+        isMock: true
+      }
+    ];
   }
 
   if (!query || typeof query !== 'string' || query.trim().length < 2) {
@@ -60,30 +73,28 @@ export async function searchWeb(query, options = {}) {
   }
 
   const count = options.count || MAX_RESULTS;
-  const params = new URLSearchParams({
-    q: query.trim(),
-    count: String(count),
-    text_decorations: 'false',
-    search_lang: 'en',
-  });
-
-  if (options.freshness) {
-    params.set('freshness', options.freshness);
-  }
+  const searchDepth = options.search_depth || 'basic';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
 
   try {
-    console.log(`[WebSearch] 🔍 Searching: "${query.substring(0, 60)}..." (count: ${count})`);
+    console.log(`[WebSearch] 🔍 Searching: "${query.substring(0, 60)}..." (Tavily, depth: ${searchDepth})`);
 
-    const response = await fetch(`${BRAVE_SEARCH_URL}?${params.toString()}`, {
-      method: 'GET',
+    const response = await fetch(TAVILY_SEARCH_URL, {
+      method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'Accept-Encoding': 'gzip',
-        'X-Subscription-Token': apiKey,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: query.trim(),
+        search_depth: searchDepth,
+        max_results: count,
+        include_answer: false,
+        include_images: false,
+        include_raw_content: false
+      }),
       signal: controller.signal,
     });
 
@@ -91,18 +102,18 @@ export async function searchWeb(query, options = {}) {
 
     if (!response.ok) {
       const errBody = await response.text().catch(() => '');
-      console.error(`[WebSearch] ❌ Brave API error ${response.status}: ${errBody.substring(0, 200)}`);
+      console.error(`[WebSearch] ❌ Tavily API error ${response.status}: ${errBody.substring(0, 200)}`);
       return [];
     }
 
     const data = await response.json();
-    const webResults = data.web?.results || [];
+    const webResults = data.results || [];
 
     const results = webResults.slice(0, count).map(result => ({
       title: (result.title || '').substring(0, 200),
-      snippet: sanitizeSnippet(result.description || result.snippet || ''),
+      snippet: sanitizeSnippet(result.content || ''),
       url: result.url || '',
-      age: result.age || null,
+      score: result.score || 0,
     }));
 
     console.log(`[WebSearch] ✅ Got ${results.length} results for: "${query.substring(0, 40)}..."`);

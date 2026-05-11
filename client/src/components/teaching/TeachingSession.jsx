@@ -7,18 +7,19 @@ import {
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
-import AgentCanvasRenderer from '../canvas/AgentCanvasRenderer';
-import FixedTeachingStage from '../canvas/FixedTeachingStage';
-import CinematicStage from '../canvas/CinematicStage';
+const AgentCanvasRenderer = React.lazy(() => import('../canvas/AgentCanvasRenderer'));
+const FixedTeachingStage = lazy(() => import('../canvas/FixedTeachingStage'));
+const CinematicStage = lazy(() => import('../canvas/CinematicStage'));
 import FloatingSidebar from './FloatingSidebar';
 import StepPanel from './StepPanel';
 import NarrationBar from './NarrationBar';
+import ProgressArc from './ProgressArc';
 import InteractiveControlPanel from './InteractiveControlPanel';
 import UnifiedControlBar from './UnifiedControlBar';
 import { SessionGuide } from './SessionGuide';
 import SessionResumeOverlay from './SessionResumeOverlay';
 import ShortcutsHUD from './ShortcutsHUD';
-const MasteryHUD = lazy(() => import('./MasteryHUD'));
+
 const StepFilmstrip = lazy(() => import('./StepFilmstrip'));
 import ParticleWaves from '../canvas/ParticleWaves';
 import { isDSAContent } from '../../engine/RendererRouter';
@@ -59,28 +60,23 @@ const TeachingSession = ({ initialTopic }) => {
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
     currentStep, currentStepIndex, totalSteps,
     canvasObjects, canvasConnections, canvasSteps,
-    doubtResponse, isDoubtProcessing, doubtHistory,
+    isDoubtProcessing, doubtHistory,
     error, topic, isPlaying,
     startSession, askDoubt, goToStep, nextStep, prevStep,
-    play, pause, resume, finish, setSpeed, endSession, cancelSession,
+    play, pause, resume, setSpeed, endSession, cancelSession,
   } = machine;
 
   const {
-    canvasMode, playbackSpeed,
     setCanvasMode,
     setPlaybackSpeed: storeSetSpeed,
-    openFloatingSidebar, showNotes, deselectAll,
     levelUpEvent, setLevelUpEvent, showToast,
     isExplainMinimized: isMinimized,
     setExplainMinimized: setIsMinimized,
     canvasLayout,
-    activeArtifactId,
     isVoiceEnabled,
     toggleVoice,
     isSidebarOpen,
     setSidebarOpen,
-    takeaways,
-    removeTakeaway
   } = useTutorStore();
 
   const toolbarLeft = isSidebarOpen ? 350 + 16 : 16;
@@ -95,7 +91,6 @@ const TeachingSession = ({ initialTopic }) => {
   const ds = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
   const domainColor = ds.accent || '#6366f1';
   const isAlgo = isDSAContent(timeline);
-  const isD3 = (timeline?.renderer || '').toLowerCase() === 'd3';
   const useAlgoPanel = isAlgo;
 
   const stepType = currentStep?.type || (
@@ -106,10 +101,11 @@ const TeachingSession = ({ initialTopic }) => {
   );
 
   const [panelOpen, setPanelOpen] = useState(true);
-  const [studyPanelOpen, setStudyPanelOpen] = useState(false);
+
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const { speak, cancel } = useVoiceNarrator();
+
 
   // Voice narration trigger
   useEffect(() => {
@@ -119,7 +115,7 @@ const TeachingSession = ({ initialTopic }) => {
     } else {
       cancel();
     }
-  }, [currentStepIndex, isTeaching, isGenerating, speak, cancel]);
+  }, [currentStepIndex, isTeaching, isGenerating, speak, cancel, currentStep]);
 
   const handleElementClick = useCallback((id, event, data) => {
     if (event === 'click') {
@@ -161,7 +157,7 @@ const TeachingSession = ({ initialTopic }) => {
       const same = topic?.toLowerCase() === initialTopic.toLowerCase();
       if (!same && machineState !== STATES.GENERATING) endSession();
     }
-  }, [isOpen, initialTopic, machineState, startSession, timeline, topic, endSession]);
+  }, [isOpen, initialTopic, machineState, startSession, timeline, topic, endSession, setCanvasMode]);
 
 
 
@@ -175,8 +171,7 @@ const TeachingSession = ({ initialTopic }) => {
         nextStep();
       } else if (e.key === 'ArrowLeft') {
         prevStep();
-      } else if (e.key.toLowerCase() === 'i') {
-        setStudyPanelOpen(prev => !prev);
+
       } else if (e.key === ' ' && !e.target.matches('input, textarea, button, select, [role=button]')) {
         e.preventDefault();
         isPlaying ? pause() : play();
@@ -353,31 +348,35 @@ const TeachingSession = ({ initialTopic }) => {
           {/* Canvas Area (Flex sibling for dynamic adjustment) */}
           <motion.div layout className="teaching-canvas-area" style={{ background: 'transparent' }}>
             <div className="absolute inset-0 overflow-visible">
-              <CinematicStage
-                topic={topic}
-                currentStepIndex={currentStepIndex}
-                totalSteps={canvasSteps.length}
-                domain={timeline?.domain || 'general'}
-                isGenerating={isGenerating}
-                hideControls={true}
-                activeScene={timeline}
-              >
-                <AgentCanvasRenderer
-                  ref={canvasRef}
-                  width={800} height={600}
-                  timeline={timeline} objects={canvasObjects || []} steps={canvasSteps}
-                  currentStepIndex={currentStepIndex} onGoToStep={goToStep}
-                  doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
-                  activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
-                  onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
-                  onElementClick={handleElementClick}
-                  hideAlgoPanel={true}
-                />
-              </CinematicStage>
+              <Suspense fallback={null}>
+                <CinematicStage
+                  topic={topic}
+                  currentStepIndex={currentStepIndex}
+                  totalSteps={canvasSteps.length}
+                  domain={timeline?.domain || 'general'}
+                  isGenerating={isGenerating}
+                  hideControls={true}
+                  activeScene={timeline}
+                >
+                  <React.Suspense fallback={null}>
+                    <AgentCanvasRenderer
+                      ref={canvasRef}
+                      width={800} height={600}
+                      timeline={timeline} objects={canvasObjects || []} steps={canvasSteps}
+                      currentStepIndex={currentStepIndex} onGoToStep={goToStep}
+                      doubtHistory={doubtHistory} isDoubtProcessing={isDoubtProcessing}
+                      activeDoubtId={machine.activeDoubtId} onJumpToDoubt={machine.jumpToDoubt}
+                      onPinDoubt={machine.pinDoubtToCanvas} onResume={resume} onAskDoubt={askDoubt}
+                      onElementClick={handleElementClick}
+                      hideAlgoPanel={true}
+                    />
+                  </React.Suspense>
+                </CinematicStage>
+              </Suspense>
             </div>
 
             {/* ── Step Orientation Pill (Floating Context) ── */}
-            <div className="absolute top-[80px] left-6 z-[30] pointer-events-none">
+            <div className="absolute top-[80px] left-6 z-[30] pointer-events-none flex flex-col gap-3">
               <motion.div
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -398,40 +397,109 @@ const TeachingSession = ({ initialTopic }) => {
               </motion.div>
             </div>
 
-            {/* ── Canvas Empty State Placeholder ── */}
-            {(!isGenerating && !canvasSteps[currentStepIndex]?.objects?.length && !canvasObjects?.length) && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[40]">
+            {/* ── Progress HUD (Top Right) ── */}
+            <div className="absolute top-[80px] right-6 z-[30] flex flex-col items-end gap-4 pointer-events-none">
+              {!isAlgo && (
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col items-center gap-6"
+                  className="pointer-events-auto"
                 >
-                  <div className="relative">
-                    <div className="absolute inset-0 blur-3xl bg-[var(--text-primary)] opacity-[0.03] rounded-full" />
-                    <div className="relative">
-                      <Sparkles className="w-12 h-12 text-[var(--text-primary)] opacity-[0.07] animate-pulse" />
-                      {/* Subtle loading ring when active but empty */}
-                      <motion.div 
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                        className="absolute inset-[-12px] border border-[var(--text-primary)] opacity-[0.05] rounded-full border-t-transparent"
-                      />
+                  <ProgressArc />
+                </motion.div>
+              )}
+            </div>
+
+            {/* ── Canvas Empty State Placeholder (Redesigned as Playbar) ── */}
+            {(!isGenerating && !canvasSteps[currentStepIndex]?.objects?.length && !canvasObjects?.length) && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[40]">
+                <motion.div 
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center gap-12"
+                >
+                  <div className="flex flex-col items-center gap-4">
+                    <motion.div
+                      animate={{ opacity: [0.2, 0.4, 0.2] }}
+                      transition={{ duration: 4, repeat: Infinity }}
+                      className="flex flex-col items-center"
+                    >
+                      <h3 className="text-[11px] font-black tracking-[0.6em] text-[var(--text-primary)] uppercase">
+                        {topic ? topic : "Intelligent Visualizer"}
+                      </h3>
+                    </motion.div>
+                    
+                    {/* The Premium Playbar Component */}
+                    <div className="relative w-[380px] group">
+                      {/* Outer Glow */}
+                      <div className="absolute inset-[-10px] blur-2xl bg-indigo-500/5 rounded-full opacity-50" />
+                      
+                      {/* The Track */}
+                      <div className="relative h-[2px] w-full bg-white/[0.04] rounded-full overflow-hidden border border-white/[0.02]">
+                        {/* Moving Scanning Beam (Holographic) */}
+                        <motion.div 
+                          animate={{ 
+                            x: ['-120%', '250%'],
+                          }}
+                          transition={{ 
+                            duration: 2.8, 
+                            repeat: Infinity, 
+                            ease: [0.4, 0, 0.2, 1] 
+                          }}
+                          className="absolute top-0 bottom-0 w-2/5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent opacity-90"
+                          style={{ 
+                            boxShadow: '0 0 20px 4px rgba(99, 102, 241, 0.3)',
+                            filter: 'contrast(1.5) brightness(1.2)'
+                          }}
+                        />
+
+                        {/* Secondary trailing beam */}
+                        <motion.div 
+                          animate={{ 
+                            x: ['-150%', '220%'],
+                          }}
+                          transition={{ 
+                            duration: 2.8, 
+                            repeat: Infinity, 
+                            ease: [0.4, 0, 0.2, 1],
+                            delay: 0.1
+                          }}
+                          className="absolute top-0 bottom-0 w-1/4 bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent"
+                        />
+                      </div>
+
+                      {/* Edge Flares */}
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-indigo-500/20 blur-[1px]" />
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-indigo-500/20 blur-[1px]" />
                     </div>
                   </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <h3 className="text-xl font-light tracking-[0.2em] text-[var(--text-primary)] opacity-[0.15] uppercase">
-                      {topic ? `Visualizing ${topic}` : "Intelligent Visualizer"}
-                    </h3>
-                    <p className="text-[10px] font-bold text-[var(--text-primary)] opacity-[0.1] tracking-[0.3em] uppercase">
-                      Initializing Canvas...
-                    </p>
+
+                  <div className="flex flex-col items-center gap-3">
+                    <motion.p 
+                      animate={{ opacity: [0.1, 0.25, 0.1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="text-[9px] font-bold text-[var(--text-primary)] tracking-[0.8em] uppercase ml-[0.8em]"
+                    >
+                      Initializing Neural Canvas
+                    </motion.p>
+                    
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map(i => (
+                        <motion.div
+                          key={i}
+                          animate={{ scale: [1, 1.5, 1], opacity: [0.1, 0.4, 0.1] }}
+                          transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+                          className="w-1 h-1 rounded-full bg-indigo-500"
+                        />
+                      ))}
+                    </div>
                   </div>
                 </motion.div>
               </div>
             )}
 
             {/* 1. Narration Subtitle (Fixed Position Above Controls) */}
-            {!useAlgoPanel && (
+            {!useAlgoPanel && !isAlgo && (
               <div className="absolute bottom-[140px] left-1/2 -translate-x-1/2 z-[60] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
                 <div className="pointer-events-auto w-full flex justify-center">
                   <NarrationBar 
@@ -567,8 +635,6 @@ const TeachingSession = ({ initialTopic }) => {
                       onPinDoubt={machine.pinDoubtToCanvas} 
                       onResume={resume} 
                       onAskDoubt={askDoubt}
-                      takeaways={takeaways}
-                      removeTakeaway={removeTakeaway}
                       isAlgo={isAlgo}
                       onReplay={() => goToStep(currentStepIndex)}
                       onClose={() => setPanelOpen(false)}
@@ -590,7 +656,7 @@ const TeachingSession = ({ initialTopic }) => {
       {/* ── 4. Top Toolbar (Last in DOM to stay on top) ── */}
       {isTeaching && createPortal(
         <div 
-          className="fixed top-4 z-[999999] pointer-events-auto transition-all duration-300"
+          className="fixed top-4 z-[var(--z-portal)] pointer-events-auto transition-all duration-300"
           style={{ left: toolbarLeft }}
         >
           <div

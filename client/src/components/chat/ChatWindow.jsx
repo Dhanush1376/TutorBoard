@@ -9,10 +9,12 @@
  */
 
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Message from './Message';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, BookOpen, ClipboardCheck, ArrowDown, AlertCircle, RotateCcw, MessageSquare } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Layers, BookOpen, ClipboardCheck, ArrowDown, AlertCircle, RotateCcw, MessageSquare, RefreshCw, WifiOff, Zap } from 'lucide-react';
+import SkeletonMessage from './SkeletonMessage';
+import { useAuth } from '../../hooks/useAuth';
 import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
 
@@ -37,22 +39,17 @@ const ThinkingIndicator = ({ phase, progress }) => {
       <div className="flex items-center justify-center w-6 h-6">
         <motion.div
           animate={{
-            scale: [1, 1.3, 1],
-            opacity: [0.3, 0.8, 0.3],
-            boxShadow: [
-              '0 0 0px rgba(var(--theme-color-rgb), 0)',
-              '0 0 12px rgba(var(--theme-color-rgb), 0.4)',
-              '0 0 0px rgba(var(--theme-color-rgb), 0)'
-            ]
+            scale: [1, 1.25, 1],
+            opacity: [0.2, 0.5, 0.2],
           }}
           transition={{
-            duration: 2.2,
+            duration: 1.8,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
           style={{
-            width: 7,
-            height: 7,
+            width: 6,
+            height: 6,
             borderRadius: '50%',
             background: 'var(--text-primary)',
           }}
@@ -105,12 +102,12 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
         <p className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-30 mb-2">
           {greeting}{firstName ? `, ${firstName}` : ''}
         </p>
-        <div 
-          style={{ 
-            fontSize: isMobile ? 18 : 24, 
-            fontWeight: 400, 
-            lineHeight: 1.3, 
-            letterSpacing: '-0.015em', 
+        <div
+          style={{
+            fontSize: isMobile ? 18 : 24,
+            fontWeight: 400,
+            lineHeight: 1.3,
+            letterSpacing: '-0.015em',
             color: 'var(--text-primary)',
             opacity: 0.85,
           }}
@@ -129,6 +126,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.08 + i * 0.07, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               onClick={() => setActiveMode(active ? null : mode.id)}
+              aria-pressed={active}
               className="flex items-center gap-4 rounded-2xl transition-all active:scale-[0.98] sf-glass border border-white/5 hover:border-white/10"
               style={{
                 padding: isMobile ? '12px 16px' : '14px 20px',
@@ -138,7 +136,7 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
             >
               <div
                 className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
-                style={{ background: active ? 'rgba(255,255,255,0.15)' : `${mode.accent}1a` }}
+                style={{ background: active ? 'rgba(255,255,255,0.15)' : `color-mix(in srgb, ${mode.accent} 10%, transparent)` }}
               >
                 <mode.icon
                   size={15}
@@ -173,228 +171,291 @@ const ChatLanding = ({ setActiveMode, activeMode }) => {
 
 
 // ── Error recovery card ──────────────────────────────────────────────────────
-const ErrorCard = ({ error, onRetry }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="mx-3 my-4 p-4 rounded-2xl border bg-red-50/30 border-red-200/50 flex flex-col gap-3"
-  >
-    <div className="flex items-start gap-3">
-      <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-        <AlertCircle size={16} className="text-red-600" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <h4 className="text-[13px] font-semibold text-red-900 mb-1">Generation failed</h4>
-        <p className="text-[12px] text-red-700 leading-relaxed">
-          {error || "An unexpected error occurred while generating the response."}
-        </p>
-      </div>
-    </div>
-    <div className="flex justify-end">
-      <button
-        onClick={onRetry}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold transition-all hover:bg-red-700 active:scale-95 shadow-sm shadow-red-200"
-      >
-        <RotateCcw size={12} />
-        Try again
-      </button>
-    </div>
-  </motion.div>
-);
-
-// ── Message Navigation Rail (Orbital Arc) ────────────────────────────────────
-const MessageNav = ({ messages, containerRef, hoveredMessageId, scrollToMessage }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-  const [activeMessageId, setActiveMessageId] = useState(messages[0]?.id || null);
-
-  // Filter only user messages for navigation dots
-  const navMessages = useMemo(() => {
-    return messages
-      .map((msg, idx) => ({ ...msg, _globalIdx: idx }))
-      .filter(msg => msg.role === 'user');
-  }, [messages]);
-
-  // Track active message via IntersectionObserver
-  useEffect(() => {
-    if (!containerRef.current || navMessages.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visibleEntries = entries.filter(e => e.isIntersecting);
-        if (visibleEntries.length > 0) {
-          visibleEntries.sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-          const topVisible = visibleEntries[0]; 
-          const id = topVisible.target.getAttribute('data-message-id');
-          if (id) {
-            // Find which user question this belongs to
-            const currentIdx = messages.findIndex(m => m.id === id);
-            if (currentIdx !== -1) {
-              const precedingUserMsg = [...messages.slice(0, currentIdx + 1)]
-                .reverse()
-                .find(m => m.role === 'user');
-              if (precedingUserMsg) setActiveMessageId(precedingUserMsg.id);
-            }
-          }
-        }
-      },
-      {
-        root: containerRef.current,
-        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        rootMargin: '-40% 0px -40% 0px'
-      }
-    );
-
-    const messageElements = containerRef.current.querySelectorAll('[data-message-id]');
-    messageElements.forEach((el) => observer.observe(el));
-
-    return () => observer.disconnect();
-  }, [messages, containerRef, navMessages.length]);
-
-  // Auto-scroll nav container to active dot (centered within the 5-dot window)
-  const navScrollRef = useRef(null);
-  useEffect(() => {
-    if (!navScrollRef.current || !activeMessageId) return;
-    const activeDot = navScrollRef.current.querySelector(`[data-nav-id="${activeMessageId}"]`);
-    if (activeDot) {
-      activeDot.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+const ErrorCard = ({ error, onRetry }) => {
+  const getFriendlyError = (err) => {
+    const msg = typeof err === 'string' ? err : err?.message || '';
+    if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+      return {
+        title: "Model is busy",
+        desc: "We're receiving a high volume of requests. Please wait a few seconds and try again.",
+        icon: Zap,
+        color: "amber"
+      };
     }
-  }, [activeMessageId]);
+    if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
+      return {
+        title: "Connection issue",
+        desc: "We're having trouble reaching the AI engine. Check your internet or try again.",
+        icon: WifiOff,
+        color: "blue"
+      };
+    }
+    return {
+      title: "Generation failed",
+      desc: msg || "An unexpected error occurred while generating the response.",
+      icon: AlertCircle,
+      color: "red"
+    };
+  };
+
+  const info = getFriendlyError(error);
+  const Icon = info.icon;
+  const colorMap = {
+    red: { bg: 'bg-red-50/30', border: 'border-red-200/50', iconBg: 'bg-red-100', iconColor: 'text-red-600', textTitle: 'text-red-900', textDesc: 'text-red-700', btn: 'bg-red-600 hover:bg-red-700 shadow-red-200' },
+    amber: { bg: 'bg-amber-50/30', border: 'border-amber-200/50', iconBg: 'bg-amber-100', iconColor: 'text-amber-600', textTitle: 'text-amber-900', textDesc: 'text-amber-700', btn: 'bg-amber-600 hover:bg-amber-700 shadow-amber-200' },
+    blue: { bg: 'bg-blue-50/30', border: 'border-blue-200/50', iconBg: 'bg-blue-100', iconColor: 'text-blue-600', textTitle: 'text-blue-900', textDesc: 'text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' },
+  };
+  const c = colorMap[info.color] || colorMap.red;
 
   return (
-    <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        setHoveredIdx(null);
-      }}
-      className="absolute right-0 top-1/2 -translate-y-1/2 z-[45] flex items-center justify-end px-1 py-8 transition-all duration-700 pointer-events-none"
-      style={{ width: isHovered ? '220px' : '30px', height: 'auto' }}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`mx-3 my-4 p-4 rounded-2xl border ${c.bg} ${c.border} flex flex-col gap-3 shadow-sm`}
     >
-      <div className="relative flex items-center justify-center">
-        <div 
-          ref={navScrollRef}
-          className="relative flex flex-col items-center overflow-y-auto no-scrollbar pointer-events-auto snap-y snap-mandatory scroll-py-14" 
-          style={{ 
-            height: '140px', // Exactly 5 dots * 28px
-            width: '30px',
-            padding: '56px 0', // 2 dots worth of padding on each side to allow centering first/last
-            zIndex: 1
-          }}
+      <div className="flex items-start gap-3">
+        <div className={`w-8 h-8 rounded-full ${c.iconBg} flex items-center justify-center flex-shrink-0`}>
+          <Icon size={16} className={c.iconColor} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className={`text-[13px] font-semibold ${c.textTitle} mb-1`}>{info.title}</h4>
+          <p className={`text-[12px] ${c.textDesc} leading-relaxed`}>{info.desc}</p>
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={onRetry}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-[11px] font-semibold transition-all active:scale-95 shadow-sm ${c.btn}`}
         >
-          {/* The Rail Track */}
-          <div 
-            className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-[1px] opacity-20"
-            style={{ 
-              background: 'linear-gradient(to bottom, transparent, var(--text-primary), transparent)',
-              zIndex: 0
-            }}
-          />
+          <RotateCcw size={12} />
+          Try again
+        </button>
+      </div>
+    </motion.div>
+  );
+};
 
+// ── High-End Radial Conversation Navigator (Canvas Integrated) ────────────────
+const MessageNav = ({ messages, containerRef, scrollToMessage }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const [activeMessageId, setActiveMessageId] = useState(
+    () => messages.find((m) => m.role === "user")?.id ?? messages[0]?.id ?? null
+  );
+
+  const observerRef = useRef(null);
+
+  const navMessages = useMemo(
+    () => messages.filter((m) => m.role === "user"),
+    [messages]
+  );
+
+  const activeIdx = useMemo(() => 
+    navMessages.findIndex(m => m.id === activeMessageId),
+    [navMessages, activeMessageId]
+  );
+
+  // ── Interaction Logic ───────────────────────────────────────────────────────
+  const handleWheel = useCallback((e) => {
+    if (!isExpanded) return;
+    e.preventDefault();
+    const delta = e.deltaY * 0.08;
+    setScrollOffset(prev => Math.max(0, Math.min(prev + delta, (navMessages.length - 1) * 30)));
+  }, [isExpanded, navMessages.length]);
+
+  useEffect(() => {
+    if (!isExpanded) setScrollOffset(activeIdx * 30);
+  }, [activeIdx, isExpanded]);
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || navMessages.length === 0) return;
+    observerRef.current?.disconnect();
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (!visible.length) return;
+        visible.sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        const topEntry = visible[0];
+        const id = topEntry.target.getAttribute("data-message-id");
+        if (!id) return;
+        const currentIdx = messages.findIndex((m) => m.id === id);
+        if (currentIdx === -1) return;
+        const precedingUserMsg = [...messages.slice(0, currentIdx + 1)].reverse().find((m) => m.role === "user");
+        if (precedingUserMsg) setActiveMessageId(precedingUserMsg.id);
+      },
+      { root, threshold: [0.1, 0.5, 1.0], rootMargin: "-30% 0px -30% 0px" }
+    );
+    root.querySelectorAll("[data-message-id]").forEach((el) => observerRef.current.observe(el));
+    return () => observerRef.current?.disconnect();
+  }, [messages, containerRef, navMessages.length]);
+
+  if (!messages.length) return null;
+
+  // ── Radial Math (Optimized for Canvas area) ────────────────────────────────
+  const RADIUS = 320;
+  const NODE_SPACING = 32; 
+
+  const navContent = (
+    <div
+      className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-end h-[600px] pointer-events-none"
+      style={{ width: isExpanded ? '450px' : '60px' }}
+      onWheel={handleWheel}
+    >
+      {/* ── EXPANDED RADIAL CANVAS ── */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, x: 50, scale: 0.98 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 50, scale: 0.98 }}
+            transition={{ type: "spring", damping: 35, stiffness: 300 }}
+            className="absolute right-0 top-0 bottom-0 w-full flex items-center pointer-events-none"
+          >
+            {/* Immersive Arc Track */}
+            <svg 
+              className="absolute right-0 top-0 h-full w-full pointer-events-none overflow-visible"
+              viewBox="0 0 450 600"
+            >
+              <defs>
+                <linearGradient id="arc-glow" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="transparent" />
+                  <stop offset="50%" stopColor="var(--text-primary)" stopOpacity="0.1" />
+                  <stop offset="100%" stopColor="transparent" />
+                </linearGradient>
+              </defs>
+              <motion.path
+                d={`M 450 100 A ${RADIUS} ${RADIUS} 0 0 0 450 500`}
+                fill="none"
+                stroke="url(#arc-glow)"
+                strokeWidth="1.5"
+                strokeDasharray="2 10"
+              />
+            </svg>
+
+            {/* Radial Nodes & Previews */}
+            <div className="relative w-full h-full flex items-center justify-end pr-12 pointer-events-auto">
+              {navMessages.map((msg, i) => {
+                const isActive = activeMessageId === msg.id;
+                const isHoveredNode = hoveredIdx === i;
+                const relativeIdx = i - (scrollOffset / 30);
+                const angle = relativeIdx * NODE_SPACING;
+                const angleRad = (angle * Math.PI) / 180;
+                
+                const distFromCenter = Math.abs(relativeIdx);
+                const opacity = Math.max(0, 1 - distFromCenter * 0.35);
+                const scale = Math.max(0.6, 1 - distFromCenter * 0.12);
+                const blur = distFromCenter * 3;
+
+                const x = Math.cos(angleRad) * RADIUS - RADIUS;
+                const y = Math.sin(angleRad) * RADIUS;
+
+                if (opacity <= 0.02) return null;
+
+                return (
+                  <motion.div
+                    key={msg.id}
+                    className="absolute right-4 flex items-center justify-end"
+                    animate={{ 
+                      x: x - 40, 
+                      y, 
+                      opacity, 
+                      scale: isHoveredNode ? scale * 1.08 : scale,
+                      filter: `blur(${blur}px)`
+                    }}
+                    transition={{ type: "spring", damping: 40, stiffness: 400 }}
+                  >
+                    {/* Futuristic Preview Card */}
+                    <motion.div
+                      onClick={() => {
+                        scrollToMessage(msg.id);
+                        setScrollOffset(i * 30);
+                      }}
+                      onMouseEnter={() => setHoveredIdx(i)}
+                      onMouseLeave={() => setHoveredIdx(null)}
+                      className={`sf-glass p-4 rounded-[28px] border border-white/10 shadow-premium cursor-pointer transition-all ${isActive ? 'bg-white/15' : 'hover:bg-white/10'}`}
+                      animate={{
+                        borderColor: isActive ? 'var(--text-primary)' : 'rgba(255,255,255,0.1)',
+                        boxShadow: isActive ? '0 0 30px rgba(var(--theme-color-rgb), 0.3)' : '0 10px 40px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Quest {i + 1}</span>
+                        {isActive && <div className="w-1 h-1 rounded-full bg-[var(--text-primary)] shadow-[0_0_8px_var(--text-primary)]" />}
+                      </div>
+                      <p className="text-[12px] font-semibold leading-tight line-clamp-2 max-w-[200px]" style={{ color: 'var(--text-primary)' }}>
+                        {msg.content}
+                      </p>
+                      <div className="mt-3 flex items-center justify-between opacity-30">
+                         <span className="text-[9px] font-mono tracking-tighter">
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                         </span>
+                         <Zap size={10} className={isActive ? 'text-yellow-400' : ''} />
+                      </div>
+                    </motion.div>
+
+                    {/* Glowing Arc Joint */}
+                    <motion.div 
+                       className="w-1.5 h-1.5 rounded-full ml-4 shadow-lg"
+                       animate={{
+                          backgroundColor: isActive ? 'var(--text-primary)' : 'rgba(255,255,255,0.2)',
+                          boxShadow: isActive ? '0 0 12px var(--text-primary)' : 'none'
+                       }}
+                    />
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── STABLE ANCHOR RAIL ── */}
+      <motion.div
+        className="relative h-[240px] w-[40px] flex flex-col items-center justify-center pointer-events-auto"
+        onMouseEnter={() => setIsExpanded(true)}
+        onMouseLeave={() => {
+          setIsExpanded(false);
+          setHoveredIdx(null);
+        }}
+        style={{ zIndex: 6500 }}
+      >
+        <div className="flex flex-col items-center gap-5 relative z-10">
           {navMessages.map((msg, i) => {
             const isActive = activeMessageId === msg.id;
-            const isPointHovered = hoveredIdx === i;
-            const preview = (msg.content || '').slice(0, 60).trim();
-            const isAssistant = msg.role === 'assistant';
-            
             return (
-              <div 
-                key={msg.id || i}
-                data-nav-id={msg.id}
-                style={{ height: '28px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
-                className="shrink-0 snap-center"
+              <motion.button
+                key={msg.id}
+                onClick={() => {
+                  scrollToMessage(msg.id);
+                  setScrollOffset(i * 30);
+                }}
+                className="w-1.5 h-1.5 rounded-full relative group focus:outline-none"
+                animate={{
+                  scale: isActive ? 1.8 : 1,
+                  backgroundColor: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  opacity: isActive ? 1 : 0.3,
+                  boxShadow: isActive ? '0 0 12px var(--text-primary)' : 'none'
+                }}
               >
-                {/* Persistent Step Indicator for Active Dot */}
-                <AnimatePresence>
-                  {isActive && !isHovered && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 0.5, x: -20 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      className="absolute right-6 whitespace-nowrap pointer-events-none"
-                    >
-                      <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-info">
-                        Question {i + 1}
-                      </span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <motion.div
-                  initial={false}
-                  animate={{
-                    opacity: isHovered || isActive ? 1 : 0.4,
-                    scale: isPointHovered ? 1.4 : isActive ? 1.3 : 0.85,
-                  }}
-                  transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                  className="relative flex items-center justify-center"
-                  style={{ width: 16, height: 16, zIndex: 2 }}
-                >
-                  {/* Tooltip */}
-                  <AnimatePresence>
-                    {isPointHovered && (
-                      <motion.div
-                        initial={{ opacity: 0, x: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, x: -20, scale: 1 }}
-                        exit={{ opacity: 0, x: -10, scale: 0.95 }}
-                        className="absolute right-6 whitespace-nowrap z-[50] sf-glass shadow-premium"
-                        style={{
-                          borderRadius: 18,
-                          padding: '12px 18px',
-                          maxWidth: '260px',
-                        }}
-                      >
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-[9px] uppercase tracking-[0.15em] font-bold opacity-40 text-primary">
-                              Question {i + 1}
-                            </span>
-                            {isActive && <span className="text-[8px] bg-info/20 text-info px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Current</span>}
-                          </div>
-                          <span className="text-[12px] leading-snug font-medium text-[var(--text-primary)] break-words line-clamp-3 italic opacity-90">
-                            "{preview || 'Message'}"
-                          </span>
-                        </div>
-                        <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 liquid-glass" style={{ borderLeft: 'none', borderBottom: 'none', zIndex: -1 }} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Orbital Dot */}
-                  <button
-                    onClick={() => scrollToMessage(msg.id)}
-                    onMouseEnter={() => setHoveredIdx(i)}
-                    className="relative group flex items-center justify-center w-full h-full"
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-                  >
-                    <motion.div
-                      animate={{
-                        width: isActive || isPointHovered ? 7 : 4,
-                        height: isActive || isPointHovered ? 7 : 4,
-                        backgroundColor: isActive ? '#fff' : (isAssistant ? 'var(--text-secondary)' : 'var(--text-primary)'),
-                        boxShadow: isActive ? '0 0 15px rgba(255,255,255,0.8)' : 'none',
-                      }}
-                      className="rounded-full transition-all duration-300"
-                    />
-                    
-                    {/* Pulsing Active Ring */}
-                    {isActive && (
-                      <motion.div
-                        animate={{ scale: [1, 1.8, 1], opacity: [0.5, 0, 0.5] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                        className="absolute w-5 h-5 rounded-full border border-white/30"
-                      />
-                    )}
-                  </button>
-                </motion.div>
-              </div>
+                {isActive && (
+                  <motion.div
+                    layoutId="rail-active"
+                    className="absolute inset-[-4px] border border-[var(--text-primary)]/30 rounded-full"
+                  />
+                )}
+              </motion.button>
             );
           })}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };
+
+// CHATWINDOW
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // CHATWINDOW
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -432,18 +493,19 @@ const ChatWindow = ({
   const isWaitingForAI = currentSessionState?.isWaitingForAI;
   const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
   const lastAIError = useTutorStore((s) => s.lastAIError);
+  const isMessagesLoading = useTutorStore((s) => s.isMessagesLoading);
   const generationProgress = useTutorStore((s) => s.generationProgress);
 
   const isCurrentlyStreaming = isStreaming;
-  // Robust check: matches if either the current session ID or the waiting ID matches
-  const isCurrentlyWaiting = isWaitingForAI && (waitingSessionId === currentSessionId || waitingSessionId === 'temp');
+  // Bug 2.3 Fix: Require exact session match, remove 'temp' fallback
+  const isCurrentlyWaiting = isWaitingForAI && waitingSessionId === currentSessionId;
   const isActive = isCurrentlyStreaming || isCurrentlyWaiting;
 
   // Variables used by hooks must be defined before those hooks
   const isEmpty =
-    messages.length === 0 && !isCurrentlyWaiting && !isCurrentlyStreaming && !lastAIError;
+    (messages || []).length === 0 && !isCurrentlyWaiting && !isCurrentlyStreaming && !lastAIError && !isMessagesLoading;
 
-  const streamingInList = messages.some((m) => m.id === currentStreamingMessageId);
+  const streamingInList = (messages || []).some((m) => m.id === currentStreamingMessageId);
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -481,7 +543,8 @@ const ChatWindow = ({
       lastScrollTimeRef.current = Date.now();
       scrollRAFRef.current = null;
     });
-  }, [messages.length]);
+    // P-3 FIX: Stable callback — messages.length was incorrectly in deps, causing recreation on every message
+  }, []);
 
   useEffect(() => {
     if (!userScrolledRef.current) {
@@ -516,10 +579,45 @@ const ChatWindow = ({
     <div className="chat-window-wrapper flex-1 flex flex-col min-h-0 relative">
       <div
         ref={containerRef}
-        className="chat-window flex-1 flex flex-col min-h-0 overflow-y-auto thin-scrollbar"
+        className="chat-window flex-1 flex flex-col min-h-0 overflow-y-auto thin-scrollbar pr-1 mr-1.5"
+        role="log"
+        aria-live="polite"
+        aria-label="Chat messages"
       >
         <AnimatePresence mode="wait">
-          {isEmpty ? (
+          {isMessagesLoading ? (
+            <div key="loading" className="flex-1 flex items-center justify-center min-h-[300px]">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                className="w-16 h-16 border-[3px] border-[var(--text-primary)]/5 border-t-[var(--text-primary)]/30 rounded-full"
+              />
+            </div>
+          ) : lastAIError?.type === 'RESTORE_ERROR' || lastAIError?.type === 'FETCH_ERROR' ? (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex-1 flex flex-col items-center justify-center p-8 text-center"
+            >
+              <div className="w-16 h-16 rounded-3xl bg-red-500/10 flex items-center justify-center mb-6">
+                <AlertCircle size={32} className="text-red-500/60" />
+              </div>
+              <h3 className="text-[16px] font-semibold text-[var(--text-primary)] mb-2">
+                Failed to Load Session
+              </h3>
+              <p className="text-[13px] text-[var(--text-tertiary)] max-w-[240px] mb-8 leading-relaxed">
+                {lastAIError.message || "We couldn't retrieve your conversation. Please try again."}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="flex items-center gap-2 px-6 py-2.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-[13px] font-semibold hover:scale-105 active:scale-95 transition-all shadow-xl"
+              >
+                <RefreshCw size={14} />
+                Retry Loading
+              </button>
+            </motion.div>
+          ) : isEmpty ? (
             <ChatLanding key="empty" activeMode={activeMode} setActiveMode={setActiveMode} />
           ) : (
             <motion.div
@@ -594,14 +692,27 @@ const ChatWindow = ({
                 )}
 
               {/* Thinking / waiting indicator */}
-              <AnimatePresence>
-                {(isCurrentlyWaiting || (isCurrentlyStreaming && !currentStreamingContent)) && !streamingInList && (
-                  <ThinkingIndicator
-                    key="thinking"
-                    phase={thinkingPhase}
-                    progress={generationProgress?.label}
-                  />
-                )}
+              <AnimatePresence mode="wait">
+                {((isCurrentlyWaiting && !currentStreamingThought) ||
+                  ((isCurrentlyStreaming || currentStreamingThought) && !currentStreamingContent)) &&
+                  !streamingInList && (
+                    <motion.div
+                      key="thinking-state-wrapper"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      className="w-full flex flex-col gap-1"
+                    >
+                      {isCurrentlyWaiting && !currentStreamingThought && (
+                        <div className="h-4" /> 
+                      )}
+                      <ThinkingIndicator
+                        key="thinking-component"
+                        phase={thinkingPhase}
+                        progress={generationProgress?.label}
+                      />
+                    </motion.div>
+                  )}
               </AnimatePresence>
 
               {/* Error recovery card */}
@@ -611,7 +722,13 @@ const ChatWindow = ({
                     error={lastAIError}
                     onRetry={() => {
                       const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-                      onRegenerateMessage(lastAssistant?.id);
+                      if (lastAssistant?.id) {
+                        onRegenerateMessage(lastAssistant.id);
+                      } else {
+                        // Bug 4.5 Fix: Fallback to resubmitting last user message
+                        const lastUser = [...messages].reverse().find(m => m.role === 'user');
+                        if (lastUser) onSubmit(lastUser.content);
+                      }
                     }}
                   />
                 )}
@@ -639,10 +756,10 @@ const ChatWindow = ({
       </AnimatePresence>
 
       {/* Message Navigation Rail */}
-      {!isEmpty && (
-        <MessageNav 
-          messages={messages} 
-          containerRef={containerRef} 
+      {messages.length > 1 && (
+        <MessageNav
+          messages={messages}
+          containerRef={containerRef}
           scrollToMessage={scrollToMessage}
         />
       )}

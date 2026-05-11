@@ -1,5 +1,5 @@
 import React from 'react';
-import KaTeXRenderer from '../renderers/KaTeXRenderer';
+const KaTeXRenderer = React.lazy(() => import('../renderers/KaTeXRenderer'));
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,9 @@ export function isDSAContent(timeline: any): boolean {
   if (!timeline) return false;
   const rendererType = (timeline.renderer || '').toLowerCase();
   
-  if (rendererType === 'd3') return true; 
+  // D3 is used for both cinematic and algorithm sessions. 
+  // We only treat it as DSA if it has explicit indicators.
+  if (rendererType === 'd3' && (timeline.type === 'algorithm' || timeline.isDSA)) return true;
 
   if (DSA_KEYWORDS.some(k => rendererType.includes(k))) return true;
   const title = (timeline.title || timeline.topic || '').toLowerCase();

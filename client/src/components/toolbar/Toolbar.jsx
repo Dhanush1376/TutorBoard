@@ -12,7 +12,7 @@ import {
 import ToolButtonBase from './tools/ToolButtonBase';
 import ActionButtonBase from './tools/ActionButtonBase';
 import useTutorStore from '../../store/tutorStore';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import useWindowSize from '../../hooks/useWindowSize';
 
 // Tool Components
@@ -121,7 +121,7 @@ const Toolbar = ({ onSettingsClick }) => {
   const toolbarRef = useRef(null);
   
     const { 
-    isProfileOpen, toggleProfile, endSession, layoutView
+    isProfileOpen, toggleProfile, endSession, layoutView, undo, redo
   } = useTutorStore();
 
   const { user, logout } = useAuth();
@@ -144,7 +144,22 @@ const Toolbar = ({ onSettingsClick }) => {
     
     const handleKeyDown = (event) => {
       const state = useTutorStore.getState();
-      if (event.key === 'Escape') {
+      
+      // Undo/Redo
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          state.redo?.();
+        } else {
+          state.undo?.();
+        }
+      } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        state.redo?.();
+      }
+      
+      // Tool switching
+      else if (event.key === 'Escape') {
         state.setActiveTool('select');
         state.setInteracting(false);
         state.setEditingObjectId(null);

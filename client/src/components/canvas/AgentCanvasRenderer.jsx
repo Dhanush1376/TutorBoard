@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useMemo, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
 import ErrorBoundary from '../common/ErrorBoundary';
 import SVGCanvasRenderer from './SVGCanvasRenderer';
-import KaTeXRenderer from '../../renderers/KaTeXRenderer';
+const KaTeXRenderer = React.lazy(() => import('../../renderers/KaTeXRenderer'));
 import { isDSAContent, getRenderer } from '../../engine/RendererRouter';
 
-import { D3Renderer } from '../../renderers/D3Renderer';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
+import { ZoomIn, ZoomOut, Maximize2, Move } from 'lucide-react';
+import useWindowSize from '../../hooks/useWindowSize';
 
 import { SceneOrchestrator } from '../../engine/SceneOrchestrator';
 import { rendererPool } from '../../engine/RendererPool';
@@ -142,13 +143,17 @@ const AgentCanvasRenderer = forwardRef(({
         }
       });
 
-      // Register D3 renderer immediately
-      const d3Renderer = rendererPool.getD3Renderer(d3ContainerRef.current, width, height);
-      orchestratorRef.current.setRenderers({ d3: d3Renderer });
+      // Register D3 renderer immediately (Async)
+      rendererPool.getD3Renderer(d3ContainerRef.current, width, height).then(d3Renderer => {
+        if (orchestratorRef.current) {
+          orchestratorRef.current.setRenderers({ d3: d3Renderer });
+          
+          if (timeline) {
+            orchestratorRef.current.loadScene(timeline);
+          }
+        }
+      });
       
-      if (timeline) {
-        orchestratorRef.current.loadScene(timeline);
-      }
       lastSceneIdRef.current = sceneId;
     }
 
@@ -223,6 +228,17 @@ const AgentCanvasRenderer = forwardRef(({
     return Array.from(map.values());
   }, [timeline?.elements, extElements, extObjects]);
 
+  const { isMobile } = useWindowSize();
+
+  const handleZoom = (type) => {
+    const orch = orchestratorRef.current;
+    if (!orch) return;
+    const d3 = orch.getRenderer('d3');
+    if (d3 && typeof d3.handleZoomCommand === 'function') {
+      d3.handleZoomCommand(type);
+    }
+  };
+
   return (
     <ErrorBoundary key={rendererType} onClose={() => {}}>
       <div className={`relative w-full h-full ${rendererType === 'simulator' ? 'min-h-[600px]' : 'min-h-[480px]'}`}>
@@ -233,21 +249,52 @@ const AgentCanvasRenderer = forwardRef(({
           className="absolute inset-0 z-10 w-full h-full overflow-visible" 
           style={{ 
             pointerEvents: (isD3 || !!deltaState) ? 'auto' : 'none',
-            minHeight: '400px' // Ensure ResizeObserver always fires
+            minHeight: '400px', // Ensure ResizeObserver always fires
+            touchAction: isMobile ? 'none' : 'auto' // UX-06: Enable pinch-to-zoom precision on mobile
           }} 
         />
+
+        {/* ─── MOBILE INTERACTION PILL ─── */}
+        {isMobile && isD3 && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-1.5 p-1.5 sf-glass border border-white/10 rounded-2xl shadow-premium animate-fade-in">
+            <button 
+              onClick={() => handleZoom('in')}
+              aria-label="Zoom In"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all active:scale-90"
+            >
+              <ZoomIn size={18} />
+            </button>
+            <button 
+              onClick={() => handleZoom('out')}
+              aria-label="Zoom Out"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all active:scale-90"
+            >
+              <ZoomOut size={18} />
+            </button>
+            <div className="w-[1px] h-6 bg-white/10 mx-0.5" />
+            <button 
+              onClick={() => ref.current?.resetCamera()}
+              aria-label="Reset View"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] transition-all active:scale-90"
+            >
+              <Maximize2 size={18} />
+            </button>
+          </div>
+        )}
 
         {/* KaTeX Content */}
         {isKaTeX && (
           <div className="absolute inset-0 z-0 flex items-center justify-center p-8">
-            <KaTeXRenderer 
-              ref={(node) => {
-                equationRef.current = node;
-                if (node) registerSpecialized('equation', node);
-              }}
-              timeline={timeline} 
-              currentStepIndex={currentStepIndex} 
-            />
+            <React.Suspense fallback={null}>
+              <KaTeXRenderer 
+                ref={(node) => {
+                  equationRef.current = node;
+                  if (node) registerSpecialized('equation', node);
+                }}
+                timeline={timeline} 
+                currentStepIndex={currentStepIndex} 
+              />
+            </React.Suspense>
           </div>
         )}
 

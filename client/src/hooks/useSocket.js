@@ -7,7 +7,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 
-import { BASE_URL as SOCKET_URL } from '../services/api';
+import { SOCKET_BASE_URL as SOCKET_URL } from '../services/api';
 import useTutorStore from '../store/tutorStore';
 
 // Socket Singleton instance

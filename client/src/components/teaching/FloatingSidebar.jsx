@@ -37,7 +37,7 @@ const FloatingSidebar = () => {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={closeFloatingSidebar}
-            className="absolute inset-0 z-[75]"
+            className="absolute inset-0 z-[calc(var(--z-sidebar)-1)]"
             style={{ background: 'rgba(0,0,0,0.15)', backdropFilter: 'blur(2px)' }}
           />
 
@@ -45,7 +45,7 @@ const FloatingSidebar = () => {
           <motion.div
             initial={{ x: -340, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -340, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute top-4 left-4 bottom-4 w-[300px] flex flex-col rounded-2xl overflow-hidden z-[80] liquid-glass"
+            className="absolute top-4 left-4 bottom-4 w-[300px] flex flex-col rounded-2xl overflow-hidden z-[var(--z-sidebar)] liquid-glass"
             style={{ boxShadow: '0 20px 60px -12px rgba(0,0,0,0.25), 0 8px 24px -8px rgba(0,0,0,0.15)' }}
           >
             {/* Header */}

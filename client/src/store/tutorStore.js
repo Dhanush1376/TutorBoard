@@ -79,10 +79,27 @@ const useTutorStore = create(
         switch (type) {
           case 'meta':
             if (eventData.sessionId) {
+              const oldId = state.chatSessionId || state.sessionId;
+              
               // Adopt the real MongoDB ID immediately to prevent duplicate session creation
               // during background auto-syncs.
               state.setSessionId(eventData.sessionId);
               state.setChatSessionId(eventData.sessionId);
+
+              // CRITICAL DEDUPLICATION: Promote any local history entry to the new real DB ID
+              if (oldId && oldId !== eventData.sessionId) {
+                const hasExisting = state.chatHistory.some(s => s.id === eventData.sessionId);
+                if (hasExisting) {
+                  state.chatHistory = state.chatHistory.filter(s => s.id !== oldId);
+                } else {
+                  state.chatHistory = state.chatHistory.map(s => {
+                    if (s.id === oldId) {
+                      return { ...s, id: eventData.sessionId, chatSessionId: eventData.sessionId };
+                    }
+                    return s;
+                  });
+                }
+              }
             }
             if (eventData.teachingMode) {
               state.activeTeachingMode = eventData.teachingMode;
@@ -196,6 +213,19 @@ const useTutorStore = create(
                 .slice(0, 20)
             )
           : state.sessionManifest,
+        // PERSISTENCE FIX: Persist chatHistory so sidebar sessions survive refresh
+        // Capped to 30 entries to avoid localStorage quota issues
+        chatHistory: Array.isArray(state.chatHistory) 
+          ? state.chatHistory.slice(0, 30).map(s => ({
+              id: s.id,
+              chatSessionId: s.chatSessionId,
+              title: s.title,
+              topic: s.topic,
+              updatedAt: s.updatedAt,
+              createdAt: s.createdAt,
+              // Exclude heavy fields (messages, canvasState) from persistence
+            }))
+          : [],
         // Explicitly exclude history {past, future} and snapshots to save space/performance
         history: { past: [], future: [] },
         guestTrialStatus: state.guestTrialStatus,
@@ -220,7 +250,7 @@ const useTutorStore = create(
         interactionMode: 'view',
         focusedLayer: null,
         canvasSessionVersion: 0,
-        // Explicitly exclude conversation state from persistence
+        // Explicitly exclude conversation state from persistence (fetched from server on restore)
         conversationMessages: [],
         isStreaming: false,
         streamingContent: '',

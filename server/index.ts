@@ -1,421 +1,244 @@
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import { createServer, Server as HttpServer } from 'http';
-import { Server as SocketIO } from 'socket.io';
-import { Redis } from 'ioredis';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
-import * as Sentry from "@sentry/node";
-// SEC-GDPR: Robust CSRF Protection (Double Submit Cookie Pattern)
-// @ts-ignore
+import * as Sentry from '@sentry/node';
+
 import { generateCsrfSecret, deriveCsrfToken, validateCsrf } from './utils/auth/csrf.js';
-
-// Component imports (Assuming .js extensions remain for now due to ESM/TS compatibility in transitions)
-// @ts-ignore
-import { setupTeachingSocket } from './sockets/teaching.socket.js';
-// @ts-ignore
-import { httpRateLimiter, strictGuestLimiter } from './middleware/rateLimiter.js';
-// @ts-ignore
+import { httpRateLimiter } from './middleware/rateLimiter.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
-// @ts-ignore
 import passport from './utils/auth/passport.js';
-// @ts-ignore
-import { protect, optionalProtect } from './middleware/auth.middleware.js';
-// @ts-ignore
-import { initPostgres } from './utils/core/postgres.js';
-// @ts-ignore
-import { flushAnalytics } from './utils/core/analytics.js';
+import { protect } from './middleware/auth.middleware.js';
+import { AppError, errorHandler as appErrorHandler, ErrorCode } from './shared/errors.js';
+import { socketManager } from './services/socket/socket.manager.js';
+import { workerManager } from './services/workers/worker.manager.js';
+import { lifecycle } from './core/lifecycle.js';
+import { getRuntimeReport } from './core/capabilities.js';
+import { runtimeState } from './core/runtimeState.js';
 
-// Route imports
-// @ts-ignore
+import healthRoutes from './routes/health.js';
 import generateRoutes from './routes/generate.js';
-// @ts-ignore
 import doubtRoutes from './routes/doubt.js';
-// @ts-ignore
 import authRoutes from './routes/auth.js';
-// @ts-ignore
 import sessionRoutes from './routes/session.js';
-// @ts-ignore
 import apikeyRoutes from './routes/apikeys.js';
-// @ts-ignore
 import userRoutes from './routes/user.js';
-// @ts-ignore
 import uploadRoutes from './routes/upload.js';
-// @ts-ignore
-import aiRouter from './ai-router/index.js';
-// @ts-ignore
 import learnerRoutes from './routes/learner.routes.js';
-// @ts-ignore
 import chatRoutes from './routes/chat.routes.js';
-// @ts-ignore
 import artifactRoutes from './routes/artifact.routes.js';
-// @ts-ignore
 import compilerRoutes from './routes/compiler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env
-dotenv.config({ path: path.join(__dirname, '.env') });
-
-process.stdout.setEncoding('utf8');
-
-let httpServer: HttpServer;
-
-// Global crash logging
-process.on('uncaughtException', async (err: Error) => {
-  const msg = `[CRITICAL] Uncaught Exception at ${new Date().toISOString()}:\n${err.stack}\n\n`;
-  console.error(msg);
-  
-  if (httpServer && httpServer.listening) {
-    console.log('[Graceful] Closing HTTP server and active connections...');
-    
-    // Aggressively close all active connections to free the port immediately
-    if ((httpServer as any).closeAllConnections) {
-      (httpServer as any).closeAllConnections();
-    }
-
-    httpServer.close(() => {
-      console.log('[Graceful] HTTP server closed.');
-      mongoose.connection.close(false).then(async () => {
-        console.log('[Graceful] Mongoose connection closed.');
-        await flushAnalytics();
-        process.exit(1);
-      });
-    });
-    
-    setTimeout(() => {
-      console.error('[Graceful] Shutdown timed out. Forcing exit.');
-      process.exit(1);
-    }, 10000);
-  } else {
-    process.exit(1);
-  }
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  const msg = `[CRITICAL] Unhandled Rejection at ${new Date().toISOString()}:\nReason: ${reason}\n\n`;
-  console.error(msg);
-});
-
-// SIGINT / SIGTERM handlers for nodemon/production graceful shutdown
-const gracefulShutdown = async (signal: string) => {
-  console.log(`[${signal}] Received. Starting graceful shutdown...`);
-  
-  if (httpServer && httpServer.listening) {
-    // Aggressively close all active connections to free the port immediately
-    if ((httpServer as any).closeAllConnections) {
-      (httpServer as any).closeAllConnections();
-    }
-    
-    httpServer.close(() => {
-      console.log('[Graceful] HTTP server closed.');
-      mongoose.connection.close(false).then(async () => {
-        console.log('[Graceful] Mongoose connection closed.');
-        await flushAnalytics();
-        console.log('[Graceful] Shutdown complete.');
-        process.exit(0);
-      });
-    });
-
-    // Forced exit if graceful shutdown takes too long
-    setTimeout(() => {
-      console.error('[Graceful] Shutdown timed out. Forcing exit.');
-      process.exit(1);
-    }, 5000);
-  } else {
-    process.exit(0);
-  }
-};
-
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-if (process.env.REDIS_URL) {
-  try {
-    const client = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3 });
-    console.log('[Redis] Initializing connection...');
-  } catch (err) {
-    console.error('Redis connection error:', err);
-  }
-}
-
-if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: 'production',
-    tracesSampleRate: 1.0,
-  });
-  console.log('[Sentry] Backend monitoring: ACTIVE ✅');
-}
-
-const app: Application = express();
-app.set('trust proxy', 1);
-
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'self'"],
-      upgradeInsecureRequests: [],
-    },
-  },
-}));
-
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "https://tutorboard.vercel.app",
-  "https://tutor-board-mocha.vercel.app",
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'https://tutorboard.vercel.app',
+  'https://tutor-board-mocha.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
 const isOriginAllowed = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-  console.log("[CORS] Request Origin:", origin);
-  if (!origin || allowedOrigins.includes(origin) || /^https:\/\/tutorboard-.*\.vercel\.app$/.test(origin)) {
-    callback(null, true);
-  } else {
-    console.warn("[CORS] Blocked Origin:", origin);
-    callback(new Error("Not allowed by CORS"));
-  }
+  const isVercelPreview = origin && (
+    /^https:\/\/tutorboard-git-.*-dhanush1376\.vercel\.app$/.test(origin) ||
+    /^https:\/\/tutorboard-.*-dhanush1376\.vercel\.app$/.test(origin)
+  );
+
+  if (!origin || allowedOrigins.includes(origin) || isVercelPreview) callback(null, true);
+  else callback(new Error('Not allowed by CORS'));
 };
 
-app.use(cors({
-  origin: isOriginAllowed as any,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-CSRF-Token",
-    "X-Requested-With"
-  ]
-}));
+export function createApp(): Application {
+  const app: Application = express();
+  app.set('trust proxy', 1);
 
-app.options("*", cors());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", ...(process.env.NODE_ENV !== 'production' ? ["'unsafe-eval'"] : [])],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'", 'https://*.sentry.io', 'https://*.posthog.com'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+  }));
 
-app.use(express.json({ limit: '1mb' }));
-app.use(cookieParser());
-app.use(requestIdMiddleware);
+  app.use(cors({
+    origin: isOriginAllowed as any,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control'],
+    exposedHeaders: ['X-Request-ID', 'X-CSRF-Token']
+  }));
 
-// SEC-GDPR: Robust CSRF Protection (Double Submit Cookie Pattern)
-// 1. CSRF Seeding Middleware (Sets the cookie for the client to read)
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const secret = req.cookies?.['tb-csrf-secret'];
-  const token = req.cookies?.['tb-csrf-token'];
-  
-  const isMissing = !secret || !token;
-  const isInvalid = secret && token && !validateCsrf(secret, token);
+  app.options('*', cors({ 
+    origin: isOriginAllowed as any, 
+    credentials: true, 
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control'],
+    exposedHeaders: ['X-Request-ID', 'X-CSRF-Token']
+  }));
+  app.use(express.json({ limit: '1mb' }));
+  app.use(cookieParser());
+  app.use(requestIdMiddleware);
+  app.use(httpRateLimiter);
 
-  if (isMissing || isInvalid) {
-    if (req.method === 'GET') {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const isProd = process.env.NODE_ENV === 'production';
+    const secret = req.cookies?.['tb-csrf-secret'];
+    const token = req.cookies?.['tb-csrf-token'];
+    const invalid = secret && token && !validateCsrf(secret, token);
+
+    if ((!secret || !token || invalid) && req.method === 'GET') {
       const newSecret = generateCsrfSecret();
       const newToken = deriveCsrfToken(newSecret);
-      
-      res.cookie('tb-csrf-secret', newSecret, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-      });
-
-      res.cookie('tb-csrf-token', newToken, {
-        httpOnly: false,
-        secure: true,
-        sameSite: 'none',
-      });
-      
+      const CSRF_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
+      res.cookie('tb-csrf-secret', newSecret, { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
+      res.cookie('tb-csrf-token', newToken, { httpOnly: false, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
       if (req.path === '/api/csrf-token') {
+        req.cookies['tb-csrf-secret'] = newSecret;
         req.cookies['tb-csrf-token'] = newToken;
       }
     }
-  }
-  next();
-});
 
-// Explicit endpoint for frontend to fetch the CSRF token
-app.get('/api/csrf-token', (req: Request, res: Response) => {
-  res.json({ csrfToken: req.cookies?.['tb-csrf-token'] });
-});
-
-// 2. CSRF Verification Middleware (TEMPORARILY DISABLED FOR DEBUGGING)
-/*
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
-  if (safeMethods.includes(req.method)) return next();
-
-  if (req.path.includes('/auth/google/callback') || req.path.includes('/auth/github/callback')) {
-    return next();
-  }
-
-  const secret = req.cookies?.['tb-csrf-secret'];
-  const token = req.headers['x-csrf-token'] as string;
-
-  if (!secret || !token || !validateCsrf(secret, token)) {
-    console.warn(`[Security] CSRF Blocked: ${req.method} ${req.path}`);
-    return res.status(403).json({ 
-      error: 'Security validation failed (CSRF)',
-      code: 'CSRF_INVALID'
-    });
-  }
-  next();
-});
-*/
-
-const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/tutorboard';
-mongoose.set('bufferCommands', false);
-
-const isDevMode = process.env.NODE_ENV !== 'production';
-mongoose.set('debug', isDevMode);
-
-const REQUIRED_ENV = [
-  { key: 'MONGODB_URI',        critical: true,  label: 'MongoDB Connection URI' },
-  { key: 'OPENROUTER_API_KEY', critical: true,  label: 'OpenRouter API Key' },
-  { key: 'JWT_SECRET',         critical: true,  label: 'JWT Secret' },
-  { key: 'ENCRYPTION_KEY',     critical: true,  label: 'AES-256 Encryption Key' },
-  { key: 'FRONTEND_URL',       critical: true,  label: 'Frontend Redirect URL' },
-];
-
-console.log("=====================================");
-let hasAllCritical = true;
-for (const { key, critical, label } of REQUIRED_ENV) {
-  const ok = !!process.env[key];
-  console.log(`${label}: ${ok ? 'Loaded ✅' : (critical ? 'Missing ❌ — CRITICAL' : 'Missing ⚠️')}`);
-  if (critical && !ok) hasAllCritical = false;
-}
-console.log("=====================================");
-
-const INSECURE_KEYS = [
-  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-  'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
-  '1234567890123456789012345678901234567890123456789012345678901234'
-];
-
-if (!process.env.ENCRYPTION_KEY || INSECURE_KEYS.includes(process.env.ENCRYPTION_KEY)) {
-  console.error('FATAL: Insecure or missing ENCRYPTION_KEY. Please set a unique 64-char hex key.');
-  process.exit(1);
-}
-
-if (!hasAllCritical) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ CRITICAL ERROR: Missing required environment variables in PRODUCTION.');
-    process.exit(1);
-  } else {
-    if (!process.env.JWT_SECRET) {
-      process.env.JWT_SECRET = 'tutorboard-dev-secret-not-for-production';
-    }
-  }
-}
-
-httpServer = createServer(app);
-const port = process.env.PORT || 5000;
-
-const io = new SocketIO(httpServer, {
-  cors: {
-    origin: isOriginAllowed as any,
-    methods: ['GET', 'POST'],
-    credentials: true,
-  },
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
-});
-
-io.engine.on("connection_error", (err: any) => {
-  if (process.env.NODE_ENV === 'production') {
-    Sentry.captureException(err);
-  }
-});
-
-setupTeachingSocket(io);
-
-app.use(passport.initialize());
-
-const dbCheck = (req: Request, res: Response, next: NextFunction) => {
-  const state = mongoose.connection.readyState;
-  if (state !== 1) {
-    return res.status(503).json({ 
-      error: 'Database not available', 
-      code: 'DB_OFFLINE',
-    });
-  }
-  next();
-};
-
-app.get('/', (req: Request, res: Response) => {
-  res.json({ status: 'ok', message: 'TutorBoard API is running 🚀' });
-});
-
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
-});
-
-app.use('/', httpRateLimiter, dbCheck, generateRoutes);
-app.use('/', httpRateLimiter, dbCheck, doubtRoutes);
-app.use('/api/auth', httpRateLimiter, dbCheck, authRoutes);
-app.use('/api/user', httpRateLimiter, dbCheck, userRoutes);
-app.use('/api/ai', httpRateLimiter, optionalProtect, strictGuestLimiter, dbCheck, aiRouter);
-app.use('/api/sessions', httpRateLimiter, dbCheck, sessionRoutes);
-app.use('/api/apikeys', httpRateLimiter, dbCheck, apikeyRoutes);
-app.use('/api/learner', httpRateLimiter, dbCheck, learnerRoutes);
-app.use('/api/chat', httpRateLimiter, dbCheck, chatRoutes);
-app.use('/api/artifact', httpRateLimiter, dbCheck, artifactRoutes);
-app.use('/api', httpRateLimiter, dbCheck, uploadRoutes);
-app.use('/', httpRateLimiter, compilerRoutes);
-
-// SEC-21: Authenticated File Serving (Replaces insecure express.static)
-// This ensures that even if files are stored locally, they cannot be accessed without a valid session.
-app.get('/uploads/:filename', protect, (req, res) => {
-  const filename = path.basename(req.params.filename);
-  const safePath = path.join(__dirname, 'uploads', filename);
-  
-  res.sendFile(safePath, (err) => {
-    if (err) {
-      res.status(404).json({ error: 'File not found' });
-    }
+    next();
   });
-});
 
-// @ts-ignore
-Sentry.setupExpressErrorHandler(app);
-
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('Unhandled error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
+  app.get('/api/csrf-token', (req: Request, res: Response) => {
+    // SEC-07: Proactive CSRF token generation if missing, regardless of middleware flow
+    let token = req.cookies?.['tb-csrf-token'];
+    if (!token) {
+      const isProd = process.env.NODE_ENV === 'production';
+      const secret = generateCsrfSecret();
+      token = deriveCsrfToken(secret);
+      const CSRF_EXPIRY = 7 * 24 * 60 * 60 * 1000;
+      res.cookie('tb-csrf-secret', secret, { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
+      res.cookie('tb-csrf-token', token, { httpOnly: false, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
+    }
+    res.json({ csrfToken: token });
   });
-});
 
-const startServer = async () => {
-  try {
-    console.log(`[Server] Attempting to listen on port ${port}...`);
+  // Health & Readiness (Exposed at root for orchestration)
+  app.use('/', healthRoutes);
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    if (req.path.includes('/auth/google/callback') || req.path.includes('/auth/github/callback')) return next();
+    // Beacon uses cookie-based auth and has no CSRF token; auth/exchange is pre-CSRF
+    if (req.path.includes('/sessions/beacon') || req.path.includes('/auth/exchange') || req.path.includes('/auth/refresh')) return next();
+
+    const secret = req.cookies?.['tb-csrf-secret'];
+    const token = req.headers['x-csrf-token'] as string;
+    if (!secret || !token || !validateCsrf(secret, token)) {
+      return res.status(403).json({ error: 'Security validation failed (CSRF)', code: 'CSRF_INVALID' });
+    }
+    next();
+  });
+
+  app.use(passport.initialize());
+
+  const dbCheck = (req: Request, res: Response, next: NextFunction) => {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database not available', code: 'DB_OFFLINE' });
+    }
+    next();
+  };
+
+  app.get('/', (req: Request, res: Response) => {
+    res.json({ status: 'ok', message: 'TutorBoard API is running' });
+  });
+
+  app.use('/', dbCheck, generateRoutes);
+  app.use('/', dbCheck, doubtRoutes);
+  app.use('/api/auth', dbCheck, authRoutes);
+  app.use('/api/user', dbCheck, userRoutes);
+  app.use('/api/sessions', dbCheck, sessionRoutes);
+  app.use('/api/apikeys', dbCheck, apikeyRoutes);
+  app.use('/api/learner', dbCheck, learnerRoutes);
+  app.use('/api/chat', dbCheck, chatRoutes);
+  app.use('/api/artifact', dbCheck, artifactRoutes);
+  app.use('/api', dbCheck, uploadRoutes);
+  app.use('/', compilerRoutes);
+
+  app.get('/uploads/:filename', protect, (req, res) => {
+    const filename = path.basename(req.params.filename);
+    const safePath = path.join(__dirname, 'uploads', filename);
+    res.sendFile(safePath, (err) => {
+      if (err) res.status(404).json({ error: 'File not found' });
+    });
+  });
+
+  // @ts-ignore
+  Sentry.setupExpressErrorHandler(app);
+
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof AppError) return appErrorHandler(err, req, res, next);
+    console.error('[Server] Unhandled error:', err.message || err);
+    return res.status(err.status || 500).json({
+      error: {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : (err.message || 'Internal Server Error'),
+      },
+    });
+  });
+
+  return app;
+}
+
+export async function startHttpServer(app: Application, port: number): Promise<HttpServer> {
+  console.log('[App] Initializing Server Components...');
+  const httpServer = createServer(app);
+  const io = socketManager.start(httpServer, isOriginAllowed);
+
+  io.engine.on('connection_error', (err: any) => {
+    if (process.env.NODE_ENV === 'production') Sentry.captureException(err);
+  });
+
+  // ASYNC-08: Register HTTP server cleanup with lifecycle
+  runtimeState.registerCleanup('http-server', async () => {
+    return new Promise((resolve) => {
+      console.log('[Lifecycle] Closing HTTP server...');
+      httpServer.close(() => {
+        console.log('[Lifecycle] HTTP server closed.');
+        resolve();
+      });
+    });
+  });
+
+  return new Promise<HttpServer>((resolve, reject) => {
+    httpServer.on('error', (err: NodeJS.ErrnoException) => {
+      reject(err.code === 'EADDRINUSE'
+        ? new Error(`EADDRINUSE: Port ${port} is already in use. Kill orphan processes.`)
+        : err);
+    });
+
     httpServer.listen(port, () => {
-      console.log(`Server running on port ${port} in TS Mode 🚀`);
+      runtimeState.setCapability({
+        name: 'http',
+        mode: 'REAL',
+        status: 'healthy',
+        ready: true,
+        details: `Listening on ${port}`,
+      });
+      console.log(`[Server] HTTP server listening on port ${port}`);
+      resolve(httpServer);
     });
+  });
+}
 
-    await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, 
-      connectTimeoutMS: 10000,
-    });
-    console.log(`[DB] Connected to MongoDB ✅`);
+export const app = createApp();
 
-    if (process.env.POSTGRES_URL) {
-      await initPostgres();
-    }
-  } catch (err: any) {
-    console.error(`[DB] FAILED TO CONNECT: ${err.message}`);
-  }
-};
-
-startServer();
- 
+export default createApp;

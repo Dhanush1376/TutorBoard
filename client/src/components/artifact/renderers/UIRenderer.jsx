@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { RefreshCw } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 const UIRenderer = ({ content, onContentChange, isDark }) => {
   const [viewMode, setViewMode] = useState('preview'); // 'preview' | 'code' | 'split'
@@ -36,15 +37,34 @@ const UIRenderer = ({ content, onContentChange, isDark }) => {
     }
   }, [content]);
 
-  const renderPreview = () => (
-    <iframe
-      ref={iframeRef}
-      srcDoc={previewContent}
-      className="w-full h-full border-0 bg-white rounded-b-lg"
-      sandbox="allow-scripts allow-same-origin"
-      title="UI Preview"
-    />
-  );
+  const renderPreview = () => {
+    // SEC-24: Sandbox Hardening
+    // 1. Sanitize AI-generated HTML
+    const sanitizedHtml = DOMPurify.sanitize(previewContent, {
+      ADD_TAGS: ['script', 'style'],
+      ADD_ATTR: ['onclick', 'onerror'], 
+      WHOLE_DOCUMENT: true,
+    });
+
+    // 2. Wrap with strict CSP
+    const wrappedContent = `
+      <meta http-equiv="Content-Security-Policy" 
+        content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:;">
+      ${sanitizedHtml}
+    `;
+
+    return (
+      <iframe
+        ref={iframeRef}
+        srcDoc={wrappedContent}
+        className="w-full h-full border-0 bg-white rounded-b-lg"
+        sandbox="allow-scripts allow-forms allow-modals"
+        // SEC-GDPR: We explicitly OMIT 'allow-same-origin' to prevent
+        // the sandboxed code from accessing the parent window's context.
+        title="UI Preview"
+      />
+    );
+  };
 
   const renderEditor = () => (
     <Editor

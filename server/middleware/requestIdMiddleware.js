@@ -83,6 +83,10 @@ export function getOrCreateRequestId(socket) {
  * @param {string} requestId - Request correlation ID
  * @returns {string} Session ID with correlation info
  */
-export function createTrackedSessionId(socketId, requestId) {
-  return `session_${socketId}_${requestId}_${Date.now()}`;
+export function createTrackedSessionId(socket, requestId) {
+  // SEC-SCALABILITY: Prioritize client-provided session ID for reconnect recovery
+  const providedId = socket.handshake?.auth?.sessionId || socket.handshake?.query?.sessionId;
+  if (providedId && providedId.startsWith('sess_')) return providedId;
+
+  return `sess_${socket.id}_${requestId}_${Date.now()}`;
 }

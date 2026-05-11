@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, ArrowRight, User, Sparkles, Zap, Layout, Info, ChevronRight, Globe, ExternalLink, Code } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import VisaiLogo from './VisaiLogo';
 
 const LoginNavbar = () => {

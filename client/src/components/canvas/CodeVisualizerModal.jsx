@@ -27,7 +27,7 @@ const CodeVisualizerModal = () => {
   const { 
     activeOverlay, setOverlay, addCanvasObjects, addCanvasConnections, layoutView,
     isVisualizerMinimized, setVisualizerMinimized,
-    codeEditorCode, codeEditorLang
+    codeEditorCode, codeEditorLang, showToast
   } = useTutorStore();
 
   const isVisualizerOpen = activeOverlay === 'code-editor';
@@ -80,14 +80,24 @@ const CodeVisualizerModal = () => {
       const result = await executeCode(code, lang, (log) => {
         setLogs(prev => [...prev, log]);
       });
+      
       setRunStatus(result.success ? 'success' : 'error');
+      setShowOutput(true);
+
+      if (!result.success) {
+        showToast({
+          message: result.error || 'Code execution failed',
+          type: 'error',
+          duration: 4000
+        });
+      }
     } catch (e) {
       setLogs(prev => [...prev, { type: 'error', text: String(e) }]);
       setRunStatus('error');
     } finally {
       setIsRunning(false);
     }
-  }, [code, lang, isRunning]);
+  }, [code, lang, isRunning, showToast]);
 
   // Keyboard Shortcuts (Ctrl+Enter to run)
   useEffect(() => {

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, Settings, CreditCard, User, Sparkles, ShieldCheck, ChevronRight, LayoutDashboard } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import useTutorStore from '../../store/tutorStore';
 
 const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }) => {
@@ -22,6 +22,11 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, []);
+
+  const location = useLocation();
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
   const isLeftHand = layoutView === 'left';
   const { user: authUser, logout } = useAuth();
   
@@ -64,7 +69,7 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
 
         {/* Dropdown Menu - Top orientation (aligned based on hand view) */}
         <div 
-          className={`absolute top-full ${isLeftHand ? 'left-0' : 'right-0'} pt-2 w-56 transition-all duration-300 ease-spring z-[100] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
+          className={`absolute top-full ${isLeftHand ? 'left-0' : 'right-0'} pt-2 w-56 transition-all duration-300 ease-spring z-[var(--z-dropdown)] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
         >
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl p-1.5 shadow-2xl overflow-hidden">
             <div className="px-4 py-3 mb-1 border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
@@ -91,13 +96,6 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
             </div>
             
             <div className="p-1 space-y-0.5">
-              <button 
-                onClick={() => { setIsOpen(false); useTutorStore.getState().setMasteryOpen(true); }}
-                className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
-              >
-                <LayoutDashboard size={15} />
-                Mastery Dashboard
-              </button>
 
               <button 
                 onClick={() => { setIsOpen(false); onSettingsClick('appearance'); }}
@@ -155,7 +153,7 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
 
       {/* Context menu on click - Sidebar orientation (bottom-up) */}
       <div 
-        className={`absolute bottom-full left-0 w-full pb-2 transition-all duration-300 ease-spring z-[100] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
+        className={`absolute bottom-full left-0 w-full pb-2 transition-all duration-300 ease-spring z-[var(--z-dropdown)] ${isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-1 pointer-events-none'}`}
       >
         <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[18px] p-1.5 shadow-2xl">
           
@@ -167,13 +165,6 @@ const AccountMenu = ({ onSettingsClick, variant = 'full', layoutView = 'right' }
             
             <div className="h-[1px] bg-[var(--border-color)] my-1.5 mx-2" />
             
-            <button 
-              onClick={() => { setIsOpen(false); useTutorStore.getState().setMasteryOpen(true); }}
-              className="w-full flex items-center gap-3 p-2.5 hover:bg-[var(--bg-tertiary)] rounded-xl text-[13px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-left"
-            >
-              <LayoutDashboard size={15} />
-              Mastery Dashboard
-            </button>
 
             <button 
               onClick={() => { setIsOpen(false); handleLogout(); }} 

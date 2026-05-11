@@ -3,7 +3,6 @@ import { STATES, EVENTS } from '../../engine/core/teachingMachine.js';
 import sessionStore from '../../engine/core/sessionStore.js';
 import LearnerProfile from '../../models/LearnerProfile.js';
 import ChatSession from '../../models/ChatSession.js';
-import SessionMemory from '../../models/SessionMemory.js';
 import SpacedRepetitionScheduler from '../../engine/core/SpacedRepetitionScheduler.js';
 import { generateTimeline, generateTextResponse, generateQuiz } from '../../engine/core/pedagogyEngine.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
@@ -19,12 +18,13 @@ import {
   withTimeout, 
   resolveUserConfig,
   buildTimelinePayload,
+  emitProfile,
   resolveModelId 
 } from '../utils.js';
 import { generateSessionSummary } from '../../engine/core/pedagogyEngine.js';
 import { logActivity } from '../../controllers/session.controller.js';
 import { getAbortSignal, abortCurrent } from '../socketAbort.js';
-import redisClient from '../../utils/core/redis.js';
+import { container } from '../../core/container.js';
 import { sendSessionMilestoneEmail } from '../../utils/core/mailer.js';
 import { trackEvent } from '../../utils/core/analytics.js';
 
@@ -39,12 +39,20 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     } catch (_) { /* ignore parse errors */ }
   };
   
-  redisClient.subscribe(streamChannel, handleStreamMessage);
+  if (container.has('redis-service')) {
+    try {
+      container.resolve('redis-service').subscribe(streamChannel, handleStreamMessage);
+    } catch (err) {}
+  }
 
   // Cleanup on disconnect (already handled by socket.on('disconnect') usually, 
   // but we can add an internal cleanup here if needed)
   socket.on('disconnect', () => {
-    redisClient.unsubscribe(streamChannel, handleStreamMessage);
+    if (container.has('redis-service')) {
+      try {
+        container.resolve('redis-service').unsubscribe(streamChannel, handleStreamMessage);
+      } catch (err) {}
+    }
     abortCurrent(socket);
   });
 
@@ -61,14 +69,22 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     }
 
     if (socket.user?.isGuest) {
-      // Per-socket message tracking
-      if (!socket._guestMessageCount) socket._guestMessageCount = 0;
-      socket._guestMessageCount++;
+      // PER-SESSION TRACKING IN REDIS (SURVIVES REFRESH)
+      const guestCountKey = `trial:guest:session:${sessionId}`;
+      let sessionCount = 0;
+      if (container.has('redis-main')) {
+        try {
+          const client = container.resolve('redis-main');
+          sessionCount = await client.get(guestCountKey).then(c => parseInt(c || '0', 10));
+          sessionCount++;
+          await client.set(guestCountKey, sessionCount, 'EX', 86400); // 24hr expiry
+        } catch (err) {}
+      }
 
-      // Check per-socket limit first (stricter, immediate)
-      if (socket._guestMessageCount > GUEST_SESSION_LIMIT) {
+      // Check per-session limit
+      if (sessionCount > GUEST_SESSION_LIMIT) {
         socket.emit('guest:limit-reached', { 
-          count: socket._guestMessageCount, 
+          count: sessionCount, 
           limit: GUEST_SESSION_LIMIT,
           message: 'Trial limit reached. Create a free account to continue learning.' 
         });
@@ -81,14 +97,14 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         return;
       }
 
-      // monthly limit check
+      // monthly IP-based limit check
       const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
       const isAllowed = await checkGuestUsage(ip);
       const newCount = await getGuestUsageCount(ip);
       socket.emit('guest:status', { 
-        count: socket._guestMessageCount, 
+        count: sessionCount, 
         limit: GUEST_SESSION_LIMIT, 
-        warning: socket._guestMessageCount >= 7 
+        warning: sessionCount >= 7 
       });
 
       if (!isAllowed) {
@@ -129,15 +145,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       if (socket.user && socket.user.id !== 'guest') {
         await sessionStore.initProfile(sessionId, socket.user.id);
         const s = await sessionStore.get(sessionId);
-        if (s && s.learnerProfile) {
-          const safeProfile = {
-            ...s.learnerProfile,
-            topicsMastery: s.learnerProfile.topicsMastery instanceof Map
-              ? Object.fromEntries(s.learnerProfile.topicsMastery)
-              : (s.learnerProfile.topicsMastery || {})
-          };
-          socket.emit('teaching:profile', safeProfile);
-        }
+        await emitProfile(socket, sessionId);
       } else {
         const guestProfile = { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} };
         await sessionStore.update(sessionId, { learnerProfile: guestProfile });
@@ -185,16 +193,16 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         console.warn(`[WS] Resumption/linking failed for chatId ${chatId}: ${err.message}`);
       }
     } else if (socket.user && !socket.user.isGuest) {
-      // No chatId passed — create a new ChatSession in MongoDB (Fire-and-forget)
-      ChatSession.create({
-        userId: socket.user.id || socket.user._id,
-        title: cleanTopic,
-        topic: cleanTopic,
-        engineSessionId: sessionId,
-      }).then(async (newMongoSession) => {
+      try {
+        const newMongoSession = await ChatSession.create({
+          userId: socket.user.id || socket.user._id,
+          title: cleanTopic,
+          topic: cleanTopic,
+          engineSessionId: sessionId,
+        });
+
         await sessionStore.update(sessionId, { chatSessionId: newMongoSession._id });
         
-        // LOG ACTIVITY: Session Start
         logActivity({
           userId: socket.user.id || socket.user._id,
           sessionId: newMongoSession._id.toString(),
@@ -205,9 +213,10 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         await sessionStore.addMessage(sessionId, 'user', cleanTopic);
         await syncToDatabase(sessionId);
 
-        // Notify client of DB ID for subsequent syncs
         socket.emit('session:db-id', { chatSessionId: newMongoSession._id.toString() });
-      }).catch(err => console.error('[WS] Fire-and-forget ChatSession.create failed:', err.message));
+      } catch (err) {
+        console.error('[WS] ChatSession.create failed:', err.message);
+      }
     } else {
       console.log(`[${requestId}] [WS] Continuing as Guest session: ${sessionId}`);
     }
@@ -234,10 +243,12 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           generateTextResponse(sessionId, cleanTopic, resolveModelId(selectedAgent), userConfig, null, { 
             signal,
             onProgress: (stage, chunk) => {
-              const event = chunk ? 'teaching:progress-tokens' : 'teaching:progress';
-              const data = chunk ? { stage, text: chunk } : { message: stage };
               socket.emit(event, data);
-              redisClient.publish(streamChannel, { event, data });
+              if (container.has('redis-service')) {
+                try {
+                  container.resolve('redis-service').publish(streamChannel, { event, data });
+                } catch (err) {}
+              }
             }
           }),
           60000
@@ -249,7 +260,11 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         const payload = { message: response.answer, sessionId }; // FIX: include sessionId so client can key to correct session
         socket.emit('teaching:greeting', payload);
         // Also publish to redis for consistency in multi-instance (optional for final greeting but good practice)
-        redisClient.publish(streamChannel, { event: 'teaching:greeting', data: payload });
+        if (container.has('redis-service')) {
+          try {
+            container.resolve('redis-service').publish(streamChannel, { event: 'teaching:greeting', data: payload });
+          } catch (err) {}
+        }
         return;
       }
 
@@ -284,10 +299,14 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
             const data = chunk ? { stage, text: chunk } : { message: stage };
             
             // Broadcast via Redis
-            redisClient.publish(streamChannel, { event, data });
+            if (container.has('redis-service')) {
+              try {
+                container.resolve('redis-service').publish(streamChannel, { event, data });
+              } catch (err) {}
+            }
             // Immediate local emit for zero-latency in same instance
             socket.emit(event, data);
-          }, resolveModelId(selectedAgent), userConfig, file, intentResult, { signal }),
+          }, resolveModelId(selectedAgent), userConfig, file, intentResult, { signal, socket }),
           240000
         );
 
@@ -363,6 +382,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
     machine.send(EVENTS.FINISH);
     if (socket.user && !socket.user.isGuest) {
       await sessionStore.persistProfile(sessionId);
+      await emitProfile(socket, sessionId);
 
       // Write back mastery to MongoDB using the static method
       try {
@@ -417,27 +437,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         try {
           const session = await sessionStore.get(sessionId);
           if (session && socket.user) {
-            // 1. Update Session Memory
-            const keyConcepts = session.steps?.map(s => s.title) || [];
-            const doubtsAsked = session.doubtHistory?.map(d => d.question) || [];
-            const masteryDelta = 0.1; // Estimated delta for completed session
-
-            let sessionMem = await SessionMemory.findOne({ userId: socket.user.id });
-            if (!sessionMem) sessionMem = new SessionMemory({ userId: socket.user.id, sessions: [] });
-            
-            sessionMem.sessions.push({
-              topic: session.topic,
-              keyConcepts,
-              doubts: session.doubtHistory?.map(d => ({ 
-                question: d.question, 
-                pathway: d.pathway || 'general' 
-              })) || [],
-              masteryDelta: { [session.topic]: 0.1 },
-              timestamp: new Date()
-            });
-            await sessionMem.save();
-
-            // 2. Update Learning Graph (Mastery & SM-2)
+            // Update Learning Graph (Mastery & SM-2)
             const topicKey = session.topic.toLowerCase().replace(/\s+/g, '_');
             const masteryDeltas = [{ concept: topicKey, mastery: session.learnerProfile?.topicsMastery?.[topicKey] || 0.5 }];
             await SpacedRepetitionScheduler.updateMastery(socket.user.id, masteryDeltas);

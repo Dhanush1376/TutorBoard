@@ -77,12 +77,55 @@ export async function runSimulatorAgent({ topic, domain, modelId, userConfig }) 
       return null;
     }
 
-    // Block dangerous patterns
-    const dangerous = ['fetch(', 'XMLHttpRequest', 'eval(', 'document.cookie', 'localStorage'];
-    for (const pattern of dangerous) {
-      if (html.includes(pattern)) {
+    // SEC-26: Robust Pattern Blocking
+    // Use regex to block dangerous patterns and common obfuscation techniques
+    const BLOCKED_PATTERNS = [
+      /fetch\s*\(/gi, 
+      /XMLHttpRequest/gi, 
+      /WebSocket/gi,
+      /EventSource/gi,
+      /eval\s*\(/gi,
+      /Function\s*\(/gi, 
+      /new\s+Function/gi, 
+      /setTimeout\s*\(\s*['"]/gi,
+      /setInterval\s*\(\s*['"]/gi,
+      /document\.cookie/gi,
+      /localStorage/gi, 
+      /sessionStorage/gi, 
+      /indexedDB/gi,
+      /navigator\.sendBeacon/gi, 
+      /importScripts/gi, 
+      /window\.open/gi, 
+      /location\.href\s*=/gi,
+      /setAttribute\s*\(\s*['"]on/gi,
+      /postMessage\s*\(/gi,
+      /Worker\s*\(/gi,
+      /SharedWorker\s*\(/gi,
+      /Object\.constructor/gi,
+      /__proto__/gi,
+      /alert\s*\(/gi,
+      /prompt\s*\(/gi,
+      /confirm\s*\(/gi,
+      /data:\s*text\/javascript/gi,
+      /blob:\s*https?:/gi,
+      /String\.fromCharCode/gi,
+      /atob\s*\(/gi,
+      /btoa\s*\(/gi,
+      /decodeURIComponent/gi,
+      /document\.write/gi,
+      /document\.writeln/gi,
+      /window\.name/gi,
+      /top\.location/gi,
+      /parent\.location/gi,
+      /opener\.location/gi,
+      /\.innerHTML\s*=/gi,
+      /\.outerHTML\s*=/gi
+    ];
+
+    for (const pattern of BLOCKED_PATTERNS) {
+      if (pattern.test(html)) {
         console.warn(`[SimulatorAgent] Blocked dangerous pattern: ${pattern}`);
-        html = html.replace(new RegExp(pattern.replace('(', '\\('), 'g'), '/* blocked */');
+        html = html.replace(pattern, '/* blocked_by_security_policy */');
       }
     }
 

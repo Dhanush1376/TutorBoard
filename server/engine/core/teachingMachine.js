@@ -109,10 +109,10 @@ const TRANSITIONS = {
  * Creates a new teaching state machine instance.
  * Each session gets its own machine.
  */
-export function createTeachingMachine(sessionId, onTransition) {
-  let currentState = STATES.IDLE;
-  let isPaused = false;
-  const history = [];
+export function createTeachingMachine(sessionId, onTransition, initialState = {}) {
+  let currentState = initialState.state || STATES.IDLE;
+  let isPaused = initialState.isPaused || false;
+  const history = initialState.history || [];
 
   const machine = {
     get state() { return currentState; },

@@ -1,6 +1,6 @@
 import { STATES, EVENTS } from '../../engine/core/teachingMachine.js';
 import sessionStore from '../../engine/core/sessionStore.js';
-import { syncToDatabase } from '../utils.js';
+import { syncToDatabase, emitProfile } from '../utils.js';
 import { deriveNextLevel } from '../../utils/core/pedagogyHelper.js';
 import { trackEvent } from '../../utils/core/analytics.js';
 
@@ -83,6 +83,7 @@ export function registerNavigationHandlers(socket, machine, sessionId) {
     await syncToDatabase(sessionId);
     if (socket.user && !socket.user.isGuest) {
       await sessionStore.persistProfile(sessionId);
+      await emitProfile(socket, sessionId);
     }
   });
 

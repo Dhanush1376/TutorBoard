@@ -22,6 +22,9 @@ export const generateExplanation = async (req, res) => {
     console.log(`[Generate] Orchestrating timeline for: "${prompt}" (Agent: ${agentId})`);
     const timeline = await generateTimeline(sessionId, prompt, undefined, modelId, userConfig);
 
+    // SCALE-03: Cleanup ephemeral session immediately after generation
+    await sessionStore.delete(sessionId);
+
     if (timeline && (timeline.steps || timeline.timeline)) {
       console.log(`[Generate] ✅ Orchestration Success`);
       return res.json(timeline);

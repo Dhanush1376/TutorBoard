@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, LogIn, AlertTriangle, Zap } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { TRIAL_LIMITS } from '../../constants/trialConfig';
 
 /**
@@ -12,10 +12,10 @@ import { TRIAL_LIMITS } from '../../constants/trialConfig';
  */
 const GuestTrialBanner = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { guestTrialStatus, isHydrated } = useTutorStore();
 
-  if (!isHydrated) return null;
+  if (!isHydrated || authLoading || (user && !user.isGuest)) return null;
 
   const { messageCount, isLimitReached, warning } = guestTrialStatus;
   const remaining = Math.max(0, TRIAL_LIMITS.MAX_MESSAGES - messageCount);

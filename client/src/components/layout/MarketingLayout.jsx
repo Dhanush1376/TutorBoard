@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { ArrowRight, User, Menu, X, Sparkles } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import VisaiLogo from './VisaiLogo';
 import LoginNavbar from './LoginNavbar';
 

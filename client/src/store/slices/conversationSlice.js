@@ -109,6 +109,7 @@ export const createConversationSlice = (set, get) => ({
   streamingMessageId: null,
   streamingSessionId: null,
   isWaitingForAI: false,
+  isMessagesLoading: false,
   waitingSessionId: null,
   lastAIError: null,
   conversationTopic: null,
@@ -244,7 +245,7 @@ export const createConversationSlice = (set, get) => ({
     });
   },
 
-  prepareRegeneration: (messageId) => {
+  prepareRegeneration: (messageId, streamToken = null) => {
     // NOTE: Do NOT add versions here — only in finishStreaming after server confirms
     const sid = get().chatSessionId || get().sessionId || 'temp';
     set((state) => {
@@ -258,7 +259,7 @@ export const createConversationSlice = (set, get) => ({
       const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
       if (canTransitionStream(currentStatus, 'requesting')) {
         state.conversationSessions[sid].streamState.status = 'requesting';
-        state.conversationSessions[sid].streamState.requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        state.conversationSessions[sid].streamState.requestId = streamToken || `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         state.conversationSessions[sid].streamState.createdAt = Date.now();
       }
     });
@@ -811,25 +812,53 @@ export const createConversationSlice = (set, get) => ({
   setConversationTopic: (topic) => set({ conversationTopic: topic }),
   setConversationIntent: (intent) => set({ conversationIntent: intent }),
 
-  syncMessageIds: (userMessageId, assistantMessageId) => {
+  syncMessageIds: (userMessageId, assistantMessageId, oldUserMessageId, oldAssistantMessageId) => {
     set((state) => {
       const msgs = [...state.conversationMessages];
-      if (msgs.length >= 2) {
-        const oldAssistantId = msgs[msgs.length - 1].id;
-        if (userMessageId) msgs[msgs.length - 2] = { ...msgs[msgs.length - 2], id: userMessageId };
-        if (assistantMessageId) {
-          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
-          if (state.streamingMessageId === oldAssistantId) state.streamingMessageId = assistantMessageId;
-          Object.keys(state.sessionStates).forEach((sid) => {
-            if (state.sessionStates[sid].messageId === oldAssistantId) {
-              state.sessionStates[sid].messageId = assistantMessageId;
-            }
-          });
+      let changed = false;
+      
+      if (oldUserMessageId && userMessageId) {
+        const uIdx = msgs.findIndex(m => m.id === oldUserMessageId);
+        if (uIdx !== -1) {
+          msgs[uIdx] = { ...msgs[uIdx], id: userMessageId };
+          changed = true;
         }
+      } else if (!oldUserMessageId && userMessageId && msgs.length >= 2) {
+        msgs[msgs.length - 2] = { ...msgs[msgs.length - 2], id: userMessageId };
+        changed = true;
       }
-      const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
-      resyncNormalizedSession(state, sid, msgs);
-      state.conversationMessages = msgs;
+
+      if (oldAssistantMessageId && assistantMessageId) {
+        const aIdx = msgs.findIndex(m => m.id === oldAssistantMessageId);
+        if (aIdx !== -1) {
+          msgs[aIdx] = { ...msgs[aIdx], id: assistantMessageId };
+          changed = true;
+        }
+        
+        if (state.streamingMessageId === oldAssistantMessageId) state.streamingMessageId = assistantMessageId;
+        Object.keys(state.sessionStates).forEach((sid) => {
+          if (state.sessionStates[sid].messageId === oldAssistantMessageId) {
+            state.sessionStates[sid].messageId = assistantMessageId;
+          }
+        });
+      } else if (!oldAssistantMessageId && assistantMessageId && msgs.length >= 1) {
+        const oldAssistantId = msgs[msgs.length - 1].id;
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
+        changed = true;
+        
+        if (state.streamingMessageId === oldAssistantId) state.streamingMessageId = assistantMessageId;
+        Object.keys(state.sessionStates).forEach((sid) => {
+          if (state.sessionStates[sid].messageId === oldAssistantId) {
+            state.sessionStates[sid].messageId = assistantMessageId;
+          }
+        });
+      }
+
+      if (changed) {
+        const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
+        resyncNormalizedSession(state, sid, msgs);
+        state.conversationMessages = msgs;
+      }
     });
   },
 
@@ -861,5 +890,84 @@ export const createConversationSlice = (set, get) => ({
     const session = get().conversationSessions[sid];
     if (!session) return [];
     return session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
+  },
+
+  setMessageMetadata: (messageId, metadata) => {
+    set((state) => {
+      const idx = state.conversationMessages.findIndex((m) => m.id === messageId);
+      if (idx !== -1) {
+        state.conversationMessages[idx].metadata = {
+          ...state.conversationMessages[idx].metadata,
+          ...metadata,
+        };
+      }
+    });
+  },
+
+  restoreMessageContent: (messageId, originalContent) => {
+    set((state) => {
+      const idx = state.conversationMessages.findIndex((m) => m.id === messageId);
+      if (idx !== -1) {
+        const msg = state.conversationMessages[idx];
+        msg.content = originalContent;
+        // Reset metadata flags that might have been set during failed regeneration
+        msg.metadata.error = null;
+        msg.metadata.aborted = false;
+        
+        // If a new version was added during the failed attempt, remove it
+        if (msg.metadata.versions && msg.metadata.versions.length > 1) {
+          const lastVersion = msg.metadata.versions[msg.metadata.versions.length - 1];
+          // If the last version matches the error state or is empty/failed, prune it
+          if (lastVersion.text.includes('⚠️') || lastVersion.text === '') {
+            msg.metadata.versions.pop();
+            msg.metadata.activeVersionIndex = msg.metadata.versions.length - 1;
+          }
+        }
+      }
+    });
+  },
+
+  /**
+   * PERSISTENCE FIX: Restore conversation messages from the server after page refresh.
+   * Called by useSessionSync when it detects a persisted chatSessionId with empty conversationMessages.
+   */
+  restoreSessionFromServer: async (sessionId) => {
+    if (!sessionId) return;
+
+    // Guard: Don't restore if we already have messages loaded
+    const currentMessages = get().conversationMessages;
+    if (currentMessages && currentMessages.length > 0) return;
+
+    set({ isMessagesLoading: true, lastAIError: null });
+
+    // Guard: Don't restore for temporary/local IDs
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
+    if (!isMongoId) return;
+
+    try {
+      // Dynamic import to avoid circular dependency
+      const { default: API } = await import('../../services/api');
+      const response = await API.get(`/api/sessions/${sessionId}`);
+      
+      if (response.data && response.data.messages && response.data.messages.length > 0) {
+        const messages = response.data.messages;
+        import.meta.env.DEV && console.log(`[Store] ♻️ Restored ${messages.length} messages from server for session ${sessionId}`);
+        
+        get().setConversationMessages(messages);
+
+        // Also restore topic if available
+        if (response.data.currentTopic || response.data.topic || response.data.title) {
+          set({ conversationTopic: response.data.currentTopic || response.data.topic || response.data.title });
+        }
+      }
+    } catch (err) {
+      // Silent fail — user can still chat, messages just won't be restored
+      if (import.meta.env.DEV) {
+        console.warn('[Store] Failed to restore session from server:', err?.message || err);
+      }
+      set({ lastAIError: { message: 'Failed to restore conversation history. Please check your connection.', type: 'RESTORE_ERROR' } });
+    } finally {
+      set({ isMessagesLoading: false });
+    }
   },
 });

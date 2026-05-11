@@ -4,18 +4,11 @@ import {
   ChevronRight, Check, Zap, Lock, 
   User, Shield, Palette, Key, Eye, Info 
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
-import API, { BASE_URL as API_URL_IMPORT } from '../../services/api';
-export const API_URL = API_URL_IMPORT;
+export { SECTIONS, API_URL } from './SettingsConstants';
 
-export const SECTIONS = [
-  { id: 'general', label: 'General', icon: User },
-  { id: 'account', label: 'Account', icon: Shield },
-  { id: 'appearance', label: 'Appearance', icon: Palette },
-  { id: 'ai', label: 'API Configuration', icon: Key },
-  { id: 'about', label: 'About', icon: Info },
-];
+// SECTIONS moved to SettingsConstants.js
 
 export const SectionTitle = ({ children, style = {} }) => (
   <h2 style={{

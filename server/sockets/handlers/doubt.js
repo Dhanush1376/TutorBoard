@@ -12,7 +12,8 @@ import {
   getRateKey,
   withTimeout,
   resolveUserConfig,
-  resolveModelId
+  resolveModelId,
+  emitProfile
 } from '../utils.js';
 import redis from '../../utils/core/redis.js';
 import { runDeltaAgent } from '../../engine/agents/deltaAgent.js';
@@ -156,18 +157,18 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
                   : (activeSession.learnerProfile.topicsMastery || {})
               };
 
-              await sessionStore.update(sessionId, {
-                learnerProfile: { ...safeLearnerProfile, confusionIndex: newConfusion }
-              });
-              activeSession.learnerProfile.confusionIndex = newConfusion;
-              activeSession.learnerProfile.confusionStreak = newStreak;
+                await sessionStore.update(sessionId, {
+                  learnerProfile: { ...safeLearnerProfile, confusionIndex: newConfusion }
+                });
+                activeSession.learnerProfile.confusionIndex = newConfusion;
+                activeSession.learnerProfile.confusionStreak = newStreak;
 
-              if (newConfusion > 0.6 && newStreak >= 3) {
-                console.log(`[Doubt] 🚨 High confusion streak detected (${newStreak}). Activating SIMPLIFY mode.`);
-                userConfig.mode = 'SIMPLIFY';
-              }
+                if (newConfusion > 0.6 && newStreak >= 3) {
+                  console.log(`[Doubt] 🚨 High confusion streak detected (${newStreak}). Activating SIMPLIFY mode.`);
+                  userConfig.mode = 'SIMPLIFY';
+                }
 
-              socket.emit('teaching:profile', { ...safeLearnerProfile, confusionIndex: newConfusion });
+                await emitProfile(socket, sessionId);
             } else {
               // Low confusion / relevant query
               const engagement = activeSession.learnerProfile.engagementMetrics || { visualStepsCompleted: 0, conceptualDoubtsAsked: 0, avgStepDuration: 0, styleDetected: 'unknown' };
@@ -196,6 +197,7 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
           await syncToDatabase(sessionId);
           if (socket.user && !socket.user.isGuest) {
             await sessionStore.persistProfile(sessionId, { question: cleanQuestion });
+            await emitProfile(socket, sessionId);
           }
 
           // Mid-lesson Replan

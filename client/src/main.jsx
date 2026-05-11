@@ -1,3 +1,4 @@
+console.log('--- VITE_ID_9999 ---');
 // SEC-LOG: Strip console.log in production to prevent leaking session/agent state
 if (import.meta.env.MODE === 'production') {
   console.log = () => {};
@@ -10,58 +11,69 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
-import './index.css';
-import './styles/animations.css';
+import { AuthProvider } from './context/AuthProvider';
+import { ErrorBoundary as SentryErrorBoundary } from "@sentry/react";
 import { initPostHog } from './utils/analytics';
-
 import * as Sentry from "@sentry/react";
+import './index.css';
 
-// Initialize Analytics
+// Initialize Analytics & Monitoring
 initPostHog();
 
-if (import.meta.env.MODE === 'production' && import.meta.env.VITE_SENTRY_DSN) {
+if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: 'production',
-    autoSessionTracking: true,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      Sentry.replayIntegration(),
+    ],
     tracesSampleRate: 1.0,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
   });
 }
 
-// Simple Error Boundary for Top-Level Crashes
+/**
+ * Global Error Boundary for the entire application lifecycle.
+ */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) { console.error('[Fatal] App Crash Caught:', error, errorInfo); }
-  handleReset = () => {
-    localStorage.removeItem('tutorboard-session');
-    window.location.href = '/';
-  };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[CRITICAL] Root error caught:', error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       return (
         <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif', backgroundColor: '#f7f4ed', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <h1 style={{ color: '#1c1711' }}>Something went wrong.</h1>
-          <p style={{ color: '#4f473a', maxWidth: '400px', lineHeight: 1.5 }}>The application encountered an unexpected error. This usually happens due to corrupted session data or a brief connection glitch.</p>
-          <button onClick={this.handleReset} style={{ padding: '12px 24px', borderRadius: '12px', background: '#1c1711', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 400 }}>
-            Reset Application
+          <h1 style={{ fontSize: '24px', color: '#1c1711', marginBottom: '16px' }}>Initialization Failed</h1>
+          <p style={{ color: '#4f473a', marginBottom: '24px' }}>TutorBoard encountered a critical error during startup.</p>
+          <button 
+            onClick={() => { localStorage.clear(); window.location.reload(); }}
+            style={{ padding: '12px 24px', backgroundColor: '#1c1711', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+          >
+            Reset Session & Retry
           </button>
-          <pre style={{ marginTop: '32px', textAlign: 'left', background: '#f0ece2', padding: '16px', borderRadius: '8px', fontSize: '11px', overflow: 'auto', maxWidth: '90vw' }}>
+          <pre style={{ marginTop: '40px', padding: '20px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '8px', fontSize: '12px', textAlign: 'left', maxWidth: '80%', overflow: 'auto' }}>
             {this.state.error?.toString()}
           </pre>
         </div>
       );
     }
+
     return this.props.children;
   }
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
     <ErrorBoundary>
       <BrowserRouter>
         <ThemeProvider>
@@ -71,5 +83,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </ThemeProvider>
       </BrowserRouter>
     </ErrorBoundary>
-  </React.StrictMode>,
 );

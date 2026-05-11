@@ -30,7 +30,7 @@ export const createUiSlice = (set, get) => ({
   isExplainMinimized:  false,
   isVisualizerMinimized: false,
   isSettingsMinimized: false,
-  isMasteryOpen:        false,
+
   unreadSessions:       [],
 
   // ✅ FIX: mutate draft instead of returning new object
@@ -211,7 +211,7 @@ export const createUiSlice = (set, get) => ({
   setExplainMinimized:   (min)  => set({ isExplainMinimized: min }),
   setVisualizerMinimized: (min) => set({ isVisualizerMinimized: min }),
   setSettingsMinimized: (min) => set({ isSettingsMinimized: min }),
-  setMasteryOpen: (open) => set({ isMasteryOpen: open }),
+
 
   setCodeEditorData: (code, lang) => set({
     codeEditorCode: code,

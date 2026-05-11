@@ -1,16 +1,17 @@
 import React from 'react';
 import { PanelLeft, PanelRight } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Toolbar from '../toolbar/Toolbar';
 import useTutorStore from '../../store/tutorStore';
 import useWindowSize from '../../hooks/useWindowSize';
-import ArtifactPanel from '../artifact/ArtifactPanel';
+const ArtifactPanel = React.lazy(() => import('../artifact/ArtifactPanel'));
 import { useTheme } from '../../context/ThemeContext';
 
-const SIDEBAR_WIDTH = 350;
-const PANEL_RADIUS = 28;
+// V-3 FIX: Layout dimensions as CSS custom property defaults — can be overridden via @media or :root
+const SIDEBAR_WIDTH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--layout-sidebar-width') || '350');
+const PANEL_RADIUS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--layout-panel-radius') || '28');
 const PANEL_GAP = 0;
 
 const sidebarStyle = {
@@ -129,7 +130,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
       {/* ── MAIN CONTENT AREA ── */}
       <main
-        className="relative flex-1 min-w-0 h-full overflow-hidden"
+        className="relative flex-1 min-w-[320px] min-h-[400px] h-full overflow-hidden"
+        // ACC-7: Prevent keyboard focus from escaping behind mobile sidebar overlay
+        {...(sidebarVisible && isMobile ? { inert: '' } : {})}
         style={{
           padding: 0,
           background: 'var(--bg-primary)',
@@ -179,7 +182,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
                 zIndex: 20
               }}
             >
-              <ArtifactPanel isDark={isDark} />
+              <React.Suspense fallback={null}>
+                <ArtifactPanel isDark={isDark} />
+              </React.Suspense>
             </div>
           )}
         </div>
@@ -194,10 +199,15 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed inset-0 z-[6000] bg-[var(--bg-primary)] flex flex-col"
             >
-              <ArtifactPanel isDark={isDark} />
+              <React.Suspense fallback={null}>
+                <ArtifactPanel isDark={isDark} />
+              </React.Suspense>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── PORTAL TARGETS ── */}
+        <div id="radial-nav-portal" className="fixed inset-0 z-[6000] pointer-events-none" />
 
         {/* ── OVERLAYS (Pills, Toolbar, etc.) ── */}
 

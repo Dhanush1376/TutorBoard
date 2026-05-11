@@ -1,10 +1,11 @@
 import { requestCompletion, getTextModel } from '../../utils/ai/llmClient.js';
 import { MASTER_DELTA_PROMPT, DOUBT_CLASSIFIER_PROMPT } from '../../utils/ai/deltaPrompt.js';
+import { buildLLMMessages } from './BuildSystemPrompt.js';
 
 /**
  * DeltaAgent v3.0 — Intelligent Classification & Master Delta
  */
-export async function runDeltaAgent({ question, canvasState, topic, modelId, userConfig, mode = 'EXPLAIN', file = null }) {
+export async function runDeltaAgent({ question, canvasState, topic, modelId, userConfig, mode = 'EXPLAIN', file = null, history = [] }) {
   try {
     console.log(`[DeltaAgent] Resolving doubt: "${question}" (Mode: ${mode})`);
 
@@ -36,12 +37,12 @@ export async function runDeltaAgent({ question, canvasState, topic, modelId, use
     });
 
 
+    const llmMessages = buildLLMMessages(history, "You are the Delta Visual Intelligence Engine. Respond ONLY with valid JSON.", 10);
+    llmMessages.push({ role: 'user', content: prompt });
+
     const res = await requestCompletion({
       model: modelId || getTextModel(),
-      messages: [
-        { role: 'system', content: "You are the Delta Visual Intelligence Engine. Respond ONLY with valid JSON." },
-        { role: 'user', content: prompt }
-      ],
+      messages: llmMessages,
       temperature: 0.1,
       responseMimeType: 'application/json',
       userConfig,

@@ -43,6 +43,9 @@ const DesmosRenderer = forwardRef((props: DesmosRendererProps, ref) => {
     if (!window.Desmos) {
       const script = document.createElement('script');
       script.src = 'https://www.desmos.com/api/v1.9/calculator.js?apiKey=d3d389b710b741e59546255b9f56363c';
+      // SEC-13: Subresource Integrity (SRI)
+      script.integrity = 'sha384-JKUWl7r/KNzttM1jYBQvttTQiZbLD4hndiCeATt7rjjVW9EGACnMomU9abAamPCk';
+      script.crossOrigin = 'anonymous';
       script.async = true;
       script.onload = () => initCalculator();
       document.head.appendChild(script);

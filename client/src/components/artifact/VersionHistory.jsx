@@ -3,6 +3,13 @@ import { History, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const VersionHistory = ({ versions, currentVersion, onRevert, isOpen, onClose }) => {
+  const [confirmRevertIdx, setConfirmRevertIdx] = React.useState(null);
+
+  // Reset confirmation when list changes or closes
+  React.useEffect(() => {
+    setConfirmRevertIdx(null);
+  }, [isOpen, versions?.length]);
+
   if (!isOpen) return null;
 
   return (
@@ -32,6 +39,8 @@ const VersionHistory = ({ versions, currentVersion, onRevert, isOpen, onClose })
         <div className="p-1.5 space-y-0.5">
           {(versions || []).map((v, idx) => {
             const isCurrent = v.version === currentVersion;
+            const isConfirming = confirmRevertIdx === idx;
+
             return (
               <div
                 key={idx}
@@ -59,14 +68,25 @@ const VersionHistory = ({ versions, currentVersion, onRevert, isOpen, onClose })
                 </div>
                 {!isCurrent && (
                   <button
-                    onClick={() => {
-                      onRevert(idx);
-                      onClose?.();
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isConfirming) {
+                        onRevert(idx);
+                        onClose?.();
+                        setConfirmRevertIdx(null);
+                      } else {
+                        setConfirmRevertIdx(idx);
+                      }
                     }}
-                    className="flex items-center gap-1 px-2 py-1 text-[10px] rounded-md border border-[var(--border-color)]/30 hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]"
+                    onMouseLeave={() => setConfirmRevertIdx(null)}
+                    className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded-md border transition-all ${
+                      isConfirming 
+                        ? 'border-red-500/50 bg-red-500/10 text-red-600 font-bold' 
+                        : 'border-[var(--border-color)]/30 hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
+                    }`}
                   >
-                    <RotateCcw size={10} />
-                    Revert
+                    <RotateCcw size={10} className={isConfirming ? 'animate-spin-once' : ''} />
+                    {isConfirming ? 'Confirm?' : 'Revert'}
                   </button>
                 )}
               </div>

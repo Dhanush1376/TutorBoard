@@ -32,24 +32,27 @@ AUTO-REPAIR RULES
 - If a step is missing an animation action but has visual elements, inject a "fade_in" action for new elements.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT SCHEMA
+URGENT SCHEMA ENFORCEMENT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Your response MUST be a JSON object with EXACTLY these top-level keys:
+1. "status": (string)
+2. "repairs": (array of strings)
+3. "issues": (array of objects)
+4. "final_output": (object) — This must contain the actual lesson data.
+
+If you omit "final_output", the system will fail.
+
+OUTPUT SCHEMA CONTRACT:
 {
   "status": "valid | repaired | fail_safe",
-  "repairs": ["List of repairs applied"],
-  "issues": [
-    { "severity": "error | warning", "location": "step X", "description": "...", "fix": "..." }
-  ],
+  "repairs": [],
+  "issues": [],
   "final_output": {
     "meta": { "topic": "...", "renderer": "d3 | cinematic", "concept_type": "...", "step_count": X },
-    "narrations": [ { 
-      "step": 1, "text": "...", "howItWorks": [], "pseudocode": "", 
-      "timeComplexity": "", "spaceComplexity": "",
-      "variables": {}, "activeStates": [] 
-    } ],
-    "visual_steps": [ { "step": 1, "elements": [...], "script": [...], "exits": [...], "interactive_controls": { "formula": "...", "controls": [...] } } ],
-    "animation_steps": [ { "step": 1, "actions": [...] } ]
+    "narrations": [ ... ],
+    "visual_steps": [ ... ],
+    "animation_steps": [ ... ]
   }
 }
 
-Return ONLY raw JSON. No markdown. No preamble.`;
+Return ONLY raw JSON. No markdown. No preamble. No post-explanation.`;

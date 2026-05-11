@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GitBranch, Code, Eye, AlertTriangle, ZoomIn, ZoomOut, RotateCcw, Move } from 'lucide-react';
-import mermaid from 'mermaid';
+let mermaid = null;
 import DOMPurify from 'dompurify';
 import Editor from '@monaco-editor/react';
 
@@ -127,26 +127,33 @@ const DiagramRenderer = ({ content, isDark, onContentChange }) => {
 
   // Init mermaid
   useEffect(() => {
-    if (!mermaidInitialized) {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: isDark ? 'dark' : 'default',
-        securityLevel: 'strict',
-        fontFamily: '"Inter", sans-serif',
-        flowchart: { htmlLabels: true, curve: 'basis' },
-      });
-      mermaidInitialized = true;
-    }
-  }, []);
-
-  // Re-init on theme change
-  useEffect(() => {
-    mermaid.initialize({ theme: isDark ? 'dark' : 'default' });
-    if (isMermaid && content) renderDiagram(content);
+    const init = async () => {
+      if (!mermaid) {
+        const mod = await import('mermaid');
+        mermaid = mod.default;
+      }
+      if (!mermaidInitialized && mermaid) {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: isDark ? 'dark' : 'default',
+          securityLevel: 'strict',
+          fontFamily: '"Inter", sans-serif',
+          flowchart: { htmlLabels: true, curve: 'basis' },
+        });
+        mermaidInitialized = true;
+        // Trigger initial render if content exists
+        if (isMermaid && content) renderDiagram(content);
+      }
+    };
+    init();
   }, [isDark]);
 
   const renderDiagram = useCallback(async (code) => {
     if (!code?.trim()) { setSvgHtml(''); setError(null); return; }
+    if (!mermaid) {
+      const mod = await import('mermaid');
+      mermaid = mod.default;
+    }
     const currentRender = ++renderIdRef.current;
     try {
       const id = `mermaid-${Date.now()}-${currentRender}`;
@@ -161,7 +168,7 @@ const DiagramRenderer = ({ content, isDark, onContentChange }) => {
         setSvgHtml('');
       }
     }
-  }, []);
+  }, [isDark]);
 
   useEffect(() => {
     if (!isMermaid) return;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo } from 'react';
 import useTutorStore from '../store/tutorStore';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import useSocket from './useSocket';
 import { getCanvasFingerprint } from '../lib/utils';
 
@@ -246,4 +246,21 @@ export const useSessionSync = (chatMessages) => {
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, []);
+
+  // 6. PERSISTENCE FIX: Restore conversation messages from server when session ID exists but messages are empty
+  // This happens on every page refresh because conversationMessages is excluded from localStorage persistence.
+  const messagesRestoredRef = useRef(false);
+  useEffect(() => {
+    // ALLOW GUESTS to restore their active session messages
+    if (!user || messagesRestoredRef.current) return;
+    
+    const currentChatSessionId = useTutorStore.getState().chatSessionId;
+    const currentMessages = useTutorStore.getState().conversationMessages;
+    
+    if (currentChatSessionId && (!currentMessages || currentMessages.length === 0)) {
+      messagesRestoredRef.current = true;
+      import.meta.env.DEV && console.log(`[Sync] ♻️ Restoring messages for session ${currentChatSessionId}...`);
+      useTutorStore.getState().restoreSessionFromServer(currentChatSessionId);
+    }
+  }, [user]);
 };

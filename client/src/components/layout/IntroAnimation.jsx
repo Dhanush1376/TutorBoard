@@ -1,5 +1,5 @@
 import React from 'react';
-import ParticleWaves from '../canvas/ParticleWaves';
+const ParticleWaves = React.lazy(() => import('../canvas/ParticleWaves'));
 
 /**
  * IntroAnimation Component
@@ -18,8 +18,10 @@ const IntroAnimation = () => {
         style={{ zIndex: -1 }}
       />
       
-      {/* Particle Waves Animation */}
-      <ParticleWaves opacity={0.6} />
+      {/* Particle Waves Animation (Lazy Loaded) */}
+      <React.Suspense fallback={null}>
+        <ParticleWaves opacity={0.6} />
+      </React.Suspense>
 
       <div className="w-[min(480px,90vw)]" style={{ position: 'relative', zIndex: 1 }}>
         <svg 
@@ -40,25 +42,25 @@ const IntroAnimation = () => {
             opacity="0.0"
           />
 
-          <line className="wire" style={{ '--len': 105, '--d': '0.15s' }}
+          <line className="wire" style={{ '--len': 105, '--d': '0.07s' }}
             x1="340" y1="90" x2="340" y2="190"
             strokeWidth="0.6"
             strokeDasharray="105" opacity="0.0"
           />
 
-          <line className="wire" style={{ '--len': 96, '--d': '0.3s' }}
+          <line className="wire" style={{ '--len': 96, '--d': '0.15s' }}
             x1="253" y1="140" x2="340" y2="190"
             strokeWidth="0.6"
             strokeDasharray="96" opacity="0.0"
           />
 
-          <line className="wire" style={{ '--len': 96, '--d': '0.45s' }}
+          <line className="wire" style={{ '--len': 96, '--d': '0.22s' }}
             x1="427" y1="140" x2="340" y2="190"
             strokeWidth="0.6"
             strokeDasharray="96" opacity="0.0"
           />
 
-          <line className="wire" style={{ '--len': 105, '--d': '0.6s' }}
+          <line className="wire" style={{ '--len': 105, '--d': '0.3s' }}
             x1="340" y1="190" x2="340" y2="290"
             strokeWidth="0.6"
             strokeDasharray="105" opacity="0.0"

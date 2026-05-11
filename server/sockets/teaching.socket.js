@@ -25,7 +25,7 @@ export function setupTeachingSocket(io) {
       
       // Parse cookies from handshake headers
       const cookies = cookie.parse(socket.handshake.headers.cookie || '');
-      const token = cookies['tb-token'] || socket.handshake.auth?.token;
+      const token = cookies['tb-access-token'] || socket.handshake.auth?.token;
       
       // SEC-GUARD: Only accept null/undefined/empty as guest. Reject explicit strings.
       if (!token || token === '') {
@@ -107,11 +107,15 @@ export function setupTeachingSocket(io) {
 
   teachingIO.on('connection', async (socket) => {
     const requestId = getOrCreateRequestId(socket);
-    const sessionId = createTrackedSessionId(socket.id, requestId);
+    const sessionId = createTrackedSessionId(socket, requestId);
 
     // Initialize Session
+    let session = null;
     try {
-      await sessionStore.create(sessionId, socket.id);
+      session = await sessionStore.create(sessionId, { 
+        socketId: socket.id,
+        userId: socket.user?.id || socket.user?._id || null
+      });
       
       if (socket.user?.isGuest) {
         const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
@@ -123,7 +127,7 @@ export function setupTeachingSocket(io) {
       return socket.disconnect();
     }
 
-    // Initialize State Machine
+    // Initialize State Machine with restored state if available
     const machine = createTeachingMachine(sessionId, async (transition) => {
       socket.emit('teaching:state', {
         state:     transition.to,
@@ -132,8 +136,17 @@ export function setupTeachingSocket(io) {
         payload:   transition.payload,
         timestamp: transition.timestamp,
       });
-      await sessionStore.update(sessionId, { state: transition.to });
-    });
+      
+      // Persist machine state to Redis for horizontal recovery
+      await sessionStore.update(sessionId, { 
+        state: transition.to,
+        machineState: {
+          state: transition.to,
+          isPaused: machine.paused,
+          history: machine.getHistory().slice(-20) // Cap history size for serialization
+        }
+      });
+    }, session?.machineState || {});
 
     // ─── Register Modular Handlers ──────────────────────────────────────────
     registerSessionHandlers(socket, machine, sessionId, requestId);
@@ -161,7 +174,7 @@ export function setupTeachingSocket(io) {
               await LearnerProfile.findOneAndUpdate(
                 { userId: socket.user.id },
                 { $set: updateObject },
-                { new: true }
+                { returnDocument: 'after' }
               );
             }
           }
@@ -174,12 +187,12 @@ export function setupTeachingSocket(io) {
       cleanupSocket(getRateKey(socket));
     });
 
-    // Send initial state
+    // Send initial state (restored or IDLE)
     socket.emit('teaching:state', {
-      state:     STATES.IDLE,
+      state:     machine.state,
       from:      null,
       event:     'INIT',
-      payload:   { sessionId },
+      payload:   { sessionId, isRestored: !!session?.machineState },
       timestamp: Date.now(),
     });
   });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { motion, AnimatePresence } from 'framer-motion';
 

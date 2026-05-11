@@ -127,7 +127,7 @@ const UnifiedControlBar = ({
       }}
     >
       {/* ── Transport Controls ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
         <ControlButton
           icon={SkipBack}
           onClick={onPrevStep}
@@ -460,7 +460,7 @@ const ControlButton = ({ icon: Icon, onClick, disabled, keyHint, label, size = 1
       display: 'flex',
       alignItems: 'center',
       gap: 4,
-      padding: label ? '5px 10px' : 7,
+      padding: label ? '5px 10px' : 6,
       borderRadius: label ? 10 : 8,
       background: isActive ? 'rgba(var(--bg-primary-rgb), 0.15)' : 'transparent',
       color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',

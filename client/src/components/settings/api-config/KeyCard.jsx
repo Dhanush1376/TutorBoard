@@ -4,7 +4,7 @@ import {
   Key, Eye, EyeOff, Trash2,
   Activity, Zap, Edit2, CheckCircle, XCircle
 } from 'lucide-react';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuth } from '../../../hooks/useAuth';
 import {
   AppleToggle, PremiumDropdown,
   StatusBadge, ValidationError, API_URL

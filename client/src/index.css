@@ -1,8 +1,11 @@
-@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&family=Geist:wght@100..900&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@100..900&family=Fira+Code&display=swap");
+/* S-3 FIX: Critical fonts loaded synchronously; decorative fonts deferred */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@300;400;500;600;700&family=Fira+Code&display=swap");
+/* Deferred fonts â€” loaded asynchronously via index.html link[media=print] swap pattern */
+/* Caveat, DM Sans, DM Serif Display, Outfit loaded on-demand when their components mount */
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
-/* ─── Design Tokens ─────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 
 @theme {
@@ -41,7 +44,7 @@
   --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
   --ease-apple: cubic-bezier(0.19, 1, 0.22, 1);
 
-  /* ── Light palette (Bone) ── */
+  /* â”€â”€ Light palette (Bone) â”€â”€ */
   --color-bg-primary: #f9f6e5;
   --color-bg-secondary: #f0ede0;
   --color-bg-tertiary: #e7e4d8;
@@ -89,7 +92,7 @@
   --shadow-inner: inset 0 1px 3px rgba(15, 15, 14, 0.06);
   --shadow-glow: 0 0 0 3px rgba(15, 15, 14, 0.08);
 
-  /* ── Dark palette (Obsidian) ── */
+  /* â”€â”€ Dark palette (Obsidian) â”€â”€ */
   --color-dark-bg-primary: #0b0b0a;
   --color-dark-bg-secondary: #141412;
   --color-dark-bg-tertiary: #1c1c1a;
@@ -122,6 +125,13 @@
 
   --color-dark-shadow-lg: 0 10px 24px -4px rgba(0, 0, 0, 0.3), 0 4px 8px -2px rgba(0, 0, 0, 0.2);
   --color-dark-shadow-xl: 0 20px 48px -8px rgba(0, 0, 0, 0.4), 0 8px 16px -4px rgba(0, 0, 0, 0.25);
+
+  /* Z-Index System */
+  --z-sidebar: 90;
+  --z-dropdown: 100;
+  --z-modal: 200;
+  --z-overlay: 300;
+  --z-portal: 1000;
 }
 
 /* Global Scrollbars */
@@ -178,6 +188,31 @@
     background: rgba(60, 58, 50, 0.25) !important;
   }
 
+  /* â”€â”€ Zen Minimalist "Ambient Breath" Skeleton â”€â”€ */
+  .skeleton {
+    @apply relative overflow-hidden bg-white/[0.03] dark:bg-white/[0.01];
+  }
+
+  .skeleton::after {
+    @apply content-[''] absolute inset-0;
+    background: radial-gradient(
+      60% 120% at 50% 50%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 100%
+    );
+    animation: breath 3s ease-in-out infinite;
+  }
+
+  @keyframes breath {
+    0%, 100% { opacity: 0.2; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1.02); }
+  }
+
+  .premium-blur {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
   /* Hide scrollbar utility - recursive */
   .no-scrollbar::-webkit-scrollbar,
   .no-scrollbar *::-webkit-scrollbar {
@@ -190,7 +225,7 @@
   }
 }
 
-/* ─── CSS Custom Properties (runtime) ──────────────────────────────────── */
+/* â”€â”€â”€ CSS Custom Properties (runtime) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @layer base {
   :root {
@@ -214,7 +249,7 @@
     --radius-xl: 18px;
     --radius-2xl: 24px;
 
-    /* Glass panel tokens — light mode */
+    /* Glass panel tokens â€” light mode */
     --glass-bg: rgba(255, 255, 255, 0.88);
     --glass-border: rgba(0, 0, 0, 0.12);
     --glass-border-width: 1.5px;
@@ -225,20 +260,24 @@
     --tool-size: 34px;
     --tool-gap: 6px;
 
-    /* ── Cinematic Transition System ── */
+    /* Layout Dimensions (V-3: consumed by Layout.jsx) */
+    --layout-sidebar-width: 350;
+    --layout-panel-radius: 28;
+
+    /* â”€â”€ Cinematic Transition System â”€â”€ */
     --transition-scene: 800ms cubic-bezier(0.16, 1, 0.3, 1);
     --transition-element: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
     --transition-micro: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-morph: 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
-    /* ── Depth System ── */
+    /* â”€â”€ Depth System â”€â”€ */
     --depth-near: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
     --depth-mid: 0 8px 24px -4px rgba(0, 0, 0, 0.10), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
     --depth-far: 0 20px 50px -12px rgba(0, 0, 0, 0.15), 0 8px 20px -8px rgba(0, 0, 0, 0.08);
     --depth-canvas: 0 12px 40px -8px rgba(0, 0, 0, 0.12), 0 4px 12px -4px rgba(0, 0, 0, 0.06),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
 
-    /* ── Canvas SVG Theme Variables ── */
+    /* â”€â”€ Canvas SVG Theme Variables â”€â”€ */
     --canvas-cell-bg: var(--bg-secondary);
     --canvas-cell-border: var(--border-color);
     --canvas-cell-text: var(--text-primary);
@@ -248,9 +287,13 @@
     --canvas-danger: #ef4444;
     --canvas-glow: rgba(99, 102, 241, 0.3);
 
-    /* ── Stage Ambient ── */
+    /* â”€â”€ Stage Ambient â”€â”€ */
     --stage-bg: var(--bg-primary);
     --stage-vignette: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 60%, var(--bg-primary) 100%);
+
+    /* â”€â”€ Missing runtime aliases (V-1, V-4 fixes) â”€â”€ */
+    --ring-focus: rgba(26, 26, 24, 0.3);
+    --text-primary-rgb: 15, 15, 14;
   }
 
   .dark {
@@ -273,6 +316,10 @@
     --glass-border: rgba(255, 255, 255, 0.08);
     --glass-border-width: 1px;
     --glass-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.3), 0 4px 8px -2px rgba(0, 0, 0, 0.2);
+
+    /* â”€â”€ Missing runtime aliases (dark mode) â”€â”€ */
+    --ring-focus: rgba(240, 239, 233, 0.25);
+    --text-primary-rgb: 249, 246, 229;
   }
 
   /* Smooth transition on theme switch */
@@ -306,7 +353,7 @@
   }
 }
 
-/* ── Base resets ── */
+/* â”€â”€ Base resets â”€â”€ */
 
 *,
 *::before,
@@ -325,7 +372,7 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 0.9375rem;
-  /* 15px — slightly more refined than 16px */
+  /* 15px â€” slightly more refined than 16px */
   line-height: 1.6;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -403,13 +450,11 @@ pre {
   font-size: 0.875em;
 }
 
-/* Focus visible — unified ring system */
+/* Focus visible â€” unified ring system */
 :focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--ring-focus);
 }
-
-
 
 /* Image defaults */
 img,
@@ -427,7 +472,7 @@ button {
   color: inherit;
 }
 
-/* ─── Dropdowns & Selects ───────────────────────────────────────────────── */
+/* â”€â”€â”€ Dropdowns & Selects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 select {
   appearance: none;
@@ -468,7 +513,7 @@ option {
   padding: 8px;
 }
 
-/* ─── Utility classes ───────────────────────────────────────────────────── */
+/* â”€â”€â”€ Utility classes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 
 @utility card {
@@ -557,7 +602,7 @@ option {
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.1);
 }
 
-/* ─── Apple-Like Premium Utilities ─────────────────────────────────────── */
+/* â”€â”€â”€ Apple-Like Premium Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @utility sf-glass {
   background: rgba(var(--bg-primary-rgb), 0.75);
@@ -691,7 +736,7 @@ option {
   scrollbar-color: var(--border-strong) transparent;
 }
 
-/* ─── Floating Canvas Panel ─────────────────────────────────────────────── */
+/* â”€â”€â”€ Floating Canvas Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @keyframes canvas-idle-float {
 
@@ -760,7 +805,7 @@ option {
   }
 }
 
-/* ─── Animation keyframes ───────────────────────────────────────────────── */
+/* â”€â”€â”€ Animation keyframes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @keyframes fade-in {
   from {
@@ -894,7 +939,7 @@ option {
   scroll-behavior: smooth;
 }
 
-/* ── Cinematic Stage Utilities ──────────────────────────────────────────── */
+/* â”€â”€ Cinematic Stage Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @utility cinematic-panel {
   background: var(--stage-bg, var(--bg-primary));
@@ -926,7 +971,7 @@ option {
   }
 }
 
-/* ── Prefers Reduced Motion ─────────────────────────────────────────────── */
+/* â”€â”€ Prefers Reduced Motion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @media (prefers-reduced-motion: reduce) {
 
@@ -945,7 +990,7 @@ option {
   }
 }
 
-/* ─── Loader SVG Animations & Themes ────────────────────────────────────── */
+/* â”€â”€â”€ Loader SVG Animations & Themes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .loader-svg {
   width: 100%;
@@ -1022,47 +1067,47 @@ option {
 @media (prefers-reduced-motion: no-preference) {
   .loader-svg .wire {
     stroke-dashoffset: var(--len);
-    animation: drawLine 0.9s ease-in-out var(--d, 0s) both;
+    animation: drawLine 0.45s ease-in-out var(--d, 0s) both;
   }
 
   .loader-svg .plate-top {
-    animation: plateTop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) 1.0s both;
+    animation: plateTop 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) 0.3s both;
   }
 
   .loader-svg .plate-left {
-    animation: plateLeft 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) 1.38s both;
+    animation: plateLeft 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) 0.5s both;
   }
 
   .loader-svg .plate-right {
-    animation: plateRight 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) 1.7s both;
+    animation: plateRight 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) 0.7s both;
   }
 
   .loader-svg .ic-top {
-    animation: icDrop 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) 2.1s both;
+    animation: icDrop 0.2s cubic-bezier(0.2, 1.4, 0.4, 1) 0.9s both;
   }
 
   .loader-svg .ic-left {
-    animation: icLeft 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) 2.4s both;
+    animation: icLeft 0.2s cubic-bezier(0.2, 1.4, 0.4, 1) 1.05s both;
   }
 
   .loader-svg .ic-right {
-    animation: icRight 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) 2.65s both;
+    animation: icRight 0.2s cubic-bezier(0.2, 1.4, 0.4, 1) 1.2s both;
   }
 
   .loader-svg .wordmark {
-    animation: wordUp 0.5s ease-out 3.0s both;
+    animation: wordUp 0.4s ease-out 1.3s both;
   }
 
   .loader-svg .dot-sep {
-    animation: wordUp 0.5s ease-out 3.15s both;
+    animation: wordUp 0.4s ease-out 1.4s both;
   }
 
   .loader-svg .tagline {
-    animation: wordUp 0.5s ease-out 3.25s both;
+    animation: wordUp 0.4s ease-out 1.5s both;
   }
 
   .loader-svg .sublabel {
-    animation: wordUp 0.5s ease-out 3.4s both;
+    animation: wordUp 0.4s ease-out 1.6s both;
   }
 }
 
@@ -1164,7 +1209,7 @@ option {
 
 
 .loader-fade {
-  animation: fadeOut 0.5s var(--ease-smooth) 4.5s forwards;
+  animation: fadeOut 0.5s var(--ease-smooth) 2.0s forwards;
 }
 
 @keyframes fadeOut {
@@ -1180,7 +1225,7 @@ option {
   }
 }
 
-/* ─── Mobile Portrait Responsiveness ─────────────────────────── */
+/* â”€â”€â”€ Mobile Portrait Responsiveness â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media screen and (max-width: 768px) and (orientation: portrait) {
 
   /* Make sidebar span the full width minus margins to act as a chat drawer */
@@ -1249,7 +1294,7 @@ option {
   }
 }
 
-/* ─── Global Animations ─────────────────────────────────────────────────── */
+/* â”€â”€â”€ Global Animations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 @keyframes pulse-logo {
   0% {
@@ -1286,7 +1331,7 @@ option {
   animation: spin-slow 8s linear infinite;
 }
 
-/* ─── Teaching Canvas Layout System ─────────────────────────────────────── */
+/* â”€â”€â”€ Teaching Canvas Layout System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .teaching-session {
   position: relative;
@@ -1450,9 +1495,9 @@ option {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   LLM Chat System — Action Buttons, Streaming, Edit Mode
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   LLM Chat System â€” Action Buttons, Streaming, Edit Mode
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 /* Chat message action buttons (hover bar) */
 .chat-action-btn {
@@ -1595,16 +1640,22 @@ option {
   animation-delay: 300ms;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Chat System v4.0 — Smooth streaming & canvas card upgrades
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   Chat System v4.0 â€” Smooth streaming & canvas card upgrades
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
-/* Smooth text reveal during streaming — prevents layout jumps */
+/* Smooth text reveal during streaming â€” prevents layout jumps */
 .markdown-content {
   word-break: break-word;
   overflow-wrap: break-word;
   min-height: 1.5em;
   /* prevent collapse during first token */
+}
+
+.markdown-content p:last-child,
+.markdown-content ul:last-child,
+.markdown-content ol:last-child {
+  margin-bottom: 0 !important;
 }
 
 /* Canvas artifact card hover */
@@ -1647,7 +1698,7 @@ option {
   color: var(--text-primary) !important;
 }
 
-/* Thinking indicator — smooth in/out */
+/* Thinking indicator â€” smooth in/out */
 @keyframes thinking-dot {
 
   0%,
@@ -1681,7 +1732,7 @@ option {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* Playback Scrubber — Cinematic Range Styling */
+/* Playback Scrubber â€” Cinematic Range Styling */
 .playback-scrubber::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
@@ -1733,4 +1784,21 @@ option {
   height: 3px;
   border-radius: 2px;
 }
+
+/* ─── Streaming Cursor ─── */
+.streaming-cursor > *:last-child::after {
+  content: "│";
+  animation: cursor-blink 1s step-end infinite;
+  margin-left: 2px;
+  color: var(--text-primary);
+  font-weight: bold;
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+@keyframes cursor-blink {
+  from, to { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 

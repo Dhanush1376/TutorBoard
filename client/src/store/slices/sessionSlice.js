@@ -39,7 +39,7 @@ export const createSessionSlice = (set, get) => ({
   generationProgress: null,
   isTimelineReady:    false,
   sessionManifest:    {},
-  learnerProfile:     { level: 'beginner', pace: 'normal', confusionIndex: 0, topicsMastery: {} },
+
   guestTrialStatus:   { 
     messageCount: 0, 
     sessionCount: 0, 
@@ -53,18 +53,8 @@ export const createSessionSlice = (set, get) => ({
   resumeContext:      null, // { topic, stepIndex }
   activeSnapshotId:   null, // ID of message whose snapshot we are currently viewing/editing
   levelUpEvent:       null, // { message, newLevel, ts }
-  takeaways:          [],   // AI-extracted or user-pinned key insights
 
-  addTakeaway: (text) => set(state => {
-    if (!text || state.takeaways.some(t => t.text === text)) return;
-    state.takeaways.push({ id: Date.now(), text, timestamp: Date.now() });
-  }),
-  removeTakeaway: (id) => set(state => {
-    state.takeaways = state.takeaways.filter(t => t.id !== id);
-  }),
-  clearTakeaways: () => set({ takeaways: [] }),
 
-  setLearnerProfile: (profile) => set({ learnerProfile: { ...get().learnerProfile, ...profile } }),
   setResumeContext: (ctx) => set({ resumeContext: ctx }),
   setActiveSnapshotId: (id) => set({ activeSnapshotId: id }),
   setLevelUpEvent: (evt) => set({ levelUpEvent: evt }),

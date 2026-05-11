@@ -4,14 +4,13 @@ const RevokedTokenSchema = new mongoose.Schema({
   jti: {
     type: String,
     required: true,
-    unique: true,
-    index: { expires: '7d' }
+    unique: true
   },
   expiresAt: {
     type: Date,
     required: true,
-    // SEC-21: Auto-delete revoked tokens after 7 days to keep blocklist lean.
-    index: { expires: '7d' }
+    // SEC-21: Auto-delete revoked tokens after they reach their expiry date.
+    index: { expireAfterSeconds: 0 }
   }
 }, {
   timestamps: true

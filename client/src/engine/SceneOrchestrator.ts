@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 /**
  * SceneOrchestrator v1.0 — The Central Scene Intelligence Engine
  *
@@ -59,6 +60,7 @@ export interface SceneStep {
   spaceComplexity?: string;
   interactiveControls?: any;
   transition?: 'crossfade' | 'slide' | 'zoom' | 'morph' | 'wipe';
+  elements?: SceneElement[];
 }
 
 export interface SceneElement {
@@ -132,10 +134,12 @@ export class SceneOrchestrator {
     this.stepSnapshots.clear();
     this.sceneGraph.clear();
 
-    console.log(
-      `[SceneOrchestrator] 🎬 Loading scene: "${sceneJSON.title}" ` +
-      `(${sceneJSON.totalSteps} steps, renderer: ${sceneJSON.renderer})`
-    );
+    if (import.meta.env.DEV) {
+      console.log(
+        `[SceneOrchestrator] 🎬 Loading scene: "${sceneJSON.title}" ` +
+        `(${sceneJSON.totalSteps} steps, renderer: ${sceneJSON.renderer})`
+      );
+    }
 
     // Pre-warm the required renderer
     const rendererType = this.pool.resolveType(sceneJSON.renderer || 'cinematic');
@@ -169,7 +173,7 @@ export class SceneOrchestrator {
   /**
    * Register a specialized renderer (physics, equation, graph, code).
    */
-  registerRenderer(type: 'physics' | 'equation' | 'graph' | 'code', instance: any): void {
+  registerRenderer(type: 'physics' | 'equation' | 'graph' | 'code' | 'd3', instance: any): void {
     if (!this.renderers) {
       this.renderers = { d3: null as any };
     }
@@ -177,6 +181,13 @@ export class SceneOrchestrator {
 
     // Also register in the pool
     this.pool.registerInstance(type as RendererType, instance);
+  }
+
+  /**
+   * Get a registered renderer by type.
+   */
+  getRenderer(type: keyof RendererSystem): any {
+    return this.renderers ? (this.renderers as any)[type] : null;
   }
 
   // ── Step Playback ───────────────────────────────────────────────────────
@@ -280,7 +291,9 @@ export class SceneOrchestrator {
   playDelta(commands: Command[], onComplete?: () => void): void {
     if (this.isDestroyed || !this.renderers) return;
 
-    import.meta.env.DEV && console.log(`[SceneOrchestrator] 🎯 Playing delta: ${commands.length} commands`);
+    if (import.meta.env.DEV) {
+      console.log(`[SceneOrchestrator] 🎯 Playing delta: ${commands.length} commands`);
+    }
 
     // Track new entities added by delta
     const deltaEntityIds: string[] = [];

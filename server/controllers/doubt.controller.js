@@ -32,8 +32,7 @@ export const getDoubtHistory = async (req, res) => {
   try {
     const history = await Doubt.find({ user: req.user._id })
       .sort({ createdAt: -1 })
-      .limit(50);
-      
+      .limit(parseInt(req.query.limit) || 50);
     res.json({ history });
   } catch (error) {
     console.error('Fetch history error:', error);

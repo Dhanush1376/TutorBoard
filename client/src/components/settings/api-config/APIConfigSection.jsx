@@ -5,7 +5,7 @@ import {
   Activity, Globe2, Sparkles, Gauge, DollarSign,
   AlertCircle, Plus, X, Globe, ExternalLink
 } from 'lucide-react';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuth } from '../../../hooks/useAuth';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
   AppleToggle, RightInlineSelect

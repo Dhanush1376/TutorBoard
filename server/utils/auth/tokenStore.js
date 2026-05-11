@@ -1,6 +1,6 @@
 import RevokedToken from '../../models/RevokedToken.js';
 import crypto from 'crypto';
-import redisClient from '../core/redis.js';
+import { container } from '../../core/container.js';
 import * as Sentry from "@sentry/node";
 
 /**
@@ -22,11 +22,24 @@ class TokenStore {
     };
 
     // SEC-04: Primary store in Redis for persistence across restarts/multi-instance
-    const savedInRedis = await redisClient.set(`auth:code:${code}`, JSON.stringify(data), 60);
+    let savedInRedis = false;
+    try {
+      const client = container.resolve('redis-main');
+      savedInRedis = await client.set(`auth:code:${code}`, JSON.stringify(data), 'EX', 60);
+    } catch (err) {
+      savedInRedis = false;
+    }
     
     if (!savedInRedis) {
-      // SEC-04: Fallback to local memory if Redis is disconnected
-      console.warn('[TokenStore] Redis unavailable, using volatile memory for OAuth code');
+      // REDIS-05: High-severity alert for volatile memory fallback
+      console.error(`[CRITICAL] Redis unavailable for OAuth code persistence! Falling back to volatile memory.`);
+      console.error(`[CRITICAL] This session will break if the server restarts before code exchange.`);
+      
+      Sentry.captureMessage('Redis unavailable for OAuth code persistence', {
+        level: 'error',
+        tags: { component: 'TokenStore', fallback: 'memory' }
+      });
+
       this.codes.set(code, data);
       setTimeout(() => { this.codes.delete(code); }, this.TTL_MS + 100);
     }
@@ -38,11 +51,21 @@ class TokenStore {
     if (!code) return null;
 
     // 1. Primary: Check Redis
-    const cached = await redisClient.get(`auth:code:${code}`);
+    let cached = null;
+    try {
+      const client = container.resolve('redis-main');
+      cached = await client.get(`auth:code:${code}`);
+    } catch (err) {
+      cached = null;
+    }
+
     if (cached) {
       try {
         const data = JSON.parse(cached);
-        await redisClient.del(`auth:code:${code}`);
+        try {
+          const client = container.resolve('redis-main');
+          await client.del(`auth:code:${code}`);
+        } catch (err) {}
         return data.token;
       } catch (e) {
         console.error('[TokenStore] Failed to parse cached code data:', e.message);
@@ -77,13 +100,16 @@ class TokenStore {
 
       const ttlSeconds = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
 
-      // 1. Primary Store: MongoDB
-      await RevokedToken.create({ jti, expiresAt });
-      
-      // 2. Performance Cache: Redis
+      // 1. Primary Cache: Redis (Fast path to prevent replay)
       if (ttlSeconds > 0) {
-        await redisClient.set(`revoked:${jti}`, '1', ttlSeconds);
+        try {
+          const client = container.resolve('redis-main');
+          await client.set(`revoked:${jti}`, '1', 'EX', ttlSeconds);
+        } catch (err) {}
       }
+
+      // 2. Durable Store: MongoDB
+      await RevokedToken.create({ jti, expiresAt });
       
       console.log(`[TokenStore] Token ${jti} revoked globally`);
     } catch (err) {
@@ -101,22 +127,37 @@ class TokenStore {
     
     try {
       // 1. Check Redis Cache (O(1))
-      const cached = await redisClient.get(`revoked:${jti}`);
+      let cached = null;
+      try {
+        const client = container.resolve('redis-main');
+        cached = await client.get(`revoked:${jti}`);
+      } catch (err) {}
+      
       if (cached === '1') return true;
 
       // 2. Check MongoDB (Persistence)
-      const exists = await RevokedToken.exists({ jti });
+      const revokedDoc = await RevokedToken.findOne({ jti }).lean();
       
       // 3. Back-fill Cache if found in DB
-      if (exists) {
-        await redisClient.set(`revoked:${jti}`, '1', 3600); // Cache for 1 hour
+      if (revokedDoc) {
+        const expiresAt = revokedDoc.expiresAt;
+        const ttl = expiresAt 
+          ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))
+          : 3600;
+
+        if (ttl > 0) {
+          try {
+            const client = container.resolve('redis-main');
+            await client.set(`revoked:${jti}`, '1', 'EX', ttl);
+          } catch (err) {}
+        }
         return true;
       }
 
       return false;
     } catch (err) {
-      // SEC-04: Fail-open for availability, but log a high-severity alert for visibility
-      console.error(`[SECURITY] Revocation check BYPASSED — both stores unreachable: ${err.message}`);
+      // SEC-05: Fail-closed for security. If stores are unreachable, assume revoked to be safe.
+      console.error(`[SECURITY] Revocation check FAILED — both stores unreachable: ${err.message}`);
       
       // Send to Sentry for real-time alerting
       Sentry.captureException(err, {
@@ -125,7 +166,7 @@ class TokenStore {
         extra: { jti }
       });
 
-      return false; 
+      return true; // SEC-05: FAIL CLOSED (Assume revoked)
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import VisaiLogo from '../layout/VisaiLogo';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -238,7 +238,7 @@ const CinematicStage = ({
           )}
         </AnimatePresence>
 
-        {/* ── Generation Loading Skeleton ── */}
+        {/* ── Generation Loading Skeleton (Redesigned as Playbar) ── */}
         <AnimatePresence>
           {isGenerating && (
             <motion.div
@@ -253,7 +253,7 @@ const CinematicStage = ({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 16,
+                gap: 32,
                 zIndex: 55,
               }}
             >
@@ -262,45 +262,59 @@ const CinematicStage = ({
                 style={{ zIndex: -2 }}
               />
               <ParticleWaves opacity={0.5} />
-              {/* Shimmer skeleton blocks */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-                <motion.div
-                  animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                  style={{
-                    width: 280,
-                    height: 40,
-                    borderRadius: 12,
-                    background: `linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-secondary) 50%, var(--bg-tertiary) 75%)`,
-                    backgroundSize: '200% 100%',
-                  }}
-                />
-                <motion.div
-                  animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'linear', delay: 0.2 }}
-                  style={{
-                    width: 200,
-                    height: 24,
-                    borderRadius: 8,
-                    background: `linear-gradient(90deg, 
-                      rgba(255,255,255,0.03) 25%, 
-                      rgba(255,255,255,0.12) 50%, 
-                      rgba(255,255,255,0.03) 75%
-                    )`,
-                    backgroundSize: '200% 100%',
-                  }}
-                />
+              
+              <div className="flex flex-col items-center gap-6">
+                <div className="flex flex-col items-center gap-2">
+                   <h3 className="text-[10px] font-black tracking-[0.6em] text-[var(--text-primary)] opacity-40 uppercase">
+                    Synthesizing Experience
+                  </h3>
+                </div>
+
+                {/* The Cinematic Playbar */}
+                <div className="relative w-[400px] h-[2px] bg-white/[0.05] rounded-full overflow-hidden">
+                  {/* Moving Scanning Beam */}
+                  <motion.div 
+                    animate={{ 
+                      x: ['-100%', '200%'],
+                    }}
+                    transition={{ 
+                      duration: 1.8, 
+                      repeat: Infinity, 
+                      ease: "easeInOut" 
+                    }}
+                    className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-indigo-400 to-transparent opacity-60"
+                    style={{ filter: 'blur(4px)' }}
+                  />
+                  
+                  {/* Fast Micro-pulse */}
+                  <motion.div 
+                    animate={{ 
+                      opacity: [0.2, 0.5, 0.2],
+                      scaleX: [0.8, 1, 0.8]
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute inset-0 bg-indigo-500/20"
+                  />
+                </div>
+
+                <div className="flex items-center gap-4 mt-2">
+                   <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.3em] opacity-30">
+                    {topic || "Initializing"}
+                  </span>
+                </div>
               </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: 'var(--text-tertiary)',
-                  fontWeight: 500,
-                  letterSpacing: '0.05em',
-                }}
+
+              <motion.div
+                animate={{ opacity: [0.3, 0.6, 0.3] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="flex items-center gap-2"
               >
-                Preparing your lesson...
-              </span>
+                <div className="w-1 h-1 rounded-full bg-indigo-500/40" />
+                <span className="text-[10px] text-[var(--text-tertiary)] font-medium tracking-widest uppercase">
+                  Preparing your immersive lesson...
+                </span>
+                <div className="w-1 h-1 rounded-full bg-indigo-500/40" />
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

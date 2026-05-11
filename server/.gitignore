@@ -1,8 +1,12 @@
 node_modules/
 uploads/
 .env
+dist/
+
+# Logs & debug output
 *.log
 *.txt
+!README.txt
 db_status.log
 debug_latency.log
 error.log
@@ -10,7 +14,16 @@ error.txt
 server_log.txt
 server_output.log
 test_*.log
+
+# Scratch & test scripts
 scratch/
 __tests__/
 test_*.js
+check_db.js
+test-req.cjs
 verify_persistence.js
+# Local storage fallback
+.local-storage/
+
+# Dev tooling
+nodemon.json

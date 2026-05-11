@@ -131,6 +131,11 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  tier: {
+    type: String,
+    enum: ['free', 'pro', 'enterprise'],
+    default: 'free'
+  },
 }, { 
   timestamps: true,
   toJSON: { virtuals: true },
