@@ -6,7 +6,6 @@ import { requestCompletion, getModel, getFastModel, resolveModelId } from '../..
 import { getPrompt } from '../config/promptRegistry.js';
 import { SceneGraphSchema } from '../validators/timelineSchema.js';
 import VectorStoreService from './vectorStore.js';
-import { validateVisualScript } from './visualScriptValidator.js';
 import { searchWeb } from '../../utils/ai/webSearchService.js';
 import { shouldSearch, detectTools } from '../../utils/ai/searchGate.js';
 import { formatForPrompt, extractSources } from '../../utils/ai/searchContextFormatter.js';

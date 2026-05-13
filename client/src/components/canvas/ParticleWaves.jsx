@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/useTheme';
 
 const ParticleWave = ({ count = 15000, color = "#8a887b" }) => {
   const points = useRef();

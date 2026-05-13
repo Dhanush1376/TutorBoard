@@ -216,9 +216,9 @@ async function diagnoseInfrastructure() {
   console.log('📋 NEXT STEPS:\n');
   console.log('1. Start the backend: npm run dev');
   console.log('2. Check health endpoints:');
-  console.log('   - http://localhost:3002/health');
-  console.log('   - http://localhost:3002/ready');
-  console.log('   - http://localhost:3002/capabilities');
+  console.log('   - http://localhost:5000/health');
+  console.log('   - http://localhost:5000/ready');
+  console.log('   - http://localhost:5000/capabilities');
   console.log('\n3. If mocked services appear, configure them:');
   console.log('   - For Redis: Set REDIS_URL in .env');
   console.log('   - For PostgreSQL: Set POSTGRES_URL in .env');

@@ -83,52 +83,84 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
     return () => obs.disconnect();
   }, []);
 
+  const isSingleLine = !code.includes('\n');
+
+  // Completely streamlined UI for single line or short inline tags
+  if (isSingleLine) {
+    return (
+      <code
+        onClick={handleCopy}
+        title="Click to copy"
+        className="px-3 py-1 rounded-lg font-mono text-[12.5px] font-medium inline-flex items-center gap-1.5 my-1 mx-0.5 transition-all cursor-pointer hover:opacity-80 active:scale-95 select-all"
+        style={{
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-color)',
+          color: 'var(--text-primary)',
+          lineHeight: '1.35',
+          verticalAlign: 'middle',
+        }}
+      >
+        <span>{code}</span>
+        {copied ? (
+          <Check size={11} className="text-emerald-500 shrink-0 ml-0.5" />
+        ) : null}
+      </code>
+    );
+  }
+
+  // Ensure multi-line blocks always get a gorgeous professional container
+  const effectiveShowHeader = showHeader || !isSingleLine;
+
   return (
     <div
-      className="my-4 rounded-[28px] overflow-hidden sf-glass shadow-premium group/code transition-all duration-500 no-scrollbar"
+      className="my-3 rounded-xl overflow-hidden group/code transition-all duration-500 no-scrollbar w-full block"
       style={{
-        background: 'rgba(var(--bg-secondary-rgb), 0.3)', 
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border-color)',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
       }}
     >
-      {showHeader && (
+      {effectiveShowHeader && (
         <div
-          className="flex items-center justify-between px-4 py-2 border-b border-white/5"
-          style={{ 
-            background: 'rgba(var(--text-primary-rgb), 0.02)',
-          }}
+          className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)]/30"
+          style={{ background: 'transparent' }}
         >
-          <div className="flex items-center">
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--text-primary)]/10 border border-white/10">
-              <div className="w-1 h-1 rounded-full bg-[var(--theme-color, var(--text-primary))] shadow-[0_0_8px_var(--theme-color)]" />
-              <span className="text-[10px] font-medium uppercase tracking-[0.15em] opacity-70">
-                {lang || 'code'}
-              </span>
+          <div className="flex items-center gap-2.5">
+            {/* macOS Developer Traffic Lights */}
+            <div className="flex items-center gap-1.5 py-0.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500/40 border border-red-500/20 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500/40 border border-amber-500/20 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/40 border border-emerald-500/20 inline-block" />
             </div>
+            <div className="h-3 w-[1px] bg-[var(--border-color)]/40" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)] opacity-50">
+              {lang || 'code'}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             {isRunnable && (
               <button
                 onClick={() => onOpenArtifact?.(code, lang)}
-                className="apple-pill flex items-center gap-2 px-3 py-1.5 text-[var(--text-primary)] transition-all hover:scale-105 active:scale-95"
-                style={{ fontSize: 11, fontWeight: 500 }}
+                className="flex items-center gap-1 px-2.5 py-1 text-[var(--text-primary)] opacity-40 hover:opacity-100 transition-all active:scale-95"
+                style={{ fontSize: 10.5, fontWeight: 600 }}
               >
-                <Play size={11} className="text-emerald-500 fill-emerald-500/20" /> 
+                <Play size={10} className="text-emerald-500 fill-emerald-500/20" /> 
                 <span className="opacity-80">Run</span>
               </button>
             )}
             <button
               onClick={handleCopy}
-              className="apple-pill flex items-center gap-2 px-3 py-1.5 text-[var(--text-primary)] transition-all hover:scale-105 active:scale-95"
-              style={{ fontSize: 11, fontWeight: 500 }}
+              className="flex items-center gap-1 px-2.5 py-1 text-[var(--text-primary)] opacity-40 hover:opacity-100 transition-all active:scale-95"
+              style={{ fontSize: 10.5, fontWeight: 600 }}
             >
-              {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} className="opacity-50" />}
+              {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} className="opacity-50" />}
               <span className="opacity-80">{copied ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
         </div>
       )}
 
-      <div className="relative">
+      <div className="relative w-full">
         {simpleData ? (
           <DataVisualizer {...simpleData} onLaunchImmersive={handleLaunchImmersive} />
         ) : (
@@ -137,9 +169,9 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
             style={isDarkMode ? vscDarkPlus : prismTheme}
             customStyle={{
               margin: 0,
-              padding: showHeader ? '16px 20px' : '12px 16px',
-              fontSize: '13px',
-              lineHeight: '1.6',
+              padding: effectiveShowHeader ? '12px 16px' : '10px 14px',
+              fontSize: '12.5px',
+              lineHeight: '1.5',
               background: 'transparent',
               fontFamily: 'var(--font-mono)',
               color: 'var(--text-primary)',
@@ -156,7 +188,7 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
           </SyntaxHighlighter>
         )}
         
-        {!showHeader && !simpleData && (
+        {!effectiveShowHeader && !simpleData && (
           <button
             onClick={handleCopy}
             className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover/code:opacity-100 transition-opacity"

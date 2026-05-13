@@ -24,8 +24,8 @@ export const MODEL_REGISTRY: ModelRegistry = {
   google: {
     validation: 'gemini-1.5-flash',
     production: 'gemini-1.5-pro',
-    fallback: 'gemini-2.0-flash',
-    chain: ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
+    fallback: 'gemini-1.5-flash',
+    chain: ['gemini-1.5-flash', 'gemini-1.5-pro']
   },
   groq: {
     validation: 'llama-3.1-8b-instant',
@@ -48,8 +48,8 @@ export const MODEL_REGISTRY: ModelRegistry = {
   openrouter: {
     validation: 'openai/gpt-4o-mini',
     production: 'anthropic/claude-sonnet-4-20250514',
-    fallback: 'google/gemini-2.0-flash',
-    chain: ['openai/gpt-4o-mini', 'google/gemini-2.0-flash']
+    fallback: 'google/gemini-pro-1.5',
+    chain: ['openai/gpt-4o-mini', 'google/gemini-pro-1.5']
   },
   default: {
     validation: 'gpt-4o-mini',

@@ -35,67 +35,61 @@ class ErrorBoundary extends Component {
 
       return (
         <div className="fixed inset-0 z-[2147483647] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="w-full max-w-lg relative"
+            className="w-full max-w-[420px] relative mx-auto"
           >
             {/* Background Glow */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-red-500/20 to-orange-500/20 blur-2xl rounded-[40px] opacity-50" />
-            
-            <div 
-              className="relative bg-[#0d0d0d] border border-white/5 rounded-[36px] p-8 shadow-2xl overflow-hidden"
-              style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
+            <div className="absolute -inset-1 bg-red-500/10 blur-2xl rounded-[32px] opacity-40 animate-pulse" />
+
+            <div
+              className="relative bg-[var(--bg-primary)] border border-red-500/15 rounded-2xl p-6 text-center shadow-2xl flex flex-col items-center"
+              style={{ background: 'rgba(239,68,68,0.05)', boxShadow: '0 8px 32px rgba(239,68,68,0.03)' }}
             >
-              {/* Top Glass Highlight */}
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-              
-              <div className="flex flex-col items-center text-center">
-                <div className="relative mb-8">
-                  <div className="absolute inset-0 bg-red-500/20 blur-xl rounded-full animate-pulse" />
-                  <div className="relative w-20 h-20 rounded-full bg-gradient-to-b from-red-500/10 to-red-500/5 flex items-center justify-center border border-red-500/20">
-                    <AlertTriangle size={32} className="text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-                  </div>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors"
+                style={{ background: 'rgba(239,68,68,0.12)' }}>
+                <AlertTriangle size={22} style={{ color: '#ef4444' }} />
+              </div>
+
+              <h2 className="text-[16px] font-semibold mb-1 tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                System Exception
+              </h2>
+
+              <p className="text-[12px] leading-relaxed mb-4 px-2" style={{ color: 'var(--text-tertiary)' }}>
+                A runtime exception interrupted component rendering. The underlying core layout remains preserved.
+              </p>
+
+              {/* Error Log Container */}
+              <div className="w-full mb-5 group">
+                <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                  <Terminal size={11} className="text-zinc-500" />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-500">Stack Trace</span>
                 </div>
-
-                <h2 className="text-2xl font-semibold text-white mb-3 tracking-tight">
-                  System Exception
-                </h2>
-                
-                <p className="text-[13px] text-zinc-400 leading-relaxed mb-8 max-w-sm px-4">
-                  A critical error occurred while rendering the immersive engine. The dashboard remains unaffected, but this component requires a reset.
-                </p>
-
-                {/* Error Log Container */}
-                <div className="w-full mb-8 group">
-                  <div className="flex items-center gap-2 mb-2 px-1">
-                    <Terminal size={12} className="text-zinc-500" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-500">Error Stack Trace</span>
-                  </div>
-                  <div className="w-full bg-black/40 rounded-2xl p-4 border border-white/5 text-left transition-colors group-hover:border-white/10">
-                    <code className="text-[11px] text-red-400/90 font-mono leading-relaxed break-all whitespace-pre-wrap">
-                      {this.state.error?.name}: {this.state.error?.message || 'Unknown system error'}
-                    </code>
-                  </div>
+                <div className="w-full bg-black/30 rounded-xl p-3 border border-white/5 text-center transition-colors group-hover:border-white/10 overflow-hidden">
+                  <code className="text-[11px] text-red-400/80 font-mono leading-normal break-all whitespace-pre-wrap block max-h-24 overflow-y-auto thin-scrollbar">
+                    {this.state.error?.name}: {this.state.error?.message || 'Unknown exception'}
+                  </code>
                 </div>
+              </div>
 
-                <div className="flex w-full gap-4">
-                  {this.props.onClose && (
-                    <button
-                      onClick={this.props.onClose}
-                      className="flex-1 py-4 px-6 rounded-2xl bg-white/5 border border-white/5 text-zinc-400 hover:bg-white/10 hover:text-white transition-all text-sm font-medium"
-                    >
-                      Dismiss
-                    </button>
-                  )}
+              <div className="flex w-full gap-3 justify-center">
+                {this.props.onClose && (
                   <button
-                    onClick={this.handleRetry}
-                    className="flex-[1.5] py-4 px-6 rounded-2xl bg-white text-black hover:bg-zinc-200 active:scale-[0.98] transition-all text-sm font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+                    onClick={this.props.onClose}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-white/5 border border-white/5 text-[var(--text-tertiary)] hover:bg-white/10 hover:text-[var(--text-primary)] transition-all text-[11.5px] font-medium"
                   >
-                    <RotateCcw size={16} strokeWidth={2.5} />
-                    Restore Engine
+                    Dismiss
                   </button>
-                </div>
+                )}
+                <button
+                  onClick={this.handleRetry}
+                  className="flex-1 py-2.5 px-4 rounded-xl text-[#ffffff] font-semibold transition-all active:scale-95 shadow-md hover:opacity-90 flex items-center justify-center gap-2"
+                  style={{ background: '#ef4444' }}
+                >
+                  <RotateCcw size={13} strokeWidth={2.5} />
+                  <span className="text-[11.5px]">Restore Engine</span>
+                </button>
               </div>
             </div>
           </motion.div>

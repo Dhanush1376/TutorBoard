@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
  */
 export function useElapsedTime(isPlaying, resetKey) {
   const [seconds, setSeconds] = useState(0);
-  const timerRef = useRef(null);
+  const tickTimerRef = useRef(null);
 
   useEffect(() => {
     setSeconds(0);
@@ -14,15 +14,15 @@ export function useElapsedTime(isPlaying, resetKey) {
 
   useEffect(() => {
     if (isPlaying) {
-      timerRef.current = setInterval(() => {
+      tickTimerRef.current = setInterval(() => {
         setSeconds(s => s + 1);
       }, 1000);
     } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (tickTimerRef.current) clearInterval(tickTimerRef.current);
     }
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (tickTimerRef.current) clearInterval(tickTimerRef.current);
     };
   }, [isPlaying]);
 

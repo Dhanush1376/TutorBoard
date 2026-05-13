@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useNavigate } from 'react-router-dom';
 import useTutorStore from '../store/tutorStore';
-import { useTheme } from './ThemeContext';
+import { useTheme } from './useTheme';
 import API, { BASE_URL as API_URL, fetchCsrfToken } from '../services/api';
 import { syncSocketAuth, disconnectSocket } from '../hooks/useSocket';
 import { AuthContext } from './AuthContext';
@@ -36,6 +37,8 @@ const safeStorage = {
     }
   }
 };
+
+let authVerificationPromise = null;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -136,48 +139,48 @@ export const AuthProvider = ({ children }) => {
     }, 90000);
 
     const verifyToken = async () => {
-      try {
-        try {
-          await fetchCsrfToken();
-        } catch (e) {
-          console.warn('[Auth] Failed to pre-fetch CSRF token:', e);
+      if (authVerificationPromise) {
+        const result = await authVerificationPromise;
+        if (result) {
+          setUser(result.user);
+          setToken(result.token);
+          setApiPrefs(result.apiPrefs);
+          setDbOffline(result.dbOffline);
         }
+        setLoading(false);
+        setIsAuthResolved(true);
+        return;
+      }
 
-        API.get('/health').catch(() => {});
-
-        const urlParams = new URL(window.location.href).searchParams;
-        const exchangeCode = urlParams.get('code');
-
-        if (exchangeCode) {
-          const res = await API.post('/api/auth/exchange', { code: exchangeCode });
-          if (res.data?.success) {
-            sessionStorage.setItem('tb-just-logged-in', 'true');
+      authVerificationPromise = (async () => {
+        try {
+          try {
+            await fetchCsrfToken();
+          } catch (e) {
+            console.warn('[Auth] Failed to pre-fetch CSRF token:', e);
           }
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
 
-        const isHydrated = sessionStorage.getItem('tb-settings-hydrated') === 'true';
-        const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-        
-        if (isGuest) {
-          setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
-          setToken(null);
-          setLoading(false);
-          setIsAuthResolved(true);
-          return;
-        }
+          API.get('/health').catch(() => {});
 
-        const prompt = urlParams.get('prompt');
-        if (prompt && !user) {
-          sessionStorage.setItem('tb-is-guest', 'true');
-          setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
-          setToken(null);
-          setLoading(false);
-          setIsAuthResolved(true);
-          return;
-        }
+          const urlParams = new URL(window.location.href).searchParams;
+          const exchangeCode = urlParams.get('code');
 
-        try {
+          if (exchangeCode) {
+            const res = await API.post('/api/auth/exchange', { code: exchangeCode });
+            if (res.data?.success) {
+              sessionStorage.setItem('tb-just-logged-in', 'true');
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+
+          const isHydratedLocal = sessionStorage.getItem('tb-settings-hydrated') === 'true';
+          const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
+          
+          if (isGuest) {
+            const guestUser = { name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true };
+            return { user: guestUser, token: null, apiPrefs, dbOffline: false };
+          }
+
           const [meRes, apiRes] = await Promise.all([
             API.get('/api/auth/me').catch(e => {
               console.warn('[Auth] /api/auth/me failed:', e.response?.status, e.message);
@@ -186,51 +189,57 @@ export const AuthProvider = ({ children }) => {
             API.get('/api/apikeys').catch(() => null)
           ]);
 
-          console.log('[Auth] meRes status:', meRes?.status, 'hasUser:', !!meRes?.data?.user);
+          let finalUser = null;
+          let finalToken = null;
+          let finalApiPrefs = apiPrefs;
+          let finalDbOffline = false;
+
           const isValidAuth = meRes && meRes.status >= 200 && meRes.status < 300 && meRes.data?.user;
 
           if (isValidAuth) {
             const data = meRes.data;
             sessionStorage.removeItem('tb-is-guest');
-            setUser(data.user);
-            setToken('verified');
-            setDbOffline(false);
-            hydrateSettings(data.user, isHydrated);
+            finalUser = data.user;
+            finalToken = 'verified';
+            hydrateSettings(data.user, isHydratedLocal);
 
             if (apiRes && apiRes.status >= 200 && apiRes.status < 300 && apiRes.data) {
               const apiData = apiRes.data;
               const activeKeys = (apiData.keys || []).filter(k => k.isActive && k.isValid);
               const firstActive = activeKeys[0];
               const status = firstActive?.isExpired ? 'expired' : (firstActive?.isLowCredits ? 'low' : (firstActive?.isValid ? 'active' : 'stable'));
-              setApiPrefs({
+              finalApiPrefs = {
                 useCustomApi: apiData.preferences?.useCustomApi && activeKeys.length > 0,
                 activeProvider: firstActive?.provider,
                 activeLabel: firstActive?.label,
                 activeIds: activeKeys.map(k => k.id || k._id),
                 allKeys: apiData.keys || [],
                 status
-              });
+              };
             }
           } else {
-            if (meRes?.status === 429) return;
             const errorData = meRes?.data || {};
             if (errorData.code === 'DB_OFFLINE') {
-              setDbOffline(true);
-              return;
+              finalDbOffline = true;
             }
-            setToken(null);
-            setUser(null);
           }
+
+          return { user: finalUser, token: finalToken, apiPrefs: finalApiPrefs, dbOffline: finalDbOffline };
         } catch (err) {
           console.error('[Auth] Verification sub-block failed:', err.message);
-          setUser(null); 
+          return null;
         }
-      } catch (globalErr) {
-        console.error('[Auth] CRITICAL Error in verifyToken:', globalErr);
-      } finally {
-        setLoading(false);
-        setIsAuthResolved(true);
+      })();
+
+      const result = await authVerificationPromise;
+      if (result) {
+        setUser(result.user);
+        setToken(result.token);
+        setApiPrefs(result.apiPrefs);
+        setDbOffline(result.dbOffline);
       }
+      setLoading(false);
+      setIsAuthResolved(true);
     };
 
     verifyToken();

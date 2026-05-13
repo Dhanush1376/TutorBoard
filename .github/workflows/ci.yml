@@ -48,7 +48,7 @@ jobs:
       run: npm test
       env:
         MONGODB_URI: mongodb://localhost:27017/test
-        JWT_SECRET: test-secret-not-for-prod
+        JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
         ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY }}
 
     - name: Typecheck Server
@@ -77,7 +77,7 @@ jobs:
       run: npx playwright test
       env:
         MONGODB_URI: mongodb://localhost:27017/test
-        JWT_SECRET: test-secret-not-for-prod
+        JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
         ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY }}
 
     - name: Upload Playwright Report

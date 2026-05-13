@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ChatWindow from '../chat/ChatWindow';
 import InputBar from '../chat/InputBar';
@@ -16,6 +16,7 @@ import VisaiLogo from './VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
 import { useAuth } from '../../hooks/useAuth';
 import GuestTrialBanner from '../common/GuestTrialBanner';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 
 const LeftPanel = ({
@@ -38,8 +39,10 @@ const LeftPanel = ({
   onSwitchVersion,
   onOpenArtifact,
   onExport,
-  isSplitView = false
+  isSplitView = false,
+  onUndoMessage,
 }) => {
+  const { isMobile } = useWindowSize();
   const navigate = useNavigate();
   const { setSidebarOpen, layoutView, setOverlay } = useTutorStore();
   const { user } = useAuth();
@@ -47,6 +50,7 @@ const LeftPanel = ({
   const hasStarted = (messages || []).length > 0;
   const searchInputRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const loaderRef = useRef(null);
 
   // Keyboard Shortcuts for Professional Feel
   useEffect(() => {
@@ -72,22 +76,41 @@ const LeftPanel = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onNewChat, setActiveView]);
 
+  // SEC-48: Use a callback ref for infinite scroll to ensure reliable observation
+  const observerRef = useRef(null);
+  const loaderCallbackRef = useCallback((node) => {
+    if (observerRef.current) observerRef.current.disconnect();
+    if (!node || !hasMore || isLoadingMore || searchQuery.trim() || isGuest) return;
+
+    observerRef.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        onLoadMore?.();
+      }
+    }, { threshold: 0.1 });
+
+    observerRef.current.observe(node);
+  }, [hasMore, isLoadingMore, searchQuery, isGuest, onLoadMore]);
+
+  useEffect(() => {
+    return () => observerRef.current?.disconnect();
+  }, []);
+
   const filteredHistory = useMemo(() => {
     const base = searchQuery.trim()
       ? chatHistory.filter(c => (c.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
       : chatHistory;
-    
+
     // SEC-UX-05: Deduplicate by ID and sort by latest activity
     const unique = [];
     const seen = new Set();
-    
+
     [...base].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).forEach(s => {
       const sid = s.id || s._id;
       if (!sid || seen.has(sid)) return;
       seen.add(sid);
       unique.push(s);
     });
-    
+
     return unique;
   }, [chatHistory, searchQuery]);
 
@@ -125,19 +148,23 @@ const LeftPanel = ({
             </div>
           </div>
           <div className="flex-1 flex flex-col min-h-0 pt-0">
-            <ChatWindow
-              messages={messages}
-              isGenerating={isGenerating}
-              onOpenCanvas={onOpenCanvas}
-              onDeleteMessage={onDeleteMessage}
-              onEditMessage={onEditMessage}
-              onRegenerateMessage={onRegenerateMessage}
-              onFeedback={onFeedback}
-              onSwitchVersion={onSwitchVersion}
-              onOpenArtifact={onOpenArtifact}
-              activeMode={activeMode}
-              setActiveMode={setActiveMode}
-            />
+            <ErrorBoundary>
+              <ChatWindow
+                messages={messages}
+                isGenerating={isGenerating}
+                onOpenCanvas={onOpenCanvas}
+                onDeleteMessage={onDeleteMessage}
+                onEditMessage={onEditMessage}
+                onRegenerateMessage={onRegenerateMessage}
+                onFeedback={onFeedback}
+                onSwitchVersion={onSwitchVersion}
+                onOpenArtifact={onOpenArtifact}
+                onSubmit={onSubmit}
+                activeMode={activeMode}
+                setActiveMode={setActiveMode}
+                onUndoMessage={onUndoMessage}
+              />
+            </ErrorBoundary>
           </div>
         </div>
       );
@@ -170,19 +197,21 @@ const LeftPanel = ({
 
           {/* Pagination Trigger - Hidden for guests */}
           {hasMore && !searchQuery.trim() && !isGuest && (
-            <div className="px-1 py-4">
-              <button
-                onClick={onLoadMore}
-                disabled={isLoadingMore}
-                className="w-full py-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[11px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
-              >
-                {isLoadingMore ? (
-                  <Loader size={14} />
-                ) : (
-                  <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
-                )}
-                {isLoadingMore ? 'Loading...' : 'Load older sessions'}
-              </button>
+            <div ref={loaderCallbackRef} className="w-full px-1 py-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3 opacity-40">
+                <Loader size={16} fullScreen={false} />
+                {/* Subtle pulse circles instead of text — Premium Zen Minimalist */}
+                <div className="flex gap-1.5 mt-1">
+                  {[0, 1, 2].map(i => (
+                    <motion.div
+                      key={i}
+                      animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0.6, 0.3] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                      className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]"
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -209,10 +238,10 @@ const LeftPanel = ({
 
         <div className="text-center px-4 mb-8">
           <h3 className="text-[14px] font-semibold text-[var(--text-primary)] opacity-80 mb-1">
-            No Recents Found
+            Workspace Clear
           </h3>
           <p className="text-[11px] text-[var(--text-tertiary)] font-normal opacity-60">
-            Your session history will appear here.
+            Start a new session to begin your creative flow.
           </p>
         </div>
 
@@ -220,7 +249,7 @@ const LeftPanel = ({
           <div className="flex items-center gap-3 mb-6 px-2">
             <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-[var(--border-color)]" />
             <span className="text-[9px] font-medium uppercase tracking-[0.3em] text-[var(--text-tertiary)] opacity-50 whitespace-nowrap">
-              Ask a Question
+              AI Command
             </span>
             <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-[var(--border-color)]" />
           </div>
@@ -270,7 +299,6 @@ const LeftPanel = ({
     );
   };
 
-  const { isMobile } = useWindowSize();
 
   return (
     <div className={`flex flex-col h-full relative text-[var(--text-primary)] bg-transparent min-w-[280px]`}>
@@ -290,21 +318,23 @@ const LeftPanel = ({
           </div>
 
 
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setOverlay('settings')}
-              className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
+              className={`${isMobile ? 'p-2' : 'p-2'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
               title="Open Settings"
             >
               <Settings size={isMobile ? 22 : 20} strokeWidth={1.8} className="group-hover:rotate-45 transition-transform" />
             </button>
             <button
               onClick={() => setSidebarOpen(false)}
-              className={`${isMobile ? 'p-2.5' : 'p-2.5'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
+              className={`${isMobile ? 'p-2' : 'p-2'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
               title="Close Workspace"
             >
-              {isMobile ? <X size={24} strokeWidth={2} /> : <PanelLeftClose size={22} strokeWidth={1.8} className="group-hover:scale-110 transition-transform" />}
+              {isMobile ? <X size={24} strokeWidth={2} /> : <PanelLeftClose size={20} strokeWidth={1.8} className="group-hover:scale-110 transition-transform" />}
             </button>
           </div>
+        </div>
 
         {/* Top block visible only on landing/history (except for GuestTrialBanner) */}
         <div className={`${isMobile ? 'px-3 mb-1' : 'px-4 mb-1.5'}`}>

@@ -18,22 +18,23 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
-    if (isGenerating) {
-      const w = (Array.isArray(narrationTokens) ? narrationTokens : (narrationTokens || '').split(' ')).filter(w => w.trim());
-      setWords(w);
-      setVisibleCount(w.length);
-      return;
-    }
-    if (!text || !text.trim()) { setWords([]); setVisibleCount(0); return; }
+    const rawText = isGenerating 
+      ? (Array.isArray(narrationTokens) ? narrationTokens.join(' ') : narrationTokens) 
+      : text;
 
-    const w = text.split(' ').filter(w => w.trim());
+    if (!rawText || !rawText.trim()) { 
+      setWords([]); 
+      setVisibleCount(0); 
+      return; 
+    }
+
+    const w = rawText.split(' ').filter(w => w.trim());
     setWords(w);
-    setVisibleCount(0);
+    setVisibleCount(prev => (prev > w.length || prev === 0) ? 0 : prev);
 
     timerRef.current = setInterval(() => {
       setVisibleCount(p => {
         if (p < w.length) return p + 1;
-        clearInterval(timerRef.current);
         return p;
       });
     }, INTERVAL);

@@ -18,7 +18,7 @@ export const MODEL_REGISTRY = {
   },
   google: {
     validation: 'gemini-1.5-flash',
-    production: 'gemini-2.0-flash',
+    production: 'gemini-1.5-flash',
     fallback: 'gemini-1.5-pro',
   },
   groq: {

@@ -21,7 +21,7 @@ const ProtectedRoute = ({ children, guestAllowed = true }) => {
   // Handle guest restriction for sensitive routes (e.g. settings)
   if (user?.isGuest && !guestAllowed) {
     console.warn('[ProtectedRoute] Guest tried to access restricted route, redirecting to dashboard');
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/session" replace />;
   }
 
   return children;

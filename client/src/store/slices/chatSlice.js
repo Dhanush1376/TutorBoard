@@ -52,18 +52,9 @@ export const createChatSlice = (set, get) => ({
     }));
 
     // ─── Phase 4 Integration: Chat Bar Doubt Bridge ───
-    const { addAssistantMessage } = get();
-    if (addAssistantMessage) {
-      addAssistantMessage(answer, null, {
-        hasCanvas: hasVisuals,
-        canvasSnapshot: hasVisuals ? {
-          objects: get().canvasObjects,
-          connections: get().canvasConnections,
-          stepIndex: get().currentStepIndex
-        } : null,
-        isDoubtResponse: true
-      });
-    }
+    // REMOVED (Issue #32): addAssistantMessage should not be called here.
+    // The streaming path is the single source of truth for committing AI responses.
+    // If doubts bypass the stream, they should use doubtResponse/doubtHistory.
 
     return doubtNode;
   },

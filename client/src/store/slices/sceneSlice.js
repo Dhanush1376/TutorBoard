@@ -95,7 +95,11 @@ export const createSceneSlice = (set, get) => ({
     const finalTransform = isNewTopic ? { x: 0, y: 0, scale: 1 } : get().canvasTransform;
 
     set((state) => {
-      state.activeScene = data;
+      state.activeScene = {
+        ...data,
+        steps: canvasSteps,
+        timeline: canvasSteps
+      };
       state.canvasObjects = canvasObjects;
       state.canvasConnections = canvasConnections;
       state.canvasSteps = canvasSteps;

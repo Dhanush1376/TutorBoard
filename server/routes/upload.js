@@ -77,6 +77,15 @@ const upload = multer({
 });
 
 router.post('/upload', (req, res, next) => {
+  // SEC-14: Server-side upload gate. Parity with UI cosmetic constraints.
+  const uploadsEnabled = process.env.ENABLE_UPLOADS === 'true' || process.env.NODE_ENV !== 'production';
+  if (!uploadsEnabled) {
+    return res.status(403).json({ 
+      error: 'File uploads are disabled in this environment.',
+      code: 'UPLOADS_DISABLED' 
+    });
+  }
+
   upload.single('file')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       return res.status(400).json({ error: `Upload error: ${err.message}` });

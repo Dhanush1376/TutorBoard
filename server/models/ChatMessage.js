@@ -50,6 +50,7 @@ const chatMessageSchema = new mongoose.Schema({
     artifactData: { type: mongoose.Schema.Types.Mixed, default: null },
     artifactTitle: { type: String, default: null },
     artifactStatus: { type: String, default: null },
+    hasVisualArtifact: { type: Boolean, default: false },
     rendererType: { type: String, default: null },
     versions: { type: [mongoose.Schema.Types.Mixed], default: [] },
     activeVersionIndex: { type: Number, default: 0 }
@@ -58,6 +59,7 @@ const chatMessageSchema = new mongoose.Schema({
 
 // Optimize for fetching session history
 chatMessageSchema.index({ sessionId: 1, timestamp: 1 });
+chatMessageSchema.index({ sessionId: 1, role: 1, timestamp: -1 });
 
 const ChatMessage = mongoose.model('ChatMessage', chatMessageSchema);
 

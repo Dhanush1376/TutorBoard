@@ -9,7 +9,6 @@ import LeftPanel from '../components/layout/LeftPanel';
 import useTutorStore, { STATES as STORE_STATES, CANVAS_MODE } from '../store/tutorStore';
 import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
 const TeachingSession = React.lazy(() => import('../components/teaching/TeachingSession'));
-import useStreamingResponse from '../hooks/useStreamingResponse';
 
 import API, { BASE_URL as API_URL, getCookie } from '../services/api';
 
@@ -26,11 +25,13 @@ import { useAuth } from '../hooks/useAuth';
 import { useSessionSync } from '../hooks/useSessionSync';
 import VisaiLogo from '../components/layout/VisaiLogo';
 import SelectionPopover from '../components/chat/SelectionPopover';
+import ArtifactPanel from '../components/chat/ArtifactPanel';
+import { useArtifactSocket } from '../hooks/useArtifactSocket';
 
 import { 
   Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
-  Check, Wifi, WifiOff, Key
+  Check, Wifi, WifiOff, Key, RotateCcw, X, CornerDownLeft, FileCode, Bot, User
 } from 'lucide-react';
 
 
@@ -40,6 +41,7 @@ import {
 const Home = ({ isDark }) => {
   const { isAuthenticated, token, user, loading: authLoading, apiPrefs: globalApiPrefs, logout, isAuthResolved } = useAuth();
   const machine = useTeachingMachine(isAuthResolved);
+  
   const {
     machineState, isConnected,
     timeline, learningNodes, mode, difficulty, professorNote, memoryAnchor, keyFormula,
@@ -61,7 +63,6 @@ const Home = ({ isDark }) => {
     setCanvasSnapshot, greetingMessage, layoutView, addNoteToCanvas,
     chatInputText, setChatInputText, pinnedNotes, toggleSidebarPosition, showAlert,
     activeSnapshotId, setActiveSnapshotId, setTimeline,
-    // Manual interaction states
     activeTool, setActiveTool, addCanvasObjects,
     drawColor, noteColor, noteSize, notePinned, noteToolSize,
     textToolSize, shapeStrokeStyle,
@@ -78,17 +79,25 @@ const Home = ({ isDark }) => {
     setCurrentCanvasType,
     syncMessageIds,
     setActiveConversationSession,
-    // Artifact system
     addArtifact, setArtifactDbId, setActiveArtifact, openArtifactPanel,
     startStreamingArtifact, finalizeStreamingArtifact,
-    // Unread tracking
     addUnreadSession, markSessionRead,
-    // CanvasSession architecture
     canvasLayout,
     activeArtifactId,
     openedArtifacts,
     activeTeachingMode,
     canvasSessionVersion,
+    forceReset,
+    hydrateSession,
+    chatHistory,
+    setChatHistory: storeSetChatHistory,
+    promoteChatHistoryId,
+    sessionId: machineSessionId,
+    setSessionId: storeSetSessionId,
+    toggleSidebar,
+    setSelectedElements,
+    setHasTextSelection,
+    showToast,
   } = useTutorStore(useShallow(s => ({
     canvasMode: s.canvasMode, playbackSpeed: s.playbackSpeed,
     setCanvasMode: s.setCanvasMode,
@@ -120,14 +129,52 @@ const Home = ({ isDark }) => {
     addArtifact: s.addArtifact, setArtifactDbId: s.setArtifactDbId, setActiveArtifact: s.setActiveArtifact, openArtifactPanel: s.openArtifactPanel,
     startStreamingArtifact: s.startStreamingArtifact, finalizeStreamingArtifact: s.finalizeStreamingArtifact,
     addUnreadSession: s.addUnreadSession, markSessionRead: s.markSessionRead,
-    // CanvasSession architecture
     canvasLayout: s.canvasLayout,
     activeArtifactId: s.activeArtifactId,
     openedArtifacts: s.openedArtifacts,
     activeTeachingMode: s.activeTeachingMode,
     canvasSessionVersion: s.canvasSessionVersion,
     forceReset: s.forceReset,
+    hydrateSession: s.hydrateSession,
+    chatHistory: s.chatHistory,
+    setChatHistory: s.setChatHistory,
+    promoteChatHistoryId: s.promoteChatHistoryId,
+    sessionId: s.sessionId,
+    setSessionId: s.setSessionId,
+    toggleSidebar: s.toggleSidebar,
+    setSelectedElements: s.setSelectedElements,
+    setHasTextSelection: s.setHasTextSelection,
+    showToast: s.showToast,
   })));
+
+  // ─── COMPONENT STATE ───
+  const [historyFetched, setHistoryFetched] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, hasMore: false, loading: false });
+  const [isDbOffline, setIsDbOffline] = useState(false);
+  const [isQuickAskOpen, setIsQuickAskOpen] = useState(false);
+  const [activeView, setActiveView] = useState('history');
+  const [prompt, setPrompt] = useState('');
+  const [activeMode, setActiveMode] = useState(null);
+  const [lastSubmittedPrompt, setLastSubmittedPrompt] = useState(null);
+  const [undoConfirmModal, setUndoConfirmModal] = useState(null);
+
+  // ─── COMPONENT REFS ───
+  const fetchLockRef = useRef(false);
+  const fetchAbortControllerRef = useRef(null);
+  const hasHydratedActive = useRef(false);
+  const lastArtifactIdRef = useRef(null);
+  const isArtifactExpectedRef = useRef(false);
+  const currentCanvasTypeRef = useRef(null);
+  const hasAutoStarted = useRef(false);
+  const msgIdCounter = useRef(0);
+  const canvasSessionCreatedRef = useRef(false);
+  const submittingSessionsRef = useRef(new Set());
+  const abortControllersRef = useRef(new Map());
+
+  // Real-time Visual Artifact listener
+  useArtifactSocket();
+
+
 
 
 
@@ -143,18 +190,8 @@ const Home = ({ isDark }) => {
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
 
-  const { 
-    chatHistory, 
-    setChatHistory: storeSetChatHistory,
-    promoteChatHistoryId
-  } = useTutorStore(useShallow(s => ({
-    chatHistory: s.chatHistory,
-    setChatHistory: s.setChatHistory,
-    promoteChatHistoryId: s.promoteChatHistoryId
-  })));
-
   // Compatibility wrapper for functional updates in Home.jsx
-  const setChatHistory = useCallback((updater) => {
+  const syncChatHistory = useCallback((updater) => {
     if (typeof updater === 'function') {
       const current = useTutorStore.getState().chatHistory;
       storeSetChatHistory(updater(current));
@@ -162,13 +199,7 @@ const Home = ({ isDark }) => {
       storeSetChatHistory(updater);
     }
   }, [storeSetChatHistory]);
-  const [historyFetched, setHistoryFetched] = useState(false);
-  const [pagination, setPagination] = useState({ page: 1, hasMore: false, loading: false });
-  const [isDbOffline, setIsDbOffline] = useState(false);
-  const [isQuickAskOpen, setIsQuickAskOpen] = useState(false);
 
-  const fetchLockRef = useRef(false);
-  const fetchAbortControllerRef = useRef(null);
 
   const fetchCloudSessions = useCallback(async (pageNum = 1) => {
     if (!isAuthenticated || user?.isGuest || !token) return;
@@ -219,7 +250,7 @@ const Home = ({ isDark }) => {
             chatSessionId: s._id
           }));
 
-        setChatHistory(prev => {
+        syncChatHistory(prev => {
           let merged;
           if (pageNum === 1) {
             // MongoDB is the source of truth on fresh login/refresh.
@@ -290,18 +321,12 @@ const Home = ({ isDark }) => {
     }
   }, [fetchCloudSessions, user]);
 
-  const { sessionId: machineSessionId, setSessionId: storeSetSessionId } = useTutorStore(useShallow(s => ({
-    sessionId: s.sessionId,
-    setSessionId: s.setSessionId
-  })));
-  
   // Use machine.sessionId as the single source of truth for the local chat pointer
   const activeChatId = machineSessionId;
   const setActiveChatId = storeSetSessionId;
 
   const activeChatIdRef = useRef(activeChatId);
-  const submittingSessionsRef = useRef(new Set()); // Track sessions currently initiating a request
-  const abortControllersRef = useRef(new Map());
+
 
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
@@ -369,49 +394,34 @@ const Home = ({ isDark }) => {
     }
   }, [activeChatId, isAuthenticated, user]);
 
-  // Restore Active Chat on Mount (fixes "chat disappearing on refresh")
-  const hasHydratedActive = useRef(false);
-  const lastArtifactIdRef = useRef(null);
-  const isArtifactExpectedRef = useRef(false);
-  const currentCanvasTypeRef = useRef(null);
+
+  // Safety: If stuck in isWaitingForAI for more than 30s without a stream, force reset.
   useEffect(() => {
-    // Wait for auth to finish deciding if we are guest or user
+    if (!isWaitingForAI || isStreaming) return;
+    const timer = setTimeout(() => {
+      if (isWaitingForAI && !isStreaming) {
+        import.meta.env.DEV && console.warn('[Home] Stuck detected in isWaitingForAI. Forcing reset.');
+        setWaitingForAI(false, activeChatId || useTutorStore.getState().getSid());
+        if (submittingSessionsRef.current) submittingSessionsRef.current.clear();
+      }
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [isWaitingForAI, isStreaming, activeChatId, setWaitingForAI]);
+
+  // Centralized Hydration (SEC-22): Restore active chat on mount/auth-resolution
+  useEffect(() => {
     if (authLoading) return;
     if (hasHydratedActive.current) return;
     
-    // If we already have an active chat (e.g. from store sync), we are done with hydration
     if (activeChatId) {
       hasHydratedActive.current = true;
       return;
     }
 
-    const savedActiveId = user?.lastActiveSessionId || localStorage.getItem('tutorboard-active-chat');
-    
-    // Only attempt hydration if we actually have history loaded (from local or cloud)
-    if (!activeChatId && savedActiveId && chatHistory.length > 0) {
-      const session = chatHistory.find(s => s.id === savedActiveId);
-      if (session) {
-        import.meta.env.DEV && console.log('[Home] Hydrating active chat:', savedActiveId);
-        hasHydratedActive.current = true;
-        // Restore active chat ID
-        setActiveChatId(savedActiveId);
-        
-        // Optimistic hydration: Populate chat and canvas from local history BEFORE cloud fetch
-        if (session.messages && session.messages.length > 0) {
-          setConversationMessages(session.messages);
-        }
-
-        // Restore canvas snapshot if we have one
-        if (session.canvasState && session.canvasState.length > 0) {
-          useTutorStore.getState().setCanvasSnapshot({ 
-            canvasObjects: session.canvasState, 
-            canvasSteps: session.canvasSteps || session.steps || [], 
-            totalSteps: (session.canvasSteps || session.steps)?.length || 0 
-          });
-        }
-      }
-    }
-  }, [activeChatId, chatHistory, setActiveChatId, setConversationMessages, authLoading]);
+    hydrateSession(user).then(() => {
+      hasHydratedActive.current = true;
+    });
+  }, [authLoading, user, activeChatId, hydrateSession]);
 
 
 
@@ -420,7 +430,6 @@ const Home = ({ isDark }) => {
 
 
   // ── AI Automation: Handle 'prompt' URL param ──
-  const hasAutoStarted = useRef(false);
   useEffect(() => {
     if (hasAutoStarted.current) return;
     
@@ -434,9 +443,6 @@ const Home = ({ isDark }) => {
       // Give the machine a moment to connect if it hasn't yet
       const timer = setTimeout(() => {
         setPrompt(urlPrompt);
-        // We can't call handleSubmit directly because it's defined after many state variables,
-        // so we'll just replicate the startup logic here or wait for prompt state to settle.
-        // Better: trigger startSession directly since we are already in Home.
         startSession(urlPrompt, urlPrompt, 'explain');
         // Clear param so it doesn't re-start on refresh if navigating back
         const newUrl = window.location.pathname + window.location.hash;
@@ -447,19 +453,8 @@ const Home = ({ isDark }) => {
     }
   }, [startSession]);
 
-
-
-  const [activeView, setActiveView] = useState('history');
-  const [prompt, setPrompt] = useState('');
-  const [activeMode, setActiveMode] = useState(null);
-
-
-  const msgIdCounter = useRef(0);
   const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
-
-
-  const { startStreaming: streamResponse, stopStreaming } = useStreamingResponse();
 
   // ── Smart Title Summarization Helper ──
   const generateCleanTitle = useCallback((text) => {
@@ -492,7 +487,6 @@ const Home = ({ isDark }) => {
   // ── Canvas-First Session Creation ──
   // If the user draws on the canvas without starting a chat, we create a "Canvas Session"
   // so that toolbar drawings are always persisted.
-  const canvasSessionCreatedRef = useRef(false);
   useEffect(() => {
     if (!isAuthenticated || user?.isGuest || !historyFetched) return; 
     if (canvasObjects?.length === 0) return;
@@ -512,7 +506,7 @@ const Home = ({ isDark }) => {
       canvasSteps: [],
       pinnedNotes: [],
     };
-    setChatHistory(prev => [newSession, ...prev]);
+    syncChatHistory(prev => [newSession, ...prev]);
     setActiveChatId(localId);
     import.meta.env.DEV && console.log('[Home] 🎨 Auto-created Canvas Session for standalone drawing.');
   }, [canvasObjects?.length, activeChatId, isAuthenticated, user]);
@@ -562,7 +556,7 @@ const Home = ({ isDark }) => {
     // ── GUEST PERSISTENCE (LocalStorage fallback + MongoDB) ──
     if (user?.isGuest) {
       import.meta.env.DEV && console.log(`[Persistence:Guest] 🏠 Updating local history: ${targetSessionId}`);
-      setChatHistory(prev => {
+      syncChatHistory(prev => {
         // Promotion-aware index finding: Match the ID, or find a temp ID that this real ID is replacing
         const idx = prev.findIndex(s => 
           s.id === targetSessionId || 
@@ -608,7 +602,7 @@ const Home = ({ isDark }) => {
         }
 
         // ── SYNC LOCAL CACHE: Update the chatHistory entry with full state ──
-        setChatHistory(prev => {
+        syncChatHistory(prev => {
           // Robust promotion-aware deduplication
           const otherSessions = prev.filter(s => 
             s.id !== targetSessionId && 
@@ -659,11 +653,93 @@ const Home = ({ isDark }) => {
 
 
   // ─── Logic ───
-  const { toggleSidebar } = useTutorStore(useShallow(s => ({
-    toggleSidebar: s.toggleSidebar
-  })));
 
+  // Automatic cleanup timer for the floating confirmation Undo overlay
+  useEffect(() => {
+    if (!lastSubmittedPrompt) return;
+    const timer = setTimeout(() => {
+      setLastSubmittedPrompt(null);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [lastSubmittedPrompt]);
 
+  const executeConfirmedUndo = useCallback(() => {
+    if (!undoConfirmModal) return;
+    const { messageId, content } = undoConfirmModal;
+    const sid = activeChatId || useTutorStore.getState().getSid();
+
+    import.meta.env.DEV && console.log('[Home] ✅ Executing confirmed multi-message undo starting from ID:', messageId);
+
+    // 1. Abort any active streaming loops
+    if (abortControllersRef.current.has(sid)) {
+      abortControllersRef.current.get(sid).abort();
+    }
+    useTutorStore.getState().abortStreaming(sid);
+
+    // 2. Execute slice pruning starting from targeted checkpoint ID
+    if (messageId) {
+      useTutorStore.getState().deleteMessagesStartingFromId(messageId);
+    }
+
+    // 3. Restore the targeted user prompt text right back into the InputBar
+    if (content) {
+      setPrompt(content);
+    }
+
+    // 4. Close both the modal and floating banner
+    setUndoConfirmModal(null);
+    setLastSubmittedPrompt(null);
+
+    useTutorStore.getState().showToast({
+      message: 'Messages successfully rolled back. Prompt restored.',
+      type: 'info',
+      duration: 3500
+    });
+  }, [undoConfirmModal, activeChatId]);
+
+  const handleUndoMessage = useCallback((targetMsgId = null, targetContent = null) => {
+    // Resolve from parameters or lastSubmittedPrompt state
+    const msgId = typeof targetMsgId === 'string' ? targetMsgId : (lastSubmittedPrompt?.messageId || targetMsgId);
+    let textToRestore = typeof targetContent === 'string' ? targetContent : lastSubmittedPrompt?.text;
+
+    const msgs = useTutorStore.getState().conversationMessages || [];
+    const idx = msgs.findIndex(m => m.id?.toString() === msgId?.toString() || m._id?.toString() === msgId?.toString());
+    
+    // Fallback lookup if string missing
+    if (idx !== -1 && !textToRestore) {
+      textToRestore = msgs[idx].content;
+    }
+
+    if (idx === -1 && !msgId) {
+      import.meta.env.DEV && console.warn('[Home] Undo ignored: target message not found in sequence');
+      return;
+    }
+
+    // Determine affected sub-array starting from target index to the end
+    const affectedMessages = idx !== -1 ? msgs.slice(idx) : (lastSubmittedPrompt ? [{ role: 'user', content: textToRestore }] : []);
+    
+    // Map beautifully styled item list matching user's reference screenshot structure
+    const items = affectedMessages.map((m, i) => {
+      const isU = m.role === 'user';
+      const fallbackSnippet = m.content ? m.content.slice(0, 24) + (m.content.length > 24 ? '...' : '') : 'Visual Stream Output';
+      return {
+        role: m.role || 'user',
+        label: isU ? `User Prompt #${i+1}` : `AI Response #${i+1}`,
+        snippet: m.text || fallbackSnippet,
+        added: 0,
+        removed: 1
+      };
+    });
+
+    import.meta.env.DEV && console.log('[Home] ↩️ Triggering confirmation modal for multi-message undo starting from:', msgId);
+
+    setUndoConfirmModal({
+      messageId: msgId,
+      content: textToRestore,
+      affectedCount: affectedMessages.length,
+      items
+    });
+  }, [lastSubmittedPrompt]);
 
   const safeNum = (v, f) => { const n = parseFloat(v); return isNaN(n) ? f : n; };
 
@@ -775,7 +851,7 @@ const Home = ({ isDark }) => {
             }
 
             // Sync with local history so the sidebar/main preview is also updated
-            setChatHistory(prev => prev.map(s => s.id === id ? {
+            syncChatHistory(prev => prev.map(s => s.id === id ? {
               ...s,
               title: fullData.title,
               messages: fullData.messages,
@@ -832,7 +908,7 @@ const Home = ({ isDark }) => {
       if (!sessionToRestore) return;
 
       // Optimistic local update
-      setChatHistory(prev => prev.filter(c => c.id !== id));
+      syncChatHistory(prev => prev.filter(c => c.id !== id));
       if (activeChatId === id) {
         setActiveChatId(null);
         useTutorStore.getState().endSession();
@@ -870,7 +946,7 @@ const Home = ({ isDark }) => {
           isUndone = true;
           clearTimeout(deleteTimer);
           // Restore the session to the list
-          setChatHistory(prev => {
+          syncChatHistory(prev => {
             if (prev.some(s => s.id === id)) return prev;
             return [sessionToRestore, ...prev].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
           });
@@ -895,7 +971,7 @@ const Home = ({ isDark }) => {
   };
   const handleRenameChat = async (id, newTitle) => {
     // Optimistic local update
-    setChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
+    syncChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
     
     // Persistent cloud update
     if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
@@ -914,7 +990,7 @@ const Home = ({ isDark }) => {
     let snapshot = null;
 
     if (session) {
-      const msg = session.messages?.find(m => m.id === messageId || m._id === messageId);
+      const msg = session.messages?.find(m => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
       if (msg?.canvasSnapshot) {
         snapshot = msg.canvasSnapshot;
       }
@@ -922,7 +998,7 @@ const Home = ({ isDark }) => {
 
     // 2. Fallback: Try conversationMessages from the store
     if (!snapshot) {
-      const storeMsg = conversationMessages.find(m => m.id === messageId || m._id === messageId);
+      const storeMsg = conversationMessages.find(m => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
       if (storeMsg?.canvasSnapshot) {
         snapshot = storeMsg.canvasSnapshot;
       }
@@ -999,7 +1075,7 @@ const Home = ({ isDark }) => {
     }
   }, [chatInputText, setPrompt, setSidebarOpen, setActiveView, setChatInputText]);
 
-  const handleSubmit = async (textOverride, fileData = null, modeOverride = null, isRegeneration = false, targetAssistantId = null) => {
+  const handleSubmit = async (textOverride, fileData = null, modeOverride = null, isRegeneration = false, targetAssistantId = null, editMessageId = null) => {
     // ── 0. Capture State before potential resets ──
     const isTeachingActive = machine.isTeaching || machine.isGenerating || machine.isDoubtTriggered;
     const currentActiveChatId = activeChatId;
@@ -1023,15 +1099,14 @@ const Home = ({ isDark }) => {
        // Should not happen, but safety fallback
        workingSessionId = `session-regen-${Date.now()}`;
     }
+    
+    import.meta.env.DEV && (document.body.style.border = "5px solid red");
+    import.meta.env.DEV && console.log('[Home] SUBMIT TRIGGERED', { textOverride, workingSessionId });
 
-    // Guard against double-submission
-    const alreadySubmitting = submittingSessionsRef.current.has(workingSessionId);
-    if (alreadySubmitting) {
-      console.warn('[Home] Submission already in progress for session:', workingSessionId);
-      return;
-    }
+    // Guard removed for testing - allow all submissions
 
-    let userPrompt = textOverride || prompt.trim();
+    const originalRawPrompt = textOverride || prompt.trim();
+    let userPrompt = originalRawPrompt;
     
     // If we have context but NO user prompt, we might want a default question
     if (!userPrompt && finalContext) {
@@ -1043,15 +1118,17 @@ const Home = ({ isDark }) => {
     }
 
     if (!userPrompt && !fileData && !finalContext) {
-      console.warn('[Home] Empty submission blocked');
+      import.meta.env.DEV && console.warn('[Home] Empty submission blocked');
       return;
     }
+
+    import.meta.env.DEV && console.log('[Home] 🚀 Starting submission for session:', workingSessionId, 'Prompt:', userPrompt);
 
     // FIX: Set the active session ID in the store BEFORE addUserMessage is called
     // addUserMessage reads chatSessionId||sessionId from the store to key messages.
     // If these are null it falls back to 'temp', meaning stream chunks go to 'temp' 
     // but startStreaming is called with workingSessionId — they never match and no response appears.
-    const generatedTitle = userPrompt ? detectTopic(userPrompt) : 'New Chat';
+    const generatedTitle = userPrompt ? generateCleanTitle(userPrompt) : 'New Chat';
     if (!activeChatId) {
       setActiveChatId(workingSessionId);
       // Also sync the store's session IDs so addUserMessage and useSessionSync pick them up immediately.
@@ -1085,9 +1162,18 @@ const Home = ({ isDark }) => {
       let sessionTitle = activeSession?.title;
 
       // ── 1. Add user message ONLY if not regenerating ──
-      if (!isRegeneration) {
+      // Note: If we are editing (editMessageId is set), applyEdit has already mutated the store
+      // so we should treat it as a regeneration flow and NOT append a duplicate user message!
+      if (!isRegeneration && !editMessageId) {
         const result = addUserMessage(userPrompt);
-        userId = result.userId;
+        userId = result.messageId || result.userId;
+
+        setLastSubmittedPrompt({
+          text: originalRawPrompt,
+          messageId: userId,
+          sessionId: workingSessionId,
+          timestamp: Date.now()
+        });
 
         // ── Smart Title Generation: Only if session is currently generic ──
         const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
@@ -1095,7 +1181,7 @@ const Home = ({ isDark }) => {
         sessionTitle = isGeneric(currentTitle) ? generateCleanTitle(userPrompt) : currentTitle;
         
         // Update local chat history for sidebar display
-        setChatHistory(prev => {
+        syncChatHistory(prev => {
           // Ensure we don't add duplicates even at the initial user message phase
           const otherSessions = prev.filter(s => s.id !== workingSessionId);
           const userMessage = { 
@@ -1111,7 +1197,7 @@ const Home = ({ isDark }) => {
       // ── 2. Determine if this is a teaching-related query ──
       // If a teaching session is active, route all chat input to the doubt pipeline
       // We use the captured isTeachingActive from the start of the function
-      if ((activeMode === 'deep' || isTeachingActive) && !isRegeneration) {
+      if ((activeMode === 'deep' || isTeachingActive) && !isRegeneration && !editMessageId) {
         const store = useTutorStore.getState();
         const history = store.conversationMessages;
         const isFollowUp = (activeChatId && history.length > 0) || isTeachingActive;
@@ -1153,9 +1239,15 @@ const Home = ({ isDark }) => {
             learnerLevel: 'intermediate',
           },
           platformMemory,
+          isRegeneration,
+          messageId: editMessageId,
+          newContent: editMessageId ? userPrompt : undefined
         }),
         credentials: 'include'
       };
+      
+      const streamEndpoint = editMessageId ? '/api/chat/edit/stream' : '/api/chat/stream';
+      
       isArtifactExpectedRef.current = false;
       // ── 2. Handle Abort Signals ──
       if (abortControllersRef.current.has(workingSessionId)) {
@@ -1166,10 +1258,10 @@ const Home = ({ isDark }) => {
       const { signal } = controller;
       fetchOptions.signal = signal;
 
-      const res = await fetch(`${API_URL}/api/chat/stream`, fetchOptions).catch(e => {
+      const res = await fetch(`${API_URL}${streamEndpoint}`, fetchOptions).catch(e => {
         if (e.name === 'AbortError' || e.message?.includes('aborted')) {
-          e.name = 'AbortError';
-          throw e; // Propagate aborts to outer catch
+          // Skip setting name to avoid read-only property error
+          throw e; 
         }
         console.error('[Chat:Stream] Network/Proxy error:', e);
         throw new Error(`Connection failed: ${e.message}`);
@@ -1276,7 +1368,31 @@ const Home = ({ isDark }) => {
               import.meta.env.DEV && console.log(`[SSE] Received event: ${eventType}`, eventData);
 
             if (eventType === 'meta') {
-              receivedSessionId = eventData.sessionId || receivedSessionId;
+              const newDbId = eventData.sessionId;
+              if (newDbId && newDbId !== workingSessionId && newDbId !== receivedSessionId) {
+                receivedSessionId = newDbId;
+                
+                // CRITICAL HOTFIX: Promote session immediately to prevent DB duplication if stream crashes
+                const { migrateSessionState } = useTutorStore.getState();
+                migrateSessionState(workingSessionId, receivedSessionId);
+                
+                const existingController = abortControllersRef.current.get(workingSessionId);
+                if (existingController) {
+                  abortControllersRef.current.set(receivedSessionId, existingController);
+                  abortControllersRef.current.delete(workingSessionId);
+                }
+                
+                setActiveChatId(receivedSessionId);
+                useTutorStore.getState().setChatSessionId(receivedSessionId);
+                
+                syncChatHistory(prev => {
+                  const otherSessions = prev.filter(s => s.id !== workingSessionId && s.id !== receivedSessionId);
+                  const s = prev.find(s => s.id === workingSessionId) || { messages: [], title: sessionTitle };
+                  return [{ ...s, id: receivedSessionId, chatSessionId: receivedSessionId }, ...otherSessions];
+                });
+                
+                workingSessionId = receivedSessionId; // update local pointer for subsequent chunks
+              }
               useTutorStore.getState().handleProgressiveStreamEvent(eventData);
             } else if (eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
               useTutorStore.getState().handleProgressiveStreamEvent(eventData);
@@ -1319,7 +1435,7 @@ const Home = ({ isDark }) => {
                 syncMessageIds(userMessageId, assistantMessageId, userId, assistantMsgId);
               }
               
-              setChatHistory(prev => prev.map(s => {
+              syncChatHistory(prev => prev.map(s => {
                 if (s.id === currentSessionId || s.id === receivedSessionId) {
                   const msgs = [...s.messages];
                   let changed = false;
@@ -1389,7 +1505,7 @@ const Home = ({ isDark }) => {
 
                 // Attach this artifact ID to the CURRENT assistant message metadata if it exists
                 const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
-                setChatHistory(prev => prev.map(s => {
+                syncChatHistory(prev => prev.map(s => {
                   if (s.id === currentSessionId || s.id === receivedSessionId) {
                     const msgs = [...s.messages];
                     if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
@@ -1410,7 +1526,7 @@ const Home = ({ isDark }) => {
                 setArtifactDbId(savedLocalId, eventData.artifactId);
                 
                 // Update message metadata to reflect the real ID
-                setChatHistory(prev => prev.map(s => {
+                syncChatHistory(prev => prev.map(s => {
                   if (s.id === (receivedSessionId || workingSessionId)) {
                     const msgs = s.messages.map(m => {
                       if (m.metadata?.artifactId === savedLocalId) {
@@ -1431,7 +1547,7 @@ const Home = ({ isDark }) => {
                 addUnreadSession(currentSessionId);
               }
               fullContent = eventData.content;
-              setChatHistory(prev => prev.map(s => {
+              syncChatHistory(prev => prev.map(s => {
                 if (s.id === (receivedSessionId || currentSessionId)) {
                   const msgs = [...s.messages];
                   if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
@@ -1503,7 +1619,7 @@ const Home = ({ isDark }) => {
           const finalMessages = useTutorStore.getState().conversationMessages;
           setActiveChatId(receivedSessionId);
           
-          setChatHistory(prev => {
+          syncChatHistory(prev => {
             // Strictly filter out any session that matches either the old temp ID or the new real ID
             const otherSessions = prev.filter(s => s.id !== workingSessionId && s.id !== receivedSessionId);
             const promotedSession = { 
@@ -1523,7 +1639,7 @@ const Home = ({ isDark }) => {
         } else {
           // Just sync messages if ID didn't change
           const finalMessages = useTutorStore.getState().conversationMessages;
-          setChatHistory(prev => prev.map(s => 
+          syncChatHistory(prev => prev.map(s => 
             s.id === workingSessionId ? { ...s, messages: finalMessages, updatedAt: Date.now() } : s
           ));
         }
@@ -1542,13 +1658,12 @@ const Home = ({ isDark }) => {
       // Nuclear cleanup for UI state on 503 or other fatal errors
       forceReset();
 
-      store.finishStreaming(err.message.includes('unavailable') || err.message.includes('503')
-        ? "I'm having trouble connecting right now. Please try again in a moment. Our primary AI providers are currently rate-limited."
-        : `⚠️ ${err.message}`, workingSessionId);
+      // Ensure we finish the streaming state but don't inject the error as a message
+      store.finishStreaming('', workingSessionId);
       
       // Sync error message to sidebar
       const errorMessages = store.conversationMessages;
-      setChatHistory(prev => prev.map(s => 
+      syncChatHistory(prev => prev.map(s => 
         s.id === workingSessionId ? { ...s, messages: errorMessages } : s
       ));
     } finally {
@@ -1566,46 +1681,9 @@ const Home = ({ isDark }) => {
     // After applyEdit(), always mark the message as edited locally
     useTutorStore.getState().setMessageMetadata(messageId, { edited: true });
 
-    // If we have a persisted session, call the edit API
-    const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
-    const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
-
-    try {
-      if (isMongoId) {
-        const response = await API.post('/api/chat/edit', { 
-          sessionId: dbSessionId, 
-          messageId, 
-          newContent 
-        });
-        
-        if (response.status === 200) {
-          const data = response.data;
-          // ── SYNC STATE: If edit truncated the conversation (branching), update store ──
-          if (data.messagesAfterEdit) {
-            useTutorStore.getState().setConversationMessages(data.messagesAfterEdit);
-          }
-
-          const assistantMsgId = data.assistantMessageId || getMsgId('assistant');
-          streamResponse(data.response, assistantMsgId, dbSessionId);
-          return;
-        }
-      }
-
-      // Fallback: call the regular chat API
-      const response = await API.post('/api/chat', {
-        sessionId: isMongoId ? dbSessionId : undefined,
-        userMessage: newContent,
-        mode: activeMode || 'quick',
-      });
-
-      if (response.status === 200) {
-        const data = response.data;
-        streamResponse(data.response, data.assistantMessageId || getMsgId('assistant'), dbSessionId);
-      }
-    } catch (err) {
-      console.error('[Home] Edit failed:', err);
-      useTutorStore.getState().setLastAIError(err.message);
-    }
+    // Ensure the stream is triggered using the standard pipeline
+    // Pass messageId as the 6th parameter (editMessageId) to route to /api/chat/edit/stream
+    await handleSubmit(newContent, null, null, false, null, messageId);
   };
 
   // ── Regenerate Handler ──
@@ -1614,7 +1692,7 @@ const Home = ({ isDark }) => {
     let finalTargetId = targetMsgId;
     if (!finalTargetId) {
       const lastAssistant = [...conversationMessages].reverse().find(m => m.role === 'assistant');
-      finalTargetId = lastAssistant?.id;
+      finalTargetId = (lastAssistant?.id || lastAssistant?._id)?.toString();
     }
 
     if (!finalTargetId) return;
@@ -1711,7 +1789,6 @@ const Home = ({ isDark }) => {
         const res = await fetch(`${API_URL}/api/chat/regenerate/stream`, fetchOptions).catch(e => {
           clearTimeout(initialTimeout);
           if (e.name === 'AbortError' || e.message?.includes('aborted')) {
-            e.name = 'AbortError';
             throw e; // Propagate aborts to outer catch
           }
           console.error('[Home:Regen] Fetch failed:', e);
@@ -1816,7 +1893,7 @@ const Home = ({ isDark }) => {
                   if (useTutorStore.getState().chatSessionId === activeChatIdRef.current) {
                     useTutorStore.getState().syncMessageIds(userMessageId, assistantMessageId, null, finalTargetId);
                   }
-                  setChatHistory(prev => prev.map(s => {
+                  syncChatHistory(prev => prev.map(s => {
                     if (s.id === dbSessionId) {
                       const msgs = [...s.messages];
                       let changed = false;
@@ -1836,7 +1913,7 @@ const Home = ({ isDark }) => {
                     import.meta.env.DEV && console.log('[Home:Regen] Syncing conversation state from server');
                     useTutorStore.getState().setConversationMessages(eventData.messagesAfterRegen);
                     
-                    setChatHistory(prev => prev.map(s => 
+                    syncChatHistory(prev => prev.map(s => 
                       s.id === dbSessionId ? { ...s, messages: eventData.messagesAfterRegen } : s
                     ));
                   }
@@ -1885,41 +1962,45 @@ const Home = ({ isDark }) => {
   };
 
   // ── Delete Message Handler ──
-  const handleDeleteMessage = async (messageId) => {
+  const handleDeleteMessage = useCallback(async (messageId) => {
     deleteMessageById(messageId);
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
     if (isMongoId) {
-      API.delete(`/api/chat/${dbSessionId}/messages/${messageId}`)
+      API.delete('/api/chat/message', { data: { sessionId: dbSessionId, messageId } })
         .catch(err => console.error('[Home] Delete sync failed:', err));
     }
-  };
+  }, [deleteMessageById, activeChatId]);
 
   // ── Feedback Handler ──
-    const handleFeedback = async (messageId, feedback) => {
-      setMessageFeedback(messageId, feedback);
-
-      const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
-      const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
-
-      if (isMongoId && isAuthenticated) {
-        try {
-          await API.post('/api/chat/feedback', { sessionId: dbSessionId, messageId, feedback });
-        } catch (err) {
-          console.error('[Home] Feedback sync failed:', err);
-        }
-      }
-    };
-
-  // ── Version Switch Handler ──
-  const handleSwitchVersion = async (messageId, versionIndex) => {
-    const prev = conversationMessages.find(m => m.id === messageId)?.metadata?.activeVersionIndex;
-    switchMessageVersion(messageId, versionIndex); // optimistic
+  const handleFeedback = useCallback(async (messageId, feedback) => {
+    setMessageFeedback(messageId, feedback);
 
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
 
     if (isMongoId && isAuthenticated) {
+      try {
+        await API.post('/api/chat/feedback', { sessionId: dbSessionId, messageId, feedback });
+      } catch (err) {
+        console.error('[Home] Feedback sync failed:', err);
+      }
+    }
+  }, [setMessageFeedback, activeChatId, isAuthenticated]);
+
+  // ── Version Switch Handler ──
+  const handleSwitchVersion = useCallback(async (messageId, versionIndex) => {
+    const prev = conversationMessages.find(m => (m.id || m._id)?.toString() === messageId?.toString())?.metadata?.activeVersionIndex;
+    
+    // 1. Optimistic Update (Store handles isVersionSwitching lock)
+    switchMessageVersion(messageId, versionIndex);
+
+    const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+    const isMongoSessionId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+    const isMongoMessageId = /^[0-9a-fA-F]{24}$/.test(messageId || '');
+
+    // 2. Persistent Sync (Only if both Session and Message are persisted in DB)
+    if (isMongoSessionId && isMongoMessageId && isAuthenticated) {
       try {
         await API.post('/api/chat/switch-version', { 
           sessionId: dbSessionId, 
@@ -1934,17 +2015,17 @@ const Home = ({ isDark }) => {
         });
       } catch (err) {
         console.error('[Home] Version switch sync failed:', err);
-        // Rollback on error
-        if (typeof prev === 'number') {
+        if (err.response?.status && err.response.status !== 404 && typeof prev === 'number') {
           switchMessageVersion(messageId, prev);
+          showToast({ message: 'Sync failed. Reverting...', type: 'error' });
         }
-        showToast({
-          message: 'Version switch failed: ' + (err.response?.data?.error || err.message),
-          type: 'error'
-        });
       }
+    } else {
+      useTutorStore.getState().triggerSync();
     }
-  };
+  }, [conversationMessages, switchMessageVersion, activeChatId, isAuthenticated, showToast]);
+
+
 
   // ── Stop Generation Handler ──
   const handleStopGeneration = (sessionId) => {
@@ -2111,8 +2192,6 @@ const Home = ({ isDark }) => {
   }, [isStreaming, isWaitingForAI]);
 
   // Selection cleanup
-  const setSelectedElements = useTutorStore(state => state.setSelectedElements);
-  const setHasTextSelection = useTutorStore(state => state.setHasTextSelection);
 
   const isCanvasVisible = canvasLayout !== 'inline' || machineState !== STATES.IDLE;
   const isTeachingActive = isCanvasVisible;
@@ -2127,7 +2206,7 @@ const Home = ({ isDark }) => {
       onNewChat={handleNewChat} onSelectChat={handleSelectChat}
       onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
       messages={messages} isGenerating={(() => {
-        const sid = activeChatId || 'temp';
+        const sid = activeChatId || useTutorStore.getState().getSid();
         const sessionState = useTutorStore.getState().sessionStates[sid] || {};
         return machineState === STATES.GENERATING || 
                machineState === STATES.RESPONDING || 
@@ -2151,6 +2230,7 @@ const Home = ({ isDark }) => {
       onLoadMore={() => fetchCloudSessions(pagination.page + 1)}
       onQuickAsk={() => setIsQuickAskOpen(true)}
       isSplitView={isSplitView}
+      onUndoMessage={handleUndoMessage}
     />
     </ErrorBoundary>
   );
@@ -2219,7 +2299,7 @@ const Home = ({ isDark }) => {
                       className="text-[13px] font-medium tracking-wide text-[var(--text-primary)] opacity-[0.18] dark:opacity-[0.08] max-w-lg leading-relaxed italic"
                       style={{ fontFamily: '"Inter", sans-serif' }}
                     >
-                      Where AI meets understanding — turns complex concepts into visual intelligence.
+                      Your AI workspace — chat, create, visualize, and build with intelligence.
                     </p>
                   </motion.div>
                 </div>
@@ -2332,6 +2412,156 @@ const Home = ({ isDark }) => {
         />
         <SelectionPopover />
         <CodeVisualizerModal />
+        <ArtifactPanel />
+
+        {/* ── HIGH FIDELITY CONFIRM UNDO MODAL OVERLAY ── */}
+        <AnimatePresence>
+          {undoConfirmModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto select-none"
+              onClick={() => setUndoConfirmModal(null)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-[420px] rounded-xl border p-5 shadow-2xl relative flex flex-col"
+                style={{
+                  background: 'var(--bg-secondary)',
+                  borderColor: 'var(--border-color)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-[16px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                    Confirm Undo
+                  </h3>
+                  <button
+                    onClick={() => setUndoConfirmModal(null)}
+                    className="p-1 transition-colors rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
+                    style={{ color: 'var(--text-tertiary)' }}
+                    aria-label="Close"
+                  >
+                    <X size={15} strokeWidth={2.5} />
+                  </button>
+                </div>
+
+                {/* Subtitle description */}
+                <p className="text-[12px] leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>
+                  Confirming this undo action will make the following changes:
+                </p>
+
+                {/* List of affected items */}
+                <div className="flex flex-col gap-2 max-h-[240px] overflow-y-auto pr-1">
+                  {undoConfirmModal.items?.map((item, idx) => (
+                    <div 
+                      key={idx}
+                      className="flex items-center justify-between py-2 px-3 rounded-xl border transition-all"
+                      style={{
+                        background: 'var(--bg-primary)',
+                        borderColor: 'var(--border-color)'
+                      }}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {item.role === 'user' ? (
+                          <User size={13} className="text-[#38bdf8] shrink-0" strokeWidth={2.5} />
+                        ) : (
+                          <Bot size={13} className="text-[#a855f7] shrink-0" strokeWidth={2.5} />
+                        )}
+                        <span className="text-[12px] font-medium truncate max-w-[180px]" style={{ color: 'var(--text-primary)' }}>
+                          {item.label}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0 select-none">
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-mono text-[11px] font-bold tracking-tight">+0</span>
+                        <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500 font-mono text-[11px] font-bold tracking-tight">-1</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer Controls */}
+                <div className="flex items-center justify-end gap-3 mt-6 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                  <button
+                    onClick={() => setUndoConfirmModal(null)}
+                    className="px-3 py-1.5 text-[12px] font-medium transition-colors hover:underline"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeConfirmedUndo}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-[12px] tracking-wide shadow-md transition-all active:scale-95 hover:opacity-90"
+                    style={{
+                      background: 'var(--text-primary)',
+                      color: 'var(--bg-primary)'
+                    }}
+                  >
+                    <span>Confirm</span>
+                    <CornerDownLeft size={12} strokeWidth={2.5} />
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* EPHEMERAL FLOATING CONFIRMATION POPUP FOR UNDO */}
+        <AnimatePresence>
+          {lastSubmittedPrompt && !undoConfirmModal && (
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[200] pointer-events-auto select-none"
+            >
+              <div 
+                className="flex items-center gap-3 px-4 py-2.5 rounded-full shadow-premium border backdrop-blur-md transition-all"
+                style={{
+                  background: isDark ? 'rgba(20, 20, 20, 0.85)' : 'rgba(255, 255, 255, 0.9)',
+                  borderColor: 'var(--border-color)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-[#10b981]" />
+                  <span className="text-[12px] font-medium tracking-tight">Message sent</span>
+                </div>
+                
+                <div className="h-3 w-[1px] bg-[var(--border-color)] opacity-60" />
+
+                <button
+                  onClick={() => handleUndoMessage()}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold tracking-wide uppercase transition-all active:scale-95 hover:opacity-90 shadow-sm"
+                  style={{
+                    background: 'var(--text-primary)',
+                    color: 'var(--bg-primary)'
+                  }}
+                >
+                  <RotateCcw size={12} strokeWidth={2.5} />
+                  <span>Undo</span>
+                </button>
+
+                <button
+                  onClick={() => setLastSubmittedPrompt(null)}
+                  className="p-1 opacity-40 hover:opacity-100 transition-opacity ml-0.5"
+                  aria-label="Dismiss"
+                >
+                  <X size={13} strokeWidth={2.5} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Layout>
     </div>
   );
@@ -2340,3 +2570,4 @@ const Home = ({ isDark }) => {
 
 
 export default Home;
+

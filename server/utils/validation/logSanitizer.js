@@ -129,6 +129,26 @@ export function validateBaseUrlInput(baseUrl) {
     if (!['http:', 'https:'].includes(parsed.protocol)) {
       return { valid: false, error: 'Base URL must use http or https protocol' };
     }
+
+    // SEC-SSRF: Block internal, loopback, and link-local addresses in production
+    if (process.env.NODE_ENV !== 'development') {
+      const SSRF_BLOCKED = [
+        /^localhost$/i,
+        /^127\.\d+\.\d+\.\d+$/,
+        /^\[::1\]$/,
+        /^0\.0\.0\.0$/,
+        /^169\.254\.\d+\.\d+$/,    // link-local / AWS metadata
+        /^10\.\d+\.\d+\.\d+$/,     // RFC1918
+        /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/, // RFC1918
+        /^192\.168\.\d+\.\d+$/,    // RFC1918
+      ];
+
+      const hostname = parsed.hostname;
+      if (SSRF_BLOCKED.some(r => r.test(hostname))) {
+        return { valid: false, error: 'Private/internal addresses are not allowed' };
+      }
+    }
+
     return { valid: true };
   } catch {
     return { valid: false, error: 'Invalid URL format' };

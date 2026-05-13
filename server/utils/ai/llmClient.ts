@@ -148,7 +148,7 @@ async function getCachedResponse(key: string): Promise<any> {
 
   if (container.has('redis-main')) {
     try {
-      const client = container.resolve('redis-main');
+      const client = container.resolve<any>('redis-main');
       const cached = await client.get(`ai:cache:${key}`);
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -171,7 +171,7 @@ async function setCachedResponse(key: string, response: any, skipRedis = false) 
 
   if (!skipRedis && container.has('redis-main')) {
     try {
-      const client = container.resolve('redis-main');
+      const client = container.resolve<any>('redis-main');
       await client.set(`ai:cache:${key}`, JSON.stringify(response), REDIS_CACHE_TTL);
     } catch (err) {
       console.warn('[AI:Cache] Redis save failed');
@@ -179,8 +179,8 @@ async function setCachedResponse(key: string, response: any, skipRedis = false) 
   }
 }
 
-function getCacheKey(messages: LLMMessage[], model: string, userId: string | null, isCustom: boolean, context: any = null, temperature?: number, maxTokens?: number, responseMimeType?: string) {
-  const raw = JSON.stringify(messages) + '|' + model + '|' + (userId || 'anon') + '|' + isCustom + '|' + JSON.stringify(context) + '|t:' + (temperature ?? '') + '|mt:' + (maxTokens ?? '') + '|fmt:' + (responseMimeType ?? '');
+function getCacheKey(messages: LLMMessage[], model: string, userId: string | null, isCustom: boolean, context: any = null, temperature?: number, maxTokens?: number, responseMimeType?: string, taskType?: string) {
+  const raw = JSON.stringify(messages) + '|' + model + '|' + (userId || 'anon') + '|' + isCustom + '|' + JSON.stringify(context) + '|t:' + (temperature ?? '') + '|mt:' + (maxTokens ?? '') + '|fmt:' + (responseMimeType ?? '') + '|task:' + (taskType ?? '');
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
@@ -200,8 +200,8 @@ export function resolveModelId(modelId?: string): string {
 
   const mapping: Record<string, string> = {
     'Claude 3.5 Sonnet': 'anthropic/claude-3-5-sonnet-20241022',
-    'Gemini 2.0 Flash': 'gemini-2.0-flash',
     'Gemini 1.5 Flash': 'gemini-1.5-flash',
+    'Gemini 1.5 Pro': 'gemini-1.5-pro',
     'DeepSeek V3': 'deepseek/deepseek-chat',
     'Llama 3.3 70B': 'meta-llama/llama-3.3-70b-instruct'
   };
@@ -293,8 +293,12 @@ export async function getEmbeddings(text: string, userConfig?: any): Promise<num
 
   const response = await client.embeddings.create({
     model: 'openai/text-embedding-3-small', // OpenRouter standard
-    input: text.replace(/\n/g, ' '),
+    input: (text || '').replace(/\n/g, ' '),
   });
+
+  if (!response?.data?.[0]?.embedding) {
+    throw new Error('AI provider failed to return embedding data');
+  }
 
   return response.data[0].embedding;
 }
@@ -323,22 +327,22 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
   }
 
   // 2. Cache Check
+  // 2. Cache Check (Skip for highly personalized final_answer calls to avoid serving stale context, Audit v3 #64)
   const isCustom = !!userConfig?.useCustomApi;
-  const cacheKey = getCacheKey(messages, canonicalModel, userId, isCustom, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType);
-  const cached = await getCachedResponse(cacheKey);
-  if (cached) {
-    console.log(`[AI:Cache] Hit for ${requestId}`);
-    if (onStream && cached.content) {
-      // Background simulate stream
-      await (async () => {
-        const words = (cached.content || '').split(' ');
-        for (const word of words) {
-          onStream(word + ' ');
-          await new Promise(r => setTimeout(r, 20));
-        }
-      })();
+  const canCache = params.taskType !== 'final_answer';
+  const cacheKey = getCacheKey(messages, canonicalModel, userId, isCustom, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.taskType);
+  
+  if (canCache) {
+    const cached = await getCachedResponse(cacheKey);
+    if (cached) {
+      console.log(`[AI:Cache] Hit for ${requestId}`);
+      if (onStream && cached.content) {
+        // Non-blocking fast path: emit the complete cached content instantly
+        // Avoids event loop stalls under high load (Audit v3 #51)
+        onStream(cached.content);
+      }
+      return { ...cached, _meta: { ...cached._meta, cached: true } };
     }
-    return { ...cached, _meta: { ...cached._meta, cached: true } };
   }
 
   // 3. Execution Path
@@ -403,7 +407,9 @@ async function _executeCustomPath(params: LLMParams, model: string, response_for
       }
     };
 
-    await setCachedResponse(getCacheKey(messages, model, userConfig.userId, true, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType), response);
+    if (params.taskType !== 'final_answer') {
+      await setCachedResponse(getCacheKey(messages, model, userConfig.userId, true, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.taskType), response);
+    }
     return response;
   });
 }
@@ -419,10 +425,6 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
 
   // PROVIDER-AWARE MODEL MAPPING: Groq doesn't host Gemini or Claude models
   const GROQ_FALLBACK_MODELS: Record<string, string> = {
-    'gemini-2.0-flash-001': 'llama-3.3-70b-versatile',
-    'gemini-2.0-flash': 'llama-3.3-70b-versatile',
-    'gemini-2.0-flash-lite': 'llama-3.1-8b-instant',
-    'gemini-2.0-flash-lite-001': 'llama-3.1-8b-instant',
     'gemini-1.5-flash': 'llama-3.3-70b-versatile',
     'gemini-1.5-pro': 'llama-3.3-70b-versatile',
     'claude-3-5-sonnet-20241022': 'llama-3.3-70b-versatile',
@@ -477,7 +479,9 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
           }
         };
 
-        await setCachedResponse(getCacheKey(params.messages, model, params.userConfig?.userId, false, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType), response);
+        if (params.taskType !== 'final_answer') {
+          await setCachedResponse(getCacheKey(params.messages, model, params.userConfig?.userId, false, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.taskType), response);
+        }
         return response;
       });
     } catch (err) {

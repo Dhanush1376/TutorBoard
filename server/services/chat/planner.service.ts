@@ -2,6 +2,7 @@ import { requestCompletion, getTextModel } from '../../utils/ai/llmClient.js';
 import { AppError, ErrorCode } from '../../shared/errors.js';
 import PromptDefender from '../../utils/ai/promptDefender.js';
 import { container } from '../../core/container.js';
+import crypto from 'crypto';
 
 export interface StrategicPlan {
   educational_intent: string;
@@ -75,7 +76,8 @@ class PlannerService {
 
   async generatePlan(query: string, userConfig?: any, requestId?: string): Promise<StrategicPlan> {
     const normalizedQuery = query.toLowerCase().trim().replace(/[?!.]+$/, '');
-    const cacheKey = `ai:plan:v1:${Buffer.from(normalizedQuery).toString('base64').substring(0, 32)}`;
+    const userId = userConfig?.userId || 'anon';
+    const cacheKey = `ai:plan:v2:${crypto.createHash('sha256').update(`${userId}:${normalizedQuery}`).digest('hex')}`;
 
     const fetcher = async () => {
       const protectedQuery = PromptDefender.protect(query);
@@ -83,7 +85,7 @@ class PlannerService {
 
       try {
         const res = await requestCompletion({
-          model: 'google/gemini-2.0-flash-lite',
+          model: 'google/gemini-1.5-flash',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0,
           responseMimeType: 'application/json',

@@ -11,7 +11,7 @@
     "install-all": "npm install && npm install --prefix client && npm install --prefix server",
     "build": "npm run build --prefix client",
     "start": "npm start --prefix server",
-    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\""
+    "dev": "node scripts/dev-orchestrator.js"
   },
   "repository": {
     "type": "git",
@@ -25,9 +25,10 @@
     "url": "https://github.com/Dhanush1376/TutorBoard/issues"
   },
   "homepage": "https://github.com/Dhanush1376/TutorBoard#readme",
-  "dependencies": {},
   "devDependencies": {
     "@playwright/test": "^1.59.1",
+    "axios": "^1.16.0",
+    "chalk": "^5.6.2",
     "concurrently": "^9.2.1"
   }
 }

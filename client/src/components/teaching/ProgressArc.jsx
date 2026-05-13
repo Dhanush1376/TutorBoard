@@ -40,97 +40,110 @@ const ProgressArc = () => {
     });
   }, [totalSteps, center, radius]);
 
+  const fullArcPath = useMemo(() => {
+    const totalAngle = 280;
+    const startAngle = 130;
+    const endAngle = startAngle + totalAngle;
+    
+    const sRad = (startAngle * Math.PI) / 180;
+    const eRad = (endAngle * Math.PI) / 180;
+    
+    const x1 = center + radius * Math.cos(sRad);
+    const y1 = center + radius * Math.sin(sRad);
+    const x2 = center + radius * Math.cos(eRad);
+    const y2 = center + radius * Math.sin(eRad);
+    
+    return `M ${x1} ${y1} A ${radius} ${radius} 0 1 1 ${x2} ${y2}`;
+  }, [center, radius]);
+
   const isComplete = totalSteps > 0 && currentStepIndex === totalSteps - 1;
-  const progress = totalSteps > 0 ? ((currentStepIndex + 1) / totalSteps) * 100 : 0;
 
   return (
     <div className="relative flex items-center justify-center">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Gradient definitions */}
         <defs>
           <linearGradient id="arc-active-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#a78bfa" />
-            <stop offset="50%" stopColor="#8b5cf6" />
             <stop offset="100%" stopColor="#6366f1" />
           </linearGradient>
           <linearGradient id="arc-complete-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#34d399" />
             <stop offset="100%" stopColor="#10b981" />
           </linearGradient>
-          <filter id="arc-glow">
-            <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
-            <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
         </defs>
 
-        {segments.map((seg, i) => {
-          const isActive = i <= currentStepIndex;
-          const isCurrent = i === currentStepIndex;
-          return (
-            <motion.path
-              key={i}
-              d={seg.path}
-              fill="none"
-              strokeWidth={isCurrent ? strokeWidth + 0.5 : strokeWidth}
-              strokeLinecap="round"
-              initial={false}
-              animate={{
-                stroke: isActive 
-                  ? (isComplete ? 'url(#arc-complete-gradient)' : 'url(#arc-active-gradient)')
-                  : 'var(--bg-tertiary)',
-                opacity: isActive ? 1 : 0.25,
-              }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              filter={isCurrent ? 'url(#arc-glow)' : undefined}
-            />
-          );
-        })}
+        {/* Background Track - More visible */}
+        <path
+          d={fullArcPath}
+          fill="none"
+          stroke="var(--text-primary)"
+          strokeWidth={strokeWidth - 1}
+          strokeLinecap="round"
+          opacity={0.15}
+        />
+
+        {totalSteps > 0 ? (
+          segments.map((seg, i) => {
+            const isActive = i <= currentStepIndex;
+            const isCurrent = i === currentStepIndex;
+            return (
+              <motion.path
+                key={i}
+                d={seg.path}
+                fill="none"
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                initial={false}
+                animate={{
+                  stroke: isActive 
+                    ? (isComplete ? 'url(#arc-complete-gradient)' : 'url(#arc-active-gradient)')
+                    : 'transparent',
+                  opacity: isActive ? 1 : 0,
+                  scale: isCurrent ? 1.05 : 1,
+                }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              />
+            );
+          })
+        ) : (
+          /* Pulse effect when no steps are loaded yet */
+          <motion.path
+            d={fullArcPath}
+            fill="none"
+            stroke="url(#arc-active-gradient)"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            animate={{ opacity: [0.1, 0.3, 0.1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+        )}
         
-        {/* Center step indicator */}
+        {/* Minimal current step indicator - Always show at least '1' */}
         <text
           x={center}
-          y={center - 1}
+          y={center}
           textAnchor="middle"
           dominantBaseline="central"
           style={{
-            fontSize: '10px',
-            fontWeight: 600,
+            fontSize: '11px',
+            fontWeight: 800,
             fill: 'var(--text-primary)',
             fontFamily: 'var(--font-mono, monospace)',
+            opacity: 0.8
           }}
         >
           {currentStepIndex + 1}
         </text>
-        <text
-          x={center}
-          y={center + 10}
-          textAnchor="middle"
-          dominantBaseline="central"
-          style={{
-            fontSize: '6px',
-            fontWeight: 500,
-            fill: 'var(--text-tertiary)',
-            fontFamily: 'var(--font-sans, sans-serif)',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-          }}
-        >
-          / {totalSteps}
-        </text>
 
-        {/* Completion flash */}
         {isComplete && (
           <motion.circle
-            cx={center} cy={center} r={radius + 3}
+            cx={center} cy={center} r={radius + 2}
             fill="none"
             stroke="url(#arc-complete-gradient)"
-            strokeWidth={1.5}
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: [0, 0.6, 0], scale: [0.85, 1.15, 1.3] }}
-            transition={{ duration: 1, ease: "easeOut" }}
+            strokeWidth={1}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: [0, 0.4, 0], scale: [0.8, 1.2] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
           />
         )}
       </svg>

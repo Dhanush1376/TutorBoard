@@ -16,7 +16,27 @@ const DEFAULT_LIMITS = {
 };
 
 // In-memory fallback for when Redis is down
-const memoryBudget = new Map<string, number>();
+class BoundedCache<K, V> {
+  private map = new Map<K, V>();
+  constructor(private maxSize: number) {}
+  get(key: K): V | undefined {
+    if (!this.map.has(key)) return undefined;
+    const val = this.map.get(key)!;
+    this.map.delete(key);
+    this.map.set(key, val);
+    return val;
+  }
+  set(key: K, value: V): void {
+    if (this.map.has(key)) {
+      this.map.delete(key);
+    } else if (this.map.size >= this.maxSize) {
+      const oldestKey = this.map.keys().next().value;
+      if (oldestKey !== undefined) this.map.delete(oldestKey);
+    }
+    this.map.set(key, value);
+  }
+}
+const memoryBudget = new BoundedCache<string, number>(5000);
 
 export interface BudgetStatus {
   used: number;
@@ -118,15 +138,15 @@ class BudgetService {
       case 'planning':
       case 'critique':
       case 'visualization':
-        return 'google/gemini-2.0-flash';
+        return 'google/gemini-1.5-flash';
       case 'narration':
       case 'final_answer':
         if (budgetHit || tier === 'free') {
-          return 'google/gemini-2.0-flash';
+          return 'google/gemini-1.5-flash';
         }
         return 'anthropic/claude-3-5-sonnet-20241022';
       default:
-        return 'google/gemini-2.0-flash';
+        return 'google/gemini-1.5-flash';
     }
   }
 }

@@ -163,6 +163,13 @@ const AgentCanvasRenderer = forwardRef(({
     };
   }, [layoutReady, width, height, timeline?.id]); // Use ID for stability, avoid title changes
 
+  // Synchronize scene data when timeline object hydrates/streams
+  useEffect(() => {
+    if (orchestratorRef.current && timeline) {
+      orchestratorRef.current.loadScene(timeline);
+    }
+  }, [timeline]);
+
   // 2. Renderer Registration via Ref Callbacks
   const registerSpecialized = useCallback((type, node) => {
     const orch = orchestratorRef.current;

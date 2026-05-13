@@ -113,7 +113,7 @@ const UnifiedControlBar = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`unified-control-bar ${className} sf-glass`}
+      className={`unified-control-bar ${className} liquid-glass`}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -122,8 +122,6 @@ const UnifiedControlBar = ({
         borderRadius: 28,
         maxWidth: isDoubtExpanded ? 680 : 500,
         transition: 'max-width 500ms var(--ease-apple)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        boxShadow: 'var(--color-dark-shadow-xl)',
       }}
     >
       {/* ── Transport Controls ── */}

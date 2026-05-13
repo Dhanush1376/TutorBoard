@@ -1,15 +1,15 @@
 /**
- * conversationSlice.js — TutorBoard v5.0 PRODUCTION UPGRADE
+ * conversationSlice.js     TutorBoard v5.0 PRODUCTION UPGRADE
  *
  * FIXES:
- * ✓ Stream token validation on appendStreamChunk / appendStreamThought
- * ✓ addAssistantMessage no longer clears ALL sessions — scoped to current only
- * ✓ abortStreaming commits partial as a versioned entry with metadata flag
- * ✓ prepareRegeneration deferred — versions appended only in finishStreaming
- * ✓ switchMessageVersion fully resyncs normalized session store
- * ✓ Per-session AbortController references (stored externally — see useChatEngine)
- * ✓ finishStreaming validates streamToken before committing
- * ✓ State machine transitions enforced for all stream status changes
+ * - Stream token validation on appendStreamChunk / appendStreamThought
+ * - addAssistantMessage no longer clears ALL sessions     scoped to current only
+ * - abortStreaming commits partial as a versioned entry with metadata flag
+ * - prepareRegeneration deferred     versions appended only in finishStreaming
+ * - switchMessageVersion fully resyncs normalized session store
+ * - Per-session AbortController references (stored externally     see useChatEngine)
+ * - finishStreaming validates streamToken before committing
+ * - State machine transitions enforced for all stream status changes
  */
 
 const generateId = (prefix = 'msg') =>
@@ -87,15 +87,18 @@ const ALLOWED_STREAM_TRANSITIONS = {
 const canTransitionStream = (fromStatus = 'idle', toStatus = 'idle') =>
   !!ALLOWED_STREAM_TRANSITIONS[fromStatus]?.has(toStatus);
 
-// ─── Resync helper: keeps normalized session in sync with conversationMessages ─
+//           Resync helper: keeps normalized session in sync with conversationMessages    
 const resyncNormalizedSession = (state, sid, messages) => {
   if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
   const session = state.conversationSessions[sid];
   session.messagesById = {};
   session.orderedMessageIds = [];
   messages.forEach((m) => {
-    session.messagesById[m.id] = toUiMessage(m);
-    session.orderedMessageIds.push(m.id);
+    const resolvedId = (m.id || m._id)?.toString();
+    if (!resolvedId) return;
+    const resolvedMsg = { ...m, id: resolvedId };
+    session.messagesById[resolvedId] = toUiMessage(resolvedMsg);
+    session.orderedMessageIds.push(resolvedId);
   });
 };
 
@@ -121,47 +124,61 @@ export const createConversationSlice = (set, get) => ({
   isSearchPerformed: false,
   currentCanvasType: null,
   sessionStates: {},
+  _ephemeralSid: typeof crypto !== 'undefined' && crypto.randomUUID ? `local-${crypto.randomUUID()}` : `local-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
   streamTokenCounter: 0,
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
   // MESSAGE CREATION
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
+
+  // HELPERS
+  getSid: () => {
+    const s = get();
+    // SEC-ID-01: Prefer explicit IDs. Fallback to a unique local UUID to avoid contamination.
+    return s.activeConversationSessionId || s.chatSessionId || s.sessionId || (s._ephemeralSid || `local-${Date.now()}`);
+  },
 
   addUserMessage: (content) => {
-    const userId = generateId('user');
+    if (import.meta.env.DEV) console.log('[Store:Chat] addUserMessage:', content);
+    const msgId = generateId('user');
     const msg = {
-      id: userId, role: 'user', content,
+      id: msgId, role: 'user', content,
       timestamp: new Date().toISOString(),
       metadata: {
         edited: false, regenerated: false, feedback: null, aborted: false, error: null,
         versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0,
       },
     };
-    const sid = get().chatSessionId || get().sessionId || 'temp';
+    const sid = get().getSid();
     set((state) => {
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
       const session = state.conversationSessions[sid];
-      session.messagesById[userId] = toUiMessage(msg);
-      session.orderedMessageIds.push(userId);
+      session.messagesById[msgId] = toUiMessage(msg);
+      session.orderedMessageIds.push(msgId);
       state.activeConversationSessionId = sid;
+      if (!state.chatSessionId && !state.sessionId) {
+        state.chatSessionId = sid;
+      }
       state.conversationMessages = session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
       state.isWaitingForAI = true;
       state.waitingSessionId = sid;
       state.lastAIError = null;
+      state.streamingMessageId = null; // FIX: Clear previous streaming ID to prevent ghost dots
       if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
       state.sessionStates[sid].isWaitingForAI = true;
       state.sessionStates[sid].waitingSessionId = sid;
+      state.sessionStates[sid].messageId = null; // Clear session-specific messageId too
     });
     const { conversationTopic, conversationMessages } = get();
     if (!conversationTopic && conversationMessages.length <= 1) {
       set({ conversationTopic: content.substring(0, 60).replace(/[?\n]/g, '').trim() });
     }
-    return { userId };
+    return { messageId: msgId };
   },
 
   addAssistantMessage: (content, id = null, extraMetadata = {}) => {
     const msgId = id || generateId('assistant');
-    const sid = get().activeConversationSessionId || get().chatSessionId || get().sessionId || 'temp';
+    const sid = get().getSid();
     const msg = {
       id: msgId, role: 'assistant', content,
       timestamp: new Date().toISOString(),
@@ -179,7 +196,7 @@ export const createConversationSlice = (set, get) => ({
       session.orderedMessageIds.push(msgId);
       state.conversationMessages = session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
 
-      // FIX: Only clear THIS session's state — not all sessions
+      // FIX: Only clear THIS session's state     not all sessions
       state.isWaitingForAI = false;
       state.isStreaming = false;
       state.waitingSessionId = null;
@@ -195,12 +212,12 @@ export const createConversationSlice = (set, get) => ({
     return msgId;
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
   // STREAMING STATE MACHINE
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
 
   startStreaming: (messageId, sessionId = null, streamToken = null) => {
-    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    const sid = sessionId || get().getSid();
     set((state) => {
       const token = streamToken || `stream-${Date.now()}-${++state.streamTokenCounter}`;
       state.isStreaming = true;
@@ -246,12 +263,13 @@ export const createConversationSlice = (set, get) => ({
   },
 
   prepareRegeneration: (messageId, streamToken = null) => {
-    // NOTE: Do NOT add versions here — only in finishStreaming after server confirms
-    const sid = get().chatSessionId || get().sessionId || 'temp';
+    // NOTE: Do NOT add versions here     only in finishStreaming after server confirms
+    const sid = get().getSid();
     set((state) => {
       state.isWaitingForAI = true;
       state.waitingSessionId = sid;
       state.streamingMessageId = messageId;
+      state.lastAIError = null; // #19: Clear prior error state
       if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
       state.sessionStates[sid].isWaitingForAI = true;
       state.sessionStates[sid].messageId = messageId;
@@ -265,15 +283,15 @@ export const createConversationSlice = (set, get) => ({
     });
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // STREAM CHUNK HANDLING — all validate streamToken
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
+  // STREAM CHUNK HANDLING     all validate streamToken
+  //                                                                                                                                                                                                                                        
 
   updateStreamingContent: (content, sessionId = null, streamToken = null) => {
-    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    const sid = sessionId || get().getSid();
     set((state) => {
       const activeToken = state.sessionStates[sid]?.streamToken;
-      if (streamToken && activeToken && streamToken !== activeToken) return; // stale chunk — drop
+      if (streamToken && activeToken && streamToken !== activeToken) return; // stale chunk     drop
       if (state.sessionStates[sid]) state.sessionStates[sid].content = content;
       if (sid === state.chatSessionId || sid === state.streamingSessionId) {
         state.streamingContent = content;
@@ -282,9 +300,9 @@ export const createConversationSlice = (set, get) => ({
   },
 
   appendStreamChunk: (chunk, sessionId = null, streamToken = null) => {
-    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    const sid = sessionId || get().getSid();
     set((state) => {
-      // FIX: Validate token — drop stale/mismatched chunks
+      // FIX: Validate token     drop stale/mismatched chunks
       const activeToken = state.sessionStates[sid]?.streamToken;
       if (streamToken && activeToken && streamToken !== activeToken) return;
 
@@ -297,7 +315,7 @@ export const createConversationSlice = (set, get) => ({
   },
 
   appendStreamThought: (thought, sessionId = null, streamToken = null) => {
-    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    const sid = sessionId || get().getSid();
     set((state) => {
       const activeToken = state.sessionStates[sid]?.streamToken;
       if (streamToken && activeToken && streamToken !== activeToken) return;
@@ -311,7 +329,7 @@ export const createConversationSlice = (set, get) => ({
   },
 
   setSources: (sources, sessionId = null) => {
-    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    const sid = sessionId || get().getSid();
     set((state) => {
       if (state.sessionStates[sid]) {
         state.sessionStates[sid].sources = sources;
@@ -330,9 +348,9 @@ export const createConversationSlice = (set, get) => ({
 
   clearSources: () => set({ conversationSources: [], lastStreamSources: [] }),
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // FINISH STREAMING — validates token, handles regen versions
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
+  // FINISH STREAMING     validates token, handles regen versions
+  //                                                                                                                                                                                                                                        
 
   finishStreaming: (
     finalContent,
@@ -345,12 +363,24 @@ export const createConversationSlice = (set, get) => ({
     streamToken = null,
     isRegeneration = false, // FIX: explicit regen flag
   ) => {
-    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
+    const sid = sessionId || get().getSid();
     const { conversationMessages, chatSessionId, sessionId: activeSessionId } = get();
     const currentViewId = chatSessionId || activeSessionId;
     const isCurrentChat = sid === currentViewId || sid === chatSessionId || sid === activeSessionId;
     const targetMsgId = get().sessionStates[sid]?.messageId || get().streamingMessageId;
-    let existingIdx = conversationMessages.findIndex((m) => m.id === targetMsgId);
+    let existingIdx = conversationMessages.findIndex(
+      (m) => m.id?.toString() === targetMsgId?.toString() || m._id?.toString() === targetMsgId?.toString()
+    );
+
+    // ID CLOSURE STALENESS GUARD: If syncMessageIds renamed the placeholder ID to a MongoDB string 
+    // mid-stream, targetMsgId might be stale. Fallback to updating the last assistant message directly 
+    // to guarantee we never append duplicate message bubbles!
+    if (existingIdx === -1 && conversationMessages.length > 0) {
+      const lastIdx = conversationMessages.length - 1;
+      if (conversationMessages[lastIdx].role === 'assistant') {
+        existingIdx = lastIdx;
+      }
+    }
 
     // Extraction logic for JSON-wrapped responses
     const { content: cleanContent, artifact, canvasType: extractedCanvasType } = extractJsonResponse(finalContent);
@@ -394,11 +424,16 @@ export const createConversationSlice = (set, get) => ({
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
       const normalizedSession = state.conversationSessions[sid];
       const streamStatus = normalizedSession.streamState.status || 'idle';
-      // FIX: Allow 'idle→completed' as a fallback for race conditions where
-      // startStreaming ran against a different sid than finishStreaming resolves.
-      // Without this, finishStreaming silently returns and no message ever appears.
-      const canComplete = canTransitionStream(streamStatus, 'completed') || streamStatus === 'idle';
-      if (!canComplete) return;
+      
+      // #4: Separate transition guard from message commit logic.
+      // We always update the state machine if possible, but we don't return early if it fails,
+      // to ensure the message is still committed to the list.
+      if (canTransitionStream(streamStatus, 'completed')) {
+        normalizedSession.streamState.status = 'completed';
+      } else if (streamStatus === 'idle' || streamStatus === 'requesting' || streamStatus === 'streaming') {
+        // Fallback for race conditions
+        normalizedSession.streamState.status = 'completed';
+      }
 
       if (sid === state.streamingSessionId || sid === state.chatSessionId) {
         state.isStreaming = false;
@@ -458,6 +493,9 @@ export const createConversationSlice = (set, get) => ({
             searchPerformed: state.isSearchPerformed || targetMsg.metadata.searchPerformed,
             artifactId: effectiveArtifactId || targetMsg.metadata.artifactId,
             artifactData: artifact || targetMsg.metadata.artifactData,
+            hasVisualArtifact: !!effectiveCanvasType || targetMsg.metadata?.hasVisualArtifact,
+            rendererType: effectiveCanvasType || targetMsg.metadata?.rendererType,
+            artifactStatus: 'completed',
             versions: updatedVersions.map((v, i) => 
               i === newActiveIdx ? { ...v, text: effectiveContent } : v
             ),
@@ -467,11 +505,10 @@ export const createConversationSlice = (set, get) => ({
             error: null,
           },
         };
-        const updatedId = state.conversationMessages[existingIdx].id;
-        normalizedSession.messagesById[updatedId] = toUiMessage(state.conversationMessages[existingIdx]);
-        if (!normalizedSession.orderedMessageIds.includes(updatedId)) {
-          normalizedSession.orderedMessageIds.push(updatedId);
-        }
+        
+        // SEC-ID-SYNC: Ensure normalized store is updated after mutation
+        const sid = sessionId || get().getSid();
+        resyncNormalizedSession(state, sid, state.conversationMessages);
       } else if (isCurrentChat) {
         const msg = {
           id: targetMsgId || generateId('assistant'),
@@ -486,6 +523,9 @@ export const createConversationSlice = (set, get) => ({
             searchPerformed: state.isSearchPerformed,
             artifactId: effectiveArtifactId,
             artifactData: artifact,
+            hasVisualArtifact: !!effectiveCanvasType,
+            rendererType: effectiveCanvasType,
+            artifactStatus: 'completed',
             versions: [{ text: effectiveContent, subsequentMessages: [] }],
             activeVersionIndex: 0,
             latencyMs,
@@ -510,32 +550,33 @@ export const createConversationSlice = (set, get) => ({
 
   setCurrentCanvasType: (type) => set({ currentCanvasType: type }),
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ABORT STREAMING — commits partial as versioned entry with aborted flag
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
+  // ABORT STREAMING     commits partial as versioned entry with aborted flag
+  //                                                                                                                                                                                                                                        
 
   abortStreaming: (sessionId = null) => {
-    const sid = sessionId || get().streamingSessionId || get().chatSessionId || 'temp';
-    const state = get();
-    const sessionState = state.sessionStates[sid] || {};
-    const partialContent = sessionState.content || state.streamingContent || '';
-    const msgId = sessionState.messageId || state.streamingMessageId;
-
     set((state) => {
+      const sid = sessionId || state.getSid();
+      const sessionState = state.sessionStates[sid] || {};
+      const partialContent = sessionState.content || state.streamingContent || '';
+      const msgId = sessionState.messageId || state.streamingMessageId;
+
       if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
       state.sessionStates[sid].aborted = true;
       state.sessionStates[sid].isStreaming = false;
       state.sessionStates[sid].isWaitingForAI = false;
       state.sessionStates[sid].content = '';
       state.sessionStates[sid].thought = '';
+      
       state.isStreaming = false;
       state.streamingContent = '';
+      state.streamingThought = '';
       state.streamingMessageId = null;
       state.streamingSessionId = null;
       state.isWaitingForAI = false;
       state.waitingSessionId = null;
 
-      // FIX: Commit partial content as an aborted version entry
+      // #7 & #9: Commit partial content as an aborted version entry and clear memory
       if (msgId && partialContent) {
         const idx = state.conversationMessages.findIndex((m) => m.id === msgId);
         if (idx !== -1) {
@@ -555,31 +596,36 @@ export const createConversationSlice = (set, get) => ({
               aborted: true,
             },
           };
-          const sSid = state.activeConversationSessionId || sid;
-          if (state.conversationSessions[sSid]) {
-            state.conversationSessions[sSid].messagesById[msgId] = toUiMessage(state.conversationMessages[idx]);
+          
+          if (state.conversationSessions[sid]) {
+            state.conversationSessions[sid].messagesById[msgId] = toUiMessage(state.conversationMessages[idx]);
           }
         }
       }
 
-      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
-      const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
-      if (canTransitionStream(currentStatus, 'aborted')) {
-        state.conversationSessions[sid].streamState = {
-          ...state.conversationSessions[sid].streamState,
-          status: 'aborted',
-          aborted: true,
-        };
+      if (state.conversationSessions[sid]) {
+        const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
+        if (canTransitionStream(currentStatus, 'aborted')) {
+          state.conversationSessions[sid].streamState = {
+            ...state.conversationSessions[sid].streamState,
+            status: 'aborted',
+            aborted: true,
+          };
+        }
       }
     });
   },
 
   setWaitingForAI: (waiting, sessionId = null) => {
-    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    const sid = sessionId || get().getSid();
     set((state) => {
       state.isWaitingForAI = waiting;
-      if (waiting) state.waitingSessionId = sid;
-      else state.waitingSessionId = null;
+      if (waiting) {
+        state.waitingSessionId = sid;
+        state.streamingMessageId = null; // FIX: Ensure clean slate for new thinking state
+      } else {
+        state.waitingSessionId = null;
+      }
       if (!state.sessionStates[sid]) state.sessionStates[sid] = {};
       state.sessionStates[sid].isWaitingForAI = waiting;
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
@@ -592,7 +638,7 @@ export const createConversationSlice = (set, get) => ({
   },
 
   setLastAIError: (error, sessionId = null) => {
-    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    const sid = sessionId || get().getSid();
     set((state) => {
       state.lastAIError = error;
       state.isWaitingForAI = false;
@@ -618,18 +664,19 @@ export const createConversationSlice = (set, get) => ({
           ...last,
           metadata: { ...last.metadata, error: error?.message || 'Generation failed' },
         };
+        resyncNormalizedSession(state, sid, state.conversationMessages);
       }
     });
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
   // EDITING
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
 
   startEditingMessage: (messageId) => {
-    const msg = get().conversationMessages.find((m) => m.id === messageId);
+    const msg = get().conversationMessages.find((m) => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
     if (msg && msg.role === 'user') {
-      set({ editingMessageId: messageId, editingContent: msg.content });
+      set({ editingMessageId: messageId, editingContent: msg.content, lastAIError: null });
     }
   },
   updateEditingContent: (content) => set({ editingContent: content }),
@@ -637,7 +684,7 @@ export const createConversationSlice = (set, get) => ({
 
   applyEdit: (messageId, newContent) => {
     const { conversationMessages } = get();
-    const idx = conversationMessages.findIndex((m) => m.id === messageId);
+    const idx = conversationMessages.findIndex((m) => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
     if (idx === -1) return conversationMessages;
     const targetMsg = conversationMessages[idx];
     const subsequentMessages = conversationMessages.slice(idx + 1);
@@ -660,7 +707,7 @@ export const createConversationSlice = (set, get) => ({
         versions: newVersions, activeVersionIndex: newActiveIdx,
       },
     };
-    const sid = get().activeConversationSessionId || get().chatSessionId || get().sessionId || 'temp';
+    const sid = get().getSid();
     set((state) => {
       state.conversationMessages = updated;
       state.editingMessageId = null;
@@ -671,46 +718,47 @@ export const createConversationSlice = (set, get) => ({
     return updated;
   },
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // VERSION SWITCHING — FIX: full resync of normalized store
-  // ─────────────────────────────────────────────────────────────────────────────
+  //                                                                                                                                                                                                                                        
+  // VERSION SWITCHING     FIX: full resync of normalized store
+  //                                                                                                                                                                                                                                        
 
   switchMessageVersion: (messageId, versionIndex) => {
-    const { conversationMessages } = get();
-    const idx = conversationMessages.findIndex((m) => m.id === messageId);
-    if (idx === -1) return;
-    const targetMsg = conversationMessages[idx];
-    if (!targetMsg.metadata.versions) return;
-
-    const currentSubsequent = conversationMessages.slice(idx + 1);
-    const activeIdx = targetMsg.metadata.activeVersionIndex || 0;
-    const updatedVersions = targetMsg.metadata.versions.map((v, i) =>
-      i === activeIdx ? { ...v, subsequentMessages: currentSubsequent } : v
-    );
-    const targetVersion = updatedVersions[versionIndex];
-    const updatedMsg = {
-      ...targetMsg,
-      content: targetVersion.text,
-      metadata: { ...targetMsg.metadata, versions: updatedVersions, activeVersionIndex: versionIndex },
-    };
-    const newConversation = [
-      ...conversationMessages.slice(0, idx),
-      updatedMsg,
-      ...(targetVersion.subsequentMessages || []),
-    ];
-
+    import.meta.env.DEV && console.log(`[Store] switchMessageVersion: ${messageId} -> ${versionIndex}`);
     set((state) => {
-      state.conversationMessages = newConversation;
-      const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
-      // FIX: Full resync of normalized store
-      resyncNormalizedSession(state, sid, newConversation);
+      state.lastAIError = null; // Clear any existing streaming error to avoid ghosting
+      
+      const idx = state.conversationMessages.findIndex((m) => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
+      if (idx === -1) {
+        return;
+      }
+      
+      const targetMsg = state.conversationMessages[idx];
+      if (!targetMsg.metadata?.versions || versionIndex < 0 || versionIndex >= targetMsg.metadata.versions.length) {
+        state.isVersionSwitching = false;
+        state.versionLockTimer = null;
+        return;
+      }
+
+      const targetVersion = targetMsg.metadata.versions[versionIndex];
+      const newContent = targetVersion.text || targetVersion.content || '';
+
+      state.conversationMessages[idx] = {
+        ...targetMsg,
+        content: newContent,
+        metadata: {
+          ...targetMsg.metadata,
+          activeVersionIndex: versionIndex,
+        },
+      };
+
+      const sid = state.getSid();
+      resyncNormalizedSession(state, sid, state.conversationMessages);
     });
   },
 
   addMessageVersion: (messageId, text, metadata = {}) => {
-    // ✅ FIX: mutate draft — do NOT return new object from immer producer
     set((state) => {
-      const idx = state.conversationMessages.findIndex(m => m.id === messageId);
+      const idx = state.conversationMessages.findIndex((m) => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
       if (idx === -1) return;
       const m = state.conversationMessages[idx];
       const versions = m.metadata.versions || [{ text: m.content, subsequentMessages: [] }];
@@ -722,13 +770,27 @@ export const createConversationSlice = (set, get) => ({
           activeVersionIndex: versions.length,
         },
       };
+      const sid = get().getSid();
+      resyncNormalizedSession(state, sid, state.conversationMessages);
     });
   },
 
   deleteMessageById: (messageId) => {
-    // ✅ FIX: mutate draft
     set((state) => {
-      state.conversationMessages = state.conversationMessages.filter((m) => m.id !== messageId);
+      state.conversationMessages = state.conversationMessages.filter((m) => m.id?.toString() !== messageId?.toString() && m._id?.toString() !== messageId?.toString());
+      const sid = state.getSid();
+      resyncNormalizedSession(state, sid, state.conversationMessages);
+    });
+  },
+
+  deleteMessagesStartingFromId: (messageId) => {
+    set((state) => {
+      const idx = state.conversationMessages.findIndex((m) => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
+      if (idx !== -1) {
+        state.conversationMessages = state.conversationMessages.slice(0, idx);
+        const sid = state.getSid();
+        resyncNormalizedSession(state, sid, state.conversationMessages);
+      }
     });
   },
 
@@ -738,26 +800,42 @@ export const createConversationSlice = (set, get) => ({
     const last = conversationMessages[conversationMessages.length - 1];
     if (last.role !== 'assistant') return conversationMessages;
     const updated = conversationMessages.slice(0, -1);
-    set({ conversationMessages: updated, isWaitingForAI: true });
+    const sid = get().getSid();
+    set((state) => {
+      state.conversationMessages = updated;
+      state.isWaitingForAI = true;
+      resyncNormalizedSession(state, sid, updated);
+    });
     return updated;
   },
 
   setConversationMessages: (messages) => {
     set((state) => {
-      const sid = state.chatSessionId || state.sessionId || state.activeConversationSessionId || 'temp';
+      const sid = state.getSid();
+      const existingMessages = state.conversationMessages || [];
+
       const normalized = messages.map((m) => {
-        const content = m.content || '';
+        const mId = (m.id || m._id)?.toString();
+        const fallbackContent = m.content || '';
+        
+        // Find existing message to preserve local UI state (like activeVersionIndex)
+        const existing = existingMessages.find(em => em.id?.toString() === mId);
+        const resolvedActiveIdx = existing ? (existing.metadata?.activeVersionIndex ?? 0) : (m.metadata?.activeVersionIndex || 0);
+        const resolvedVersions = existing ? (existing.metadata?.versions ?? [{ text: fallbackContent, subsequentMessages: [] }]) : (m.metadata?.versions || [{ text: fallbackContent, subsequentMessages: [] }]);
+        const resolvedContent = resolvedVersions[resolvedActiveIdx] ? (resolvedVersions[resolvedActiveIdx].text || resolvedVersions[resolvedActiveIdx].content) : fallbackContent;
+        
         return {
-          id: m.id || m._id?.toString() || generateId(m.role),
-          role: m.role, content,
+          id: mId || generateId(m.role),
+          role: m.role, content: resolvedContent,
           timestamp: m.timestamp || new Date().toISOString(),
           hasCanvas: m.hasCanvas || false,
           canvasType: m.canvasType || null,
           canvasSnapshot: m.canvasSnapshot || null,
           metadata: {
             edited: false, regenerated: false, feedback: null, aborted: false, error: null,
-            versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0,
             ...(m.metadata || {}),
+            versions: resolvedVersions,
+            activeVersionIndex: resolvedActiveIdx,
           },
         };
       });
@@ -790,22 +868,35 @@ export const createConversationSlice = (set, get) => ({
       editingContent: '',
       conversationSources: [],
       lastStreamSources: [],
+      // SEC-ID-01: Rotate ephemeral ID to ensure new session is unique
+      _ephemeralSid: typeof crypto !== 'undefined' && crypto.randomUUID ? `local-${crypto.randomUUID()}` : `local-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      // SEC-46: Clear delta/doubt history on session switch
+      deltaHistory: [],
+      doubtHistory: [],
     });
   },
 
   setMessageFeedback: (messageId, feedback) => {
-    // ✅ FIX: mutate draft
+    //     FIX: mutate draft
     set((state) => {
       const idx = state.conversationMessages.findIndex(m => m.id === messageId);
-      if (idx !== -1) state.conversationMessages[idx].metadata.feedback = feedback;
+      if (idx !== -1) {
+        state.conversationMessages[idx].metadata.feedback = feedback;
+        const sid = get().getSid();
+        resyncNormalizedSession(state, sid, state.conversationMessages);
+      }
     });
   },
 
   updateMessageMetadata: (messageId, metadata) => {
-    // ✅ FIX: mutate draft
+    //     FIX: mutate draft
     set((state) => {
       const idx = state.conversationMessages.findIndex(m => m.id === messageId);
-      if (idx !== -1) Object.assign(state.conversationMessages[idx].metadata, metadata);
+      if (idx !== -1) {
+        Object.assign(state.conversationMessages[idx].metadata, metadata);
+        const sid = get().getSid();
+        resyncNormalizedSession(state, sid, state.conversationMessages);
+      }
     });
   },
 
@@ -818,7 +909,7 @@ export const createConversationSlice = (set, get) => ({
       let changed = false;
       
       if (oldUserMessageId && userMessageId) {
-        const uIdx = msgs.findIndex(m => m.id === oldUserMessageId);
+        const uIdx = msgs.findIndex(m => m.id?.toString() === oldUserMessageId?.toString() || m._id?.toString() === oldUserMessageId?.toString());
         if (uIdx !== -1) {
           msgs[uIdx] = { ...msgs[uIdx], id: userMessageId };
           changed = true;
@@ -829,7 +920,7 @@ export const createConversationSlice = (set, get) => ({
       }
 
       if (oldAssistantMessageId && assistantMessageId) {
-        const aIdx = msgs.findIndex(m => m.id === oldAssistantMessageId);
+        const aIdx = msgs.findIndex(m => m.id?.toString() === oldAssistantMessageId?.toString() || m._id?.toString() === oldAssistantMessageId?.toString());
         if (aIdx !== -1) {
           msgs[aIdx] = { ...msgs[aIdx], id: assistantMessageId };
           changed = true;
@@ -855,7 +946,7 @@ export const createConversationSlice = (set, get) => ({
       }
 
       if (changed) {
-        const sid = state.activeConversationSessionId || state.chatSessionId || state.sessionId || 'temp';
+        const sid = get().getSid();
         resyncNormalizedSession(state, sid, msgs);
         state.conversationMessages = msgs;
       }
@@ -876,7 +967,14 @@ export const createConversationSlice = (set, get) => ({
   },
 
   setActiveConversationSession: (sessionId) => {
-    const sid = sessionId || get().chatSessionId || get().sessionId || 'temp';
+    const sid = sessionId || get().getSid();
+    
+    // GUARD: Do not allow session switches to clobber active version navigation
+    if (get().isVersionSwitching) {
+      import.meta.env.DEV && console.log('[Store] Postponing setActiveConversationSession: Version lock active');
+      return;
+    }
+
     set((state) => {
       state.activeConversationSessionId = sid;
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
@@ -885,8 +983,19 @@ export const createConversationSlice = (set, get) => ({
     });
   },
 
+  promoteSessionId: (oldId, newId) => {
+    set((state) => {
+      if (oldId && newId && oldId !== newId && state.conversationSessions[oldId]) {
+        state.conversationSessions[newId] = state.conversationSessions[oldId];
+        delete state.conversationSessions[oldId];
+        if (state.activeConversationSessionId === oldId) {
+          state.activeConversationSessionId = newId;
+        }
+      }
+    });
+  },
   getConversationMessagesForSession: (sessionId) => {
-    const sid = sessionId || get().activeConversationSessionId || get().chatSessionId || get().sessionId || 'temp';
+    const sid = sessionId || get().getSid();
     const session = get().conversationSessions[sid];
     if (!session) return [];
     return session.orderedMessageIds.map((id) => session.messagesById[id]).filter(Boolean);
@@ -918,11 +1027,13 @@ export const createConversationSlice = (set, get) => ({
         if (msg.metadata.versions && msg.metadata.versions.length > 1) {
           const lastVersion = msg.metadata.versions[msg.metadata.versions.length - 1];
           // If the last version matches the error state or is empty/failed, prune it
-          if (lastVersion.text.includes('⚠️') || lastVersion.text === '') {
+          if (lastVersion.text.includes('      ') || lastVersion.text === '') {
             msg.metadata.versions.pop();
             msg.metadata.activeVersionIndex = msg.metadata.versions.length - 1;
           }
         }
+        const sid = get().getSid();
+        resyncNormalizedSession(state, sid, state.conversationMessages);
       }
     });
   },
@@ -934,9 +1045,13 @@ export const createConversationSlice = (set, get) => ({
   restoreSessionFromServer: async (sessionId) => {
     if (!sessionId) return;
 
-    // Guard: Don't restore if we already have messages loaded
+    // Guard: Don't restore if we already have messages loaded, UNLESS we are doing a background merge
     const currentMessages = get().conversationMessages;
-    if (currentMessages && currentMessages.length > 0) return;
+    if (currentMessages && currentMessages.length > 0) {
+      // In a real app we might want to skip if already loaded
+      // but for now we let the controller handle the merge
+    }
+    // We proceed if there are no messages, OR if we want to sync (handled inside)
 
     set({ isMessagesLoading: true, lastAIError: null });
 
@@ -949,19 +1064,37 @@ export const createConversationSlice = (set, get) => ({
       const { default: API } = await import('../../services/api');
       const response = await API.get(`/api/sessions/${sessionId}`);
       
-      if (response.data && response.data.messages && response.data.messages.length > 0) {
-        const messages = response.data.messages;
-        import.meta.env.DEV && console.log(`[Store] ♻️ Restored ${messages.length} messages from server for session ${sessionId}`);
+      if (response.data) {
+        const { messages, canvasState, canvasSteps, currentTopic, topic, title } = response.data;
         
-        get().setConversationMessages(messages);
+        // 1. Restore Messages
+        if (messages && messages.length > 0) {
+          if (import.meta.env.DEV) console.log(`[Store] Restored ${messages.length} messages from server for session ${sessionId}`);
+          
+          const currentCount = get().conversationMessages.length;
+          if (messages.length > currentCount) {
+            get().setConversationMessages(messages);
+          }
+        }
 
-        // Also restore topic if available
-        if (response.data.currentTopic || response.data.topic || response.data.title) {
-          set({ conversationTopic: response.data.currentTopic || response.data.topic || response.data.title });
+        // 2. Restore Canvas State (Full Pedagogical Context)
+        if (canvasState && canvasState.length > 0) {
+          if (import.meta.env.DEV) console.log(`[Store] Restored canvas state for session ${sessionId}`);
+          get().setCanvasSnapshot({
+            canvasObjects: canvasState,
+            canvasSteps: canvasSteps || [],
+            totalSteps: canvasSteps?.length || 0,
+            title: currentTopic || topic || title
+          });
+        }
+
+        // 3. Restore Topic
+        if (currentTopic || topic || title) {
+          set({ conversationTopic: currentTopic || topic || title });
         }
       }
     } catch (err) {
-      // Silent fail — user can still chat, messages just won't be restored
+      // Silent fail     user can still chat, messages just won't be restored
       if (import.meta.env.DEV) {
         console.warn('[Store] Failed to restore session from server:', err?.message || err);
       }
@@ -971,3 +1104,4 @@ export const createConversationSlice = (set, get) => ({
     }
   },
 });
+

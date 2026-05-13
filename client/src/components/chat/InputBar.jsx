@@ -25,7 +25,9 @@ import {
   Timer,
   SkipBack,
   Mic,
-  MicOff
+  MicOff,
+  Code2,
+  Pen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
@@ -37,7 +39,19 @@ import { TRIAL_LIMITS, isFeatureBlocked } from '../../constants/trialConfig';
 
 import { BASE_URL as API_URL, getCookie } from '../../services/api';
 
-const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMode, setActiveMode, selectedAgent, setSelectedAgent, onQuickAsk, onStopGeneration }) => {
+const InputBar = ({ 
+  value = '', 
+  onChange = () => {}, 
+  onSubmit = () => {}, 
+  isGenerating = false, 
+  isLanding = false, 
+  activeMode = null, 
+  setActiveMode = () => {}, 
+  selectedAgent = 'Universal', 
+  setSelectedAgent = () => {}, 
+  onQuickAsk = () => {}, 
+  onStopGeneration = () => {} 
+}) => {
   const { apiPrefs, switchApi, user } = useAuth();
   const { selectedTextContext, setSelectedTextContext } = useTutorStore(useShallow(s => ({
     selectedTextContext: s.selectedTextContext,
@@ -104,18 +118,6 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   }, [isGuest, guestTrialStatus.lastMessageAt]);
 
   const [isFocused, setIsFocused] = useState(false);
-
-  // Animated typing placeholder
-  const placeholders = [
-    "How does a Hash Map work?",
-    "Explain the Greenhouse effect.",
-    "Visualize Merge Sort steps.",
-    "What is a Neural Network?",
-    "Compare Mitosis and Meiosis."
-  ];
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [currentPlaceholder, setCurrentPlaceholder] = useState(isLanding ? "" : "Message TutorBoard...");
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isTabVisible, setIsTabVisible] = useState(document.visibilityState === 'visible');
   const [isStopping, setIsStopping] = useState(false);
 
@@ -135,41 +137,57 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     // Stop animation if not in landing mode or if a session has started/is generating
     // Also pause if user is currently typing or focused (Fixed: UX-01)
     if (isAnimationPaused) {
-      setCurrentPlaceholder("Message TutorBoard...");
+      if (textareaRef.current) textareaRef.current.placeholder = "Ask anything...";
       return;
     }
 
+    const placeholders = [
+      "How does a Hash Map work?",
+      "Explain quantum computing simply.",
+      "Write a React hook for dark mode.",
+      "Compare SQL and NoSQL databases.",
+      "Explain the theory of relativity."
+    ];
+
     let timeout;
-    const typingSpeed = isDeleting ? 30 : 60;
-    const fullText = placeholders[placeholderIndex];
+    let isDeletingLocal = false;
+    let pIndex = 0;
+    let cText = "Ask anything...";
 
     const runAnimation = () => {
       // SEC-UX: Strictly check visibility and active state before scheduling next frame
-      if (document.visibilityState === 'hidden' || isAnimationPaused) {
+      if (document.visibilityState === 'hidden' || isAnimationPaused || !textareaRef.current) {
         timeout = setTimeout(runAnimation, 1000);
         return;
       }
 
-      if (!isDeleting && currentPlaceholder === fullText) {
-        timeout = setTimeout(() => setIsDeleting(true), 2500);
-      } else if (isDeleting && currentPlaceholder === "") {
-        setIsDeleting(false);
-        setPlaceholderIndex(prev => (prev + 1) % placeholders.length);
+      const fullText = placeholders[pIndex];
+      const typingSpeed = isDeletingLocal ? 30 : 60;
+
+      if (!isDeletingLocal && cText === fullText) {
+        timeout = setTimeout(() => { isDeletingLocal = true; runAnimation(); }, 2500);
+        return;
+      } else if (isDeletingLocal && cText === "") {
+        isDeletingLocal = false;
+        pIndex = (pIndex + 1) % placeholders.length;
       } else {
-        setCurrentPlaceholder(isDeleting
-          ? fullText.substring(0, currentPlaceholder.length - 1)
-          : fullText.substring(0, currentPlaceholder.length + 1));
+        cText = isDeletingLocal
+          ? fullText.substring(0, cText.length - 1)
+          : fullText.substring(0, cText.length + 1);
       }
+
+      textareaRef.current.placeholder = cText;
+      timeout = setTimeout(runAnimation, typingSpeed);
     };
 
     if (isTabVisible) {
-      timeout = setTimeout(runAnimation, typingSpeed);
+      timeout = setTimeout(runAnimation, 60);
     } else {
       timeout = setTimeout(runAnimation, 1000);
     }
 
     return () => clearTimeout(timeout);
-  }, [currentPlaceholder, isDeleting, placeholderIndex, placeholders, isTabVisible, isAnimationPaused]);
+  }, [isTabVisible, isAnimationPaused]);
 
 
   useEffect(() => {
@@ -210,10 +228,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && (!e.shiftKey || e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      if (isTrialExhausted || isOnCooldown || isGenerating) return;
-      if (value.trim() || attachedFile) {
+      if (isTrialExhausted || isOnCooldown) return;
+      
+      const isInterjection = isGenerating;
+      const hasContent = value.trim() || attachedFile || selectedTextContext;
+      if (hasContent) {
+        import.meta.env.DEV && console.log('[InputBar] Enter pressed (Interjection:', isInterjection, '), submitting...');
         onSubmit(value, attachedFile, activeMode);
-        setAttachedFile(null); // Clear after submit
+        setAttachedFile(null);
         setIsPlusMenuOpen(false);
         setIsAgentMenuOpen(false);
       }
@@ -260,6 +282,11 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   const quickActions = [
     { icon: BookOpen, label: 'Quick Answer', mode: 'quick', guestAllowed: true },
     { icon: Layers, label: 'Deep Visual Dive', mode: 'deep', guestAllowed: false },
+    { icon: GraduationCap, label: 'Explain Concept', mode: 'explain', guestAllowed: true },
+    { icon: FileText, label: 'Summarize Text', mode: 'summarize', guestAllowed: true },
+    { icon: Code2, label: 'Write Code', mode: 'code', guestAllowed: true },
+    { icon: Pen, label: 'Help Me Write', mode: 'write', guestAllowed: true },
+    { icon: Sparkles, label: 'Generate Ideas', mode: 'ideas', guestAllowed: true },
     { icon: ClipboardCheck, label: 'Test Me', mode: 'test_me', guestAllowed: false },
   ];
 
@@ -302,11 +329,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
     xhr.withCredentials = true; // Crucial for cookies
     xhr.open('POST', `${API_URL}/api/upload`, true);
 
-    // SEC-GDPR: Add CSRF token to XHR request
-    const csrfToken = getCookie('tb-csrf-token');
-    if (csrfToken) {
-      xhr.setRequestHeader('X-CSRF-Token', csrfToken);
-    }
+    // SEC-GDPR: Rely on withCredentials and HttpOnly cookies for CSRF rather than manual JS read
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -347,8 +370,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
 
   const getPlaceholder = () => {
     if (activeMode === 'teach') return 'Enter a topic for live teaching...';
-    if (isLanding) return currentPlaceholder;
-    return 'Chat with TutorBoard...';
+    return 'Ask anything...';
   };
 
   const { isMobile } = useWindowSize();
@@ -365,8 +387,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
   });
 
   return (
-    <div className={`w-full max-w-4xl mx-auto`}>
-      <div className={`flex flex-col h-auto sf-glass border-none ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[32px] mx-4 mb-4'} p-2 relative shadow-premium transition-all duration-500`}>
+    <div className={`w-full max-w-3xl mx-auto`}>
+      <div className={`flex flex-col h-auto input-bar-glass ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[32px] mx-4 mb-4'} p-2 relative transition-all duration-500`}>
 
         {/* Upload Progress Bar */}
         <AnimatePresence>
@@ -396,7 +418,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 {activeMode && (
                   <motion.div
                     layoutId="activeMode"
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full shadow-md"
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full shadow-sm border border-[var(--border-color)]"
                   >
                     {(() => {
                       const action = quickActions.find(a => a.mode === activeMode);
@@ -404,14 +426,14 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                       const Icon = action.icon;
                       return (
                         <>
-                          <Icon size={12} strokeWidth={2.5} className="opacity-90" />
-                          <span className="text-[10px] font-bold uppercase tracking-wider">{action.label}</span>
+                          <Icon size={11} strokeWidth={2.5} className="opacity-90" />
+                          <span className="text-[9px] font-bold uppercase tracking-wide">{action.label}</span>
                         </>
                       );
                     })()}
                     <button
                       onClick={() => setActiveMode(null)}
-                      className="ml-1 p-0.5 hover:bg-white/20 rounded-full transition-colors"
+                      className="ml-0.5 p-0.5 hover:bg-[var(--bg-primary)]/20 rounded-full transition-colors text-[var(--bg-primary)]/60 hover:text-[var(--bg-primary)]"
                     >
                       <X size={10} strokeWidth={3} />
                     </button>
@@ -426,9 +448,9 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 )}
 
                 {attachedFile && (
-                  <div className="flex items-center gap-2 px-2 py-1.5 sf-glass border border-white/5 text-[var(--text-primary)] rounded-full shadow-sm pr-1.5">
+                  <div className="flex items-center gap-2 px-2 py-1.5 bg-[var(--text-primary)]/5 backdrop-blur-md border border-[var(--border-color)] text-[var(--text-primary)] rounded-full shadow-sm pr-1.5">
                     {attachedFile.type.startsWith('image/') ? (
-                      <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-white/20">
+                      <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-[var(--border-color)]">
                         <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
                       </div>
                     ) : (
@@ -508,14 +530,17 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   onFocus={() => setIsFocused(true)}
                   onBlur={() => setIsFocused(false)}
                   onChange={(e) => {
-                    const maxLen = isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000;
-                    if (e.target.value.length <= maxLen) onChange(e.target.value);
+                    const val = e.target.value;
+                    const maxLen = isGuest ? (TRIAL_LIMITS?.MAX_INPUT_LENGTH || 500) : 5000;
+                    if (val.length <= maxLen) {
+                      if (onChange) onChange(val);
+                    }
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder={isOnCooldown ? `Wait ${cooldownRemaining}s...` : getPlaceholder()}
                   maxLength={isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000}
                   disabled={isOnCooldown}
-                  className={`w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/40 resize-none px-5 ${isMobile ? 'py-4' : 'py-5'} text-[15px] outline-none focus:outline-none focus:ring-0 shadow-none focus:shadow-none font-medium leading-relaxed transition-all duration-300 ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  className={`w-full bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:opacity-70 resize-none px-5 ${isMobile ? 'py-4' : 'py-5'} text-[15px] outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none shadow-none focus:shadow-none focus-visible:shadow-none border-none font-medium leading-relaxed transition-all duration-300 ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
                   rows={1}
                   style={{ minHeight: isMobile ? '56px' : '64px' }}
                 />
@@ -552,24 +577,24 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-44' : 'w-52'} rounded-[24px] overflow-hidden z-[100] shadow-premium p-1.5 sf-glass border border-white/5`}
+                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-40' : 'w-44'} rounded-2xl overflow-hidden z-[100] shadow-premium p-1 liquid-glass`}
                   >
                     <div className="flex flex-col gap-1">
                       {uploadActions.map((action) => (
                         <button
                           key={action.label}
                           onClick={() => handleUploadAction(action.type)}
-                          className={`flex items-center justify-between w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all ${import.meta.env.PROD
-                            ? 'opacity-50 cursor-not-allowed text-[var(--text-tertiary)] bg-[var(--bg-secondary)]/30'
-                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                          className={`flex items-center justify-between w-full px-2.5 py-2 text-[12px] font-medium rounded-xl transition-all ${import.meta.env.PROD
+                            ? 'opacity-30 cursor-not-allowed text-[var(--text-tertiary)]'
+                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5'
                             }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <action.icon size={17} strokeWidth={2} />
+                          <div className="flex items-center gap-2.5">
+                            <action.icon size={15} strokeWidth={2} />
                             <span>{action.label}</span>
                           </div>
                           {import.meta.env.PROD && (
-                            <span className="text-[7.5px] uppercase font-bold bg-[var(--text-tertiary)]/10 text-[var(--text-tertiary)] px-1.5 py-0.5 rounded-md">
+                            <span className="text-[8px] uppercase font-bold bg-[var(--text-primary)]/10 text-[var(--text-tertiary)] px-1.5 py-0.5 rounded-md">
                               Soon
                             </span>
                           )}
@@ -596,7 +621,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-4 ${isMobile ? 'w-56' : 'w-64'} rounded-[24px] overflow-hidden z-[100] shadow-premium p-1.5 sf-glass border border-white/5`}
+                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-48' : 'w-52'} rounded-2xl overflow-hidden z-[100] shadow-premium p-1 liquid-glass`}
                   >
                     <div className="flex flex-col gap-1">
                       {quickActions.map((action) => {
@@ -613,29 +638,21 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                               }
                               handleQuickAction(action.mode);
                             }}
-                            className={`flex items-center justify-between gap-3 w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all ${isBlocked
+                            className={`flex items-center justify-between gap-3 w-full px-2.5 py-2 text-[12px] font-medium rounded-xl transition-all ${isBlocked
                               ? 'opacity-40 cursor-not-allowed text-[var(--text-tertiary)]'
                               : isActive
-                                ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
-                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                                ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5'
                               }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <action.icon size={17} strokeWidth={2} />
+                            <div className="flex items-center gap-2.5">
+                              <action.icon size={15} strokeWidth={2} />
                               <span>{action.label}</span>
                             </div>
-                            {isBlocked && <Lock size={12} strokeWidth={2.5} className="opacity-50" />}
+                            {isBlocked && <Lock size={11} strokeWidth={2.5} className="opacity-50" />}
                           </button>
                         );
                       })}
-                      <div className="h-[0.5px] bg-[var(--text-primary)]/5 my-1.5 mx-2" />
-                      <button
-                        onClick={() => { onQuickAsk?.(); setIsToolsMenuOpen(false); }}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 text-[13.5px] font-medium rounded-xl transition-all text-[#8b5cf6] hover:bg-[#8b5cf6]/10"
-                      >
-                        <Sparkles size={17} strokeWidth={2.5} />
-                        <span>AI Assistant</span>
-                      </button>
                     </div>
                   </motion.div>
                 )}
@@ -674,7 +691,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 ${isMobile ? 'w-48' : 'w-56'} rounded-[24px] overflow-hidden z-[100] p-1.5 shadow-premium flex flex-col gap-1 sf-glass border border-white/5`}
+                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 ${isMobile ? 'w-48' : 'w-56'} rounded-2xl overflow-hidden z-[100] p-1 shadow-premium flex flex-col gap-1 liquid-glass`}
                 >
                   {agents.map((agent, idx) => {
                     const Icon = agent.icon;
@@ -692,8 +709,8 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                         <button
                           onClick={() => { setSelectedAgent(agent.id); setIsAgentMenuOpen(false); }}
                           className={`flex items-center justify-between w-full px-3 py-2 text-[12px] rounded-xl transition-all font-medium ${isActive
-                            ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
-                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                            ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
+                            : 'text-[var(--text-secondary)] hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)]'
                             }`}
                         >
                           <div className="flex items-center gap-3">
@@ -702,7 +719,7 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                           </div>
                           {isActive && (
                             <>
-                              <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-white/20" aria-hidden="true" />
+                              <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-[var(--border-color)]" aria-hidden="true" />
                               <span className="sr-only">Active</span>
                             </>
                           )}
@@ -780,24 +797,40 @@ const InputBar = ({ value, onChange, onSubmit, isGenerating, isLanding, activeMo
                 {(!isGenerating || (value.trim() || attachedFile)) && (
                   <motion.button
                     key="send-btn"
+                    type="button"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
+                    onMouseDown={(e) => {
+                      // Prevent input blur to avoid layout shift race conditions during click
+                      e.preventDefault();
+                    }}
                     onClick={() => {
+                      import.meta.env.DEV && console.log('[InputBar] Send clicked. State:', { value: !!value, attachedFile: !!attachedFile, isGenerating, isTrialExhausted, isOnCooldown });
                       if (isTrialExhausted || isOnCooldown) return;
-                      if (value.trim() || attachedFile) {
+                      
+                      const hasContent = value.trim() || attachedFile || selectedTextContext;
+                      if (hasContent) {
                         onSubmit(value, attachedFile, activeMode);
                         setAttachedFile(null);
+                        setIsPlusMenuOpen(false);
+                        setIsAgentMenuOpen(false);
                       }
                     }}
-                    disabled={(!value.trim() && !attachedFile && !selectedTextContext) || isTrialExhausted || isOnCooldown}
+                    disabled={(() => {
+                      const isDisabled = isTrialExhausted || isOnCooldown || (!value?.trim() && !attachedFile && !selectedTextContext);
+                      if (isDisabled && value?.trim()) {
+                        import.meta.env.DEV && console.warn('[InputBar] Send button disabled. Reason:', { isTrialExhausted, isOnCooldown, hasContent: !!(value?.trim() || attachedFile || selectedTextContext) });
+                      }
+                      return isDisabled;
+                    })()}
                     aria-label="Send message"
-                    className={`w-11 h-11 flex items-center justify-center rounded-full transition-all duration-500 shadow-premium active:scale-90 group ${(value.trim() || attachedFile || selectedTextContext)
+                    className={`w-11 h-11 flex items-center justify-center rounded-full transition-all duration-500 shadow-premium active:scale-90 group ${(value?.trim() || attachedFile || selectedTextContext)
                         ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-lg scale-100'
-                        : 'bg-[var(--text-primary)]/5 text-[var(--text-tertiary)]/30 scale-95 cursor-not-allowed'
+                        : 'bg-[var(--text-primary)]/5 text-[var(--text-tertiary)] opacity-40 scale-95 cursor-not-allowed'
                       }`}
                   >
-                    <ArrowUp size={22} strokeWidth={2.5} className="transition-transform group-hover:-translate-y-0.5" />
+                    <ArrowUp size={22} strokeWidth={2.5} className="transition-transform group-hover:-translate-y-0.5 pointer-events-none" />
                   </motion.button>
                 )}
               </AnimatePresence>

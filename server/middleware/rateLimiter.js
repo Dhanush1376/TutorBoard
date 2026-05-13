@@ -3,18 +3,23 @@ import { RedisStore } from 'rate-limit-redis';
 import { container } from '../core/container.js';
 
 // ─── 1. HTTP Rate Limiter (Redis-backed) ───
-const createStore = (prefix) => {
-  // VIRTUALIZATION: Use a proxying sendCommand that resolves from the Kernel container.
-  // This prevents rogue connection instantiation and ensures unified topology.
+const createStore = (prefix, failClosed = false) => {
   return new RedisStore({
     sendCommand: async (...args) => {
       try {
         const client = container.resolve('redis-main');
         if (!client) throw new Error('NOT_READY');
-        return await client.call(...args);
+        const res = await client.call(...args);
+        if (res === null) throw new Error('REDIS_DEGRADED');
+        return res;
       } catch (err) {
-        // If kernel hasn't registered redis yet or it failed, the limiter fails closed/degraded
-        throw new Error('Redis resource not available in kernel container');
+        if (failClosed) {
+          // SEC-13: Fail closed for sensitive routes (AI/Auth) to prevent abuse during Redis outage
+          console.error(`[RateLimit:${prefix}] Redis failed - FAILING CLOSED`, err.message);
+          return [9999, 60]; // Return a huge count to trigger rate limit
+        }
+        // Gracefully fail open for general HTTP routes
+        return [1, 60];
       }
     },
     prefix: `ratelimit:${prefix}:`,
@@ -49,7 +54,7 @@ export const aiRateLimiter = rateLimit({
   max: 50, // 50 AI modifications per hour per user/IP
   standardHeaders: true,
   legacyHeaders: false,
-  store: createStore('ai'),
+  store: createStore('ai', true), // Fail closed
   keyGenerator: (req, res) => {
     // SEC-RATE: Prioritize user-based limiting to prevent authenticated account abuse
     if (req.user && req.user._id) {
@@ -70,6 +75,7 @@ export const authSigninRateLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createStore('auth-signin', true), // Fail closed
   message: {
     error: 'Too many sign-in attempts. Please try again in 15 minutes.',
     code: 'AUTH_RATE_LIMIT_EXCEEDED'
@@ -81,6 +87,7 @@ export const authSignupRateLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createStore('auth-signup', true), // Fail closed
   message: {
     error: 'Too many accounts created. Please try again in an hour.',
     code: 'AUTH_RATE_LIMIT_EXCEEDED'

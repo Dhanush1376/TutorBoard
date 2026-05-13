@@ -7,7 +7,9 @@ import crypto from 'crypto';
 import { sendWelcomeEmail, sendPasswordResetEmail, sendSecurityAlertEmail } from '../utils/core/mailer.js';
 import { trackEvent } from '../utils/core/analytics.js';
 import { container } from '../core/container.js';
+import { generateCsrfSecret, deriveCsrfToken } from '../utils/auth/csrf.js';
 import { AppError, ErrorCode } from '../shared/errors.js';
+import * as Sentry from '@sentry/node';
 
 // Enterprise Target: Access token (15min) + refresh token (30d)
 const ACCESS_TOKEN_EXPIRY = '15m';
@@ -44,6 +46,10 @@ const generateTokens = (id: string) => {
 const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === 'production';
   
+  // CSRF Protection (SEC-03)
+  const csrfSecret = generateCsrfSecret();
+  const csrfToken = deriveCsrfToken(csrfSecret);
+
   res.cookie('tb-access-token', accessToken, {
     httpOnly: true,
     secure: isProd,
@@ -56,6 +62,21 @@ const setAuthCookies = (res: Response, accessToken: string, refreshToken: string
     secure: isProd,
     sameSite: isProd ? 'strict' : 'lax',
     maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  });
+
+  res.cookie('tb-csrf-secret', csrfSecret, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'strict' : 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000
+  });
+
+  // Derived token cookie (accessible by JS)
+  res.cookie('tb-csrf-token', csrfToken, {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: isProd ? 'strict' : 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000
   });
 };
 
@@ -342,10 +363,12 @@ export const logout = async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, message: 'Logged out successfully' });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Logout error:', err);
-    // Even if revocation fails, we've cleared the client cookies, so we return success
-    // to avoid confusing the UI, while logging the server-side error.
+    Sentry.captureException(err, {
+      level: 'error',
+      tags: { component: 'AuthController', action: 'logout_revocation' }
+    });
     res.json({ success: true, message: 'Logged out successfully (client-side)' });
   }
 };

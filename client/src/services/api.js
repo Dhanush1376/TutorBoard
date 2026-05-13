@@ -3,11 +3,9 @@ import axios from 'axios';
 // In development, we use the Vite proxy ('') to avoid cross-origin cookie issues on localhost.
 // In production, we use the environment variable.
 const BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
-export const SOCKET_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-if (!import.meta.env.VITE_API_BASE_URL && import.meta.env.PROD) {
-  console.warn('[API] VITE_API_BASE_URL is not defined. Falling back to relative paths.');
-}
+// V-4 FIX: Use relative path for sockets in dev to ensure proxy/cookie consistency
+export const SOCKET_BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || '');
 
 const API = axios.create({
   baseURL: BASE_URL,
@@ -26,40 +24,54 @@ export const getCookie = (name) => {
   return null;
 };
 
-// Cache token to prevent redundant fetches
 let cachedCsrfToken = null;
+let csrfFetchPromise = null;
 
-// Helper to fetch CSRF token from the API if cross-domain cookies cannot be read
-export const fetchCsrfToken = async () => {
-  try {
-    const { data } = await axios.get(`${BASE_URL}/api/csrf-token`, { withCredentials: true });
-    if (data.csrfToken) {
-      cachedCsrfToken = data.csrfToken;
-      // Set as default for all future requests
-      API.defaults.headers.common['X-CSRF-Token'] = data.csrfToken;
-      return data.csrfToken;
+/**
+ * fetchCsrfToken - Fetches the CSRF token from the backend.
+ * Added retry logic and improved error handling for production-grade stability.
+ */
+export const fetchCsrfToken = async (retries = 3) => {
+  if (csrfFetchPromise) return csrfFetchPromise;
+
+  csrfFetchPromise = (async () => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const { data } = await axios.get(`${BASE_URL}/api/csrf-token`, { 
+          withCredentials: true,
+          timeout: 5000 
+        });
+        if (data.csrfToken) {
+          cachedCsrfToken = data.csrfToken;
+          API.defaults.headers.common['X-CSRF-Token'] = data.csrfToken;
+          return data.csrfToken;
+        }
+      } catch (err) {
+        if (i === retries - 1) {
+          console.error('[API] Final attempt to fetch CSRF token failed:', err.message);
+        } else {
+          const delay = Math.pow(2, i) * 1000;
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
     }
-  } catch (err) {
-    console.error('[API] Failed to fetch CSRF token:', err);
-  }
-  return null;
+    return null;
+  })().finally(() => {
+    csrfFetchPromise = null;
+  });
+
+  return csrfFetchPromise;
 };
 
 // Request Interceptor
 API.interceptors.request.use(
   async (config) => {
-    // Add CSRF token for mutating requests
     const safeMethods = ['get', 'head', 'options'];
     if (!safeMethods.includes(config.method?.toLowerCase() || '')) {
-      // 1. Try reading from Document Cookie (works for same-domain)
-      let csrfToken = getCookie('tb-csrf-token');
+      let csrfToken = getCookie('tb-csrf-token') || cachedCsrfToken;
       
-      // 2. Try cached token (from cross-domain fetch)
-      if (!csrfToken) csrfToken = cachedCsrfToken;
-
-      // 3. Fallback to fetching it on-demand
       if (!csrfToken) {
-        csrfToken = await fetchCsrfToken();
+        csrfToken = await fetchCsrfToken(1); // Fast single-retry attempt
       }
 
       if (csrfToken) {
@@ -68,70 +80,68 @@ API.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response Interceptor
 let isRefreshing = false;
 let failedQueue = [];
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
+    if (error) prom.reject(error);
+    else prom.resolve(token);
   });
   failedQueue = [];
 };
 
+// Response Interceptor
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-    const message = error.response?.data?.error || error.message || 'An unexpected error occurred';
+    const originalRequest = error.config || {};
+    
+    // Check if the error is a proxy ECONNREFUSED (often appears as 502/504 or network error)
+    if (!error.response && error.code === 'ERR_NETWORK') {
+      console.error('[API] Network Error - Backend might be offline or proxy misconfigured');
+    }
 
-    // Handle 401 Unauthorized errors
-    const isRefreshRequest = originalRequest.url === '/api/auth/refresh';
-    const isAuthRoute = originalRequest.url === '/api/auth/signin' || originalRequest.url === '/api/auth/signup';
+    const isRefreshRequest = originalRequest.url?.includes('/auth/refresh');
+    const isAuthRoute = originalRequest.url?.includes('/auth/signin') || originalRequest.url?.includes('/auth/signup');
+    
+    // SEC-FIX: Use a header to track retries, as custom config properties can be stripped during cloning
+    const isRetry = originalRequest._retry || originalRequest.headers?.['X-Retry'] === 'true';
 
-    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest && !isAuthRoute) {
-      console.log('[API] 401 detected, attempting token refresh...');
+    if (error.response?.status === 401 && !isRetry && !isRefreshRequest && !isAuthRoute) {
       if (isRefreshing) {
-        console.log('[API] Refresh already in progress, queuing request...');
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        })
-          .then(() => API(originalRequest))
-          .catch((err) => Promise.reject(err));
+        }).then(() => {
+          // Flag queued requests as retries so they don't trigger another refresh loop
+          originalRequest._retry = true;
+          if (!originalRequest.headers) originalRequest.headers = {};
+          originalRequest.headers['X-Retry'] = 'true';
+          return API(originalRequest);
+        }).catch(err => Promise.reject(err));
       }
 
       originalRequest._retry = true;
+      if (!originalRequest.headers) originalRequest.headers = {};
+      originalRequest.headers['X-Retry'] = 'true';
       isRefreshing = true;
 
       try {
-        // Attempt to refresh the token using a clean axios call to avoid interceptor recursion
-        console.log('[API] Calling /api/auth/refresh...');
+        // Use direct axios for refresh to avoid triggering the same interceptor
         await axios.post(`${BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
-        console.log('[API] Refresh successful, processing queue...');
         processQueue(null);
         return API(originalRequest);
       } catch (refreshError) {
-        console.error('[API] Refresh FAILED:', refreshError.response?.status, refreshError.message);
         processQueue(refreshError);
-        // Let the caller (AuthProvider) handle the unauthenticated state.
-        // Do NOT hard-redirect here — it races with React's auth state management
-        // and causes page flicker / infinite redirect loops on normal page refreshes.
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
 
-    console.error('[API Error]:', message);
     return Promise.reject(error);
   }
 );

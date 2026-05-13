@@ -52,6 +52,7 @@ export const buildMarkdownComponents = (onOpenArtifact) => ({
       {children}
     </blockquote>
   ),
+  pre: ({ children }) => <>{children}</>,
   code: ({ className, children, inline }) => {
     if (inline) {
       return (
@@ -108,9 +109,17 @@ export const buildMarkdownComponents = (onOpenArtifact) => ({
     } catch {
       safeHref = '#';
     }
+    const isMailto = safeHref.startsWith('mailto:');
     return (
-      <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: 'var(--info)', opacity: 0.9 }}>{children}</a>
+      <a 
+        href={safeHref} 
+        target={isMailto ? undefined : "_blank"} 
+        rel={isMailto ? undefined : "noopener noreferrer"} 
+        style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: 'var(--info)', opacity: 0.9 }}
+      >
+        {children}
+      </a>
     );
   },
-  hr: () => <hr style={{ border: 'none', borderTop: '2px solid var(--border-color)', margin: '20px 0' }} />,
+  hr: () => <hr style={{ border: 'none', borderTop: '1px solid rgba(var(--text-primary-rgb), 0.06)', margin: '24px 0' }} />,
 });

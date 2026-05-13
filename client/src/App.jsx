@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
@@ -41,7 +41,9 @@ function App() {
   // SEC-02 & FO-03: Initialize store from client environment and listen for resize
   useEffect(() => {
     hydrate();
+  }, []); // Run ONCE on mount
 
+  useEffect(() => {
     let lastIsMobile = window.innerWidth < 768;
 
     const handleResize = () => {
@@ -55,7 +57,7 @@ function App() {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [hydrate, setSidebarOpen]);
+  }, [setSidebarOpen]);
 
   const [welcomeLoading, setWelcomeLoading] = useState(() => {
     try {
@@ -95,12 +97,18 @@ function App() {
     }
   }, [welcomeLoading, authLoading]);
 
+  // SEC-36: Use a ref to track globalOverlay type to avoid re-triggering effect on every overlay change
+  const globalOverlayRef = useRef(globalOverlay);
+  useEffect(() => {
+    globalOverlayRef.current = globalOverlay;
+  }, [globalOverlay]);
+
   useEffect(() => {
     const handleOffline = () => {
       setGlobalOverlay({ isActive: true, type: 'network', message: "You're currently offline. Please check your internet connection." });
     };
     const handleOnline = () => {
-      if (globalOverlay.type === 'network') {
+      if (globalOverlayRef.current?.type === 'network') {
         setGlobalOverlay({ isActive: false });
       }
     };
@@ -111,7 +119,7 @@ function App() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [setGlobalOverlay, globalOverlay]);
+  }, [setGlobalOverlay]);
 
   useEffect(() => {
     if (connectionStatus === 'timeout') {

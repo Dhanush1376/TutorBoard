@@ -1,6 +1,6 @@
 import { childLogger } from './logger.js';
 import { lifecycle } from './lifecycle.js';
-import { runtimeState, SubsystemStatus as StateStatus } from './runtimeState.js';
+import { runtimeState } from './runtimeState.js';
 import { eventBus, RUNTIME_EVENTS } from './eventBus.js';
 import { startupManager, StartupPhase } from './startupManager.js';
 

@@ -58,7 +58,7 @@ const ProfileDropdown = ({ isLeftHand, user, onSettingsClick, handleLogout }) =>
       className={`absolute top-full mt-4 z-[9999] min-w-[200px] ${isLeftHand ? 'left-0' : 'right-0'}`}
     >
       <div 
-        className="p-1.5 rounded-2xl relative shadow-2xl liquid-glass"
+        className="p-1.5 rounded-2xl relative liquid-glass"
         style={{
           borderRadius: '20px',
         }}

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTutorStore from '../../store/tutorStore';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/useTheme';
 
 /* ─── State config ───────────────────────────────────────────────────────── */
 const CONFIG = {

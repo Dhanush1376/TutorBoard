@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 // Real Redis is strictly enforced. No mock schemas are permitted.
+/**
  * StorageMockSchema - Persistent blob storage for S3 fallback
  */
 const StorageMockSchema = new mongoose.Schema({

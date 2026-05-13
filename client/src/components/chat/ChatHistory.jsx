@@ -23,9 +23,13 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
   };
 
   const handleShare = (chat) => {
-    const cleanContent = (text) => (text || '').replace(/<thought>[\s\S]*?<\/thought>/g, '').trim();
+    const cleanContent = (text) => (text || '')
+      .replace(/<thought>[\s\S]*?<\/thought>/g, '')
+      .replace(/\s+/g, ' ') // SEC-39: Whitespace normalization
+      .trim();
+      
     const summary = `TutorBoard Session: ${chat.title || 'Untitled'}\n\nMessages:\n${
-      (chat.messages || []).map(m => `[${m.role}]: ${cleanContent(m.content)}`).join('\n')
+      (chat.messages || []).map(m => `[${m.role}]: ${cleanContent(m.content)}`).join('\n\n')
     }`;
     navigator.clipboard.writeText(summary).then(() => {
       useTutorStore.getState().showToast({ message: 'Copied to clipboard', type: 'success', duration: 2000 });

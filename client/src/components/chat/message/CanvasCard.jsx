@@ -23,10 +23,16 @@ const CanvasCard = ({ onOpenCanvas, messageId, canvasType, stepCount, title }) =
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       onClick={() => onOpenCanvas?.(messageId)}
-      className="mt-4 w-full flex items-center gap-4 rounded-[24px] transition-all hover:scale-[1.01] active:scale-[0.98] text-left sf-glass shadow-premium border border-white/5"
+      className="mt-4 flex items-center gap-4 transition-all hover:scale-[1.01] active:scale-[0.98] text-left"
       style={{
-        padding: '14px 18px',
-        background: 'rgba(var(--bg-secondary-rgb), 0.4)',
+        padding: '12px 18px',
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border-color)',
+        borderRadius: 28,
+        width: '100%',
+        maxWidth: 500,
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+        display: 'flex',
       }}
     >
       <div

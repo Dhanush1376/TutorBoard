@@ -4,6 +4,7 @@ import chatService from '../services/chat/chat.service.js';
 import { StreamLifecycleManager } from '../services/chat/stream.service.js';
 import { resolveUserConfig } from '../sockets/utils.js';
 import messageRepository from '../repositories/message.repository.js';
+import sessionRepository from '../repositories/session.repository.js';
 import { requestCompletion, getTextModel } from '../utils/ai/llmClient.js';
 
 const sendMessageSchema = z.object({
@@ -60,7 +61,7 @@ export const streamMessage = async (req: Request, res: Response) => {
     await chatService.processMessage({
       userId: (req as any).user?._id?.toString(),
       sessionId: validation.sessionId || undefined,
-      title: validation.title,
+      title: validation.title as string | undefined,
       userMessage: validation.userMessage,
       mode: 'explain',
       teachingContext: validation.teachingContext,
@@ -88,49 +89,93 @@ export const streamRegenerate = async (req: Request, res: Response) => {
 export const editMessage = async (req: Request, res: Response) => {
   try {
     const { sessionId, messageId, newContent } = req.body;
+    const userId = (req as any).user?._id?.toString();
     
-    const message = await messageRepository.findById(messageId);
-    if (!message) return res.status(404).json({ error: 'Message not found' });
+    const message = await assertMessageOwnership(messageId, userId, sessionId);
+    const actualSessionId = message.sessionId.toString();
 
     // Branching: Delete all messages after this one to maintain logical flow
-    await messageRepository.deleteMessagesAfter(sessionId, message.timestamp);
+    await messageRepository.deleteMessagesAfter(actualSessionId, message.timestamp);
     
     // Update the message itself
     await messageRepository.updateById(messageId, { content: newContent, 'metadata.edited': true });
 
+    // SEC-28: If this was the first message, update session title
+    const firstMsg = await messageRepository.findFirstInSession(actualSessionId);
+    if (firstMsg && firstMsg._id.toString() === messageId) {
+      const newTitle = await generateSessionTitle(newContent);
+      await sessionRepository.updateById(actualSessionId, { title: newTitle });
+    }
+
+    req.body.sessionId = actualSessionId;
     req.body.userMessage = newContent;
     return sendMessage(req, res);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
+  }
+};
+
+export const streamEditMessage = async (req: Request, res: Response) => {
+  try {
+    const { sessionId, messageId, newContent } = req.body;
+    const userId = (req as any).user?._id?.toString();
+    
+    const message = await assertMessageOwnership(messageId, userId, sessionId);
+    const actualSessionId = message.sessionId.toString();
+
+    await messageRepository.deleteMessagesAfter(actualSessionId, message.timestamp);
+    await messageRepository.updateById(messageId, { content: newContent, 'metadata.edited': true });
+
+    // SEC-28: If this was the first message, update session title
+    const firstMsg = await messageRepository.findFirstInSession(actualSessionId);
+    if (firstMsg && firstMsg._id.toString() === messageId) {
+      const newTitle = await generateSessionTitle(newContent);
+      await sessionRepository.updateById(actualSessionId, { title: newTitle });
+    }
+
+    req.body.sessionId = actualSessionId;
+    req.body.userMessage = newContent;
+    return streamMessage(req, res);
+  } catch (err: any) {
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
 export const deleteMessage = async (req: Request, res: Response) => {
   try {
-    const { messageId } = req.body;
+    const { messageId, sessionId } = req.body;
+    const userId = (req as any).user?._id?.toString();
+    await assertMessageOwnership(messageId, userId, sessionId);
+
     await messageRepository.deleteMessage(messageId);
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
 export const updateMessageFeedback = async (req: Request, res: Response) => {
   try {
-    const { messageId, feedback } = req.body;
+    const { messageId, feedback, sessionId } = req.body;
+    const userId = (req as any).user?._id?.toString();
+    await assertMessageOwnership(messageId, userId, sessionId);
+
     await messageRepository.updateMetadata(messageId, { feedback });
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
 export const switchMessageVersion = async (req: Request, res: Response) => {
   try {
-    const { messageId, versionIndex } = req.body;
+    const { messageId, versionIndex, sessionId } = req.body;
     if (!messageId || versionIndex === undefined) {
       return res.status(400).json({ error: 'messageId and versionIndex are required' });
     }
+
+    const userId = (req as any).user?._id?.toString();
+    await assertMessageOwnership(messageId, userId, sessionId);
 
     const result = await chatService.switchMessageVersion(messageId, versionIndex);
     res.json(result);
@@ -140,6 +185,40 @@ export const switchMessageVersion = async (req: Request, res: Response) => {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function assertMessageOwnership(messageId: string, userId: string | undefined, sessionId?: string) {
+  if (!messageId) throw { status: 400, message: 'messageId is required' };
+  
+  const msg = await messageRepository.findById(messageId);
+  if (!msg) throw { status: 404, message: 'Message not found' };
+
+  const session = await sessionRepository.findById(msg.sessionId.toString());
+  if (!session) throw { status: 404, message: 'Session not found' };
+
+  // 1. If it's a registered user session
+  if (session.userId) {
+    if (session.userId.toString() !== userId) {
+      throw { status: 403, message: 'Access denied: You do not own this message' };
+    }
+  } 
+  // 2. If it's a guest session (userId: null)
+  else {
+    // If the requester is an authenticated user, they shouldn't be messing with guest sessions
+    // unless they are explicitly authorized (e.g., admin or the session was just theirs before login)
+    // For now, we enforce that guests must provide the sessionId.
+    if (userId) {
+       throw { status: 403, message: 'Access denied: Registered users cannot modify guest sessions' };
+    }
+    
+    // For guests, they MUST provide the sessionId in the request body to prove they are the ones who created it.
+    // This provides basic protection against messageId enumeration.
+    if (!sessionId || msg.sessionId.toString() !== sessionId) {
+       throw { status: 403, message: 'Access denied: Valid sessionId required for guest mutations' };
+    }
+  }
+  
+  return msg;
+}
 
 export function detectTopic(text: string) {
   if (!text) return 'General';

@@ -16,6 +16,7 @@ import { createArtifactSlice } from './slices/artifactSlice.js';
 import { createSceneSlice } from './slices/sceneSlice.js';
 import { createCanvasSessionSlice } from './slices/canvasSessionSlice.js';
 import { createPlatformMemorySlice } from './slices/platformMemorySlice.js';
+import { createSceneGraphSlice } from './slices/sceneGraphSlice.js';
 
 const safeStorage = {
   getItem: (name) => {
@@ -27,8 +28,23 @@ const safeStorage = {
     } catch (e) {
       if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
         console.warn('[Storage] Local storage limit reached. Pruning session manifest.');
-        // If manifest is the problem, clear it (worst case) or just ignore the save
-        // In a real app we might try to evict more aggressively here
+        // SEC-41: Aggressive eviction
+        try {
+          const currentRaw = localStorage.getItem(name);
+          if (currentRaw) {
+            const current = JSON.parse(currentRaw);
+            // If it's our tutorStore state, try pruning the chatHistory first
+            if (current?.state?.chatHistory?.length > 5) {
+              import.meta.env.DEV && console.log('[Storage] Pruning chatHistory from 30 to 5 entries...');
+              current.state.chatHistory = current.state.chatHistory.slice(0, 5);
+              localStorage.setItem(name, JSON.stringify(current));
+              return;
+            }
+          }
+        } catch (pruneErr) {
+          // If pruning fails or isn't enough, clear the key entirely as last resort
+          localStorage.removeItem(name);
+        }
       }
     }
   },
@@ -49,6 +65,7 @@ const useTutorStore = create(
       ...createSceneSlice(set, get),
       ...createCanvasSessionSlice(set, get),
       ...createPlatformMemorySlice(set, get),
+      ...createSceneGraphSlice(set, get),
 
       // Global Actions / Hydration
       hydrate: () => {
@@ -70,6 +87,52 @@ const useTutorStore = create(
       },
 
       /**
+       * hydrateSession — Centralized hydration of the active session.
+       * Called by Home.jsx or AuthProvider once user data is available.
+       */
+      hydrateSession: async (user) => {
+        const state = get();
+        
+        // 1. Determine which session ID to restore
+        const savedActiveId = user?.lastActiveSessionId || localStorage.getItem('tutorboard-active-chat');
+        if (!savedActiveId) return;
+
+        // 2. If we already have an active session, skip hydration unless it's different
+        if (state.chatSessionId === savedActiveId || state.sessionId === savedActiveId) {
+          return;
+        }
+        if (state.isMessagesLoading) return;
+
+        import.meta.env.DEV && console.log('[Store] Hydrating active session:', savedActiveId);
+
+        // 3. Set the active IDs
+        state.setSessionId(savedActiveId);
+        state.setChatSessionId(savedActiveId);
+
+        // 4. Restore pedagogical state (messages/canvas) from cloud if needed
+        const isMongoId = /^[0-9a-fA-F]{24}$/.test(savedActiveId);
+        if (isMongoId && (!state.conversationMessages || state.conversationMessages.length === 0)) {
+           await state.restoreSessionFromServer(savedActiveId);
+        } else {
+          // Optimistic local restoration from chatHistory if cloud fetch isn't needed/available
+          const localSession = state.chatHistory.find(s => s.id === savedActiveId);
+          if (localSession) {
+            if (localSession.messages && localSession.messages.length > 0) {
+              state.setConversationMessages(localSession.messages);
+            }
+            if (localSession.canvasState && localSession.canvasState.length > 0) {
+              state.setCanvasSnapshot({
+                canvasObjects: localSession.canvasState,
+                canvasSteps: localSession.canvasSteps || [],
+                totalSteps: localSession.canvasSteps?.length || 0,
+                title: localSession.title
+              });
+            }
+          }
+        }
+      },
+
+      /**
        * handleProgressiveStreamEvent — Central Orchestrator for SSE events.
        * Decouples SSE event arrival from UI implementation.
        */
@@ -81,8 +144,8 @@ const useTutorStore = create(
             if (eventData.sessionId) {
               const oldId = state.chatSessionId || state.sessionId;
               
-              // Adopt the real MongoDB ID immediately to prevent duplicate session creation
-              // during background auto-syncs.
+              // Adopt the real MongoDB ID immediately
+              state.promoteSessionId(oldId, eventData.sessionId);
               state.setSessionId(eventData.sessionId);
               state.setChatSessionId(eventData.sessionId);
 

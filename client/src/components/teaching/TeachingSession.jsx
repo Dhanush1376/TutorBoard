@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles,
-  RotateCcw, RefreshCw, Dices, Crosshair, Volume2, VolumeX, AlertTriangle, BookOpen
+  RotateCcw, RefreshCw, Dices, Crosshair, Volume2, VolumeX, AlertTriangle, BookOpen,
+  Minimize2
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
@@ -287,15 +288,17 @@ const TeachingSession = ({ initialTopic }) => {
     return (
       <motion.div
         initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
-        className="fixed bottom-6 right-6 z-[60]"
+        className="fixed bottom-6 right-6 z-[60] liquid-glass rounded-xl shadow-premium overflow-hidden"
       >
         <button
           onClick={() => setIsMinimized(false)}
-          style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
-          className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all"
+          className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--bg-tertiary)] active:scale-95 transition-all group"
         >
-          <span className="text-[10px] font-medium truncate max-w-[120px]">{topic}</span>
-          <ChevronLeft size={13} className="opacity-60 rotate-180" />
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+          <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--text-primary)] truncate max-w-[140px]">
+            {topic || 'Active Session'}
+          </span>
+          <ChevronLeft size={12} className="text-[var(--text-tertiary)] group-hover:translate-x-0.5 transition-transform rotate-180" />
         </button>
       </motion.div>
     );
@@ -381,7 +384,7 @@ const TeachingSession = ({ initialTopic }) => {
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
                 key={`step-pill-${currentStepIndex}`}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full sf-glass shadow-premium"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full liquid-glass shadow-premium"
               >
                 <div
                   className="w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--theme-color-rgb),0.5)]"
@@ -395,27 +398,28 @@ const TeachingSession = ({ initialTopic }) => {
                   {stepType ? `${stepType} · ` : ''}{currentStepIndex + 1}
                 </span>
               </motion.div>
-            </div>
-
-            {/* ── Progress HUD (Top Right) ── */}
-            <div className="absolute top-[80px] right-6 z-[30] flex flex-col items-end gap-4 pointer-events-none">
+              {/* Progress HUD integrated below the pill */}
               {!isAlgo && (
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="pointer-events-auto"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="pointer-events-auto ml-1"
                 >
                   <ProgressArc />
                 </motion.div>
               )}
             </div>
 
+
+
             {/* ── Canvas Empty State Placeholder (Redesigned as Playbar) ── */}
-            {(!isGenerating && !canvasSteps[currentStepIndex]?.objects?.length && !canvasObjects?.length) && (
+            {(!isGenerating && !canvasSteps?.length && !canvasObjects?.length) && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[40]">
                 <motion.div 
                   initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  animate={{ opacity: 1, y: 0, x: panelOpen ? -160 : 0 }}
+                  transition={{ type: 'spring', damping: 30, stiffness: 200 }}
                   className="flex flex-col items-center gap-12"
                 >
                   <div className="flex flex-col items-center gap-4">
@@ -425,7 +429,7 @@ const TeachingSession = ({ initialTopic }) => {
                       className="flex flex-col items-center"
                     >
                       <h3 className="text-[11px] font-black tracking-[0.6em] text-[var(--text-primary)] uppercase">
-                        {topic ? topic : "Intelligent Visualizer"}
+                        {topic ? topic : "TutorBoard AI"}
                       </h3>
                     </motion.div>
                     
@@ -516,7 +520,7 @@ const TeachingSession = ({ initialTopic }) => {
               <motion.div 
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="flex flex-col gap-2 p-1.5 rounded-2xl sf-glass shadow-premium pointer-events-auto"
+                className="flex flex-col gap-2 p-1.5 rounded-2xl liquid-glass shadow-premium pointer-events-auto"
               >
                 <Btn onClick={() => goToStep(0)} title="Reset to Start" className="rounded-xl">
                   <RotateCcw size={13} />
@@ -610,10 +614,9 @@ const TeachingSession = ({ initialTopic }) => {
                   transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                   className="absolute right-6 top-24 bottom-24 w-[340px] z-[50] pointer-events-auto"
                 >
-                  <div className="h-full w-full sf-glass shadow-premium flex flex-col overflow-hidden" 
+                  <div className="h-full w-full liquid-glass flex flex-col overflow-hidden" 
                        style={{ 
                          borderRadius: 32,
-                         background: 'rgba(var(--bg-primary-rgb), 0.6)',
                        }}>
                     <SessionGuide
                       step={{ 
@@ -660,7 +663,7 @@ const TeachingSession = ({ initialTopic }) => {
           style={{ left: toolbarLeft }}
         >
           <div
-            className="flex items-center gap-3 px-5 py-2 rounded-full sf-glass shadow-premium transition-all hover:ring-1 hover:ring-white/10"
+            className="flex items-center gap-3 px-5 py-2 rounded-full liquid-glass transition-all hover:ring-1 hover:ring-white/10"
             style={{ 
               height: '54px', 
             }}
@@ -695,8 +698,8 @@ const TeachingSession = ({ initialTopic }) => {
               </span>
 
 
-              <Btn onClick={() => setPanelOpen(!panelOpen)} title={panelOpen ? 'Hide panel' : 'Show panel'} className="rounded-full">
-                {panelOpen ? <PanelRightClose size={13} /> : <PanelRight size={13} />}
+              <Btn onClick={() => setIsMinimized(true)} title="Minimize to Pill" className="rounded-full">
+                <Minimize2 size={13} />
               </Btn>
               <Btn onClick={handleClose} danger title="Close" className="rounded-full"><X size={13} /></Btn>
             </div>

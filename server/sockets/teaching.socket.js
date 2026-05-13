@@ -9,11 +9,13 @@ import tokenStore from '../utils/auth/tokenStore.js';
 import { checkSocketRate, cleanupSocket, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../middleware/rateLimiter.js';
 import { getOrCreateRequestId, createTrackedSessionId } from '../middleware/requestIdMiddleware.js';
 import { getRateKey } from './utils.js';
+import { queueService, QUEUES } from '../services/queue/queue.service.js';
 
 // Handlers
 import { registerSessionHandlers } from './handlers/session.js';
 import { registerDoubtHandlers } from './handlers/doubt.js';
 import { registerNavigationHandlers } from './handlers/navigation.js';
+import { registerArtifactHandlers } from './handlers/artifact.js';
 
 export function setupTeachingSocket(io) {
   const teachingIO = io.of('/teaching');
@@ -33,7 +35,7 @@ export function setupTeachingSocket(io) {
         return next();
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
       
       if (await tokenStore.isTokenRevoked(decoded.jti)) {
         return next(new Error('Authentication error: Token has been revoked'));
@@ -152,34 +154,20 @@ export function setupTeachingSocket(io) {
     registerSessionHandlers(socket, machine, sessionId, requestId);
     registerDoubtHandlers(socket, machine, sessionId);
     registerNavigationHandlers(socket, machine, sessionId);
+    registerArtifactHandlers(socket, machine, sessionId, requestId);
 
     // ─── Cleanup on Disconnect ───────────────────────────────────────────────
     socket.on('disconnect', async (reason) => {
       if (socket.user && !socket.user.isGuest) {
         try {
-          await sessionStore.persistProfile(sessionId);
-
-          const session = await sessionStore.get(sessionId);
-          if (session?.learnerProfile?.topicsMastery) {
-            const masteryData = session.learnerProfile.topicsMastery;
-            const topicKeys = masteryData instanceof Map ? Array.from(masteryData.keys()) : Object.keys(masteryData);
-            
-            if (topicKeys.length > 0) {
-              const updateObject = {};
-              for (const key of topicKeys) {
-                const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
-                updateObject[`topicsMastery.${key}`] = value;
-              }
-              
-              await LearnerProfile.findOneAndUpdate(
-                { userId: socket.user.id },
-                { $set: updateObject },
-                { returnDocument: 'after' }
-              );
-            }
-          }
+          await queueService.add(QUEUES.DOCUMENTS, 'session-persist', {
+            sessionId,
+            socketId: socket.id,
+            userId: socket.user.id,
+            state: machine.state
+          }, { attempts: 3, backoff: { type: 'exponential', delay: 1000 } });
         } catch (err) {
-          console.error(`[WS] Persistence failed on disconnect:`, err.message);
+          console.error(`[WS] Failed to enqueue persistence on disconnect:`, err.message);
         }
       }
 

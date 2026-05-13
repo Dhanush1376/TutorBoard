@@ -1,7 +1,7 @@
-/* S-3 FIX: Critical fonts loaded synchronously; decorative fonts deferred */
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@300;400;500;600;700&family=Fira+Code&display=swap");
-/* Deferred fonts â€” loaded asynchronously via index.html link[media=print] swap pattern */
-/* Caveat, DM Sans, DM Serif Display, Outfit loaded on-demand when their components mount */
+/* Critical fonts loaded synchronously; decorative fonts deferred */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&display=swap");
+/* Deferred fonts — loaded asynchronously via index.html link[media=print] swap pattern */
+/* DM Sans, DM Serif Display, Outfit loaded on-demand when their components mount */
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
@@ -14,7 +14,7 @@
   --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-heading: "Outfit", sans-serif;
   --font-serif: "DM Serif Display", Georgia, serif;
-  --font-mono: "Fira Code", "Inter", monospace;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
   /* Spacing scale */
   --space-px: 1px;
@@ -225,7 +225,7 @@
   }
 }
 
-/* â”€â”€â”€ CSS Custom Properties (runtime) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- CSS Custom Properties (runtime) --- */
 
 @layer base {
   :root {
@@ -291,17 +291,17 @@
     --stage-bg: var(--bg-primary);
     --stage-vignette: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 60%, var(--bg-primary) 100%);
 
-    /* â”€â”€ Missing runtime aliases (V-1, V-4 fixes) â”€â”€ */
+    /* -- Missing runtime aliases (V-1, V-4 fixes) -- */
     --ring-focus: rgba(26, 26, 24, 0.3);
     --text-primary-rgb: 15, 15, 14;
   }
 
   .dark {
-    --bg-primary: #0b0b0a;
-    --bg-secondary: #141412;
-    --bg-tertiary: #1c1c1a;
-    --bg-primary-rgb: 11, 11, 10;
-    --bg-secondary-rgb: 20, 20, 18;
+    --bg-primary: #000000;
+    --bg-secondary: #050505;
+    --bg-tertiary: #0a0a0a;
+    --bg-primary-rgb: 0, 0, 0;
+    --bg-secondary-rgb: 5, 5, 5;
 
     --text-primary: #f9f6e5;
     --text-secondary: #a3a198;
@@ -317,7 +317,7 @@
     --glass-border-width: 1px;
     --glass-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.3), 0 4px 8px -2px rgba(0, 0, 0, 0.2);
 
-    /* â”€â”€ Missing runtime aliases (dark mode) â”€â”€ */
+    /* -- Missing runtime aliases (dark mode) -- */
     --ring-focus: rgba(240, 239, 233, 0.25);
     --text-primary-rgb: 249, 246, 229;
   }
@@ -451,9 +451,11 @@ pre {
 }
 
 /* Focus visible â€” unified ring system */
-:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--ring-focus);
+@layer base {
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--ring-focus);
+  }
 }
 
 /* Image defaults */
@@ -576,33 +578,96 @@ option {
 }
 
 
-/* Glass morphism */
+/* Glass morphism - Standardized system */
 @utility glass {
   background-color: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur, 12px));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 12px));
+  backdrop-filter: blur(var(--glass-blur, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 16px));
   border: var(--glass-border-width) solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
 
-@utility glass-strong {
-  background-color: rgba(var(--bg-primary-rgb, 253, 250, 243), var(--glass-opacity, 0.94));
-  backdrop-filter: blur(var(--glass-blur, 16px));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 16px));
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-xl);
+@utility liquid-glass {
+  background: rgba(var(--bg-primary-rgb), 0.75);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(var(--text-primary-rgb), 0.08);
+  box-shadow: 
+    0 12px 40px -8px rgba(0, 0, 0, 0.12),
+    0 1px 1px rgba(255, 255, 255, 0.3) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+
+  .dark & {
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 
+      0 12px 40px -8px rgba(0, 0, 0, 0.4),
+      0 1px 1px rgba(255, 255, 255, 0.05) inset;
+  }
 }
 
 .liquid-glass {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  box-shadow:
-    0 20px 50px -12px rgba(0, 0, 0, 0.1),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  @apply liquid-glass;
 }
 
-/* â”€â”€â”€ Apple-Like Premium Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Premium dynamic input bar container */
+@utility input-bar-glass {
+  background: var(--input-glass-bg, rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 
+    0 12px 40px -8px rgba(0, 0, 0, 0.08),
+    0 4px 12px -2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  .dark & {
+    background: rgba(11, 11, 10, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 
+      0 12px 40px -8px rgba(0, 0, 0, 0.4),
+      0 4px 12px -2px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+}
+
+.input-bar-glass {
+  @apply input-bar-glass;
+}
+
+.dark .input-bar-glass {
+  background: rgba(11, 11, 10, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    0 12px 40px -8px rgba(0, 0, 0, 0.4),
+    0 4px 12px -2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+
+/* --- Minimap & Floating UI --- */
+.minimap-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 280px;
+  height: 210px;
+  z-index: 1000;
+  border-radius: 24px;
+  overflow: hidden;
+  transition: all 0.5s var(--ease-apple);
+  border: 1px solid rgba(var(--text-primary-rgb), 0.1);
+}
+
+.minimap-container:hover {
+  width: 320px;
+  height: 240px;
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+
+/* --- Apple-Like Premium Utilities --- */
 
 @utility sf-glass {
   background: rgba(var(--bg-primary-rgb), 0.75);
@@ -614,7 +679,7 @@ option {
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
 
   .dark & {
-    background: rgba(var(--bg-primary-rgb), 0.65);
+    background: rgba(0, 0, 0, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: 
       0 8px 32px 0 rgba(0, 0, 0, 0.3),
@@ -1541,15 +1606,21 @@ option {
   }
 }
 
-.streaming-cursor {
+.markdown-content.streaming-cursor > :last-child::after {
+  content: '';
   display: inline-block;
   width: 2px;
-  height: 1em;
+  height: 1.1em;
   background: var(--text-primary);
   margin-left: 2px;
   vertical-align: middle;
   border-radius: 1px;
   animation: cursor-blink 0.6s ease-in-out infinite;
+}
+
+/* Remove old style if it was used on a standalone div */
+div.streaming-cursor {
+  display: none;
 }
 
 /* Stop generation button pulse */
@@ -1713,7 +1784,6 @@ option {
   }
 }
 
-
 /* Cinematic Canvas Overlay */
 .cinematic-overlay-base {
   background: rgba(255, 255, 255, 0.2);
@@ -1802,3 +1872,232 @@ option {
 }
 
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   AI WORKSPACE OS — Enhanced Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Premium Markdown Content ─── */
+.markdown-content {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  letter-spacing: -0.006em;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.markdown-content h1 { font-size: 1.5em; }
+.markdown-content h2 { font-size: 1.3em; }
+.markdown-content h3 { font-size: 1.15em; }
+.markdown-content h4 { font-size: 1.05em; }
+
+.markdown-content p {
+  margin-bottom: 0.75em;
+  color: var(--text-primary);
+  opacity: 0.92;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.25em;
+  margin-bottom: 0.75em;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25em;
+  line-height: 1.7;
+}
+
+.markdown-content li::marker {
+  color: var(--text-tertiary);
+}
+
+/* Inline code */
+.markdown-content code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  font-weight: 500;
+}
+
+/* Code blocks */
+.markdown-content pre {
+  margin: 1em 0;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary) !important;
+  position: relative;
+}
+
+.markdown-content pre code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  display: block;
+  padding: 16px 20px;
+  overflow-x: auto;
+  background: transparent !important;
+  color: var(--text-primary);
+}
+
+.dark .markdown-content pre {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Blockquotes */
+.markdown-content blockquote {
+  border-left: 3px solid var(--text-tertiary);
+  margin: 1em 0;
+  padding: 0.5em 0 0.5em 1.25em;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Tables */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 13.5px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.markdown-content th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.markdown-content td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.markdown-content tr:last-child td {
+  border-bottom: none;
+}
+
+/* Horizontal rules */
+.markdown-content hr {
+  border: none;
+  height: 1px;
+  background: var(--border-color);
+  margin: 1.5em 0;
+}
+
+/* Links */
+.markdown-content a {
+  color: #6366f1;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(99, 102, 241, 0.3);
+  transition: text-decoration-color 150ms ease;
+}
+
+.markdown-content a:hover {
+  text-decoration-color: rgba(99, 102, 241, 0.8);
+}
+
+/* Strong and emphasis */
+.markdown-content strong {
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+/* ─── Workspace Layout Utilities ─── */
+
+/* Chat container max-width constraint */
+.chat-window {
+  scroll-behavior: smooth;
+}
+
+.chat-window::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-window::-webkit-scrollbar-thumb {
+  background: rgba(var(--text-primary-rgb), 0.08);
+  border-radius: 10px;
+}
+
+.chat-window::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--text-primary-rgb), 0.15);
+}
+
+/* Code block copy button */
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dark .code-block-header {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Suggestion Chip Hover ─── */
+@keyframes chip-glow {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
+  100% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+}
+
+/* ─── Artifact Card Shimmer ─── */
+@keyframes artifact-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.artifact-generating {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: artifact-shimmer 2s linear infinite;
+}

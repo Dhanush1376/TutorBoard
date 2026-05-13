@@ -47,6 +47,7 @@ class MessageRepository extends BaseRepository<any> {
     if (versions.length === 0) {
       versions.push({
         content: message.content,
+        text: message.content,
         timestamp: message.timestamp || new Date(),
         metadata: { ...message.metadata, versions: undefined, activeVersionIndex: undefined } 
       });
@@ -55,6 +56,7 @@ class MessageRepository extends BaseRepository<any> {
     const newVersionIndex = versions.length;
     versions.push({
       content,
+      text: content,
       timestamp: new Date(),
       metadata
     });
@@ -74,6 +76,13 @@ class MessageRepository extends BaseRepository<any> {
    */
   async findInSession(messageId: string, sessionId: string) {
     return this.model.findOne({ _id: messageId, sessionId });
+  }
+
+  /**
+   * Find the first message in a session chronologically
+   */
+  async findFirstInSession(sessionId: string) {
+    return this.model.findOne({ sessionId }).sort({ timestamp: 1 });
   }
 }
 

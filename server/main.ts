@@ -33,7 +33,8 @@ const handleSignal = (signal: string) => {
 
 process.on('uncaughtException', (err: Error) => {
   console.error(`[CRITICAL][PID: ${process.pid}] Uncaught Exception:\n${err.stack}\n`);
-  handleSignal('uncaughtException');
+  // Prevent dev server disconnect loops by keeping process alive in non-production environments
+  if (process.env.NODE_ENV === 'production') handleSignal('uncaughtException');
 });
 
 process.on('unhandledRejection', (reason: unknown) => {

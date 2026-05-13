@@ -6,6 +6,7 @@ import { useAiRouter } from '../../hooks/useAiRouter';
 /**
  * QuickAskOverlay: A production-ready UI for the Plug-and-Play AI Router
  */
+
 export default function QuickAskOverlay({ isOpen, onClose }) {
   const [query, setQuery] = useState("");
   const { askAi, isLoading, error, result } = useAiRouter();

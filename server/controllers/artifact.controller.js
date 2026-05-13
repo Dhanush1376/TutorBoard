@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import Artifact from '../models/Artifact.js';
 import { requestCompletion, getTextModel, resolveModelId } from '../utils/ai/llmClient.js';
+import { classifyArtifact } from '../engine/agents/artifactClassifierAgent.js';
+import { generateSceneGraph } from '../engine/agents/sceneGraphAgent.js';
+import { generateDelta as generateSceneGraphDelta } from '../engine/agents/sceneGraphDeltaAgent.js';
+import { applyDelta, resolveReference } from '../engine/sceneGraph/sceneGraphUtils.js';
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -331,7 +335,6 @@ ${artifact.content}`;
     await artifact.save();
 
     console.log(`[Artifact] 🤖 AI Modified: ${artifact._id} → v${newVersion} ("${instruction.substring(0, 40)}...")`);
-
     res.json({
       id: artifact._id,
       type: artifact.type,
@@ -346,5 +349,148 @@ ${artifact.content}`;
   } catch (err) {
     console.error('[Artifact:Modify] Error:', err);
     res.status(500).json({ error: 'Failed to modify artifact' });
+  }
+};
+
+/**
+ * POST /api/artifact/generate
+ * New high-fidelity visual artifact generation endpoint.
+ */
+export const generateArtifact = async (req, res) => {
+  try {
+    const { sessionId, instruction } = req.body;
+    const userId = req.user?._id || req.user?.id || null;
+
+    if (!instruction || !sessionId) {
+      return res.status(400).json({ error: 'Session ID and Instruction are required' });
+    }
+
+    console.log(`[Artifact:Generate] 🚀 Classifying intent: "${instruction.substring(0, 50)}..."`);
+    
+    // 1. Classify the intent
+    const classification = await classifyArtifact(instruction);
+    const { artifactClass, isVisual, title } = classification;
+
+    let sceneGraph = null;
+    let content = '';
+    let type = isVisual ? 'visual' : 'document';
+
+    // 2. If visual, generate scene graph
+    if (isVisual) {
+      console.log(`[Artifact:Generate] 🎨 Generating ${artifactClass} scene graph...`);
+      sceneGraph = await generateSceneGraph(instruction, artifactClass);
+      content = JSON.stringify(sceneGraph);
+    } else {
+      // Legacy document generation or code
+      console.log(`[Artifact:Generate] 📄 Generating document/code...`);
+      // For now, we can use a simple prompt or delegate to legacy logic
+      // But let's follow the plan: classify first.
+      type = classification.artifactClass === 'code' ? 'code' : 'document';
+      const result = await requestCompletion({
+        model: resolveModelId(getTextModel()),
+        messages: [{ role: 'user', content: instruction }],
+        temperature: 0.7,
+        taskType: 'generation'
+      });
+      content = result.content;
+    }
+
+    // 3. Create the artifact
+    const artifact = await Artifact.create({
+      userId,
+      sessionId,
+      type,
+      artifactClass,
+      title: title || 'New Artifact',
+      content,
+      sceneGraph,
+      version: 1,
+    });
+
+    console.log(`[Artifact:Generate] ✅ Created: ${artifact._id} (${artifactClass})`);
+
+    res.status(201).json({
+      id: artifact._id,
+      type: artifact.type,
+      artifactClass: artifact.artifactClass,
+      title: artifact.title,
+      content: artifact.content,
+      sceneGraph: artifact.sceneGraph,
+      version: artifact.version,
+      createdAt: artifact.createdAt,
+    });
+  } catch (err) {
+    console.error('[Artifact:Generate] Error:', err);
+    res.status(500).json({ error: 'Failed to generate artifact', details: err.message });
+  }
+};
+
+/**
+ * POST /api/artifact/edit
+ * AI-powered delta-based modification for visual artifacts.
+ */
+export const editArtifact = async (req, res) => {
+  try {
+    const { artifactId, instruction } = req.body;
+
+    if (!artifactId || !instruction) {
+      return res.status(400).json({ error: 'Artifact ID and Instruction are required' });
+    }
+
+    const artifact = await Artifact.findById(artifactId);
+    if (!artifact) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    // Ownership check
+    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this artifact' });
+    }
+
+    // If it's a visual artifact with a scene graph, use delta engine
+    if (artifact.sceneGraph) {
+      console.log(`[Artifact:Edit] 🔧 Applying delta to visual artifact: ${artifact._id}`);
+      
+      // 1. Resolve natural language references for context logging (optional but good for debugging)
+      const refs = resolveReference(instruction, artifact.sceneGraph);
+      if (refs.length > 0) {
+        console.log(`[Artifact:Edit] Identified references: ${refs.map(r => r.label).join(', ')}`);
+      }
+
+      // 2. Generate delta from LLM
+      const delta = await generateSceneGraphDelta(instruction, artifact.sceneGraph);
+
+      // 3. Apply delta to current graph
+      const newSceneGraph = applyDelta(artifact.sceneGraph, delta);
+
+      // 4. Update artifact
+      artifact.sceneGraph = newSceneGraph;
+      artifact.content = JSON.stringify(newSceneGraph);
+      artifact.editHistory.push({
+        instruction,
+        patchApplied: delta,
+        previousVersion: artifact.version,
+        timestamp: new Date()
+      });
+      
+      // Pre-save hook will handle version increment and versions array push
+      await artifact.save();
+
+      console.log(`[Artifact:Edit] ✅ Applied delta, new version: ${artifact.version}`);
+
+      return res.json({
+        artifactId: artifact._id,
+        delta,
+        newSceneGraph,
+        version: artifact.version,
+        summary: delta.summary
+      });
+    } else {
+      // Fallback to legacy full-regen modifyArtifact if no sceneGraph exists
+      return modifyArtifact(req, res);
+    }
+  } catch (err) {
+    console.error('[Artifact:Edit] Error:', err);
+    res.status(500).json({ error: 'Failed to edit artifact', details: err.message });
   }
 };

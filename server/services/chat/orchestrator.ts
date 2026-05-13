@@ -27,7 +27,7 @@ export class AgentOrchestrator {
   /**
    * Executes the full multi-agent loop based on a strategic plan.
    */
-  async execute(plan: StrategicPlan, context: { sessionId: string; requestId: string; topic: string; userMessage: string; signal?: AbortSignal; userConfig?: any }): Promise<OrchestrationResult> {
+  async execute(plan: StrategicPlan, context: { sessionId: string; requestId: string; topic: string; userMessage: string; signal?: AbortSignal; userConfig?: any; userTier?: 'free' | 'pro' | 'enterprise' }): Promise<OrchestrationResult> {
     const startTime = Date.now();
     const stages: Record<string, any> = {};
     let totalTokens = 0;
@@ -39,19 +39,22 @@ export class AgentOrchestrator {
 
     // 2. Budget Verification
     try {
-      const hasBudget = await BudgetService.checkBudget(context.sessionId);
+      const hasBudget = await BudgetService.checkBudget(context.sessionId, context.userTier || 'free');
       if (!hasBudget) {
         throw new AppError(ErrorCode.AI_BUDGET_EXCEEDED, 'Token budget exceeded.');
       }
     } catch (err) {
-      // SEC-BUDGET: Fail-open on budget service errors to prevent session lock-outs
-      console.warn('[Orchestrator] Budget check failed. Proceeding with caution...', (err as Error).message);
+      if (err instanceof AppError) throw err; // Strictly enforce quota limits (Audit v3 #56)
+      console.warn('[Orchestrator] Budget service unavailable. Proceeding...', (err as Error).message);
     }
 
+    // Prepare planSummary to eliminate redundant query injection and token cost (Audit v3 #69)
+    const planSummary = { ...plan, educational_intent: undefined };
+
     // 3. Parallel Stage Execution: Narration + Visualization
-    const narrationPromise = this.runNarrator(plan, context, protectedUserMessage);
+    const narrationPromise = this.runNarrator(planSummary as any, context, protectedUserMessage);
     const visualizationPromise = plan.visualization.generate || plan.artifacts.generate
-      ? this.runVisualizer(plan, context, protectedUserMessage)
+      ? this.runVisualizer(planSummary as any, context, protectedUserMessage)
       : Promise.resolve({ script: null, tokens: 0, duration: 0, model: 'none' });
 
     const [narrationResult, visualResult] = await Promise.all([
@@ -96,7 +99,7 @@ export class AgentOrchestrator {
 
   private async runNarrator(plan: StrategicPlan, context: any, userMessage: string) {
     const start = Date.now();
-    const model = await BudgetService.resolveOptimizedModel('narration', context.sessionId);
+    const model = await BudgetService.resolveOptimizedModel('narration', context.sessionId, context.userTier || 'free');
     
     const res = await requestCompletion({
       model,
@@ -120,7 +123,7 @@ export class AgentOrchestrator {
 
   private async runVisualizer(plan: StrategicPlan, context: any, userMessage: string) {
     const start = Date.now();
-    const model = await BudgetService.resolveOptimizedModel('visualization', context.sessionId);
+    const model = await BudgetService.resolveOptimizedModel('visualization', context.sessionId, context.userTier || 'free');
     
     const res = await requestCompletion({
       model,
@@ -144,7 +147,7 @@ export class AgentOrchestrator {
 
   private async runCritic(narration: any, visualScript: any, context: any) {
     const start = Date.now();
-    const model = await BudgetService.resolveOptimizedModel('critique', context.sessionId);
+    const model = await BudgetService.resolveOptimizedModel('critique', context.sessionId, context.userTier || 'free');
     
     const res = await requestCompletion({
       model,

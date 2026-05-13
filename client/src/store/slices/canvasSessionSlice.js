@@ -14,6 +14,7 @@ export const CANVAS_LAYOUT = {
   INLINE:     'inline',     // Chat only, artifact cards inline
   SPLIT:      'split',      // Chat left, canvas right
   FULLSCREEN: 'fullscreen', // Full immersive teaching session
+  MINIMAP:    'minimap',    // Small floating window
 };
 
 export const createCanvasSessionSlice = (set, get) => ({
@@ -41,6 +42,14 @@ export const createCanvasSessionSlice = (set, get) => ({
 
   openFullscreenCanvas: () => set((state) => {
     state.canvasLayout = CANVAS_LAYOUT.FULLSCREEN;
+  }),
+
+  toggleMinimap: () => set((state) => {
+    if (state.canvasLayout === CANVAS_LAYOUT.MINIMAP) {
+      state.canvasLayout = CANVAS_LAYOUT.SPLIT;
+    } else {
+      state.canvasLayout = CANVAS_LAYOUT.MINIMAP;
+    }
   }),
 
   closeCanvasLayout: () => set((state) => {
@@ -87,10 +96,12 @@ export const createCanvasSessionSlice = (set, get) => ({
         const parsedTimeline = typeof content === 'string' ? JSON.parse(content) : content;
         
         let adaptedTimeline;
+        const stableId = parsedTimeline.id || id || `scene_${Date.now()}`;
         
         // Case 1: Visualizer Agent output format ({ renderer, scene, script: [...] })
         if (parsedTimeline.script && !parsedTimeline.steps && !parsedTimeline.timeline) {
           adaptedTimeline = {
+            id: stableId,
             title: parsedTimeline.title || title || parsedTimeline.scene || 'Interactive Visualization',
             renderer: parsedTimeline.renderer || rendererType || 'd3',
             steps: [{ commands: parsedTimeline.script }],
@@ -101,6 +112,7 @@ export const createCanvasSessionSlice = (set, get) => ({
         // Case 2: Array of steps or nodes
         else if (Array.isArray(parsedTimeline)) {
           adaptedTimeline = {
+            id: stableId,
             title: title || 'Interactive Visualization',
             renderer: rendererType || 'd3',
             steps: parsedTimeline,
@@ -110,12 +122,32 @@ export const createCanvasSessionSlice = (set, get) => ({
         } 
         // Case 3: Standard SceneDefinition object
         else {
+          const resolvedSteps = parsedTimeline.visual_steps || parsedTimeline.animation_steps || parsedTimeline.narrations || parsedTimeline.steps || parsedTimeline.timeline || parsedTimeline.nodes || [];
+          
+          // Extract elements from nested visual_steps if top-level objects/elements are missing
+          let resolvedObjects = parsedTimeline.objects || parsedTimeline.elements || [];
+          if (resolvedObjects.length === 0 && parsedTimeline.visual_steps) {
+            const allElements = [];
+            parsedTimeline.visual_steps.forEach(st => {
+              if (st?.elements && Array.isArray(st.elements)) {
+                allElements.push(...st.elements);
+              }
+            });
+            const seen = new Set();
+            resolvedObjects = allElements.filter(el => {
+              if (!el?.id || seen.has(el.id)) return false;
+              seen.add(el.id);
+              return true;
+            });
+          }
+
           adaptedTimeline = {
-            title: parsedTimeline.title || title || 'Interactive Visualization',
-            renderer: parsedTimeline.renderer || rendererType || 'd3',
-            steps: parsedTimeline.steps || parsedTimeline.timeline || parsedTimeline.nodes || [],
-            timeline: parsedTimeline.timeline || parsedTimeline.steps || parsedTimeline.nodes || [],
-            objects: parsedTimeline.objects || parsedTimeline.elements || [],
+            id: stableId,
+            title: parsedTimeline.meta?.topic || parsedTimeline.title || title || 'Interactive Visualization',
+            renderer: parsedTimeline.meta?.renderer || parsedTimeline.renderer || rendererType || 'd3',
+            steps: resolvedSteps,
+            timeline: resolvedSteps,
+            objects: resolvedObjects,
             ...parsedTimeline
           };
         }

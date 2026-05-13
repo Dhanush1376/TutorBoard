@@ -118,7 +118,17 @@ export const getSession = async (req, res) => {
         .limit(200)
         .lean();
       if (chatMessages.length > 0) {
-        sessionObj.messages = chatMessages;
+        sessionObj.messages = chatMessages.map(m => ({
+          ...m,
+          id: m._id?.toString() || m.id,
+          metadata: m.metadata ? {
+            ...m.metadata,
+            versions: Array.isArray(m.metadata.versions) ? m.metadata.versions.map(v => ({
+              ...v,
+              text: v.text || v.content || ''
+            })) : undefined
+          } : undefined
+        }));
       }
       // If no ChatMessage docs found, fall through to whatever was in the embedded array
     } catch (msgErr) {
@@ -154,7 +164,9 @@ export const saveSession = async (req, res) => {
     const userId = req.user?._id || req.user?.id;
     const isGuest = !userId || req.user?.isGuest;
 
-    console.log(`[DB] Save Request: User=${userId || 'GUEST'}, Session=${sessionId || 'NEW'}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[DB] Save Request: User=${userId || 'GUEST'}, Session=${sessionId || 'NEW'}`);
+    }
 
     let session;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId || '');
@@ -233,7 +245,12 @@ export const saveSession = async (req, res) => {
               const isMongoId = /^[0-9a-fA-F]{24}$/.test(msgId || '');
               const filter = isMongoId 
                 ? { _id: msgId } 
-                : { sessionId: realSessionId, content: msg.content, role: msg.role };
+                : { 
+                    sessionId: realSessionId, 
+                    content: msg.content, 
+                    role: msg.role,
+                    timestamp: msg.timestamp || { $exists: false } // Hardened dedup
+                  };
                 
               const updateDoc = {
                 $set: {
@@ -269,7 +286,17 @@ export const saveSession = async (req, res) => {
         .limit(200)
         .lean();
       if (chatMessages.length > 0) {
-        sessionObj.messages = chatMessages;
+        sessionObj.messages = chatMessages.map(m => ({
+          ...m,
+          id: m._id?.toString() || m.id,
+          metadata: m.metadata ? {
+            ...m.metadata,
+            versions: Array.isArray(m.metadata.versions) ? m.metadata.versions.map(v => ({
+              ...v,
+              text: v.text || v.content || ''
+            })) : undefined
+          } : undefined
+        }));
       }
     } catch (msgErr) {
       console.warn('[Session:Save] Failed to fetch ChatMessage history:', msgErr.message);
@@ -300,12 +327,10 @@ export const beaconSave = async (req, res) => {
       return res.status(400).json({ error: 'Invalid session ID for beacon' });
     }
 
-    // AUTH: Primary — use cookie-based auth (Beacon API sends cookies for same-origin)
-    // Fallback — body token for backward compatibility
+    // AUTH: Use cookie-based auth only (SEC-28)
+    // Beacon API sends cookies for same-origin requests by default.
     let userId = null;
-    const cookieToken = req.cookies?.['tb-access-token'] || req.cookies?.['tb-token'];
-    const bodyToken = req.body?.token;
-    const token = cookieToken || bodyToken;
+    const token = req.cookies?.['tb-access-token'] || req.cookies?.['tb-token'];
 
     if (token && token !== 'guest') {
       try {
@@ -327,7 +352,12 @@ export const beaconSave = async (req, res) => {
             const isMongoId = /^[0-9a-fA-F]{24}$/.test(msgId || '');
             const filter = isMongoId 
               ? { _id: msgId } 
-              : { sessionId, content: msg.content, role: msg.role };
+              : { 
+                  sessionId, 
+                  content: msg.content, 
+                  role: msg.role,
+                  timestamp: msg.timestamp || { $exists: false }
+                };
               
             const updateDoc = {
               $set: {

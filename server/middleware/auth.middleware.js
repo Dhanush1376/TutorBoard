@@ -68,7 +68,7 @@ export const protect = async (req, res, next) => {
     }
 
     // Verify token
-    const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test-secret' : null);
+    const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       console.error('[Auth] CRITICAL: JWT_SECRET is missing from environment.');
       return res.status(500).json({ error: 'Server configuration error' });

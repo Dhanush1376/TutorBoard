@@ -6,7 +6,7 @@ import {
   Zap, Palette
 } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/useTheme';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
   AppleToggle, RightInlineSelect

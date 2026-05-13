@@ -99,6 +99,46 @@ class WorkerManager {
       dependencies: ['mongodb']
     });
 
+    // 2.5 Document / Session Persistence Worker (Requires MongoDB)
+    this.workerDefinitions.push({
+      queue: QUEUES.DOCUMENTS,
+      processor: async (job) => {
+        log.info(`[DocumentWorker][PID: ${pid}] Processing ${job.name}...`);
+        if (job.name === 'session-persist') {
+          try {
+            const { default: sessionStore } = await import('../../engine/core/sessionStore.js');
+            const { default: LearnerProfile } = await import('../../models/LearnerProfile.js');
+            const { sessionId, userId } = job.data;
+            if (sessionId && userId) {
+              await sessionStore.persistProfile(sessionId);
+              const session = await sessionStore.get(sessionId);
+              if (session?.learnerProfile?.topicsMastery) {
+                const masteryData = session.learnerProfile.topicsMastery;
+                const topicKeys = masteryData instanceof Map ? Array.from(masteryData.keys()) : Object.keys(masteryData);
+                if (topicKeys.length > 0) {
+                  const updateObject: any = {};
+                  for (const key of topicKeys) {
+                    const value = masteryData instanceof Map ? masteryData.get(key) : masteryData[key];
+                    updateObject[`topicsMastery.${key}`] = value;
+                  }
+                  await LearnerProfile.findOneAndUpdate(
+                    { userId },
+                    { $set: updateObject },
+                    { returnDocument: 'after' }
+                  );
+                }
+              }
+            }
+          } catch (err: any) {
+            log.error(`Session persistence failed in worker: ${err.message}`);
+            throw err;
+          }
+        }
+        return { success: true };
+      },
+      dependencies: ['mongodb']
+    });
+
     // Start all workers in parallel to avoid sequential blocking (ISSUE #1)
     await Promise.all(this.workerDefinitions.map(async (def) => {
       const workerTaskId = `worker-${def.queue}`;
@@ -142,7 +182,7 @@ class WorkerManager {
         while (!heartbeatSignal.aborted) {
           try {
             if (container.has('redis-main')) {
-              const client = container.resolve('redis-main');
+              const client = container.resolve<any>('redis-main');
               await client.set(`worker:heartbeat:${pid}`, new Date().toISOString(), 'EX', 60);
               lifecycle.updateTaskMetadata(heartbeatId, { lastHeartbeat: new Date().toISOString(), status: 'HEALTHY' });
             }

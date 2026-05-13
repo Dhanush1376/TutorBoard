@@ -63,11 +63,11 @@ export function createApp(): Application {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", ...(process.env.NODE_ENV !== 'production' ? ["'unsafe-eval'"] : [])],
-        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        scriptSrc: ["'self'", ...(process.env.NODE_ENV !== 'production' ? ["'unsafe-inline'", "'unsafe-eval'"] : []), 'https://app.posthog.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
+        fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://cdn.jsdelivr.net'],
         imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'", 'https://*.sentry.io', 'https://*.posthog.com'],
+        connectSrc: ["'self'", 'https://*.sentry.io', 'https://*.posthog.com', 'wss:', 'https:'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
@@ -95,6 +95,13 @@ export function createApp(): Application {
   app.use(cookieParser());
   app.use(requestIdMiddleware);
   app.use(httpRateLimiter);
+  
+  if (process.env.NODE_ENV === 'development') {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      console.log(`[API][${req.method}] ${req.path}`);
+      next();
+    });
+  }
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const isProd = process.env.NODE_ENV === 'production';

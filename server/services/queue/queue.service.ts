@@ -36,8 +36,6 @@ export interface NotificationJobData {
   data: any;
 }
 
-import { container } from '../../core/container.js';
-
 /**
  * Production-ready Queue Service
  * Handles multiple job types and provides a centralized interface for task enqueuing.
@@ -45,6 +43,7 @@ import { container } from '../../core/container.js';
 class QueueService {
   private queues: Map<string, Queue> = new Map();
   private workers: Map<string, Worker> = new Map();
+  private processors: Map<string, (job: any) => Promise<any>> = new Map();
 
   constructor() {
     // KERNEL-01: Removed auto-init to prevent registration races.
@@ -62,7 +61,7 @@ class QueueService {
         mode: 'MOCKED',
         status: 'degraded',
         ready: true,
-        details: 'No Redis connection — tasks will be ignored or processed immediately (if configured)',
+        details: 'No Redis connection — tasks will be processed in-process via fallback',
       });
       return;
     }
@@ -132,9 +131,39 @@ class QueueService {
    */
   async add(queueName: string, name: string, data: any, opts: any = {}): Promise<any> {
     const queue = this.queues.get(queueName);
+    
     if (!queue) {
+      // #24: Fallback for missing Redis
       if (!container.has('redis-main')) {
-        log.warn(`[Mock] Queue ${queueName} not available. Skipping task: ${name}`);
+        const processor = this.processors.get(queueName);
+        if (processor) {
+          log.info(`[Fallback] Processing task ${name} in-process for queue: ${queueName}`);
+          // Mock job object
+          const mockJob = {
+            id: `fallback-${Date.now()}`,
+            name,
+            data,
+            opts,
+            timestamp: Date.now(),
+            attemptsMade: 0,
+            update: async () => {},
+            log: async () => {},
+          };
+          
+          // Execute async to avoid blocking
+          setImmediate(async () => {
+            try {
+              await processor(mockJob);
+              log.debug(`[Fallback] Task ${name} completed successfully`);
+            } catch (err: any) {
+              log.error(`[Fallback] Task ${name} failed:`, err);
+            }
+          });
+          
+          return { id: mockJob.id };
+        }
+        
+        log.warn(`[Mock] Queue ${queueName} not available and no fallback processor. Skipping task: ${name}`);
         return { id: 'mock-id' };
       }
       throw new Error(`Queue ${queueName} not initialized`);
@@ -172,11 +201,14 @@ class QueueService {
    * Start a worker for a specific queue
    */
   startWorker(queueName: string, processor: (job: Job) => Promise<any>, options: Partial<WorkerOptions> = {}): Worker {
+    // Store processor for fallback
+    this.processors.set(queueName, processor);
+
     // VIRTUALIZATION: Use the same kernel-managed connection
     const connection = container.resolve<any>('redis-main');
     
     if (!connection) {
-      log.warn(`Cannot start real worker for ${queueName} without virtualized Redis connection.`);
+      log.warn(`Cannot start real worker for ${queueName} without virtualized Redis connection. Falling back to in-process.`);
       return null as any;
     }
 

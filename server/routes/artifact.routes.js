@@ -6,6 +6,8 @@ import {
   getArtifactHistory,
   getSessionArtifacts,
   modifyArtifact,
+  generateArtifact,
+  editArtifact,
 } from '../controllers/artifact.controller.js';
 import { protect, optionalProtect } from '../middleware/auth.middleware.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
@@ -14,6 +16,12 @@ const router = express.Router();
 
 // Create a new artifact
 router.post('/save', optionalProtect, saveArtifact);
+
+// AI-powered high-fidelity generation (Protected + Rate Limited)
+router.post('/generate', protect, aiRateLimiter, generateArtifact);
+
+// AI-powered visual artifact delta editing (Protected + Rate Limited)
+router.post('/edit', protect, aiRateLimiter, editArtifact);
 
 // AI-powered artifact modification (Protected + Rate Limited)
 router.post('/modify', protect, aiRateLimiter, modifyArtifact);

@@ -531,9 +531,8 @@ const StepPanel = ({
         animate={{ opacity: 1, x: 0, scale: 1 }}
         exit={{ opacity: 0, x: -16, scale: 0.97 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="liquid-glass"
         style={{
-          background: 'var(--bg-secondary)',
-          border: `1px solid ${cfg.border}`,
           borderRadius: 14,
           padding: '14px 16px',
           width: '100%',

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useCallback } from 'react';
 import useTutorStore from '../store/tutorStore';
 import { useAuth } from '../hooks/useAuth';
 import useSocket from './useSocket';
@@ -39,6 +39,9 @@ export const useSessionSync = (chatMessages) => {
     setSyncError,
     pinnedNotes,
     activeSnapshotId,
+    isVersionSwitching,
+    promoteChatHistoryId,
+    updateChatHistoryEntry,
   } = useTutorStore();
 
   const syncTimerRef = useRef(null);
@@ -58,13 +61,15 @@ export const useSessionSync = (chatMessages) => {
       setSyncError,
       pinnedNotes,
       doubtHistory, // FIXED: Now captured in snapshot
-      activeSnapshotId
+      activeSnapshotId,
+      promoteChatHistoryId,
+      updateChatHistoryEntry
     };
   });
 
   const localSessionIdRef = useRef(null);
 
-  const performSync = async (isBeacon = false) => {
+  const performSync = useCallback(async (isBeacon = false) => {
     const state = latestRef.current;
     
     // Concurrency Lock: Don't start a new sync if one is in flight
@@ -80,8 +85,6 @@ export const useSessionSync = (chatMessages) => {
     }
 
     // Guard: Don't sync if no user content (avoid empty session spam)
-    // We only consider a session "meaningful" if it has at least one user message 
-    // OR at least one manual drawing (ignoring agent-generated objects).
     const hasUserMessages = state.chatMessages && state.chatMessages.some(m => m.role === 'user');
     const hasManualDrawings = state.canvasObjects && state.canvasObjects.some(o => o.id?.startsWith('manual-'));
     const hasUserContent = hasUserMessages || hasManualDrawings;
@@ -91,21 +94,22 @@ export const useSessionSync = (chatMessages) => {
       return;
     }
 
-    // FIX: If we have no chatSessionId yet (session not started or socket handshake pending),
-    // use a stable local UUID so manual toolbar drawings are immediately persisted.
-    // When the server later assigns a real MongoDB _id, we adopt it (see below).
     if (!state.chatSessionId && !localSessionIdRef.current) {
       localSessionIdRef.current = generateLocalId();
       import.meta.env.DEV && console.log(`[Sync] No chatSessionId yet — using local fallback ID: ${localSessionIdRef.current}`);
     }
     const effectiveSessionId = state.chatSessionId || localSessionIdRef.current;
 
+    // SEC-34: Send only a subset of messages to avoid massive payloads.
+    // The server performs an upsert, so we only need to send the most recent ones.
+    const allMessages = state.chatMessages || useTutorStore.getState().conversationMessages || [];
+    const syncMessages = allMessages.slice(-20);
+
     const payload = {
       sessionId: effectiveSessionId,
       activeSnapshotId: state.activeSnapshotId,
       ...(state.topic ? { title: state.topic } : {}),
-      // ── Bug B Fix: Sync correct field & protect against empty-wipe ──
-      messages: state.chatMessages || useTutorStore.getState().conversationMessages || [],
+      messages: syncMessages,
       canvasState: state.canvasObjects || [],
       canvasSteps: state.canvasSteps || [],
       canvasVersion: state.canvasVersion || 0,
@@ -119,55 +123,58 @@ export const useSessionSync = (chatMessages) => {
       pinnedNotes: state.pinnedNotes || []
     };
 
-    // Redundancy Check: Skip if payload hasn't changed since last successful sync
+    // Redundancy Check
     const payloadStr = JSON.stringify(payload);
     if (payloadStr === lastPayloadRef.current && !isBeacon) {
       import.meta.env.DEV && console.log('[Sync] Skip: Payload identical to last successful sync');
       return;
     }
 
-    // Use Beacon for unload if supported
-    if (isBeacon && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      // SEC-HIGH-3: Do NOT embed token in body — Beacon API sends cookies for same-origin.
-      // Including token here would leak it into request body logs.
+    // Use keepalive fetch for unload
+    if (isBeacon && typeof window !== 'undefined') {
       const url = `${API_URL}/api/sessions/beacon`;
-      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      const success = navigator.sendBeacon(url, blob);
-      import.meta.env.DEV && console.log(`[Sync] Beacon flush ${success ? 'queued' : 'failed'}`);
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+        credentials: 'include'
+      }).catch(err => console.warn('[Sync] Unload flush failed:', err));
+      import.meta.env.DEV && console.log(`[Sync] Unload flush queued`);
       return;
     }
 
     isSyncingRef.current = true;
     try {
+      if (useTutorStore.getState().isVersionSwitching) {
+        console.warn('[Sync] 🛑 Sync blocked: Version lock is active');
+        return;
+      }
+      
+      console.log('[Sync] 🚀 Performing sync for session:', effectiveSessionId);
       const response = await API.post('/api/sessions', payload);
 
       if (response.status === 200) {
         const savedSession = response.data;
         
-        // CRITICAL FOR SYNC: If we sent a local UUID and MongoDB created a real _id,
-        // we MUST update our local tracking ID so future saves update the same document!
         if (savedSession._id && savedSession._id !== state.chatSessionId) {
           import.meta.env.DEV && console.log(`[Sync] Adopted MongoDB ID: ${savedSession._id}`);
-          
-          // CRITICAL: Promote the ID in the sidebar history immediately!
           const oldId = state.chatSessionId || localSessionIdRef.current;
           state.promoteChatHistoryId(oldId, savedSession._id);
-          
           state.setChatSessionId(savedSession._id);
-          localSessionIdRef.current = null; // Clear local fallback
+          localSessionIdRef.current = null;
         }
         
-        // Always update the history entry with latest data (messages, canvas, etc.)
         state.updateChatHistoryEntry(savedSession._id || state.chatSessionId || localSessionIdRef.current, {
-          messages: savedSession.messages || payload.messages,
+          messages: savedSession.messages || allMessages,
           canvasState: savedSession.canvasState || payload.canvasState,
           updatedAt: Date.now()
         });
 
         import.meta.env.DEV && console.log('[Sync] Session flushed to cloud successfully.');
         lastSyncedRef.current = Date.now();
-        lastPayloadRef.current = payloadStr; // Update fingerprint
-        state.setSyncError(null); // Clear any previous errors
+        lastPayloadRef.current = payloadStr;
+        state.setSyncError(null);
       }
     } catch (err) {
       console.error('[Sync] Flush failed:', err);
@@ -175,7 +182,7 @@ export const useSessionSync = (chatMessages) => {
     } finally {
       isSyncingRef.current = false;
     }
-  };
+  }, []);
 
   // 1. Debounced Auto-Sync
   const fingerprint = useMemo(() => getCanvasFingerprint(canvasObjects), [canvasObjects]);
@@ -189,10 +196,20 @@ export const useSessionSync = (chatMessages) => {
     // Guard: Only auto-sync if we have actual content (canvas OR messages)
     if (!hasCanvas && !hasMessages) return;
 
+    // Guard: Prevent sync loops during version navigation
+    if (isVersionSwitching) {
+      import.meta.env.DEV && console.log('[Sync] Postponing sync: Version lock active');
+      return;
+    }
+
     // Throttle saves
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
 
-    syncTimerRef.current = setTimeout(performSync, (parseInt(localStorage.getItem('tb-auto-save')) || 5) * 1000);
+    // SEC-35: Clamp auto-save interval to 3s-60s
+    const rawSecs = parseInt(localStorage.getItem('tb-auto-save')) || 5;
+    const safeSecs = Math.max(3, Math.min(60, rawSecs));
+    
+    syncTimerRef.current = setTimeout(performSync, safeSecs * 1000);
 
     return () => clearTimeout(syncTimerRef.current);
   }, [
@@ -205,12 +222,13 @@ export const useSessionSync = (chatMessages) => {
     chatMessages?.length, 
     user, token,
     drawColor, drawWidth, textToolSize, noteToolSize, noteColor, noteSize,  // Toolbar prefs
-    layoutView, gridType, gridSize, showGrid                // UI prefs
+    layoutView, gridType, gridSize, showGrid,               // UI prefs
+    isVersionSwitching
   ]);
 
   // 2. Immediate Flush Trigger (e.g. on Logout)
   useEffect(() => {
-    if (syncTrigger > 0) {
+    if (syncTrigger > 0 && !isVersionSwitching) {
       import.meta.env.DEV && console.log('[Sync] Force flush triggered...');
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
       performSync();
@@ -241,15 +259,21 @@ export const useSessionSync = (chatMessages) => {
   useEffect(() => {
     const handleUnload = () => {
       // Emergency flush via Beacon API
+      // SEC-29: latestRef.current ensures we use fresh data even if this closure is stale
       performSync(true);
     };
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
-  }, []);
+  }, [performSync]); // SEC-29: Added performSync to deps
 
   // 6. PERSISTENCE FIX: Restore conversation messages from server when session ID exists but messages are empty
-  // This happens on every page refresh because conversationMessages is excluded from localStorage persistence.
   const messagesRestoredRef = useRef(false);
+
+  // SEC-40: Reset restoration guard when the session ID changes
+  useEffect(() => {
+    messagesRestoredRef.current = false;
+  }, [chatSessionId]);
+
   useEffect(() => {
     // ALLOW GUESTS to restore their active session messages
     if (!user || messagesRestoredRef.current) return;
@@ -262,5 +286,5 @@ export const useSessionSync = (chatMessages) => {
       import.meta.env.DEV && console.log(`[Sync] ♻️ Restoring messages for session ${currentChatSessionId}...`);
       useTutorStore.getState().restoreSessionFromServer(currentChatSessionId);
     }
-  }, [user]);
+  }, [user, chatSessionId]); // Added chatSessionId to deps
 };

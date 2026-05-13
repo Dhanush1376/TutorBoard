@@ -26,13 +26,6 @@ const chatSessionSchema = new mongoose.Schema({
   canvasState: {
     type: mongoose.Schema.Types.Mixed, // Store the serialized canvas objects array (may be Buffer if compressed)
     default: [],
-    validate: [
-      (val) => {
-        const str = Buffer.isBuffer(val) ? val.toString() : JSON.stringify(val);
-        return str.length < 2_000_000; // Increased limit to 2MB since we use compression
-      },
-      'Canvas state exceeds 2MB limit (pre-compression)'
-    ]
   },
   canvasArchive: {
     type: [mongoose.Schema.Types.Mixed], // Store archived canvas objects for large sessions

@@ -6,32 +6,32 @@
     <link rel="apple-touch-icon" href="/TutorBoardLogo.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- S-3 FIX: Preconnect to Google Fonts for faster DNS resolution -->
+    <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- S-3 FIX: Deferred decorative fonts — won't block render -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&family=Outfit:wght@100..900&display=swap" media="print" onload="this.media='all'" />
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&family=Outfit:wght@100..900&display=swap" /></noscript>
+    <!-- Critical UI font loaded sync; decorative fonts deferred -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@100..900&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@100..900&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" /></noscript>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TutorBoard AI | The Cinematic AI Learning Environment</title>
-    <meta name="description" content="Master any subject with TutorBoard AI. A high-performance, cinematic AI teaching environment designed for deep learning, visualization, and doubt resolution." />
+    <title>TutorBoard — AI Workspace</title>
+    <meta name="description" content="TutorBoard is a next-generation AI workspace. Chat, create, visualize, and build with an intelligent AI copilot that understands context deeply." />
     <meta name="robots" content="index, follow" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://tutor-board.vercel.app/" />
-    <meta property="og:title" content="TutorBoard AI" />
-    <meta property="og:description" content="Master any subject with TutorBoard AI. A high-performance, cinematic AI teaching environment designed for deep learning." />
+    <meta property="og:title" content="TutorBoard — AI Workspace" />
+    <meta property="og:description" content="A next-generation AI workspace. Chat, create, visualize, and build with an intelligent AI copilot." />
     <meta property="og:image" content="https://tutor-board.vercel.app/og-image.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://tutor-board.vercel.app/" />
-    <meta property="twitter:title" content="TutorBoard AI | The Cinematic AI Learning Environment" />
-    <meta property="twitter:description" content="Master any subject with TutorBoard AI. A high-performance, cinematic AI teaching environment." />
+    <meta property="twitter:title" content="TutorBoard — AI Workspace" />
+    <meta property="twitter:description" content="A next-generation AI workspace. Chat, create, visualize, and build with an intelligent AI copilot." />
     <meta property="twitter:image" content="https://tutor-board.vercel.app/og-image.png" />
     <style>
       /* Critical Loader CSS — Prevents "black / white flash" before index.css loads */

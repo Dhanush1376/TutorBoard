@@ -21,6 +21,9 @@ import { StreamLifecycleManager } from './stream.service.js';
 import ChatSession from '../../models/ChatSession.js';
 import SessionLedger from '../../models/SessionLedger.js';
 import userRepository from '../../repositories/user.repository.js';
+import { childLogger } from '../../core/logger.js';
+
+const log = childLogger({ subsystem: 'chat-service' });
 
 export class ChatService {
   /**
@@ -60,7 +63,7 @@ export class ChatService {
     // Prevent duplicate processing of the same request ID
     const ledgerEntry = await SessionLedger.findOne({ sessionId: session._id, requestId });
     if (ledgerEntry) {
-      console.warn(`[ChatService] Idempotency rejection: Request ${requestId} already processed or in progress. Status: ${ledgerEntry.status}`);
+      log.warn(`Idempotency rejection: Request ${requestId} already processed or in progress. Status: ${ledgerEntry.status}`);
       throw new AppError(ErrorCode.VALIDATION_FAILED, 'Duplicate request detected');
     }
 
@@ -102,12 +105,40 @@ export class ChatService {
       referenceId: session._id.toString(),
       content: userMessage,
       metadata: { role: 'user', topic: session.currentTopic }
-    }).catch(e => console.warn('[ChatService] User memory storage failed:', e.message));
+    }).catch(e => log.warn('User memory storage failed:', { error: e.message }));
 
     try {
-      // 3. STRATEGIC PLANNING (High speed, determines next steps)
       const plan = await PlannerService.generatePlan(userMessage, userConfig, requestId);
+      
+      // Enrich plan schema to support frontend UI layout triggers and BuildSystemPrompt instructions
+      if (plan.artifacts) {
+        (plan as any).generate_artifact = plan.artifacts.generate;
+        (plan as any).artifact_type = plan.artifacts.type;
+      }
+      if (plan.visualization) {
+        (plan as any).suggest_canvas = plan.visualization.generate;
+        (plan as any).canvas_type = plan.visualization.type;
+      }
+      // Explicitly check if user requested a visual canvas or visual explanation
+      if (/(visual|canvas|draw|diagram|plot|simulate|animate)/i.test(userMessage)) {
+        plan.visualization = plan.visualization || { generate: true, type: 'd3', necessity: 'required' };
+        plan.visualization.generate = true;
+        plan.visualization.type = plan.visualization.type === 'none' ? 'd3' : (plan.visualization.type || 'd3');
+        (plan as any).suggest_canvas = true;
+        (plan as any).canvas_type = plan.visualization.type;
+      }
+
       streamManager?.send({ type: 'status', content: 'Strategy generated', data: { plan } });
+      streamManager?.send({ type: 'plan', plan } as any);
+
+      // Pre-emptively signal canvas layout splitting if visual generation is enabled
+      if ((plan as any).suggest_canvas) {
+        streamManager?.send({
+          type: 'canvas_skeleton',
+          layout: 'split',
+          rendererType: (plan as any).canvas_type || 'd3'
+        } as any);
+      }
 
       // 4. CONTEXT GATHERING (Planner-First optimization)
       const topic = session.currentTopic || 'General';
@@ -131,9 +162,10 @@ export class ChatService {
         topic,
         userMessage,
         userConfig,
+        userTier,
         signal: streamManager?.signal
       }).catch(err => {
-        console.warn(`[ChatService] Orchestration failed for ${requestId}:`, err.message);
+        log.warn(`Orchestration failed for ${requestId}:`, { error: err.message });
         return { narration: { narrations: [] }, visualScript: { script: [] }, criticScore: 1, metadata: { stages: {}, totalTokens: 0 } };
       });
       
@@ -188,6 +220,7 @@ export class ChatService {
           userConfig,
           sessionContext: topic,
           requestId, // TRACING
+          taskType: 'final_answer',
         }),
         orchestrationPromise
       ]);
@@ -207,7 +240,9 @@ export class ChatService {
           orchestration: orchestrationResult.metadata,
           narration: orchestrationResult.narration,
           visuals: orchestrationResult.visualScript,
-          plan: { mode: plan.teaching_mode, complexity: plan.complexity }
+          plan: { mode: plan.teaching_mode, complexity: plan.complexity },
+          hasVisualArtifact: !!(orchestrationResult?.visualScript?.script?.length || (plan as any).suggest_canvas),
+          rendererType: orchestrationResult?.visualScript?.renderer || (plan as any).canvas_type
         } 
       };
 
@@ -226,7 +261,7 @@ export class ChatService {
         referenceId: session._id.toString(),
         content: aiResponse.content,
         metadata: { role: 'assistant', topic }
-      }).catch(e => console.warn('[ChatService] Assistant memory storage failed:', e.message));
+      }).catch(e => log.warn('Assistant memory storage failed:', { error: e.message }));
 
       // 9. ASYNC BACKGROUND WORK (Enrichment/Analysis)
       // Dead infrastructure fix: actually call the queue
@@ -240,7 +275,7 @@ export class ChatService {
           narration: orchestrationResult.narration,
           visuals: orchestrationResult.visualScript
         }
-      }).catch(err => console.warn('[ChatService] Failed to enqueue background task:', (err as Error).message));
+      }).catch(err => log.warn('Failed to enqueue background task:', { error: (err as Error).message }));
 
       return {
         response: aiResponse.content,
@@ -271,10 +306,11 @@ export class ChatService {
     }
 
     const targetVersion = versions[versionIndex];
+    const resolvedContent = targetVersion.content || targetVersion.text || '';
     
     // Update the message content and active index
     await messageRepository.updateById(messageId, {
-      content: targetVersion.content,
+      content: resolvedContent,
       'metadata.activeVersionIndex': versionIndex,
       // If the version has its own canvas state, restore it
       ...(targetVersion.canvasSnapshot ? { 
@@ -285,7 +321,7 @@ export class ChatService {
 
     return { 
       success: true, 
-      content: targetVersion.content,
+      content: resolvedContent,
       metadata: { activeVersionIndex: versionIndex }
     };
   }
@@ -320,12 +356,22 @@ export class ChatService {
       },
       signal: streamManager.signal,
       requestId, // TRACING
+      taskType: 'final_answer',
     });
 
     // Await orchestration in background while stream is finishing
     const orchestrationResult = orchestrationPromise 
       ? await orchestrationPromise 
       : { narration: null, visualScript: null, metadata: {} };
+
+    // Explicitly dispatch the generated visual simulation nodes to the frontend canvas UI
+    if (orchestrationResult?.visualScript?.script && Array.isArray(orchestrationResult.visualScript.script)) {
+      streamManager.send({
+        type: 'scene_nodes',
+        nodes: orchestrationResult.visualScript.script,
+        renderer: orchestrationResult.visualScript.renderer || (plan as any).canvas_type || 'd3'
+      } as any);
+    }
 
     // SEC-BUDGET: Record streaming usage
     const tokens = (aiResponse._meta?.tokens_in || 0) + (aiResponse._meta?.tokens_out || 0);
@@ -337,7 +383,9 @@ export class ChatService {
       plan: { mode: plan.teaching_mode },
       orchestration: orchestrationResult.metadata,
       narration: orchestrationResult.narration,
-      visuals: orchestrationResult.visualScript
+      visuals: orchestrationResult.visualScript,
+      hasVisualArtifact: !!(orchestrationResult?.visualScript?.script?.length || (plan as any).suggest_canvas),
+      rendererType: orchestrationResult?.visualScript?.renderer || (plan as any).canvas_type
     };
 
     let assistantMsgId: string;
@@ -365,7 +413,7 @@ export class ChatService {
       referenceId: sessionId.toString(),
       content: fullContent,
       metadata: { role: 'assistant', topic: plan.topic || 'General' }
-    }).catch(e => console.warn('[ChatService] Assistant memory storage failed:', e.message));
+    }).catch(e => log.warn('Assistant memory storage failed:', { error: e.message }));
 
     await this.updateLedger(sessionId, requestId, {
       status: 'completed',
@@ -394,7 +442,7 @@ export class ChatService {
         { upsert: true }
       );
     } catch (err) {
-      console.warn('[ChatService] Ledger update failed:', (err as Error).message);
+      log.warn('Ledger update failed:', { error: (err as Error).message });
     }
   }
 }

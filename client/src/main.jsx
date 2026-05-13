@@ -10,7 +10,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider } from './context/ThemeProvider';
 import { AuthProvider } from './context/AuthProvider';
 import { ErrorBoundary as SentryErrorBoundary } from "@sentry/react";
 import { initPostHog } from './utils/analytics';

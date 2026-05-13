@@ -5,14 +5,16 @@ import {
   History, Code, Globe, FileText, Table2, GitBranch,
   Sparkles, Send, Loader2
 } from 'lucide-react';
-import useTutorStore from '../../store/tutorStore';
+import useTutorStore, { CANVAS_LAYOUT } from '../../store/tutorStore';
 import API, { BASE_URL as API_URL } from '../../services/api';
 const CodeRenderer = React.lazy(() => import('./renderers/CodeRenderer'));
 const UIRenderer = React.lazy(() => import('./renderers/UIRenderer'));
 const DocumentRenderer = React.lazy(() => import('./renderers/DocumentRenderer'));
 const TableRenderer = React.lazy(() => import('./renderers/TableRenderer'));
 const DiagramRenderer = React.lazy(() => import('./renderers/DiagramRenderer'));
+const VisualRenderer = React.lazy(() => import('./renderers/VisualRenderer'));
 import VersionHistory from './VersionHistory';
+import { Network, Zap, Info } from 'lucide-react';
 
 // ─── Type Icon Map ──────────────────────────────────────────────────────────
 
@@ -22,6 +24,8 @@ const TYPE_ICONS = {
   document: FileText,
   table: Table2,
   diagram: GitBranch,
+  visual: Network,
+  interactive: Zap,
 };
 
 const TYPE_LABELS = {
@@ -30,6 +34,8 @@ const TYPE_LABELS = {
   document: 'Document',
   table: 'Table',
   diagram: 'Diagram',
+  visual: 'Visual Engine',
+  interactive: 'Interactive App',
 };
 
 const TYPE_COLORS = {
@@ -38,6 +44,8 @@ const TYPE_COLORS = {
   document: '#10b981',
   table: '#f59e0b',
   diagram: '#ec4899',
+  visual: '#8b5cf6',
+  interactive: '#f59e0b',
 };
 
 // ─── Artifact Panel ─────────────────────────────────────────────────────────
@@ -55,6 +63,16 @@ const ArtifactPanel = ({ isDark }) => {
   const revertArtifact = useTutorStore(state => state.revertArtifact);
   const removeArtifact = useTutorStore(state => state.removeArtifact);
   const streamingArtifact = useTutorStore(state => state.streamingArtifact);
+  
+  // Canvas Session State & Actions
+  const canvasLayout = useTutorStore(state => state.canvasLayout);
+  const toggleMinimap = useTutorStore(state => state.toggleMinimap);
+  
+  // Scene Graph State & Actions
+  const activeSceneGraph = useTutorStore(state => state.activeSceneGraph);
+  const setSceneGraph = useTutorStore(state => state.setSceneGraph);
+  const selectElements = useTutorStore(state => state.selectElements);
+  const updateArtifactSceneGraph = useTutorStore(state => state.updateArtifactSceneGraph);
 
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -109,16 +127,38 @@ const ArtifactPanel = ({ isDark }) => {
 
     setIsAiEditing(true);
     try {
-      const response = await API.post('/api/artifact/modify', {
+      const isVisual = !!activeArtifact.sceneGraph;
+      const endpoint = isVisual ? '/api/artifact/edit' : '/api/artifact/modify';
+
+      // Selection context injection
+      let finalInstruction = aiEditPrompt.trim();
+      const selectedIds = useTutorStore.getState().selectedElementIds;
+      if (isVisual && selectedIds.length > 0) {
+        const selectedLabels = selectedIds
+          .map(id => activeArtifact.sceneGraph.elements.find(e => e.id === id)?.label)
+          .filter(Boolean);
+        if (selectedLabels.length > 0) {
+          finalInstruction = `[Selected Elements: ${selectedLabels.join(', ')}] ${finalInstruction}`;
+        }
+      }
+
+      const response = await API.post(endpoint, {
         artifactId: activeArtifact.dbId,
-        instruction: aiEditPrompt.trim(),
+        instruction: finalInstruction,
       });
 
-      if (response.status === 200) {
+      if (response.status === 200 || response.status === 201) {
         const data = response.data;
-        // Update local store with new content and version
-        updateArtifactContent(activeArtifactId, data.content);
-        saveArtifactVersion(activeArtifactId);
+        
+        if (isVisual && data.newSceneGraph) {
+          // Update visual artifact with new scene graph
+          updateArtifactSceneGraph(activeArtifactId, data.newSceneGraph);
+        } else {
+          // Update legacy artifact content
+          updateArtifactContent(activeArtifactId, data.content);
+          saveArtifactVersion(activeArtifactId);
+        }
+        
         setAiEditPrompt('');
       } else {
         const err = response.data || {};
@@ -129,7 +169,16 @@ const ArtifactPanel = ({ isDark }) => {
     } finally {
       setIsAiEditing(false);
     }
-  }, [aiEditPrompt, activeArtifact, activeArtifactId, isAiEditing, updateArtifactContent, saveArtifactVersion]);
+  }, [aiEditPrompt, activeArtifact, activeArtifactId, isAiEditing, updateArtifactContent, saveArtifactVersion, updateArtifactSceneGraph]);
+
+  const handleElementClick = useCallback((elementId) => {
+    selectElements(elementId);
+  }, [selectElements]);
+
+  const handleElementMove = useCallback((elementId, position) => {
+    // This could optionally trigger a server update or just local state sync
+    console.log('[ArtifactPanel] Element moved:', elementId, position);
+  }, []);
 
   // ─── Content Cleaning ───
   const cleanContent = (content) => {
@@ -260,6 +309,13 @@ const ArtifactPanel = ({ isDark }) => {
             </button>
             <div className="w-px h-4 bg-[var(--border-color)]/30 mx-0.5" />
             <button
+              onClick={toggleMinimap}
+              title={canvasLayout === CANVAS_LAYOUT.MINIMAP ? 'Restore from Minimap' : 'Minimize to Minimap'}
+              className={`p-1.5 rounded-md transition-colors ${canvasLayout === CANVAS_LAYOUT.MINIMAP ? 'bg-indigo-500/10 text-indigo-500' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]'}`}
+            >
+              <Minimize2 size={13} />
+            </button>
+            <button
               onClick={toggleArtifactFullscreen}
               title={artifactPanelFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
               className="p-1.5 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
@@ -363,6 +419,14 @@ const ArtifactPanel = ({ isDark }) => {
                     content={displayContent}
                     onContentChange={handleContentChange}
                     isDark={isDark}
+                  />
+                )}
+                {(activeArtifact.type === 'visual' || activeArtifact.type === 'interactive' || activeArtifact.type === 'diagram') && (
+                  <VisualRenderer
+                    sceneGraph={activeArtifact.sceneGraph || { elements: [], connections: [] }}
+                    artifactClass={activeArtifact.artifactClass}
+                    onElementClick={handleElementClick}
+                    onElementMove={handleElementMove}
                   />
                 )}
               </React.Suspense>

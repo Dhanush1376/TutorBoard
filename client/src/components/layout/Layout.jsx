@@ -4,10 +4,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Toolbar from '../toolbar/Toolbar';
-import useTutorStore from '../../store/tutorStore';
+import useTutorStore, { CANVAS_LAYOUT } from '../../store/tutorStore';
 import useWindowSize from '../../hooks/useWindowSize';
 const ArtifactPanel = React.lazy(() => import('../artifact/ArtifactPanel'));
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/useTheme';
 
 // V-3 FIX: Layout dimensions as CSS custom property defaults — can be overridden via @media or :root
 const SIDEBAR_WIDTH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--layout-sidebar-width') || '350');
@@ -34,6 +34,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   const setSidebarOpen = useTutorStore(state => state.setSidebarOpen);
   const toggleSidebar = useTutorStore(state => state.toggleSidebar);
   const layoutView = useTutorStore(state => state.layoutView);
+  const canvasLayout = useTutorStore(state => state.canvasLayout);
   const isArtifactPanelOpen = useTutorStore(state => state.isArtifactPanelOpen);
   const artifactPanelFullscreen = useTutorStore(state => state.artifactPanelFullscreen);
   const { mode } = useTheme();
@@ -48,6 +49,8 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
   const currentSidebarWidth = isMobile ? '100%' : baseSidebarWidth;
   const sidebarVisible = isSidebarOpen && !forceCollapse;
 
+  const isMinimap = canvasLayout === CANVAS_LAYOUT.MINIMAP;
+
   return (
     <div
       className="fixed inset-0 w-screen h-screen overflow-hidden m-0 p-0 flex"
@@ -56,7 +59,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         background: 'var(--bg-primary)',
       }}
     >
-      {/* ── MOBILE BACKDROP ── */}
+      {/* -- MOBILE BACKDROP -- */}
       <AnimatePresence>
         {sidebarVisible && isMobile && (
           <motion.div
@@ -85,7 +88,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         )}
       </AnimatePresence>
 
-      {/* ── SIDEBAR PANEL ── */}
+      {/* -- SIDEBAR PANEL -- */}
       <AnimatePresence initial={false}>
         {sidebarVisible && (
           <motion.aside
@@ -128,7 +131,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         )}
       </AnimatePresence>
 
-      {/* ── MAIN CONTENT AREA ── */}
+      {/* -- MAIN CONTENT AREA -- */}
       <main
         className="relative flex-1 min-w-[320px] min-h-[400px] h-full overflow-hidden"
         // ACC-7: Prevent keyboard focus from escaping behind mobile sidebar overlay
@@ -169,10 +172,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             borderRight: !isMobile && isRightHand && sidebarVisible ? 'var(--glass-border-width) solid var(--border-color)' : 'none',
           }}
         >
-          <div className={`relative h-full overflow-hidden transition-all duration-300 ${isArtifactPanelOpen && !isMobile ? 'flex-1 min-w-0' : 'w-full'}`}>
+          <div className={`relative h-full overflow-hidden transition-all duration-300 ${isArtifactPanelOpen && !isMobile && !isMinimap ? 'flex-1 min-w-0' : 'w-full'}`}>
             {children}
           </div>
-          {isArtifactPanelOpen && !isMobile && (
+          {isArtifactPanelOpen && !isMobile && !isMinimap && (
             <div
               className="h-full overflow-hidden border-l border-[var(--border-color)]"
               style={{
@@ -189,7 +192,36 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           )}
         </div>
 
-        {/* ── MOBILE ARTIFACT OVERLAY ── */}
+        {/* -- MINIMAP OVERLAY -- */}
+        <AnimatePresence>
+          {isArtifactPanelOpen && isMinimap && !isMobile && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 50, x: 50 }}
+              animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 50, x: 50 }}
+              className="minimap-container liquid-glass shadow-premium"
+            >
+              <div className="w-full h-full scale-[0.35] origin-top-left" style={{ width: '285%', height: '285%' }}>
+                <React.Suspense fallback={null}>
+                  <ArtifactPanel isDark={isDark} />
+                </React.Suspense>
+              </div>
+              {/* Click to restore overlay */}
+              <button 
+                onClick={() => useTutorStore.getState().toggleMinimap()}
+                className="absolute inset-0 z-[100] group"
+              >
+                <div className="absolute inset-0 bg-indigo-500/0 group-hover:bg-indigo-500/10 transition-colors flex items-center justify-center">
+                   <div className="opacity-0 group-hover:opacity-100 bg-white/20 backdrop-blur-md rounded-full p-3 transform scale-90 group-hover:scale-100 transition-all">
+                      <Maximize2 size={24} className="text-white" />
+                   </div>
+                </div>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* -- MOBILE ARTIFACT OVERLAY -- */}
         <AnimatePresence>
           {isArtifactPanelOpen && isMobile && (
             <motion.div
@@ -206,12 +238,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           )}
         </AnimatePresence>
 
-        {/* ── PORTAL TARGETS ── */}
+        {/* -- PORTAL TARGETS -- */}
         <div id="radial-nav-portal" className="fixed inset-0 z-[6000] pointer-events-none" />
 
-        {/* ── OVERLAYS (Pills, Toolbar, etc.) ── */}
-
-        {/* ─── 5. UNIFIED TOP CONTROLS ─── */}
+        {/* --- 5. UNIFIED TOP CONTROLS --- */}
         <div className={`absolute top-5 left-0 right-0 px-5 z-[50] pointer-events-none flex items-center justify-between gap-4 ${isRightHand ? 'flex-row-reverse' : 'flex-row'}`}>
           {/* Workspace Toggle Pill */}
           <div className="pointer-events-auto flex-shrink-0">
@@ -245,21 +275,18 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
             </AnimatePresence>
           </div>
 
-          {/* Main Toolbar - Hidden in Teaching Split View */}
+          {/* Main Toolbar */}
           <div
             className={`pointer-events-auto transition-all duration-500 flex-1 flex ${isRightHand ? 'justify-start' : 'justify-end'} ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none -translate-y-10' : 'opacity-100'}`}
           >
             <div className="w-fit">
               <Toolbar
-                onShare={() => { }}
                 onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
               />
             </div>
           </div>
         </div>
       </main>
-
-      {/* MOBILE BACKDROP */}
     </div>
   );
 };

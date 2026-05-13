@@ -46,24 +46,24 @@ export const themes = [
         text: '#1C1711',
         textSub: '#312B22',
         textMuted: '#4F473A',
-        border: 'rgba(28,23,17,0.15)',
+        border: 'rgba(28,23,17,0.12)',
         userBubble: '#1C1711',
         userBubbleText: '#F7F4ED',
         aiBubble: '#EDE8DC',
         aiBubbleText: '#1C1711'
       },
       dark: {
-        bg: '#130F09',
-        surface: '#1C1711',
-        surface2: '#272017',
-        text: '#F0EDE4',
-        textSub: '#C2B6A5',
-        textMuted: '#948873',
-        border: 'rgba(240,237,228,0.12)',
-        userBubble: '#F0EDE4',
-        userBubbleText: '#130F09',
-        aiBubble: '#201A12',
-        aiBubbleText: '#F0EDE4'
+        bg: '#0C0B0A',
+        surface: '#141312',
+        surface2: '#1C1B1A',
+        text: '#F5F3EE',
+        textSub: '#A19E98',
+        textMuted: '#6B6862',
+        border: 'rgba(245,243,238,0.06)',
+        userBubble: '#F5F3EE',
+        userBubbleText: '#0C0B0A',
+        aiBubble: '#141312',
+        aiBubbleText: '#F5F3EE'
       }
     }
   },
@@ -87,16 +87,16 @@ export const themes = [
         aiBubbleText: '#111318'
       },
       dark: {
-        bg: '#0D0F14',
-        surface: '#13161E',
-        surface2: '#1A1E28',
+        bg: '#0A0B0C',
+        surface: '#121416',
+        surface2: '#1A1C20',
         text: '#E8EAF0',
-        textSub: '#B2B6C6',
-        textMuted: '#848999',
-        border: 'rgba(232,234,240,0.12)',
+        textSub: '#969AA5',
+        textMuted: '#636773',
+        border: 'rgba(232,234,240,0.06)',
         userBubble: '#E8EAF0',
-        userBubbleText: '#0D0F14',
-        aiBubble: '#181C26',
+        userBubbleText: '#0A0B0C',
+        aiBubble: '#121416',
         aiBubbleText: '#E8EAF0'
       }
     }
@@ -121,16 +121,16 @@ export const themes = [
         aiBubbleText: '#131612'
       },
       dark: {
-        bg: '#0C0E0B',
-        surface: '#131712',
-        surface2: '#1A1F18',
+        bg: '#0B0C0B',
+        surface: '#131413',
+        surface2: '#1B1C1B',
         text: '#E4E9E1',
-        textSub: '#B1BCAC',
-        textMuted: '#838F7D',
-        border: 'rgba(228,233,225,0.12)',
+        textSub: '#979F94',
+        textMuted: '#646B62',
+        border: 'rgba(228,233,225,0.06)',
         userBubble: '#E4E9E1',
-        userBubbleText: '#0C0E0B',
-        aiBubble: '#171C15',
+        userBubbleText: '#0B0C0B',
+        aiBubble: '#131413',
         aiBubbleText: '#E4E9E1'
       }
     }

@@ -4,7 +4,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Copy, Edit2, Check, RefreshCw, Quote, ChevronLeft, ChevronRight
+  Copy, Edit2, Check, RefreshCw, Quote, ChevronLeft, ChevronRight, CornerUpLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -17,7 +17,6 @@ import useTutorStore from '../../store/tutorStore';
 import VisualArtifactCard from './VisualArtifactCard';
 import useWindowSize from '../../hooks/useWindowSize';
 import SourceGrid from './message/SourceGrid';
-import CanvasCard from './message/CanvasCard';
 import { buildMarkdownComponents } from './message/MessageMarkdown';
 import { extractJsonResponse } from './message/MessageUtils';
 
@@ -56,16 +55,23 @@ const Message = ({
   isSessionActive,
   streamingMessageId,
   onHover,
+  onUndoMessage,
 }) => {
   const isAssistant = role === 'assistant';
   const { isMobile } = useWindowSize();
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState(metadata?.feedback || null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isContextExpanded, setIsContextExpanded] = useState(false);
   const editRef = useRef(null);
+
+  // #21: Sync feedback state with props
+  useEffect(() => {
+    setFeedback(metadata?.feedback || null);
+  }, [metadata?.feedback]);
 
   // Hover broadcasting
   const handleMouseEnter = () => onHover?.(messageId);
@@ -75,12 +81,15 @@ const Message = ({
   const isCurrentlyStreaming = isStreaming && isThisStreaming;
 
   const rawContent = isStreaming ? streamingContent : content;
-  const { content: displayContent, artifact: extractedArtifact } = React.useMemo(
+  const { content: displayContent, artifact: extractedArtifact, canvasType: extractedCanvasType, title: extractedTitle } = React.useMemo(
     () => extractJsonResponse(rawContent),
     [rawContent]
   );
 
-  const artifactData = metadata?.artifactData || extractedArtifact;
+  const baseArtifactData = metadata?.artifactData || extractedArtifact || metadata?.visuals;
+  const artifactData = baseArtifactData || (hasCanvas ? { steps, canvasSnapshot, type: canvasType } : null);
+  const finalTitle = extractedTitle || artifactData?.title || metadata?.artifactTitle || canvasSnapshot?.title || metadata?.canvasSnapshot?.title || metadata?.stepTitle || metadata?.title || 'Interactive Lesson';
+  const finalRendererType = extractedCanvasType || artifactData?.rendererType || artifactData?.type || metadata?.rendererType || canvasType || 'cinematic';
   const isBeingRegenerated = isSessionActive && streamingMessageId === messageId;
   const showLocalIndicator = isBeingRegenerated && (!isStreaming || !displayContent);
 
@@ -90,7 +99,7 @@ const Message = ({
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
+    await navigator.clipboard.writeText(displayContent || content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -98,6 +107,7 @@ const Message = ({
   const handleStartEdit = () => {
     setEditContent(content);
     setIsEditing(true);
+    setShowConfirmCancel(false);
     setTimeout(() => editRef.current?.focus(), 50);
   };
 
@@ -128,6 +138,9 @@ const Message = ({
     [] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // Hide empty assistant messages that have errors (handled by global ErrorCard)
+  if (isAssistant && !displayContent && metadata?.error) return null;
+
   return (
     <div 
       data-message-id={messageId} 
@@ -146,7 +159,7 @@ const Message = ({
               className="w-full"
             >
               <div
-                className="w-full rounded-2xl overflow-hidden border"
+                className="w-full rounded-2xl overflow-hidden border transition-all duration-200 focus-within:border-[var(--text-primary)] focus-within:ring-1 focus-within:ring-[var(--text-primary)]"
                 style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
               >
                 <textarea
@@ -157,8 +170,11 @@ const Message = ({
                     e.stopPropagation();
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
                     else if (e.key === 'Escape') {
-                      setEditContent(content); // Bug 3.3 Fix: reset content on escape
-                      setIsEditing(false);
+                      if (editContent !== content) {
+                        setShowConfirmCancel(true);
+                      } else {
+                        setIsEditing(false);
+                      }
                     }
                   }}
                   style={{
@@ -171,13 +187,23 @@ const Message = ({
                 <div className="flex items-center justify-end gap-1.5 px-3 pb-2.5">
                   <button
                     onClick={() => {
-                      setEditContent(content); // Bug 3.3 Fix: reset content on cancel
-                      setIsEditing(false);
+                      if (editContent !== content) {
+                        setShowConfirmCancel(true);
+                      } else {
+                        setIsEditing(false);
+                      }
                     }}
                     style={{ padding: '5px 10px', fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 8 }}
                   >
                     Cancel
                   </button>
+                  {showConfirmCancel && (
+                    <div className="flex items-center gap-1.5 bg-red-500/10 px-2 py-1 rounded-md border border-red-500/20">
+                      <span className="text-[10px] text-red-500 font-bold uppercase tracking-tighter">Discard?</span>
+                      <button onClick={() => { setIsEditing(false); setShowConfirmCancel(false); }} className="text-[10px] text-red-500 font-bold hover:underline">YES</button>
+                      <button onClick={() => setShowConfirmCancel(false)} className="text-[10px] text-[var(--text-tertiary)] font-bold hover:underline">NO</button>
+                    </div>
+                  )}
                   <button
                     onClick={handleSaveEdit}
                     disabled={!editContent.trim() || editContent === content}
@@ -210,7 +236,7 @@ const Message = ({
                 initial={isStreaming ? { opacity: 1 } : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={isStreaming ? { duration: 0 } : { duration: 0.2 }}
-                className="relative min-w-0 max-w-full break-words overflow-hidden transition-all duration-300 shadow-premium"
+                className={`relative min-w-0 max-w-full break-words overflow-hidden transition-all duration-300 ${isAssistant ? '' : 'shadow-premium'}`}
                 style={isAssistant ? {
                   color: 'var(--text-primary)',
                   padding: '4px 0 6px 0',
@@ -225,33 +251,32 @@ const Message = ({
                 }}
               >
                 {isAssistant ? (
-                  <div className="markdown-content" style={{ position: 'relative' }}>
-                    {showLocalIndicator ? (
-                      <div className="flex items-center gap-[4px] py-2 px-1 opacity-60">
-                        {[0, 1, 2].map((i) => (
-                          <motion.span
-                            key={i}
-                            animate={{
-                              scale: [1, 1.2, 1],
-                              opacity: [0.3, 1, 0.3]
-                            }}
-                            transition={{
-                              duration: 1.2,
-                              repeat: Infinity,
-                              delay: i * 0.2,
-                              ease: 'easeInOut',
-                            }}
-                            style={{
-                              width: 4,
-                              height: 4,
-                              borderRadius: '50%',
-                              background: 'var(--text-tertiary)',
-                            }}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className={isStreaming ? 'streaming-cursor' : ''}>
+                    <div className={`markdown-content ${isStreaming ? 'streaming-cursor' : ''}`} style={{ position: 'relative' }}>
+                      {showLocalIndicator ? (
+                        <div className="flex items-center gap-[4px] py-2 px-1 opacity-60">
+                          {[0, 1, 2].map((i) => (
+                            <motion.span
+                              key={i}
+                              animate={{
+                                scale: [1, 1.2, 1],
+                                opacity: [0.3, 1, 0.3]
+                              }}
+                              transition={{
+                                duration: 1.2,
+                                repeat: Infinity,
+                                delay: i * 0.2,
+                                ease: 'easeInOut',
+                              }}
+                              style={{
+                                width: 4,
+                                height: 4,
+                                borderRadius: '50%',
+                                background: 'var(--text-tertiary)',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : (
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm, remarkMath]}
                           rehypePlugins={[rehypeKatex]}
@@ -259,9 +284,8 @@ const Message = ({
                         >
                           {displayContent || ''}
                         </ReactMarkdown>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
                 ) : (
                   <div className="flex flex-col gap-2.5">
                     {(() => {
@@ -351,25 +375,16 @@ const Message = ({
                 )}
               </motion.div>
 
-              {/* Visual Artifact Card (Progressive & Final) */}
-              {isAssistant && (metadata?.artifactId || metadata?.hasVisualArtifact || artifactData) && (
+              {/* Consolidated Visual Artifact Portal (Progressive & Final) */}
+              {isAssistant && (metadata?.artifactId || metadata?.hasVisualArtifact || metadata?.visuals || artifactData || hasCanvas) && (
                 <VisualArtifactCard
-                  artifactId={metadata?.artifactId}
+                  artifactId={metadata?.artifactId || messageId}
                   artifactData={artifactData}
-                  title={artifactData?.title || metadata?.artifactTitle}
-                  rendererType={artifactData?.rendererType || artifactData?.type || metadata?.rendererType}
+                  title={finalTitle}
+                  rendererType={finalRendererType}
                   status={metadata?.artifactStatus || (isStreaming ? 'generating' : 'completed')}
-                />
-              )}
-
-              {/* Canvas card */}
-              {isAssistant && hasCanvas && !isStreaming && !metadata?.artifactId && (
-                <CanvasCard
                   onOpenCanvas={onOpenCanvas}
                   messageId={messageId}
-                  canvasType={canvasType}
-                  stepCount={steps?.length}
-                  title={canvasSnapshot?.title || metadata?.canvasSnapshot?.title}
                 />
               )}
 
@@ -388,9 +403,14 @@ const Message = ({
               >
                 {!isEditing && !isStreaming && !isBeingRegenerated && (
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                    {/* User actions: Edit (Primary), Copy */}
+                    {/* User actions: Undo, Edit (Primary), Copy */}
                     {!isAssistant && (
                       <>
+                        {onUndoMessage && (
+                          <ActionBtn onClick={() => onUndoMessage(messageId, content)} title="Undo message" isMobile={isMobile}>
+                            <CornerUpLeft size={14} strokeWidth={2.2} />
+                          </ActionBtn>
+                        )}
                         {onEditMessage && (
                           <ActionBtn onClick={handleStartEdit} title="Edit message" isMobile={isMobile}>
                             <Edit2 size={14} strokeWidth={2} />
@@ -485,6 +505,7 @@ export default React.memo(Message, (prev, next) => {
     prev.metadata?.activeVersionIndex === next.metadata?.activeVersionIndex &&
     prev.metadata?.feedback === next.metadata?.feedback &&
     prev.metadata?.edited === next.metadata?.edited &&
-    prev.metadata?.sources?.length === next.metadata?.sources?.length
+    prev.metadata?.sources?.length === next.metadata?.sources?.length &&
+    prev.metadata?.versions?.length === next.metadata?.versions?.length
   );
 });

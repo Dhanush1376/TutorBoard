@@ -20,7 +20,7 @@ export const uploadFile = async (req, res) => {
           Bucket: process.env.S3_BUCKET, 
           Key: req.file.key 
         }),
-        { expiresIn: 3600 } // URL valid for 1 hour
+        { expiresIn: 900 } // URL valid for 15 minutes (SEC-11: Hardened TTL)
       );
     } catch (err) {
       console.error('[Upload] Failed to generate signed URL:', err);

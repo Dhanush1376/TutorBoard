@@ -185,6 +185,10 @@ class LifecycleManager {
     }
   }
 
+  public getTask(id: string): AsyncTask | undefined {
+    return this.tasks.get(id);
+  }
+
   public cancelAllTasks(reason: string) {
     log.info(`Cancelling all background tasks: ${reason} (Count: ${this.tasks.size})`);
     for (const [id, task] of Array.from(this.tasks.entries())) {

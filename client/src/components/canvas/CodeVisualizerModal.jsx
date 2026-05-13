@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Square, ChevronRight, ChevronLeft, ChevronDown, Globe, Circle, Minus, AlertCircle, CheckCircle2, Copy, Trash2, Layout, Terminal } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import useTutorStore from '../../store/tutorStore';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/useTheme';
 import VisaiLogo from '../layout/VisaiLogo';
 import { executeCode } from '../../utils/codeRunner';
 

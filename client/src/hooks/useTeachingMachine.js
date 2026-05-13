@@ -67,10 +67,10 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     memoryAnchor: s.activeScene?.memoryAnchor || '',
     keyFormula: s.activeScene?.keyFormula || '',
     currentStepIndex: s.currentStepIndex,
-    totalSteps: s.activeScene?.steps?.length || 0,
+    totalSteps: s.activeScene?.steps?.length || s.activeScene?.timeline?.length || s.canvasSteps?.length || s.totalSteps || 0,
     canvasObjects: s.canvasObjects,
     canvasConnections: s.activeScene?.connections || EMPTY_ARRAY,
-    canvasSteps: s.activeScene?.steps || EMPTY_ARRAY,
+    canvasSteps: s.activeScene?.steps || s.activeScene?.timeline || s.canvasSteps || EMPTY_ARRAY,
     doubtResponse: s.doubtResponse,
     isDoubtProcessing: s.isDoubtProcessing,
     doubtHistory: s.doubtHistory,
@@ -411,6 +411,8 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     cleanups.push(on('session:db-id', (data) => {
       if (data.chatSessionId) {
         import.meta.env.DEV && console.log(`[Machine] Received MongoDB chatSessionId: ${data.chatSessionId}`);
+        const oldId = useTutorStore.getState().chatSessionId || useTutorStore.getState().sessionId;
+        useTutorStore.getState().promoteSessionId(oldId, data.chatSessionId);
         setChatSessionId(data.chatSessionId);
       }
     }));
