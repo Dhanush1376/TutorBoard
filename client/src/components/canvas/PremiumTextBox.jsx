@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect, useContext } from 'react';
+import React, { useState, useRef, useEffect, useContext, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import useTutorStore from '../../store/tutorStore';
 import { CanvasContext } from './CanvasContext';
 import { Handle, RotateHandle, DeleteHandle } from './ElementHandles';
@@ -318,7 +320,32 @@ const PremiumTextBox = React.memo(({ obj, isSelected, onUpdate, onDelete }) => {
                   userSelect: 'none'
                 }}
               >
-                {localContent || <span className="opacity-30">Empty text...</span>}
+                {(() => {
+                  if (!localContent) return <span className="opacity-30">Empty text...</span>;
+                  
+                  // If it looks like math (starts with \ or $) or type is equation
+                  const isMath = obj.type === 'equation' || localContent.startsWith('\\') || (localContent.startsWith('$') && localContent.endsWith('$'));
+                  
+                  if (isMath) {
+                    try {
+                      const tex = localContent.replace(/^\$|\$$/g, '');
+                      return (
+                        <div 
+                          dangerouslySetInnerHTML={{ 
+                            __html: katex.renderToString(tex, { 
+                              displayMode: true, 
+                              throwOnError: false 
+                            }) 
+                          }} 
+                        />
+                      );
+                    } catch (e) {
+                      return localContent;
+                    }
+                  }
+                  
+                  return localContent;
+                })()}
               </div>
             )}
 

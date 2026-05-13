@@ -134,8 +134,12 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
     Matter.World.remove(world, [...oldBodies, ...oldConstraints]);
 
     // NEW: Prioritize VisualScript 'physics_body' commands over legacy 'elements'
-    const stepActions = currentStep.actions || [];
-    const physicsCommands = stepActions.filter((a: any) => a.cmd === 'physics_body' || a.type === 'physics_body');
+    const stepActions = currentStep?.actions || [];
+    const physicsCommands = Array.isArray(stepActions) 
+      ? stepActions.filter((a: any) => a.cmd === 'physics_body' || a.type === 'physics_body')
+      : [];
+    
+    const elementsArray = Array.isArray(elements) ? elements : Object.values(elements || {});
     
     const elementsToRender = physicsCommands.length > 0 
       ? physicsCommands.map((c: any) => ({
@@ -152,7 +156,7 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
           restitution: c.restitution,
           friction: c.friction
         }))
-      : (elements || []);
+      : elementsArray;
 
     const newBodiesMap = new Map();
 
@@ -160,11 +164,11 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
       const x = (el.x ?? 0.5) * CW;
       const y = (el.y ?? 0.5) * CH;
       const scale = el.scale || 1;
-      const type = (el.type || el.shape || 'circle').toLowerCase();
+      const type = String(el.type || el.shape || 'circle').toLowerCase();
       
       let body;
       const commonOptions = {
-        label: el.id,
+        label: String(el.id || `body_${Math.random()}`),
         isStatic: el.isStatic || false,
         friction: el.friction ?? 0.1,
         restitution: (el.restitution ?? 0.8) * restitutionMult,
@@ -204,7 +208,7 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
 
     Matter.World.add(world, constraints);
 
-  }, [elements, connections, currentStepIndex]);
+  }, [elements, connections, currentStep, currentStepIndex, steps, restitutionMult]);
 
   // 3. Render Loop
   useEffect(() => {
@@ -238,7 +242,7 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
           velocity: { x: b.velocity.x, y: b.velocity.y },
           speed: b.speed,
           mass: b.mass,
-          type: (elements || []).find(e => String(e.id) === String(b.label))?.type || 'circle'
+          type: (Array.isArray(elements) ? elements : Object.values(elements || {})).find(e => String(e.id) === String(b.label))?.type || 'circle'
         })),
         constraints: world.constraints.filter(c => c.label !== 'Mouse Constraint').map(c => {
           const p1 = c.bodyA ? { x: c.bodyA.position.x + (c.pointA?.x || 0), y: c.bodyA.position.y + (c.pointA?.y || 0) } : (c.pointA || { x: 0, y: 0 });
@@ -259,7 +263,7 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
     };
     update();
     return () => cancelAnimationFrame(frameId);
-  }, [elements, currentStepIndex]);
+  }, [elements, currentStep, currentStepIndex]);
 
   return (
     <div 

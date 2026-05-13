@@ -207,7 +207,7 @@ Rules per artifact type:
 - document: Rich Markdown with headers, lists, code blocks, and tables. Premium notebook quality.
 - ui: Complete single-file HTML with inline CSS and JS. Use Tailwind CDN. Make it beautiful and functional.
 - table: Pure Markdown table syntax with a separator row. Clean, aligned columns.
-- diagram: Valid Mermaid.js syntax ONLY. Start with the graph type declaration (e.g. graph TD).
+- diagram / node_map: MUST be a valid JSON string (escaped properly) representing the graph. Format: { "nodes": [{ "id": "n1", "label": "Concept", "type": "node", "x": 0.5, "y": 0.5 }], "edges": [{ "from": "n1", "to": "n2", "label": "relates to" }] }. DO NOT use Mermaid syntax.
 `;
 
     if (artifactCount > 1) {
@@ -219,7 +219,7 @@ Return ONLY this JSON (no text before or after):
 ${artifactTypes.map((t, i) => `    {
       "type": "${t}",
       "title": "Descriptive Title ${i + 1}",
-      "content": "Full artifact content...",
+      "content": "Full artifact content... (If type is diagram, this MUST be a JSON object containing nodes and edges, NOT a string!)",
       "language": "${t === 'code' ? 'js' : t === 'ui' ? 'html' : ''}",
       "metadata": {}
     }`).join(',\n')}
@@ -235,7 +235,7 @@ Return ONLY this JSON (no text before or after). IMPORTANT: The "chat_response" 
   "artifact": {
     "type": "${planner.artifact_type}",
     "title": "Descriptive Title",
-    "content": "Full artifact content...",
+    "content": "Full artifact content... (If type is diagram, this MUST be a JSON object containing nodes and edges, NOT a string!)",
     "language": "js/py/html/etc",
     "metadata": {}
   }

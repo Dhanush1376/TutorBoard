@@ -209,14 +209,16 @@ export function SessionGuide({
       <div className="px-6 py-5 border-t border-white/5 flex items-center gap-3 sf-glass" style={{ background: 'rgba(var(--bg-primary-rgb), 0.5)' }}>
         <button
           onClick={onReplay}
-          className="flex-1 apple-pill bg-white/5 border border-white/10 text-[10px] uppercase tracking-widest text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] shadow-sm"
+          disabled={totalSteps === 0}
+          className="flex-1 apple-pill bg-white/5 border border-white/10 text-[10px] uppercase tracking-widest text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <RotateCcw size={12} />
           Replay
         </button>
         <button
           onClick={onResume}
-          className="flex-1 apple-pill bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] uppercase tracking-widest hover:opacity-90 shadow-premium"
+          disabled={totalSteps === 0}
+          className="flex-1 apple-pill bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] uppercase tracking-widest hover:opacity-90 shadow-premium disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <Play size={12} fill="currentColor" />
           Resume

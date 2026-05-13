@@ -19,6 +19,7 @@ const ToolButtonBase = ({ id, icon: DefaultIcon, label: defaultLabel, shortcut, 
   const [isHovered, setIsHovered] = useState(false);
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false); // NEW: Sticky menu state
+  const [hoveredId, setHoveredId] = useState(null);
   const shortcutTimerRef = useRef(null);
 
   // Track this group's "last used" variant, defaulting to the first variant or the group itself.

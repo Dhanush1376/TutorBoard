@@ -246,9 +246,6 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
         totalSteps: data.totalSteps || (data.steps || data.timeline || []).length || 0,
       };
 
-      setTimeline(normalizedTimeline);
-      loadScene(normalizedTimeline);
-
       if (data.title) setTopic(data.title);
 
       if (data.isResume) {
@@ -262,9 +259,9 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
         renderer: data.renderer
       });
 
-      // Ensure machine state advances to TEACHING even if the FSM event
-      // arrived before or after this timeline payload
-      setMachineState(STATES.TEACHING);
+      // ATOMIC UPDATE: Use the combined setter to prevent UI flicker/race conditions
+      // This sets machineState, timeline, objects, and totalSteps in one go.
+      useTutorStore.getState().setTeachingTimeline(normalizedTimeline);
 
       notifyUser("TutorBoard Agent", "Your lesson session is ready!");
     }));
@@ -357,7 +354,6 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       const sid = store.chatSessionId || store.sessionId || 'temp';
       store.setWaitingForAI(false, sid);
       store.setDoubtProcessing(false);
-      store.setMachineState(STATES.IDLE);
     }));
 
     // Greeting (quick text answer or fallback)

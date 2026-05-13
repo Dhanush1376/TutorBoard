@@ -37,7 +37,9 @@ export const RENDERER_MAP: Record<string, RoutedRenderer> = {
   'katex':      KaTeXRenderer as any,
   'calculus':   KaTeXRenderer as any,
   'desmos':     DesmosRenderer,
-  'graph':      DesmosRenderer,
+  'plot':       DesmosRenderer,
+  'graph':      'd3', // Typically implies a node/edge graph; use D3
+  'diagram':    'd3', // Alias for node maps
   'algorithm':  'd3',
   'dsa':        'd3',
   'sorting':    'd3',

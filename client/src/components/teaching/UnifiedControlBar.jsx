@@ -35,10 +35,10 @@ const UnifiedControlBar = ({
   onToggleVoice,
   elapsedTime = '0:00',
   totalTime = '0:00',
+  playbackSpeed = 1,
   showDoubtInput = true,
   className = '',
 }) => {
-  const [speedIndex, setSpeedIndex] = useState(SPEEDS.indexOf(1));
   const [isDoubtExpanded, setIsDoubtExpanded] = useState(false);
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
   const [doubtText, setDoubtText] = useState('');
@@ -46,13 +46,11 @@ const UnifiedControlBar = ({
   const doubtInputRef = useRef(null);
   const speedMenuRef = useRef(null);
 
-  const currentSpeed = SPEEDS[speedIndex] || 1;
+  const currentSpeed = playbackSpeed;
   const progress = totalSteps > 0 ? ((currentStepIndex + 1) / totalSteps) * 100 : 0;
 
   // ── Speed Cycling ──────────────────────────────────────────────────────
   const handleSpeedSelect = useCallback((speed) => {
-    const index = SPEEDS.indexOf(speed);
-    setSpeedIndex(index);
     onSpeedChange?.(speed);
     setIsSpeedMenuOpen(false);
   }, [onSpeedChange]);

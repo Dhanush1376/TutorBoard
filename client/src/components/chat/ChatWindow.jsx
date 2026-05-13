@@ -282,7 +282,7 @@ const ChatWindow = ({
   const generationProgress = useTutorStore((s) => s.generationProgress);
 
   const isCurrentlyStreaming = isStreaming;
-  const isCurrentlyWaiting = isWaitingForAI && waitingSessionId === currentSessionId;
+  const isCurrentlyWaiting = (isWaitingForAI && waitingSessionId === currentSessionId) || isGenerating;
   const isActive = isCurrentlyStreaming || isCurrentlyWaiting;
 
   const isEmpty =

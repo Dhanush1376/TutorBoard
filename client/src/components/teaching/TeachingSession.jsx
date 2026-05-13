@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles,
   RotateCcw, RefreshCw, Dices, Crosshair, Volume2, VolumeX, AlertTriangle, BookOpen,
-  Minimize2
+  Minimize2, Undo2, Redo2, Bookmark
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
@@ -78,6 +78,7 @@ const TeachingSession = ({ initialTopic }) => {
     toggleVoice,
     isSidebarOpen,
     setSidebarOpen,
+    undo, redo
   } = useTutorStore();
 
   const toolbarLeft = isSidebarOpen ? 350 + 16 : 16;
@@ -98,10 +99,15 @@ const TeachingSession = ({ initialTopic }) => {
     currentStep?.title?.toLowerCase().includes("intro") ? "Intro" : 
     currentStep?.title?.toLowerCase().includes("example") ? "Example" : 
     currentStep?.title?.toLowerCase().includes("summary") ? "Summary" : 
+    currentStep?.title?.toLowerCase().includes("practice") ? "Practice" :
+    currentStep?.title?.toLowerCase().includes("test") ? "Test" :
+    currentStep?.title?.toLowerCase().includes("deep dive") ? "Deep Dive" :
     "Core"
   );
 
   const [panelOpen, setPanelOpen] = useState(true);
+  const [loadingError, setLoadingError] = useState(null);
+  const [isTimedOut, setIsTimedOut] = useState(false);
 
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
@@ -153,12 +159,29 @@ const TeachingSession = ({ initialTopic }) => {
       if (machineState === STATES.IDLE && !timeline) {
         startSession(initialTopic, initialTopic);
         setCanvasMode(CANVAS_MODE.FULLSCREEN);
+        setIsTimedOut(false);
+        setLoadingError(null);
         return;
       }
       const same = topic?.toLowerCase() === initialTopic.toLowerCase();
       if (!same && machineState !== STATES.GENERATING) endSession();
     }
   }, [isOpen, initialTopic, machineState, startSession, timeline, topic, endSession, setCanvasMode]);
+
+  // Loading Timeout (Bug 13)
+  useEffect(() => {
+    let timer;
+    if (machineState === STATES.GENERATING) {
+      timer = setTimeout(() => {
+        setIsTimedOut(true);
+        setLoadingError("The AI is taking longer than usual to generate this lesson. You can wait a bit longer or try re-initializing.");
+      }, 45000); // 45s timeout
+    } else {
+      setIsTimedOut(false);
+      setLoadingError(null);
+    }
+    return () => clearTimeout(timer);
+  }, [machineState]);
 
 
 
@@ -240,7 +263,7 @@ const TeachingSession = ({ initialTopic }) => {
   // ── Bail ──────────────────────────────────────────────────
   if (!isOpen) return null;
 
-  if (machineState === STATES.ERROR) {
+  if (machineState === STATES.ERROR || isTimedOut) {
     return (
       <div className="teaching-session flex items-center justify-center p-6 bg-[var(--bg-primary)]">
         <motion.div 
@@ -249,17 +272,21 @@ const TeachingSession = ({ initialTopic }) => {
           className="liquid-glass p-10 rounded-[32px] flex flex-col items-center gap-8 max-w-md text-center border border-red-500/20"
           style={{ boxShadow: '0 32px 80px -16px rgba(0,0,0,0.3)' }}
         >
-           <div className="w-20 h-20 rounded-3xl bg-red-500/10 flex items-center justify-center text-red-500 mb-2 border border-red-500/20">
-             <AlertTriangle size={40} strokeWidth={1.5} />
+           <div className={`w-20 h-20 rounded-3xl ${isTimedOut ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'} flex items-center justify-center mb-2 border`}>
+             {isTimedOut ? <Clock size={40} strokeWidth={1.5} /> : <AlertTriangle size={40} strokeWidth={1.5} />}
            </div>
            <div className="space-y-3">
-             <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Session Interrupted</h2>
+             <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+               {isTimedOut ? "Taking its time..." : "Session Interrupted"}
+             </h2>
              <p className="text-[13px] text-[var(--text-secondary)] opacity-70 leading-relaxed">
-               {error || "TutorBoard encountered an unexpected glitch while orchestrating your lesson."}
+               {loadingError || error || "TutorBoard encountered an unexpected glitch while orchestrating your lesson."}
              </p>
-             <p className="text-[11px] text-red-400/60 font-mono bg-red-500/5 py-2 px-3 rounded-lg border border-red-500/10">
-               {typeof error === 'string' && error.startsWith('{') ? 'JSON_PAYLOAD_ERROR' : (error || 'UNKNOWN_SESSION_FAILURE')}
-             </p>
+             {!isTimedOut && (
+               <p className="text-[11px] text-red-400/60 font-mono bg-red-500/5 py-2 px-3 rounded-lg border border-red-500/10">
+                 {typeof error === 'string' && error.startsWith('{') ? 'JSON_PAYLOAD_ERROR' : (error || 'UNKNOWN_SESSION_FAILURE')}
+               </p>
+             )}
            </div>
            <div className="flex flex-col gap-3 w-full">
              <button 
@@ -267,7 +294,7 @@ const TeachingSession = ({ initialTopic }) => {
                className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-[var(--text-primary)] text-[var(--bg-primary)] font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-black/20"
              >
                <RefreshCw size={16} />
-               Re-initialize Lesson
+               {isTimedOut ? "Retry Generation" : "Re-initialize Lesson"}
              </button>
              <button 
                onClick={handleClose}
@@ -480,23 +507,46 @@ const TeachingSession = ({ initialTopic }) => {
 
                   <div className="flex flex-col items-center gap-3">
                     <motion.p 
-                      animate={{ opacity: [0.1, 0.25, 0.1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="text-[9px] font-bold text-[var(--text-primary)] tracking-[0.8em] uppercase ml-[0.8em]"
+                      key={machine.generationProgress?.label || 'init'}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-[10px] font-bold text-[var(--text-primary)] tracking-[0.4em] uppercase"
                     >
-                      Initializing Neural Canvas
+                      {machine.generationProgress?.label || 'Initializing Neural Canvas'}
                     </motion.p>
                     
-                    <div className="flex gap-1">
-                      {[0, 1, 2].map(i => (
-                        <motion.div
-                          key={i}
-                          animate={{ scale: [1, 1.5, 1], opacity: [0.1, 0.4, 0.1] }}
-                          transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                          className="w-1 h-1 rounded-full bg-indigo-500"
-                        />
-                      ))}
-                    </div>
+                    {machine.generationProgress?.totalStages > 0 ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="flex gap-1.5">
+                          {Array.from({ length: machine.generationProgress.totalStages }).map((_, i) => (
+                            <motion.div
+                              key={i}
+                              initial={false}
+                              animate={{ 
+                                scale: i < machine.generationProgress.stage ? 1 : 0.8,
+                                opacity: i < machine.generationProgress.stage ? 1 : 0.2,
+                                backgroundColor: i < machine.generationProgress.stage ? '#6366f1' : 'rgba(255,255,255,0.2)'
+                              }}
+                              className="w-1.5 h-1.5 rounded-full"
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[8px] font-medium text-[var(--text-tertiary)] uppercase tracking-widest opacity-60">
+                          Stage {machine.generationProgress.stage} of {machine.generationProgress.totalStages}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1">
+                        {[0, 1, 2].map(i => (
+                          <motion.div
+                            key={i}
+                            animate={{ scale: [1, 1.5, 1], opacity: [0.1, 0.4, 0.1] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+                            className="w-1 h-1 rounded-full bg-indigo-500"
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               </div>
@@ -522,17 +572,17 @@ const TeachingSession = ({ initialTopic }) => {
                 animate={{ opacity: 1, x: 0 }}
                 className="flex flex-col gap-2 p-1.5 rounded-2xl liquid-glass shadow-premium pointer-events-auto"
               >
-                <Btn onClick={() => goToStep(0)} title="Reset to Start" className="rounded-xl">
-                  <RotateCcw size={13} />
+                <Btn onClick={undo} title="Undo" className="rounded-xl">
+                  <Undo2 size={13} />
                 </Btn>
-                <Btn onClick={() => goToStep(currentStepIndex)} title="Replay Step" className="rounded-xl">
-                  <RefreshCw size={12} />
+                <Btn onClick={redo} title="Redo" className="rounded-xl">
+                  <Redo2 size={12} />
                 </Btn>
                 <Btn onClick={() => canvasRef.current?.resetCamera()} title="Reset View" className="rounded-xl">
                   <Crosshair size={13} />
                 </Btn>
-                <Btn onClick={() => startSession(topic, topic)} title="New Example" className="rounded-xl">
-                  <Dices size={13} />
+                <Btn onClick={() => {}} title="Bookmark" className="rounded-xl">
+                  <Bookmark size={13} />
                 </Btn>
               </motion.div>
             </div>
@@ -570,6 +620,7 @@ const TeachingSession = ({ initialTopic }) => {
                   onNextStep={nextStep}
                   onGoToStep={goToStep}
                   onSpeedChange={handleSpeed}
+                  playbackSpeed={machine.playbackSpeed}
                   onAskDoubt={askDoubt}
                   isVoiceEnabled={isVoiceEnabled}
                   onToggleVoice={toggleVoice}
@@ -685,7 +736,7 @@ const TeachingSession = ({ initialTopic }) => {
                   {formatTopicTitle(timeline?.title || topic)}
                 </span>
                 <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-widest opacity-60">
-                   {isAlgo ? 'Algorithm Session' : 'Pedagogical Guide'}
+                   {isAlgo ? 'Algorithm Session' : (timeline?.domain || 'Interactive Guide')}
                 </span>
               </button>
             </div>

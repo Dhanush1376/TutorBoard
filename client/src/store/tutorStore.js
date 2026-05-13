@@ -67,7 +67,38 @@ const useTutorStore = create(
       ...createPlatformMemorySlice(set, get),
       ...createSceneGraphSlice(set, get),
 
-      // Global Actions / Hydration
+      /**
+       * setTeachingTimeline — Atomic update for the whole session state.
+       * Consolidates timeline data and machine state transition to prevent race conditions.
+       */
+      setTeachingTimeline: (timelineData) => {
+        set((state) => {
+          // 1. Update machine state
+          state.machineState = 'TEACHING';
+          state.error = null;
+          
+          // 2. Extract and Normalize Timeline (Logic from sceneSlice)
+          const rawSteps = timelineData.timeline || timelineData.steps || [];
+          const canvasSteps = rawSteps.length > 0 ? rawSteps : [{}];
+          const totalSteps = canvasSteps.length;
+          
+          state.activeScene = {
+            ...timelineData,
+            steps: canvasSteps,
+            timeline: canvasSteps
+          };
+          state.canvasObjects = timelineData.elements || timelineData.objects || [];
+          state.canvasConnections = timelineData.connections || [];
+          state.canvasSteps = canvasSteps;
+          state.totalSteps = totalSteps;
+          state.currentStepIndex = typeof timelineData.currentStepIndex === 'number' 
+            ? timelineData.currentStepIndex 
+            : 0;
+          state.sceneReady = false;
+          state.isPlaying = false;
+        });
+      },
+
       hydrate: () => {
         if (typeof window === 'undefined') return;
         set((state) => {
@@ -197,7 +228,7 @@ const useTutorStore = create(
           case 'scene_nodes':
             // eventData: { nodes: [...], renderer: '...' }
             // Feed the nodes directly into the teaching engine (canvasSlice)
-            if (eventData.nodes) {
+            if (eventData.nodes && Array.isArray(eventData.nodes) && eventData.nodes.length > 0) {
               const adaptedTimeline = { 
                 steps: eventData.nodes, 
                 timeline: eventData.nodes,

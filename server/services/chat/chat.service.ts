@@ -120,12 +120,14 @@ export class ChatService {
         (plan as any).canvas_type = plan.visualization.type;
       }
       // Explicitly check if user requested a visual canvas or visual explanation
-      if (/(visual|canvas|draw|diagram|plot|simulate|animate)/i.test(userMessage)) {
+      if (/(visual|canvas|draw|diagram|plot|simulate|animate|node|map|graph|hierarchy|network)/i.test(userMessage)) {
         plan.visualization = plan.visualization || { generate: true, type: 'd3', necessity: 'required' };
         plan.visualization.generate = true;
         plan.visualization.type = plan.visualization.type === 'none' ? 'd3' : (plan.visualization.type || 'd3');
         (plan as any).suggest_canvas = true;
         (plan as any).canvas_type = plan.visualization.type;
+        // Suppress the text-based artifact card to let the Neural Canvas take full control
+        (plan as any).generate_artifact = false;
       }
 
       streamManager?.send({ type: 'status', content: 'Strategy generated', data: { plan } });

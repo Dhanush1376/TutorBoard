@@ -122,10 +122,12 @@ export const createCanvasSessionSlice = (set, get) => ({
         } 
         // Case 3: Standard SceneDefinition object
         else {
-          const resolvedSteps = parsedTimeline.visual_steps || parsedTimeline.animation_steps || parsedTimeline.narrations || parsedTimeline.steps || parsedTimeline.timeline || parsedTimeline.nodes || [];
+          const resolvedSteps = parsedTimeline.visual_steps || parsedTimeline.animation_steps || parsedTimeline.narrations || parsedTimeline.steps || parsedTimeline.timeline || [];
           
           // Extract elements from nested visual_steps if top-level objects/elements are missing
-          let resolvedObjects = parsedTimeline.objects || parsedTimeline.elements || [];
+          let resolvedObjects = parsedTimeline.objects || parsedTimeline.elements || parsedTimeline.nodes || [];
+          let resolvedConnections = parsedTimeline.connections || parsedTimeline.edges || [];
+          
           if (resolvedObjects.length === 0 && parsedTimeline.visual_steps) {
             const allElements = [];
             parsedTimeline.visual_steps.forEach(st => {
@@ -140,6 +142,14 @@ export const createCanvasSessionSlice = (set, get) => ({
               return true;
             });
           }
+          
+          // Ensure all objects and connections have an ID (SVGCanvasRenderer requires IDs)
+          resolvedObjects.forEach((obj, i) => {
+            if (!obj.id) obj.id = `node_${i}_${Date.now()}`;
+          });
+          resolvedConnections.forEach((conn, i) => {
+            if (!conn.id) conn.id = `edge_${i}_${Date.now()}`;
+          });
 
           adaptedTimeline = {
             id: stableId,
@@ -148,6 +158,7 @@ export const createCanvasSessionSlice = (set, get) => ({
             steps: resolvedSteps,
             timeline: resolvedSteps,
             objects: resolvedObjects,
+            connections: resolvedConnections,
             ...parsedTimeline
           };
         }

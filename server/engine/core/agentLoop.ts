@@ -170,14 +170,23 @@ function validateSceneGraph(obj: any) {
   if (obj.objects && !obj.elements) obj.elements = obj.objects;
   if (obj.steps   && !obj.timeline) obj.timeline = obj.steps;
 
+  // Ensure elements is always an array
+  if (!Array.isArray(obj.elements)) obj.elements = [];
+
   // fixObjectIds logic
   const elements = obj.elements || [];
   const validIds = new Set(elements.map((e: any) => e?.id).filter(Boolean));
+  const allIds = [...validIds];
+  
   (obj.timeline || []).forEach((step: any) => {
     if (!step) return;
     const raw = step.objectIds || step.elements || [];
-    const filtered = raw.filter((id: any) => validIds.has(id));
-    step.objectIds = filtered.length > 0 ? filtered : [];
+    // Only filter if raw contains strings (IDs), skip if it contains objects
+    const rawIds = raw.filter((id: any) => typeof id === 'string');
+    const filtered = rawIds.filter((id: any) => validIds.has(id));
+    // FIX: Fall back to ALL element IDs instead of empty array
+    // Empty objectIds causes the renderer to show a blank canvas
+    step.objectIds = filtered.length > 0 ? filtered : (allIds.length > 0 ? allIds : []);
     if (step.highlightIds) step.highlightIds = step.highlightIds.filter((id: any) => validIds.has(id));
     if (step.mutations)    step.mutations    = step.mutations.filter((m: any) => validIds.has(m?.id));
   });
@@ -193,11 +202,15 @@ function validateSceneGraph(obj: any) {
     return { valid: false, errors: ['Timeline empty'], fatal: true };
   }
 
-  if (errors.length > 12) { 
+  // Raised threshold — VisualScript format can produce many passthrough fields
+  // that cause Zod warnings but are not actual errors
+  if (errors.length > 20) { 
     return { valid: false, errors, fatal: true };
   }
 
-  return { valid: errors.length === 0, errors, data: result.success ? result.data : obj };
+  // Always return the original object (potentially enriched) rather than
+  // the Zod-parsed result, since Zod strips unknown keys that renderers need
+  return { valid: errors.length === 0, errors, data: obj };
 }
 
 function getUserContext(userConfig: any) {
@@ -243,7 +256,7 @@ export async function runAgentLoop(params: AgentLoopParams) {
     const toolDecision = detectTools(topic);
     const doSearch = toolDecision.useWebSearch || shouldSearch(topic, domain);
 
-    onProgress('🔍 Researching background context & web data...');
+    onProgress('🔍 Researching background context & web data...', { stage: 1, totalStages: 6 });
     
     const researchTask = Promise.all([
       VectorStoreService.getContextForTopic(topic, 3, userId).catch(() => "Local context unavailable."),
@@ -260,7 +273,7 @@ export async function runAgentLoop(params: AgentLoopParams) {
     const webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
 
-    onProgress('🧠 Synthesizing lesson plan & curriculum structure...');
+    onProgress('🧠 Synthesizing lesson plan & curriculum structure...', { stage: 2, totalStages: 6 });
     const plannerPrompt = (systemPrompt || getPrompt('planner'))
       .replace(/{{MIN_STEPS}}/g, String(minSteps))
       .replace(/{{MAX_STEPS}}/g, String(targetMax))
@@ -286,7 +299,8 @@ export async function runAgentLoop(params: AgentLoopParams) {
         stageName: '🎙️ Crafting pedagogical explanations...',
         prompt: getPrompt('narrator'),
         input: { plannerOutput, learnerProfile, webContextStr, file },
-        model: fullModel, onProgress, userConfig,
+        model: fullModel, onProgress: (s: string) => onProgress(s, { stage: 3, totalStages: 6 }),
+        userConfig,
         onStream: (chunk) => onProgress('narration_chunk', chunk),
         signal,
         requiredKeys: ['narrations'],
@@ -296,7 +310,8 @@ export async function runAgentLoop(params: AgentLoopParams) {
         stageName: '🎨 Designing visual representation...',
         prompt: getPrompt('visualizer'),
         input: { plannerOutput, learnerProfile, webContextStr: webContextStr?.split("\n").slice(0, 8).join("\n"), file },
-        model: fullModel, onProgress, userConfig,
+        model: fullModel, onProgress: (s: string) => onProgress(s, { stage: 3, totalStages: 6 }),
+        userConfig,
         signal,
         requiredKeys: ['visual_steps'],
         pipelineState,
@@ -314,7 +329,7 @@ export async function runAgentLoop(params: AgentLoopParams) {
         narratorOutput: narratorOutput || { narrations: [] },
         learnerProfile 
       },
-      model: fastModel, onProgress, userConfig, signal,
+      model: fastModel, onProgress: (s: string) => onProgress(s, { stage: 4, totalStages: 6 }), userConfig, signal,
       onStream: (token) => onProgress('animating', token),
       requiredKeys: ['animation_steps'],
       pipelineState,
@@ -335,7 +350,7 @@ export async function runAgentLoop(params: AgentLoopParams) {
       stageName: '⚖️ Reviewing for consistency & clarity...',
       prompt: getPrompt('critic'),
       input: { narrations: narratorOutput.narrations, visual_steps: visualizerOutput.visual_steps, animation_steps: animatorOutput.animation_steps, topic: normalizedTopic, domain, learnerProfile },
-      model: fastModel, onProgress, userConfig, signal,
+      model: fastModel, onProgress: (s: string) => onProgress(s, { stage: 5, totalStages: 6 }), userConfig, signal,
       requiredKeys: ['approved', 'scores'],
       pipelineState,
       requestId
@@ -358,7 +373,7 @@ export async function runAgentLoop(params: AgentLoopParams) {
       stageName: '✨ Finalizing high-fidelity plan...',
       prompt: getPrompt('validator'),
       input: { critic: criticOutput, narrations: narratorOutput.narrations, visual_steps: visualizerOutput.visual_steps, animation_steps: animatorOutput.animation_steps, topic: normalizedTopic, learnerProfile },
-      model: fastModel, onProgress, userConfig, signal,
+      model: fastModel, onProgress: (s: string) => onProgress(s, { stage: 6, totalStages: 6 }), signal,
       // Use a custom validation check instead of strict requiredKeys to handle aliases
       requiredKeys: [], 
       pipelineState,

@@ -30,9 +30,10 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://127.0.0.1:3001',
         changeOrigin: true,
         secure: false,
+        ws: true,
         timeout: 120000,
         proxyTimeout: 120000,
         configure: (proxy, _options) => {
@@ -54,7 +55,7 @@ export default defineConfig({
         },
       },
       '/socket.io': {
-        target: 'ws://127.0.0.1:5000',
+        target: 'ws://127.0.0.1:3001',
         ws: true,
         changeOrigin: true,
         secure: false,
@@ -68,7 +69,7 @@ export default defineConfig({
         },
       },
       '/teaching': {
-        target: 'ws://127.0.0.1:5000',
+        target: 'ws://127.0.0.1:3001',
         ws: true,
         changeOrigin: true,
         secure: false,

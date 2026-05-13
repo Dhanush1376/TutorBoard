@@ -209,8 +209,7 @@ export const createArtifactSlice = (set, get) => ({
         content: '',
         language: artifact.language || null,
         metadata: artifact.metadata || {},
-      },
-      isArtifactPanelOpen: true,
+      }
     });
   },
 

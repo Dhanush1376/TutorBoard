@@ -39,6 +39,8 @@ const __dirname = path.dirname(__filename);
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
   'https://tutorboard.vercel.app',
   'https://tutor-board-mocha.vercel.app',
   process.env.FRONTEND_URL

@@ -17,15 +17,73 @@ const CW = CANVAS_WIDTH;
 const CH = CANVAS_HEIGHT;
 const EASE = [0.16, 1, 0.3, 1];
 
-// ─── Minimal Fallback Shape ──────────────────────────────────────────────────
-function FreeformShape({ type, x, y, w, h, color, label, attentionLevel, path, strokeWidth, animation }) {
+// ─── Ambient Motion Keyframes ────────────────────────────────────────────────
+function getAmbientKeyframes(motion) {
+  if (!motion) return {};
+  const phase = motion.phase || 0;
+  switch (motion.type) {
+    case 'float':
+      return {
+        y: [0, -(motion.amplitude || 4), 0, (motion.amplitude || 4), 0],
+        transition: { duration: 1 / (motion.frequency || 0.4), repeat: Infinity, ease: 'easeInOut', delay: phase * 0.3 },
+      };
+    case 'breathe':
+      return {
+        scale: [motion.scaleMin || 0.96, motion.scaleMax || 1.04, motion.scaleMin || 0.96],
+        transition: { duration: motion.period || 3, repeat: Infinity, ease: 'easeInOut', delay: phase * 0.2 },
+      };
+    case 'orbit':
+      return {
+        x: [0, (motion.radius || 3), 0, -(motion.radius || 3), 0],
+        y: [-(motion.radius || 3), 0, (motion.radius || 3), 0, -(motion.radius || 3)],
+        transition: { duration: 1 / (motion.speed || 0.3), repeat: Infinity, ease: 'linear', delay: phase * 0.4 },
+      };
+    case 'shimmer':
+      return {
+        opacity: motion.opacity || [0.85, 1],
+        transition: { duration: motion.period || 2.5, repeat: Infinity, ease: 'easeInOut', delay: phase * 0.5 },
+      };
+    case 'pulse':
+      return {
+        scale: [motion.scaleMin || 0.98, motion.scaleMax || 1.06, motion.scaleMin || 0.98],
+        transition: { duration: motion.period || 2, repeat: Infinity, ease: 'easeInOut', delay: phase * 0.3 },
+      };
+    default:
+      return {};
+  }
+}
+
+// ─── Cinematic Shape Renderer ────────────────────────────────────────────────
+function FreeformShape({ type, x, y, w, h, color, label, attentionLevel, path, strokeWidth, animation, obj }) {
   const c = resolve(color || 'blue');
-  
+  const ambientMotion = obj?.ambientMotion;
+  const glowIntensity = obj?.glowIntensity || 0;
+  const revealDelay = obj?.revealDelay || 0;
+  const revealAnim = obj?.revealAnimation || 'fadeScaleUp';
+  const icon = obj?.icon;
+  const title = obj?.title;
+  const subtitle = obj?.subtitle;
+  const importance = obj?.importance || 3;
+
+  // Compute ambient animation
+  const ambientAnimate = getAmbientKeyframes(ambientMotion);
+
+  // Reveal initial state
+  const revealInitial = revealAnim === 'dropIn'
+    ? { opacity: 0, y: -30, scale: 0.7 }
+    : revealAnim === 'slideFromLeft'
+    ? { opacity: 0, x: -40 }
+    : { opacity: 0, scale: 0.5 };
+
+  // Node sizing based on importance
+  const nodeW = w || (40 + importance * 10);
+  const nodeH = h || (40 + importance * 8);
+
   if (type === 'path' && path) {
     return (
       <g transform={`translate(${x * CANVAS_WIDTH}, ${y * CANVAS_HEIGHT})`}>
-        <motion.path 
-          d={path} fill="none" stroke={c.stroke} strokeWidth={strokeWidth || 2} 
+        <motion.path
+          d={path} fill="none" stroke={c.stroke} strokeWidth={strokeWidth || 2}
           strokeLinecap="round" strokeLinejoin="round"
           initial={animation?.type === "draw" ? { pathLength: 0 } : {}}
           animate={animation?.type === "draw" ? { pathLength: 1 } : {}}
@@ -35,15 +93,60 @@ function FreeformShape({ type, x, y, w, h, color, label, attentionLevel, path, s
   }
 
   return (
-    <g transform={`translate(${x * CANVAS_WIDTH}, ${y * CANVAS_HEIGHT})`}>
-      <rect 
-        x={-w/2} y={-h/2} width={w} height={h} rx={8} 
-        fill={c.glass} stroke={c.stroke} strokeWidth={attentionLevel === 2 ? 2 : 1.2} 
-      />
-      {label && <text textAnchor="middle" dominantBaseline="middle" fill={c.text} fontSize={12} fontWeight="600">{label}</text>}
-    </g>
+    <motion.g
+      initial={revealInitial}
+      animate={{ opacity: 1, x: 0, y: 0, scale: 1, ...ambientAnimate }}
+      transition={{ delay: revealDelay, duration: 0.5, ease: EASE }}
+      style={{ originX: '50%', originY: '50%' }}
+      whileHover={{ scale: 1.12, filter: 'brightness(1.2)' }}
+    >
+      <g transform={`translate(${x * CANVAS_WIDTH}, ${y * CANVAS_HEIGHT})`}>
+        {/* Glow effect for important nodes */}
+        {glowIntensity > 0 && (
+          <motion.circle
+            cx={0} cy={0} r={nodeW * 0.7}
+            fill="none" stroke={c.stroke}
+            strokeWidth={1}
+            opacity={glowIntensity * 0.4}
+            filter="url(#cinematic-glow)"
+            animate={{ r: [nodeW * 0.6, nodeW * 0.8, nodeW * 0.6], opacity: [glowIntensity * 0.2, glowIntensity * 0.5, glowIntensity * 0.2] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
+
+        {/* Main shape */}
+        <rect
+          x={-nodeW / 2} y={-nodeH / 2} width={nodeW} height={nodeH} rx={type === 'diamond' ? 2 : type === 'pill' ? nodeH / 2 : 8}
+          fill={c.glass} stroke={c.stroke}
+          strokeWidth={attentionLevel === 2 ? 2.5 : importance >= 4 ? 1.8 : 1.2}
+          style={type === 'diamond' ? { transform: 'rotate(45deg)', transformOrigin: 'center' } : {}}
+        />
+
+        {/* Icon */}
+        {icon && (
+          <text textAnchor="middle" dominantBaseline="middle" fontSize={18} y={title ? -8 : 0}>{icon}</text>
+        )}
+
+        {/* Title */}
+        {title ? (
+          <>
+            <text textAnchor="middle" dominantBaseline="middle" fill={c.text} fontSize={11} fontWeight="700" y={icon ? 8 : -4}>
+              {title}
+            </text>
+            {subtitle && (
+              <text textAnchor="middle" dominantBaseline="middle" fill={c.text} fontSize={8} opacity={0.65} y={icon ? 20 : 10}>
+                {subtitle}
+              </text>
+            )}
+          </>
+        ) : label && (
+          <text textAnchor="middle" dominantBaseline="middle" fill={c.text} fontSize={12} fontWeight="600">{label}</text>
+        )}
+      </g>
+    </motion.g>
   );
 }
+
 
 // ─── Camera Director ──────────────────────────────────────────────────────────
 function useStepDirector(elements, timelineSteps, currentStepIndex, deltaState = null) {
@@ -136,7 +239,7 @@ function RenderShape({ obj, highlightIds, fadeIds, animation, isSelected, onUpda
     case 'equation':
       return <PremiumTextBox key={obj.id} obj={obj} isSelected={isSelected} onUpdate={onUpdateBound} onDelete={onDeleteBound} />;
     default:
-      return <FreeformShape key={obj.id} {...props} type={shape} />;
+      return <FreeformShape key={obj.id} {...props} type={shape} obj={obj} />;
   }
 }
 
@@ -202,7 +305,18 @@ export default function SVGCanvasRenderer({
         const sId = String(el.id);
         const isManual = sId.startsWith('manual-') || el.isPinned || el.pinned || el.doubtDriven;
         const isTimeline = !sId.startsWith('manual-') && !el.doubtDriven;
-        if (forceManualOnly && isTimeline) return false;
+        
+        // If forceManualOnly is true due to KaTeX or SpecializedRenderer, skip all timeline elements
+        // If it's a D3 scene, D3Renderer handles specialized data structures. SVGCanvasRenderer handles everything else (nodes, edges, shapes, labels).
+        if (isTimeline) {
+          if (forceManualOnly && !isD3) return false;
+          if (isD3) {
+            const type = (el.type || '').toLowerCase();
+            const d3Types = ['array', 'pointer', 'comparator', 'tree', 'chart', 'timeline'];
+            if (d3Types.includes(type)) return false; // D3 will render this
+          }
+        }
+        
         return isManual || stepObjectIds.has(sId);
       })
       .map(el => {
@@ -243,10 +357,92 @@ export default function SVGCanvasRenderer({
         viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
         className="block overflow-visible pointer-events-none"
       >
+        {/* Cinematic SVG Filters */}
+        <defs>
+          <filter id="cinematic-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="edge-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
         <motion.g 
           animate={{ x: tx, y: ty, scale: Z }} 
           transition={{ duration: 0.75, ease: EASE }}
         >
+            {/* Animated Connections Layer */}
+            <g className="cinematic-connections">
+              {connections.map(conn => {
+                if (!conn?.from || !conn?.to) return null;
+                const fromEl = worldElements.find(e => e.id === conn.from);
+                const toEl = worldElements.find(e => e.id === conn.to);
+                if (!fromEl || !toEl) return null;
+
+                const x1 = (fromEl.x ?? 0.5) * CANVAS_WIDTH;
+                const y1 = (fromEl.y ?? 0.5) * CANVAS_HEIGHT;
+                const x2 = (toEl.x ?? 0.5) * CANVAS_WIDTH;
+                const y2 = (toEl.y ?? 0.5) * CANVAS_HEIGHT;
+                const edgeColor = conn.color || '#6366F180';
+                const isAnimated = conn.animated !== false;
+                const revealDelay = conn.revealDelay || 0;
+
+                return (
+                  <motion.g key={conn.id || `${conn.from}-${conn.to}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: revealDelay, duration: 0.6 }}
+                  >
+                    <motion.line
+                      x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke={edgeColor}
+                      strokeWidth={conn.type === 'glow' ? 2.5 : 1.5}
+                      strokeDasharray={conn.type === 'dashed' ? '6 4' : 'none'}
+                      filter={conn.type === 'glow' ? 'url(#edge-glow)' : undefined}
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ delay: revealDelay, duration: 0.8, ease: 'easeOut' }}
+                      markerEnd={conn.type !== 'bidirectional' ? undefined : undefined}
+                    />
+                    {/* Edge label */}
+                    {conn.label && (
+                      <text
+                        x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 6}
+                        textAnchor="middle" fill="#94A3B8" fontSize={8} opacity={0.8}
+                      >
+                        {conn.label}
+                      </text>
+                    )}
+                    {/* Animated flow particle */}
+                    {isAnimated && (
+                      <motion.circle
+                        r={2.5} fill={edgeColor}
+                        filter="url(#edge-glow)"
+                        animate={{
+                          cx: [x1, x2],
+                          cy: [y1, y2],
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: 'linear',
+                          delay: revealDelay + 0.5,
+                        }}
+                      />
+                    )}
+                  </motion.g>
+                );
+              })}
+            </g>
+
             <g className="world-elements">
               {worldElements.map(obj => (
                 <g 

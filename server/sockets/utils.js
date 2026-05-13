@@ -126,6 +126,14 @@ export function buildTimelinePayload(sessionId, timeline) {
     objects:    elements, // Legacy
     steps:      steps,    // Legacy
     totalSteps,
+    // ── Cinematic enrichment passthrough ──────────────────────────────────
+    cameraTimeline:     timeline.cameraTimeline || [],
+    narrationTimeline:  timeline.narrationTimeline || [],
+    playbackTimeline:   timeline.playbackTimeline || null,
+    interactions:       timeline.interactions || [],
+    viewportState:      timeline.viewportState || null,
+    expansionGraph:     timeline.expansionGraph || [],
+    cinematicMeta:      timeline.cinematicMeta || null,
   };
 }
 

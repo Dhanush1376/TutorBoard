@@ -83,7 +83,8 @@ export const createSceneSlice = (set, get) => ({
   setTimeline: (data) => {
     const serverObjects     = data.elements     || data.objects      || [];
     const canvasConnections = data.connections  || [];
-    const canvasSteps       = data.timeline     || data.steps        || [];
+    const rawSteps          = data.timeline     || data.steps        || [];
+    const canvasSteps       = rawSteps.length > 0 ? rawSteps : [{}];
     const totalSteps        = canvasSteps.length;
     
     const currentObjects = get().canvasObjects || [];

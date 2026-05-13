@@ -43,7 +43,9 @@ const KaTeXRenderer = forwardRef((props: KaTeXRendererProps, ref) => {
       }];
     }
 
-    const arr = currentStep.actions?.length ? currentStep.actions : timeline?.elements;
+    const arr = currentStep.actions?.length 
+      ? currentStep.actions 
+      : (currentStep.commands?.length ? currentStep.commands : timeline?.elements);
     return (arr || [])
       .filter((a: any) => a.cmd === 'equation' || a.type === 'equation')
       .map((a: any, i: number) => ({

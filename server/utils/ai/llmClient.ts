@@ -375,19 +375,37 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
   }
 }
 
+const GROQ_FALLBACK_MODELS: Record<string, string> = {
+  'gemini-1.5-flash': 'llama-3.3-70b-versatile',
+  'gemini-1.5-pro': 'llama-3.3-70b-versatile',
+  'claude-3-5-sonnet-20241022': 'llama-3.3-70b-versatile',
+  'claude-sonnet-4-20250514': 'llama-3.3-70b-versatile',
+};
+
 async function _executeCustomPath(params: LLMParams, model: string, response_format: any, headers: any, startTime: number): Promise<LLMResponse> {
   const { userConfig, messages, temperature, maxTokens, tools, onStream, file, signal } = params;
   const provider = userConfig.provider || 'openai';
 
+  // FIX: Prioritize user's custom model if provided, otherwise map the system model
+  let providerModel = userConfig.model;
+  
+  if (!providerModel) {
+    providerModel = sanitizeModelIdForProvider(model, provider);
+    if (provider === 'groq') {
+      const baseModelName = model.includes('/') ? model.split('/').pop()! : model;
+      providerModel = GROQ_FALLBACK_MODELS[baseModelName] || GROQ_FALLBACK_MODELS[providerModel] || providerModel;
+    }
+  }
+
   return await withCircuitBreaker(`custom:${provider}`, async () => {
     const client = createProviderClient(provider, userConfig.getApiKey(), userConfig.baseUrl);
     const result = await executeProviderRequest(client, provider, {
-      model, messages, temperature, maxTokens, tools, response_format, onStream, file
+      model: providerModel, messages, temperature, maxTokens, tools, response_format, onStream, file
     }, signal);
 
     const responseTimeMs = Date.now() - startTime;
     const usage = result.usage || { prompt_tokens: 0, completion_tokens: 0 };
-    const cost = calculateCost(model, usage.prompt_tokens, usage.completion_tokens);
+    const cost = calculateCost(providerModel, usage.prompt_tokens, usage.completion_tokens);
 
     const response: LLMResponse = {
       content: result.content,
@@ -396,7 +414,7 @@ async function _executeCustomPath(params: LLMParams, model: string, response_for
       tool_calls: result.tool_calls,
       _meta: {
         mode: 'custom',
-        model_used: model,
+        model_used: providerModel,
         provider_used: provider,
         fallback_triggered: false,
         cached: false,
@@ -422,14 +440,6 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
     { id: 'google', client: geminiClient },
     { id: 'groq', client: groqClient }
   ];
-
-  // PROVIDER-AWARE MODEL MAPPING: Groq doesn't host Gemini or Claude models
-  const GROQ_FALLBACK_MODELS: Record<string, string> = {
-    'gemini-1.5-flash': 'llama-3.3-70b-versatile',
-    'gemini-1.5-pro': 'llama-3.3-70b-versatile',
-    'claude-3-5-sonnet-20241022': 'llama-3.3-70b-versatile',
-    'claude-sonnet-4-20250514': 'llama-3.3-70b-versatile',
-  };
 
   let lastErr: any = null;
 

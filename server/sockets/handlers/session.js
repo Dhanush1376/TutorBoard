@@ -523,4 +523,63 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       socket.emit('session:db-id', { chatSessionId: s.chatSessionId.toString() });
     }
   });
+
+  // ─── INTERACTIVE NODE EXPANSION ─────────────────────────────────────
+  // When the user clicks a node, generate a deeper branch with child concepts.
+  socket.on('node:expand', async ({ nodeId, parentNode, topic }) => {
+    try {
+      const { buildExpansionPayload } = await import('../../engine/core/utils/cinematicSceneBuilder.js');
+      const { requestCompletion, getTextModel } = await import('../../utils/ai/llmClient.js');
+
+      if (!parentNode || !parentNode.id) {
+        socket.emit('node:expand:error', { message: 'Invalid node data' });
+        return;
+      }
+
+      const nodeTitle = parentNode.title || parentNode.label || topic || 'concept';
+
+      // Fast LLM call to generate contextual subtopics
+      let childData = [];
+      try {
+        const userConfig = await resolveUserConfig(socket, socket.user, nodeTitle);
+        const res = await requestCompletion({
+          model: getTextModel(),
+          userConfig,
+          messages: [
+            {
+              role: 'system',
+              content: `You generate 3-4 concise subtopics for educational concept maps. Return ONLY a JSON array like:
+[{"id":"sub_1","title":"Subtopic Name","subtitle":"One sentence explanation","color":"#hex"}]
+No markdown. No preamble.`
+            },
+            { role: 'user', content: `Subtopics of: "${nodeTitle}"` }
+          ],
+          temperature: 0.7,
+          responseMimeType: 'application/json'
+        });
+        const raw = (res.content || '[]').replace(/```json|```/g, '').trim();
+        childData = JSON.parse(raw);
+      } catch (llmErr) {
+        console.warn('[node:expand] LLM subtopic generation failed, using fallback:', llmErr.message);
+        childData = [
+          { id: `${nodeId}_sub1`, title: `${nodeTitle} — Basics`, subtitle: 'Foundational concepts', color: parentNode.color },
+          { id: `${nodeId}_sub2`, title: `${nodeTitle} — Applications`, subtitle: 'Real-world usage', color: parentNode.color },
+          { id: `${nodeId}_sub3`, title: `${nodeTitle} — Advanced`, subtitle: 'Deeper exploration', color: parentNode.color },
+        ];
+      }
+
+      // Ensure IDs are unique
+      childData = childData.map((c, i) => ({
+        ...c,
+        id: c.id || `${nodeId}_child_${i}`,
+      }));
+
+      const payload = buildExpansionPayload(parentNode, childData, []);
+      socket.emit('node:expand:result', payload);
+
+    } catch (err) {
+      console.error('[node:expand] Error:', err.message);
+      socket.emit('node:expand:error', { message: 'Failed to expand node' });
+    }
+  });
 }

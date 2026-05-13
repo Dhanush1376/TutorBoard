@@ -117,12 +117,14 @@ const FloatingSidebar = () => {
             {/* Footer */}
             <div className="flex gap-2 p-3" style={{ borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
               <button onClick={() => goToStep(0)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all active:scale-95"
+                disabled={canvasSteps.length === 0}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                 <RotateCcw size={12} /> Replay
               </button>
               <button onClick={() => play()}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all active:scale-95"
+                disabled={canvasSteps.length === 0}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
                 <Play size={12} fill="currentColor" /> Resume
               </button>

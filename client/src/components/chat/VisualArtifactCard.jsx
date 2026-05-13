@@ -62,7 +62,7 @@ const VisualArtifactCard = ({
   const Icon     = cfg.icon;
 
   const displayTitle = title || artifact?.title || cfg.label;
-  const stepCount    = artifact?.visual_steps?.length || artifact?.narrations?.length || artifact?.content?.length || artifact?.steps?.length || artifact?.script?.length || artifact?.canvasSteps?.length || artifact?.canvasObjects?.length || 0;
+  const stepCount    = artifact?.visual_steps?.length || artifact?.animation_steps?.length || artifact?.timeline?.length || artifact?.narrations?.length || artifact?.content?.length || artifact?.steps?.length || artifact?.script?.length || artifact?.canvasSteps?.length || artifact?.canvasObjects?.length || 0;
 
   const handleToggle = (e) => {
     e?.stopPropagation();
@@ -79,7 +79,7 @@ const VisualArtifactCard = ({
         id: currentId,
         title: displayTitle,
         type: artifact?.type || type,
-        content: artifact?.visual_steps || artifact?.narrations || artifact?.steps || artifact?.script || artifact?.content || artifact?.canvasSteps || artifact?.canvasObjects || artifact || [],
+        content: artifact?.visual_steps || artifact?.animation_steps || artifact?.timeline || artifact?.narrations || artifact?.steps || artifact?.script || artifact?.content || artifact?.canvasSteps || artifact?.canvasObjects || artifact || [],
         rendererType: cfgType,
       });
     }

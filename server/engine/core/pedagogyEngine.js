@@ -25,6 +25,7 @@ import { cache } from './cache.js';
 import VectorStoreService from './vectorStore.js';
 import { runAgentLoop } from './agentLoop.js';
 import { getPrimaryDomain, DOMAIN_MIN_STEPS } from '../config/domainConfig.js';
+import { buildCinematicScene } from './utils/cinematicSceneBuilder.js';
 import { calculateMastery, deriveLevel } from '../../utils/core/pedagogyHelper.js';
 import { generateDelta } from '../agents/deltaAgent.js';
 import LearnerProfile from '../../models/LearnerProfile.js';
@@ -67,8 +68,74 @@ function postProcessTimeline(raw, topic, planningResult) {
     raw = buildRawFailSafe(topic);
   }
 
-  const rawElements = (raw.elements || raw.objects || raw.nodes || raw.shapes || raw.items || []).filter(Boolean);
-  const rawTimeline = (raw.timeline || raw.steps || raw.narrative || raw.events || raw.flow || raw.sequence || []).filter(Boolean);
+  let rawElements = (raw.elements || raw.objects || raw.nodes || raw.shapes || raw.items || []).filter(Boolean);
+  
+  // ─── Parallel Array Zipping (Modern Agent Format) ───
+  // ONLY zip if timeline is truly empty and hasn't been pre-processed by SchemaBridge
+  let rawTimeline = (raw.timeline || raw.steps || raw.narrative || raw.events || raw.flow || raw.sequence || []).filter(Boolean);
+  
+  if (rawTimeline.length === 0 && (raw.narrations || raw.visual_steps || raw.animation_steps)) {
+    const n = raw.narrations || [];
+    const v = raw.visual_steps || [];
+    const a = raw.animation_steps || [];
+    const maxLen = Math.max(n.length, v.length, a.length);
+    
+    if (maxLen > 0) {
+      console.log(`[PostProcess] 🗜️ Zipping parallel agent arrays (Length: ${maxLen})`);
+      rawTimeline = Array.from({ length: maxLen }).map((_, i) => ({
+        narration: n[i] || '',
+        ...((typeof v[i] === 'object' && v[i] !== null) ? v[i] : {}),
+        ...((typeof a[i] === 'object' && a[i] !== null) ? a[i] : {}),
+        index: i
+      }));
+    }
+  }
+
+  // ─── Extract additional elements from VisualScript commands in timeline entries ───
+  // If the SchemaBridge produced timeline entries with 'commands' arrays,
+  // we can extract element declarations from those commands to enrich the elements array.
+  if (rawElements.length === 0 && rawTimeline.length > 0) {
+    const ELEMENT_CMDS = new Set(['array', 'pointer', 'tree', 'chart', 'timeline', 'physics_body',
+      'equation', 'result', 'draw_boundary', 'interactive_controls', 'code', 'block', 'orb', 'badge']);
+    const extractedElements = [];
+    const seen = new Set();
+    
+    for (const step of rawTimeline) {
+      const cmds = step.commands || step.animation?.actions || [];
+      if (!Array.isArray(cmds)) continue;
+      
+      for (const cmd of cmds) {
+        if (!cmd || typeof cmd !== 'object') continue;
+        const command = cmd.cmd || cmd.command;
+        if (!command || !ELEMENT_CMDS.has(command)) continue;
+        
+        const id = cmd.id || `${command}_${extractedElements.length}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        
+        extractedElements.push({
+          id,
+          type: command,
+          label: cmd.label || cmd.text || cmd.id || command,
+          values: cmd.values,
+          data: cmd.data,
+          atIndex: cmd.atIndex,
+          color: cmd.color,
+          x: cmd.x,
+          y: cmd.y,
+          mass: cmd.mass,
+          formula: cmd.formula,
+          controls: cmd.controls,
+          events: cmd.events,
+        });
+      }
+    }
+    
+    if (extractedElements.length > 0) {
+      console.log(`[PostProcess] 🔍 Extracted ${extractedElements.length} elements from timeline commands`);
+      rawElements = extractedElements;
+    }
+  }
 
   // Detect if LLM used pixel coordinates instead of 0-1 normalized
   const isPixel = rawElements.some(el => {
@@ -121,58 +188,60 @@ function postProcessTimeline(raw, topic, planningResult) {
   // ─── Spatial Declutter ──────────────────────────────────────────────────────
   // If elements are clustered (bounding box < 30% of canvas), redistribute them
   // using type-aware layout rules.
-  const xs = elements.map(e => e.x);
-  const ys = elements.map(e => e.y);
-  const xSpread = Math.max(...xs) - Math.min(...xs);
-  const ySpread = Math.max(...ys) - Math.min(...ys);
-  const isClustered = elements.length > 2 && (xSpread < 0.3 && ySpread < 0.3);
+  if (elements.length > 0) {
+    const xs = elements.map(e => e.x);
+    const ys = elements.map(e => e.y);
+    const xSpread = Math.max(...xs) - Math.min(...xs);
+    const ySpread = Math.max(...ys) - Math.min(...ys);
+    const isClustered = elements.length > 2 && (xSpread < 0.3 && ySpread < 0.3);
 
-  if (isClustered) {
-    console.log(`[PostProcess] ⚠️ Spatial declutter: elements clustered in ${(xSpread * 100).toFixed(0)}% × ${(ySpread * 100).toFixed(0)}% area. Redistributing.`);
+    if (isClustered) {
+      console.log(`[PostProcess] ⚠️ Spatial declutter: elements clustered in ${(xSpread * 100).toFixed(0)}% × ${(ySpread * 100).toFixed(0)}% area. Redistributing.`);
 
-    // Type-based Y-position assignments (top to bottom)
-    const typeYMap = {
-      'orb': 0.12,
-      'badge': 0.12,
-      'equation': 0.30,
-      'array': 0.35,
-      'data_block': 0.35,
-      'datablock': 0.35,
-      'list': 0.35,
-      'pointer': 0.52,
-      'cursor': 0.52,
-      'index': 0.52,
-      'comparator': 0.65,
-      'compare': 0.65,
-      'swapbridge': 0.55,
-      'swap': 0.55,
-      'block': 0.50,
-      'codeline': 0.82,
-      'code': 0.82,
-    };
+      // Type-based Y-position assignments (top to bottom)
+      const typeYMap = {
+        'orb': 0.12,
+        'badge': 0.12,
+        'equation': 0.30,
+        'array': 0.35,
+        'data_block': 0.35,
+        'datablock': 0.35,
+        'list': 0.35,
+        'pointer': 0.52,
+        'cursor': 0.52,
+        'index': 0.52,
+        'comparator': 0.65,
+        'compare': 0.65,
+        'swapbridge': 0.55,
+        'swap': 0.55,
+        'block': 0.50,
+        'codeline': 0.82,
+        'code': 0.82,
+      };
 
-    // Group elements by their assigned Y level
-    const levels = {};
-    elements.forEach(el => {
-      const yTarget = typeYMap[el.type] || 0.45;
-      const key = yTarget.toFixed(2);
-      if (!levels[key]) levels[key] = [];
-      levels[key].push(el);
-    });
-
-    // Distribute each level horizontally
-    Object.entries(levels).forEach(([yStr, group]) => {
-      const y = parseFloat(yStr);
-      const totalWidth = 0.80; // Use 80% of canvas width
-      const startX = 0.10;
-      const spacing = group.length > 1 ? totalWidth / (group.length - 1) : 0;
-
-      group.forEach((el, i) => {
-        el.y = y;
-        el.x = group.length === 1 ? 0.50 : startX + (i * spacing);
-        el.x = Math.max(0.08, Math.min(0.92, el.x));
+      // Group elements by their assigned Y level
+      const levels = {};
+      elements.forEach(el => {
+        const yTarget = typeYMap[el.type] || 0.45;
+        const key = yTarget.toFixed(2);
+        if (!levels[key]) levels[key] = [];
+        levels[key].push(el);
       });
-    });
+
+      // Distribute each level horizontally
+      Object.entries(levels).forEach(([yStr, group]) => {
+        const y = parseFloat(yStr);
+        const totalWidth = 0.80; // Use 80% of canvas width
+        const startX = 0.10;
+        const spacing = group.length > 1 ? totalWidth / (group.length - 1) : 0;
+
+        group.forEach((el, i) => {
+          el.y = y;
+          el.x = group.length === 1 ? 0.50 : startX + (i * spacing);
+          el.x = Math.max(0.08, Math.min(0.92, el.x));
+        });
+      });
+    }
   }
 
   const elementIds = new Set(elements.map(e => e.id));
@@ -182,11 +251,11 @@ function postProcessTimeline(raw, topic, planningResult) {
 
     // Cross-reference objectIds against real element ids
     const rawIds = t.objectIds || t.elements || t.objects || [];
-    const validIds = rawIds.filter(id => elementIds.has(id));
+    const validIds = rawIds.filter(id => typeof id === 'string' && elementIds.has(id));
 
-    // If AI explicitly provided IDs, use them. If not, fallback to ALL only if it's the first step or explicitly requested.
-    // This prevents "cluttering" the canvas when the AI intended a blank or specific view.
-    const finalIds = validIds.length > 0 ? validIds : (idx === 0 ? [...elementIds] : []);
+    // FIX: If no valid objectIds found, show ALL elements so the canvas is never empty.
+    // Previously only step 0 got fallback to all elements, leaving other steps empty.
+    const finalIds = validIds.length > 0 ? validIds : [...elementIds];
 
     // Clean highlightIds too
     const rawHighlight = t.highlightIds || t.highlight || [];
@@ -222,7 +291,7 @@ function postProcessTimeline(raw, topic, planningResult) {
     timeline,
     // Always use planning result renderer — it's chosen by the classification pipeline
     renderer: planningResult?.renderer || raw.renderer || 'cinematic',
-    domain: planningResult?.domain || 'general',
+    domain: planningResult?.domain || raw.domain || 'general',
     // Backward compat aliases for any consumer still using old keys
     objects: elements,
     steps: timeline,
@@ -374,30 +443,36 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
     if (!rawSceneGraph || (!rawSceneGraph.timeline && !rawSceneGraph.steps)) {
       console.warn('[CinematicEngine] ❗ Agent loop failed to produce a valid scene graph. Using failsafe.');
       // CRITICAL FIX: failsafe MUST go through postProcessTimeline so it has all required fields
-      const failsafe = postProcessTimeline(buildRawFailSafe(topic), topic, planningResult);
+      let failsafe = postProcessTimeline(buildRawFailSafe(topic), topic, planningResult);
+      failsafe = buildCinematicScene(failsafe);
       failsafe.chatMessage = `I couldn't generate a full visual lesson for "${topic}" right now. Here's a starting point — ask me a specific question to go deeper!`;
       return failsafe;
     }
 
     // Stage 3: Normalize and Sanitize
     onProgress('Finalizing scene graph pipeline...');
-    const timeline = postProcessTimeline(rawSceneGraph, topic, planningResult);
+    let timeline = postProcessTimeline(rawSceneGraph, topic, planningResult);
 
     console.log(`[CinematicEngine] 📊 Data density: ${timeline.elements.length} elements, ${timeline.timeline.length} steps`);
 
     // Hard-seal metadata from the planner (never let LLM override renderer choice)
-    timeline.domain = domain || planningResult.domain || 'general';
-    timeline.renderer = planningResult.renderer || 'cinematic';
+    timeline.domain = domain || planningResult?.domain || 'general';
+    timeline.renderer = planningResult?.renderer || rawSceneGraph?.renderer || 'cinematic';
+
+    // Stage 4: Cinematic Enrichment — camera, reveal timing, interactions, narration sync
+    onProgress('Choreographing cinematic experience...');
+    timeline = buildCinematicScene(timeline);
 
     await cache.set(topic, userProfile, timeline, userConfig?.userId);
-    console.log(`[CinematicEngine] ✅ SUCCESS: "${topic}" via [${timeline.renderer.toUpperCase()}] renderer (${timeline.timeline.length} steps)`);
+    console.log(`[CinematicEngine] ✅ SUCCESS: "${topic}" via [${timeline.renderer.toUpperCase()}] renderer (${timeline.timeline.length} steps, ${timeline.cinematicMeta?.totalNodes || 0} nodes, ${timeline.cinematicMeta?.totalEdges || 0} edges)`);
     return timeline;
 
   } catch (err) {
     console.error(`[CinematicEngine] ❌ Critical Failure: ${err.message}`);
-    // CRITICAL FIX: Even on exception, go through postProcessTimeline
+    // CRITICAL FIX: Even on exception, go through postProcessTimeline + cinematic enrichment
     const domain = getPrimaryDomain(topic);
-    const failsafe = postProcessTimeline(buildRawFailSafe(topic), topic, { renderer: 'cinematic', domain, animationStyle: 'linear' });
+    let failsafe = postProcessTimeline(buildRawFailSafe(topic), topic, { renderer: 'cinematic', domain, animationStyle: 'linear' });
+    failsafe = buildCinematicScene(failsafe);
     failsafe.chatMessage = err.message || `I hit a snag generating your lesson on "${topic}". Try rephrasing or asking a more specific question!`;
     return failsafe;
   }

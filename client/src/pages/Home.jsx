@@ -1469,10 +1469,6 @@ const Home = ({ isDark }) => {
               const plan = eventData.plan || {};
               if (plan.generate_artifact) {
                 isArtifactExpectedRef.current = true;
-                startStreamingArtifact({
-                  type: plan.artifact_type || 'code',
-                  title: plan.artifact_title || 'New Model'
-                });
               }
               if (plan.suggest_canvas && plan.canvas_type) {
                 currentCanvasTypeRef.current = plan.canvas_type;
@@ -1495,7 +1491,12 @@ const Home = ({ isDark }) => {
                 // Only open the panel for the FIRST artifact in a multi-artifact response
                 if (!lastArtifactLocalId) {
                   setActiveArtifact(localId);
-                  openArtifactPanel();
+                  
+                  // Do not open the side panel for visual/canvas artifacts
+                  const visualTypes = ['diagram', 'graph', 'cinematic', 'plot', 'desmos', 'algorithm', 'dsa', 'node_map', 'canvas', 'scene'];
+                  if (!visualTypes.includes(art.type?.toLowerCase())) {
+                    openArtifactPanel();
+                  }
                 }
 
                 lastArtifactLocalId = localId;
@@ -2514,54 +2515,7 @@ const Home = ({ isDark }) => {
           )}
         </AnimatePresence>
 
-        {/* EPHEMERAL FLOATING CONFIRMATION POPUP FOR UNDO */}
-        <AnimatePresence>
-          {lastSubmittedPrompt && !undoConfirmModal && (
-            <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[200] pointer-events-auto select-none"
-            >
-              <div 
-                className="flex items-center gap-3 px-4 py-2.5 rounded-full shadow-premium border backdrop-blur-md transition-all"
-                style={{
-                  background: isDark ? 'rgba(20, 20, 20, 0.85)' : 'rgba(255, 255, 255, 0.9)',
-                  borderColor: 'var(--border-color)',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[#10b981]" />
-                  <span className="text-[12px] font-medium tracking-tight">Message sent</span>
-                </div>
-                
-                <div className="h-3 w-[1px] bg-[var(--border-color)] opacity-60" />
 
-                <button
-                  onClick={() => handleUndoMessage()}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold tracking-wide uppercase transition-all active:scale-95 hover:opacity-90 shadow-sm"
-                  style={{
-                    background: 'var(--text-primary)',
-                    color: 'var(--bg-primary)'
-                  }}
-                >
-                  <RotateCcw size={12} strokeWidth={2.5} />
-                  <span>Undo</span>
-                </button>
-
-                <button
-                  onClick={() => setLastSubmittedPrompt(null)}
-                  className="p-1 opacity-40 hover:opacity-100 transition-opacity ml-0.5"
-                  aria-label="Dismiss"
-                >
-                  <X size={13} strokeWidth={2.5} />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </Layout>
     </div>
   );
