@@ -17,6 +17,7 @@ const AgentCanvasRenderer = React.lazy(() => import('../components/canvas/AgentC
 import FixedTeachingStage from '../components/canvas/FixedTeachingStage';
 import CodeVisualizerModal from '../components/canvas/CodeVisualizerModal';
 import ParticleWaves from '../components/canvas/ParticleWaves';
+import ArtifactDebugPanel from '../components/canvas/ArtifactDebugPanel';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
@@ -264,10 +265,8 @@ const Home = ({ isDark }) => {
               const isTemp = s.id.startsWith('temp-') || s.id.startsWith('local-') || s.id.startsWith('session-');
               if (!isTemp) return false;
               
-              // Only keep the ghost session if it is literally the one currently open on screen
-              // or created within the last 30 seconds (in-flight creation)
-              const ageMs = Date.now() - (s.updatedAt || 0);
-              return s.id === activeId || ageMs < 30000;
+              // Keep temporary sessions unless explicitly deleted. Don't aggressively prune after 30s.
+              return true;
             });
             
             merged = [...localOnlySessions, ...cloudSessions];
@@ -601,13 +600,12 @@ const Home = ({ isDark }) => {
           useTutorStore.getState().setChatSessionId(saved._id);
         }
 
-        // ── SYNC LOCAL CACHE: Update the chatHistory entry with full state ──
         syncChatHistory(prev => {
           // Robust promotion-aware deduplication
+          // We only filter out the specific IDs we are promoting/saving. We do NOT blanket-delete other temp sessions!
           const otherSessions = prev.filter(s => 
             s.id !== targetSessionId && 
-            s.id !== saved._id && 
-            !(s.id?.startsWith('temp-') && (saved._id || targetSessionId) && !(saved._id || targetSessionId).startsWith('temp-'))
+            s.id !== saved._id
           );
           
           const updatedSession = { ...payload, id: saved._id || targetSessionId, chatSessionId: saved._id };
@@ -2414,6 +2412,7 @@ const Home = ({ isDark }) => {
         <SelectionPopover />
         <CodeVisualizerModal />
         <ArtifactPanel />
+        {import.meta.env.DEV && <ArtifactDebugPanel />}
 
         {/* ── HIGH FIDELITY CONFIRM UNDO MODAL OVERLAY ── */}
         <AnimatePresence>

@@ -132,7 +132,6 @@ initClients();
 
 const CACHE_MAX = 50;
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const REDIS_CACHE_TTL = 3600;
 const localCache = new Map<string, { response: any; timestamp: number }>();
 
 async function getCachedResponse(key: string): Promise<any> {
@@ -146,37 +145,16 @@ async function getCachedResponse(key: string): Promise<any> {
     localCache.delete(key);
   }
 
-  if (container.has('redis-main')) {
-    try {
-      const client = container.resolve<any>('redis-main');
-      const cached = await client.get(`ai:cache:${key}`);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setCachedResponse(key, parsed, true);
-        return parsed;
-      }
-    } catch (err) {
-      console.warn('[AI:Cache] Redis lookup failed');
-    }
-  }
   return null;
 }
 
-async function setCachedResponse(key: string, response: any, skipRedis = false) {
+async function setCachedResponse(key: string, response: any) {
   if (localCache.size >= CACHE_MAX) {
     const oldest = localCache.keys().next().value;
     if (oldest) localCache.delete(oldest);
   }
   localCache.set(key, { response, timestamp: Date.now() });
 
-  if (!skipRedis && container.has('redis-main')) {
-    try {
-      const client = container.resolve<any>('redis-main');
-      await client.set(`ai:cache:${key}`, JSON.stringify(response), REDIS_CACHE_TTL);
-    } catch (err) {
-      console.warn('[AI:Cache] Redis save failed');
-    }
-  }
 }
 
 function getCacheKey(messages: LLMMessage[], model: string, userId: string | null, isCustom: boolean, context: any = null, temperature?: number, maxTokens?: number, responseMimeType?: string, taskType?: string) {

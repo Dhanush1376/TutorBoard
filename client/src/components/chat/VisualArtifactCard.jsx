@@ -79,7 +79,7 @@ const VisualArtifactCard = ({
         id: currentId,
         title: displayTitle,
         type: artifact?.type || type,
-        content: artifact?.visual_steps || artifact?.animation_steps || artifact?.timeline || artifact?.narrations || artifact?.steps || artifact?.script || artifact?.content || artifact?.canvasSteps || artifact?.canvasObjects || artifact || [],
+        content: artifact?.visual_steps || artifact?.animation_steps || artifact?.timeline || artifact?.narrations || artifact?.steps || artifact?.script || artifact?.content || artifact?.canvasSteps || artifact?.canvasObjects || (artifact?.script ? artifact.script : (Array.isArray(artifact) ? artifact : [])),
         rendererType: cfgType,
       });
     }

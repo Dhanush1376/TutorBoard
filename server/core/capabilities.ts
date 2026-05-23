@@ -6,7 +6,6 @@
  */
 
 import mongoose from 'mongoose';
-import pgManager, { isPostgresReady, isVectorSearchReady } from '../utils/core/postgres.js';
 import { runtimeState } from './runtimeState.js';
 import { startupManager } from './startupManager.js';
 
@@ -14,9 +13,6 @@ export type ServiceStatus = 'online' | 'mocked' | 'offline' | 'disabled';
 
 export interface SystemCapabilities {
   database: ServiceStatus;
-  redis: ServiceStatus;
-  queues: ServiceStatus;
-  workers: ServiceStatus;
   rag: ServiceStatus;
   oauth: {
     google: boolean;
@@ -32,10 +28,6 @@ export const getCapabilities = (forceRefresh = false): SystemCapabilities => {
   if (cachedCapabilities && !forceRefresh) return cachedCapabilities;
 
   const mongoCap = runtimeState.getCapability('mongodb');
-  const redisCap = runtimeState.getCapability('redis');
-  const pgCap = runtimeState.getCapability('postgres');
-  const queueCap = runtimeState.getCapability('queues');
-  const workerCap = runtimeState.getCapability('workers');
 
   const mapStatus = (cap: any): ServiceStatus => {
     if (!cap) return 'offline';
@@ -46,10 +38,7 @@ export const getCapabilities = (forceRefresh = false): SystemCapabilities => {
 
   cachedCapabilities = {
     database: mapStatus(mongoCap),
-    redis: mapStatus(redisCap),
-    queues: mapStatus(queueCap),
-    workers: mapStatus(workerCap),
-    rag: mapStatus(pgCap),
+    rag: 'disabled',
     oauth: {
       google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       github: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
@@ -70,7 +59,7 @@ export const getRuntimeReport = () => {
       timeline: startupManager.snapshot(),
       totalDurationMs: startupManager.snapshot().reduce((acc: number, p: any) => acc + (p.durationMs || 0), 0)
     },
-    ready: runtimeState.isReady(['mongodb', 'redis', 'queues']),
+    ready: runtimeState.isReady(['mongodb']),
   };
 };
 
@@ -83,9 +72,6 @@ const STATUS_LABEL: Record<ServiceStatus, string> = {
 
 const STATUS_DETAIL: Record<string, Record<ServiceStatus, string>> = {
   database: { online: '(Atlas/Real)', mocked: '(DEV MOCK)', offline: '', disabled: '' },
-  redis: { online: '(ioredis)', mocked: '(In-Memory Map)', offline: '', disabled: '' },
-  queues: { online: '(BullMQ)', mocked: '(Local Queues)', offline: '', disabled: '' },
-  workers: { online: '(BullMQ Worker)', mocked: '(Local Polling)', offline: '', disabled: '' },
   rag: { online: '(pgvector)', mocked: '(Disabled)', offline: '(Postgres unavailable)', disabled: '(pgvector unavailable)' },
   storage: { online: '(S3)', mocked: '(MongoDB GridFS)', offline: '', disabled: '' },
   search: { online: '(Tavily)', mocked: '(Offline Stub)', offline: '', disabled: '' },
@@ -98,9 +84,6 @@ export const logCapabilityReport = () => {
   console.log('TUTORBOARD CAPABILITY REPORT');
   console.log('=====================================');
   console.log(`Core DB:    ${STATUS_LABEL[caps.database]} ${STATUS_DETAIL.database[caps.database]}`);
-  console.log(`Redis:      ${STATUS_LABEL[caps.redis]} ${STATUS_DETAIL.redis[caps.redis]}`);
-  console.log(`Queues:     ${STATUS_LABEL[caps.queues]} ${STATUS_DETAIL.queues[caps.queues]}`);
-  console.log(`Workers:    ${STATUS_LABEL[caps.workers]} ${STATUS_DETAIL.workers[caps.workers]}`);
   console.log(`RAG/Memory: ${STATUS_LABEL[caps.rag]} ${STATUS_DETAIL.rag[caps.rag]}`);
   console.log(`OAuth:      G:${caps.oauth.google ? 'ON' : 'OFF'} GH:${caps.oauth.github ? 'ON' : 'OFF'}`);
   console.log(`Storage:    ${caps.storage === 'mocked' ? 'ONLINE' : STATUS_LABEL[caps.storage]} ${STATUS_DETAIL.storage[caps.storage]}`);

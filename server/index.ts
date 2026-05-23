@@ -15,7 +15,6 @@ import passport from './utils/auth/passport.js';
 import { protect } from './middleware/auth.middleware.js';
 import { AppError, errorHandler as appErrorHandler, ErrorCode } from './shared/errors.js';
 import { socketManager } from './services/socket/socket.manager.js';
-import { workerManager } from './services/workers/worker.manager.js';
 import { lifecycle } from './core/lifecycle.js';
 import { getRuntimeReport } from './core/capabilities.js';
 import { runtimeState } from './core/runtimeState.js';

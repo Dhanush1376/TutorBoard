@@ -4,13 +4,18 @@
 
 import { requestCompletion, getModel, getFastModel, resolveModelId } from '../../utils/ai/llmClient.js';
 import { getPrompt } from '../config/promptRegistry.js';
-import { SceneGraphSchema } from '../validators/timelineSchema.js';
+import { SceneGraphSchema, LessonSchema } from '../validators/timelineSchema.js';
 import VectorStoreService from './vectorStore.js';
 import { searchWeb } from '../../utils/ai/webSearchService.js';
 import { shouldSearch, detectTools } from '../../utils/ai/searchGate.js';
 import { formatForPrompt, extractSources } from '../../utils/ai/searchContextFormatter.js';
 import { calculateCost } from '../../utils/ai/providerFactory.js';
 import * as Sentry from '@sentry/node';
+
+// Domain Generators
+import { generateMathFallback } from '../generators/math.js';
+import { generateScienceFallback } from '../generators/science.js';
+import { generateProgrammingFallback } from '../generators/programming.js';
 
 // Utilities
 import { extractJSON } from './utils/jsonUtils.js';
@@ -79,6 +84,7 @@ async function runStage(params: runStageParams): Promise<any> {
           temperature: 0.3,
           maxTokens: stageMaxTokens, 
           userConfig,
+          responseSchema: params.responseSchema,
           responseMimeType: 'application/json',
           taskType: 'teaching',
           onStream: attempt === 1 ? onStream : undefined,
@@ -208,8 +214,7 @@ function validateSceneGraph(obj: any) {
     return { valid: false, errors, fatal: true };
   }
 
-  // Always return the original object (potentially enriched) rather than
-  // the Zod-parsed result, since Zod strips unknown keys that renderers need
+  // Always return the original object rather than the Zod-parsed result
   return { valid: errors.length === 0, errors, data: obj };
 }
 
@@ -225,18 +230,132 @@ ${userConfig.customInstructions ? `- Custom AI Behavior: ${userConfig.customInst
 `;
 }
 
-/**
- * Main Autonomous Loop
- */
+function parseLessonToSceneGraph(rawLesson: any) {
+  // Extract the root lesson object if wrapped, otherwise assume it's flat
+  const lesson = rawLesson.lesson || rawLesson;
+
+  const elements: any[] = [];
+  const connections: any[] = [];
+  const timeline: any[] = [];
+  const addedElementIds = new Set();
+  const addedConnectionIds = new Set();
+
+  // Standard Canvas Dimensions for normalization
+  const CANVAS_WIDTH = 800;
+  const CANVAS_HEIGHT = 600;
+
+  if (lesson.steps && Array.isArray(lesson.steps)) {
+    lesson.steps.forEach((step: any, index: number) => {
+      const stepObjectIds: string[] = [];
+      const scene = step.scene || step.canvas || {};
+      
+      // Nodes
+      if (scene.nodes && Array.isArray(scene.nodes)) {
+        scene.nodes.forEach((node: any) => {
+          if (!addedElementIds.has(node.id)) {
+            // Normalize coordinates if they are absolute pixels
+            let normX = node.position?.x ?? node.x ?? 0.5;
+            let normY = node.position?.y ?? node.y ?? 0.5;
+            if (normX > 1) normX = normX / CANVAS_WIDTH;
+            if (normY > 1) normY = normY / CANVAS_HEIGHT;
+
+            elements.push({ 
+              ...node, 
+              shape: node.type || 'orb',
+              x: normX,
+              y: normY
+            });
+            addedElementIds.add(node.id);
+          }
+          stepObjectIds.push(node.id);
+        });
+      }
+
+      // Edges
+      if (scene.edges && Array.isArray(scene.edges)) {
+        scene.edges.forEach((edge: any) => {
+          const edgeId = edge.id || `${edge.from}-${edge.to}`;
+          if (!addedConnectionIds.has(edgeId)) {
+            connections.push({ ...edge, id: edgeId });
+            addedConnectionIds.add(edgeId);
+          }
+        });
+      }
+
+      timeline.push({
+        title: step.title || `Step ${index + 1}`,
+        explanation: step.explanation || step.narration || '',
+        narration: step.narration || step.explanation || '',
+        objectIds: stepObjectIds,
+        mutations: [],
+        animation: { type: 'fade', duration: 0.5, actions: scene.animations || [] }
+      });
+    });
+  }
+
+  // Fallback defaults if AI failed to return valid nodes
+  if (elements.length === 0) {
+    console.log(`[NodeGenerator] No nodes returned from AI, injecting fallback visual generators for topic: ${lesson.title}`);
+    
+    const topicStr = (lesson.title || '').toLowerCase();
+    
+      // Mathematics
+      if (topicStr.includes('math') || topicStr.includes('pythagoras') || topicStr.includes('triangle') || topicStr.includes('circle') || topicStr.includes('area')) {
+        const mathFallback = generateMathFallback(topicStr);
+        elements.push(...mathFallback.elements);
+        connections.push(...mathFallback.connections);
+      } 
+      // Science
+      else if (topicStr.includes('science') || topicStr.includes('atom') || topicStr.includes('force') || topicStr.includes('motion')) {
+        const scienceFallback = generateScienceFallback(topicStr);
+        elements.push(...scienceFallback.elements);
+        connections.push(...scienceFallback.connections);
+      }
+      // Programming
+      else if (topicStr.includes('code') || topicStr.includes('array') || topicStr.includes('tree') || topicStr.includes('graph')) {
+        const progFallback = generateProgrammingFallback(topicStr);
+        elements.push(...progFallback.elements);
+        connections.push(...progFallback.connections);
+      }
+      // Generic fallback
+      else {
+        const id = "fallback_1";
+        elements.push({ id, type: 'orb', label: lesson.title || 'Topic', x: 0.5, y: 0.5, color: 'indigo' });
+      }
+
+    if (timeline.length > 0) {
+      elements.forEach(el => timeline[0].objectIds.push(el.id));
+    } else {
+      timeline.push({
+        title: 'Introduction',
+        explanation: `Let's learn about ${lesson.title}.`,
+        objectIds: elements.map(e => e.id),
+        mutations: [],
+        animation: { type: 'fade', duration: 0.5, actions: [] }
+      });
+    }
+  }
+
+  console.log(`[CanvasNodeGenerator] Mapped lesson to ${elements.length} nodes, ${connections.length} edges, ${timeline.length} steps.`);
+
+
+  return {
+    title: lesson.title || 'Lesson',
+    scene: { title: lesson.title || 'Lesson', type: 'linear' },
+    elements,
+    connections,
+    timeline,
+    meta: lesson.meta || {}
+  };
+}
+
 export async function runAgentLoop(params: AgentLoopParams) {
   const { 
     topic, domain, model, onProgress = (s: string, d?: any) => {}, 
-    systemPrompt, maxSteps, planningResult, 
-    userConfig, learnerProfile, file, 
-    signal, socket, requestId 
+    userConfig, learnerProfile, signal, socket, requestId 
   } = params;
 
-  console.log(`[AgentLoop] 🚀 Starting 6-Stage Orchestration for: "${topic}"`);
+  console.log(`[AgentLoop] 🚀 Starting Single-Pass Structured Orchestration for: "${topic}"`);
 
   const pipelineState: PipelineState = {
     tokens_in: 0,
@@ -246,17 +365,13 @@ export async function runAgentLoop(params: AgentLoopParams) {
   };
 
   const fullModel = model || getModel();
-  const fastModel = getFastModel();
 
   try {
-    const minSteps = Math.max(4, Math.floor((maxSteps || 16) / 2));
-    const targetMax = maxSteps || 16;
-    
     const userId = userConfig?.userId || null;
     const toolDecision = detectTools(topic);
     const doSearch = toolDecision.useWebSearch || shouldSearch(topic, domain);
 
-    onProgress('🔍 Researching background context & web data...', { stage: 1, totalStages: 6 });
+    onProgress('🔍 Researching background context & web data...', { stage: 1, totalStages: 2 });
     
     const researchTask = Promise.all([
       VectorStoreService.getContextForTopic(topic, 3, userId).catch(() => "Local context unavailable."),
@@ -268,145 +383,55 @@ export async function runAgentLoop(params: AgentLoopParams) {
       new Promise<[string, any[]]>((resolve) => setTimeout(() => resolve(["Timeout", []]), 15000))
     ]);
 
-    const pastContextStr = learnerProfile?.past_context || pastContext || "No prior sessions found for this topic.";
-    const learnerStyleStr = learnerProfile?.learning_style || "General (Visual-Conceptual balance)";
     const webContextStr = formatForPrompt(webResults);
     const sources = extractSources(webResults);
 
-    onProgress('🧠 Synthesizing lesson plan & curriculum structure...', { stage: 2, totalStages: 6 });
-    const plannerPrompt = (systemPrompt || getPrompt('planner'))
-      .replace(/{{MIN_STEPS}}/g, String(minSteps))
-      .replace(/{{MAX_STEPS}}/g, String(targetMax))
-      .replace(/{{PAST_CONTEXT}}/g, String(pastContextStr))
-      .replace(/{{LEARNER_STYLE}}/g, String(learnerStyleStr))
-      .replace(/{{WEB_CONTEXT}}/g, webContextStr || 'No recent web data available.');
-
-    const plannerOutput = planningResult || await runStage({
-      stageName: '💡 Thinking deeply about the topic...',
-      prompt: plannerPrompt,
-      input: { topic, domain, maxSteps: targetMax, learnerProfile, file },
-      model: fullModel, onProgress, userConfig, signal,
-      requiredKeys: ['flow', 'topic'],
-      pipelineState,
-      requestId
-    });
-
-    const normalizedTopic = plannerOutput.topic || topic;
+    onProgress('✨ Generating structured interactive lesson...', { stage: 2, totalStages: 2 });
     
-    // Stages 2 & 3 in Parallel
-    const [narratorOutput, visualizerOutput] = await Promise.all([
-      runStage({
-        stageName: '🎙️ Crafting pedagogical explanations...',
-        prompt: getPrompt('narrator'),
-        input: { plannerOutput, learnerProfile, webContextStr, file },
-        model: fullModel, onProgress: (s: string) => onProgress(s, { stage: 3, totalStages: 6 }),
-        userConfig,
-        onStream: (chunk) => onProgress('narration_chunk', chunk),
-        signal,
-        requiredKeys: ['narrations'],
-        pipelineState
-      }),
-      runStage({
-        stageName: '🎨 Designing visual representation...',
-        prompt: getPrompt('visualizer'),
-        input: { plannerOutput, learnerProfile, webContextStr: webContextStr?.split("\n").slice(0, 8).join("\n"), file },
-        model: fullModel, onProgress: (s: string) => onProgress(s, { stage: 3, totalStages: 6 }),
-        userConfig,
-        signal,
-        requiredKeys: ['visual_steps'],
-        pipelineState,
-        requestId
-      })
-    ]);
+    // Single-pass generation
+    const systemPrompt = `You are the core Visual Lesson Engine for TutorBoard.
+    You must convert the educational topic "${topic}" into a highly interactive, visual scene graph.
+    Your response MUST match the JSON schema provided exactly. NEVER output plain text.
+    
+    1. For each step, create a 'scene' containing 'nodes', 'edges', and 'animations'.
+    2. Available node types: 'orb', 'rect', 'circle', 'triangle', 'text', 'equation', 'atom', 'tree', 'array'.
+    3. Use 'position: {x, y}' where x and y are between 0.0 and 1.0 (e.g. {x: 0.5, y: 0.5} is center).
+    4. Provide specific properties in 'props' depending on the node type (e.g., 'base', 'height', 'labels').
+    5. Animate the appearance of elements using the 'animations' array (e.g., 'draw', 'fade', 'move').
+    
+    Context:
+    ${webContextStr || ''}`;
 
-    // Stage 4: Animation
-    let animatorOutput = await runStage({
-      stageName: '🎞️ Choreographing cinematic motion...',
-      prompt: getPrompt('animator'),
-      input: { 
-        plannerOutput, 
-        visualizerOutput: visualizerOutput || { visual_steps: [] }, 
-        narratorOutput: narratorOutput || { narrations: [] },
-        learnerProfile 
-      },
-      model: fastModel, onProgress: (s: string) => onProgress(s, { stage: 4, totalStages: 6 }), userConfig, signal,
-      onStream: (token) => onProgress('animating', token),
-      requiredKeys: ['animation_steps'],
+    const lessonOutput = await runStage({
+      stageName: '💡 Generating lesson...',
+      prompt: systemPrompt,
+      input: { topic },
+      model: fullModel, 
+      onProgress, 
+      userConfig, 
+      signal,
+      responseSchema: LessonSchema,
+      requiredKeys: ['title', 'steps'],
       pipelineState,
       requestId
     });
-
-    if (!animatorOutput.animation_steps && animatorOutput.actions) {
-       animatorOutput = { animation_steps: [{ step: animatorOutput.step || 1, actions: animatorOutput.actions }] };
-    }
-
-    // Stage 5: Critique
-    if (!narratorOutput?.narrations?.length || !visualizerOutput?.visual_steps?.length) {
-      if (socket) socket.emit('teaching:warning', { code: 'VISUAL_DEGRADED', message: 'Visual generation used simplified mode.' });
-      return await createFallbackTimeline(normalizedTopic, userConfig, 'Upstream timeout');
-    }
-
-    const criticOutput = await runStage({
-      stageName: '⚖️ Reviewing for consistency & clarity...',
-      prompt: getPrompt('critic'),
-      input: { narrations: narratorOutput.narrations, visual_steps: visualizerOutput.visual_steps, animation_steps: animatorOutput.animation_steps, topic: normalizedTopic, domain, learnerProfile },
-      model: fastModel, onProgress: (s: string) => onProgress(s, { stage: 5, totalStages: 6 }), userConfig, signal,
-      requiredKeys: ['approved', 'scores'],
-      pipelineState,
-      requestId
-    });
-
-    if (criticOutput.approved === false && (criticOutput.scores?.overall || 0) < 8) {
-       throw new Error(`Critic rejection (score ${criticOutput.scores?.overall})`);
-    }
-
-    // Apply Patches
-    if (criticOutput.patch_suggestions) {
-      const patches = criticOutput.patch_suggestions;
-      if (patches.narrations) narratorOutput.narrations = patches.narrations;
-      if (patches.visual_steps) visualizerOutput.visual_steps = patches.visual_steps;
-      if (patches.animation_steps) animatorOutput.animation_steps = patches.animation_steps;
-    }
-
-    // Stage 6: Validation
-    const validatorRaw = await runStage({
-      stageName: '✨ Finalizing high-fidelity plan...',
-      prompt: getPrompt('validator'),
-      input: { critic: criticOutput, narrations: narratorOutput.narrations, visual_steps: visualizerOutput.visual_steps, animation_steps: animatorOutput.animation_steps, topic: normalizedTopic, learnerProfile },
-      model: fastModel, onProgress: (s: string) => onProgress(s, { stage: 6, totalStages: 6 }), signal,
-      // Use a custom validation check instead of strict requiredKeys to handle aliases
-      requiredKeys: [], 
-      pipelineState,
-      requestId
-    });
-
-    // Resilience: Handle 'output' alias if 'final_output' is missing
-    if (!validatorRaw.final_output && validatorRaw.output) {
-      validatorRaw.final_output = validatorRaw.output;
-    }
-
-    if (!validatorRaw.final_output && !validatorRaw.elements && !validatorRaw.timeline) {
-      throw new Error('Validator output missing required lesson data.');
-    }
-
-    const unwrapped = unwrapValidatorOutput(validatorRaw);
-    if (!unwrapped) return await createFallbackTimeline(normalizedTopic, userConfig, 'Unwrap failed');
-
-    const validated = validateSceneGraph(unwrapped);
-    if (!validated.valid && validated.fatal) return await createFallbackTimeline(normalizedTopic, userConfig, validated.errors[0] || 'Fatal validation error');
-
-    const output = validated.data || unwrapped;
-    if (sources && sources.length > 0) output.sources = sources;
 
     console.log(`[AgentLoop] ✅ Pipeline SUCCESS — Total Cost: ${pipelineState.total_cost_cents.toFixed(2)}¢`);
 
+    let output = lessonOutput;
+    output.meta = { topic, domain, level: learnerProfile?.level || 'intermediate' };
+    
+    // Transform LessonSchema to SceneGraphSchema
+    output = parseLessonToSceneGraph(output);
+    if (sources && sources.length > 0) output.sources = sources;
+
     // ASYNC: Persist this lesson to long-term memory for future RAG
-    if (output.meta?.topic || topic) {
+    if (topic) {
       VectorStoreService.addMemory({
         ownerId: userId || 'anonymous',
         namespace: 'project',
         referenceId: requestId || 'manual',
-        content: `LESSON SUMMARY for "${output.meta?.topic || topic}": ${output.timeline?.[0]?.explanation || 'No summary available.'}`,
+        content: `LESSON SUMMARY for "${topic}": Generated structured lesson.`,
         metadata: { type: 'lesson', domain, complexity: output.meta?.level }
       }).catch(e => console.warn('[AgentLoop] Lesson memory storage failed:', e.message));
     }
@@ -415,7 +440,7 @@ export async function runAgentLoop(params: AgentLoopParams) {
 
   } catch (err: any) {
     console.error(`[AgentLoop] ❌ Pipeline failure: ${err.message}`);
-    if (socket) socket.emit('teaching:warning', { code: 'VISUAL_DEGRADED', message: 'Visual generation used simplified mode.' });
+    if (socket) socket.emit('teaching:warning', { code: 'VISUAL_DEGRADED', message: 'Visual generation failed.' });
     return await createFallbackTimeline(topic, userConfig, err.message);
   }
 }

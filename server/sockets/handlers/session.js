@@ -19,7 +19,8 @@ import {
   resolveUserConfig,
   buildTimelinePayload,
   emitProfile,
-  resolveModelId 
+  resolveModelId,
+  emitProgress 
 } from '../utils.js';
 import { generateSessionSummary } from '../../engine/core/pedagogyEngine.js';
 import { logActivity } from '../../controllers/session.controller.js';
@@ -242,14 +243,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         const response = await withTimeout(
           generateTextResponse(sessionId, cleanTopic, resolveModelId(selectedAgent), userConfig, null, { 
             signal,
-            onProgress: (stage, chunk) => {
-              socket.emit(event, data);
-              if (container.has('redis-service')) {
-                try {
-                  container.resolve('redis-service').publish(streamChannel, { event, data });
-                } catch (err) {}
-              }
-            }
+            onProgress: (stage, chunk) => emitProgress(socket, streamChannel, stage, chunk)
           }),
           60000
         );
@@ -292,20 +286,9 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       try {
         const timeline = await withTimeout(
           generateTimeline(sessionId, cleanTopic, (stage, chunk) => {
-            if (signal.aborted) return; // safety check
+            if (signal.aborted) return;
             lastProgressAt = Date.now();
-            
-            const event = chunk ? 'teaching:progress-tokens' : 'teaching:progress';
-            const data = chunk ? { stage, text: chunk } : { message: stage };
-            
-            // Broadcast via Redis
-            if (container.has('redis-service')) {
-              try {
-                container.resolve('redis-service').publish(streamChannel, { event, data });
-              } catch (err) {}
-            }
-            // Immediate local emit for zero-latency in same instance
-            socket.emit(event, data);
+            emitProgress(socket, streamChannel, stage, chunk);
           }, resolveModelId(selectedAgent), userConfig, file, intentResult, { signal, socket }),
           240000
         );
@@ -335,7 +318,7 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         const payload = buildTimelinePayload(sessionId, timeline);
         socket.emit('teaching:timeline', payload);
         if (payload.timeline.length > 0) {
-          socket.emit('teaching:step', { step: payload.timeline[0], index: 0, total: payload.timeline.length });
+          socket.emit('teaching:step', { step: payload.timeline[0], index: 0, total: payload.timeline.length, isInit: true });
         }
 
         trackEvent(socket.user?.id || 'anonymous', 'session_started', {

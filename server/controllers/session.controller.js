@@ -207,7 +207,11 @@ export const saveSession = async (req, res) => {
       // so we have a real MongoDB _id to link messages to.
       const pendingMessages = (messages !== undefined && messages.length > 0) ? messages.slice(-50) : [];
 
-      const updatePayload = { $set: setFields, $inc: incFields };
+      const updatePayload = { 
+        $set: setFields, 
+        $inc: incFields,
+        ...(!isMongoId ? { $setOnInsert: { engineSessionId: sessionId, userId: isGuest ? null : userId } } : {})
+      };
 
       try {
         session = await ChatSession.findOneAndUpdate(

@@ -45,6 +45,7 @@ export class D3Renderer {
 
   public clear() {
     this.engine.clear();
+    this.arrayPlugin.clear();
   }
 
   public destroy() {
@@ -63,6 +64,22 @@ export class D3Renderer {
 
   public updatePointer(id: string, atIndex: number, targetArrayId?: string) {
     this.pointerPlugin.movePointer(id, atIndex, targetArrayId);
+  }
+
+  public drawBoundary(atIndex: number, label: string, targetArrayId?: string, endIndex?: number) {
+    this.arrayPlugin.drawBoundary(atIndex, label, targetArrayId, endIndex);
+  }
+
+  public highlightCell(id: string, color: string, duration: number) {
+    this.arrayPlugin.highlightCell(id, color, duration);
+  }
+
+  public swapCells(id1: string, id2: string) {
+    this.arrayPlugin.swapCells(id1, id2);
+  }
+
+  public resize(width: number, height: number) {
+    this.engine.svg.attr('viewBox', `0 0 ${width} ${height}`);
   }
 
   // ─── Legacy Stubs (To be ported to plugins) ───────────────────────────────

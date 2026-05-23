@@ -77,6 +77,11 @@ export class StreamLifecycleManager {
         (this.res as any).flush();
       }
 
+      // DIAGNOSTIC LOGGING
+      if (chunk.type === 'scene_nodes') {
+        log.info(`[StreamManager:${this.requestId}] PIPELINE DIAGNOSTIC: Sending scene_nodes SSE event with ${chunk.nodes?.length} nodes.`);
+      }
+
       // BROADCAST: Only broadcast meaningful events to Redis. 
       // Skip heartbeats to reduce unnecessary cross-instance traffic.
       if (this.sessionId && chunk.type !== 'heartbeat') {

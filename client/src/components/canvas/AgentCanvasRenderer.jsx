@@ -4,6 +4,8 @@ import SVGCanvasRenderer from './SVGCanvasRenderer';
 const KaTeXRenderer = React.lazy(() => import('../../renderers/KaTeXRenderer'));
 import { isDSAContent, getRenderer } from '../../engine/RendererRouter';
 
+import CanvasDebugOverlay from './CanvasDebugOverlay';
+
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ZoomIn, ZoomOut, Maximize2, Move } from 'lucide-react';
@@ -59,7 +61,10 @@ const AgentCanvasRenderer = forwardRef(({
   const codeRef = useRef(null);
   const orchestratorRef = useRef(null);
   const [layoutReady, setLayoutReady] = useState(false);
+  const [renderersReady, setRenderersReady] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const actualWidth = width || dimensions.width;
+  const actualHeight = height || dimensions.height;
 
   useImperativeHandle(ref, () => ({
     resetCamera: () => {
@@ -144,9 +149,10 @@ const AgentCanvasRenderer = forwardRef(({
       });
 
       // Register D3 renderer immediately (Async)
-      rendererPool.getD3Renderer(d3ContainerRef.current, width, height).then(d3Renderer => {
+      rendererPool.getD3Renderer(d3ContainerRef.current, actualWidth, actualHeight).then(d3Renderer => {
         if (orchestratorRef.current) {
           orchestratorRef.current.setRenderers({ d3: d3Renderer });
+          setRenderersReady(true);
           
           if (timeline) {
             orchestratorRef.current.loadScene(timeline);
@@ -157,11 +163,8 @@ const AgentCanvasRenderer = forwardRef(({
       lastSceneIdRef.current = sceneId;
     }
 
-    return () => {
-      // Don't destroy on every effect run unless it's a genuine unmount
-      // or we have a new scene (handled above)
-    };
-  }, [layoutReady, width, height, timeline?.id]); // Use ID for stability, avoid title changes
+    return () => {};
+  }, [layoutReady, width, height, timeline?.id]);
 
   // Synchronize scene data when timeline object hydrates/streams
   useEffect(() => {
@@ -187,11 +190,11 @@ const AgentCanvasRenderer = forwardRef(({
 
   useEffect(() => {
     const orch = orchestratorRef.current;
-    if (!orch || (!layoutReady && !(width && height))) return;
+    if (!orch || !renderersReady || (!layoutReady && !(width && height))) return;
 
     const hasDelta = deltaState?.actions?.length > 0;
-    const dimensionsChanged = lastWidthRef.current !== dimensions.width;
-    lastWidthRef.current = dimensions.width;
+    const dimensionsChanged = lastWidthRef.current !== actualWidth;
+    lastWidthRef.current = actualWidth;
 
     if (hasDelta) {
       if (lastPlayedDeltaRef.current === deltaState.timestamp) return;
@@ -201,10 +204,10 @@ const AgentCanvasRenderer = forwardRef(({
       if (lastPlayedStepRef.current === currentStepIndex && !dimensionsChanged) return;
       
       // If dimensions changed, sync the renderer's logical coordinate system first
-      if (layoutReady && dimensions.width > 0 && dimensions.height > 0) {
+      if (actualWidth > 0 && actualHeight > 0) {
         const d3Renderer = orch.getRenderer('d3');
         if (d3Renderer && typeof d3Renderer.resize === 'function') {
-          d3Renderer.resize(dimensions.width, dimensions.height);
+          d3Renderer.resize(actualWidth, actualHeight);
         }
       }
 
@@ -212,7 +215,7 @@ const AgentCanvasRenderer = forwardRef(({
       lastPlayedDeltaRef.current = null;
       orch.playStep(currentStepIndex);
     }
-  }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, layoutReady, dimensions.width]);
+  }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, layoutReady, actualWidth, actualHeight, renderersReady]);
 
   // Sync Playback State
   useEffect(() => {
@@ -383,6 +386,13 @@ const AgentCanvasRenderer = forwardRef(({
             isD3={isD3} 
           />
         </div>
+        
+        {/* Engine Debug Overlay */}
+        <CanvasDebugOverlay 
+          elements={combinedElements} 
+          timeline={timeline?.steps || timeline?.timeline || []} 
+          currentStepIndex={currentStepIndex} 
+        />
         
 
       </div>

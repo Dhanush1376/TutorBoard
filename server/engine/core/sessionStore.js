@@ -1,23 +1,20 @@
 /**
- * SessionStore — Distributed session persistence with Redis fallback
+ * SessionStore — Distributed session persistence with MongoDB backend
  */
 import LearnerProfile from '../../models/LearnerProfile.js';
 import ChatMessage from '../../models/ChatMessage.js';
 import sessionRepository from '../../repositories/session.repository.js';
-import redis from '../../utils/core/redis.js';
 import VectorStoreService from './vectorStore.js';
 import EngineSessionState from '../../models/EngineSessionState.js';
 import SpacedRepetitionScheduler from './SpacedRepetitionScheduler.js';
 import { runtimeState } from '../../core/runtimeState.js';
 
-const SESSION_TTL_SEC = 20 * 60; // 20 minutes (Redis uses seconds for EX)
-const IDLE_TTL_SEC = 5 * 60;     // 5 minutes
+const SESSION_TTL_SEC = 20 * 60; // 20 minutes
 const MAX_SESSIONS = 100;
-const KEY_PREFIX = 'sess:';
 
 class SessionStore {
   constructor() {
-    this.localSessions = new Map(); // Dev fallback
+    this.localSessions = new Map();
     this.maxSessions = MAX_SESSIONS;
 
     // ML-5 FIX: Periodic eviction of stale in-memory sessions
@@ -49,8 +46,7 @@ class SessionStore {
       return session;
     }
 
-    // Check capacity (local estimate if no Redis)
-    if (!redis.isConnected && this.localSessions.size >= this.maxSessions) {
+    if (this.localSessions.size >= this.maxSessions) {
       throw new Error('SESSION_LIMIT_REACHED');
     }
 
@@ -79,9 +75,8 @@ class SessionStore {
       learnerProfileId: null,
       engineSessionId: id,
       _lastPersistAt: null,
-      ...metadata, // Merge incoming metadata (userId, socketId, etc.)
+      ...metadata,
     };
-
 
     await this.update(id, session, session);
     console.log(`[SessionStore] 👤 Created session: ${id}`);
@@ -89,21 +84,20 @@ class SessionStore {
   }
 
   /**
-   * Explicitly remove a session from the store (local + Redis)
+   * Explicitly remove a session from the store (local + MongoDB)
    */
   async delete(id) {
     this.localSessions.delete(id);
-    if (redis.isConnected) {
-      await redis.del(`${KEY_PREFIX}${id}`);
+    try {
+      await EngineSessionState.deleteOne({ sessionId: id });
+      console.log(`[SessionStore] 🗑️ Session ${id} deleted.`);
+    } catch (err) {
+      console.error(`[SessionStore] Failed to delete session ${id}:`, err.message);
     }
-    console.log(`[SessionStore] 🗑️ Session ${id} deleted.`);
   }
 
   /**
    * Appends a message to the persistent chat history.
-   * Writes to the ChatMessage collection (same as the HTTP chat path)
-   * to prevent dual-storage data loss. Also keeps a slim in-memory
-   * copy for quick access during the active session.
    */
   async addMessage(id, role, content, metadata = {}) {
     const session = await this.get(id);
@@ -117,7 +111,6 @@ class SessionStore {
     };
 
     // PRIMARY: Write to the ChatMessage collection (consistent with HTTP flow)
-    // If we don't have a chatSessionId yet, we must create one now to ensure persistence.
     if (!session.chatSessionId) {
       try {
         console.log(`[SessionStore] 🐣 No chatSessionId for ${id}, creating one now...`);
@@ -127,7 +120,6 @@ class SessionStore {
         });
         if (mongoSession) {
           session.chatSessionId = mongoSession._id.toString();
-          // Update the session in store to include the new ID
           await this.update(id, { chatSessionId: session.chatSessionId }, session);
         }
       } catch (err) {
@@ -165,52 +157,29 @@ class SessionStore {
    */
   async updateCanvasState(id, objects) {
     if (!Array.isArray(objects)) return;
-    return await this.update(id, { canvasState: objects }); // update() will do the get internally since we don't have it
+    return await this.update(id, { canvasState: objects });
   }
 
-
   async get(id) {
-    if (redis.isConnected) {
-      const data = await redis.get(`${KEY_PREFIX}${id}`);
-      if (data) {
-        const session = JSON.parse(data);
-        session.lastActivityAt = Date.now();
-        // Sliding window: refresh TTL on get
-        const isIdle = !session.topic && !session.timeline;
-        await redis.set(`${KEY_PREFIX}${id}`, JSON.stringify(session), isIdle ? IDLE_TTL_SEC : SESSION_TTL_SEC);
-        
-        // BUG-FALLBACK: Mirror to local memory as hot standby for Redis disconnects
-        this.localSessions.set(id, session);
-        return session;
-      }
-      return null;
-    }
-    
-    // Fallback 1: Local Memory
+    // 1. Local Memory (Hot Cache)
     let session = this.localSessions.get(id);
     if (session) {
       session.lastActivityAt = Date.now();
       return session;
     }
 
-    // Fallback 2: MongoDB Cold Storage (DL-04)
+    // 2. MongoDB Cold/Warm Storage (DL-04)
     try {
       const coldState = await EngineSessionState.findOne({ sessionId: id });
       if (coldState) {
-        console.log(`[SessionStore] ❄️ Restored session ${id} from MongoDB cold storage`);
+        console.log(`[SessionStore] ❄️ Restored session ${id} from MongoDB storage`);
         session = coldState.data;
         session.lastActivityAt = Date.now();
         this.localSessions.set(id, session);
-        
-        // Re-hydrate Redis if possible for performance
-        if (redis.isConnected) {
-          const isIdle = !session.topic && !session.timeline;
-          await redis.set(`${KEY_PREFIX}${id}`, JSON.stringify(session), isIdle ? IDLE_TTL_SEC : SESSION_TTL_SEC);
-        }
         return session;
       }
     } catch (err) {
-      console.error(`[SessionStore] Cold storage recovery failed for ${id}:`, err.message);
+      console.error(`[SessionStore] MongoDB recovery failed for ${id}:`, err.message);
     }
 
     return null;
@@ -219,11 +188,8 @@ class SessionStore {
   async update(id, data, existingSession = null) {
     let session = existingSession || await this.get(id);
     if (!session) {
-      // If we are updating a non-existent session, it might be the initial save
       session = data;
     } else {
-      // Deep merge for learnerProfile if needed, or just regular assign
-      // Deep merge the nested objects:
       if (data.learnerProfile && session.learnerProfile) {
         data.learnerProfile = { 
           ...session.learnerProfile, 
@@ -239,34 +205,27 @@ class SessionStore {
     
     session.lastActivityAt = Date.now();
     
-    // DEV-MODE: Only cap local map size if we are actually using it
-    if (!redis.isConnected && this.localSessions.size > this.maxSessions) {
+    if (this.localSessions.size > this.maxSessions) {
       const oldestKey = this.localSessions.keys().next().value;
       this.localSessions.delete(oldestKey);
     }
     
-    // Always update local sessions as a hot-standby, but prioritize Redis for consistency
     this.localSessions.set(id, session);
 
-    if (redis.isConnected) {
-      const isIdle = !session.topic && !session.timeline;
-      await redis.set(`${KEY_PREFIX}${id}`, JSON.stringify(session), isIdle ? IDLE_TTL_SEC : SESSION_TTL_SEC);
-    } else {
-      // DL-04: Persist to MongoDB cold storage if Redis is down (memory-only fallback)
-      try {
-        await EngineSessionState.findOneAndUpdate(
-          { sessionId: id },
-          { 
-            data: session, 
-            userId: session.userId, 
-            lastActivityAt: new Date(),
-            expiresAt: new Date(Date.now() + 48 * 3600 * 1000) // Extend TTL
-          },
-          { upsert: true }
-        );
-      } catch (err) {
-        console.error(`[SessionStore] MongoDB fallback persistence failed for ${id}:`, err.message);
-      }
+    // Save to MongoDB warm/cold storage
+    try {
+      await EngineSessionState.findOneAndUpdate(
+        { sessionId: id },
+        { 
+          data: session, 
+          userId: session.userId, 
+          lastActivityAt: new Date(),
+          expiresAt: new Date(Date.now() + 48 * 3600 * 1000) // Extend TTL to 48 hours
+        },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.error(`[SessionStore] MongoDB persistence failed for ${id}:`, err.message);
     }
     
     return session;
@@ -300,7 +259,6 @@ class SessionStore {
         profile = await LearnerProfile.create({ userId });
       }
 
-      // Fetch due concepts for spaced repetition reinforcement
       const dueConcepts = await SpacedRepetitionScheduler.getDueConcepts(userId);
 
       const learnerProfile = {
@@ -317,7 +275,6 @@ class SessionStore {
         dueConcepts: dueConcepts || []
       };
 
-      // We update the local object directly first, then persist
       const updateData = { userId, learnerProfile, learnerProfileId: profile._id };
       const currentSession = await this.get(id);
       if (currentSession) {
@@ -336,7 +293,6 @@ class SessionStore {
       const s = await this.get(id);
       if (!s || !s.userId || !s.learnerProfileId) return;
 
-      // Add a "lastPersistAt" timestamp. Skip if persisted < 10 seconds ago:
       if (s._lastPersistAt && Date.now() - s._lastPersistAt < 10 * 1000) return;
       s._lastPersistAt = Date.now();
       await this.update(id, { _lastPersistAt: s._lastPersistAt }, s);
@@ -344,7 +300,6 @@ class SessionStore {
       const profile = await LearnerProfile.findById(s.learnerProfileId);
       if (!profile) return;
 
-      // Interaction history tracking (Doubt handling)
       if (interaction && interaction.question) {
         profile.doubtHistory.push({
           topic: s.topic,
@@ -354,38 +309,32 @@ class SessionStore {
           timestamp: new Date()
         });
         
-        // BUG-10: Cap doubt history to prevent document bloat (max 50 entries)
         if (profile.doubtHistory.length > 50) {
           profile.doubtHistory = profile.doubtHistory.slice(-50);
         }
       }
 
       profile.lastSessionDate = new Date();
-      // Ensure we don't increment totalSessions multiple times per "active" session
       if (!s._sessionCounted) {
         s._sessionCounted = true;
         await this.update(id, { _sessionCounted: true }, s);
         profile.totalSessions = (profile.totalSessions || 0) + 1;
         
-        // Compute quality (0-5) from session performance
         const progressRatio = (s.currentStepIndex + 1) / Math.max(s.steps?.length || 5, 1);
         const confusionFactor = 1 - (s.learnerProfile?.confusionIndex || 0);
         const quality = Math.round(progressRatio * confusionFactor * 5); // 0–5
         
-        // SM-2 owns the mastery write — no plain-number write before this
         await SpacedRepetitionScheduler.updateMastery(s.userId, [{
           concept: s.topic,
-          quality  // pass quality directly, not mastery float
+          quality
         }]);
       }
 
-      // Sync engagement metrics
       if (s.learnerProfile?.engagementMetrics) {
         const em = s.learnerProfile.engagementMetrics;
         profile.engagementMetrics.visualStepsCompleted = (profile.engagementMetrics.visualStepsCompleted || 0) + (em.visualStepsCompleted || 0);
         profile.engagementMetrics.conceptualDoubtsAsked = (profile.engagementMetrics.conceptualDoubtsAsked || 0) + (em.conceptualDoubtsAsked || 0);
         
-        // Reset in-session counters after sync to prevent double counting if persistProfile is called multiple times
         s.learnerProfile.engagementMetrics.visualStepsCompleted = 0;
         s.learnerProfile.engagementMetrics.conceptualDoubtsAsked = 0;
         await this.update(id, { learnerProfile: s.learnerProfile }, s);
@@ -403,8 +352,6 @@ class SessionStore {
       const s = await this.get(sessionId);
       if (!s?.userId) return;
 
-      // Existing VectorStore call (Now real in Phase 5)
-      // NEW: Persist metrics to metadata for style detection
       const metrics = {
         topic: s.topic,
         domain: s.domain || 'general',
@@ -418,11 +365,9 @@ class SessionStore {
         userId: s.userId 
       });
 
-      // --- Learner Style Detection ---
       const recentSessions = await VectorStoreService.getLatestMemories(s.userId, 'session', 10);
       
       if (recentSessions.length >= 3) {
-        // Map PostgreSQL metadata back to the format detectStyle expects
         const sessionHistory = recentSessions.map(m => m.metadata);
         const style = this.constructor.detectStyle(sessionHistory);
         
@@ -444,31 +389,22 @@ class SessionStore {
     }
   }
 
-  /**
-   * Classify after 3 sessions based on ratio of visual steps vs conceptual doubts
-   */
   static detectStyle(sessions) {
     if (!sessions || sessions.length < 3) return 'unknown';
     const avgVisual = sessions.reduce((s, x) => s + (x.stepCount || 0), 0) / sessions.length;
     const avgDoubts = sessions.reduce((s, x) => s + (x.doubtsCount || x.doubts?.length || 0), 0) / sessions.length;
     const ratio = avgDoubts / Math.max(avgVisual, 1);
     
-    if (ratio > 0.4) return 'conceptual'; // many doubts per step = wants text
-    if (ratio < 0.1) return 'visual';     // few doubts per step = visual learner
+    if (ratio > 0.4) return 'conceptual';
+    if (ratio < 0.1) return 'visual';
     return 'balanced';
   }
 
-  /**
-   * Restores engine state from a MongoDB ChatSession.
-   * Messages are fetched from the ChatMessage collection (source of truth)
-   * instead of the embedded mongoSession.messages array.
-   */
   async restoreFromMongo(id, mongoSession) {
     if (!mongoSession) return null;
     
     console.log(`[SessionStore] 🔄 Restoring session ${id} from MongoDB ChatSession ${mongoSession._id}`);
 
-    // Fetch messages from the ChatMessage collection (source of truth)
     let messages = [];
     try {
       messages = await ChatMessage.find({ sessionId: mongoSession._id })
@@ -477,7 +413,6 @@ class SessionStore {
         .lean();
     } catch (err) {
       console.warn(`[SessionStore] Failed to fetch ChatMessage history for ${mongoSession._id}:`, err.message);
-      // Fallback to embedded array if ChatMessage query fails
       messages = mongoSession.messages || [];
     }
     
@@ -501,25 +436,15 @@ class SessionStore {
   }
 
   async destroy(id) {
-    // Always clean local map (hot-standby mirror)
-    this.localSessions.delete(id);
-    if (redis.isConnected) {
-      await redis.del(`${KEY_PREFIX}${id}`);
-    }
+    await this.delete(id);
   }
 
   async getAll() {
-    // This is rarely used in production, mostly for debug
-    if (redis.isConnected) {
-      // Not implemented for Redis to avoid KEYS * (expensive)
-      return [];
-    }
     return Array.from(this.localSessions.values());
   }
 
   /**
    * DL-04: Flush all active in-memory sessions to MongoDB
-   * Ensures in-flight sessions survive server restarts/pod scaling.
    */
   async flushToMongo() {
     const sessions = Array.from(this.localSessions.entries());
@@ -527,7 +452,6 @@ class SessionStore {
 
     console.log(`[SessionStore] 💾 Flushing ${sessions.length} active sessions to cold storage...`);
     
-    // We use bulkWrite for efficiency
     const ops = sessions.map(([id, data]) => ({
       updateOne: {
         filter: { sessionId: id },

@@ -59,7 +59,7 @@ export class PointerPlugin implements ICanvasPlugin {
     const y = meta.y + 54 + 40;
 
     gsap.to(this.engine.getElement(id).node(), {
-      x, y, // GSAP handles transform: translate()
+      attr: { transform: `translate(${x}, ${y})` },
       duration: 0.4,
       ease: 'power2.inOut'
     });

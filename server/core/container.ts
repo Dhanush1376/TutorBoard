@@ -35,13 +35,12 @@ class ResourceContainer {
    * VIRTUALIZATION: This allows us to intercept and proxy resource access.
    */
   public resolve<T>(name: string): T {
-    const resource = this.resources.get(name);
-    if (!resource) {
+    if (!this.resources.has(name)) {
       // LOG-INTEGRITY: Detect unmanaged access attempts
       log.error(`ROGUE ACCESS DETECTED: Attempted to resolve unmanaged resource: ${name}`);
       throw new Error(`Infrastructure Resource [${name}] not found in container. This indicates a rogue dependency bypass.`);
     }
-    return resource as T;
+    return this.resources.get(name) as T;
   }
 
   public has(name: string): boolean {

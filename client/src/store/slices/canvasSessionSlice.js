@@ -100,13 +100,50 @@ export const createCanvasSessionSlice = (set, get) => ({
         
         // Case 1: Visualizer Agent output format ({ renderer, scene, script: [...] })
         if (parsedTimeline.script && !parsedTimeline.steps && !parsedTimeline.timeline) {
+          const commands = parsedTimeline.script;
+          const objects = [];
+          const connections = [];
+
+          for (const cmd of commands) {
+            if (!cmd || typeof cmd !== 'object') continue;
+            const command = cmd.cmd || cmd.command || cmd.action;
+            if (!command) continue;
+
+            if (command === 'edge') {
+              connections.push({
+                id: cmd.id || `edge_${connections.length}`,
+                from: cmd.from,
+                to: cmd.to,
+                label: cmd.label,
+                type: cmd.type || 'arrow',
+                color: cmd.color,
+                animated: cmd.animated ?? false,
+              });
+            } else if ([
+              'array', 'pointer', 'tree', 'chart', 'timeline', 'physics_body',
+              'equation', 'result', 'draw_boundary', 'annotate',
+              'interactive_controls', 'code', 'block', 'orb', 'badge',
+              'data_block', 'list', 'comparator', 'codeline',
+              'node', 'callout', 'group'
+            ].includes(command)) {
+              objects.push({
+                id: cmd.id || `${command}_${objects.length}`,
+                type: command,
+                label: cmd.label || cmd.text || cmd.title || cmd.id || command,
+                ...cmd
+              });
+            }
+          }
+
           adaptedTimeline = {
             id: stableId,
             title: parsedTimeline.title || title || parsedTimeline.scene || 'Interactive Visualization',
             renderer: parsedTimeline.renderer || rendererType || 'd3',
-            steps: [{ commands: parsedTimeline.script }],
-            timeline: [{ commands: parsedTimeline.script }],
-            objects: []
+            steps: [{ commands: commands }],
+            timeline: [{ commands: commands }],
+            objects: objects,
+            elements: objects,
+            connections: connections
           };
         } 
         // Case 2: Array of steps or nodes

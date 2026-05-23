@@ -24,8 +24,11 @@ export function useSocket(isAuthReady = true) {
   // Handle global connection state without triggering reactive re-renders on the whole store
   useEffect(() => {
     if (!isAuthReady) return;
-
-    if (!globalSocket) return;
+    
+    if (!globalSocket) {
+      import.meta.env.DEV && console.log('[Socket] Initializing lazily on hook mount...');
+      syncSocketAuth(localStorage.getItem('tb-auth-token') || 'guest');
+    }
 
     const socket = globalSocket;
 

@@ -93,3 +93,51 @@ export const SceneGraphSchema = z.object({
   timeline: z.array(TimelineStepSchema).describe("Array of chronological animation steps")
 }).passthrough();
 
+// ─── NEW: Strict Visual Lesson Engine Schema ───
+
+export const LessonNodeSchema = z.object({
+  id: z.string(),
+  type: z.string().describe("e.g., triangle, circle, text, atom, tree, array"),
+  position: z.object({
+    x: z.number().describe("X coordinate (can be absolute or normalized)"),
+    y: z.number().describe("Y coordinate (can be absolute or normalized)")
+  }).optional(),
+  props: z.record(z.any()).optional().describe("Domain-specific properties (e.g. { base, height, labels })")
+}).passthrough();
+
+export const LessonEdgeSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  to: z.string(),
+  label: z.string().optional(),
+  props: z.record(z.any()).optional()
+}).passthrough();
+
+export const LessonAnimationSchema = z.object({
+  target: z.string().describe("ID of target node or edge"),
+  type: z.string().describe("e.g. draw, fade, move, highlight"),
+  duration: z.number().optional().describe("Duration in seconds"),
+  props: z.record(z.any()).optional()
+}).passthrough();
+
+export const LessonSceneSchema = z.object({
+  nodes: z.array(LessonNodeSchema).optional(),
+  edges: z.array(LessonEdgeSchema).optional(),
+  animations: z.array(LessonAnimationSchema).optional()
+}).passthrough();
+
+export const LessonStepSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  narration: z.string().optional(),
+  explanation: z.string().optional(),
+  scene: LessonSceneSchema.optional()
+}).passthrough();
+
+export const LessonSchema = z.object({
+  lesson: z.object({
+    title: z.string(),
+    duration: z.number().optional(),
+    steps: z.array(LessonStepSchema)
+  })
+}).passthrough();

@@ -9,7 +9,6 @@ import tokenStore from '../utils/auth/tokenStore.js';
 import { checkSocketRate, cleanupSocket, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../middleware/rateLimiter.js';
 import { getOrCreateRequestId, createTrackedSessionId } from '../middleware/requestIdMiddleware.js';
 import { getRateKey } from './utils.js';
-import { queueService, QUEUES } from '../services/queue/queue.service.js';
 
 // Handlers
 import { registerSessionHandlers } from './handlers/session.js';
@@ -160,14 +159,10 @@ export function setupTeachingSocket(io) {
     socket.on('disconnect', async (reason) => {
       if (socket.user && !socket.user.isGuest) {
         try {
-          await queueService.add(QUEUES.DOCUMENTS, 'session-persist', {
-            sessionId,
-            socketId: socket.id,
-            userId: socket.user.id,
-            state: machine.state
-          }, { attempts: 3, backoff: { type: 'exponential', delay: 1000 } });
+          await sessionStore.update(sessionId, { state: machine.state });
+          await sessionStore.persistProfile(sessionId);
         } catch (err) {
-          console.error(`[WS] Failed to enqueue persistence on disconnect:`, err.message);
+          console.error(`[WS] Failed to persist session on disconnect:`, err.message);
         }
       }
 

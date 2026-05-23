@@ -229,12 +229,50 @@ const useTutorStore = create(
             // eventData: { nodes: [...], renderer: '...' }
             // Feed the nodes directly into the teaching engine (canvasSlice)
             if (eventData.nodes && Array.isArray(eventData.nodes) && eventData.nodes.length > 0) {
+              const commands = eventData.nodes;
+              const objects = [];
+              const connections = [];
+
+              for (const cmd of commands) {
+                if (!cmd || typeof cmd !== 'object') continue;
+                const command = cmd.cmd || cmd.command || cmd.action;
+                if (!command) continue;
+
+                if (command === 'edge') {
+                  connections.push({
+                    id: cmd.id || `edge_${connections.length}`,
+                    from: cmd.from,
+                    to: cmd.to,
+                    label: cmd.label,
+                    type: cmd.type || 'arrow',
+                    color: cmd.color,
+                    animated: cmd.animated ?? false,
+                  });
+                } else if ([
+                  'array', 'pointer', 'tree', 'chart', 'timeline', 'physics_body',
+                  'equation', 'result', 'draw_boundary', 'annotate',
+                  'interactive_controls', 'code', 'block', 'orb', 'badge',
+                  'data_block', 'list', 'comparator', 'codeline',
+                  'node', 'callout', 'group', 'narrate', 'step'
+                ].includes(command)) {
+                  objects.push({
+                    id: cmd.id || `${command}_${objects.length}`,
+                    type: command,
+                    label: cmd.label || cmd.text || cmd.title || cmd.id || command,
+                    ...cmd
+                  });
+                }
+              }
+
               const adaptedTimeline = { 
-                steps: eventData.nodes, 
-                timeline: eventData.nodes,
-                objects: [], // Objects will be instantiated by the renderer
-                renderer: eventData.renderer,
-                title: state.conversationTopic || 'Visualization'
+                id: `scene_${state.chatSessionId || state.sessionId || Date.now()}`,
+                title: state.conversationTopic || 'Visualization',
+                renderer: eventData.renderer || 'cinematic',
+                steps: [{ commands: commands }], 
+                timeline: [{ commands: commands }],
+                objects: objects,
+                elements: objects,
+                connections: connections
               };
 
               state.setTimeline(adaptedTimeline);
@@ -303,6 +341,7 @@ const useTutorStore = create(
         sessionManifest: typeof state.sessionManifest === 'object' && state.sessionManifest !== null
           ? Object.fromEntries(
               Object.entries(state.sessionManifest)
+                .map(([id, data]) => [id, { ...data, canvasObjects: [] }])
                 .sort(([, a], [, b]) => (b.lastActive || 0) - (a.lastActive || 0))
                 .slice(0, 20)
             )

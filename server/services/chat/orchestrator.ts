@@ -11,7 +11,9 @@ import { requestCompletion, resolveModelId } from '../../utils/ai/llmClient.js';
 import promptRegistry from '../../engine/config/promptRegistry.js';
 import PromptDefender from '../../utils/ai/promptDefender.js';
 import { AppError, ErrorCode } from '../../shared/errors.js';
-import { extractJSON } from '../../engine/core/utils/jsonUtils.js';
+import { extractJSON, strictParseJSON } from '../../engine/core/utils/jsonUtils.js';
+import { VisualScriptSchema } from '../../engine/core/utils/visualizerSchemas.js';
+import { generateFallbackVisualScript, getHardcodedPythagorasLesson } from '../../engine/core/utils/fallbackVisualizer.js';
 
 export interface OrchestrationResult {
   narration: any;
@@ -113,6 +115,8 @@ export class AgentOrchestrator {
       signal: context.signal
     });
 
+    console.log("RAW AI RESPONSE (NARRATOR):", res.content);
+
     return {
       content: extractJSON(res.content) || { narrations: [] },
       tokens: (res._meta?.tokens_in || 0) + (res._meta?.tokens_out || 0),
@@ -124,6 +128,23 @@ export class AgentOrchestrator {
   private async runVisualizer(plan: StrategicPlan, context: any, userMessage: string) {
     const start = Date.now();
     const model = await BudgetService.resolveOptimizedModel('visualization', context.sessionId, context.userTier || 'free');
+
+    // =========================================================================
+    // TEMPORARY BYPASS (STEP 6 & 7): HARDCODED PYTHAGORAS LESSON
+    // =========================================================================
+    const bypassAI = true; 
+    if (bypassAI) {
+      console.warn("[Orchestrator] BYPASSING AI VISUALIZER -> INJECTING HARDCODED LESSON");
+      const hardcodedScript = getHardcodedPythagorasLesson();
+      console.log(`[Orchestrator] PIPELINE DIAGNOSTIC: Created Visual Script with ${hardcodedScript.script?.length} nodes`);
+      return {
+        script: hardcodedScript,
+        tokens: 0,
+        duration: Date.now() - start,
+        model: "hardcoded"
+      };
+    }
+    // =========================================================================
     
     const res = await requestCompletion({
       model,
@@ -137,8 +158,28 @@ export class AgentOrchestrator {
       signal: context.signal
     });
 
+    console.log("RAW AI RESPONSE (VISUALIZER):", res.content);
+
+    let script;
+    let extractedJson = strictParseJSON(res.content);
+
+    if (!extractedJson) {
+      console.error("[Orchestrator] Visualizer JSON Extraction Failed. Using fallback.");
+      script = generateFallbackVisualScript((plan as any).topic || "Topic");
+    } else {
+      const validation = VisualScriptSchema.safeParse(extractedJson);
+      console.log("[Orchestrator] SCHEMA VALIDATION RESULT:", validation.success ? "SUCCESS" : "FAILED", validation.error?.issues);
+      
+      if (!validation.success) {
+        console.error("[Orchestrator] Visualizer Schema Validation Failed. Using fallback.");
+        script = generateFallbackVisualScript((plan as any).topic || "Topic");
+      } else {
+        script = validation.data;
+      }
+    }
+
     return {
-      script: extractJSON(res.content) || { script: [] },
+      script,
       tokens: (res._meta?.tokens_in || 0) + (res._meta?.tokens_out || 0),
       duration: Date.now() - start,
       model

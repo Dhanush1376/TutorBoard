@@ -15,7 +15,6 @@ import {
   resolveModelId,
   emitProfile
 } from '../utils.js';
-import redis from '../../utils/core/redis.js';
 import { runDeltaAgent } from '../../engine/agents/deltaAgent.js';
 import { trackEvent } from '../../utils/core/analytics.js';
 
@@ -33,17 +32,6 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
       const userId = socket.user?.id || socket.user?._id || ip;
       const rateKey = `rate:doubt:${userId}`;
 
-      if (redis.isConnected) {
-        await redis.zremrangebyscore(rateKey, 0, now - 60000);
-        const count = await redis.zcard(rateKey);
-
-        if (count >= 5) {
-          socket.emit('teaching:error', { message: 'You are asking questions too fast. Please wait a minute.' });
-          return;
-        }
-        await redis.zadd(rateKey, now, `${now}-${Math.random()}`);
-        await redis.expire(rateKey, 65); // Auto-cleanup
-      }
 
       if (!(await checkSocketRate(getRateKey(socket)))) {
         socket.emit('teaching:error', { message: 'Too many requests. Please wait a moment.' });

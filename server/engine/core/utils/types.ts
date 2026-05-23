@@ -32,6 +32,7 @@ export interface runStageParams {
   requiredKeys?: string[];
   pipelineState?: PipelineState;
   requestId?: string;
+  responseSchema?: any;
 }
 
 export interface AgentLoopParams {

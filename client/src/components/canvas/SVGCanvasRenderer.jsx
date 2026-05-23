@@ -115,12 +115,26 @@ function FreeformShape({ type, x, y, w, h, color, label, attentionLevel, path, s
         )}
 
         {/* Main shape */}
-        <rect
-          x={-nodeW / 2} y={-nodeH / 2} width={nodeW} height={nodeH} rx={type === 'diamond' ? 2 : type === 'pill' ? nodeH / 2 : 8}
-          fill={c.glass} stroke={c.stroke}
-          strokeWidth={attentionLevel === 2 ? 2.5 : importance >= 4 ? 1.8 : 1.2}
-          style={type === 'diamond' ? { transform: 'rotate(45deg)', transformOrigin: 'center' } : {}}
-        />
+        {type === 'circle' ? (
+          <circle
+            cx={0} cy={0} r={nodeW / 2}
+            fill={c.glass} stroke={c.stroke}
+            strokeWidth={attentionLevel === 2 ? 2.5 : importance >= 4 ? 1.8 : 1.2}
+          />
+        ) : type === 'triangle' ? (
+          <polygon
+            points={`0,${-nodeH/2} ${nodeW/2},${nodeH/2} ${-nodeW/2},${nodeH/2}`}
+            fill={c.glass} stroke={c.stroke}
+            strokeWidth={attentionLevel === 2 ? 2.5 : importance >= 4 ? 1.8 : 1.2}
+          />
+        ) : (
+          <rect
+            x={-nodeW / 2} y={-nodeH / 2} width={nodeW} height={nodeH} rx={type === 'diamond' ? 2 : type === 'pill' ? nodeH / 2 : 8}
+            fill={c.glass} stroke={c.stroke}
+            strokeWidth={attentionLevel === 2 ? 2.5 : importance >= 4 ? 1.8 : 1.2}
+            style={type === 'diamond' ? { transform: 'rotate(45deg)', transformOrigin: 'center' } : {}}
+          />
+        )}
 
         {/* Icon */}
         {icon && (

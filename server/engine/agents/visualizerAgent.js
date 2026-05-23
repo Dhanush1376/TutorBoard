@@ -212,4 +212,10 @@ EXAMPLE 7 — Machine Learning Pipeline (Cinematic, Flow)
   ]
 }
 
-Return ONLY raw JSON. No markdown. No preamble. No trailing commas.`;
+Return ONLY raw, valid, machine-parsable JSON.
+CRITICAL RULES FOR OUTPUT:
+1. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json).
+2. Do NOT include ANY explanations, preamble, or commentary.
+3. Do NOT include trailing commas in arrays or objects.
+4. Output MUST start with { and end with }.
+5. Any failure to return pure JSON will result in system failure.`;

@@ -133,6 +133,7 @@ export function buildCinematicScene(processedScene: any): any {
   const connections = processedScene.connections || [];
   const title = processedScene.title || 'Lesson';
   const renderer = processedScene.renderer || 'cinematic';
+  const id = processedScene.id || `scene_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   if (elements.length === 0 && timeline.length === 0) return processedScene;
 
@@ -415,6 +416,7 @@ export function buildCinematicScene(processedScene: any): any {
 
   return {
     ...processedScene,
+    id,
     elements: nodeElements,
     connections: dedupedConns,
     scene,

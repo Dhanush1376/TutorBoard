@@ -5,6 +5,7 @@ import sessionStore from '../engine/core/sessionStore.js';
 import { decrypt } from '../utils/auth/encryption.js';
 import { classifyTask, selectOptimalModel } from '../utils/ai/taskClassifier.js';
 import { getAdaptiveScores } from '../utils/ai/adaptiveScorer.js';
+import { container } from '../core/container.js';
 export { resolveModelId } from '../utils/ai/llmClient.js';
 
 /**
@@ -115,6 +116,7 @@ export function buildTimelinePayload(sessionId, timeline) {
   const totalSteps  = steps.length;
 
   return {
+    id: timeline.id || `scene_${sessionId}_${Date.now()}`,
     sessionId,
     title:      timeline.title || timeline.scene?.title || 'Lesson',
     domain:     timeline.domain || 'general',
@@ -334,4 +336,15 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
     }
     return null;
   }
+}
+
+/**
+ * Shared Progress Emitter — Handles Socket.IO broadcasting
+ */
+export function emitProgress(socket, streamChannel, stage, chunk = null) {
+  const event = chunk ? 'teaching:progress-tokens' : 'teaching:progress';
+  const data = chunk ? { stage, text: chunk } : { message: stage };
+  
+  // Local emit
+  socket.emit(event, data);
 }

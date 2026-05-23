@@ -268,7 +268,13 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Step update from server
     cleanups.push(on('teaching:step', (data) => {
-      setCurrentStep(data.index);
+      if (data.isInit) {
+        // Force the step render even if index is 0 (Zustand won't re-render on same value)
+        useTutorStore.getState().setCurrentStep(-1); // Trigger diff
+        requestAnimationFrame(() => useTutorStore.getState().setCurrentStep(data.index));
+      } else {
+        setCurrentStep(data.index);
+      }
     }));
 
     // Generation progress message

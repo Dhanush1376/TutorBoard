@@ -192,8 +192,9 @@ export class GSAPExecutor {
         }
 
         // ── Global ───────────────────────────────────────────────────────
-        case 'camera':
-          tl.to('.infinite-canvas-content', {
+        case 'camera': {
+          const cameraTarget = this.container?.querySelector('.infinite-canvas-content') || '.infinite-canvas-content';
+          tl.to(cameraTarget, {
             scale:    cmd.zoom || 1,
             x:        (cmd.x || 0) * 100,
             y:        (cmd.y || 0) * 100,
@@ -201,6 +202,7 @@ export class GSAPExecutor {
           }, position);
           cursor = position + ((cmd.duration || 1000) / 1000);
           break;
+        }
 
         case 'wait':
           cursor = position + ((cmd.ms || cmd.duration || 500) / 1000);
@@ -230,7 +232,11 @@ export class GSAPExecutor {
       const svg = (el1 as any).ownerSVGElement as SVGSVGElement;
       if (!svg) return;
 
-      const getSvgPos = (el: HTMLElement) => {
+      const getSvgPos = (el: any) => {
+        if (typeof el.getBBox === 'function') {
+          const bbox = el.getBBox();
+          return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
+        }
         const rect = el.getBoundingClientRect();
         const pt = svg.createSVGPoint();
         pt.x = rect.left + rect.width / 2;

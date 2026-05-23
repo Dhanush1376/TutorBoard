@@ -80,4 +80,53 @@ export class ArrayPlugin implements ICanvasPlugin {
 
     this.nextY += this.CELL_HEIGHT + 60;
   }
+
+  highlightCell(id: string, color: string = '#fef08a', duration: number = 500) {
+    const cell = this.engine.getElement(id);
+    if (cell.empty()) return;
+    gsap.to(cell.select('rect').node(), {
+      fill: color, 
+      duration: duration / 1000, 
+      yoyo: true, 
+      repeat: 1
+    });
+  }
+
+  swapCells(id1: string, id2: string) {
+    const g1 = this.engine.getElement(id1).node() as Element;
+    const g2 = this.engine.getElement(id2).node() as Element;
+    if (!g1 || !g2) return;
+    const t1 = g1.getAttribute('transform') || '';
+    const t2 = g2.getAttribute('transform') || '';
+    g1.setAttribute('transform', t2);
+    g2.setAttribute('transform', t1);
+  }
+
+  drawBoundary(atIndex: number, label: string, targetArrayId?: string, endIndex?: number) {
+    const arrayGroup = targetArrayId
+      ? this.engine.mainLayer.select(`#${CSS.escape(targetArrayId)}`)
+      : this.engine.mainLayer.select('.canvas-array');
+    if (arrayGroup.empty()) return;
+    const meta = (arrayGroup.node() as any)._meta || { offsetX: 0, cellWidth: 54, cellGap: 10, y: 160 };
+    const x1 = meta.offsetX + atIndex * (meta.cellWidth + meta.cellGap) - 5;
+    const x2 = endIndex !== undefined
+      ? meta.offsetX + (endIndex + 1) * (meta.cellWidth + meta.cellGap) - 5
+      : x1 + meta.cellWidth + 10;
+    const y  = meta.y - 10;
+    const h  = (meta.cellHeight || 54) + 20;
+    this.engine.mainLayer.append('rect')
+      .attr('x', x1).attr('y', y).attr('width', x2 - x1).attr('height', h)
+      .attr('fill', 'none').attr('stroke', '#f59e0b').attr('stroke-width', 2)
+      .attr('stroke-dasharray', '6,3').attr('rx', 6);
+    if (label) {
+      this.engine.mainLayer.append('text')
+        .attr('x', (x1 + x2) / 2).attr('y', y - 8)
+        .attr('text-anchor', 'middle').attr('font-size', '12px')
+        .attr('fill', '#f59e0b').text(label);
+    }
+  }
+
+  clear() {
+    this.nextY = 160;
+  }
 }
