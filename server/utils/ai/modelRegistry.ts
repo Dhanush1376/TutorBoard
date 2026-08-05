@@ -18,26 +18,26 @@ export const MODEL_REGISTRY: ModelRegistry = {
   openai: {
     validation: 'gpt-4o-mini',
     production: 'gpt-4o',
-    fallback: 'gpt-3.5-turbo',
-    chain: ['gpt-4o-mini', 'gpt-3.5-turbo']
+    fallback: 'gpt-4o-mini',
+    chain: ['gpt-4o-mini']
   },
   google: {
-    validation: 'gemini-1.5-flash',
-    production: 'gemini-1.5-pro',
-    fallback: 'gemini-1.5-flash',
-    chain: ['gemini-1.5-flash', 'gemini-1.5-pro']
+    validation: 'gemini-flash-latest',
+    production: 'gemini-pro-latest',
+    fallback: 'gemini-flash-latest',
+    chain: ['gemini-flash-latest', 'gemini-pro-latest']
   },
   groq: {
     validation: 'llama-3.1-8b-instant',
     production: 'llama-3.3-70b-versatile',
-    fallback: 'mixtral-8x7b-32768',
-    chain: ['llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it']
+    fallback: 'llama-3.1-8b-instant',
+    chain: ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile']
   },
   anthropic: {
-    validation: 'claude-3-5-haiku-20241022',
-    production: 'claude-sonnet-4-20250514',
-    fallback: 'claude-3-haiku-20240307',
-    chain: ['claude-3-5-haiku-20241022', 'claude-3-haiku-20240307']
+    validation: 'claude-haiku-4-5',
+    production: 'claude-sonnet-5',
+    fallback: 'claude-haiku-4-5',
+    chain: ['claude-haiku-4-5']
   },
   deepseek: {
     validation: 'deepseek-chat',
@@ -47,9 +47,9 @@ export const MODEL_REGISTRY: ModelRegistry = {
   },
   openrouter: {
     validation: 'openai/gpt-4o-mini',
-    production: 'anthropic/claude-sonnet-4-20250514',
-    fallback: 'google/gemini-pro-1.5',
-    chain: ['openai/gpt-4o-mini', 'google/gemini-pro-1.5']
+    production: 'google/gemini-pro-latest',
+    fallback: 'google/gemini-flash-latest',
+    chain: ['openai/gpt-4o-mini', 'google/gemini-flash-latest']
   },
   default: {
     validation: 'gpt-4o-mini',

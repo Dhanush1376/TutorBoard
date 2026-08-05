@@ -262,8 +262,17 @@ export class RendererPool {
    */
   async getD3Renderer(container: HTMLDivElement, width?: number, height?: number): Promise<any> {
     const existing = this.instances.get('d3');
-    if (existing?.instance && existing.isActive) {
+    // Check if the cached instance is using the same container
+    if (existing?.instance && existing.isActive && existing.container === container) {
       return existing.instance;
+    }
+    
+    // Container changed — destroy old instance
+    if (existing?.instance) {
+      if (typeof existing.instance.destroy === 'function') {
+        existing.instance.destroy();
+      }
+      this.instances.delete('d3');
     }
 
     const { D3Renderer } = await import('../renderers/D3Renderer');

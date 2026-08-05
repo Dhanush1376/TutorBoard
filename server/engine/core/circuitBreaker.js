@@ -8,7 +8,7 @@
  * Cooldown: 60 seconds before HALF_OPEN probe
  */
 
-import { container } from '../../core/container.js';
+// Removed container import
 
 const DEFAULT_COOLDOWN_MS = 60_000;
 const GROQ_COOLDOWN_MS = 90_000; // Groq needs more time to reset rate limits
@@ -28,34 +28,11 @@ class CircuitBreaker {
   }
 
   async _syncFromRedis() {
-    if (!container.has('redis-main')) return;
-    try {
-      const client = container.resolve('redis-main');
-      for (const id of Object.keys(this.providers)) {
-        const data = await client.get(`${REDIS_KEY_PREFIX}${id}`);
-        if (data) {
-          const remote = JSON.parse(data);
-          // Only sync if remote state is more "critical" (OPEN) or newer
-          this.providers[id] = { ...this.providers[id], ...remote };
-        }
-      }
-    } catch (err) {
-      console.error(`[CircuitBreaker] Failed to sync from Redis: ${err.message}`);
-    }
+    // Redis sync removed for simplicity
   }
 
   async _persistToRedis(provider) {
-    if (!container.has('redis-main')) return;
-    try {
-      const client = container.resolve('redis-main');
-      await client.set(
-        `${REDIS_KEY_PREFIX}${provider}`, 
-        JSON.stringify(this.providers[provider]),
-        3600 // 1 hour TTL for health stickiness
-      );
-    } catch (err) {
-      // Ignore persistence errors to keep circuit logic fast
-    }
+    // Redis persistence removed for simplicity
   }
 
   _newProviderState(id) {

@@ -4,7 +4,8 @@ import { useAuth } from '../../hooks/useAuth';
 import VisaiLogo from '../layout/VisaiLogo';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
-import ParticleWaves from './ParticleWaves';
+import ParticleWaves from './ParticleWavesLazy';
+import { CanvasContext } from './CanvasContext';
 
 /**
  * CinematicStage v1.0 — Premium Teaching Canvas Container
@@ -177,11 +178,15 @@ const CinematicStage = ({
             inset: 0,
             pointerEvents: 'auto',
             overflow: 'visible',
-            transform: `scale(${scale})`,
+            transform: `scale(${scale}) translateZ(0)`,
             transformOrigin: 'center center',
+            transformStyle: 'flat',
+            WebkitTransformStyle: 'flat',
           }}
         >
-          {children}
+          <CanvasContext.Provider value={{ transform: { scale, x: 0, y: 0 } }}>
+            {children}
+          </CanvasContext.Provider>
         </div>
 
         {/* ── Guest Watermark ── */}

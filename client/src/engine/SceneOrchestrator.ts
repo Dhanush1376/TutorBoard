@@ -3,7 +3,6 @@
  * SceneOrchestrator v1.0 — The Central Scene Intelligence Engine
  *
  * Converts AI-generated Scene JSON into live, interactive teaching simulations.
- * Replaces the manual wiring between AgentCanvasRenderer → VisualScriptInterpreter → D3Renderer.
  *
  * Pipeline: Scene JSON → SceneGraph → RendererPool → GSAPExecutor → 60fps Render
  *
@@ -223,8 +222,13 @@ export class SceneOrchestrator {
       narrator?.(narrationText);
     }
 
-    // Decide whether to transition or instant-switch
-    const shouldTransition = prevIndex !== index && this.container && options.animate !== false;
+    // Decide whether to transition or instant-switch.
+    // A forward-adjacent step is a progressive REVEAL (draw the next commands on
+    // top of the current frame) — a full-canvas crossfade there would flash the
+    // whole scene each step, so skip the transition for adjacent forward moves
+    // and reserve it for jumps / backward seeks.
+    const isForwardAdjacent = index === prevIndex + 1;
+    const shouldTransition = prevIndex !== index && !isForwardAdjacent && this.container && options.animate !== false;
 
     if (shouldTransition) {
       const transitionType = step.transition || this.transitionEngine.autoDetect(
@@ -238,17 +242,31 @@ export class SceneOrchestrator {
           this.callbacks.onStepChange?.(index, step);
         },
         onMidpoint: () => {
+          // onComplete threads through the executor — it fires when the
+          // step's animation timeline actually finishes, not when the
+          // visual transition does.
           this._executeStepLogic(index, step, prevIndex, cachedSnapshot, options);
         },
-        onComplete: () => {
-          options.onComplete?.();
-        }
       });
     } else {
       this.callbacks.onStepChange?.(index, step);
       this._executeStepLogic(index, step, prevIndex, cachedSnapshot, options);
-      options.onComplete?.();
     }
+  }
+
+  /**
+   * Promise form of playStep — resolves when the step's animation finishes.
+   */
+  playStepAsync(index: number, options: PlayOptions = {}): Promise<void> {
+    return new Promise((resolve) => {
+      this.playStep(index, {
+        ...options,
+        onComplete: () => {
+          options.onComplete?.();
+          resolve();
+        },
+      });
+    });
   }
 
   /**
@@ -261,26 +279,51 @@ export class SceneOrchestrator {
     cachedSnapshot: SceneGraphSnapshot | undefined,
     options: PlayOptions
   ): void {
-    // Restoration from snapshot for backward seek
-    if (cachedSnapshot && prevIndex > index) {
-      this.sceneGraph.restoreSnapshot(cachedSnapshot);
-      this._renderCurrentState();
+    if (!this.renderers) return;
+
+    const commands = step.commands || this._buildCommandsFromStep(step, index);
+    const isForwardAdjacent = index === prevIndex + 1;
+
+    // Instant (no animation): rebuild the full cumulative state up to this step.
+    if (options.animate === false) {
+      this.executor.kill();
+      this.renderers.d3?.clear?.();
+      this._executeCumulativeInstant(index);
+      options.onComplete?.();
+      return;
     }
 
-    // Execute step commands via the executor
-    const commands = step.commands || this._buildCommandsFromStep(step, index);
-    if (commands.length > 0 && this.renderers) {
-      if (options.animate !== false) {
-        this.executor.kill();
-        if (prevIndex !== index) {
-          this.renderers.d3?.clear?.();
-        }
-        this.executor.play(commands, this.renderers, () => {
-          this.stepSnapshots.set(index, this.sceneGraph.captureSnapshot(index));
-        });
-      } else {
-        this._executeCommandsInstantly(commands);
-      }
+    this.executor.kill();
+
+    const finish = () => {
+      this.stepSnapshots.set(index, this.sceneGraph.captureSnapshot(index));
+      options.onComplete?.();
+    };
+
+    if (isForwardAdjacent) {
+      // Progressive reveal: draw only THIS step's new commands on top of the
+      // existing frame — the previous steps stay on screen. (index 0 from a
+      // fresh -1 start also lands here and simply draws step 0 onto an empty canvas.)
+      this.executor.play(commands, this.renderers, finish);
+    } else {
+      // Jump or backward seek: clear, instantly rebuild everything before the
+      // target step, then animate the target step so the destination is correct.
+      this.renderers.d3?.clear?.();
+      this._executeCumulativeInstant(index - 1);
+      this.executor.play(commands, this.renderers, finish);
+    }
+  }
+
+  /**
+   * Instantly (no GSAP) execute the commands of every step from 0..uptoIndex.
+   * Used to reconstruct cumulative scene state on a jump or backward seek.
+   */
+  private _executeCumulativeInstant(uptoIndex: number): void {
+    if (!this.scene) return;
+    const steps = this.scene.steps || [];
+    for (let i = 0; i <= uptoIndex && i < steps.length; i++) {
+      const cmds = steps[i].commands || this._buildCommandsFromStep(steps[i], i);
+      if (cmds.length > 0) this._executeCommandsInstantly(cmds);
     }
   }
 
@@ -435,25 +478,6 @@ export class SceneOrchestrator {
     this.scene = null;
   }
 
-  /**
-   * Full cleanup — release all resources and prevent further use.
-   */
-  destroy(): void {
-    this.isDestroyed = true;
-    this.clear();
-    
-    // Release all renderers that were registered in this orchestrator
-    if (this.renderers) {
-      Object.keys(this.renderers).forEach((key) => {
-        const type = this.pool.resolveType(key);
-        this.pool.release(type);
-      });
-    }
-
-    this.sceneGraph.clear();
-    this.callbacks = {};
-  }
-
   // ── Private Helpers ────────────────────────────────────────────────────
 
   /**
@@ -557,6 +581,20 @@ export class SceneOrchestrator {
           });
           break;
 
+        case 'node':
+        case 'edge':
+        case 'orb':
+        case 'badge':
+        case 'block':
+        case 'step':
+        case 'callout':
+          commands.push({
+            cmd: element.type,
+            id: element.id,
+            ...element,
+          });
+          break;
+
         default:
           // For unknown types, try to create a generic narration
           if (element.text || element.content) {
@@ -578,6 +616,37 @@ export class SceneOrchestrator {
   }
 
   /**
+   * Clean up resources, halt running animations, and release memory.
+   */
+  public destroy(): void {
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+    this.isPlaying = false;
+    
+    // Kill any active GSAP animations
+    if (this.executor) {
+      this.executor.kill();
+    }
+    
+    // Release all renderers that were registered in this orchestrator
+    if (this.renderers && this.pool) {
+      Object.keys(this.renderers).forEach((key) => {
+        const type = this.pool.resolveType(key);
+        this.pool.release(type);
+        (this.renderers as any)[key] = null;
+      });
+    }
+
+    // Clear state
+    this.stepSnapshots.clear();
+    this.sceneGraph.clear();
+    this.scene = null;
+    this.renderers = null;
+    this.container = null;
+    this.callbacks = {};
+  }
+
+  /**
    * Execute commands instantly without GSAP animation.
    */
   private _executeCommandsInstantly(commands: Command[]): void {
@@ -587,9 +656,22 @@ export class SceneOrchestrator {
       const { d3, physics, equation, graph, code } = this.renderers;
 
       switch (cmd.cmd) {
-        case 'array': d3?.createArray(cmd.id!, cmd.values!); break;
+        case 'array': d3?.createArray(cmd.id!, cmd.values!, cmd); break;
+        case 'node':
+        case 'orb':
+        case 'badge':
+        case 'block':
+        case 'data_block':
+        case 'group':
+        case 'step':
+        case 'callout': d3?.createNode(cmd.id!, cmd); break;
+        case 'edge': d3?.createEdge(cmd.id!, cmd); break;
         case 'pointer': d3?.createPointer(cmd.id!, cmd.atIndex!, cmd.label || '', cmd.color, cmd.targetArrayId); break;
-        case 'tree': d3?.createTree(cmd.id!, cmd.data!); break;
+        case 'move_pointer': d3?.updatePointer(cmd.id!, cmd.atIndex!, cmd.targetArrayId); break;
+        case 'draw_boundary': d3?.drawBoundary(cmd.atIndex!, cmd.label || '', cmd.targetArrayId, cmd.endIndex); break;
+        case 'swap': d3?.swapCells(cmd.id1!, cmd.id2!); break;
+        case 'remove': d3?.removeElement(cmd.id || cmd.target!); break;
+        case 'tree': d3?.createTree(cmd.id!, cmd.data!, cmd); break;
         case 'chart': d3?.createChart(cmd.id!, cmd.data!, cmd.type as any); break;
         case 'timeline': d3?.createTimeline(cmd.id!, cmd.events!); break;
         case 'compare': d3?.createComparator(cmd.left!, cmd.right!, cmd.op!); break;
@@ -600,6 +682,8 @@ export class SceneOrchestrator {
         case 'code': code?.setCode?.(cmd.code || cmd.content || ''); break;
         case 'physics_body': physics?.addBody?.(cmd); break;
         case 'narrate': this.callbacks.onNarrate?.(cmd.text || ''); break;
+        // Transient effects (highlight/pulse/shake/flash/camera/wait) leave
+        // no persistent state — nothing to rebuild.
       }
     }
   }

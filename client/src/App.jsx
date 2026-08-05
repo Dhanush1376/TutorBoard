@@ -208,14 +208,13 @@ function App() {
       <ToastContainer />
       
       {/* UX-05: Focus Trap for Trial Limit Overlay using inert attribute */}
-      <div 
-        className="app-content-wrapper" 
+      <main 
+        id="main-content" 
+        className="app-main" 
+        role="main"
         inert={guestTrialStatus?.isLimitReached ? true : undefined}
-        style={{ display: 'contents' }}
       >
-
-        <main id="main-content" className="app-main" role="main">
-          <React.Suspense fallback={<Loader fullScreen={true} glass={true} />}>
+        <React.Suspense fallback={<Loader fullScreen={true} glass={true} />}>
           <Routes>
             <Route path="/" element={<AuthLanding />} />
             <Route path="/login" element={<AuthLanding />} />
@@ -233,7 +232,6 @@ function App() {
           </Routes>
         </React.Suspense>
       </main>
-      </div>
     </div>
   );
 }

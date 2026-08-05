@@ -42,6 +42,10 @@ export const createSceneSlice = (set, get) => ({
   isPlaying:    false,
   isPaused:     false,
   playbackSpeed: 1,
+
+  // Narration-gated step completion. A step may only auto-advance when BOTH
+  // its animation timeline (animDone) and its narration (voiceDone) finish.
+  stepPlayback: { index: -1, animDone: false, voiceDone: false },
   
   // ── History & snapshots ────────────────────────────────────────────────
   history: { past: [], future: [] },
@@ -76,6 +80,7 @@ export const createSceneSlice = (set, get) => ({
     state.stepSnapshots = {};
     state.isPlaying = false;
     state.isPaused = false;
+    state.stepPlayback = { index: 0, animDone: false, voiceDone: false };
   }),
 
   setSceneReady: (ready) => set({ sceneReady: ready }),
@@ -105,9 +110,10 @@ export const createSceneSlice = (set, get) => ({
       state.canvasConnections = canvasConnections;
       state.canvasSteps = canvasSteps;
       state.totalSteps = totalSteps;
-      state.currentStepIndex = typeof data.currentStepIndex === 'number' 
-        ? data.currentStepIndex 
+      state.currentStepIndex = typeof data.currentStepIndex === 'number'
+        ? data.currentStepIndex
         : (isNewTopic ? 0 : get().currentStepIndex);
+      state.stepPlayback = { index: state.currentStepIndex, animDone: false, voiceDone: false };
       state.canvasTransform = finalTransform;
       state.sceneDomain = (data.domain || 'general').toLowerCase();
       state.sceneReady = false;
@@ -140,6 +146,7 @@ export const createSceneSlice = (set, get) => ({
     totalSteps: 0,
     isPlaying: false,
     isPaused: false,
+    stepPlayback: { index: -1, animDone: false, voiceDone: false },
     history: { past: [], future: [] },
   }),
 
@@ -149,18 +156,52 @@ export const createSceneSlice = (set, get) => ({
 
   play:  () => set({ isPlaying: true,  isPaused: false }),
   pause: () => set({ isPlaying: false, isPaused: true }),
-  
+
+  // ── Step completion signals (narration/animation sync) ─────────────────
+  beginStepPlayback: (index) => set({
+    stepPlayback: { index, animDone: false, voiceDone: false },
+  }),
+
+  markStepAnimDone: (index) => {
+    const sp = get().stepPlayback;
+    if (sp.index !== index) return;
+    set({ stepPlayback: { ...sp, animDone: true } });
+  },
+
+  markStepVoiceDone: (index) => {
+    const sp = get().stepPlayback;
+    if (sp.index !== index) return;
+    set({ stepPlayback: { ...sp, voiceDone: true } });
+  },
+
   nextStep: () => {
     const { currentStepIndex, totalSteps } = get();
-    if (currentStepIndex < totalSteps - 1) set({ currentStepIndex: currentStepIndex + 1 });
+    if (currentStepIndex < totalSteps - 1) {
+      const next = currentStepIndex + 1;
+      set({
+        currentStepIndex: next,
+        stepPlayback: { index: next, animDone: false, voiceDone: false },
+      });
+    }
   },
 
   prevStep: () => {
     const { currentStepIndex } = get();
-    if (currentStepIndex > 0) set({ currentStepIndex: currentStepIndex - 1 });
+    if (currentStepIndex > 0) {
+      const prev = currentStepIndex - 1;
+      set({
+        currentStepIndex: prev,
+        stepPlayback: { index: prev, animDone: false, voiceDone: false },
+      });
+    }
   },
 
-  goToStep: (index) => set({ currentStepIndex: index, isPlaying: false, isPaused: true }),
+  goToStep: (index) => set({
+    currentStepIndex: index,
+    isPlaying: false,
+    isPaused: true,
+    stepPlayback: { index, animDone: false, voiceDone: false },
+  }),
 
   /**
    * setCanvasSnapshot — Restore a canvas snapshot from a chat message or session history.
@@ -201,7 +242,10 @@ export const createSceneSlice = (set, get) => ({
   },
 
   
-  setCurrentStep: (index) => set({ currentStepIndex: index }),
+  setCurrentStep: (index) => set({
+    currentStepIndex: index,
+    stepPlayback: { index, animDone: false, voiceDone: false },
+  }),
   
   setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
 
@@ -210,6 +254,8 @@ export const createSceneSlice = (set, get) => ({
   // ═══════════════════════════════════════════════════════════════════════════
 
   setCanvasMode: (mode) => set({ canvasMode: mode }),
+  
+  setCanvasTransform: (transform) => set({ canvasTransform: transform }),
   
   setCanvasObjectsWithHistory: (objects) => set((state) => {
     state.history.past.push([...state.canvasObjects]);

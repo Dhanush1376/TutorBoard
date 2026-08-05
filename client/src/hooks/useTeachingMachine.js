@@ -4,6 +4,7 @@ import useSocket from './useSocket';
 import useTutorStore, { STATES } from '../store/tutorStore';
 import { trackEvent, identifyUser } from '../utils/analytics';
 import CanvasStateSnapshot from '../engine/CanvasStateSnapshot';
+import { smartPauseMs, stepDeadlineMs } from '../engine/narrationTiming';
 
 export { STATES };
 
@@ -26,6 +27,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     isPlaying, isPaused, playbackSpeed, isDeltaRunning,
     isInteracting, activeSnapshotId, guestTrialStatus,
+    stepPlayback,
     isConnected: storeIsConnected, connectionError: storeConnectionError,
 
 
@@ -81,6 +83,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     isPaused: s.isPaused,
     playbackSpeed: s.playbackSpeed,
     isDeltaRunning: s.isDeltaRunning,
+    stepPlayback: s.stepPlayback,
     isInteracting: s.isInteracting,
     activeSnapshotId: s.activeSnapshotId,
     guestTrialStatus: s.guestTrialStatus,
@@ -465,30 +468,44 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
   ]);
 
-  // ─── Auto-play logic ──────────────────────────────────────────────────────
+  // ─── Auto-play logic (completion-gated, not timer-based) ──────────────────
+  // A step advances only when BOTH signals arrive: the animation timeline
+  // finished (animDone, set by the canvas renderer) AND the narration finished
+  // (voiceDone, set by the voice narrator or its reading-time fallback).
+  // A safety deadline scaled to the narration length guarantees playback can
+  // never stall on a lost signal — but it no longer cuts speech mid-sentence.
   useEffect(() => {
-    // Clear any existing timer before setting a new one
     if (playIntervalRef.current) {
       clearTimeout(playIntervalRef.current);
       playIntervalRef.current = null;
     }
 
-    if (isPlaying && !isPaused && !isDeltaRunning && machineState === STATES.TEACHING && timeline) {
+    if (!(isPlaying && !isPaused && !isDeltaRunning && machineState === STATES.TEACHING && timeline)) {
+      return undefined;
+    }
 
-      const currentStep = canvasSteps[currentStepIndex];
-      const stepDuration = currentStep?.durationMs || currentStep?.duration || 4000;
-      const adjustedMs = stepDuration / Math.max(0.25, playbackSpeed);
+    const currentStep = canvasSteps[currentStepIndex];
+    const speed = Math.max(0.25, playbackSpeed);
 
-      playIntervalRef.current = setTimeout(() => {
-        if (currentStepIndex < totalSteps - 1) {
-          const nextIndex = currentStepIndex + 1;
-          emit('session:step', { stepIndex: nextIndex });
-          setCurrentStep(nextIndex);
-        } else {
-          emit('session:finish');
-          storePause();
-        }
-      }, adjustedMs);
+    const advance = () => {
+      if (currentStepIndex < totalSteps - 1) {
+        const nextIndex = currentStepIndex + 1;
+        emit('session:step', { stepIndex: nextIndex });
+        setCurrentStep(nextIndex);
+      } else {
+        emit('session:finish');
+        storePause();
+      }
+    };
+
+    const ready = stepPlayback?.index === currentStepIndex && stepPlayback.animDone && stepPlayback.voiceDone;
+
+    if (ready) {
+      // Both animation and narration are done — smart pause, then advance.
+      playIntervalRef.current = setTimeout(advance, smartPauseMs(currentStep, speed));
+    } else {
+      // Safety deadline so a lost signal can never freeze the lesson.
+      playIntervalRef.current = setTimeout(advance, stepDeadlineMs(currentStep, speed));
     }
 
     return () => {
@@ -497,7 +514,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
         playIntervalRef.current = null;
       }
     };
-  }, [isPlaying, isPaused, isDeltaRunning, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, emit, setCurrentStep, storePause]);
+  }, [isPlaying, isPaused, isDeltaRunning, currentStepIndex, machineState, timeline, canvasSteps, totalSteps, playbackSpeed, stepPlayback, emit, setCurrentStep, storePause]);
 
   // ─── Cleanup on socket disconnect ─────────────────────────────────────────
   // This clears ghost timers when the connection drops, preventing stale emits
@@ -588,18 +605,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
     if (machineState === STATES.GENERATING || isStartingRef.current) return;
     isStartingRef.current = true;
     
-    const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-
-    // Enforce Guest Limits locally
-    if (isGuest) {
-      const allowed = incrementGuestSession();
-      if (!allowed) {
-        console.warn('[Machine] Guest session limit reached.');
-        isStartingRef.current = false;
-        return;
-      }
-      incrementGuestUsage(); // Initial question counts as a message
-    }
+    // Guest limits disabled per user request
 
     // ── Bug C Fix: Always reset ID before starting a new session to prevent overwrites ──
     setChatSessionId(null);
@@ -626,18 +632,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
 
   const askDoubt = useCallback(async (question, activeMode, file = null) => {
-    const isGuest = sessionStorage.getItem('tb-is-guest') === 'true';
-
-    // Enforce Guest Limits locally
-    if (isGuest) {
-      // Note: we can't easily call incrementGuestUsage here if it's not destructured.
-      // But it is destructured at line 16.
-      const allowed = incrementGuestUsage();
-      if (!allowed) {
-        console.warn('[Machine] Guest message limit reached.');
-        return;
-      }
-    }
+    // Guest limits disabled per user request
 
     storePause();
     setDoubtProcessing(true);

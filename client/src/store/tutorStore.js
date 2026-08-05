@@ -18,6 +18,41 @@ import { createCanvasSessionSlice } from './slices/canvasSessionSlice.js';
 import { createPlatformMemorySlice } from './slices/platformMemorySlice.js';
 import { createSceneGraphSlice } from './slices/sceneGraphSlice.js';
 
+/**
+ * segmentIntoSteps — turn a flat visualizer command script into an ordered list
+ * of animation steps for progressive, step-by-step playback (Phase 3).
+ *
+ * A `narrate` command closes a step: everything drawn/operated before it belongs
+ * to that step, and its text becomes the step's narration. This lets the canvas
+ * evolve alongside the explanation ("teacher drawing at a whiteboard") instead of
+ * dumping the whole scene in one frame. Steps are NON-cumulative — each step holds
+ * only its own new commands; SceneOrchestrator reveals them incrementally.
+ */
+function segmentIntoSteps(commands) {
+  const steps = [];
+  let current = { commands: [], narration: '' };
+  let dirty = false;
+
+  for (const cmd of commands) {
+    if (!cmd || typeof cmd !== 'object') continue;
+    const c = cmd.cmd || cmd.command || cmd.action;
+    if (c === 'narrate') {
+      current.narration = cmd.text || cmd.label || '';
+      steps.push(current);
+      current = { commands: [], narration: '' };
+      dirty = false;
+    } else {
+      current.commands.push(cmd);
+      dirty = true;
+    }
+  }
+  // Trailing commands with no closing narrate still form a final step.
+  if (dirty || current.narration) steps.push(current);
+  // No narrate boundaries at all → single step with the whole script.
+  if (steps.length === 0) steps.push({ commands, narration: '' });
+  return steps;
+}
+
 const safeStorage = {
   getItem: (name) => {
     try { return localStorage.getItem(name); } catch (e) { return null; }
@@ -167,54 +202,71 @@ const useTutorStore = create(
        * handleProgressiveStreamEvent — Central Orchestrator for SSE events.
        * Decouples SSE event arrival from UI implementation.
        */
-      handleProgressiveStreamEvent: (eventData) => set((state) => {
+      // NOTE: This handler must NOT be a single immer set() that calls other
+      // store actions. Actions like setTimeline run their own set(); committing
+      // an outer producer afterwards replays a stale snapshot and silently
+      // reverts everything the inner action wrote (the canvas opened but the
+      // scene data vanished). Compute first, then call actions/sets in sequence.
+      handleProgressiveStreamEvent: (eventData) => {
         const { type } = eventData;
 
         switch (type) {
-          case 'meta':
+          case 'meta': {
             if (eventData.sessionId) {
-              const oldId = state.chatSessionId || state.sessionId;
-              
+              const oldId = get().chatSessionId || get().sessionId;
+
               // Adopt the real MongoDB ID immediately
-              state.promoteSessionId(oldId, eventData.sessionId);
-              state.setSessionId(eventData.sessionId);
-              state.setChatSessionId(eventData.sessionId);
+              get().promoteSessionId(oldId, eventData.sessionId);
+              get().setSessionId(eventData.sessionId);
+              get().setChatSessionId(eventData.sessionId);
 
               // CRITICAL DEDUPLICATION: Promote any local history entry to the new real DB ID
               if (oldId && oldId !== eventData.sessionId) {
-                const hasExisting = state.chatHistory.some(s => s.id === eventData.sessionId);
-                if (hasExisting) {
-                  state.chatHistory = state.chatHistory.filter(s => s.id !== oldId);
-                } else {
-                  state.chatHistory = state.chatHistory.map(s => {
-                    if (s.id === oldId) {
-                      return { ...s, id: eventData.sessionId, chatSessionId: eventData.sessionId };
-                    }
-                    return s;
-                  });
-                }
+                set((state) => {
+                  const hasExisting = state.chatHistory.some(s => s.id === eventData.sessionId);
+                  if (hasExisting) {
+                    state.chatHistory = state.chatHistory.filter(s => s.id !== oldId);
+                  } else {
+                    state.chatHistory = state.chatHistory.map(s => {
+                      if (s.id === oldId) {
+                        return { ...s, id: eventData.sessionId, chatSessionId: eventData.sessionId };
+                      }
+                      return s;
+                    });
+                  }
+                });
               }
             }
             if (eventData.teachingMode) {
-              state.activeTeachingMode = eventData.teachingMode;
+              set({ activeTeachingMode: eventData.teachingMode });
             }
             if (eventData.activeArtifactId) {
-              state.activeArtifactId = eventData.activeArtifactId;
+              set({ activeArtifactId: eventData.activeArtifactId });
             }
             break;
+          }
 
-          case 'canvas_skeleton':
+          case 'canvas_skeleton': {
             // The router decided we need a canvas.
             // eventData: { layout: 'split'|'fullscreen', rendererType: 'd3'|... }
-            state.canvasLayout = eventData.layout || 'split';
-            if (eventData.rendererType && !state.rendererStack.includes(eventData.rendererType)) {
-              state.rendererStack.push(eventData.rendererType);
-            }
-            state.canvasSessionVersion++;
-            
+            // Mint a UNIQUE scene id per response. Previously this was keyed
+            // only on the session id, so the 2nd+ visual in a session reused
+            // the same id and AgentCanvasRenderer's "scene changed?" guard
+            // never fired — every visual after the first silently failed to render.
+            const pendingSceneId = `scene_${get().chatSessionId || get().sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            set((state) => {
+              state._pendingSceneId = pendingSceneId;
+              state.canvasLayout = eventData.layout || 'split';
+              if (eventData.rendererType && !state.rendererStack.includes(eventData.rendererType)) {
+                state.rendererStack.push(eventData.rendererType);
+              }
+              state.canvasSessionVersion++;
+            });
+
             // Link to the active streaming message so the card appears
-            if (state.streamingMessageId) {
-              state.updateMessageMetadata(state.streamingMessageId, {
+            const skeletonMsgId = get().streamingMessageId;
+            if (skeletonMsgId) {
+              get().updateMessageMetadata(skeletonMsgId, {
                 hasVisualArtifact: true,
                 artifactStatus: 'generating',
                 rendererType: eventData.rendererType
@@ -222,10 +274,11 @@ const useTutorStore = create(
             }
 
             // If it's a skeleton, clear current nodes to prepare for new ones
-            state.setTimeline({ timeline: [], objects: [] });
+            get().setTimeline({ timeline: [], objects: [] });
             break;
+          }
 
-          case 'scene_nodes':
+          case 'scene_nodes': {
             // eventData: { nodes: [...], renderer: '...' }
             // Feed the nodes directly into the teaching engine (canvasSlice)
             if (eventData.nodes && Array.isArray(eventData.nodes) && eventData.nodes.length > 0) {
@@ -249,11 +302,15 @@ const useTutorStore = create(
                     animated: cmd.animated ?? false,
                   });
                 } else if ([
+                  // Structural/visual objects only. Operation + narration commands
+                  // (narrate, step, result, annotate, draw_boundary, move_pointer,
+                  // highlight) are NOT objects — they run as step commands via the
+                  // D3 engine. Treating `narrate` as an object rendered every step's
+                  // narration as overlapping canvas text.
                   'array', 'pointer', 'tree', 'chart', 'timeline', 'physics_body',
-                  'equation', 'result', 'draw_boundary', 'annotate',
-                  'interactive_controls', 'code', 'block', 'orb', 'badge',
+                  'equation', 'interactive_controls', 'code', 'block', 'orb', 'badge',
                   'data_block', 'list', 'comparator', 'codeline',
-                  'node', 'callout', 'group', 'narrate', 'step'
+                  'node', 'callout', 'group'
                 ].includes(command)) {
                   objects.push({
                     id: cmd.id || `${command}_${objects.length}`,
@@ -264,57 +321,84 @@ const useTutorStore = create(
                 }
               }
 
-              const adaptedTimeline = { 
-                id: `scene_${state.chatSessionId || state.sessionId || Date.now()}`,
-                title: state.conversationTopic || 'Visualization',
+              // Phase 3: split the flat script into ordered animation steps so
+              // the canvas evolves step-by-step with the explanation instead of
+              // rendering one static frame.
+              const segments = segmentIntoSteps(commands);
+              const steps = segments.map((seg, i) => ({
+                commands: seg.commands,
+                narration: seg.narration,
+                title: seg.narration ? '' : `Step ${i + 1}`,
+              }));
+              const isMultiStep = steps.length > 1;
+
+              const adaptedTimeline = {
+                // Prefer the id minted by canvas_skeleton (unique per response).
+                // Fall back to a fresh unique id if scene_nodes arrived alone.
+                id: get()._pendingSceneId || `scene_${get().chatSessionId || get().sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                title: get().conversationTopic || 'Visualization',
                 renderer: eventData.renderer || 'cinematic',
-                steps: [{ commands: commands }], 
-                timeline: [{ commands: commands }],
+                steps: steps,
+                timeline: steps,
                 objects: objects,
                 elements: objects,
                 connections: connections
               };
 
-              state.setTimeline(adaptedTimeline);
-              state.loadScene(adaptedTimeline); // Wire to sceneSlice for CinematicStage
+              get().setTimeline(adaptedTimeline);
 
-              if (state.streamingMessageId) {
-                state.updateMessageMetadata(state.streamingMessageId, {
+              // Auto-start progressive playback for multi-step scenes so the
+              // lesson animates on arrival (the SSE auto-advance hook drives it).
+              set((state) => {
+                state.currentStepIndex = 0;
+                state.isPlaying = isMultiStep;
+                state.isPaused = false;
+                state.stepPlayback = { index: 0, animDone: false, voiceDone: false };
+              });
+
+              const sceneMsgId = get().streamingMessageId;
+              if (sceneMsgId) {
+                get().updateMessageMetadata(sceneMsgId, {
                   artifactStatus: 'completed',
-                  artifactTitle: state.conversationTopic || 'Visualization'
+                  artifactTitle: get().conversationTopic || 'Visualization'
                 });
               }
             }
-            
-            // Auto-open canvas if it's currently hidden
-            if (state.canvasLayout === 'inline') {
-              state.canvasLayout = 'split';
-            }
-            state.canvasSessionVersion++;
-            break;
 
-          case 'artifact_saved':
+            // Auto-open canvas if it's currently hidden
+            set((state) => {
+              if (state.canvasLayout === 'inline') {
+                state.canvasLayout = 'split';
+              }
+              state.canvasSessionVersion++;
+            });
+            break;
+          }
+
+          case 'artifact_saved': {
             // eventData: { artifactId: '...', title: '...', rendererType: '...' }
-            if (state.streamingMessageId) {
-              state.updateMessageMetadata(state.streamingMessageId, {
+            const savedMsgId = get().streamingMessageId;
+            if (savedMsgId) {
+              get().updateMessageMetadata(savedMsgId, {
                 artifactId: eventData.artifactId,
                 artifactStatus: 'completed'
               });
             }
             // Link the DB ID to any local artifact that matches (if applicable)
-            state.artifacts.forEach(art => {
-              const isMatch = (eventData.localId && art.id === eventData.localId) || 
+            get().artifacts.forEach(art => {
+              const isMatch = (eventData.localId && art.id === eventData.localId) ||
                               (!eventData.localId && art.title === eventData.title);
               if (isMatch && !art.dbId) {
-                state.setArtifactDbId(art.id, eventData.artifactId);
+                get().setArtifactDbId(art.id, eventData.artifactId);
               }
             });
             break;
+          }
 
           default:
             break;
         }
-      }),
+      },
     })),
     {
       name: 'tutorboard-session',
@@ -395,6 +479,12 @@ const useTutorStore = create(
     }
   )
 );
+
+// Dev-only debug handle: lets you inspect/drive the store from the browser
+// console (e.g. window.__tutorStore.getState().handleProgressiveStreamEvent(...)).
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
+  window.__tutorStore = useTutorStore;
+}
 
 export default useTutorStore;
 export { STATES } from './slices/sessionSlice.js';

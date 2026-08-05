@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
-import ReactFlow, { ReactFlowProvider, Background, Controls } from 'reactflow';
-import 'reactflow/dist/style.css';
-import useWindowSize from '../../../../../hooks/useWindowSize';
+import { ReactFlow, ReactFlowProvider, Background, Controls } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import useWindowSize from '../../../../hooks/useWindowSize';
 
 function FlowRendererInner({ sceneGraph }) {
   const containerRef = useRef(null);

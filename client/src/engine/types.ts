@@ -13,7 +13,10 @@ export interface Command {
     | 'narrate' | 'camera' | 'wait'
     | 'timeline' | 'chart' | 'tree'
     | 'draw_boundary' | 'fade_in' | 'fade_out' | 'shake' | 'pulse'
-    | 'result';
+    | 'result'
+    | 'node' | 'orb' | 'badge' | 'block' | 'data_block' | 'callout' | 'group' | 'step'
+    | 'edge'
+    | 'circumscribe' | 'flash';
   id?: string;
   id1?: string;
   id2?: string;

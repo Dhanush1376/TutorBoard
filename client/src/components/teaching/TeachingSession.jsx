@@ -22,7 +22,7 @@ import SessionResumeOverlay from './SessionResumeOverlay';
 import ShortcutsHUD from './ShortcutsHUD';
 
 const StepFilmstrip = lazy(() => import('./StepFilmstrip'));
-import ParticleWaves from '../canvas/ParticleWaves';
+import ParticleWaves from '../canvas/ParticleWavesLazy';
 import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useVoiceNarrator from '../../hooks/useVoiceNarrator';
@@ -111,18 +111,21 @@ const TeachingSession = ({ initialTopic }) => {
 
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
-  const { speak, cancel } = useVoiceNarrator();
+  const { narrateStep, cancel } = useVoiceNarrator();
 
 
-  // Voice narration trigger
+  // Voice narration trigger — narrateStep resolves the step's voiceDone
+  // signal when speech genuinely ends (or after a reading-time estimate when
+  // muted), which is what gates auto-advancement. No more fixed timers
+  // cutting narration off mid-sentence.
   useEffect(() => {
     if (isTeaching && currentStep && !isGenerating) {
       const text = currentStep.narration || currentStep.explanation;
-      if (text) speak(text);
+      narrateStep(currentStepIndex, text || '');
     } else {
       cancel();
     }
-  }, [currentStepIndex, isTeaching, isGenerating, speak, cancel, currentStep]);
+  }, [currentStepIndex, isTeaching, isGenerating, narrateStep, cancel, currentStep]);
 
   const handleElementClick = useCallback((id, event, data) => {
     if (event === 'click') {

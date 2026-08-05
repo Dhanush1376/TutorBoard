@@ -196,9 +196,13 @@ export async function executeProviderRequest(
   let effectiveMessages = messages;
   let effectiveResponseFormat = response_format;
 
-  // Robustness: Inject JSON instructions for providers that struggle with response_format
+  // Robustness: these providers support json_object but not json_schema mode.
+  // Downgrade the format and reinforce with an instruction (Groq requires the
+  // word "JSON" in the prompt when json_object mode is active). JSON mode is
+  // incompatible with streaming on some of these providers, so streaming calls
+  // keep the instruction-only behavior.
   if (['google', 'groq', 'deepseek'].includes(provider) && response_format) {
-    effectiveResponseFormat = undefined;
+    effectiveResponseFormat = onStream ? undefined : { type: 'json_object' };
     const jsonInstruction = 'CRITICAL: Respond with valid JSON only. No markdown fences.';
     effectiveMessages = [{ role: 'system', content: jsonInstruction }, ...messages];
   }
@@ -207,7 +211,7 @@ export async function executeProviderRequest(
     model,
     messages: effectiveMessages,
     temperature: temperature ?? 0.1,
-    max_tokens: maxTokens ?? 1000,
+    max_tokens: maxTokens ?? 4000,
     tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
     response_format: effectiveResponseFormat,
     stream: !!onStream,

@@ -24,28 +24,30 @@ function getAmbientKeyframes(motion) {
   switch (motion.type) {
     case 'float':
       return {
-        y: [0, -(motion.amplitude || 4), 0, (motion.amplitude || 4), 0],
+        animate: { y: [0, -(motion.amplitude || 4), 0, (motion.amplitude || 4), 0] },
         transition: { duration: 1 / (motion.frequency || 0.4), repeat: Infinity, ease: 'easeInOut', delay: phase * 0.3 },
       };
     case 'breathe':
       return {
-        scale: [motion.scaleMin || 0.96, motion.scaleMax || 1.04, motion.scaleMin || 0.96],
+        animate: { scale: [motion.scaleMin || 0.96, motion.scaleMax || 1.04, motion.scaleMin || 0.96] },
         transition: { duration: motion.period || 3, repeat: Infinity, ease: 'easeInOut', delay: phase * 0.2 },
       };
     case 'orbit':
       return {
-        x: [0, (motion.radius || 3), 0, -(motion.radius || 3), 0],
-        y: [-(motion.radius || 3), 0, (motion.radius || 3), 0, -(motion.radius || 3)],
+        animate: {
+          x: [0, (motion.radius || 3), 0, -(motion.radius || 3), 0],
+          y: [-(motion.radius || 3), 0, (motion.radius || 3), 0, -(motion.radius || 3)]
+        },
         transition: { duration: 1 / (motion.speed || 0.3), repeat: Infinity, ease: 'linear', delay: phase * 0.4 },
       };
     case 'shimmer':
       return {
-        opacity: motion.opacity || [0.85, 1],
+        animate: { opacity: motion.opacity || [0.85, 1] },
         transition: { duration: motion.period || 2.5, repeat: Infinity, ease: 'easeInOut', delay: phase * 0.5 },
       };
     case 'pulse':
       return {
-        scale: [motion.scaleMin || 0.98, motion.scaleMax || 1.06, motion.scaleMin || 0.98],
+        animate: { scale: [motion.scaleMin || 0.98, motion.scaleMax || 1.06, motion.scaleMin || 0.98] },
         transition: { duration: motion.period || 2, repeat: Infinity, ease: 'easeInOut', delay: phase * 0.3 },
       };
     default:
@@ -95,8 +97,8 @@ function FreeformShape({ type, x, y, w, h, color, label, attentionLevel, path, s
   return (
     <motion.g
       initial={revealInitial}
-      animate={{ opacity: 1, x: 0, y: 0, scale: 1, ...ambientAnimate }}
-      transition={{ delay: revealDelay, duration: 0.5, ease: EASE }}
+      animate={{ opacity: 1, x: 0, y: 0, scale: 1, ...(ambientAnimate.animate || {}) }}
+      transition={{ delay: revealDelay, duration: 0.5, ease: EASE, ...(ambientAnimate.transition || {}) }}
       style={{ originX: '50%', originY: '50%' }}
       whileHover={{ scale: 1.12, filter: 'brightness(1.2)' }}
     >
@@ -320,16 +322,14 @@ export default function SVGCanvasRenderer({
         const isManual = sId.startsWith('manual-') || el.isPinned || el.pinned || el.doubtDriven;
         const isTimeline = !sId.startsWith('manual-') && !el.doubtDriven;
         
-        // If forceManualOnly is true due to KaTeX or SpecializedRenderer, skip all timeline elements
-        // If it's a D3 scene, D3Renderer handles specialized data structures. SVGCanvasRenderer handles everything else (nodes, edges, shapes, labels).
-        if (isTimeline) {
-          if (forceManualOnly && !isD3) return false;
-          if (isD3) {
-            const type = (el.type || '').toLowerCase();
-            const d3Types = ['array', 'pointer', 'comparator', 'tree', 'chart', 'timeline'];
-            if (d3Types.includes(type)) return false; // D3 will render this
-          }
-        }
+        // The D3 / AgentCanvasRenderer pipeline is the single source of truth for
+        // scene rendering whenever a specialized renderer is active (D3, KaTeX,
+        // Matter, etc.) — and it's the one that drives step-by-step animation.
+        // Rendering the same timeline elements here double-drew every node/edge
+        // and painted narrate objects as overlapping center text. So when
+        // forceManualOnly is set (which is true for all D3/KaTeX/Specialized
+        // scenes) SVGCanvasRenderer only handles manual annotations/notes.
+        if (isTimeline && forceManualOnly) return false;
         
         return isManual || stepObjectIds.has(sId);
       })

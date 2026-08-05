@@ -78,8 +78,10 @@ const chatSessionSchema = new mongoose.Schema({
     default: 0,
   },
   engineSessionId: {
-    type: String, // String ID used by sessionStore (socket-abc or api-123)
-    default: null,
+    // String ID used by sessionStore (socket-abc or api-123).
+    // No default: an explicit null gets indexed by the sparse unique index
+    // and makes every second HTTP-only session fail with E11000.
+    type: String,
   },
   lastUpdated: {
     type: Date,

@@ -1,353 +1,365 @@
+/**
+ * GSAPExecutor v5.0 — Compile-Ahead Master Timeline Engine.
+ *
+ * Every command in a script is compiled into ONE GSAP timeline:
+ *   - DOM elements are created at compile time (hidden), entrance tweens are
+ *     timeline children — so pause / resume / seek / timeScale affect ALL
+ *     motion (no orphan tweens, no race conditions).
+ *   - The cursor advances by each command's REAL duration (returned by the
+ *     plugin), not a hardcoded guess — commands never overlap unless they
+ *     explicitly opt in via `parallel: true`.
+ *   - A small breathing gap between commands keeps pacing deliberate.
+ *   - The camera automatically frames new content at the start of each batch.
+ */
+
 import gsap from 'gsap';
 import { Command, RendererSystem } from './types';
+import { AnimContext } from './canvas/types';
+import {
+  fadeIn, fadeOut, pulse, shake, colorTo, indicate,
+  circumscribe, flashAt, arcSwap,
+} from './anim/primitives';
 
+const COMMAND_GAP = 0.06; // seconds of breathing room between commands
 
-
-/**
- * GSAPExecutor v4.0 — The Unified Animation Engine.
- * 
- * Orchestrates the master timeline, subject renderers (D3, Physics, Math),
- * and camera movements.
- */
 export class GSAPExecutor {
   private masterTimeline: gsap.core.Timeline | null = null;
   private container: HTMLElement | null = null;
+  private speed = 1;
+  private userPaused = false;
 
   constructor(container?: HTMLElement) {
     this.container = container || null;
   }
 
-  public play(script: Command[], renderers: RendererSystem, onComplete?: () => void) {
+  /**
+   * Compile and play a command script. Returns the total duration in seconds.
+   * `onComplete` fires exactly once when the whole timeline finishes.
+   */
+  public play(script: Command[], renderers: RendererSystem, onComplete?: () => void): number {
     this.kill();
 
-    this.masterTimeline = gsap.timeline({
-      defaults: { ease: 'power2.inOut' },
-      onComplete: onComplete ?? undefined,
-    });
+    if (!script || script.length === 0) {
+      onComplete?.();
+      return 0;
+    }
 
-    const tl = this.masterTimeline!;
-    const { d3, physics, equation, graph, code } = renderers;
+    const tl = gsap.timeline({
+      paused: true,
+      defaults: { ease: 'power2.inOut' },
+      onComplete: () => onComplete?.(),
+    });
+    this.masterTimeline = tl;
+
+    const d3r: any = renderers.d3;
+    const engine: any = d3r?.engine;
     let cursor = 0;
+    const createdIds: string[] = [];
+
+    const ctxAt = (at: number): AnimContext => ({ tl, at });
 
     for (const cmd of script) {
-      const position = cursor + ((cmd.delay || 0) / 1000);
+      const at = cursor + ((cmd.delay || 0) / 1000);
+      let dur = 0;
 
       switch (cmd.cmd) {
-        // ── D3 Structural ────────────────────────────────────────────────
+        // ── Structural (D3 canvas) ──────────────────────────────────────
         case 'array':
-          tl.call(() => d3.createArray(cmd.id!, cmd.values!), [], position);
-          cursor = position + ((cmd.duration || 300) / 1000);
+          dur = d3r?.createArray?.(cmd.id!, cmd.values || [], cmd, ctxAt(at)) ?? 0;
+          if (cmd.id) createdIds.push(cmd.id);
           break;
 
         case 'pointer':
-          tl.call(
-            () => d3.createPointer(cmd.id!, cmd.atIndex!, cmd.label || '', cmd.color, cmd.targetArrayId),
-            [], position
-          );
-          cursor = position + ((cmd.duration || 200) / 1000);
+          dur = d3r?.createPointer?.(cmd.id!, cmd.atIndex ?? 0, cmd.label || '', cmd.color, cmd.targetArrayId, ctxAt(at)) ?? 0;
           break;
 
         case 'move_pointer':
-          tl.call(
-            () => d3.updatePointer(cmd.id!, cmd.atIndex!, cmd.targetArrayId),
-            [], position
-          );
-          cursor = position + ((cmd.duration || 250) / 1000);
+          dur = d3r?.updatePointer?.(cmd.id!, cmd.atIndex ?? 0, cmd.targetArrayId, ctxAt(at)) ?? 0;
           break;
 
         case 'draw_boundary':
-          tl.call(
-            () => d3.drawBoundary(cmd.atIndex!, cmd.label!, cmd.targetArrayId, cmd.endIndex),
-            [], position
-          );
-          cursor = position + ((cmd.duration || 200) / 1000);
+          dur = d3r?.drawBoundary?.(cmd.atIndex ?? 0, cmd.label || '', cmd.targetArrayId, cmd.endIndex, ctxAt(at)) ?? 0;
           break;
 
         case 'tree':
-          tl.call(() => d3.createTree(cmd.id!, cmd.data!), [], position);
-          cursor = position + ((cmd.duration || 500) / 1000);
+          dur = d3r?.createTree?.(cmd.id!, cmd.data, cmd, ctxAt(at)) ?? 0;
+          if (cmd.id) createdIds.push(cmd.id);
           break;
 
         case 'chart':
-          tl.call(() => d3.createChart(cmd.id!, cmd.data!, cmd.type as any), [], position);
-          cursor = position + ((cmd.duration || 500) / 1000);
+          dur = d3r?.createChart?.(cmd.id!, cmd.data, (cmd.type as string) || 'bar', ctxAt(at)) ?? 0;
+          if (cmd.id) createdIds.push(cmd.id);
           break;
 
         case 'timeline':
-          tl.call(() => d3.createTimeline(cmd.id!, cmd.events!), [], position);
-          cursor = position + ((cmd.duration || 500) / 1000);
+          dur = d3r?.createTimeline?.(cmd.id!, cmd.events || [], ctxAt(at)) ?? 0;
+          if (cmd.id) createdIds.push(cmd.id);
           break;
 
+        case 'node':
+        case 'orb':
+        case 'badge':
+        case 'block':
+        case 'data_block':
+        case 'callout':
+        case 'group':
+        case 'step':
+          dur = d3r?.createNode?.(cmd.id!, cmd, ctxAt(at)) ?? 0;
+          if (cmd.id) createdIds.push(cmd.id);
+          break;
+
+        case 'edge':
+          dur = d3r?.createEdge?.(cmd.id!, cmd, ctxAt(at)) ?? 0;
+          break;
+
+        // ── Annotations & results ───────────────────────────────────────
         case 'compare':
-          tl.call(() => d3.createComparator(cmd.left!, cmd.right!, cmd.op!), [], position);
-          cursor = position + ((cmd.duration || 400) / 1000);
+          dur = d3r?.createComparator?.(cmd.left, cmd.right, cmd.op || '==', ctxAt(at)) ?? 0;
           break;
 
-        // ── D3 Annotations & Results ─────────────────────────────────────
         case 'annotate':
-          tl.call(() => d3.annotate(cmd.id || cmd.target!, cmd.text!), [], position);
-          cursor = position + ((cmd.duration || 300) / 1000);
+          dur = d3r?.annotate?.(cmd.id || cmd.target!, cmd.text || '', ctxAt(at)) ?? 0;
           break;
 
         case 'result':
-          tl.call(() => d3.showResult(cmd.text!), [], position);
-          cursor = position + ((cmd.duration || 400) / 1000);
+          dur = d3r?.showResult?.(cmd.text || '', ctxAt(at)) ?? 0;
           break;
 
-        case 'remove':
-          tl.call(() => d3.removeElement(cmd.id || cmd.target!), [], position);
-          cursor = position + ((cmd.duration || 200) / 1000);
+        case 'remove': {
+          const el = this._getElement(cmd.id || cmd.target!);
+          if (el) {
+            dur = fadeOut(tl, el, at, { duration: (cmd.duration || 300) / 1000 });
+            tl.call(() => d3r?.removeElement?.(cmd.id || cmd.target!), [], at + dur);
+          }
           break;
+        }
 
-        // ── Physics ──────────────────────────────────────────────────────
-        case 'physics_body':
-          tl.call(() => physics?.addBody?.(cmd), [], position);
-          cursor = position + ((cmd.duration || 200) / 1000);
-          break;
-
-        case 'force':
-          tl.call(() => physics?.applyForce?.(cmd.body || cmd.id, cmd.fx, cmd.fy), [], position);
-          cursor = position + ((cmd.duration || 200) / 1000);
-          break;
-
-        // ── Math & Simulation ───────────────────────────────────────────
-        case 'equation':
-          tl.call(() => equation?.setFormula?.(cmd.formula || cmd.text || ''), [], position);
-          cursor = position + ((cmd.duration || 500) / 1000);
-          break;
-
-        case 'graph':
-          tl.call(() => graph?.setExpression?.(cmd.latex || cmd.formula || '', cmd.color), [], position);
-          cursor = position + ((cmd.duration || 500) / 1000);
-          break;
-
-        case 'code':
-          tl.call(() => code?.setCode?.(cmd.code || cmd.content || ''), [], position);
-          cursor = position + ((cmd.duration || 500) / 1000);
-          break;
-
-        // ── Animations ───────────────────────────────────────────────────
+        // ── Emphasis ────────────────────────────────────────────────────
         case 'highlight':
-          tl.call(() => d3.highlightCell(cmd.id!, cmd.color || '#fef08a', cmd.duration || 500), [], position);
-          cursor = position + ((cmd.duration || 500) / 1000);
+          dur = d3r?.highlightCell?.(cmd.id!, cmd.color || '#fef08a', cmd.duration || 600, ctxAt(at)) ?? 0;
+          if (dur === 0) {
+            // Non-cell target: generic indicate
+            const el = this._getElement(cmd.id!);
+            if (el) dur = indicate(tl, el, at, { duration: (cmd.duration || 600) / 1000 });
+          }
           break;
 
         case 'swap':
-          this._executeArcSwap(cmd, position, d3);
-          cursor = position + ((cmd.duration || 600) / 1000);
+          dur = arcSwap(
+            tl,
+            () => this._getElement(cmd.id1!),
+            () => this._getElement(cmd.id2!),
+            at,
+            () => d3r?.swapCells?.(cmd.id1!, cmd.id2!),
+            { duration: (cmd.duration || 600) / 1000 }
+          );
           break;
 
         case 'color_to': {
-          const dur = (cmd.duration || 400) / 1000;
-          tl.call(() => {
-            const el = this._getElement(cmd.id!);
-            if (el) gsap.to(el.querySelector('rect') || el, { fill: cmd.color, duration: dur });
-          }, [], position);
-          cursor = position + dur;
+          const el = this._getElement(cmd.id!);
+          const target = el?.querySelector('rect') || el;
+          if (target) dur = colorTo(tl, target, at, cmd.color || '#3b82f6', { duration: (cmd.duration || 400) / 1000 });
           break;
         }
 
         case 'shake': {
-          const dur = (cmd.duration || 400) / 1000;
-          tl.call(() => {
-            const el = this._getElement(cmd.id!);
-            if (el) {
-              gsap.to(el, { x: '+=10', duration: dur / 4, repeat: 3, yoyo: true, ease: 'sine.inOut' });
-            }
-          }, [], position);
-          cursor = position + dur;
+          const el = this._getElement(cmd.id!);
+          if (el) dur = shake(tl, el, at, { duration: (cmd.duration || 400) / 1000 });
           break;
         }
 
         case 'pulse': {
-          const dur = (cmd.duration || 600) / 1000;
-          tl.call(() => {
-            const el = this._getElement(cmd.id!);
-            if (el) {
-              gsap.to(el, { scale: 1.2, duration: dur / 2, repeat: 1, yoyo: true, ease: 'power2.inOut' });
-            }
-          }, [], position);
-          cursor = position + dur;
+          const el = this._getElement(cmd.id!);
+          if (el) dur = pulse(tl, el, at, { duration: (cmd.duration || 600) / 1000 });
+          break;
+        }
+
+        case 'circumscribe': {
+          const bbox = engine?.getBBoxOf?.(cmd.id || cmd.target!);
+          const fxLayer = engine?.fxLayer?.node?.();
+          if (bbox && fxLayer) dur = circumscribe(tl, fxLayer, bbox, at, { color: cmd.color });
+          break;
+        }
+
+        case 'flash': {
+          const bbox = engine?.getBBoxOf?.(cmd.id || cmd.target!);
+          const fxLayer = engine?.fxLayer?.node?.();
+          if (bbox && fxLayer) {
+            dur = flashAt(tl, fxLayer, { x: bbox.x + bbox.w / 2, y: bbox.y + bbox.h / 2 }, at, { color: cmd.color });
+          }
           break;
         }
 
         case 'fade_in': {
-          const dur = (cmd.duration || 400) / 1000;
-          tl.call(() => {
-            const el = this._getElement(cmd.id!);
-            if (el) gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: dur });
-          }, [], position);
-          cursor = position + dur;
+          const el = this._getElement(cmd.id!);
+          if (el) dur = fadeIn(tl, el, at, { duration: (cmd.duration || 400) / 1000 });
           break;
         }
 
         case 'fade_out': {
-          const dur = (cmd.duration || 400) / 1000;
-          tl.call(() => {
-            const el = this._getElement(cmd.id!);
-            if (el) gsap.to(el, { opacity: 0, duration: dur });
-          }, [], position);
-          cursor = position + dur;
+          const el = this._getElement(cmd.id!);
+          if (el) dur = fadeOut(tl, el, at, { duration: (cmd.duration || 400) / 1000 });
           break;
         }
 
-        // ── Global ───────────────────────────────────────────────────────
+        // ── External renderers (KaTeX / Desmos / Monaco / Matter) ───────
+        case 'equation':
+          tl.call(() => renderers.equation?.setFormula?.(cmd.formula || cmd.text || ''), [], at);
+          dur = (cmd.duration || 800) / 1000;
+          break;
+
+        case 'graph':
+          tl.call(() => renderers.graph?.setExpression?.(cmd.latex || cmd.formula || '', cmd.color), [], at);
+          dur = (cmd.duration || 800) / 1000;
+          break;
+
+        case 'code':
+          tl.call(() => renderers.code?.setCode?.(cmd.code || cmd.content || ''), [], at);
+          dur = (cmd.duration || 800) / 1000;
+          break;
+
+        case 'physics_body':
+          tl.call(() => renderers.physics?.addBody?.(cmd), [], at);
+          dur = (cmd.duration || 300) / 1000;
+          break;
+
+        case 'force':
+          tl.call(() => renderers.physics?.applyForce?.(cmd.body || cmd.id, cmd.fx, cmd.fy), [], at);
+          dur = (cmd.duration || 300) / 1000;
+          break;
+
+        // ── Camera ──────────────────────────────────────────────────────
         case 'camera': {
-          const cameraTarget = this.container?.querySelector('.infinite-canvas-content') || '.infinite-canvas-content';
-          tl.to(cameraTarget, {
-            scale:    cmd.zoom || 1,
-            x:        (cmd.x || 0) * 100,
-            y:        (cmd.y || 0) * 100,
-            duration: (cmd.duration || 1000) / 1000,
-          }, position);
-          cursor = position + ((cmd.duration || 1000) / 1000);
+          if (engine?.camera) {
+            if (cmd.target || cmd.focusId) {
+              // Focus a specific element (bbox resolved at compile time)
+              const bbox = engine.getBBoxOf(cmd.target || cmd.focusId);
+              if (bbox) dur = engine.camera.focusOn(tl, bbox, at, { zoom: cmd.zoom, duration: (cmd.duration || 900) / 1000 });
+            } else if (cmd.zoom !== undefined || cmd.x !== undefined || cmd.y !== undefined) {
+              const k = cmd.zoom || 1;
+              const cx = (cmd.x ?? 0.5) * engine.width;
+              const cy = (cmd.y ?? 0.5) * engine.height;
+              dur = engine.camera.tweenTo(tl, {
+                x: engine.width / 2 - k * cx,
+                y: engine.height / 2 - k * cy,
+                k,
+              }, at, (cmd.duration || 900) / 1000);
+            } else {
+              dur = engine.camera.reset(tl, at);
+            }
+          }
           break;
         }
 
+        // ── Flow control ────────────────────────────────────────────────
         case 'wait':
-          cursor = position + ((cmd.ms || cmd.duration || 500) / 1000);
+          dur = (cmd.ms || cmd.duration || 500) / 1000;
           break;
 
         case 'narrate':
-          // Narration is instant but we keep cursor
-          cursor = position;
+          // Narration pacing is handled at the step level (voice-gated
+          // advancement) — the command itself takes no timeline space.
+          dur = 0;
           break;
 
         default:
-          console.warn(`[GSAPExecutor] Unknown command: ${cmd.cmd}`);
+          if (import.meta.env?.DEV) {
+            console.warn(`[GSAPExecutor] Unknown command: ${cmd.cmd}`);
+          }
       }
+
+      const parallel = (cmd as any).parallel === true;
+      if (!parallel) {
+        cursor = at + dur + (dur > 0 ? COMMAND_GAP : 0);
+      }
+    }
+
+    // Smart camera: frame newly created content while it animates in — but
+    // only if it isn't already visible (evaluated at play time).
+    if (engine?.camera && createdIds.length > 0) {
+      engine.camera.ensureVisible(tl, () => {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const id of createdIds) {
+          const b = engine.getBBoxOf(id);
+          if (!b) continue;
+          minX = Math.min(minX, b.x);
+          minY = Math.min(minY, b.y);
+          maxX = Math.max(maxX, b.x + b.w);
+          maxY = Math.max(maxY, b.y + b.h);
+        }
+        if (!isFinite(minX)) return null;
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }, 0.01, { duration: Math.min(0.9, Math.max(0.5, cursor * 0.4)) });
+    }
+
+    tl.timeScale(this.speed);
+    if (this.userPaused) {
+      // Playback is paused (e.g. the user clicked a specific step): render
+      // the step's final state instantly. onComplete still fires so the
+      // completion gating stays accurate.
+      tl.progress(1, false);
+    } else {
+      tl.play(0);
+    }
+    return cursor;
+  }
+
+  // ── Playback controls (all effective — every tween is a timeline child) ──
+
+  public pause() {
+    this.userPaused = true;
+    this.masterTimeline?.pause();
+  }
+
+  public resume() {
+    this.userPaused = false;
+    this.masterTimeline?.resume();
+  }
+
+  public kill() {
+    if (this.masterTimeline) {
+      this.masterTimeline.kill();
+      this.masterTimeline = null;
     }
   }
 
-  private _executeArcSwap(cmd: Command, position: number, d3: any) {
-    const dur = (cmd.duration || 600) / 1000;
-    const id1 = cmd.id1!;
-    const id2 = cmd.id2!;
-
-    this.masterTimeline!.call(() => {
-      const el1 = this._getElement(id1);
-      const el2 = this._getElement(id2);
-      if (!el1 || !el2) return;
-
-      const svg = (el1 as any).ownerSVGElement as SVGSVGElement;
-      if (!svg) return;
-
-      const getSvgPos = (el: any) => {
-        if (typeof el.getBBox === 'function') {
-          const bbox = el.getBBox();
-          return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
-        }
-        const rect = el.getBoundingClientRect();
-        const pt = svg.createSVGPoint();
-        pt.x = rect.left + rect.width / 2;
-        pt.y = rect.top + rect.height / 2;
-        return pt.matrixTransform(svg.getScreenCTM()!.inverse());
-      };
-
-      const p1 = getSvgPos(el1);
-      const p2 = getSvgPos(el2);
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-
-      const arcHeight = -Math.min(100, Math.abs(dx) * 0.4);
-
-      // Animation 1: Swap
-      gsap.to(el1, {
-        duration: dur,
-        x: dx,
-        y: dy,
-        scale: 1.1,
-        zIndex: 100,
-        ease: 'power2.inOut',
-        onComplete: () => {
-          gsap.set(el1, { x: 0, y: 0, scale: 1, zIndex: 'auto' });
-          d3.swapCells(id1, id2);
-        }
-      });
-
-      // Animation 2: Mirror
-      gsap.to(el2, {
-        duration: dur,
-        x: -dx,
-        y: -dy,
-        scale: 0.9,
-        zIndex: 10,
-        ease: 'power2.inOut',
-        onComplete: () => {
-          gsap.set(el2, { x: 0, y: 0, scale: 1, zIndex: 'auto' });
-        }
-      });
-    }, [], position);
+  public setSpeed(speed: number) {
+    this.speed = Math.max(0.25, Math.min(4, speed || 1));
+    this.masterTimeline?.timeScale(this.speed);
   }
 
-  public pause()  { this.masterTimeline?.pause(); }
-  public resume() { this.masterTimeline?.resume(); }
-  public kill()   { this.masterTimeline?.kill(); this.masterTimeline = null; }
-  public setSpeed(speed: number) { this.masterTimeline?.timeScale(speed); }
+  // ── Timeline scrubbing & progress ───────────────────────────────────────
 
-  // ── Timeline Scrubbing & Progress ───────────────────────────────────────
-
-  /**
-   * Seek to a specific time in the master timeline (in seconds).
-   * Useful for scrubber UI controls.
-   */
   public seekTo(time: number): void {
-    if (!this.masterTimeline) return;
-    this.masterTimeline.seek(time, false);
+    this.masterTimeline?.seek(time, false);
   }
 
-  /**
-   * Get the current playback progress as a ratio [0, 1].
-   */
   public getProgress(): number {
-    if (!this.masterTimeline) return 0;
-    return this.masterTimeline.progress();
+    return this.masterTimeline?.progress() ?? 0;
   }
 
-  /**
-   * Get the total duration of the master timeline in seconds.
-   */
   public getDuration(): number {
-    if (!this.masterTimeline) return 0;
-    return this.masterTimeline.duration();
+    return this.masterTimeline?.duration() ?? 0;
   }
 
-  /**
-   * Get the current playback time in seconds.
-   */
   public getCurrentTime(): number {
-    if (!this.masterTimeline) return 0;
-    return this.masterTimeline.time();
+    return this.masterTimeline?.time() ?? 0;
   }
 
-  /**
-   * Check if the timeline is currently playing.
-   */
   public isActive(): boolean {
     return this.masterTimeline?.isActive() || false;
   }
 
-  // ── GPU Hints ───────────────────────────────────────────────────────────
-
-  /**
-   * Apply will-change hints to elements that will be animated.
-   * This tells the browser to promote them to their own compositing layer.
-   */
-  private _applyGPUHints(el: HTMLElement | null): void {
-    if (!el) return;
-    el.style.willChange = 'transform, opacity';
+  /** Jump the current timeline to its end state instantly. */
+  public finishInstantly(): void {
+    this.masterTimeline?.progress(1, false);
   }
 
-  /**
-   * Remove will-change hints after animation completes to free GPU memory.
-   */
-  private _removeGPUHints(el: HTMLElement | null): void {
-    if (!el) return;
-    el.style.willChange = 'auto';
-  }
-
-  private _getElement(id: string): HTMLElement | null {
+  private _getElement(id: string): Element | null {
     if (!id) return null;
-    return (this.container?.querySelector(`#${CSS.escape(id)}`) as HTMLElement) || (document.getElementById(id) as HTMLElement);
+    return (
+      (this.container?.querySelector(`#${CSS.escape(id)}`) as Element) ||
+      document.getElementById(id)
+    );
   }
 }

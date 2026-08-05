@@ -53,10 +53,3 @@ export function sceneGraphToFlow(sceneGraph) {
   return { nodes, edges };
 }
 
-/**
- * Future: Convert SceneGraph to Konva/Canvas format
- */
-export function sceneGraphToKonva(sceneGraph) {
-  // Placeholder for Phase 2.4
-  return sceneGraph.elements;
-}

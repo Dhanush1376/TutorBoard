@@ -15,11 +15,13 @@ const PANEL_RADIUS = parseInt(getComputedStyle(document.documentElement).getProp
 const PANEL_GAP = 0;
 
 const sidebarStyle = {
-  background: 'transparent',
+  background: 'var(--bg-primary)',
+  borderRight: '1px solid var(--border-subtle)',
 };
 
 const sidebarStyleRight = {
-  background: 'transparent',
+  background: 'var(--bg-primary)',
+  borderLeft: '1px solid var(--border-subtle)',
 };
 
 const miniGlass = {
@@ -89,47 +91,38 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
       </AnimatePresence>
 
       {/* -- SIDEBAR PANEL -- */}
-      <AnimatePresence initial={false}>
-        {sidebarVisible && (
-          <motion.aside
-            key="sidebar"
-            ref={sidebarRef}
-            initial={{
-              x: isRightHand ? '100%' : '-100%',
-              opacity: 0.5,
-              width: isMobile ? '100%' : 0
-            }}
-            animate={{
-              x: 0,
-              opacity: 1,
-              width: currentSidebarWidth
-            }}
-            exit={{
-              x: isRightHand ? '100%' : '-100%',
-              opacity: 0,
-              width: isMobile ? '100%' : 0
-            }}
-            transition={{ type: 'spring', damping: 30, stiffness: 350, mass: 0.8 }}
-            onClick={(e) => {
-              // Stop propagation to prevent hitting the backdrop
-              e.stopPropagation();
-            }}
-            onPointerDown={(e) => {
-              // Safety for mobile pointer events
-              e.stopPropagation();
-            }}
-            className="tb-sidebar flex-shrink-0 flex flex-col overflow-hidden h-full z-[5000] md:z-auto fixed md:relative pointer-events-auto"
-            style={{
-              ...(isRightHand ? sidebarStyleRight : sidebarStyle),
-              boxShadow: isMobile ? '0 0 40px rgba(0,0,0,0.2)' : 'none',
-            }}
-          >
-            <div className="w-full h-full">
-              {sidebar}
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
+      <motion.aside
+        key="sidebar"
+        ref={sidebarRef}
+        initial={false}
+        animate={{
+          x: sidebarVisible ? 0 : (isRightHand ? '100%' : '-100%'),
+          opacity: sidebarVisible ? 1 : 0,
+          width: sidebarVisible ? currentSidebarWidth : (isMobile ? '100%' : 0)
+        }}
+        transition={{ type: 'spring', damping: 30, stiffness: 350, mass: 0.8 }}
+        onClick={(e) => {
+          // Stop propagation to prevent hitting the backdrop
+          e.stopPropagation();
+        }}
+        onPointerDown={(e) => {
+          // Safety for mobile pointer events
+          e.stopPropagation();
+        }}
+        className={`tb-sidebar flex-shrink-0 flex flex-col overflow-hidden h-full z-[5000] md:z-30 fixed md:relative ${sidebarVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        style={{
+          ...(isRightHand ? sidebarStyleRight : sidebarStyle),
+          boxShadow: sidebarVisible 
+            ? (isDark 
+                ? '8px 0 30px -6px rgba(0, 0, 0, 0.3), 2px 0 10px -2px rgba(0, 0, 0, 0.18)' 
+                : '6px 0 24px -6px rgba(0, 0, 0, 0.05), 2px 0 8px -2px rgba(0, 0, 0, 0.02)')
+            : 'none',
+        }}
+      >
+        <div className="h-full" style={{ width: isMobile ? '100%' : baseSidebarWidth }}>
+          {sidebar}
+        </div>
+      </motion.aside>
 
       {/* -- MAIN CONTENT AREA -- */}
       <main

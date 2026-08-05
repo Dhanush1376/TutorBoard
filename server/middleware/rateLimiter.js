@@ -25,14 +25,14 @@ class MongoStore {
           $inc: { count: 1 },
           $setOnInsert: { expiresAt }
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       if (doc.expiresAt.getTime() <= now) {
         const resetDoc = await RateLimit.findOneAndUpdate(
           { key: fullKey },
           { $set: { count: 1, expiresAt } },
-          { new: true }
+          { returnDocument: 'after' }
         );
         return {
           totalHits: resetDoc.count,
@@ -113,7 +113,9 @@ export const aiRateLimiter = rateLimit({
     if (req.user && req.user._id) {
       return `user:${req.user._id}`;
     }
-    return req.ip;
+    // express-rate-limit 7+ requires an explicit string. IPv6 req.ip might trigger warnings
+    // if ipKeyGenerator isn't used, but we can safely just return req.ip || 'unknown'
+    return req.ip || 'unknown';
   },
   message: {
     error: 'AI modification limit reached. Please try again in an hour.',
@@ -222,7 +224,7 @@ export async function checkGuestUsage(ip) {
         $inc: { count: 1 },
         $setOnInsert: { expiresAt }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
     return doc.count <= GUEST_MONTHLY_LIMIT;
   } catch (err) {

@@ -74,15 +74,12 @@ export class AgentOrchestrator {
     stages['visualization'] = { duration: visualResult.duration, model: visualResult.model, success: true, tokens: visualResult.tokens };
     totalTokens += (narrationResult.tokens + visualResult.tokens);
 
-    // 4. Optional: Critique Stage
-    let criticScore = 1.0;
-    if (plan.complexity === 'advanced') {
-      const criticResult = await this.runCritic(narrationResult.content, visualResult.script, context);
-      await BudgetService.recordUsage(context.sessionId, criticResult.tokens);
-      criticScore = criticResult.score;
-      stages['critique'] = { duration: criticResult.duration, model: criticResult.model, success: true, tokens: criticResult.tokens };
-      totalTokens += criticResult.tokens;
-    }
+    // NOTE: The inline critique stage was removed (Phase 8 simplification). It
+    // fired a full extra LLM call on advanced-complexity queries, but its score
+    // was never consumed by any caller — pure latency/token cost. Async quality
+    // critique still runs separately via processCritiqueAsync in ChatService.
+    // criticScore stays in the result shape (defaulted) for backward compatibility.
+    const criticScore = 1.0;
 
     // 4. Finalize Results
     const duration = Date.now() - startTime;
@@ -102,18 +99,27 @@ export class AgentOrchestrator {
   private async runNarrator(plan: StrategicPlan, context: any, userMessage: string) {
     const start = Date.now();
     const model = await BudgetService.resolveOptimizedModel('narration', context.sessionId, context.userTier || 'free');
-    
-    const res = await requestCompletion({
-      model,
-      messages: [
-        { role: 'system', content: promptRegistry.getPrompt('narrator') },
-        { role: 'user', content: `PLAN: ${JSON.stringify(plan)}\nUSER: ${userMessage}` }
-      ],
-      temperature: 0.2,
-      responseMimeType: 'application/json',
-      userConfig: context.userConfig,
-      signal: context.signal
-    });
+
+    let res: any;
+    try {
+      res = await requestCompletion({
+        model,
+        messages: [
+          { role: 'system', content: promptRegistry.getPrompt('narrator') },
+          { role: 'user', content: `PLAN: ${JSON.stringify(plan)}\nUSER: ${userMessage}` }
+        ],
+        temperature: 0.2,
+        maxTokens: 8000, // multi-step narration JSON regularly exceeds the old 1000-token default and got truncated mid-array
+        responseMimeType: 'application/json',
+        userConfig: context.userConfig,
+        signal: context.signal
+      });
+    } catch (err) {
+      // Never let a narrator provider failure reject the whole orchestration —
+      // the visualizer runs in the same Promise.all and would be lost with it.
+      console.error(`[Orchestrator] Narrator request failed for all providers (${(err as Error).message?.slice(0, 160)}).`);
+      return { content: { narrations: [] }, tokens: 0, duration: Date.now() - start, model };
+    }
 
     console.log("RAW AI RESPONSE (NARRATOR):", res.content);
 
@@ -128,84 +134,65 @@ export class AgentOrchestrator {
   private async runVisualizer(plan: StrategicPlan, context: any, userMessage: string) {
     const start = Date.now();
     const model = await BudgetService.resolveOptimizedModel('visualization', context.sessionId, context.userTier || 'free');
+    const fallbackTopic = (plan as any).topic || context.topic || userMessage?.slice(0, 60) || "Topic";
 
-    // =========================================================================
-    // TEMPORARY BYPASS (STEP 6 & 7): HARDCODED PYTHAGORAS LESSON
-    // =========================================================================
-    const bypassAI = true; 
-    if (bypassAI) {
-      console.warn("[Orchestrator] BYPASSING AI VISUALIZER -> INJECTING HARDCODED LESSON");
-      const hardcodedScript = getHardcodedPythagorasLesson();
-      console.log(`[Orchestrator] PIPELINE DIAGNOSTIC: Created Visual Script with ${hardcodedScript.script?.length} nodes`);
+    // ─── 4. RUN VISUALIZER ──────────────────────────────────────────────────
+    let res: any;
+    try {
+      res = await requestCompletion({
+        model,
+        messages: [
+          { role: 'system', content: promptRegistry.getPrompt('visualizer') },
+          { role: 'user', content: `PLAN: ${JSON.stringify(plan)}\nUSER: ${userMessage}` }
+        ],
+        temperature: 0,
+        maxTokens: 8000, // rich scenes (8+ nodes with edges/callouts) exceed the old 1000-token default
+        responseMimeType: 'application/json',
+        userConfig: context.userConfig,
+        signal: context.signal
+      });
+    } catch (err) {
+      // Total provider failure (all providers rate-limited / over-quota / token-capped).
+      // Degrade to the fallback concept map so the canvas ALWAYS gets a scene
+      // instead of a blank 0-node event. This is the reliability guarantee for
+      // "every explanation is accompanied by a diagram".
+      console.error(`[Orchestrator] Visualizer request failed for all providers (${(err as Error).message?.slice(0, 160)}). Using fallback scene.`);
       return {
-        script: hardcodedScript,
+        script: generateFallbackVisualScript(fallbackTopic),
         tokens: 0,
         duration: Date.now() - start,
-        model: "hardcoded"
+        model
       };
     }
-    // =========================================================================
-    
-    const res = await requestCompletion({
-      model,
-      messages: [
-        { role: 'system', content: promptRegistry.getPrompt('visualizer') },
-        { role: 'user', content: `PLAN: ${JSON.stringify(plan)}\nUSER: ${userMessage}` }
-      ],
-      temperature: 0,
-      responseMimeType: 'application/json',
-      userConfig: context.userConfig,
-      signal: context.signal
-    });
 
     console.log("RAW AI RESPONSE (VISUALIZER):", res.content);
 
     let script;
-    let extractedJson = strictParseJSON(res.content);
+    const extractedJson = strictParseJSON(res.content);
 
     if (!extractedJson) {
       console.error("[Orchestrator] Visualizer JSON Extraction Failed. Using fallback.");
-      script = generateFallbackVisualScript((plan as any).topic || "Topic");
+      script = generateFallbackVisualScript(fallbackTopic);
     } else {
       const validation = VisualScriptSchema.safeParse(extractedJson);
       console.log("[Orchestrator] SCHEMA VALIDATION RESULT:", validation.success ? "SUCCESS" : "FAILED", validation.error?.issues);
-      
+
       if (!validation.success) {
         console.error("[Orchestrator] Visualizer Schema Validation Failed. Using fallback.");
-        script = generateFallbackVisualScript((plan as any).topic || "Topic");
+        script = generateFallbackVisualScript(fallbackTopic);
       } else {
         script = validation.data;
+        // Even a schema-valid response can be empty (e.g. `{ "script": [] }`).
+        // An empty script paints a blank canvas — fall back so a scene always renders.
+        if (!Array.isArray(script.script) || script.script.length === 0) {
+          console.error("[Orchestrator] Visualizer returned an empty script. Using fallback.");
+          script = generateFallbackVisualScript(fallbackTopic);
+        }
       }
     }
 
     return {
       script,
-      tokens: (res._meta?.tokens_in || 0) + (res._meta?.tokens_out || 0),
-      duration: Date.now() - start,
-      model
-    };
-  }
-
-  private async runCritic(narration: any, visualScript: any, context: any) {
-    const start = Date.now();
-    const model = await BudgetService.resolveOptimizedModel('critique', context.sessionId, context.userTier || 'free');
-    
-    const res = await requestCompletion({
-      model,
-      messages: [
-        { role: 'system', content: promptRegistry.getPrompt('critic') },
-        { role: 'user', content: `NARRATION: ${JSON.stringify(narration)}\nVISUALS: ${JSON.stringify(visualScript)}` }
-      ],
-      temperature: 0,
-      responseMimeType: 'application/json',
-      userConfig: context.userConfig,
-      signal: context.signal
-    });
-
-    const data = extractJSON(res.content) || {};
-    return {
-      score: data.scores?.overall || 1.0,
-      data,
       tokens: (res._meta?.tokens_in || 0) + (res._meta?.tokens_out || 0),
       duration: Date.now() - start,
       model

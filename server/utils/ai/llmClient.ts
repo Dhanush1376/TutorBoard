@@ -173,13 +173,15 @@ export function resolveModelId(modelId?: string): string {
     normalizedId.toLowerCase() === 'tutor' ||
     normalizedId.toLowerCase() === 'bytez' ||
     normalizedId.toLowerCase() === 'tutu') {
-    return 'gemini-1.5-flash';
+    return 'gemini-flash-latest';
   }
 
   const mapping: Record<string, string> = {
-    'Claude 3.5 Sonnet': 'anthropic/claude-3-5-sonnet-20241022',
-    'Gemini 1.5 Flash': 'gemini-1.5-flash',
-    'Gemini 1.5 Pro': 'gemini-1.5-pro',
+    'Claude 3.5 Sonnet': 'claude-sonnet-5',
+    'Gemini 1.5 Flash': 'gemini-flash-latest',
+    'Gemini 1.5 Pro': 'gemini-pro-latest',
+    'Gemini 2.5 Flash': 'gemini-flash-latest',
+    'Gemini 2.5 Pro': 'gemini-pro-latest',
     'DeepSeek V3': 'deepseek/deepseek-chat',
     'Llama 3.3 70B': 'meta-llama/llama-3.3-70b-instruct'
   };
@@ -196,7 +198,25 @@ export function resolveModelId(modelId?: string): string {
 }
 
 export function sanitizeModelIdForProvider(modelId: string, provider: string): string {
-  if (provider === 'openrouter') return modelId;
+  if (provider === 'openrouter') {
+    // OpenRouter uses vendor-prefixed, VERSIONED slugs. Google's rolling
+    // "-latest" aliases (valid on Google's own endpoint) are NOT valid OpenRouter
+    // model IDs and return a 400, so translate them to concrete OpenRouter slugs.
+    const OPENROUTER_ALIASES: Record<string, string> = {
+      'gemini-flash-latest': 'google/gemini-2.0-flash-001',
+      'gemini-pro-latest': 'google/gemini-pro-1.5',
+      'google/gemini-flash-latest': 'google/gemini-2.0-flash-001',
+      'google/gemini-pro-latest': 'google/gemini-pro-1.5',
+    };
+    if (OPENROUTER_ALIASES[modelId]) return OPENROUTER_ALIASES[modelId];
+    // Vendor-prefix bare IDs (e.g. from AI_MODEL env) that would otherwise 404
+    if (!modelId.includes('/')) {
+      if (modelId.startsWith('gemini')) return `google/${modelId}`;
+      if (modelId.startsWith('claude')) return `anthropic/${modelId}`;
+      if (modelId.startsWith('llama')) return `meta-llama/${modelId}`;
+    }
+    return modelId;
+  }
 
   // Google OpenAI endpoint requires 'models/' prefix
   if (provider === 'google') {
@@ -215,22 +235,22 @@ export function sanitizeModelIdForProvider(modelId: string, provider: string): s
 }
 
 export function getTextModel(): string {
-  return process.env.AI_TEXT_MODEL || process.env.AI_MODEL_TEXT || 'gemini-1.5-flash';
+  return process.env.AI_TEXT_MODEL || process.env.AI_MODEL_TEXT || 'gemini-flash-latest';
 }
 
 export function getModel(): string {
-  return process.env.AI_MODEL || process.env.AI_TEXT_MODEL || 'gemini-1.5-flash';
+  return process.env.AI_MODEL || process.env.AI_TEXT_MODEL || 'gemini-flash-latest';
 }
 
 export function getFastModel(): string {
-  return process.env.AI_MODEL_FAST || process.env.AI_MODEL_TEXT || 'gemini-1.5-flash';
+  return process.env.AI_MODEL_FAST || process.env.AI_MODEL_TEXT || 'gemini-flash-latest';
 }
 
 export function getModelForAgent(agentType: string): string {
   const mapping: Record<string, string> = {
-    'doubt': 'gemini-1.5-flash',
-    'planner': 'claude-3-5-sonnet-20241022',
-    'visualizer': 'gemini-1.5-flash'
+    'doubt': 'gemini-flash-latest',
+    'planner': 'gemini-flash-latest',
+    'visualizer': 'gemini-flash-latest'
   };
   return mapping[agentType] || getTextModel();
 }
@@ -354,6 +374,11 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
 }
 
 const GROQ_FALLBACK_MODELS: Record<string, string> = {
+  'gemini-flash-latest': 'llama-3.3-70b-versatile',
+  'gemini-pro-latest': 'llama-3.3-70b-versatile',
+  'claude-sonnet-5': 'llama-3.3-70b-versatile',
+  'claude-haiku-4-5': 'llama-3.3-70b-versatile',
+  // Legacy IDs kept so stale client selections still resolve to a live Groq model
   'gemini-1.5-flash': 'llama-3.3-70b-versatile',
   'gemini-1.5-pro': 'llama-3.3-70b-versatile',
   'claude-3-5-sonnet-20241022': 'llama-3.3-70b-versatile',
@@ -411,11 +436,12 @@ async function _executeCustomPath(params: LLMParams, model: string, response_for
 }
 
 async function _executeSystemPath(params: LLMParams, model: string, response_format: any, headers: any, startTime: number): Promise<LLMResponse> {
-  // SYSTEM FALLBACK CHAIN: OpenRouter -> Google -> Groq
-  // Each provider gets a model ID appropriate for its API
+  // SYSTEM FALLBACK CHAIN: Google -> OpenRouter -> Groq
+  // Google first: it serves the default gemini-*-latest aliases directly, while
+  // OpenRouter needs vendor slugs and fails fast when the account has no credits.
   const chain = [
-    { id: 'openrouter', client: openRouterClient },
     { id: 'google', client: geminiClient },
+    { id: 'openrouter', client: openRouterClient },
     { id: 'groq', client: groqClient }
   ];
 
@@ -458,7 +484,7 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
             mode: 'system',
             model_used: model,
             provider_used: entry.id,
-            fallback_triggered: entry.id !== 'openrouter',
+            fallback_triggered: entry.id !== chain[0].id,
             cached: false,
             response_time_ms: responseTimeMs,
             tokens_in: usage.prompt_tokens,
@@ -473,7 +499,8 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
         return response;
       });
     } catch (err) {
-      console.warn(`[AI:System] ${entry.id} failed, trying next...`);
+      const msg = (err as any)?.message || String(err);
+      console.warn(`[AI:System] ${entry.id} failed (${String(msg).slice(0, 300)}), trying next...`);
       lastErr = err;
     }
   }

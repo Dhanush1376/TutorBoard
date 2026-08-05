@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach } from 'vitest';
 let mongo: MongoMemoryServer;
 
 beforeAll(async () => {
+  process.env.JWT_SECRET = 'test-secret';
   mongo = await MongoMemoryServer.create();
   const uri = mongo.getUri();
   await mongoose.connect(uri);

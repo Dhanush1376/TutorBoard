@@ -138,15 +138,15 @@ class BudgetService {
       case 'planning':
       case 'critique':
       case 'visualization':
-        return 'google/gemini-1.5-flash';
+        return 'google/gemini-flash-latest';
       case 'narration':
       case 'final_answer':
         if (budgetHit || tier === 'free') {
-          return 'google/gemini-1.5-flash';
+          return 'google/gemini-flash-latest';
         }
-        return 'anthropic/claude-3-5-sonnet-20241022';
+        return 'google/gemini-pro-latest';
       default:
-        return 'google/gemini-1.5-flash';
+        return 'google/gemini-flash-latest';
     }
   }
 }

@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import LeftPanel from '../components/layout/LeftPanel';
 import useTutorStore, { STATES as STORE_STATES, CANVAS_MODE } from '../store/tutorStore';
 import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
+import useSceneAutoplay from '../hooks/useSceneAutoplay';
 const TeachingSession = React.lazy(() => import('../components/teaching/TeachingSession'));
 
 import API, { BASE_URL as API_URL, getCookie } from '../services/api';
@@ -16,8 +17,7 @@ import API, { BASE_URL as API_URL, getCookie } from '../services/api';
 const AgentCanvasRenderer = React.lazy(() => import('../components/canvas/AgentCanvasRenderer'));
 import FixedTeachingStage from '../components/canvas/FixedTeachingStage';
 import CodeVisualizerModal from '../components/canvas/CodeVisualizerModal';
-import ParticleWaves from '../components/canvas/ParticleWaves';
-import ArtifactDebugPanel from '../components/canvas/ArtifactDebugPanel';
+import ParticleWaves from '../components/canvas/ParticleWavesLazy';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
@@ -35,13 +35,43 @@ import {
   Check, Wifi, WifiOff, Key, RotateCcw, X, CornerDownLeft, FileCode, Bot, User
 } from 'lucide-react';
 
+const ChatColumnWrapper = React.memo((props) => {
+  const { activeChatId, machineState, isDoubtProcessing, activeSession, ...restProps } = props;
+  const {
+    conversationMessages, isStreaming, isWaitingForAI, isMessagesLoading
+  } = useTutorStore(useShallow(s => ({
+    conversationMessages: s.conversationMessages,
+    isStreaming: s.isStreaming,
+    isWaitingForAI: s.isWaitingForAI,
+    isMessagesLoading: s.isMessagesLoading,
+  })));
 
+  const messages = conversationMessages.length > 0 ? conversationMessages : (activeSession?.messages || []);
+
+  const isGenerating = machineState === STORE_STATES.GENERATING || 
+                       machineState === STORE_STATES.RESPONDING || 
+                       isDoubtProcessing || 
+                       isWaitingForAI || 
+                       isStreaming;
+
+  return (
+    <LeftPanel
+      {...restProps}
+      activeChatId={activeChatId}
+      messages={messages}
+      isGenerating={isGenerating}
+      isLoadingHistory={restProps.isLoadingHistory || isMessagesLoading}
+    />
+  );
+});
 
 
 
 const Home = ({ isDark }) => {
   const { isAuthenticated, token, user, loading: authLoading, apiPrefs: globalApiPrefs, logout, isAuthResolved } = useAuth();
   const machine = useTeachingMachine(isAuthResolved);
+  // Phase 3: auto-advance step-by-step playback for SSE-rendered scenes.
+  useSceneAutoplay();
   
   const {
     machineState, isConnected,
@@ -69,7 +99,7 @@ const Home = ({ isDark }) => {
     textToolSize, shapeStrokeStyle,
     drawWidth, gridType, gridSize, showGrid,
     setCodeEditorData,
-    conversationMessages, isStreaming, isWaitingForAI,
+    isStreaming, isWaitingForAI, conversationMessages,
     addUserMessage, finishStreaming, abortStreaming,
     setConversationMessages, clearConversation,
     applyEdit, removeLastAssistantMessage, prepareRegeneration,
@@ -113,10 +143,10 @@ const Home = ({ isDark }) => {
     textToolSize: s.textToolSize, shapeStrokeStyle: s.shapeStrokeStyle,
     drawWidth: s.drawWidth, gridType: s.gridType, gridSize: s.gridSize, showGrid: s.showGrid,
     setCodeEditorData: s.setCodeEditorData,
-    conversationMessages: s.conversationMessages,
     isStreaming: s.isStreaming,
     isWaitingForAI: s.isWaitingForAI,
     isMessagesLoading: s.isMessagesLoading,
+    conversationMessages: s.conversationMessages,
     addUserMessage: s.addUserMessage, finishStreaming: s.finishStreaming, abortStreaming: s.abortStreaming,
     setConversationMessages: s.setConversationMessages, clearConversation: s.clearConversation,
     applyEdit: s.applyEdit, removeLastAssistantMessage: s.removeLastAssistantMessage,
@@ -187,18 +217,35 @@ const Home = ({ isDark }) => {
       import.meta.env.DEV && console.log('[Home] Dashboard mounted. user:', user?.email, 'isGuest:', isGuest);
     }
   }, [user?.email, isGuest]);
+
+  // ── Guest Draft Mode: Native browser warning on refresh/tab close ──
+  useEffect(() => {
+    if (!isGuest) return;
+
+    const handleBeforeUnload = (e) => {
+      const store = useTutorStore.getState();
+      const hasUnsavedDraftWork =
+        (store.conversationMessages && store.conversationMessages.length > 0) ||
+        (store.chatHistory && store.chatHistory.length > 0) ||
+        (store.canvasObjects && store.canvasObjects.length > 0);
+
+      if (hasUnsavedDraftWork) {
+        e.preventDefault();
+        e.returnValue = 'You are in Guest Draft Mode. Refreshing or leaving this page will lose your local session data.';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isGuest]);
   
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
 
-  // Compatibility wrapper for functional updates in Home.jsx
+  // Functional updates for chatHistory directly in React render cycle should use storeSetChatHistory
   const syncChatHistory = useCallback((updater) => {
-    if (typeof updater === 'function') {
-      const current = useTutorStore.getState().chatHistory;
-      storeSetChatHistory(updater(current));
-    } else {
-      storeSetChatHistory(updater);
-    }
+    storeSetChatHistory(updater);
   }, [storeSetChatHistory]);
 
 
@@ -292,7 +339,7 @@ const Home = ({ isDark }) => {
           loading: false
         });
       } else {
-        console.warn(`[Home] Cloud fetch failed with status: ${res.status}`);
+        console.warn(`[Home] Cloud fetch failed with status: ${response.status}`);
         setPagination(prev => ({ ...prev, loading: false }));
       }
     } catch (err) {
@@ -334,17 +381,20 @@ const Home = ({ isDark }) => {
     }
   }, [activeChatId, setActiveConversationSession]);
 
-  // Bug 2.4 Fix: Abort and cleanup stale controllers on session switch
+  // Abort in-flight requests only on unmount. Keying this on activeChatId
+  // killed every stream the moment the session ID changed (e.g. the temp→Mongo
+  // ID promotion mid-stream), which dropped late events like scene_nodes.
+  // Background sessions are designed to keep streaming (addUnreadSession),
+  // and per-session aborts are handled in handleSubmit/handleStopGeneration.
   useEffect(() => {
+    const controllers = abortControllersRef.current;
     return () => {
-      if (abortControllersRef.current) {
-        abortControllersRef.current.forEach(c => {
-          try { c.abort(); } catch(e) {}
-        });
-        abortControllersRef.current.clear();
-      }
+      controllers.forEach(c => {
+        try { c.abort(); } catch(e) {}
+      });
+      controllers.clear();
     };
-  }, [activeChatId]);
+  }, []);
   
   // ── ID SYNC: Promote temp ID to real Mongo ID in sidebar ──
   const lastIdRef = useRef(activeChatId);
@@ -480,8 +530,6 @@ const Home = ({ isDark }) => {
   }, []);
 
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
-  // Use conversationMessages as the primary source for the chat UI
-  const messages = conversationMessages.length > 0 ? conversationMessages : (activeSession?.messages || []);
 
   // ── Canvas-First Session Creation ──
   // If the user draws on the canvas without starting a chat, we create a "Canvas Session"
@@ -512,7 +560,7 @@ const Home = ({ isDark }) => {
 
   // ── Persistent Cloud Sync (Immediate Actions) ──
   // Returns the canonical MongoDB session ID after save (may differ from activeChatId if it was a local temp ID).
-  const saveCurrentSession = useCallback(async (updatedMessages = messages, overrideSessionId = null, overrideTitle = null) => {
+  const saveCurrentSession = useCallback(async (updatedMessages = null, overrideSessionId = null, overrideTitle = null) => {
     const targetSessionId = overrideSessionId || activeChatId;
     
     // RC-2 FIX: Don't save while streaming — messages are being mutated in real-time
@@ -522,8 +570,10 @@ const Home = ({ isDark }) => {
       return null;
     }
     
+    const resolvedMessages = updatedMessages || (storeState.conversationMessages.length > 0 ? storeState.conversationMessages : activeSession?.messages) || [];
+
     // Guard: Don't save empty sessions (no user messages and no manual drawings)
-    const hasUserMessages = updatedMessages && updatedMessages.some(m => m.role === 'user');
+    const hasUserMessages = resolvedMessages && resolvedMessages.some(m => m.role === 'user');
     const hasManualDrawings = canvasObjects && canvasObjects.some(o => o.id?.startsWith('manual-'));
     const hasUserContent = hasUserMessages || hasManualDrawings;
     
@@ -539,7 +589,7 @@ const Home = ({ isDark }) => {
     const payload = {
       sessionId: targetSessionId,
       title: overrideTitle || (isGeneric(derivedTitle) ? generateCleanTitle(derivedTitle) : derivedTitle) || 'Untitled Session',
-      messages: updatedMessages,
+      messages: resolvedMessages,
       canvasState: canvasObjects || [],
       canvasSteps: canvasSteps || [],
       pinnedNotes: pinnedNotes || [],
@@ -580,7 +630,8 @@ const Home = ({ isDark }) => {
         
         return cleaned;
       });
-      // Continue to API call if we have a valid session ID or just started one
+      // Guest Draft Mode: Never store guest sessions in the cloud database
+      return targetSessionId;
     }
 
     if (!isAuthenticated) return null;
@@ -641,11 +692,11 @@ const Home = ({ isDark }) => {
       });
     }
     return null;
-  }, [activeChatId, activeSession, timeline, canvasObjects, canvasSteps, pinnedNotes, isAuthenticated, user, token, messages]);
+  }, [activeChatId, activeSession, timeline, canvasObjects, canvasSteps, pinnedNotes, isAuthenticated, user, token]);
 
 
   // ── Passive Sync (Canvas/Prefs Debounce) ──
-  useSessionSync(conversationMessages);
+  useSessionSync();
 
 
 
@@ -799,10 +850,9 @@ const Home = ({ isDark }) => {
       }
     }
 
-    // 2. Full pedagogical restoration from Cloud (SEC-20)
-    // ALLOW GUESTS to fetch if they have a valid Mongo ID (restored from local history)
+    // GUESTS work in local Draft Mode only — never fetch from cloud database
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(id || '');
-    if (id && isMongoId && !id.startsWith('session-')) {
+    if (id && isMongoId && !id.startsWith('session-') && !isGuest) {
       // Prevent overlapping restores for the same session
       if (fetchLockRef.current) {
         import.meta.env.DEV && console.log('[Home] Session restore already in progress, skipping.');
@@ -996,7 +1046,7 @@ const Home = ({ isDark }) => {
 
     // 2. Fallback: Try conversationMessages from the store
     if (!snapshot) {
-      const storeMsg = conversationMessages.find(m => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
+      const storeMsg = useTutorStore.getState().conversationMessages.find(m => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
       if (storeMsg?.canvasSnapshot) {
         snapshot = storeMsg.canvasSnapshot;
       }
@@ -1143,16 +1193,6 @@ const Home = ({ isDark }) => {
     setPrompt('');  // Clear input immediately
     setSelectedTextContext(null); // Clear context immediately
     setActiveView('chat');
-
-    // Guest Trial: Increment usage and block if exhausted
-    if (isGuest) {
-      const store = useTutorStore.getState();
-      if (store.guestTrialStatus.isLimitReached) {
-        submittingSessionsRef.current.delete(workingSessionId);
-        return;
-      }
-      store.incrementGuestUsage();
-    }
 
     let activityMonitor;
     try {
@@ -1354,14 +1394,15 @@ const Home = ({ isDark }) => {
             try {
               const eventData = JSON.parse(currentData);
               const eventType = eventData.type || lastEventType;
-              
-              // Bug 2.2: Only reset activity monitor on real data (not heartbeats)
-              if (eventType !== 'heartbeat' && eventType !== 'ping') {
-                const hasRealData = eventData.chunk || eventData.content || eventData.thought || eventData.sources || eventData.plan;
-                if (hasRealData) {
-                  lastActivityTime = Date.now();
-                }
-              }
+
+              // Any event proves the server is alive and still working — reset the
+              // stall watchdog. Heartbeats (sent every 15s) exist precisely to keep
+              // the connection alive during long operations like scene orchestration;
+              // ignoring them here made a busy-but-alive server look stalled, so the
+              // client aborted mid-generation and the visual scene (delivered at the
+              // very end of the stream) was lost. The 45s watchdog now only fires when
+              // the server genuinely goes silent (dead process / dropped connection).
+              lastActivityTime = Date.now();
 
               import.meta.env.DEV && console.log(`[SSE] Received event: ${eventType}`, eventData);
 
@@ -2046,123 +2087,15 @@ const Home = ({ isDark }) => {
   };
 
   // ── Session Export Handler ──
-  const handleExport = (type) => {
+  const handleExport = async (type) => {
     const session = chatHistory.find(s => s.id === activeChatId) || activeSession;
+    const storeMessages = useTutorStore.getState().conversationMessages || [];
+    const messages = storeMessages.length > 0 ? storeMessages : (session?.messages || []);
     if (!session || !messages.length) return;
 
-    const title = session.title || 'TutorBoard_Conversation';
-    
-    if (type === 'docx') {
-      const header = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><meta charset='utf-8'><title>${title}</title>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; }
-          .msg { margin-bottom: 20pt; }
-          .role { font-weight: bold; font-size: 10pt; color: #555; text-transform: uppercase; }
-          .content { font-size: 11pt; }
-          pre { background: #f4f4f4; padding: 10pt; font-family: 'Courier New', monospace; }
-        </style>
-        </head><body>
-        <h1>${title}</h1>
-        <hr/>
-      `;
-      let content = "";
-      messages.forEach(m => {
-        content += `
-          <div class="msg">
-            <div class="role">${m.role === 'user' ? 'Student' : 'TutorBoard AI'} - ${new Date(m.timestamp).toLocaleString()}</div>
-            <div class="content">${m.content.replace(/\n/g, '<br/>')}</div>
-            ${m.metadata?.thought ? `<div style="color: #666; font-style: italic; margin-top: 5pt; padding-left: 10pt; border-left: 2px solid #ddd;">Thought: ${m.metadata.thought}</div>` : ''}
-          </div>
-          <hr style="border: 0; border-top: 1px solid #eee;"/>
-        `;
-      });
-      const footer = "</body></html>";
-      
-      const blob = new Blob(['\ufeff', header + content + footer], { type: 'application/msword' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.doc`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else if (type === 'pdf') {
-      const printWindow = window.open('', '_blank');
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap');
-              body { 
-                font-family: 'Inter', sans-serif; 
-                padding: 40px; 
-                line-height: 1.6; 
-                color: #1a1a1a; 
-                max-width: 850px; 
-                margin: 0 auto; 
-                background: #fff;
-              }
-              header { border-bottom: 2px solid #f0f0f0; margin-bottom: 30px; padding-bottom: 15px; }
-              h1 { font-weight: 700; font-size: 24px; margin: 0; color: #000; }
-              .date { font-size: 12px; color: #666; margin-top: 4px; }
-              .msg { margin-bottom: 30px; page-break-inside: avoid; }
-              .role { 
-                display: inline-block;
-                font-weight: 600; 
-                font-size: 10px; 
-                text-transform: uppercase; 
-                letter-spacing: 0.05em;
-                color: #666; 
-                margin-bottom: 8px; 
-              }
-              .content { font-size: 14px; white-space: pre-wrap; color: #333; }
-              pre { 
-                background: #f8f9fa; 
-                color: #1a1a1a; 
-                padding: 15px; 
-                border: 1px solid #e9ecef;
-                border-radius: 6px; 
-                font-family: 'JetBrains Mono', monospace; 
-                font-size: 12px; 
-                overflow-x: auto;
-                margin: 15px 0;
-              }
-              .thought { font-size: 12px; color: #777; font-style: italic; margin-top: 10px; border-left: 2px solid #eee; padding-left: 10px; }
-              @media print {
-                body { padding: 20px; }
-                .no-print { display: none; }
-              }
-            </style>
-          </head>
-          <body>
-            <header>
-              <h1>${title}</h1>
-              <div class="date">Exported on ${new Date().toLocaleString()} from TutorBoard AI</div>
-            </header>
-            <main>
-              ${messages.map(m => `
-                <div class="msg">
-                  <div class="role">${m.role === 'user' ? 'Student' : 'TutorBoard AI'}</div>
-                  <div class="content">${m.content}</div>
-                  ${m.metadata?.thought ? `<div class="thought">Thought: ${m.metadata.thought}</div>` : ''}
-                </div>
-              `).join('')}
-            </main>
-            <script>
-              window.onload = () => {
-                window.print();
-                setTimeout(() => window.close(), 500);
-              };
-            </script>
-          </body>
-        </html>
-      `;
-      printWindow.document.write(html);
-      printWindow.document.close();
-    }
+    // Lazy-loaded: the DOCX/PDF HTML templating only ships when the user exports.
+    const { exportSession } = await import('../utils/sessionExport');
+    exportSession(type, session, messages);
   };
   // ── Keyboard Shortcuts (UPGRADE-05) ──
   useEffect(() => {
@@ -2199,20 +2132,14 @@ const Home = ({ isDark }) => {
 
   const leftPanel = (
     <ErrorBoundary reloadOnRetry={true}>
-      <LeftPanel
+      <ChatColumnWrapper
+        activeSession={activeSession}
+        machineState={machineState}
+        isDoubtProcessing={isDoubtProcessing}
         activeView={activeView} setActiveView={setActiveView}
       chatHistory={chatHistory} activeChatId={activeChatId}
       onNewChat={handleNewChat} onSelectChat={handleSelectChat}
       onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat}
-      messages={messages} isGenerating={(() => {
-        const sid = activeChatId || useTutorStore.getState().getSid();
-        const sessionState = useTutorStore.getState().sessionStates[sid] || {};
-        return machineState === STATES.GENERATING || 
-               machineState === STATES.RESPONDING || 
-               isDoubtProcessing || 
-               sessionState.isWaitingForAI || 
-               sessionState.isStreaming;
-      })()}
       onOpenCanvas={handleOpenCanvas} onDeleteMessage={handleDeleteMessage} onEditMessage={handleEditMessage}
       onRegenerateMessage={handleRegenerateMessage} onFeedback={handleFeedback} onStopGeneration={handleStopGeneration}
       onSwitchVersion={handleSwitchVersion}
@@ -2262,6 +2189,7 @@ const Home = ({ isDark }) => {
                 >
                   <React.Suspense fallback={null}>
                     <AgentCanvasRenderer
+                      key={`canvas-${canvasSessionVersion}`}
                       width={800} height={600}
                       timeline={timeline}
                       currentStepIndex={currentStepIndex}
@@ -2286,7 +2214,7 @@ const Home = ({ isDark }) => {
                     initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 1.2, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    className="absolute top-5 left-5 flex flex-col gap-1"
+                    className="absolute top-6 left-6 flex flex-col gap-1 pointer-events-none z-10 transition-all duration-300"
                   >
                     <h1 
                       className="text-5xl font-light tracking-[0.4em] text-[var(--text-primary)] opacity-[0.25] dark:opacity-[0.12]"
@@ -2412,7 +2340,6 @@ const Home = ({ isDark }) => {
         <SelectionPopover />
         <CodeVisualizerModal />
         <ArtifactPanel />
-        {import.meta.env.DEV && <ArtifactDebugPanel />}
 
         {/* ── HIGH FIDELITY CONFIRM UNDO MODAL OVERLAY ── */}
         <AnimatePresence>

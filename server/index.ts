@@ -16,7 +16,6 @@ import { protect } from './middleware/auth.middleware.js';
 import { AppError, errorHandler as appErrorHandler, ErrorCode } from './shared/errors.js';
 import { socketManager } from './services/socket/socket.manager.js';
 import { lifecycle } from './core/lifecycle.js';
-import { getRuntimeReport } from './core/capabilities.js';
 import { runtimeState } from './core/runtimeState.js';
 
 import healthRoutes from './routes/health.js';

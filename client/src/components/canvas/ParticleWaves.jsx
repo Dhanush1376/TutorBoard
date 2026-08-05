@@ -89,6 +89,7 @@ const ParticleWaves = ({ opacity = 0.6 }) => {
       <Canvas 
         camera={{ position: [0, 8, 16], fov: 45 }}
         style={{ width: '100%', height: '100%', background: 'transparent' }}
+        frameloop={opacity > 0 ? "always" : "demand"}
       >
         <fog attach="fog" args={[bgColor, 8, 25]} />
         <Suspense fallback={null}>

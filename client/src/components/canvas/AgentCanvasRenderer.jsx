@@ -4,7 +4,6 @@ import SVGCanvasRenderer from './SVGCanvasRenderer';
 const KaTeXRenderer = React.lazy(() => import('../../renderers/KaTeXRenderer'));
 import { isDSAContent, getRenderer } from '../../engine/RendererRouter';
 
-import CanvasDebugOverlay from './CanvasDebugOverlay';
 
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -15,7 +14,6 @@ import { SceneOrchestrator } from '../../engine/SceneOrchestrator';
 import { rendererPool } from '../../engine/RendererPool';
 
 const AgentCanvasRenderer = forwardRef(({
-  timeline: propTimeline, currentStepIndex: propStepIndex,
   elements: extElements = [], objects: extObjects = [],
   connections: extConnections, steps: extSteps,
   showNotes, onGoToStep,
@@ -34,9 +32,8 @@ const AgentCanvasRenderer = forwardRef(({
     deltaState: s.deltaState,
   })));
 
-  // Use activeScene if available, otherwise fallback to propTimeline
-  const timeline = activeScene || propTimeline;
-  const currentStepIndex = activeScene ? currentStoreStepIndex : propStepIndex;
+  const timeline = activeScene;
+  const currentStepIndex = currentStoreStepIndex;
 
   const { rendererType, routed, isDSA } = useMemo(() => {
     const type = (timeline?.renderer || 'cinematic').toLowerCase();
@@ -124,20 +121,30 @@ const AgentCanvasRenderer = forwardRef(({
   }, [setDeltaRunning, setDeltaState, doubtProps.onResume]);
 
   const lastSceneIdRef = useRef(null);
+  const lastLoadedSceneRef = useRef(null);
+  const lastPlayedStepRef = useRef(-1);
 
   // 1. Orchestrator Initialization
   useEffect(() => {
     const canInitialize = d3ContainerRef.current && (layoutReady || (width && height));
     if (!canInitialize) return;
 
-    // Only re-initialize if the scene actually changed (strictly by ID)
+    // Only re-initialize if the scene actually changed (strictly by ID) OR the
+    // orchestrator was torn down by this effect's cleanup. The cleanup fires on
+    // every dep change (notably layoutReady flipping true right after the first
+    // mount); without the `!orchestratorRef.current` clause the same-scene guard
+    // would skip recreation, leaving a null orchestrator and a blank first scene.
     const sceneId = timeline?.id || 'default';
     const isNewScene = lastSceneIdRef.current !== sceneId;
 
-    if (isNewScene) {
+    if (isNewScene || !orchestratorRef.current) {
       if (orchestratorRef.current) orchestratorRef.current.destroy();
 
       import.meta.env.DEV && console.log('[AgentCanvasRenderer] 🏗️ Initializing SceneOrchestrator for scene:', sceneId);
+      // Drop readiness while the new renderer registers. Leaving it true meant
+      // the playback effect ran once against the not-yet-registered renderer,
+      // marked the step as played, and never re-ran — blank canvas.
+      setRenderersReady(false);
       orchestratorRef.current = new SceneOrchestrator(d3ContainerRef.current, {
         onNarrate: (text) => {},
         onStepChange: (idx) => {},
@@ -148,30 +155,46 @@ const AgentCanvasRenderer = forwardRef(({
         }
       });
 
+      // Load the current scene into the fresh orchestrator here. The separate
+      // sync effect only fires on timeline.id changes, so on a cleanup-driven
+      // recreation (same scene) it would not re-load — leaving an empty scene.
+      if (timeline) {
+        orchestratorRef.current.loadScene(timeline);
+        lastLoadedSceneRef.current = timeline.id;
+        lastPlayedStepRef.current = -1;
+      }
+
       // Register D3 renderer immediately (Async)
       rendererPool.getD3Renderer(d3ContainerRef.current, actualWidth, actualHeight).then(d3Renderer => {
         if (orchestratorRef.current) {
           orchestratorRef.current.setRenderers({ d3: d3Renderer });
+          // Reset the replay guard BEFORE flipping readiness so the playback
+          // effect triggered by this state change actually plays the step.
+          lastPlayedStepRef.current = -1;
           setRenderersReady(true);
-          
-          if (timeline) {
-            orchestratorRef.current.loadScene(timeline);
-          }
         }
       });
-      
+
       lastSceneIdRef.current = sceneId;
     }
 
-    return () => {};
+    return () => {
+      if (orchestratorRef.current) {
+        orchestratorRef.current.destroy();
+        orchestratorRef.current = null;
+      }
+      rendererPool.deactivate('d3');
+    };
   }, [layoutReady, width, height, timeline?.id]);
 
   // Synchronize scene data when timeline object hydrates/streams
   useEffect(() => {
-    if (orchestratorRef.current && timeline) {
-      orchestratorRef.current.loadScene(timeline);
-    }
-  }, [timeline]);
+    if (!orchestratorRef.current || !timeline) return;
+    if (lastLoadedSceneRef.current === timeline.id) return; // guard
+    lastLoadedSceneRef.current = timeline.id;
+    orchestratorRef.current.loadScene(timeline);
+    lastPlayedStepRef.current = -1; // Reset guard so playStep fires
+  }, [timeline?.id]); // use stable ID, not object reference
 
   // 2. Renderer Registration via Ref Callbacks
   const registerSpecialized = useCallback((type, node) => {
@@ -184,7 +207,6 @@ const AgentCanvasRenderer = forwardRef(({
 
 
   // 3. Playback Orchestration
-  const lastPlayedStepRef = useRef(-1);
   const lastPlayedDeltaRef = useRef(null);
   const lastWidthRef = useRef(0);
 
@@ -213,7 +235,15 @@ const AgentCanvasRenderer = forwardRef(({
 
       lastPlayedStepRef.current = currentStepIndex;
       lastPlayedDeltaRef.current = null;
-      orch.playStep(currentStepIndex);
+      const playedIndex = currentStepIndex;
+      orch.playStep(playedIndex, {
+        // Signals the narration-gated autoplay drivers that this step's
+        // master timeline genuinely finished (fires from GSAP onComplete,
+        // not a guess-timer).
+        onComplete: () => {
+          useTutorStore.getState().markStepAnimDone?.(playedIndex);
+        },
+      });
     }
   }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, layoutReady, actualWidth, actualHeight, renderersReady]);
 
@@ -249,6 +279,31 @@ const AgentCanvasRenderer = forwardRef(({
     }
   };
 
+  const svgLayerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isD3 || !renderersReady) return;
+    const d3Renderer = orchestratorRef.current?.getRenderer('d3');
+    const zoomBehavior = d3Renderer?.engine?.getZoomBehavior?.();
+    if (!zoomBehavior) return;
+
+    zoomBehavior.on('zoom.svgSync', (e) => {
+      if (svgLayerRef.current) {
+        svgLayerRef.current.style.transform = `translate(${e.transform.x}px, ${e.transform.y}px) scale(${e.transform.k})`;
+        svgLayerRef.current.style.transformOrigin = '0 0';
+      }
+      useTutorStore.getState().setCanvasTransform({
+        x: e.transform.x,
+        y: e.transform.y,
+        scale: e.transform.k
+      });
+    });
+
+    return () => {
+      zoomBehavior.on('zoom.svgSync', null);
+    };
+  }, [isD3, renderersReady]);
+
   return (
     <ErrorBoundary key={rendererType} onClose={() => {}}>
       <div className={`relative w-full h-full ${rendererType === 'simulator' ? 'min-h-[600px]' : 'min-h-[480px]'}`}>
@@ -258,6 +313,7 @@ const AgentCanvasRenderer = forwardRef(({
           ref={d3ContainerRef} 
           className="absolute inset-0 z-10 w-full h-full overflow-visible" 
           style={{ 
+            visibility: (isD3 || !!deltaState) ? 'visible' : 'hidden',
             pointerEvents: (isD3 || !!deltaState) ? 'auto' : 'none',
             minHeight: '400px', // Ensure ResizeObserver always fires
             touchAction: isMobile ? 'none' : 'auto' // UX-06: Enable pinch-to-zoom precision on mobile
@@ -374,7 +430,7 @@ const AgentCanvasRenderer = forwardRef(({
             1. Static scene rendering for legacy topics (forceManualOnly = false)
             2. Real-time manual annotations and notes on top of any active renderer (forceManualOnly = true)
         */}
-        <div className="absolute inset-0 z-20 pointer-events-none">
+        <div ref={svgLayerRef} className="absolute inset-0 z-20 pointer-events-none">
           <SVGCanvasRenderer 
             timeline={timeline} 
             currentStepIndex={currentStepIndex} 
@@ -387,13 +443,7 @@ const AgentCanvasRenderer = forwardRef(({
           />
         </div>
         
-        {/* Engine Debug Overlay */}
-        <CanvasDebugOverlay 
-          elements={combinedElements} 
-          timeline={timeline?.steps || timeline?.timeline || []} 
-          currentStepIndex={currentStepIndex} 
-        />
-        
+
 
       </div>
     </ErrorBoundary>

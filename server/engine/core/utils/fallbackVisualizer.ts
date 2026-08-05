@@ -1,41 +1,40 @@
 export function generateFallbackVisualScript(topic: string = "Topic") {
   console.warn(`[Fallback Visualizer] Generating emergency visual lesson for topic: ${topic}`);
 
+  // Ordered so the client segments it into THREE progressive steps (one per
+  // narrate): root → key details → applications. Each `narrate` closes a step,
+  // so the concept map is revealed piece by piece alongside the narration rather
+  // than dumped in one frame.
   return {
     renderer: "cinematic",
     scene: "fallback_scene",
     script: [
+      // ── Step 1: the core concept ──
       {
         cmd: "node",
         id: "fallback_root",
         title: topic,
         subtitle: "Core Concept",
         x: 0.5,
-        y: 0.2,
+        y: 0.22,
         color: "#F59E0B", // amber
         glow: true,
         importance: 5,
         shape: "diamond"
       },
       {
+        cmd: "narrate",
+        text: `Let's build up ${topic} one piece at a time. We'll start from the core idea in the center.`
+      },
+      // ── Step 2: the key details ──
+      {
         cmd: "node",
         id: "fallback_info_1",
         title: "Key Details",
-        subtitle: "Important points to remember",
-        x: 0.3,
+        subtitle: "What makes it work",
+        x: 0.28,
         y: 0.7,
         color: "#3B82F6", // blue
-        importance: 3,
-        shape: "circle"
-      },
-      {
-        cmd: "node",
-        id: "fallback_info_2",
-        title: "Applications",
-        subtitle: "How it is used",
-        x: 0.7,
-        y: 0.7,
-        color: "#10B981", // emerald
         importance: 3,
         shape: "circle"
       },
@@ -49,6 +48,22 @@ export function generateFallbackVisualScript(topic: string = "Topic") {
         animated: true
       },
       {
+        cmd: "narrate",
+        text: `First, the key details — the essential parts that make ${topic} work. These connect directly back to the core idea.`
+      },
+      // ── Step 3: the applications ──
+      {
+        cmd: "node",
+        id: "fallback_info_2",
+        title: "Applications",
+        subtitle: "Where it's used",
+        x: 0.72,
+        y: 0.7,
+        color: "#10B981", // emerald
+        importance: 3,
+        shape: "circle"
+      },
+      {
         cmd: "edge",
         id: "e2",
         from: "fallback_root",
@@ -59,7 +74,7 @@ export function generateFallbackVisualScript(topic: string = "Topic") {
       },
       {
         cmd: "narrate",
-        text: `This is a generated overview of ${topic}. The visual system encountered an error loading the complex visualization, but we can still explore the core concepts here.`
+        text: `And finally, where ${topic} is applied in practice. That's the big picture — core idea, key details, and real-world use.`
       }
     ]
   };

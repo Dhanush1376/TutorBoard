@@ -11,11 +11,36 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GitBranch, Code, Eye, AlertTriangle, ZoomIn, ZoomOut, RotateCcw, Move } from 'lucide-react';
-let mermaid = null;
 import DOMPurify from 'dompurify';
 import Editor from '@monaco-editor/react';
 
-let mermaidInitialized = false;
+const getMermaid = (() => {
+  let instance = null;
+  let currentTheme = null;
+  let initPromise = null;
+  return async (theme) => {
+    if (!instance && !initPromise) {
+      initPromise = import('mermaid').then(mod => {
+        instance = mod.default;
+        return instance;
+      });
+    }
+    if (!instance) {
+      await initPromise;
+    }
+    if (theme !== currentTheme) {
+      instance.initialize({
+        startOnLoad: false,
+        theme: theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        fontFamily: '"Inter", sans-serif',
+        flowchart: { htmlLabels: true, curve: 'basis' },
+      });
+      currentTheme = theme;
+    }
+    return instance;
+  };
+})();
 
 const MERMAID_STARTERS = ['graph ', 'flowchart ', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'gantt', 'pie', 'mindmap', 'gitGraph', 'journey', 'quadrantChart', 'requirementDiagram', 'C4Context'];
 
@@ -121,43 +146,22 @@ const DiagramRenderer = ({ content, isDark, onContentChange }) => {
   const [dragStart, setDragStart] = useState(null);
   const containerRef = useRef(null);
   const renderIdRef = useRef(0);
+  const diagramIdRef = useRef(`mermaid-${crypto.randomUUID()}`);
+  const isRenderingRef = useRef(false);
 
   const isMermaid = isMermaidSyntax(content);
   const isHierarchy = !isMermaid && content?.includes('\n');
 
-  // Init mermaid
-  useEffect(() => {
-    const init = async () => {
-      if (!mermaid) {
-        const mod = await import('mermaid');
-        mermaid = mod.default;
-      }
-      if (!mermaidInitialized && mermaid) {
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: isDark ? 'dark' : 'default',
-          securityLevel: 'strict',
-          fontFamily: '"Inter", sans-serif',
-          flowchart: { htmlLabels: true, curve: 'basis' },
-        });
-        mermaidInitialized = true;
-        // Trigger initial render if content exists
-        if (isMermaid && content) renderDiagram(content);
-      }
-    };
-    init();
-  }, [isDark]);
-
   const renderDiagram = useCallback(async (code) => {
     if (!code?.trim()) { setSvgHtml(''); setError(null); return; }
-    if (!mermaid) {
-      const mod = await import('mermaid');
-      mermaid = mod.default;
-    }
+    if (isRenderingRef.current) return;
+    
+    isRenderingRef.current = true;
+    const m = await getMermaid(isDark ? 'dark' : 'light');
     const currentRender = ++renderIdRef.current;
+    
     try {
-      const id = `mermaid-${Date.now()}-${currentRender}`;
-      const { svg } = await mermaid.render(id, code.trim());
+      const { svg } = await m.render(diagramIdRef.current, code.trim());
       if (currentRender === renderIdRef.current) {
         setSvgHtml(svg);
         setError(null);
@@ -167,6 +171,8 @@ const DiagramRenderer = ({ content, isDark, onContentChange }) => {
         setError(err.message || 'Failed to render diagram');
         setSvgHtml('');
       }
+    } finally {
+      isRenderingRef.current = false;
     }
   }, [isDark]);
 

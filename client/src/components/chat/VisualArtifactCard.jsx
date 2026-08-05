@@ -64,7 +64,7 @@ const VisualArtifactCard = ({
   const displayTitle = title || artifact?.title || cfg.label;
   const stepCount    = artifact?.visual_steps?.length || artifact?.animation_steps?.length || artifact?.timeline?.length || artifact?.narrations?.length || artifact?.content?.length || artifact?.steps?.length || artifact?.script?.length || artifact?.canvasSteps?.length || artifact?.canvasObjects?.length || 0;
 
-  const handleToggle = (e) => {
+  const handleToggle = React.useCallback((e) => {
     e?.stopPropagation();
     if (!canOpen) return;
 
@@ -75,15 +75,18 @@ const VisualArtifactCard = ({
       if (onOpenCanvas && messageId) {
         onOpenCanvas(messageId);
       }
+      // Fetch latest artifact state to avoid stale closure issues during auto-open
+      const latestArtifact = useTutorStore.getState().artifacts?.find((a) => a.id === artifactId || a.dbId === artifactId) || artifact;
+      
       openArtifactOnCanvas({
         id: currentId,
-        title: displayTitle,
-        type: artifact?.type || type,
-        content: artifact?.visual_steps || artifact?.animation_steps || artifact?.timeline || artifact?.narrations || artifact?.steps || artifact?.script || artifact?.content || artifact?.canvasSteps || artifact?.canvasObjects || (artifact?.script ? artifact.script : (Array.isArray(artifact) ? artifact : [])),
-        rendererType: cfgType,
+        title: title || latestArtifact?.title || cfg.label,
+        type: latestArtifact?.type || type,
+        content: latestArtifact?.visual_steps || latestArtifact?.animation_steps || latestArtifact?.timeline || latestArtifact?.narrations || latestArtifact?.steps || latestArtifact?.script || latestArtifact?.content || latestArtifact?.canvasSteps || latestArtifact?.canvasObjects || (latestArtifact?.script ? latestArtifact.script : (Array.isArray(latestArtifact) ? latestArtifact : [])),
+        rendererType: (latestArtifact?.metadata?.rendererType || latestArtifact?.rendererType || rendererType || 'cinematic').toLowerCase(),
       });
     }
-  };
+  }, [canOpen, isActive, currentId, title, cfg.label, type, rendererType, artifactId, artifact, onOpenCanvas, messageId, openArtifactOnCanvas, setCanvasLayout]);
 
   // #24: Artifact Hydration Guard - Auto-activate artifact when it finishes generating
   const prevStatusRef = React.useRef(status);
@@ -92,7 +95,7 @@ const VisualArtifactCard = ({
       handleToggle();
     }
     prevStatusRef.current = status;
-  }, [status, isActive]);
+  }, [status, isActive, handleToggle]);
 
   return (
     <motion.div

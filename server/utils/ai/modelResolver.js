@@ -12,19 +12,19 @@ export const MODEL_REGISTRY = {
     fallback: 'gpt-3.5-turbo',
   },
   anthropic: {
-    validation: 'claude-3-haiku-20240307',
-    production: 'claude-3-5-sonnet-latest',
-    fallback: 'claude-3-haiku-20240307',
+    validation: 'claude-haiku-4-5',
+    production: 'claude-sonnet-5',
+    fallback: 'claude-haiku-4-5',
   },
   google: {
-    validation: 'gemini-1.5-flash',
-    production: 'gemini-1.5-flash',
-    fallback: 'gemini-1.5-pro',
+    validation: 'gemini-flash-latest',
+    production: 'gemini-flash-latest',
+    fallback: 'gemini-pro-latest',
   },
   groq: {
     validation: 'llama-3.1-8b-instant',
     production: 'llama-3.3-70b-versatile',
-    fallback: 'mixtral-8x7b-32768',
+    fallback: 'llama-3.1-8b-instant',
   },
   together: {
     validation: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
@@ -42,8 +42,8 @@ export const MODEL_REGISTRY = {
     fallback: 'deepseek-chat',
   },
   openrouter: {
-    validation: 'anthropic/claude-3.5-sonnet',
-    production: 'anthropic/claude-3.5-sonnet',
+    validation: 'google/gemini-flash-latest',
+    production: 'google/gemini-pro-latest',
     fallback: 'openai/gpt-4o-mini',
   },
   ollama: {
@@ -69,8 +69,10 @@ export const MODEL_REGISTRY = {
 const ALIASES = {
   'llama-3-8b-chat-hf': 'meta-llama/Meta-Llama-3-8B-Instruct',
   'llama-3-70b-chat-hf': 'meta-llama/Meta-Llama-3-70B-Instruct',
-  'claude-v3-opus': 'claude-3-opus-20240229',
-  'gemini-pro': 'gemini-1.5-pro',
+  'claude-v3-opus': 'claude-opus-4-8',
+  'gemini-pro': 'gemini-pro-latest',
+  'gemini-1.5-flash': 'gemini-flash-latest',
+  'gemini-1.5-pro': 'gemini-pro-latest',
   'gpt-4-turbo': 'gpt-4-turbo-preview'
 };
 

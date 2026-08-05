@@ -7,6 +7,15 @@ const CinematicTransition = ({ userName, isLogin, onComplete }) => {
   const displayName = userName || 'Explorer';
   const greeting = isLogin ? `Welcome back, ${displayName}` : `Welcome to the future, ${displayName}`;
 
+  const particles = React.useMemo(() => {
+    return Array.from({ length: 15 }).map(() => ({
+      x: Math.random() * 100 + '%',
+      y: Math.random() * 100 + '%',
+      duration: Math.random() * 5 + 5,
+      delay: Math.random() * 5
+    }));
+  }, []);
+
   useEffect(() => {
     // Phase 1: Focus (Logo & Background Initialization)
     const t1 = setTimeout(() => setPhase('welcome'), 1200);
@@ -89,12 +98,12 @@ const CinematicTransition = ({ userName, isLogin, onComplete }) => {
         
         {/* Particle Overlay */}
         <div className="absolute inset-0 z-0 overflow-hidden">
-          {[...Array(15)].map((_, i) => (
+          {particles.map((p, i) => (
             <motion.div
               key={i}
               initial={{ 
-                x: Math.random() * 100 + '%', 
-                y: Math.random() * 100 + '%',
+                x: p.x, 
+                y: p.y,
                 opacity: 0 
               }}
               animate={{ 
@@ -102,9 +111,9 @@ const CinematicTransition = ({ userName, isLogin, onComplete }) => {
                 opacity: [0, 0.4, 0]
               }}
               transition={{ 
-                duration: Math.random() * 5 + 5, 
+                duration: p.duration, 
                 repeat: Infinity, 
-                delay: Math.random() * 5 
+                delay: p.delay 
               }}
               className="absolute w-1 h-1 bg-white rounded-full blur-[1px]"
             />

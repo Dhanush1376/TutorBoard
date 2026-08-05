@@ -69,7 +69,7 @@ const InputBar = ({
   const cooldownTimerRef = useRef(null);
 
   // ─── Guest Trial State ───
-  const isGuest = !!user?.isGuest;
+  const isGuest = false; // Guest restrictions, counter pill & limits disabled per user request
   // S-1 FIX: Use targeted selector instead of subscribing to entire store
   const { guestTrialStatus, showToast } = useTutorStore(useShallow(s => ({
     guestTrialStatus: s.guestTrialStatus,

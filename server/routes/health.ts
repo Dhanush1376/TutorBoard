@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { healthManager } from '../core/healthManager.js';
-import { getRuntimeReport } from '../core/capabilities.js';
+import { runtimeState } from '../core/runtimeState.js';
 
 const router = express.Router();
 
@@ -31,7 +31,10 @@ router.get('/ready', (req: Request, res: Response) => {
  * Detailed runtime capability report (Sync).
  */
 router.get('/capabilities', (req: Request, res: Response) => {
-  res.json(getRuntimeReport());
+  res.json({
+    report: runtimeState.getStabilityReport(),
+    capabilities: runtimeState.listCapabilities()
+  });
 });
 
 export default router;

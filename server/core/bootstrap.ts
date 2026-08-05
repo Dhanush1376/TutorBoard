@@ -3,10 +3,7 @@
  */
 
 import { z } from 'zod';
-import { kernel } from './kernel.js';
-import { capabilityEngine } from './capabilityEngine.js'; // KERNEL-03: Activate reactive propagation
-import { MongoDriver } from './drivers/mongo.driver.js';
-import { logCapabilityReport } from './capabilities.js';
+import mongoose from 'mongoose';
 import { childLogger } from './logger.js';
 
 const log = childLogger({ subsystem: 'bootstrap' });
@@ -27,11 +24,10 @@ export let config: Config;
 
 /**
  * Bootstrap — The main entry point for orchestrating infrastructure.
- * Migrated to Runtime Kernel Architecture for modularity and dependency safety.
  */
 export async function bootstrap(isWorker: boolean = false, signal?: AbortSignal) {
   const pid = process.pid;
-  log.info(`Kernel Bootstrap [PID: ${pid}] Initiated (${isWorker ? 'Worker' : 'App'} Mode)`);
+  log.info(`Bootstrap [PID: ${pid}] Initiated (${isWorker ? 'Worker' : 'App'} Mode)`);
 
   try {
     // 1. Validate Environment (Phase 0)
@@ -44,18 +40,25 @@ export async function bootstrap(isWorker: boolean = false, signal?: AbortSignal)
     }
     config = result.data;
 
-    // 2. Register Infrastructure Drivers
-    kernel.registerDriver(new MongoDriver());
+    // 2. Connect to MongoDB directly
+    const uri = process.env.MONGODB_URI;
+    if (!uri) throw new Error('MONGODB_URI missing');
 
-    // 3. Execute Kernel Boot
-    await kernel.boot();
+    const options = {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4 // Force IPv4 to resolve Windows ENOTFOUND errors with mongodb+srv
+    };
 
-    logCapabilityReport();
-    log.info(`Kernel Boot [PID: ${pid}] successful. System is online.`);
+    await mongoose.connect(uri, options);
+    log.info('MongoDB connected successfully');
+
+    log.info(`Boot [PID: ${pid}] successful. System is online.`);
     
     return config;
   } catch (err: any) {
-    log.error(`Kernel Boot [PID: ${pid}] FAILED: ${err.message}`);
+    log.error(`Boot [PID: ${pid}] FAILED: ${err.message}`);
     throw err;
   }
 }

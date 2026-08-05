@@ -5,7 +5,6 @@ import SettingsModal from '../settings/SettingsModal';
 import CodeVisualizerModal from '../canvas/CodeVisualizerModal';
 import GlobalStatusOverlay from '../layout/GlobalStatusOverlay';
 import ThemedPopup from '../layout/ThemedPopup';
-import TrialLimitOverlay from './TrialLimitOverlay';
 
 const GlobalOverlayManager = () => {
   const { 
@@ -23,11 +22,6 @@ const GlobalOverlayManager = () => {
   const closeOverlay = () => setOverlay(null);
 
   // UX-09: Priority-based overlay rendering
-  // Priority 1: Trial Limit (Critical Gate)
-  if (guestTrialStatus?.isLimitReached) {
-    return <TrialLimitOverlay />;
-  }
-
   // Priority 2: Global Status (Error/Network/Sync)
   if (globalOverlay.isActive) {
     return <GlobalStatusOverlay />;

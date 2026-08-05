@@ -43,7 +43,7 @@ class TopicCache {
       await TopicCacheModel.findOneAndUpdate(
         { key },
         { data, expiresAt },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
       console.log(`[Cache] 📦 STORED (MongoDB) for: ${topic} (User: ${userId || 'anon'})`);
     } catch (e) {

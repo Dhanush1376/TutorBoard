@@ -135,7 +135,7 @@ const Message = ({
   // Stable reference — components are only created once per component lifecycle
   const markdownComponents = React.useMemo(
     () => buildMarkdownComponents((...args) => onOpenArtifactRef.current?.(...args)),
-    [] // eslint-disable-line react-hooks/exhaustive-deps
+    []  
   );
 
   // Hide empty assistant messages that have errors (handled by global ErrorCard)

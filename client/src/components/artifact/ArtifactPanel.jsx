@@ -218,19 +218,18 @@ const ArtifactPanel = ({ isDark }) => {
 
   const displayContent = cleanContent(activeArtifact?.content);
 
-  if (!isArtifactPanelOpen) return null;
-
   const TypeIcon = activeArtifact ? (TYPE_ICONS[activeArtifact.type] || Code) : Code;
 
   return (
     <AnimatePresence>
-      <motion.div
+      {isArtifactPanelOpen && (
+        <motion.div
         key="artifact-panel"
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="relative h-full bg-[var(--bg-primary)] flex flex-col overflow-hidden"
+        className="relative z-40 h-full bg-[var(--bg-primary)] flex flex-col overflow-hidden"
         style={{
           width: '100%',
           borderLeft: '1px solid var(--border-color)',
@@ -421,7 +420,7 @@ const ArtifactPanel = ({ isDark }) => {
                     isDark={isDark}
                   />
                 )}
-                {(activeArtifact.type === 'visual' || activeArtifact.type === 'interactive' || activeArtifact.type === 'diagram') && (
+                {(activeArtifact.type === 'visual' || activeArtifact.type === 'interactive') && (
                   <VisualRenderer
                     sceneGraph={activeArtifact.sceneGraph || { elements: [], connections: [] }}
                     artifactClass={activeArtifact.artifactClass}
@@ -495,7 +494,8 @@ const ArtifactPanel = ({ isDark }) => {
             </button>
           </div>
         </div>
-      </motion.div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 };

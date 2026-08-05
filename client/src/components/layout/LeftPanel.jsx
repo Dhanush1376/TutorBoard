@@ -15,7 +15,6 @@ import Loader from './Loader';
 import VisaiLogo from './VisaiLogo';
 import useWindowSize from '../../hooks/useWindowSize';
 import { useAuth } from '../../hooks/useAuth';
-import GuestTrialBanner from '../common/GuestTrialBanner';
 import ErrorBoundary from '../common/ErrorBoundary';
 
 
@@ -227,14 +226,12 @@ const LeftPanel = ({
 
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-0.5 select-none animate-fade-in py-8">
-        {/* 1. Empty State Illustration - Hidden for guests */}
-        {!isGuest && (
-          <div className="relative mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-center opacity-40 shadow-inner">
-              <BookOpen size={28} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
-            </div>
+        {/* 1. Empty State Illustration */}
+        <div className="relative mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-center opacity-40 shadow-inner">
+            <BookOpen size={28} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
           </div>
-        )}
+        </div>
 
         <div className="text-center px-4 mb-8">
           <h3 className="text-[14px] font-semibold text-[var(--text-primary)] opacity-80 mb-1">
@@ -336,13 +333,9 @@ const LeftPanel = ({
           </div>
         </div>
 
-        {/* Top block visible only on landing/history (except for GuestTrialBanner) */}
+        {/* Top block visible only on landing/history */}
         <div className={`${isMobile ? 'px-3 mb-1' : 'px-4 mb-1.5'}`}>
           <div className="flex flex-col gap-3">
-            {/* Guest Trial Banner — Persistent across all sidebar views */}
-            {isGuest && (
-              <GuestTrialBanner />
-            )}
 
             {activeView !== 'chat' && (
               <>
@@ -371,38 +364,36 @@ const LeftPanel = ({
                   )}
                 </button>
 
-                {/* 2. Search (Integrated Command-style Search) — Show for guests if they have history */}
-                {(!isGuest || chatHistory.length > 0) && (
-                  <div className="relative group">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors pointer-events-none">
-                      <Search size={14} strokeWidth={2.5} className="group-focus-within:scale-110 transition-transform" />
-                    </div>
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="Search sessions..."
-                      className={`w-full bg-[var(--bg-secondary)] focus:bg-[var(--bg-secondary)] border-none focus:ring-0 focus:outline-none shadow-none focus:shadow-none ${isMobile ? 'rounded-xl pl-10 pr-9 py-2.5' : 'rounded-2xl pl-10 pr-10 py-2.5'} text-[13px] outline-none placeholder:text-[var(--text-tertiary)]/60 placeholder:font-normal`}
-                    />
-
-                    {/* Clear search or Keyboard Hint */}
-                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                      {searchQuery ? (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="p-1 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
-                        >
-                          <X size={12} strokeWidth={3} />
-                        </button>
-                      ) : !isMobile && (
-                        <div className="text-[9px] font-medium text-[var(--text-tertiary)]/50 border border-[var(--border-color)] rounded-md px-1.5 py-0.5 uppercase tracking-tighter bg-[var(--bg-tertiary)]/30 group-focus-within:opacity-0 transition-opacity">
-                          /
-                        </div>
-                      )}
-                    </div>
+                {/* 2. Search (Integrated Command-style Search) */}
+                <div className="relative group">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors pointer-events-none">
+                    <Search size={14} strokeWidth={2.5} className="group-focus-within:scale-110 transition-transform" />
                   </div>
-                )}
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search sessions..."
+                    className={`w-full bg-[var(--bg-secondary)] focus:bg-[var(--bg-secondary)] border-none focus:ring-0 focus:outline-none shadow-none focus:shadow-none ${isMobile ? 'rounded-xl pl-10 pr-9 py-2.5' : 'rounded-2xl pl-10 pr-10 py-2.5'} text-[13px] outline-none placeholder:text-[var(--text-tertiary)]/60 placeholder:font-normal`}
+                  />
+
+                  {/* Clear search or Keyboard Hint */}
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                    {searchQuery ? (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="p-1 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                      >
+                        <X size={12} strokeWidth={3} />
+                      </button>
+                    ) : !isMobile && (
+                      <div className="text-[9px] font-medium text-[var(--text-tertiary)]/50 border border-[var(--border-color)] rounded-md px-1.5 py-0.5 uppercase tracking-tighter bg-[var(--bg-tertiary)]/30 group-focus-within:opacity-0 transition-opacity">
+                        /
+                      </div>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </div>

@@ -222,7 +222,7 @@ async function assertMessageOwnership(messageId: string, userId: string | undefi
 
 export function detectTopic(text: string) {
   if (!text) return 'General';
-  let clean = text.trim();
+  const clean = text.trim();
   return clean.length > 50 ? clean.split(/\s+/).slice(0, 5).join(' ') + '...' : clean || 'General';
 }
 

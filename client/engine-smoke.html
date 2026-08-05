@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TutorBoard Engine Smoke Test</title>
+    <style>
+      :root { --text-primary: #fff; --text-secondary: #a1a1aa; --text-tertiary: #71717a; --bg-primary: #09090b; --bg-secondary: #18181b; --accent-primary: #3b82f6; --border-strong: #3f3f46; --font-mono: ui-monospace, monospace; }
+      body { margin: 0; background: #0b0b0f; color: #fff; font-family: Inter, system-ui, sans-serif; }
+      #stage { width: 100vw; height: 68vh; border-bottom: 1px solid #27272a; }
+      #hud { padding: 12px 16px; font-size: 12px; display: flex; gap: 24px; }
+      #log { padding: 0 16px 24px; font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap; color: #a1a1aa; }
+      .ok { color: #22c55e; } .bad { color: #ef4444; }
+      button { background: #27272a; color: #fff; border: 1px solid #3f3f46; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div id="hud">
+      <span id="status">booting…</span>
+      <span id="fps"></span>
+      <button id="pauseBtn">pause</button>
+      <button id="speedBtn">speed ×2</button>
+    </div>
+    <div id="log"></div>
+    <script type="module" src="/src/dev/engineSmoke.js"></script>
+  </body>
+</html>

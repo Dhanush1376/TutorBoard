@@ -61,7 +61,13 @@ export const createSessionSlice = (set, get) => ({
 
 
   chatHistory: [],
-  setChatHistory: (history) => set({ chatHistory: history }),
+  // Accepts either a plain array or a React-style functional updater —
+  // callers like Home.syncChatHistory pass `prev => next`.
+  setChatHistory: (history) => set((state) => {
+    state.chatHistory = typeof history === 'function'
+      ? history(state.chatHistory || [])
+      : history;
+  }),
   
   /** Update an existing entry in the sidebar history */
   updateChatHistoryEntry: (id, updates) => set(state => {

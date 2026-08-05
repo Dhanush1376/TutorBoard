@@ -18,6 +18,7 @@ import { formatForPrompt, extractSources } from '../../utils/ai/searchContextFor
 import { buildSystemPrompt, buildLLMMessages } from '../../engine/agents/BuildSystemPrompt.js';
 import { processCritiqueAsync } from './critique.service.js';
 import { StreamLifecycleManager } from './stream.service.js';
+import { generateFallbackVisualScript } from '../../engine/core/utils/fallbackVisualizer.js';
 import ChatSession from '../../models/ChatSession.js';
 import SessionLedger from '../../models/SessionLedger.js';
 import Artifact from '../../models/Artifact.js';
@@ -267,17 +268,22 @@ export class ChatService {
       }).catch(e => log.warn('Assistant memory storage failed:', { error: e.message }));
 
       // 9. ASYNC BACKGROUND WORK (Enrichment/Analysis)
-      // Fire and forget async critique (replaces complex queue worker)
-      processCritiqueAsync({
-        sessionId: session._id.toString(),
-        requestId,
-        payload: { 
-          topic, 
-          message: aiResponse.content,
-          narration: orchestrationResult.narration,
-          visuals: orchestrationResult.visualScript
-        }
-      });
+      // Fire-and-forget pedagogical critique. It writes `pedagogicalAudit` into
+      // the message metadata, but nothing currently reads that field, so the LLM
+      // call is pure cost. Gated off by default (Phase 8 simplification); flip
+      // ENABLE_PEDAGOGICAL_CRITIQUE=true once a UI actually surfaces the audit.
+      if (process.env.ENABLE_PEDAGOGICAL_CRITIQUE === 'true') {
+        processCritiqueAsync({
+          sessionId: session._id.toString(),
+          requestId,
+          payload: {
+            topic,
+            message: aiResponse.content,
+            narration: orchestrationResult.narration,
+            visuals: orchestrationResult.visualScript
+          }
+        });
+      }
 
       return {
         response: aiResponse.content,
@@ -361,10 +367,32 @@ export class ChatService {
       taskType: 'final_answer',
     });
 
-    // Await orchestration in background while stream is finishing
-    const orchestrationResult = orchestrationPromise 
-      ? await orchestrationPromise 
+    // Await orchestration while the stream finishes — but bound the wait. Under
+    // severe provider rate-limiting the visualizer can retry for many seconds;
+    // rather than hold the stream open (and risk the client giving up before the
+    // scene arrives), cap it and fall back to a guaranteed scene. The real
+    // orchestration keeps running in the background and still persists to metadata.
+    const ORCHESTRATION_STREAM_BUDGET_MS = 25000;
+    let orchestrationTimedOut = false;
+    const orchestrationResult: any = orchestrationPromise
+      ? await Promise.race([
+          orchestrationPromise,
+          new Promise((resolve) => setTimeout(() => {
+            orchestrationTimedOut = true;
+            resolve({
+              narration: { narrations: [] },
+              visualScript: (plan as any).suggest_canvas
+                ? generateFallbackVisualScript((plan as any).topic || (plan as any).educational_intent || 'Lesson')
+                : null,
+              metadata: { stages: {}, totalTokens: 0, timedOut: true },
+            });
+          }, ORCHESTRATION_STREAM_BUDGET_MS)),
+        ])
       : { narration: null, visualScript: null, metadata: {} };
+
+    if (orchestrationTimedOut) {
+      log.warn(`Orchestration exceeded ${ORCHESTRATION_STREAM_BUDGET_MS}ms for ${requestId}; streamed a fallback scene.`);
+    }
 
     // Explicitly dispatch the generated visual simulation nodes to the frontend canvas UI
     let savedArtifactId = null;
