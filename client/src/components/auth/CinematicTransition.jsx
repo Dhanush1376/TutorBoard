@@ -5,7 +5,7 @@ import VisaiLogo from '../layout/VisaiLogo';
 const CinematicTransition = ({ userName, isLogin, onComplete }) => {
   const [phase, setPhase] = useState('focus'); // focus -> welcome -> ascension
   const displayName = userName || 'Explorer';
-  const greeting = isLogin ? `Welcome back, ${displayName}` : `Welcome to the future, ${displayName}`;
+  const greeting = isLogin ? `Welcome back, ${displayName}` : `Welcome, ${displayName}`;
 
   const particles = React.useMemo(() => {
     return Array.from({ length: 15 }).map(() => ({

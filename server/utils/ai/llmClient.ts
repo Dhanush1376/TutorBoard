@@ -18,6 +18,7 @@ import { withCircuitBreaker } from '../../engine/core/circuitBreaker.js';
 import { captureException } from '../core/monitoring.js';
 import { MODEL_REGISTRY } from './modelRegistry.js';
 import UsageLog from '../../models/UsageLog.js';
+import User from '../../models/User.js';
 import {
   createProviderClient,
   executeProviderRequest,
@@ -307,6 +308,27 @@ export async function getEmbeddings(text: string, userConfig?: any): Promise<num
 
 // ── Main Orchestrator ─────────────────────────────────────────────────────────
 
+async function markKeyLowCredits(userId?: any, keyId?: any, provider?: string) {
+  try {
+    if (!userId) return;
+    if (keyId) {
+      await (User as any).updateOne(
+        { _id: userId, 'apiKeys._id': keyId },
+        { $set: { 'apiKeys.$.isLowCredits': true } }
+      );
+      console.log(`[AI:Custom] Marked key ${keyId} as low credits for user ${userId}`);
+    } else if (provider) {
+      await (User as any).updateOne(
+        { _id: userId, 'apiKeys.provider': provider },
+        { $set: { 'apiKeys.$.isLowCredits': true } }
+      );
+      console.log(`[AI:Custom] Marked provider ${provider} key as low credits for user ${userId}`);
+    }
+  } catch (e: any) {
+    console.warn('[AI:Custom] Could not mark key as low credits:', e?.message);
+  }
+}
+
 export async function requestCompletion(params: LLMParams): Promise<LLMResponse> {
   const { model, messages, userConfig, requestId, onStream, temperature, maxTokens, tools, responseSchema, responseMimeType } = params;
   const startTime = Date.now();
@@ -398,7 +420,34 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
     const tracingHeaders = { 'X-Request-Id': requestId || crypto.randomUUID() };
 
     if (isCustom) {
-      return await _executeCustomPath(params, canonicalModel, response_format, tracingHeaders, startTime);
+      try {
+        return await _executeCustomPath(params, canonicalModel, response_format, tracingHeaders, startTime);
+      } catch (customErr: any) {
+        const errMsg = customErr?.message || String(customErr);
+        const status = customErr?.status || customErr?.statusCode;
+        const isQuotaOrCredits = status === 402 || /credit|quota|balance|payment/i.test(errMsg);
+
+        console.warn(`[AI:Custom] Custom provider ${userConfig?.provider} failed: ${errMsg}`);
+
+        if (isQuotaOrCredits) {
+          markKeyLowCredits(userConfig?.userId, userConfig?.keyId, userConfig?.provider);
+        }
+
+        const allowFallback = userConfig?.fallbackToDefault !== false;
+        if (allowFallback) {
+          console.log(`[AI:Custom] Gracefully falling back to system provider chain for request ${requestId || 'req'}...`);
+          const fallbackRes = await _executeSystemPath(params, canonicalModel, response_format, tracingHeaders, startTime);
+          fallbackRes._meta = {
+            ...fallbackRes._meta,
+            fallback_triggered: true,
+            custom_provider_failed: userConfig?.provider,
+            custom_error: errMsg,
+          };
+          return fallbackRes;
+        }
+
+        throw customErr;
+      }
     } else {
       return await _executeSystemPath(params, canonicalModel, response_format, tracingHeaders, startTime);
     }

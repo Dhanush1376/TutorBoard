@@ -100,6 +100,8 @@ export const getApiKeyDashboard = async (req, res) => {
         label: k.label || `${k.provider} Key`,
         isActive: k.isActive, 
         isValid: k.isValid,
+        isLowCredits: k.isLowCredits || false,
+        isExpired: k.isExpired || false,
         baseUrl: k.baseUrl || '',
         maskedKey: k.maskedKey || '••••••••••••••••',
         usage: { requests: usage.requests, tokens: usage.tokens, costCents: usage.cost }
@@ -283,6 +285,8 @@ export const addApiKey = async (req, res) => {
       baseUrl: baseUrl || '',
       isActive: true,
       isValid: true,
+      isLowCredits: false,
+      isExpired: false,
       lastValidated: new Date(),
       createdAt: new Date(),
     };
@@ -351,6 +355,8 @@ export const updateApiKey = async (req, res) => {
       key.tag = encrypted.tag;
       key.maskedKey = maskApiKey(apiKey.trim());
       key.isValid = true;
+      key.isLowCredits = false;
+      key.isExpired = false;
       key.lastValidated = new Date();
 
       // IMPORTANT: Reset the circuit breaker so the new key works immediately without restarting the server
@@ -613,10 +619,16 @@ export const testApiKey = async (req, res) => {
 
     // Update validation status
     key.isValid = validation.valid;
-    if (!validation.valid && (validation.error?.toLowerCase().includes('expired') || validation.error?.toLowerCase().includes('balance'))) {
-      key.isExpired = true;
-    } else if (validation.valid) {
+    if (!validation.valid) {
+      const errStr = (validation.error || '').toLowerCase();
+      if (errStr.includes('credit') || errStr.includes('quota') || errStr.includes('balance') || errStr.includes('402')) {
+        key.isLowCredits = true;
+      } else if (errStr.includes('expired')) {
+        key.isExpired = true;
+      }
+    } else {
       key.isExpired = false;
+      key.isLowCredits = false;
     }
     
     key.lastValidated = new Date();

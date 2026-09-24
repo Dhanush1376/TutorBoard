@@ -141,13 +141,21 @@ class CircuitBreaker {
   }
 
   /**
-   * Force reset a provider circuit
+   * Force reset a provider circuit (resets both base and custom: variants)
    */
   reset(provider) {
-    if (this.providers[provider]) {
-      this.providers[provider] = this._newProviderState(provider);
-      console.log(`[CircuitBreaker] 🔄 ${provider}: Force reset to CLOSED`);
-      this._persistToRedis(provider);
+    if (!provider) return;
+    const targets = [provider];
+    if (provider.startsWith('custom:')) {
+      targets.push(provider.replace('custom:', ''));
+    } else {
+      targets.push(`custom:${provider}`);
+    }
+
+    for (const target of targets) {
+      this.providers[target] = this._newProviderState(target);
+      console.log(`[CircuitBreaker] 🔄 ${target}: Force reset to CLOSED`);
+      this._persistToRedis(target);
     }
   }
 

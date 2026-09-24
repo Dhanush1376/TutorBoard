@@ -6,6 +6,7 @@ import { decrypt } from '../utils/auth/encryption.js';
 import { classifyTask, selectOptimalModel } from '../utils/ai/taskClassifier.js';
 import { getAdaptiveScores } from '../utils/ai/adaptiveScorer.js';
 import { container } from '../core/container.js';
+import { circuitBreaker } from '../engine/core/circuitBreaker.js';
 export { resolveModelId } from '../utils/ai/llmClient.js';
 
 /**
@@ -159,7 +160,8 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
     if (!user) return null;
 
     const prefs = user.apiPreferences || {};
-    const activeKeys = (user.apiKeys || []).filter(k => k.isActive && k.isValid);
+    const activeKeys = (user.apiKeys || []).filter(k => k.isActive && k.isValid && !k.isExpired);
+    const isKeyHealthy = (k) => k && !k.isLowCredits && !k.isExpired && circuitBreaker.isAvailable(`custom:${k.provider}`);
     
     console.log(`[UserConfig] Resolving config for user ${user._id}. Active keys: ${activeKeys.length}, Global Toggle: ${prefs.useCustomApi}, SelectedAgent: ${selectedAgentId}`);
 
@@ -256,9 +258,32 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
       if (!selectedKey) selectedKey = activeKeys[0];
     }
 
+    // HEALTH & CIRCUIT CHECK: If selected key is unavailable or out of credits,
+    // gracefully attempt another healthy active key or fall back to platform default
+    if (selectedKey && !isKeyHealthy(selectedKey)) {
+      console.warn(`[UserConfig] Selected custom key (${selectedKey.provider}/${selectedKey.model}) is currently unavailable or exhausted (low credits/circuit open).`);
+      const fallbackKey = activeKeys.find(k => k._id.toString() !== selectedKey._id.toString() && isKeyHealthy(k));
+      if (fallbackKey) {
+        console.log(`[UserConfig] Switching to alternative healthy custom key: ${fallbackKey.provider}/${fallbackKey.model}`);
+        selectedKey = fallbackKey;
+      } else if (prefs.fallbackToDefault !== false) {
+        console.log(`[UserConfig] All custom keys are unavailable or exhausted. Gracefully falling back to platform default.`);
+        return {
+          useCustomApi: false,
+          mode: 'system',
+          userId: user._id,
+          name: user.name,
+          nickname: user.settings?.general?.nickname || user.name.split(' ')[0],
+          role: user.settings?.general?.role || 'student',
+          customInstructions: user.settings?.general?.preferences || '',
+        };
+      }
+    }
+
     // If we still don't have a key, it means either:
     // 1. Explicit selection failed (and global toggle is off)
     // 2. Global toggle is off and no explicit selection was made
+    // 3. All custom keys are degraded and fallbackToDefault was false
     if (!selectedKey) return null;
 
     console.log(`[UserConfig] Resolved custom key for user ${user._id}: ${selectedKey.provider}/${selectedKey.model} (Routing: ${prefs.routingMode})`);
@@ -271,7 +296,7 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
 
     let racingConfigs = null;
     if (prefs.enableRacing && activeKeys.length >= 2 && classification?.complexityScore >= 66) {
-      const secondKey = activeKeys.find(k => k._id.toString() !== selectedKey._id.toString());
+      const secondKey = activeKeys.find(k => k._id.toString() !== selectedKey._id.toString() && isKeyHealthy(k));
       if (secondKey) {
         try {
           racingConfigs = {
@@ -291,6 +316,7 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
       useCustomApi: true,
       mode: 'custom',
       provider: selectedKey.provider,
+      keyId: selectedKey._id,
       model: selectedKey.model || (() => {
         // FIX: Per-provider safe defaults — 'anthropic/...' is an OpenRouter path, wrong for other providers
         const defaults = {
@@ -306,7 +332,7 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
       })(),
       getApiKey,
       baseUrl: selectedKey.baseUrl || '',
-      // ⛔ No fallbackToDefault — Custom mode is fully isolated from system APIs
+      fallbackToDefault: prefs.fallbackToDefault !== false,
       userId: user._id,
       name: user.name,
       nickname: user.settings?.general?.nickname || user.name.split(' ')[0],
