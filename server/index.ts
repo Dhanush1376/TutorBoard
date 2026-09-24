@@ -106,6 +106,7 @@ export function createApp(): Application {
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const isProd = process.env.NODE_ENV === 'production';
+    const sameSite = isProd ? 'none' : 'lax';
     const secret = req.cookies?.['tb-csrf-secret'];
     const token = req.cookies?.['tb-csrf-token'];
     const invalid = secret && token && !validateCsrf(secret, token);
@@ -114,8 +115,8 @@ export function createApp(): Application {
       const newSecret = generateCsrfSecret();
       const newToken = deriveCsrfToken(newSecret);
       const CSRF_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
-      res.cookie('tb-csrf-secret', newSecret, { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
-      res.cookie('tb-csrf-token', newToken, { httpOnly: false, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
+      res.cookie('tb-csrf-secret', newSecret, { httpOnly: true, secure: isProd, sameSite, maxAge: CSRF_EXPIRY });
+      res.cookie('tb-csrf-token', newToken, { httpOnly: false, secure: isProd, sameSite, maxAge: CSRF_EXPIRY });
       if (req.path === '/api/csrf-token') {
         req.cookies['tb-csrf-secret'] = newSecret;
         req.cookies['tb-csrf-token'] = newToken;
@@ -130,11 +131,12 @@ export function createApp(): Application {
     let token = req.cookies?.['tb-csrf-token'];
     if (!token) {
       const isProd = process.env.NODE_ENV === 'production';
+      const sameSite = isProd ? 'none' : 'lax';
       const secret = generateCsrfSecret();
       token = deriveCsrfToken(secret);
       const CSRF_EXPIRY = 7 * 24 * 60 * 60 * 1000;
-      res.cookie('tb-csrf-secret', secret, { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
-      res.cookie('tb-csrf-token', token, { httpOnly: false, secure: isProd, sameSite: isProd ? 'strict' : 'lax', maxAge: CSRF_EXPIRY });
+      res.cookie('tb-csrf-secret', secret, { httpOnly: true, secure: isProd, sameSite, maxAge: CSRF_EXPIRY });
+      res.cookie('tb-csrf-token', token, { httpOnly: false, secure: isProd, sameSite, maxAge: CSRF_EXPIRY });
     }
     res.json({ csrfToken: token });
   });
@@ -147,6 +149,12 @@ export function createApp(): Application {
     if (req.path.includes('/auth/google/callback') || req.path.includes('/auth/github/callback')) return next();
     // Beacon uses cookie-based auth and has no CSRF token; auth/exchange is pre-CSRF
     if (req.path.includes('/sessions/beacon') || req.path.includes('/auth/exchange') || req.path.includes('/auth/refresh')) return next();
+
+    // Requests carrying a Bearer token in the Authorization header are immune to CSRF
+    // because custom headers cannot be set cross-origin without explicit CORS preflight approval.
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      return next();
+    }
 
     const secret = req.cookies?.['tb-csrf-secret'];
     const token = req.headers['x-csrf-token'] as string;

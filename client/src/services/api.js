@@ -63,9 +63,37 @@ export const fetchCsrfToken = async (retries = 3) => {
   return csrfFetchPromise;
 };
 
+// Helper to get auth & CSRF headers for direct fetch calls
+export const getAuthHeaders = () => {
+  const headers = {};
+  try {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('tb-token') : null;
+    if (token && token !== 'verified' && token !== 'guest') {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch (e) {}
+  const csrf = getCookie('tb-csrf-token') || cachedCsrfToken;
+  if (csrf) {
+    headers['X-CSRF-Token'] = csrf;
+  }
+  return headers;
+};
+
 // Request Interceptor
 API.interceptors.request.use(
   async (config) => {
+    // 1. Attach Authorization header if stored token exists
+    try {
+      const storedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tb-token') : null;
+      if (storedToken && storedToken !== 'verified' && storedToken !== 'guest') {
+        config.headers = config.headers || {};
+        if (!config.headers['Authorization']) {
+          config.headers['Authorization'] = `Bearer ${storedToken}`;
+        }
+      }
+    } catch (e) {}
+
+    // 2. Attach CSRF token on mutating methods
     const safeMethods = ['get', 'head', 'options'];
     if (!safeMethods.includes(config.method?.toLowerCase() || '')) {
       let csrfToken = getCookie('tb-csrf-token') || cachedCsrfToken;
@@ -115,11 +143,14 @@ API.interceptors.response.use(
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        }).then(() => {
+        }).then((newToken) => {
           // Flag queued requests as retries so they don't trigger another refresh loop
           originalRequest._retry = true;
           if (!originalRequest.headers) originalRequest.headers = {};
           originalRequest.headers['X-Retry'] = 'true';
+          if (newToken) {
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+          }
           return API(originalRequest);
         }).catch(err => Promise.reject(err));
       }
@@ -131,10 +162,20 @@ API.interceptors.response.use(
 
       try {
         // Use direct axios for refresh to avoid triggering the same interceptor
-        await axios.post(`${BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
-        processQueue(null);
+        const refreshRes = await axios.post(`${BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
+        const newToken = refreshRes.data?.token;
+        if (newToken) {
+          try {
+            localStorage.setItem('tb-token', newToken);
+          } catch (e) {}
+          originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+        }
+        processQueue(null, newToken);
         return API(originalRequest);
       } catch (refreshError) {
+        try {
+          localStorage.removeItem('tb-token');
+        } catch (e) {}
         processQueue(refreshError);
         return Promise.reject(refreshError);
       } finally {

@@ -11,7 +11,8 @@ export function useSessionHistory({ isAuthenticated, isGuest, token, user, authL
   const hasHydratedActive = useRef(false);
 
   const fetchCloudSessions = useCallback(async (pageNum = 1) => {
-    if (!isAuthenticated || isGuest || !token) return;
+    const effectiveToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('tb-token') : null);
+    if (!isAuthenticated || isGuest || !effectiveToken) return;
     
     // Prevent overlapping requests for the same page
     if (fetchLockRef.current && pageNum === 1) {

@@ -59,6 +59,7 @@ const generateTokens = (id: string) => {
 
 const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
   const isProd = process.env.NODE_ENV === 'production';
+  const sameSite = isProd ? 'none' : 'lax';
   
   // CSRF Protection (SEC-03)
   const csrfSecret = generateCsrfSecret();
@@ -67,21 +68,21 @@ const setAuthCookies = (res: Response, accessToken: string, refreshToken: string
   res.cookie('tb-access-token', accessToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'strict' : 'lax',
+    sameSite,
     maxAge: 15 * 60 * 1000 // 15 mins
   });
 
   res.cookie('tb-refresh-token', refreshToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'strict' : 'lax',
+    sameSite,
     maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
   });
 
   res.cookie('tb-csrf-secret', csrfSecret, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'strict' : 'lax',
+    sameSite,
     maxAge: 30 * 24 * 60 * 60 * 1000
   });
 
@@ -89,7 +90,7 @@ const setAuthCookies = (res: Response, accessToken: string, refreshToken: string
   res.cookie('tb-csrf-token', csrfToken, {
     httpOnly: false,
     secure: isProd,
-    sameSite: isProd ? 'strict' : 'lax',
+    sameSite,
     maxAge: 30 * 24 * 60 * 60 * 1000
   });
 };
@@ -155,6 +156,7 @@ export const signup = async (req: Request, res: Response) => {
       });
 
       res.status(201).json({
+        token: accessToken,
         user: {
           id: user._id,
           name: user.name,
@@ -201,6 +203,7 @@ export const signin = async (req: Request, res: Response) => {
       });
 
       res.json({
+        token: accessToken,
         user: {
           id: userObj._id,
           name: userObj.name,
@@ -225,12 +228,16 @@ export const getMe = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: 'Not authenticated' });
+    const userId = (user.id || user._id).toString();
+    const { accessToken } = generateTokens(userId);
     res.json({
+      token: accessToken,
       user: {
-        id: user.id || user._id || 'guest',
+        id: user.id || user._id,
         name: user.name || 'Guest User',
         email: user.email || 'guest@example.com',
         settings: user.settings || {},
+        apiPreferences: user.apiPreferences || {},
         googleId: user.googleId,
         githubId: user.githubId,
         avatar: user.avatar,
@@ -319,7 +326,7 @@ export const exchangeToken = async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid or expired token' });
   }
 
-  res.json({ success: true });
+  res.json({ success: true, token: accessToken });
 };
 
 export const refresh = async (req: Request, res: Response) => {
@@ -350,7 +357,7 @@ export const refresh = async (req: Request, res: Response) => {
 
     setAuthCookies(res, newAccess, newRefresh);
 
-    res.json({ success: true });
+    res.json({ success: true, token: newAccess });
   } catch (err: any) {
     console.error('[Auth] Refresh failed:', err.message);
     res.status(401).json({ error: 'Invalid refresh token' });
@@ -358,15 +365,27 @@ export const refresh = async (req: Request, res: Response) => {
 };
 
 export const logout = async (req: Request, res: Response) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const sameSite = isProd ? 'none' : 'lax';
   res.clearCookie('tb-access-token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: isProd,
+    sameSite,
   });
   res.clearCookie('tb-refresh-token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: isProd,
+    sameSite,
+  });
+  res.clearCookie('tb-csrf-secret', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite,
+  });
+  res.clearCookie('tb-csrf-token', {
+    httpOnly: false,
+    secure: isProd,
+    sameSite,
   });
 
   try {

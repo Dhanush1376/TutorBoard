@@ -40,6 +40,7 @@ function App() {
 
   // SEC-02 & FO-03: Initialize store from client environment and listen for resize
   useEffect(() => {
+    document.body.style.border = '';
     hydrate();
   }, []); // Run ONCE on mount
 

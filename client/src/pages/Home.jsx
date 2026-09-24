@@ -11,7 +11,7 @@ import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
 import useSceneAutoplay from '../hooks/useSceneAutoplay';
 const TeachingSession = React.lazy(() => import('../components/teaching/TeachingSession'));
 
-import API, { BASE_URL as API_URL, getCookie } from '../services/api';
+import API, { BASE_URL as API_URL, getCookie, getAuthHeaders } from '../services/api';
 
 // Canvas & Teaching Overlays
 const AgentCanvasRenderer = React.lazy(() => import('../components/canvas/AgentCanvasRenderer'));
@@ -887,7 +887,6 @@ const Home = ({ isDark }) => {
        workingSessionId = `session-regen-${Date.now()}`;
     }
     
-    import.meta.env.DEV && (document.body.style.border = "5px solid red");
     import.meta.env.DEV && console.log('[Home] SUBMIT TRIGGERED', { textOverride, workingSessionId });
 
     // Guard removed for testing - allow all submissions
@@ -1000,7 +999,7 @@ const Home = ({ isDark }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': getCookie('tb-csrf-token') || '',
+          ...getAuthHeaders(),
           'X-Request-Id': clientRequestId
         },
         body: JSON.stringify({
@@ -1502,7 +1501,7 @@ const Home = ({ isDark }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': getCookie('tb-csrf-token') || '',
+            ...getAuthHeaders(),
             'X-Request-Id': clientRequestId
           },
           body: JSON.stringify(body),

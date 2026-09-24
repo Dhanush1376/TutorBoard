@@ -10,8 +10,11 @@ export const csrfCheck = (req, res, next) => {
     return next();
   }
 
-  // Bypass CSRF for specific non-browser or webhook routes if needed
-  // For now, we apply to all stateful routes
+  // Requests carrying a Bearer token in the Authorization header are immune to CSRF
+  // because custom headers cannot be set cross-origin without explicit CORS preflight approval.
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    return next();
+  }
 
   const secret = req.cookies['tb-csrf-secret'];
   const token = req.headers['x-csrf-token'] || req.headers['tb-csrf-token'] || req.body?._csrf;

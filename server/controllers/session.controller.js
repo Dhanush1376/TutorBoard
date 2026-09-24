@@ -331,12 +331,14 @@ export const beaconSave = async (req, res) => {
       return res.status(400).json({ error: 'Invalid session ID for beacon' });
     }
 
-    // AUTH: Use cookie-based auth only (SEC-28)
-    // Beacon API sends cookies for same-origin requests by default.
+    // AUTH: Check cookies, body token (beacon payload), or Authorization header
     let userId = null;
-    const token = req.cookies?.['tb-access-token'] || req.cookies?.['tb-token'];
+    let token = req.cookies?.['tb-access-token'] || req.cookies?.['tb-token'] || req.body?.token;
+    if (!token && req.headers?.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
 
-    if (token && token !== 'guest') {
+    if (token && token !== 'guest' && token !== 'verified') {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         userId = decoded?.id;

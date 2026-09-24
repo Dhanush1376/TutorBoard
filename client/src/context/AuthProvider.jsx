@@ -168,6 +168,9 @@ export const AuthProvider = ({ children }) => {
           if (exchangeCode) {
             const res = await API.post('/api/auth/exchange', { code: exchangeCode });
             if (res.data?.success) {
+              if (res.data?.token) {
+                safeStorage.setItem('tb-token', res.data.token);
+              }
               sessionStorage.setItem('tb-just-logged-in', 'true');
             }
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -180,6 +183,8 @@ export const AuthProvider = ({ children }) => {
             const guestUser = { name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true };
             return { user: guestUser, token: null, apiPrefs, dbOffline: false };
           }
+
+          const storedToken = safeStorage.getItem('tb-token');
 
           const [meRes, apiRes] = await Promise.all([
             API.get('/api/auth/me').catch(e => {
@@ -200,7 +205,8 @@ export const AuthProvider = ({ children }) => {
             const data = meRes.data;
             sessionStorage.removeItem('tb-is-guest');
             finalUser = data.user;
-            finalToken = 'verified';
+            finalToken = data.token || storedToken || 'verified';
+            safeStorage.setItem('tb-token', finalToken);
             hydrateSettings(data.user, isHydratedLocal);
 
             if (apiRes && apiRes.status >= 200 && apiRes.status < 300 && apiRes.data) {
@@ -221,6 +227,8 @@ export const AuthProvider = ({ children }) => {
             const errorData = meRes?.data || {};
             if (errorData.code === 'DB_OFFLINE') {
               finalDbOffline = true;
+            } else if (meRes?.status === 401) {
+              safeStorage.removeItem('tb-token');
             }
           }
 
@@ -252,19 +260,22 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (isAuthResolved) {
-      syncSocketAuth(user && !user.isGuest ? 'verified' : 'guest');
+      const activeToken = user && !user.isGuest ? (token || safeStorage.getItem('tb-token')) : 'guest';
+      syncSocketAuth(activeToken);
     }
-  }, [isAuthResolved, user]);
+  }, [isAuthResolved, user, token]);
 
   const login = useCallback(async (email, password) => {
     try {
       const res = await API.post('/api/auth/signin', { email, password });
       const data = res.data;
+      const authToken = data.token || 'verified';
       sessionStorage.removeItem('tb-is-guest');
-      setToken('verified');
+      safeStorage.setItem('tb-token', authToken);
+      setToken(authToken);
       setUser(data.user);
       hydrateSettings(data.user, false);
-      try { syncSocketAuth('verified'); } catch (e) {}
+      try { syncSocketAuth(authToken); } catch (e) {}
       return data;
     } catch (err) {
       throw new Error(err.response?.data?.error || 'Login failed');
@@ -275,11 +286,13 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await API.post('/api/auth/signup', { name, email, password, confirmPassword });
       const data = res.data;
+      const authToken = data.token || 'verified';
       sessionStorage.removeItem('tb-is-guest');
-      setToken('verified');
+      safeStorage.setItem('tb-token', authToken);
+      setToken(authToken);
       setUser(data.user);
       hydrateSettings(data.user, false);
-      try { syncSocketAuth('verified'); } catch (e) {}
+      try { syncSocketAuth(authToken); } catch (e) {}
       return data;
     } catch (err) {
       throw new Error(err.response?.data?.error || 'Signup failed');
@@ -288,6 +301,7 @@ export const AuthProvider = ({ children }) => {
 
   const loginGuest = useCallback(() => {
     sessionStorage.setItem('tb-is-guest', 'true');
+    safeStorage.removeItem('tb-token');
     setToken(null);
     setUser({ name: 'Guest', email: 'guest@tutorboard.ai', isGuest: true });
     syncSocketAuth('guest');
@@ -301,6 +315,7 @@ export const AuthProvider = ({ children }) => {
         await new Promise(resolve => setTimeout(resolve, 600));
       }
       API.post('/api/auth/logout').catch(() => {});
+      safeStorage.removeItem('tb-token');
       localStorage.removeItem('tutorboard-history');
       localStorage.removeItem('tutorboard-active-chat');
       localStorage.removeItem('tutorboard-agent');
@@ -316,6 +331,7 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.removeItem('tb-settings-hydrated');
       setToken(null);
       setUser(null);
+      try { syncSocketAuth('guest'); } catch (e) {}
       try { disconnectSocket(); } catch (e) {}
       navigate('/');
     };

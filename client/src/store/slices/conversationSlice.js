@@ -1056,11 +1056,11 @@ export const createConversationSlice = (set, get) => ({
     }
     // We proceed if there are no messages, OR if we want to sync (handled inside)
 
-    set({ isMessagesLoading: true, lastAIError: null });
-
     // Guard: Don't restore for temporary/local IDs
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
     if (!isMongoId) return;
+
+    set({ isMessagesLoading: true, lastAIError: null });
 
     try {
       // Dynamic import to avoid circular dependency

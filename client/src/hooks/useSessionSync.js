@@ -78,8 +78,10 @@ export const useSessionSync = (chatMessages) => {
       return;
     }
 
+    const effectiveToken = state.token || (typeof localStorage !== 'undefined' ? (localStorage.getItem('tb-token') || localStorage.getItem('tb-auth-token')) : null);
+
     // ONLY sync for real users, skipping guests
-    if (!state.user || state.user.isGuest || !state.token) {
+    if (!state.user || state.user.isGuest || !effectiveToken) {
       if (isBeacon) import.meta.env.DEV && console.log('[Sync] Beacon skipped: Guest or No Token');
       return;
     }
@@ -120,7 +122,8 @@ export const useSessionSync = (chatMessages) => {
         noteColor: state.noteColor, noteSize: state.noteSize,
         layoutView: state.layoutView, gridType: state.gridType, gridSize: state.gridSize, showGrid: state.showGrid
       },
-      pinnedNotes: state.pinnedNotes || []
+      pinnedNotes: state.pinnedNotes || [],
+      token: effectiveToken && effectiveToken !== 'verified' && effectiveToken !== 'guest' ? effectiveToken : undefined
     };
 
     // Redundancy Check
@@ -135,7 +138,10 @@ export const useSessionSync = (chatMessages) => {
       const url = `${API_URL}/api/sessions/beacon`;
       fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(effectiveToken && effectiveToken !== 'verified' && effectiveToken !== 'guest' ? { 'Authorization': `Bearer ${effectiveToken}` } : {})
+        },
         body: JSON.stringify(payload),
         keepalive: true,
         credentials: 'include'

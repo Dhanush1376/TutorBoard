@@ -27,7 +27,7 @@ export function useSocket(isAuthReady = true) {
     
     if (!globalSocket) {
       import.meta.env.DEV && console.log('[Socket] Initializing lazily on hook mount...');
-      syncSocketAuth(localStorage.getItem('tb-auth-token') || 'guest');
+      syncSocketAuth(localStorage.getItem('tb-token') || localStorage.getItem('tb-auth-token') || 'guest');
     }
 
     const socket = globalSocket;
@@ -172,6 +172,17 @@ export function disconnectSocket() {
 
 export function syncSocketAuth(newToken = 'guest') {
   const targetPath = `${SOCKET_URL || ''}/teaching`;
+  let resolvedToken = (newToken === 'guest' || !newToken) ? null : newToken;
+  if (resolvedToken === 'verified' || !resolvedToken) {
+    try {
+      const stored = typeof localStorage !== 'undefined' 
+        ? (localStorage.getItem('tb-token') || localStorage.getItem('tb-auth-token')) 
+        : null;
+      resolvedToken = (stored && stored !== 'verified' && stored !== 'guest') ? stored : null;
+    } catch (e) {
+      resolvedToken = null;
+    }
+  }
   
   if (!globalSocket) {
     import.meta.env.DEV && console.log(`[Socket] Initializing explicitly via syncSocketAuth...`);
@@ -183,15 +194,15 @@ export function syncSocketAuth(newToken = 'guest') {
       reconnectionDelayMax: 5000,
       timeout: 20000,
       autoConnect: true,
-      auth: { token: (newToken === 'verified' || newToken === 'guest') ? null : newToken },
+      auth: { token: resolvedToken },
       withCredentials: true,
     });
     return;
   }
 
-  if (globalSocket.auth?.token !== newToken) {
+  if (globalSocket.auth?.token !== resolvedToken) {
     import.meta.env.DEV && console.log(`[Socket] Explicit auth sync: Updating token...`);
-    globalSocket.auth = { token: (newToken === 'verified' || newToken === 'guest') ? null : newToken };
+    globalSocket.auth = { token: resolvedToken };
     if (globalSocket.connected) {
       globalSocket.disconnect().connect();
     } else {
