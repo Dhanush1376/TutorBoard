@@ -183,7 +183,7 @@ export function syncSocketAuth(newToken = 'guest') {
       reconnectionDelayMax: 5000,
       timeout: 20000,
       autoConnect: true,
-      auth: { token: newToken },
+      auth: { token: (newToken === 'verified' || newToken === 'guest') ? null : newToken },
       withCredentials: true,
     });
     return;
@@ -191,7 +191,7 @@ export function syncSocketAuth(newToken = 'guest') {
 
   if (globalSocket.auth?.token !== newToken) {
     import.meta.env.DEV && console.log(`[Socket] Explicit auth sync: Updating token...`);
-    globalSocket.auth = { token: newToken };
+    globalSocket.auth = { token: (newToken === 'verified' || newToken === 'guest') ? null : newToken };
     if (globalSocket.connected) {
       globalSocket.disconnect().connect();
     } else {

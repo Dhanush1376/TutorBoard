@@ -130,10 +130,12 @@ const Message = ({
   // Although useMemo with [] technically works, this ref pattern is safer against 
   // future refactors that might add dependencies to buildMarkdownComponents.
   const onOpenArtifactRef = useRef(onOpenArtifact);
-  onOpenArtifactRef.current = onOpenArtifact;
-
+  React.useEffect(() => {
+    onOpenArtifactRef.current = onOpenArtifact;
+  }, [onOpenArtifact]);
   // Stable reference — components are only created once per component lifecycle
   const markdownComponents = React.useMemo(
+    // eslint-disable-next-line react-hooks/refs
     () => buildMarkdownComponents((...args) => onOpenArtifactRef.current?.(...args)),
     []  
   );
@@ -220,7 +222,7 @@ const Message = ({
               </div>
             </motion.div>
           ) : (
-            <div className={`flex flex-col gap-0 ${isAssistant ? 'items-start' : 'items-end'} w-full`}>
+            <div key="view" className={`flex flex-col gap-0 ${isAssistant ? 'items-start' : 'items-end'} w-full`}>
 
               {/* Web sources */}
               {isAssistant && (metadata?.sources || streamingSources || metadata?.searchPerformed || (isStreaming && streamingSearchPerformed)) && (

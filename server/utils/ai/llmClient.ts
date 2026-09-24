@@ -173,17 +173,19 @@ export function resolveModelId(modelId?: string): string {
     normalizedId.toLowerCase() === 'tutor' ||
     normalizedId.toLowerCase() === 'bytez' ||
     normalizedId.toLowerCase() === 'tutu') {
-    return 'gemini-flash-latest';
+    return 'gemini-3.8-flash';
   }
 
   const mapping: Record<string, string> = {
+    'Claude Sonnet 5': 'claude-sonnet-5',
     'Claude 3.5 Sonnet': 'claude-sonnet-5',
-    'Gemini 1.5 Flash': 'gemini-flash-latest',
-    'Gemini 1.5 Pro': 'gemini-pro-latest',
-    'Gemini 2.5 Flash': 'gemini-flash-latest',
-    'Gemini 2.5 Pro': 'gemini-pro-latest',
+    'Gemini 3.8 Flash': 'gemini-3.8-flash',
+    'Gemini 1.5 Flash': 'gemini-3.8-flash',
+    'Gemini 1.5 Pro': 'gemini-3.8-flash',
+    'Gemini 2.5 Flash': 'gemini-3.8-flash',
+    'Gemini 2.5 Pro': 'gemini-3.8-flash',
     'DeepSeek V3': 'deepseek/deepseek-chat',
-    'Llama 3.3 70B': 'meta-llama/llama-3.3-70b-instruct'
+    'Llama 3.3 70B': 'openai/gpt-oss-120b'
   };
 
   if (mapping[normalizedId]) return mapping[normalizedId];
@@ -203,10 +205,12 @@ export function sanitizeModelIdForProvider(modelId: string, provider: string): s
     // "-latest" aliases (valid on Google's own endpoint) are NOT valid OpenRouter
     // model IDs and return a 400, so translate them to concrete OpenRouter slugs.
     const OPENROUTER_ALIASES: Record<string, string> = {
-      'gemini-flash-latest': 'google/gemini-2.0-flash-001',
-      'gemini-pro-latest': 'google/gemini-pro-1.5',
-      'google/gemini-flash-latest': 'google/gemini-2.0-flash-001',
-      'google/gemini-pro-latest': 'google/gemini-pro-1.5',
+      'gemini-3.8-flash': 'google/gemini-3.8-flash',
+      'gemini-flash-latest': 'google/gemini-3.8-flash',
+      'gemini-pro-latest': 'google/gemini-3.8-flash',
+      'google/gemini-flash-latest': 'google/gemini-3.8-flash',
+      'google/gemini-pro-latest': 'google/gemini-3.8-flash',
+      'claude-sonnet-5': 'anthropic/claude-sonnet-5',
     };
     if (OPENROUTER_ALIASES[modelId]) return OPENROUTER_ALIASES[modelId];
     // Vendor-prefix bare IDs (e.g. from AI_MODEL env) that would otherwise 404
@@ -235,22 +239,22 @@ export function sanitizeModelIdForProvider(modelId: string, provider: string): s
 }
 
 export function getTextModel(): string {
-  return process.env.AI_TEXT_MODEL || process.env.AI_MODEL_TEXT || 'gemini-flash-latest';
+  return process.env.AI_TEXT_MODEL || process.env.AI_MODEL_TEXT || 'gemini-3.8-flash';
 }
 
 export function getModel(): string {
-  return process.env.AI_MODEL || process.env.AI_TEXT_MODEL || 'gemini-flash-latest';
+  return process.env.AI_MODEL || process.env.AI_TEXT_MODEL || 'gemini-3.8-flash';
 }
 
 export function getFastModel(): string {
-  return process.env.AI_MODEL_FAST || process.env.AI_MODEL_TEXT || 'gemini-flash-latest';
+  return process.env.AI_MODEL_FAST || process.env.AI_MODEL_TEXT || 'gemini-3.8-flash';
 }
 
 export function getModelForAgent(agentType: string): string {
   const mapping: Record<string, string> = {
-    'doubt': 'gemini-flash-latest',
-    'planner': 'gemini-flash-latest',
-    'visualizer': 'gemini-flash-latest'
+    'doubt': 'gemini-3.8-flash',
+    'planner': 'gemini-3.8-flash',
+    'visualizer': 'gemini-3.8-flash'
   };
   return mapping[agentType] || getTextModel();
 }
@@ -308,6 +312,49 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
   const startTime = Date.now();
   const userId = userConfig?.userId || null;
   const canonicalModel = resolveModelId(model);
+
+  if (userConfig?.isE2EMock) {
+    console.log(`[AI:Mock] Intercepting request for E2E testing (requestId: ${requestId})`);
+    
+    let mockContent = "This is a mock response from the AI provider. Testing E2E functionality.";
+    
+    if (!onStream) {
+      // For backend services (Planner, Orchestrator, Critique) that expect JSON
+      mockContent = JSON.stringify({
+        teaching_mode: "socratic",
+        complexity: "beginner",
+        topic: "E2E Test Topic",
+        suggest_canvas: false,
+        educational_intent: "E2E Testing",
+        core_concepts: ["test"],
+        tools: { rag: false, web_search: false },
+        visualization: { generate: false, type: "none", necessity: "none" },
+        artifacts: { generate: false, type: "none" },
+        narration: { narrations: [] },
+        visualScript: { renderer: "react", script: [] },
+        critique: "LGTM",
+        score: 10
+      });
+    } else {
+      // Simulate streaming for the main chat response
+      const words = mockContent.split(' ');
+      for (const word of words) {
+        onStream(word + ' ');
+      }
+    }
+    return {
+      content: mockContent,
+      provider: 'mock',
+      finishReason: 'stop',
+      _meta: {
+        mode: 'system',
+        model_used: 'mock-model',
+        provider_used: 'mock',
+        fallback_triggered: false,
+        cached: false
+      }
+    };
+  }
 
   // 1. Prepare JSON Schema if needed
   let response_format: any = undefined;
@@ -374,15 +421,22 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
 }
 
 const GROQ_FALLBACK_MODELS: Record<string, string> = {
-  'gemini-flash-latest': 'llama-3.3-70b-versatile',
-  'gemini-pro-latest': 'llama-3.3-70b-versatile',
-  'claude-sonnet-5': 'llama-3.3-70b-versatile',
-  'claude-haiku-4-5': 'llama-3.3-70b-versatile',
-  // Legacy IDs kept so stale client selections still resolve to a live Groq model
-  'gemini-1.5-flash': 'llama-3.3-70b-versatile',
-  'gemini-1.5-pro': 'llama-3.3-70b-versatile',
-  'claude-3-5-sonnet-20241022': 'llama-3.3-70b-versatile',
-  'claude-sonnet-4-20250514': 'llama-3.3-70b-versatile',
+  'gemini-flash-latest': 'openai/gpt-oss-120b',
+  'gemini-pro-latest': 'openai/gpt-oss-120b',
+  'gemini-3.8-flash': 'openai/gpt-oss-120b',
+  'gemini-3.7-flash': 'openai/gpt-oss-120b',
+  'gemini-3.6-flash': 'openai/gpt-oss-120b',
+  'claude-sonnet-5': 'openai/gpt-oss-120b',
+  'claude-haiku-4-5': 'openai/gpt-oss-20b',
+  // Deprecated Groq IDs mapped to active Groq replacements
+  'llama-3.3-70b-versatile': 'openai/gpt-oss-120b',
+  'llama-3.1-8b-instant': 'openai/gpt-oss-20b',
+  'llama-3.3-70b': 'openai/gpt-oss-120b',
+  'llama3.1-8b': 'openai/gpt-oss-20b',
+  'gemini-1.5-flash': 'openai/gpt-oss-120b',
+  'gemini-1.5-pro': 'openai/gpt-oss-120b',
+  'claude-3-5-sonnet-20241022': 'openai/gpt-oss-120b',
+  'claude-sonnet-4-20250514': 'openai/gpt-oss-120b',
 };
 
 async function _executeCustomPath(params: LLMParams, model: string, response_format: any, headers: any, startTime: number): Promise<LLMResponse> {

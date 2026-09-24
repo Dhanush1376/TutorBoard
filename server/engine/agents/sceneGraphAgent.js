@@ -75,6 +75,6 @@ export async function generateSceneGraph(userMessage, artifactClass) {
     return JSON.parse(jsonStr);
   } catch (err) {
     console.error('[SceneGraphAgent] Failed to parse JSON:', err);
-    throw new Error('Failed to generate visual scene graph');
+    throw new Error('Failed to generate visual scene graph', { cause: err });
   }
 }

@@ -47,6 +47,7 @@ export const sendMessage = async (req: Request, res: Response) => {
  */
 
 export const streamMessage = async (req: Request, res: Response) => {
+  console.log(`[streamMessage] Headers:`, JSON.stringify(req.headers));
   const requestId = req.headers['x-request-id']?.toString() || `req-${Date.now()}`;
   let validation;
   try {
@@ -56,7 +57,15 @@ export const streamMessage = async (req: Request, res: Response) => {
   }
   const streamManager = new StreamLifecycleManager(res, requestId, validation.sessionId || undefined);
   try {
-    const userConfig = await resolveUserConfig(req, (req as any).user, validation.userMessage);
+    const baseConfig = await resolveUserConfig(req, (req as any).user, validation.userMessage);
+    const userConfig: any = baseConfig ? { ...baseConfig } : { useCustomApi: false };
+    
+    // SECURITY: E2E Mock must ONLY be accessible in test environments
+    console.warn(`[E2E-DEBUG] Header: ${req.headers['x-e2e-mock-ai']} | NODE_ENV: ${process.env.NODE_ENV} | E2E_MODE: ${process.env.E2E_MODE}`);
+    if (req.headers['x-e2e-mock-ai'] && (process.env.NODE_ENV === 'test' || String(process.env.E2E_MODE) === 'true')) {
+      userConfig.isE2EMock = true;
+      console.warn(`[E2E-DEBUG] E2E Mock Enabled!`);
+    }
 
     await chatService.processMessage({
       userId: (req as any).user?._id?.toString(),

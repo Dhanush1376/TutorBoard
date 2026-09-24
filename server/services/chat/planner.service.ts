@@ -85,7 +85,7 @@ class PlannerService {
 
       try {
         const res = await requestCompletion({
-          model: 'google/gemini-flash-latest',
+          model: 'google/gemini-3.8-flash',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0,
           responseMimeType: 'application/json',

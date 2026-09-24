@@ -27,7 +27,7 @@ const AuthLanding = () => {
 
   // Redirect if already authenticated — differentiated flow for returning vs new
   useEffect(() => {
-    if (isAuthenticated && !isSuccess && !loading) {
+    if (isAuthenticated && !user?.isGuest && !isSuccess && !loading) {
       // SEC-25: Check if we should show the cinematic transition (e.g. just logged in)
       const justLoggedIn = sessionStorage.getItem('tb-just-logged-in') === 'true';
       if (justLoggedIn) {
@@ -39,7 +39,7 @@ const AuthLanding = () => {
       // RETURNING USER (Already logged in previously): Skip the cinematic transition for speed
       navigate('/session', { replace: true });
     }
-  }, [isAuthenticated, isSuccess, loading, navigate]);
+  }, [isAuthenticated, user?.isGuest, isSuccess, loading, navigate]);
 
   // Advanced Demo State
   const [activeTopicIndex, setActiveTopicIndex] = useState(0);
@@ -232,6 +232,7 @@ const AuthLanding = () => {
             <AnimatePresence mode="popLayout">
               {!isLogin && (
                 <motion.div
+                  key="name-field"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}

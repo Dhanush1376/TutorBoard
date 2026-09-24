@@ -102,8 +102,6 @@ export default function APIConfigSection({ showToast }) {
   const [testResults, setTestResults] = useState({});
   const [error, setError] = useState(null);
 
-  useEffect(() => { if (token) fetchDashboardData(); }, [token]);
-
   const fetchDashboardData = async () => {
     try {
       const res = await API.get('/api/apikeys/dashboard');
@@ -124,6 +122,8 @@ export default function APIConfigSection({ showToast }) {
       setError(err.response?.data?.details || err.response?.data?.error || 'Connection failed');
     }
   };
+
+  useEffect(() => { if (token) fetchDashboardData(); }, [token]);
 
   const handleUpdatePref = async (key, value) => {
     const updated = { ...preferences, [key]: value };

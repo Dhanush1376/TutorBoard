@@ -22,22 +22,22 @@ export const MODEL_REGISTRY: ModelRegistry = {
     chain: ['gpt-4o-mini']
   },
   google: {
-    validation: 'gemini-flash-latest',
-    production: 'gemini-pro-latest',
-    fallback: 'gemini-flash-latest',
-    chain: ['gemini-flash-latest', 'gemini-pro-latest']
+    validation: 'gemini-3.8-flash',
+    production: 'gemini-3.8-flash',
+    fallback: 'gemini-3.6-flash',
+    chain: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash']
   },
   groq: {
-    validation: 'llama-3.1-8b-instant',
-    production: 'llama-3.3-70b-versatile',
-    fallback: 'llama-3.1-8b-instant',
-    chain: ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile']
+    validation: 'openai/gpt-oss-20b',
+    production: 'openai/gpt-oss-120b',
+    fallback: 'openai/gpt-oss-20b',
+    chain: ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b']
   },
   anthropic: {
     validation: 'claude-haiku-4-5',
     production: 'claude-sonnet-5',
     fallback: 'claude-haiku-4-5',
-    chain: ['claude-haiku-4-5']
+    chain: ['claude-haiku-4-5', 'claude-sonnet-5']
   },
   deepseek: {
     validation: 'deepseek-chat',
@@ -47,15 +47,15 @@ export const MODEL_REGISTRY: ModelRegistry = {
   },
   openrouter: {
     validation: 'openai/gpt-4o-mini',
-    production: 'google/gemini-pro-latest',
-    fallback: 'google/gemini-flash-latest',
-    chain: ['openai/gpt-4o-mini', 'google/gemini-flash-latest']
+    production: 'google/gemini-3.8-flash',
+    fallback: 'openai/gpt-4o-mini',
+    chain: ['openai/gpt-4o-mini', 'google/gemini-3.8-flash', 'anthropic/claude-sonnet-5']
   },
   default: {
-    validation: 'gpt-4o-mini',
-    production: 'gpt-4o-mini',
-    fallback: 'gpt-4o-mini',
-    chain: ['gpt-4o-mini']
+    validation: 'gemini-3.8-flash',
+    production: 'gemini-3.8-flash',
+    fallback: 'gemini-3.8-flash',
+    chain: ['gemini-3.8-flash']
   }
 };
 
@@ -76,8 +76,15 @@ export function suggestCorrectModel(provider: string, failedModel: string): stri
 
   const low = (failedModel || '').toLowerCase();
   
-  if (low.includes('70b')) return p.production; 
-  if (low.includes('8b') || low.includes('mini') || low.includes('flash')) return p.validation;
+  if (provider === 'groq') {
+    if (low.includes('120b') || low.includes('70b') || low.includes('versatile')) return p.production;
+    return p.validation;
+  }
+  if (provider === 'google') {
+    return p.validation;
+  }
+  if (low.includes('70b') || low.includes('120b')) return p.production; 
+  if (low.includes('8b') || low.includes('20b') || low.includes('mini') || low.includes('flash')) return p.validation;
 
   return p.validation;
 }

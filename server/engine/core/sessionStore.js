@@ -214,11 +214,14 @@ class SessionStore {
 
     // Save to MongoDB warm/cold storage
     try {
+      // Ensure we don't pass invalid strings like 'guest' to ObjectId fields
+      const validUserId = (session.userId && session.userId !== 'guest' && session.userId.length === 24) ? session.userId : null;
+
       await EngineSessionState.findOneAndUpdate(
         { sessionId: id },
         { 
           data: session, 
-          userId: session.userId, 
+          userId: validUserId, 
           lastActivityAt: new Date(),
           expiresAt: new Date(Date.now() + 48 * 3600 * 1000) // Extend TTL to 48 hours
         },

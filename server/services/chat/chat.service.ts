@@ -207,7 +207,8 @@ export class ChatService {
           userTier, 
           orchestrationPromise,
           params.isRegenerate,
-          params.originalMessageId
+          params.originalMessageId,
+          userConfig
         );
       }
  
@@ -346,7 +347,8 @@ export class ChatService {
     userTier: 'free' | 'pro' | 'enterprise' = 'free',
     orchestrationPromise?: Promise<any>,
     isRegenerate?: boolean,
-    originalMessageId?: string
+    originalMessageId?: string,
+    userConfig?: any
   ) {
     let fullContent = '';
     
@@ -365,6 +367,7 @@ export class ChatService {
       signal: streamManager.signal,
       requestId, // TRACING
       taskType: 'final_answer',
+      userConfig,
     });
 
     // Await orchestration while the stream finishes — but bound the wait. Under
@@ -481,6 +484,8 @@ export class ChatService {
     // Sync IDs to client so it can replace ephemeral IDs
     streamManager.send({ 
       type: 'message_ids', 
+      userMessageId,
+      assistantMessageId: assistantMsgId,
       data: { userMessageId, assistantMessageId: assistantMsgId } 
     });
 

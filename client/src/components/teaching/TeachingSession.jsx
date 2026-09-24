@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles,
   RotateCcw, RefreshCw, Dices, Crosshair, Volume2, VolumeX, AlertTriangle, BookOpen,
-  Minimize2, Undo2, Redo2, Bookmark
+  Minimize2, Undo2, Redo2, Bookmark, Clock
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 

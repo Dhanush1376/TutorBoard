@@ -40,6 +40,9 @@ server/.local-storage/
 client/coverage/
 graphify-out/
 client/eslint-result.json
+playwright-report/
+test-results/
+**/test-results/
 
 # Ad-hoc test/debug scripts (server root)
 server/check_db.js

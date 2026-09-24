@@ -182,12 +182,12 @@ const ChatLanding = ({ onSuggestionClick }) => {
    ============================================================================= */
 const ErrorCard = ({ error, onRetry }) => {
   const getFriendlyError = (err) => {
-    const msg = typeof err === 'string' ? err : err?.message || '';
+    const msg = typeof err === 'string' ? err : (err?.message || err?.content || err?.error || '');
     if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
       return { title: "Rate Limited", desc: "Too many requests. Please wait a moment before trying again.", icon: Zap, color: 'amber' };
     }
-    if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
-      return { title: "Connection Disrupted", desc: "Check your active connection and synchronize to resume.", icon: WifiOff, color: 'blue' };
+    if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('connection') || msg.toLowerCase().includes('econnrefused')) {
+      return { title: "Connection Disrupted", desc: msg || "Check your active connection and synchronize to resume.", icon: WifiOff, color: 'blue' };
     }
     return { title: "Generation Incomplete", desc: msg || "An unexpected orchestration error occurred during streaming.", icon: AlertCircle, color: 'red' };
   };
@@ -568,6 +568,7 @@ const ChatWindow = ({
               })}
             </motion.div>
           )}
+        </AnimatePresence>
 
           <AnimatePresence mode="wait">
             {(isCurrentlyWaiting || (isCurrentlyStreaming && !currentStreamingContent && !currentStreamingThought)) && !streamingInList && (
@@ -582,6 +583,7 @@ const ChatWindow = ({
           <AnimatePresence>
             {lastAIError && (
               <ErrorCard
+                key="error"
                 error={lastAIError}
                 onRetry={() => {
                   if (lastAIError?.messageId) {
@@ -596,7 +598,6 @@ const ChatWindow = ({
           </AnimatePresence>
 
           <div ref={bottomRef} className="h-1" />
-        </AnimatePresence>
       </div>
 
       {/* Premium High-Fidelity Scroll to Bottom Button */}

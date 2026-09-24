@@ -58,6 +58,6 @@ export async function generateDelta(instruction, sceneGraph) {
     return JSON.parse(jsonStr);
   } catch (err) {
     console.error('[SceneGraphDeltaAgent] Failed to parse JSON:', err);
-    throw new Error('Failed to generate edit delta');
+    throw new Error('Failed to generate edit delta', { cause: err });
   }
 }

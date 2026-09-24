@@ -21,13 +21,17 @@ import ParticleWaves from '../components/canvas/ParticleWavesLazy';
 
 import FloatingSidebar from '../components/teaching/FloatingSidebar';
 import SessionOverlay from '../components/teaching/SessionOverlay';
+
 import QuickAskOverlay from '../components/chat/QuickAskOverlay';
 import { useAuth } from '../hooks/useAuth';
 import { useSessionSync } from '../hooks/useSessionSync';
+import { useSessionHistory } from '../hooks/useSessionHistory';
+import { useSessionPersistence } from '../hooks/useSessionPersistence';
 import VisaiLogo from '../components/layout/VisaiLogo';
 import SelectionPopover from '../components/chat/SelectionPopover';
 import ArtifactPanel from '../components/chat/ArtifactPanel';
 import { useArtifactSocket } from '../hooks/useArtifactSocket';
+import { processSSEStream } from '../utils/sseStreamParser';
 
 import { 
   Minimize2, Maximize2, Menu, 
@@ -179,9 +183,6 @@ const Home = ({ isDark }) => {
   })));
 
   // ─── COMPONENT STATE ───
-  const [historyFetched, setHistoryFetched] = useState(false);
-  const [pagination, setPagination] = useState({ page: 1, hasMore: false, loading: false });
-  const [isDbOffline, setIsDbOffline] = useState(false);
   const [isQuickAskOpen, setIsQuickAskOpen] = useState(false);
   const [activeView, setActiveView] = useState('history');
   const [prompt, setPrompt] = useState('');
@@ -190,9 +191,8 @@ const Home = ({ isDark }) => {
   const [undoConfirmModal, setUndoConfirmModal] = useState(null);
 
   // ─── COMPONENT REFS ───
-  const fetchLockRef = useRef(false);
-  const fetchAbortControllerRef = useRef(null);
-  const hasHydratedActive = useRef(false);
+  const selectFetchLockRef = useRef(false);
+  const selectFetchAbortControllerRef = useRef(null);
   const lastArtifactIdRef = useRef(null);
   const isArtifactExpectedRef = useRef(false);
   const currentCanvasTypeRef = useRef(null);
@@ -249,123 +249,13 @@ const Home = ({ isDark }) => {
   }, [storeSetChatHistory]);
 
 
-  const fetchCloudSessions = useCallback(async (pageNum = 1) => {
-    if (!isAuthenticated || user?.isGuest || !token) return;
-    
-    // Prevent overlapping requests for the same page
-    if (fetchLockRef.current && pageNum === 1) {
-      import.meta.env.DEV && console.log('[Home] Session fetch already in progress, skipping duplicate call.');
-      return;
-    }
-
-    // Abort any existing request
-    if (fetchAbortControllerRef.current) {
-      fetchAbortControllerRef.current.abort();
-    }
-    
-    const controller = new AbortController();
-    fetchAbortControllerRef.current = controller;
-    fetchLockRef.current = true;
-    
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    
-    setPagination(prev => ({ ...prev, loading: true }));
-    try {
-      const response = await API.get(`/api/sessions?page=${pageNum}&limit=15`, {
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      
-      if (response.status === 200) {
-        const data = response.data;
-        const { sessions, pagination: pg } = data;
-        
-        if (!sessions) return;
-
-        const cloudSessions = sessions
-          .filter(s => (s.messages?.some(m => m.role === 'user') || s.canvasState?.length > 0))
-          .map(s => ({
-            id: s._id,
-            title: s.title || 'Saved Session',
-            date: new Date(s.updatedAt || s.lastUpdated || s.createdAt).toLocaleDateString(),
-            updatedAt: new Date(s.updatedAt || s.lastUpdated || s.createdAt).getTime(),
-            agent: 'TutorBoard AI',
-            messages: s.messages || [],
-            canvasState: s.canvasState || [],
-            canvasSteps: s.canvasSteps || [],
-            pinnedNotes: s.pinnedNotes || [],
-            preferences: s.preferences || {},
-            chatSessionId: s._id
-          }));
-
-        syncChatHistory(prev => {
-          let merged;
-          if (pageNum === 1) {
-            // MongoDB is the source of truth on fresh login/refresh.
-            // Only preserve truly local in-progress sessions that are CURRENTLY active.
-            // Old ghost 'temp-' sessions in localStorage cause permanent UI duplicates.
-            const cloudIds = new Set(cloudSessions.map(s => s.id));
-            const activeId = useTutorStore.getState().chatSessionId || useTutorStore.getState().sessionId;
-            
-            const localOnlySessions = prev.filter(s => {
-              if (!s.id || cloudIds.has(s.id)) return false;
-              const isTemp = s.id.startsWith('temp-') || s.id.startsWith('local-') || s.id.startsWith('session-');
-              if (!isTemp) return false;
-              
-              // Keep temporary sessions unless explicitly deleted. Don't aggressively prune after 30s.
-              return true;
-            });
-            
-            merged = [...localOnlySessions, ...cloudSessions];
-          } else {
-            // For subsequent pages, append without duplicates.
-            const existingIds = new Set(prev.map(s => s.id));
-            merged = [...prev, ...cloudSessions.filter(s => !existingIds.has(s.id))];
-          }
-
-          // FINAL DE-DUPLICATION: Ensure no session ID appears twice
-          const finalIds = new Set();
-          return merged.filter(s => {
-            const sid = s.id || s.chatSessionId;
-            if (!sid || finalIds.has(sid)) return false;
-            finalIds.add(sid);
-            return true;
-          });
-        });
-
-        setPagination({
-          page: pg.page,
-          hasMore: pg.hasMore,
-          loading: false
-        });
-      } else {
-        console.warn(`[Home] Cloud fetch failed with status: ${response.status}`);
-        setPagination(prev => ({ ...prev, loading: false }));
-      }
-    } catch (err) {
-      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
-        import.meta.env.DEV && console.log('[Home] Session fetch aborted or timed out.');
-      } else {
-        console.error('Failed to restore cloud sessions:', err);
-      }
-      setPagination(prev => ({ ...prev, loading: false }));
-    } finally {
-      fetchLockRef.current = false;
-      if (fetchAbortControllerRef.current === controller) {
-        fetchAbortControllerRef.current = null;
-      }
-      setHistoryFetched(true);
-    }
-  }, [isAuthenticated, token, user?.isGuest]);
-
-  // Initial load — fetch all sessions from MongoDB (for users)
-  useEffect(() => {
-    if (user && !user.isGuest) {
-      fetchCloudSessions(1);
-    } else {
-      setHistoryFetched(true);
-    }
-  }, [fetchCloudSessions, user]);
+  const { historyFetched, pagination, fetchCloudSessions } = useSessionHistory({
+    isAuthenticated,
+    isGuest,
+    token,
+    user,
+    authLoading
+  });
 
   // Use machine.sessionId as the single source of truth for the local chat pointer
   const activeChatId = machineSessionId;
@@ -396,18 +286,7 @@ const Home = ({ isDark }) => {
     };
   }, []);
   
-  // ── ID SYNC: Promote temp ID to real Mongo ID in sidebar ──
-  const lastIdRef = useRef(activeChatId);
-  useEffect(() => {
-    const oldId = lastIdRef.current;
-    const newId = activeChatId;
-    
-    if (oldId && newId && oldId !== newId && (oldId.startsWith('temp-') || oldId.startsWith('local-') || oldId.startsWith('session-'))) {
-      import.meta.env.DEV && console.log(`[Home:Sync] Promoting sidebar session via store: ${oldId} -> ${newId}`);
-      promoteChatHistoryId(oldId, newId);
-    }
-    lastIdRef.current = newId;
-  }, [activeChatId, promoteChatHistoryId]);
+
 
   // ─── Leave Chat / Close Snapshot Logic ───
   useEffect(() => {
@@ -457,20 +336,7 @@ const Home = ({ isDark }) => {
     return () => clearTimeout(timer);
   }, [isWaitingForAI, isStreaming, activeChatId, setWaitingForAI]);
 
-  // Centralized Hydration (SEC-22): Restore active chat on mount/auth-resolution
-  useEffect(() => {
-    if (authLoading) return;
-    if (hasHydratedActive.current) return;
-    
-    if (activeChatId) {
-      hasHydratedActive.current = true;
-      return;
-    }
 
-    hydrateSession(user).then(() => {
-      hasHydratedActive.current = true;
-    });
-  }, [authLoading, user, activeChatId, hydrateSession]);
 
 
 
@@ -558,141 +424,14 @@ const Home = ({ isDark }) => {
     import.meta.env.DEV && console.log('[Home] 🎨 Auto-created Canvas Session for standalone drawing.');
   }, [canvasObjects?.length, activeChatId, isAuthenticated, user]);
 
-  // ── Persistent Cloud Sync (Immediate Actions) ──
-  // Returns the canonical MongoDB session ID after save (may differ from activeChatId if it was a local temp ID).
-  const saveCurrentSession = useCallback(async (updatedMessages = null, overrideSessionId = null, overrideTitle = null) => {
-    const targetSessionId = overrideSessionId || activeChatId;
-    
-    // RC-2 FIX: Don't save while streaming — messages are being mutated in real-time
-    const storeState = useTutorStore.getState();
-    if (storeState.isStreaming || storeState.streamingMessageId) {
-      import.meta.env.DEV && console.log('[Persistence] ⏸ Deferred save — stream active');
-      return null;
-    }
-    
-    const resolvedMessages = updatedMessages || (storeState.conversationMessages.length > 0 ? storeState.conversationMessages : activeSession?.messages) || [];
-
-    // Guard: Don't save empty sessions (no user messages and no manual drawings)
-    const hasUserMessages = resolvedMessages && resolvedMessages.some(m => m.role === 'user');
-    const hasManualDrawings = canvasObjects && canvasObjects.some(o => o.id?.startsWith('manual-'));
-    const hasUserContent = hasUserMessages || hasManualDrawings;
-    
-    if (!hasUserContent) return null;
-
-    const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
-    const existingTitle = activeSession?.title || timeline?.title;
-    
-    const derivedTitle = isGeneric(existingTitle) 
-      ? (updatedMessages && updatedMessages.find(m => m.role === 'user')?.content) 
-      : existingTitle;
-
-    const payload = {
-      sessionId: targetSessionId,
-      title: overrideTitle || (isGeneric(derivedTitle) ? generateCleanTitle(derivedTitle) : derivedTitle) || 'Untitled Session',
-      messages: resolvedMessages,
-      canvasState: canvasObjects || [],
-      canvasSteps: canvasSteps || [],
-      pinnedNotes: pinnedNotes || [],
-      preferences: {
-        drawColor, drawWidth,
-        textToolSize, noteToolSize,
-        noteColor, noteSize,
-        layoutView, gridType, gridSize, showGrid
-      },
-      updatedAt: Date.now()
-    };
-
-    // ── GUEST PERSISTENCE (LocalStorage fallback + MongoDB) ──
-    if (user?.isGuest) {
-      import.meta.env.DEV && console.log(`[Persistence:Guest] 🏠 Updating local history: ${targetSessionId}`);
-      syncChatHistory(prev => {
-        // Promotion-aware index finding: Match the ID, or find a temp ID that this real ID is replacing
-        const idx = prev.findIndex(s => 
-          s.id === targetSessionId || 
-          (s.id?.startsWith('temp-') && targetSessionId && !targetSessionId.startsWith('temp-'))
-        );
-        
-        let next;
-        if (idx === -1) {
-          next = [payload, ...prev];
-        } else {
-          next = [...prev];
-          next[idx] = { ...next[idx], ...payload, id: targetSessionId }; // Ensure ID is updated if promoted
-        }
-        
-        // Final de-duplication safety
-        const finalIds = new Set();
-        const cleaned = next.filter(s => {
-          if (!s.id || finalIds.has(s.id)) return false;
-          finalIds.add(s.id);
-          return true;
-        });
-        
-        return cleaned;
-      });
-      // Guest Draft Mode: Never store guest sessions in the cloud database
-      return targetSessionId;
-    }
-
-    if (!isAuthenticated) return null;
-    
-    import.meta.env.DEV && console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
-    
-    try {
-      const res = await API.post('/api/sessions', payload);
-      
-      if (res.status === 200 || res.status === 201) {
-        const saved = res.data;
-        setIsDbOffline(false);
-        // Always keep the store's chatSessionId in sync with the real Mongo ID.
-        // This is the key link that lets useSessionSync and startSession target
-        // the correct document on subsequent saves and socket events.
-        if (saved._id) {
-          useTutorStore.getState().setChatSessionId(saved._id);
-        }
-
-        syncChatHistory(prev => {
-          // Robust promotion-aware deduplication
-          // We only filter out the specific IDs we are promoting/saving. We do NOT blanket-delete other temp sessions!
-          const otherSessions = prev.filter(s => 
-            s.id !== targetSessionId && 
-            s.id !== saved._id
-          );
-          
-          const updatedSession = { ...payload, id: saved._id || targetSessionId, chatSessionId: saved._id };
-          return [updatedSession, ...otherSessions];
-        });
-
-        // If we were using a local UUID, swap it for the permanent Mongo ID everywhere.
-        if (saved._id && saved._id !== targetSessionId) {
-          import.meta.env.DEV && console.log(`[Persistence] 🔗 Adopting permanent Mongo ID: ${saved._id}`);
-          setActiveChatId(saved._id);
-          return saved._id;
-        }
-        return saved._id || targetSessionId;
-      } else {
-        const errData = res.data || {};
-        if (errData.code === 'DB_OFFLINE') setIsDbOffline(true);
-        // SF-3 FIX: Notify user when save returns an unexpected status
-        console.warn(`[Persistence] ⚠️ Cloud save returned status ${res.status}`);
-        useTutorStore.getState().showToast({
-          message: 'Your session could not be saved to the cloud. Changes are saved locally.',
-          type: 'warning',
-          duration: 5000
-        });
-      }
-    } catch (err) {
-      console.error('[Persistence] ❌ Immediate save failed:', err);
-      // SF-3 FIX: Surface save failures to the user instead of silently swallowing
-      setIsDbOffline(true);
-      useTutorStore.getState().showToast({
-        message: 'Cloud save failed — your work is preserved locally. We\'ll retry on your next action.',
-        type: 'error',
-        duration: 6000
-      });
-    }
-    return null;
-  }, [activeChatId, activeSession, timeline, canvasObjects, canvasSteps, pinnedNotes, isAuthenticated, user, token]);
+  const { saveCurrentSession, isDbOffline, setIsDbOffline } = useSessionPersistence({
+    activeChatId,
+    activeSession,
+    isAuthenticated,
+    user,
+    token,
+    generateCleanTitle
+  });
 
 
   // ── Passive Sync (Canvas/Prefs Debounce) ──
@@ -854,18 +593,18 @@ const Home = ({ isDark }) => {
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(id || '');
     if (id && isMongoId && !id.startsWith('session-') && !isGuest) {
       // Prevent overlapping restores for the same session
-      if (fetchLockRef.current) {
+      if (selectFetchLockRef.current) {
         import.meta.env.DEV && console.log('[Home] Session restore already in progress, skipping.');
         return;
       }
 
-      if (fetchAbortControllerRef.current) {
-        fetchAbortControllerRef.current.abort();
+      if (selectFetchAbortControllerRef.current) {
+        selectFetchAbortControllerRef.current.abort();
       }
 
       const controller = new AbortController();
-      fetchAbortControllerRef.current = controller;
-      fetchLockRef.current = true;
+      selectFetchAbortControllerRef.current = controller;
+      selectFetchLockRef.current = true;
 
       useTutorStore.setState({ isMessagesLoading: true, lastAIError: null });
       try {
@@ -926,9 +665,9 @@ const Home = ({ isDark }) => {
         console.error('[Home] Failed to fetch full session details:', err);
         useTutorStore.setState({ lastAIError: { message: 'Failed to load session details. Some content may be missing.', type: 'FETCH_ERROR' } });
       } finally {
-        fetchLockRef.current = false;
-        if (fetchAbortControllerRef.current === controller) {
-          fetchAbortControllerRef.current = null;
+        selectFetchLockRef.current = false;
+        if (selectFetchAbortControllerRef.current === controller) {
+          selectFetchAbortControllerRef.current = null;
         }
         useTutorStore.setState({ isMessagesLoading: false });
       }
@@ -1307,7 +1046,8 @@ const Home = ({ isDark }) => {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || errData.fallbackMessage || 'AI request failed');
+        const rawErr = errData.error?.message || errData.error || errData.message || errData.fallbackMessage || 'AI request failed';
+        throw new Error(typeof rawErr === 'string' ? rawErr : JSON.stringify(rawErr));
       }
 
       // ── 4. Real SSE Streaming ──
@@ -1354,264 +1094,10 @@ const Home = ({ isDark }) => {
         }
       }, 5000);
 
-        let sseDataAccumulator = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) {
-              // Reset accumulator on empty line (standard SSE event separator)
-              sseDataAccumulator = '';
-              continue;
-            }
-
-            if (trimmed.startsWith('event: ')) {
-              lastEventType = trimmed.slice(7).trim();
-              continue;
-            }
-
-            if (!trimmed.startsWith('data: ')) continue;
-            
-            // Bug 2.1: Accumulate partial JSON across data lines
-            const dataStr = trimmed.slice(6);
-            sseDataAccumulator += dataStr;
-            
-            // If it looks like a partial JSON object, wait for more lines
-            if (sseDataAccumulator.trim().startsWith('{') && !sseDataAccumulator.trim().endsWith('}')) {
-              continue;
-            }
-
-            const currentData = sseDataAccumulator;
-            sseDataAccumulator = '';
-
-            try {
-              const eventData = JSON.parse(currentData);
-              const eventType = eventData.type || lastEventType;
-
-              // Any event proves the server is alive and still working — reset the
-              // stall watchdog. Heartbeats (sent every 15s) exist precisely to keep
-              // the connection alive during long operations like scene orchestration;
-              // ignoring them here made a busy-but-alive server look stalled, so the
-              // client aborted mid-generation and the visual scene (delivered at the
-              // very end of the stream) was lost. The 45s watchdog now only fires when
-              // the server genuinely goes silent (dead process / dropped connection).
-              lastActivityTime = Date.now();
-
-              import.meta.env.DEV && console.log(`[SSE] Received event: ${eventType}`, eventData);
-
-            if (eventType === 'meta') {
-              const newDbId = eventData.sessionId;
-              if (newDbId && newDbId !== workingSessionId && newDbId !== receivedSessionId) {
-                receivedSessionId = newDbId;
-                
-                // CRITICAL HOTFIX: Promote session immediately to prevent DB duplication if stream crashes
-                const { migrateSessionState } = useTutorStore.getState();
-                migrateSessionState(workingSessionId, receivedSessionId);
-                
-                const existingController = abortControllersRef.current.get(workingSessionId);
-                if (existingController) {
-                  abortControllersRef.current.set(receivedSessionId, existingController);
-                  abortControllersRef.current.delete(workingSessionId);
-                }
-                
-                setActiveChatId(receivedSessionId);
-                useTutorStore.getState().setChatSessionId(receivedSessionId);
-                
-                syncChatHistory(prev => {
-                  const otherSessions = prev.filter(s => s.id !== workingSessionId && s.id !== receivedSessionId);
-                  const s = prev.find(s => s.id === workingSessionId) || { messages: [], title: sessionTitle };
-                  return [{ ...s, id: receivedSessionId, chatSessionId: receivedSessionId }, ...otherSessions];
-                });
-                
-                workingSessionId = receivedSessionId; // update local pointer for subsequent chunks
-              }
-              useTutorStore.getState().handleProgressiveStreamEvent(eventData);
-            } else if (eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
-              useTutorStore.getState().handleProgressiveStreamEvent(eventData);
-            } else if (eventType === 'chunk' || eventType === 'message') {
-              const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
-              
-              if (text) {
-                fullContent += text;
-                const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
-                if (currentSessionId === activeChatIdRef.current) {
-                  if (isArtifactExpectedRef.current) {
-                    appendStreamChunk(text, currentSessionId, streamToken);
-                  } else {
-                    chunkBuffer += text;
-                    if (Date.now() - lastUpdateTs > 100) flushBuffers();
-                  }
-                } else {
-                  addUnreadSession(currentSessionId);
-                }
-              }
-            } else if (eventType === 'thought' || eventType === 'status') {
-              const thought = eventData.thought || eventData.message || eventData.content || '';
-              const thoughtStr = thought + (eventType === 'status' ? '\n' : '');
-              thoughtContent += thoughtStr;
-              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
-              if (currentSessionId === activeChatIdRef.current) {
-                thoughtBuffer += thoughtStr;
-                if (Date.now() - lastUpdateTs > 100) flushBuffers();
-              } else {
-                addUnreadSession(currentSessionId);
-              }
-            } else if (eventType === 'sources') {
-              setSources(eventData.sources || [], workingSessionId);
-            } else if (eventType === 'message_ids') {
-              // Sync local ephemeral IDs with real MongoDB IDs (Fixed: Bug 2)
-              const { userMessageId, assistantMessageId } = eventData;
-              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
-              
-              if (currentSessionId === activeChatIdRef.current) {
-                syncMessageIds(userMessageId, assistantMessageId, userId, assistantMsgId);
-              }
-              
-              syncChatHistory(prev => prev.map(s => {
-                if (s.id === currentSessionId || s.id === receivedSessionId) {
-                  const msgs = [...s.messages];
-                  let changed = false;
-                  
-                  // Update exactly the messages that match the ephemeral IDs we sent
-                  const uIdx = userId ? msgs.findIndex(m => m.id === userId) : -1;
-                  if (uIdx !== -1 && userMessageId) {
-                    msgs[uIdx] = { ...msgs[uIdx], id: userMessageId };
-                    changed = true;
-                  } else if (!userId && userMessageId && msgs.length >= 2) {
-                    // Fallback for older code that didn't pass userId
-                    msgs[msgs.length - 2] = { ...msgs[msgs.length - 2], id: userMessageId };
-                    changed = true;
-                  }
-                  
-                  const aIdx = assistantMsgId ? msgs.findIndex(m => m.id === assistantMsgId) : -1;
-                  if (aIdx !== -1 && assistantMessageId) {
-                    msgs[aIdx] = { ...msgs[aIdx], id: assistantMessageId };
-                    changed = true;
-                  } else if (!assistantMsgId && assistantMessageId && msgs.length >= 1) {
-                     // Fallback
-                    msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
-                    changed = true;
-                  }
-                  
-                  return changed ? { ...s, messages: msgs } : s;
-                }
-                return s;
-              }));
-            } else if (eventType === 'plan') {
-              const plan = eventData.plan || {};
-              if (plan.generate_artifact) {
-                isArtifactExpectedRef.current = true;
-              }
-              if (plan.suggest_canvas && plan.canvas_type) {
-                currentCanvasTypeRef.current = plan.canvas_type;
-                setCurrentCanvasType(plan.canvas_type);
-              }
-            } else if (eventType === 'artifact') {
-              const art = eventData.artifact || eventData;
-              if (art.type && art.content) {
-                const localId = addArtifact({
-                  id: art.id || `art-${Date.now()}`,
-                  type: art.type,
-                  title: art.title,
-                  content: art.content,
-                  language: art.language,
-                  metadata: art.metadata || {},
-                });
-                
-                finalizeStreamingArtifact();
-
-                // Only open the panel for the FIRST artifact in a multi-artifact response
-                if (!lastArtifactLocalId) {
-                  setActiveArtifact(localId);
-                  
-                  // Do not open the side panel for visual/canvas artifacts
-                  const visualTypes = ['diagram', 'graph', 'cinematic', 'plot', 'desmos', 'algorithm', 'dsa', 'node_map', 'canvas', 'scene'];
-                  if (!visualTypes.includes(art.type?.toLowerCase())) {
-                    openArtifactPanel();
-                  }
-                }
-
-                lastArtifactLocalId = localId;
-
-                // Store artifact ID for later linkage to the assistant message
-                lastArtifactIdRef.current = localId;
-
-                // Attach this artifact ID to the CURRENT assistant message metadata if it exists
-                const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
-                syncChatHistory(prev => prev.map(s => {
-                  if (s.id === currentSessionId || s.id === receivedSessionId) {
-                    const msgs = [...s.messages];
-                    if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
-                      msgs[msgs.length - 1] = { 
-                        ...msgs[msgs.length - 1], 
-                        metadata: { ...msgs[msgs.length - 1].metadata, artifactId: localId } 
-                      };
-                    }
-                    return { ...s, messages: msgs };
-                  }
-                  return s;
-                }));
-              }
-            } else if (eventType === 'artifact_saved') {
-              // Link the local artifact to its DB ID
-              const savedLocalId = eventData.localId || lastArtifactLocalId;
-              if (savedLocalId && eventData.artifactId) {
-                setArtifactDbId(savedLocalId, eventData.artifactId);
-                
-                // Update message metadata to reflect the real ID
-                syncChatHistory(prev => prev.map(s => {
-                  if (s.id === (receivedSessionId || workingSessionId)) {
-                    const msgs = s.messages.map(m => {
-                      if (m.metadata?.artifactId === savedLocalId) {
-                        return { ...m, metadata: { ...m.metadata, artifactId: eventData.artifactId } };
-                      }
-                      return m;
-                    });
-                    return { ...s, messages: msgs };
-                  }
-                  return s;
-                }));
-              }
-            } else if (eventType === 'chat_override') {
-              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
-              if (currentSessionId === activeChatIdRef.current) {
-                updateStreamingContent(eventData.content, currentSessionId, streamToken);
-              } else {
-                addUnreadSession(currentSessionId);
-              }
-              fullContent = eventData.content;
-              syncChatHistory(prev => prev.map(s => {
-                if (s.id === (receivedSessionId || currentSessionId)) {
-                  const msgs = [...s.messages];
-                  if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
-                    msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: eventData.content };
-                  }
-                  return { ...s, messages: msgs };
-                }
-                return s;
-              }));
-            } else if (eventType === 'done') {
-              // Streaming complete
-            } else if (eventType === 'error') {
-              const errorMessage = eventData.error || 'Streaming error';
-              const fullError = eventData.details ? `${errorMessage} (${eventData.details})` : errorMessage;
-              throw new Error(fullError);
-            }
-          } catch (parseErr) {
-            // Re-throw our explicit errors and AbortError, only swallow JSON parse errors
-            if (parseErr.name === 'Error' || parseErr.name === 'AbortError') {
-              throw parseErr;
-            }
-            
+        await processSSEStream(reader, (eventType, eventData, dataStr, isRawString) => {
+          if (isRawString) {
             // Not JSON data, could be raw string
-            if (lastEventType === 'message' && !dataStr.startsWith('{')) {
+            if (eventType === 'message' && !dataStr.startsWith('{')) {
               fullContent += dataStr;
               const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
               if (currentSessionId === activeChatIdRef.current) {
@@ -1621,9 +1107,219 @@ const Home = ({ isDark }) => {
                 addUnreadSession(currentSessionId);
               }
             }
+            return;
           }
-        }
-      }
+
+          // Any event proves the server is alive and still working — reset the
+          // stall watchdog. Heartbeats (sent every 15s) exist precisely to keep
+          // the connection alive during long operations like scene orchestration;
+          // ignoring them here made a busy-but-alive server look stalled, so the
+          // client aborted mid-generation and the visual scene (delivered at the
+          // very end of the stream) was lost. The 45s watchdog now only fires when
+          // the server genuinely goes silent (dead process / dropped connection).
+          lastActivityTime = Date.now();
+          import.meta.env.DEV && console.log(`[SSE] Received event: ${eventType}`, eventData);
+
+          if (eventType === 'meta') {
+            const newDbId = eventData.sessionId;
+            if (newDbId && newDbId !== workingSessionId && newDbId !== receivedSessionId) {
+              receivedSessionId = newDbId;
+              
+              // CRITICAL HOTFIX: Promote session immediately to prevent DB duplication if stream crashes
+              const { migrateSessionState } = useTutorStore.getState();
+              migrateSessionState(workingSessionId, receivedSessionId);
+              
+              const existingController = abortControllersRef.current.get(workingSessionId);
+              if (existingController) {
+                abortControllersRef.current.set(receivedSessionId, existingController);
+                abortControllersRef.current.delete(workingSessionId);
+              }
+              
+              setActiveChatId(receivedSessionId);
+              useTutorStore.getState().setChatSessionId(receivedSessionId);
+              
+              syncChatHistory(prev => {
+                const otherSessions = prev.filter(s => s.id !== workingSessionId && s.id !== receivedSessionId);
+                const s = prev.find(s => s.id === workingSessionId) || { messages: [], title: sessionTitle };
+                return [{ ...s, id: receivedSessionId, chatSessionId: receivedSessionId }, ...otherSessions];
+              });
+              
+              workingSessionId = receivedSessionId; // update local pointer for subsequent chunks
+            }
+            useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+          } else if (eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
+            useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+          } else if (eventType === 'chunk' || eventType === 'message') {
+            const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
+            
+            if (text) {
+              fullContent += text;
+              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+              if (currentSessionId === activeChatIdRef.current) {
+                if (isArtifactExpectedRef.current) {
+                  appendStreamChunk(text, currentSessionId, streamToken);
+                } else {
+                  chunkBuffer += text;
+                  if (Date.now() - lastUpdateTs > 100) flushBuffers();
+                }
+              } else {
+                addUnreadSession(currentSessionId);
+              }
+            }
+          } else if (eventType === 'thought' || eventType === 'status') {
+            const thought = eventData.thought || eventData.message || eventData.content || '';
+            const thoughtStr = thought + (eventType === 'status' ? '\n' : '');
+            thoughtContent += thoughtStr;
+            const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+            if (currentSessionId === activeChatIdRef.current) {
+              thoughtBuffer += thoughtStr;
+              if (Date.now() - lastUpdateTs > 100) flushBuffers();
+            } else {
+              addUnreadSession(currentSessionId);
+            }
+          } else if (eventType === 'sources') {
+            setSources(eventData.sources || [], workingSessionId);
+          } else if (eventType === 'message_ids') {
+            // Sync local ephemeral IDs with real MongoDB IDs (Fixed: Bug 2)
+            const userMessageId = eventData.userMessageId || eventData.data?.userMessageId;
+            const assistantMessageId = eventData.assistantMessageId || eventData.data?.assistantMessageId;
+            const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+            
+            if (currentSessionId === activeChatIdRef.current) {
+              syncMessageIds(userMessageId, assistantMessageId, userId, assistantMsgId);
+            }
+            
+            syncChatHistory(prev => prev.map(s => {
+              if (s.id === currentSessionId || s.id === receivedSessionId) {
+                const msgs = [...s.messages];
+                let changed = false;
+                
+                // Update exactly the messages that match the ephemeral IDs we sent
+                const uIdx = userId ? msgs.findIndex(m => m.id === userId) : -1;
+                if (uIdx !== -1 && userMessageId) {
+                  msgs[uIdx] = { ...msgs[uIdx], id: userMessageId };
+                  changed = true;
+                } else if (!userId && userMessageId && msgs.length >= 2) {
+                  // Fallback for older code that didn't pass userId
+                  msgs[msgs.length - 2] = { ...msgs[msgs.length - 2], id: userMessageId };
+                  changed = true;
+                }
+                
+                const aIdx = assistantMsgId ? msgs.findIndex(m => m.id === assistantMsgId) : -1;
+                if (aIdx !== -1 && assistantMessageId) {
+                  msgs[aIdx] = { ...msgs[aIdx], id: assistantMessageId };
+                  changed = true;
+                } else if (!assistantMsgId && assistantMessageId && msgs.length >= 1) {
+                   // Fallback
+                  msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], id: assistantMessageId };
+                  changed = true;
+                }
+                
+                return changed ? { ...s, messages: msgs } : s;
+              }
+              return s;
+            }));
+          } else if (eventType === 'plan') {
+            const plan = eventData.plan || {};
+            if (plan.generate_artifact) {
+              isArtifactExpectedRef.current = true;
+            }
+            if (plan.suggest_canvas && plan.canvas_type) {
+              currentCanvasTypeRef.current = plan.canvas_type;
+              setCurrentCanvasType(plan.canvas_type);
+            }
+          } else if (eventType === 'artifact') {
+            const art = eventData.artifact || eventData;
+            if (art.type && art.content) {
+              const localId = addArtifact({
+                id: art.id || `art-${Date.now()}`,
+                type: art.type,
+                title: art.title,
+                content: art.content,
+                language: art.language,
+                metadata: art.metadata || {},
+              });
+              
+              finalizeStreamingArtifact();
+
+              // Only open the panel for the FIRST artifact in a multi-artifact response
+              if (!lastArtifactLocalId) {
+                setActiveArtifact(localId);
+                
+                // Do not open the side panel for visual/canvas artifacts
+                const visualTypes = ['diagram', 'graph', 'cinematic', 'plot', 'desmos', 'algorithm', 'dsa', 'node_map', 'canvas', 'scene'];
+                if (!visualTypes.includes(art.type?.toLowerCase())) {
+                  openArtifactPanel();
+                }
+              }
+
+              lastArtifactLocalId = localId;
+
+              // Store artifact ID for later linkage to the assistant message
+              lastArtifactIdRef.current = localId;
+
+              // Attach this artifact ID to the CURRENT assistant message metadata if it exists
+              const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+              syncChatHistory(prev => prev.map(s => {
+                if (s.id === currentSessionId || s.id === receivedSessionId) {
+                  const msgs = [...s.messages];
+                  if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
+                    msgs[msgs.length - 1] = { 
+                      ...msgs[msgs.length - 1], 
+                      metadata: { ...msgs[msgs.length - 1].metadata, artifactId: localId } 
+                    };
+                  }
+                  return { ...s, messages: msgs };
+                }
+                return s;
+              }));
+            }
+          } else if (eventType === 'artifact_saved') {
+            // Link the local artifact to its DB ID
+            const savedLocalId = eventData.localId || lastArtifactLocalId;
+            if (savedLocalId && eventData.artifactId) {
+              setArtifactDbId(savedLocalId, eventData.artifactId);
+              
+              // Update message metadata to reflect the real ID
+              syncChatHistory(prev => prev.map(s => {
+                if (s.id === (receivedSessionId || workingSessionId)) {
+                  const msgs = s.messages.map(m => {
+                    if (m.metadata?.artifactId === savedLocalId) {
+                      return { ...m, metadata: { ...m.metadata, artifactId: eventData.artifactId } };
+                    }
+                    return m;
+                  });
+                  return { ...s, messages: msgs };
+                }
+                return s;
+              }));
+            }
+          } else if (eventType === 'chat_override') {
+            const currentSessionId = useTutorStore.getState().chatSessionId || workingSessionId;
+            if (currentSessionId === activeChatIdRef.current) {
+              updateStreamingContent(eventData.content, currentSessionId, streamToken);
+            } else {
+              addUnreadSession(currentSessionId);
+            }
+            fullContent = eventData.content;
+            syncChatHistory(prev => prev.map(s => {
+              if (s.id === (receivedSessionId || currentSessionId)) {
+                const msgs = [...s.messages];
+                if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
+                  msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: eventData.content };
+                }
+                return { ...s, messages: msgs };
+              }
+              return s;
+            }));
+          } else if (eventType === 'done') {
+            // Streaming complete
+          } else if (eventType === 'error') {
+            const errorMessage = eventData.content || eventData.message || eventData.error?.message || eventData.error || 'Streaming error';
+            const fullError = eventData.details ? `${errorMessage} (${eventData.details})` : errorMessage;
+            throw new Error(typeof fullError === 'string' ? fullError : JSON.stringify(fullError));
+          }
+        });
 
     flushBuffers(); // FINAL FLUSH of any remaining tokens
       import.meta.env.DEV && console.log("FULL RESPONSE (Client):", fullContent);
@@ -1635,13 +1331,11 @@ const Home = ({ isDark }) => {
       currentCanvasTypeRef.current = null;
 
       // Background persist for sidebar sync (Supports guests)
-      if (isAuthenticated) {
-        saveCurrentSession(
-          useTutorStore.getState().conversationMessages,
-          useTutorStore.getState().chatSessionId || receivedSessionId || workingSessionId,
-          sessionTitle
-        ).catch(err => console.error('[Home] Background persistence failed:', err));
-      }
+      saveCurrentSession(
+        useTutorStore.getState().conversationMessages,
+        useTutorStore.getState().chatSessionId || receivedSessionId || workingSessionId,
+        sessionTitle
+      ).catch(err => console.error('[Home] Background persistence failed:', err));
 
         // ── 6. Update sidebar history with session ID ──
         if (receivedSessionId && receivedSessionId !== workingSessionId) {
@@ -1840,7 +1534,8 @@ const Home = ({ isDark }) => {
         
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Regeneration failed');
+          const rawErr = errData.error?.message || errData.error || errData.message || 'Regeneration failed';
+          throw new Error(typeof rawErr === 'string' ? rawErr : JSON.stringify(rawErr));
         }
 
         const reader = res.body.getReader();
@@ -1866,105 +1561,69 @@ const Home = ({ isDark }) => {
           }
         }, 5000);
 
-        let sseDataAccumulator = '';
-
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+          await processSSEStream(reader, (eventType, eventData, dataStr, isRawString) => {
+            if (isRawString) return;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed) {
-                sseDataAccumulator = '';
-                continue;
-              }
-
-              if (trimmed.startsWith('event: ')) {
-                lastEventType = trimmed.slice(7).trim();
-                continue;
-              }
-              if (!trimmed.startsWith('data: ')) continue;
-              
-              // Bug 2.1: Accumulate partial JSON across data lines
-              const dataStr = trimmed.slice(6);
-              sseDataAccumulator += dataStr;
-
-              if (sseDataAccumulator.trim().startsWith('{') && !sseDataAccumulator.trim().endsWith('}')) {
-                continue;
-              }
-
-              const currentData = sseDataAccumulator;
-              sseDataAccumulator = '';
-
-              try {
-                const eventData = JSON.parse(currentData);
-                const eventType = eventData.type || lastEventType;
-
-                // Bug 2.2: Only reset activity monitor on real data
-                if (eventType !== 'heartbeat' && eventType !== 'ping') {
-                  const hasRealData = eventData.chunk || eventData.content || eventData.thought || eventData.sources || eventData.plan;
-                  if (hasRealData) {
-                    lastActivityTime = Date.now();
-                  }
-                }
-
-                if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
-                  useTutorStore.getState().handleProgressiveStreamEvent(eventData);
-                } else if (eventType === 'chunk' || eventType === 'message') {
-                  const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
-                  if (text) {
-                    fullContent += text;
-                    appendStreamChunk(text, dbSessionId, streamToken);
-                  }
-                } else if (eventType === 'thought' || eventType === 'status') {
-                  const thought = eventData.thought || eventData.message || eventData.content || '';
-                  thoughtContent += thought + (eventType === 'status' ? '\n' : '');
-                  appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), dbSessionId, streamToken);
-                } else if (eventType === 'sources') {
-                  lastStreamSources = eventData.sources || [];
-                  setSources(lastStreamSources, dbSessionId);
-                } else if (eventType === 'message_ids') {
-                  const { userMessageId, assistantMessageId } = eventData;
-                  if (useTutorStore.getState().chatSessionId === activeChatIdRef.current) {
-                    useTutorStore.getState().syncMessageIds(userMessageId, assistantMessageId, null, finalTargetId);
-                  }
-                  syncChatHistory(prev => prev.map(s => {
-                    if (s.id === dbSessionId) {
-                      const msgs = [...s.messages];
-                      let changed = false;
-                      const aIdx = msgs.findIndex(m => m.id === finalTargetId);
-                      if (aIdx !== -1 && assistantMessageId) {
-                        msgs[aIdx] = { ...msgs[aIdx], id: assistantMessageId };
-                        changed = true;
-                      }
-                      return changed ? { ...s, messages: msgs } : s;
-                    }
-                    return s;
-                  }));
-                } else if (eventType === 'plan') {
-                  if (eventData.plan?.suggest_canvas) setCurrentCanvasType(eventData.plan.canvas_type);
-                } else if (eventType === 'done') {
-                  if (eventData.messagesAfterRegen) {
-                    import.meta.env.DEV && console.log('[Home:Regen] Syncing conversation state from server');
-                    useTutorStore.getState().setConversationMessages(eventData.messagesAfterRegen);
-                    
-                    syncChatHistory(prev => prev.map(s => 
-                      s.id === dbSessionId ? { ...s, messages: eventData.messagesAfterRegen } : s
-                    ));
-                  }
-                } else if (eventType === 'error') {
-                  throw new Error(eventData.error || 'Regeneration error');
-                }
-              } catch (e) {
-                if (e.name === 'Error') throw e;
+            // Bug 2.2: Only reset activity monitor on real data
+            if (eventType !== 'heartbeat' && eventType !== 'ping') {
+              const hasRealData = eventData.chunk || eventData.content || eventData.thought || eventData.sources || eventData.plan;
+              if (hasRealData) {
+                lastActivityTime = Date.now();
               }
             }
-          }
+
+            if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes') {
+              useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+            } else if (eventType === 'chunk' || eventType === 'message') {
+              const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
+              if (text) {
+                fullContent += text;
+                appendStreamChunk(text, dbSessionId, streamToken);
+              }
+            } else if (eventType === 'thought' || eventType === 'status') {
+              const thought = eventData.thought || eventData.message || eventData.content || '';
+              thoughtContent += thought + (eventType === 'status' ? '\n' : '');
+              appendStreamThought(thought + (eventType === 'status' ? '\n' : ''), dbSessionId, streamToken);
+            } else if (eventType === 'sources') {
+              lastStreamSources = eventData.sources || [];
+              setSources(lastStreamSources, dbSessionId);
+            } else if (eventType === 'message_ids') {
+              const userMessageId = eventData.userMessageId || eventData.data?.userMessageId;
+              const assistantMessageId = eventData.assistantMessageId || eventData.data?.assistantMessageId;
+              if (useTutorStore.getState().chatSessionId === activeChatIdRef.current) {
+                useTutorStore.getState().syncMessageIds(userMessageId, assistantMessageId, null, finalTargetId);
+              }
+              syncChatHistory(prev => prev.map(s => {
+                if (s.id === dbSessionId) {
+                  const msgs = [...s.messages];
+                  let changed = false;
+                  const aIdx = msgs.findIndex(m => m.id === finalTargetId);
+                  if (aIdx !== -1 && assistantMessageId) {
+                    msgs[aIdx] = { ...msgs[aIdx], id: assistantMessageId };
+                    changed = true;
+                  }
+                  return changed ? { ...s, messages: msgs } : s;
+                }
+                return s;
+              }));
+            } else if (eventType === 'plan') {
+              if (eventData.plan?.suggest_canvas) setCurrentCanvasType(eventData.plan.canvas_type);
+            } else if (eventType === 'done') {
+              if (eventData.messagesAfterRegen) {
+                import.meta.env.DEV && console.log('[Home:Regen] Syncing conversation state from server');
+                useTutorStore.getState().setConversationMessages(eventData.messagesAfterRegen);
+                
+                syncChatHistory(prev => prev.map(s => 
+                  s.id === dbSessionId ? { ...s, messages: eventData.messagesAfterRegen } : s
+                ));
+              }
+            } else if (eventType === 'error') {
+              const errorMessage = eventData.content || eventData.message || eventData.error?.message || eventData.error || 'Regeneration error';
+              const fullError = eventData.details ? `${errorMessage} (${eventData.details})` : errorMessage;
+              throw new Error(typeof fullError === 'string' ? fullError : JSON.stringify(fullError));
+            }
+          });
         } finally {
           clearInterval(activityMonitor);
         }
@@ -2239,6 +1898,7 @@ const Home = ({ isDark }) => {
           <AnimatePresence>
             {pagination.loading && chatHistory.length === 0 && (
               <motion.div
+                key="loading-skeleton"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -2262,6 +1922,7 @@ const Home = ({ isDark }) => {
         <AnimatePresence>
           {isDbOffline && (
             <motion.div
+              key="db-offline"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -2290,6 +1951,7 @@ const Home = ({ isDark }) => {
         <AnimatePresence>
           {isTeachingActive && (
             <motion.div 
+              key="teaching-overlay"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
@@ -2317,6 +1979,7 @@ const Home = ({ isDark }) => {
         <AnimatePresence>
           {(machine.activeDoubtId || isDoubtProcessing) && !isDoubtProcessing && (
             <motion.div
+              key="doubt-resume"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
@@ -2345,6 +2008,7 @@ const Home = ({ isDark }) => {
         <AnimatePresence>
           {undoConfirmModal && (
             <motion.div
+              key="undo-modal"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}

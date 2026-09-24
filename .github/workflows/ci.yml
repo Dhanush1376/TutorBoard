@@ -14,6 +14,12 @@ jobs:
       matrix:
         node-version: [22.x]
 
+    services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -26,6 +32,7 @@ jobs:
         cache-dependency-path: |
           server/package-lock.json
           client/package-lock.json
+          package-lock.json
 
     - name: Install Server Dependencies
       working-directory: ./server
@@ -37,19 +44,24 @@ jobs:
 
     - name: Lint Server
       working-directory: ./server
-      run: npm run lint || echo "No lint script found, skipping server linting."
+      run: npm run lint
 
     - name: Lint Client
       working-directory: ./client
-      run: npm run lint || echo "No lint script found, skipping client linting."
+      run: npm run lint
 
     - name: Run Server Tests
       working-directory: ./server
       run: npm test
       env:
-        MONGODB_URI: mongodb://localhost:27017/test
-        JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
-        ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY }}
+        MONGODB_URI: mongodb://127.0.0.1:27017/test
+        JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci_jwt_secret_must_be_32_characters_long_min!' }}
+        JWT_REFRESH_SECRET: ${{ secrets.CI_JWT_REFRESH_SECRET || 'ci_jwt_refresh_secret_at_least_32_chars!' }}
+        ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' }}
+
+    - name: Run Client Tests
+      working-directory: ./client
+      run: npm test
 
     - name: Typecheck Server
       working-directory: ./server
@@ -76,9 +88,13 @@ jobs:
     - name: Run E2E Tests
       run: npx playwright test
       env:
-        MONGODB_URI: mongodb://localhost:27017/test
-        JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
-        ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY }}
+        MONGODB_URI: mongodb://127.0.0.1:27017/test
+        JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci_jwt_secret_must_be_32_characters_long_min!' }}
+        JWT_REFRESH_SECRET: ${{ secrets.CI_JWT_REFRESH_SECRET || 'ci_jwt_refresh_secret_at_least_32_chars!' }}
+        ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' }}
+        FRONTEND_URL: http://127.0.0.1:5173
+        OPENROUTER_API_KEY: mock-ci-key
+        E2E_MODE: 'true'
 
     - name: Upload Playwright Report
       uses: actions/upload-artifact@v4
@@ -90,7 +106,7 @@ jobs:
 
   deploy-client:
     needs: build-and-test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push' && secrets.VERCEL_TOKEN != ''
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Vercel
@@ -104,7 +120,7 @@ jobs:
 
   deploy-server:
     needs: build-and-test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push' && secrets.RENDER_DEPLOY_HOOK_URL != ''
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Render Deploy Hook

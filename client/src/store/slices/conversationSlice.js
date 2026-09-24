@@ -639,8 +639,11 @@ export const createConversationSlice = (set, get) => ({
 
   setLastAIError: (error, sessionId = null) => {
     const sid = sessionId || get().getSid();
+    const errorMsg = typeof error === 'string' 
+      ? error 
+      : (error?.message || (typeof error?.error === 'string' ? error.error : 'Generation failed'));
     set((state) => {
-      state.lastAIError = error;
+      state.lastAIError = typeof error === 'string' ? { message: error } : (error || { message: errorMsg });
       state.isWaitingForAI = false;
       state.isStreaming = false;
       state.streamingContent = '';
@@ -662,7 +665,7 @@ export const createConversationSlice = (set, get) => ({
         const last = msgs[msgs.length - 1];
         state.conversationMessages[msgs.length - 1] = {
           ...last,
-          metadata: { ...last.metadata, error: error?.message || 'Generation failed' },
+          metadata: { ...last.metadata, error: errorMsg },
         };
         resyncNormalizedSession(state, sid, state.conversationMessages);
       }

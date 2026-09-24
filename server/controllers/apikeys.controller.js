@@ -65,10 +65,13 @@ export const getApiKeyDashboard = async (req, res) => {
     const UNIVERSAL_LIMITS = {
       'gpt-4o': 50,
       'gpt-4o-mini': 200,
+      'gemini-3.8-flash': 300,
       'gemini-1.5-pro': 50,
       'gemini-1.5-flash': 300,
+      'claude-sonnet-5': 50,
       'claude-3-5-sonnet': 50,
       'claude-3-opus': 20,
+      'openai/gpt-oss-120b': 100,
       'default': 100
     };
 

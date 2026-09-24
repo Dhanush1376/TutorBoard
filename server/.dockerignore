@@ -7,5 +7,4 @@ tests
 scratch
 *.md
 .eslintrc.json
-tsconfig.json
 nodemon.json

@@ -117,6 +117,7 @@ export class StreamLifecycleManager {
     const errorChunk: StreamChunk = {
       type: 'error',
       content: err.message || 'An unexpected error occurred during generation.',
+      error: err.message || 'An unexpected error occurred during generation.',
       data: { code: err.code || ErrorCode.INTERNAL_ERROR },
       timestamp: Date.now(),
     };

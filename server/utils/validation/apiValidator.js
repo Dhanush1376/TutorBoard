@@ -63,7 +63,10 @@ export async function validateApiKey(provider, apiKey, model, baseUrl) {
 
   try {
     const reg = MODEL_REGISTRY[provider] || MODEL_REGISTRY.default;
-    const chain = reg.chain || [reg.validation];
+    const baseChain = reg.chain || [reg.validation];
+    const chain = (model && typeof model === 'string' && model.trim())
+      ? [model.trim(), ...baseChain.filter(m => m !== model.trim())]
+      : baseChain;
     let result;
     
     // High-Resiliency Fallback Loop
@@ -198,7 +201,8 @@ export async function validateApiKey(provider, apiKey, model, baseUrl) {
         const isModelError = result.error?.toLowerCase().includes('model') || 
                            result.error?.toLowerCase().includes('found') || 
                            result.error?.toLowerCase().includes('gate') ||
-                           result.error?.toLowerCase().includes('permission');
+                           result.error?.toLowerCase().includes('permission') ||
+                           result.error?.toLowerCase().includes('does not exist');
         
         if (!isModelError) break;
         
@@ -996,27 +1000,28 @@ export const PROVIDER_MODELS = {
     { id: 'deepseek-reasoner', name: 'DeepSeek R1', tier: 'premium', contextWindow: 64000 },
   ],
   google: [
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', tier: 'premium', contextWindow: 1000000 },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tier: 'standard', contextWindow: 1000000 },
-    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', tier: 'economy', contextWindow: 1000000 },
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tier: 'standard', contextWindow: 1000000 },
+    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', tier: 'standard', contextWindow: 1000000 },
+    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', tier: 'standard', contextWindow: 1000000 },
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', tier: 'economy', contextWindow: 1000000 },
   ],
   anthropic: [
+    { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', tier: 'premium', contextWindow: 200000 },
+    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', tier: 'standard', contextWindow: 200000 },
     { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', tier: 'premium', contextWindow: 200000 },
-    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tier: 'standard', contextWindow: 200000 },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', tier: 'economy', contextWindow: 200000 },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tier: 'economy', contextWindow: 200000 },
   ],
   openrouter: [
     { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini (via OR)', tier: 'standard', contextWindow: 128000 },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (via OR)', tier: 'premium', contextWindow: 200000 },
-    { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash (via OR)', tier: 'standard', contextWindow: 1000000 },
+    { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash (via OR)', tier: 'standard', contextWindow: 1000000 },
+    { id: 'anthropic/claude-sonnet-5', name: 'Claude Sonnet 5 (via OR)', tier: 'premium', contextWindow: 200000 },
     { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1 (via OR)', tier: 'premium', contextWindow: 64000 },
     { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (via OR)', tier: 'standard', contextWindow: 128000 },
   ],
   groq: [
-    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', tier: 'premium', contextWindow: 128000 },
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Fastest)', tier: 'standard', contextWindow: 128000 },
-    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', tier: 'standard', contextWindow: 32000 },
-    { id: 'gemma2-9b-it', name: 'Gemma 2 9B', tier: 'economy', contextWindow: 8000 },
+    { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B (Groq Flagship)', tier: 'premium', contextWindow: 128000 },
+    { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B (Groq Fast)', tier: 'standard', contextWindow: 128000 },
+    { id: 'qwen/qwen3.8-27b', name: 'Qwen 3.8 27B', tier: 'standard', contextWindow: 128000 },
   ],
   mistral: [
     { id: 'mistral-large-latest', name: 'Mistral Large', tier: 'premium', contextWindow: 128000 },

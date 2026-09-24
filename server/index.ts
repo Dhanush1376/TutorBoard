@@ -39,6 +39,7 @@ const allowedOrigins = [
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:5176',
+  'http://127.0.0.1:5173',
   'https://tutorboard.vercel.app',
   'https://tutor-board-mocha.vercel.app',
   process.env.FRONTEND_URL
@@ -81,14 +82,14 @@ export function createApp(): Application {
     origin: isOriginAllowed as any,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control', 'x-e2e-mock-ai'],
     exposedHeaders: ['X-Request-ID', 'X-CSRF-Token']
   }));
 
   app.options('*', cors({ 
     origin: isOriginAllowed as any, 
     credentials: true, 
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control', 'x-e2e-mock-ai'],
     exposedHeaders: ['X-Request-ID', 'X-CSRF-Token']
   }));
   app.use(express.json({ limit: '1mb' }));

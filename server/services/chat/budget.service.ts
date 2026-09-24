@@ -138,15 +138,15 @@ class BudgetService {
       case 'planning':
       case 'critique':
       case 'visualization':
-        return 'google/gemini-flash-latest';
+        return 'google/gemini-3.8-flash';
       case 'narration':
       case 'final_answer':
         if (budgetHit || tier === 'free') {
-          return 'google/gemini-flash-latest';
+          return 'google/gemini-3.8-flash';
         }
-        return 'google/gemini-pro-latest';
+        return 'google/gemini-3.8-flash';
       default:
-        return 'google/gemini-flash-latest';
+        return 'google/gemini-3.8-flash';
     }
   }
 }

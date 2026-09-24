@@ -295,11 +295,11 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
         // FIX: Per-provider safe defaults — 'anthropic/...' is an OpenRouter path, wrong for other providers
         const defaults = {
           openai: 'gpt-4o',
-          google: 'gemini-flash-latest',
-          groq: 'llama-3.3-70b-versatile',
+          google: 'gemini-3.8-flash',
+          groq: 'openai/gpt-oss-120b',
           anthropic: 'claude-haiku-4-5',
           deepseek: 'deepseek-chat',
-          openrouter: 'google/gemini-flash-latest',
+          openrouter: 'google/gemini-3.8-flash',
           custom: '',
         };
         return defaults[selectedKey.provider] || '';

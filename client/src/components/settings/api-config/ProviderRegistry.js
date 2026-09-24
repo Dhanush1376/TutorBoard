@@ -3,8 +3,8 @@
 // ============================================================================
 
 export const PROVIDERS = [
-  { id: 'google',      name: 'Google Gemini',     color: '#4285f4', price: 0, defaultModel: 'gemini-1.5-flash',                   patterns: [/^AIza/],                                                                 hint: 'AIza...', link: 'https://aistudio.google.com/apikey' },
-  { id: 'groq',        name: 'Groq',              color: '#f55036', price: 0, defaultModel: 'llama-3.1-8b-instant',                    patterns: [/^gsk_/],                                                                 hint: 'gsk_...', link: 'https://console.groq.com/keys' },
+  { id: 'google',      name: 'Google Gemini',     color: '#4285f4', price: 0, defaultModel: 'gemini-3.8-flash',                   patterns: [/^AIza/],                                                                 hint: 'AIza...', link: 'https://aistudio.google.com/apikey' },
+  { id: 'groq',        name: 'Groq',              color: '#f55036', price: 0, defaultModel: 'openai/gpt-oss-120b',                    patterns: [/^gsk_/],                                                                 hint: 'gsk_...', link: 'https://console.groq.com/keys' },
   { id: 'huggingface', name: 'Hugging Face',      color: '#ff9d00', price: 0, defaultModel: 'mistralai/Mistral-7B-Instruct-v0.2',      patterns: [/^hf_/],                                                                  hint: 'hf_...', link: 'https://huggingface.co/settings/tokens' },
   { id: 'mistral',     name: 'Mistral AI',        color: '#ff7000', price: 0, defaultModel: 'mistral-small-latest',                    patterns: [/^[a-zA-Z0-9]{32}$/, /^[A-Z0-9]{20,}$/],                                 hint: '32-char alphanumeric', link: 'https://console.mistral.ai/api-keys/' },
   { id: 'deepseek',    name: 'DeepSeek',          color: '#4d6cfa', price: 0, defaultModel: 'deepseek-chat',                           patterns: [/^sk-[a-z0-9]{32}$/i],                                                    hint: 'sk-... (32 chars)', link: 'https://platform.deepseek.com/api_keys' },
@@ -18,7 +18,7 @@ export const PROVIDERS = [
   { id: 'fireworks',   name: 'Fireworks AI',      color: '#ff4e1a', price: 1, defaultModel: 'accounts/fireworks/models/llama-v3p1-8b-instruct', patterns: [/^fw_/],                                                         hint: 'fw_...', link: 'https://fireworks.ai/account/api-keys' },
   { id: 'perplexity',  name: 'Perplexity',        color: '#20808d', price: 1, defaultModel: 'sonar',                                   patterns: [/^pplx-/],                                                                hint: 'pplx-...', link: 'https://www.perplexity.ai/settings/api' },
   { id: 'lepton',      name: 'Lepton AI',         color: '#3b82f6', price: 1, defaultModel: 'llama3-8b',                               patterns: [/^[A-Za-z0-9]{32}$/],                                                     hint: '32-char token', link: 'https://www.lepton.ai/dashboard' },
-  { id: 'anthropic',   name: 'Anthropic',         color: '#d97757', price: 2, defaultModel: 'claude-3-5-haiku-20241022',                 patterns: [/^sk-ant-/],                                                              hint: 'sk-ant-...', link: 'https://console.anthropic.com/settings/keys' },
+  { id: 'anthropic',   name: 'Anthropic',         color: '#d97757', price: 2, defaultModel: 'claude-haiku-4-5',                        patterns: [/^sk-ant-/],                                                              hint: 'sk-ant-...', link: 'https://console.anthropic.com/settings/keys' },
   { id: 'cohere',      name: 'Cohere',            color: '#39594d', price: 2, defaultModel: 'command-r',                               patterns: [/^[A-Za-z0-9]{40}$/, /^co-/],                                            hint: '40-char or co-...', link: 'https://dashboard.cohere.com/api-keys' },
   { id: 'xai',         name: 'xAI / Grok',        color: '#111111', price: 2, defaultModel: 'grok-beta',                               patterns: [/^xai-/],                                                                 hint: 'xai-...', link: 'https://console.x.ai/' },
   { id: 'replicate',   name: 'Replicate',         color: '#111827', price: 2, defaultModel: 'meta/llama-2-7b-chat',           patterns: [/^r8_/],                                                                  hint: 'r8_...', link: 'https://replicate.com/account/api-tokens' },
@@ -40,10 +40,19 @@ export const PROVIDERS = [
   { id: 'custom',      name: 'Custom / Other',    color: '#8b5cf6', price: 2, defaultModel: 'llama3',                                  patterns: [],                                                                        hint: 'any provider or local model', needsUrl: true },
 ];
 
+const KNOWN_PROVIDER_MODELS = {
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o3-mini'],
+  groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
+  google: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-2.5-flash-lite'],
+  anthropic: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022'],
+  openrouter: ['openai/gpt-4o-mini', 'google/gemini-3.8-flash', 'anthropic/claude-sonnet-5', 'deepseek/deepseek-r1'],
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+};
+
 export const PROVIDER_INFO = PROVIDERS.reduce((acc, p) => {
   acc[p.id] = { 
     ...p, 
-    models: p.id === 'openai' ? ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o3-mini'] : [p.defaultModel].filter(Boolean) 
+    models: KNOWN_PROVIDER_MODELS[p.id] || [p.defaultModel].filter(Boolean) 
   };
   return acc;
 }, {});
@@ -55,17 +64,32 @@ export const MODEL_LABELS = {
   'o3-mini': 'o3-mini (Reasoning)',
   'deepseek-chat': 'DeepSeek V3',
   'deepseek-reasoner': 'DeepSeek R1 (Reasoning)',
-  'gemini-1.5-pro': 'Gemini 1.5 Pro',
+  // Google Gemini
+  'gemini-3.8-flash': 'Gemini 3.8 Flash',
+  'gemini-3.7-flash': 'Gemini 3.7 Flash',
+  'gemini-3.6-flash': 'Gemini 3.6 Flash',
+  'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
   'gemini-2.0-flash': 'Gemini 2.0 Flash',
-  'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite',
+  'gemini-1.5-pro': 'Gemini 1.5 Pro',
+  // Anthropic
+  'claude-sonnet-5': 'Claude Sonnet 5',
+  'claude-haiku-4-5': 'Claude Haiku 4.5',
   'claude-sonnet-4-20250514': 'Claude Sonnet 4',
   'claude-3-5-haiku-20241022': 'Claude 3.5 Haiku',
   'claude-3-haiku-20240307': 'Claude 3 Haiku',
+  // OpenRouter
   'openai/gpt-4o-mini': 'GPT-4o Mini (via OR)',
+  'google/gemini-3.8-flash': 'Gemini 3.8 Flash (via OR)',
+  'anthropic/claude-sonnet-5': 'Claude Sonnet 5 (via OR)',
   'anthropic/claude-3.5-sonnet': 'Claude 3.5 Sonnet (via OR)',
   'google/gemini-2.0-flash-001': 'Gemini 2.0 Flash (via OR)',
   'deepseek/deepseek-r1': 'DeepSeek R1 (via OR)',
   'meta-llama/llama-3.3-70b-instruct': 'Llama 3.3 70B (via OR)',
+  // Groq (Active)
+  'openai/gpt-oss-120b': 'GPT OSS 120B (Groq)',
+  'openai/gpt-oss-20b': 'GPT OSS 20B (Groq)',
+  'qwen/qwen3.8-27b': 'Qwen 3.8 27B (Groq)',
+  // Groq (Legacy / Compatibility)
   'llama-3.3-70b-versatile': 'Llama 3.3 70B (Groq)',
   'llama-3.1-8b-instant': 'Llama 3.1 8B (Groq)',
   'mixtral-8x7b-32768': 'Mixtral 8x7B (Groq)',

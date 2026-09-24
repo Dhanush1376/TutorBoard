@@ -225,14 +225,23 @@ const MODEL_TIERS = {
   'gpt-4o-mini': 'standard',
   'gpt-4-turbo': 'premium',
   'o3-mini': 'premium',
+  'gemini-3.8-flash': 'standard',
+  'gemini-3.7-flash': 'standard',
+  'gemini-3.6-flash': 'standard',
+  'gemini-2.5-flash-lite': 'economy',
   'gemini-1.5-pro': 'premium',
   'gemini-2.0-flash': 'standard',
   'gemini-2.0-flash-lite': 'economy',
+  'claude-sonnet-5': 'premium',
+  'claude-haiku-4-5': 'standard',
   'claude-sonnet-4-20250514': 'premium',
   'claude-3-5-haiku-20241022': 'standard',
   'claude-3-haiku-20240307': 'economy',
   
   // Groq
+  'openai/gpt-oss-120b': 'premium',
+  'openai/gpt-oss-20b': 'standard',
+  'qwen/qwen3.8-27b': 'standard',
   'llama-3.3-70b-versatile': 'premium',
   'llama-3.1-8b-instant': 'standard',
   'mixtral-8x7b-32768': 'standard',
@@ -240,6 +249,8 @@ const MODEL_TIERS = {
 
   // OpenRouter
   'openai/gpt-4o-mini': 'standard',
+  'google/gemini-3.8-flash': 'standard',
+  'anthropic/claude-sonnet-5': 'premium',
   'anthropic/claude-3.5-sonnet': 'premium',
   'google/gemini-2.0-flash-001': 'standard',
   'deepseek/deepseek-r1': 'premium',
@@ -258,7 +269,7 @@ export function selectOptimalModel(taskType, recommendedTier, availableKeys, ada
   if (!availableKeys || availableKeys.length === 0) return null;
 
   // If it's a vision task, prioritize models known to support vision
-  const visionCapableModels = ['gpt-4o', 'gemini-1.5-pro', 'claude-sonnet-4-20250514', 'anthropic/claude-3-5-sonnet', 'google/gemini-2.0-flash-001', 'gpt-4o-mini', 'gemini-2.0-flash'];
+  const visionCapableModels = ['gpt-4o', 'gemini-3.8-flash', 'google/gemini-3.8-flash', 'claude-sonnet-5', 'anthropic/claude-sonnet-5', 'gemini-1.5-pro', 'claude-sonnet-4-20250514', 'anthropic/claude-3-5-sonnet', 'google/gemini-2.0-flash-001', 'gpt-4o-mini', 'gemini-2.0-flash'];
 
   const activeKeys = availableKeys.filter(k => k.isActive && k.isValid);
   if (activeKeys.length === 0) return null;

@@ -31,10 +31,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copy other necessary runtime assets
-COPY --from=builder /app/uploads ./uploads
-RUN mkdir -p .local-storage
-COPY --from=builder /app/.local-storage/ ./.local-storage/
+# Create runtime directories
+RUN mkdir -p uploads .local-storage
 
 # Expose the API port
 EXPOSE 5000
@@ -46,7 +44,7 @@ USER appuser
 
 # Healthcheck for Docker/K8s/Render
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --mirror http://localhost:5000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:5000/health || exit 1
 
 # Start the server
 CMD ["node", "dist/main.js"]

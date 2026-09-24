@@ -277,7 +277,9 @@ const DrawTool = (props) => {
     </div>
   );
 
-  const currentModeIcon = MODES.find((m) => m.id === lastActiveDrawMode.current)?.icon ?? Pencil;
+  const activeDrawModeId = lastActiveDrawMode.current;
+  // eslint-disable-next-line react-hooks/refs
+  const currentModeIcon = MODES.find((m) => m.id === activeDrawModeId)?.icon ?? Pencil;
 
   return (
     <ToolButtonBase

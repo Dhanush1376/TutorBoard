@@ -18,6 +18,16 @@ const ThemedPopup = () => {
   const config = ICON_MAP[type] || ICON_MAP.info;
   const IconComponent = config.icon;
 
+  const handleConfirm = () => {
+    if (onConfirm) onConfirm();
+    closeAlert();
+  };
+
+  const handleCancel = () => {
+    if (onCancel) onCancel();
+    closeAlert();
+  };
+
   // Focus trap and initial focus
   React.useEffect(() => {
     if (isActive && modalRef.current) {
@@ -59,16 +69,6 @@ const ThemedPopup = () => {
       };
     }
   }, [isActive, confirmLabel]);
-
-  const handleConfirm = () => {
-    if (onConfirm) onConfirm();
-    closeAlert();
-  };
-
-  const handleCancel = () => {
-    if (onCancel) onCancel();
-    closeAlert();
-  };
 
   const togglePref = () => {
     if (prefKey) setAlertPref(prefKey, !alertPrefs[prefKey]);

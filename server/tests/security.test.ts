@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../index.js';
 import mongoose from 'mongoose';
-import redisClient from '../utils/core/redis.js';
+import { runtimeState } from '../core/runtimeState.js';
 
 // Mock Sentry
 vi.mock('@sentry/node', () => ({
@@ -12,32 +12,30 @@ vi.mock('@sentry/node', () => ({
 }));
 
 describe('Production Readiness: Security & Stability', () => {
-  
   beforeEach(() => {
-    // @ts-ignore
-    redisClient.isConnected = true;
+    vi.restoreAllMocks();
   });
 
   describe('Health Check (OPS-01)', () => {
-    it('should report 200 when dependencies are connected', async () => {
+    it('should report 200/healthy when dependencies are connected', async () => {
+      // Mock mongoose ready state to 1 (connected)
+      vi.spyOn(mongoose.connection, 'readyState', 'get').mockReturnValue(1);
+      vi.spyOn(runtimeState, 'isReady').mockReturnValue(true);
+      
       const res = await (request(app) as any).get('/health');
       expect(res.status).toBe(200);
-      expect(res.body.status).toBe('ok');
+      expect(res.body.status).toBe('healthy');
     });
 
-    it('should report 503 when Redis is disconnected', async () => {
-      // Temporarily mock redisClient.isConnected
-      // @ts-ignore
-      redisClient.isConnected = false;
+    it('should report 503 when MongoDB is disconnected', async () => {
+      // Mock mongoose ready state to 0 (disconnected)
+      vi.spyOn(mongoose.connection, 'readyState', 'get').mockReturnValue(0);
+      vi.spyOn(runtimeState, 'isReady').mockReturnValue(false);
       
       const res = await (request(app) as any).get('/health');
       expect(res.status).toBe(503);
-      expect(res.body.status).toBe('degraded');
-      expect(res.body.services.redis).toBe('disconnected');
-      
-      // Restore
-      // @ts-ignore
-      redisClient.isConnected = true;
+      expect(res.body.status).toBe('unhealthy');
+      expect(res.body.liveChecks.mongodb.status).toBe('error');
     });
   });
 
@@ -69,25 +67,6 @@ describe('Production Readiness: Security & Stability', () => {
     });
   });
 
-  describe('Cache Invalidation (PERF-01)', () => {
-    it('should invalidate Redis user cache on settings update', async () => {
-      // 1. Mock Redis del
-      const delSpy = vi.spyOn(redisClient, 'del').mockResolvedValue(true);
-      
-      // 2. Auth setup
-      const csrfRes = await (request(app) as any).get('/api/csrf-token');
-      const token = csrfRes.body.csrfToken;
-      const cookies = (csrfRes.headers['set-cookie'] || []).join('; ');
-
-      // 3. Update settings
-      // Note: We need a real user ID here or mock the auth middleware.
-      // Since this is an integration test, we use the user created in beforeEach if possible,
-      // but security.test.ts doesn't have a user setup yet. 
-      // I'll skip the actual request and just verify the logic if I can.
-      // Actually, I'll add a simple unit-like check if needed, 
-      // but let's just finish the 10 core tests.
-    });
-  });
 
   describe('Database Integrity (DATA-01)', () => {
     it('should prevent massive canvas state from being saved', async () => {
@@ -121,6 +100,28 @@ describe('Production Readiness: Security & Stability', () => {
       
       expect(res.headers).toHaveProperty('ratelimit-limit');
       expect(res.headers).toHaveProperty('ratelimit-remaining');
+    });
+  });
+
+  describe('E2E AI Mock Security (SEC-02)', () => {
+    it('should reject x-e2e-mock-ai header in production environments', async () => {
+      // Temporarily mock NODE_ENV as production
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      
+      const res = await (request(app) as any)
+        .post('/api/chat/message')
+        .set('x-e2e-mock-ai', 'true')
+        .send({ userMessage: 'test', sessionId: 'test' });
+        
+      // Ensure the controller doesn't activate mock. We can't easily assert the internal
+      // userConfig.isE2EMock directly, but since we have no OPENROUTER_API_KEY in this test 
+      // (or it's mocked), a real request would fail with 500/AI Provider error, 
+      // while a mock request would succeed with 200 and return the mock string.
+      // So if it returns 200, it bypassed our security. It MUST NOT return 200.
+      expect(res.status).not.toBe(200);
+      
+      process.env.NODE_ENV = originalEnv;
     });
   });
 });

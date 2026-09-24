@@ -22,14 +22,16 @@ const CinematicTransition = ({ userName, isLogin, onComplete }) => {
     // Phase 2: Welcome (Typewriter & Greeting)
     const t2 = setTimeout(() => setPhase('ascension'), 3800);
     // Phase 3: Ascension (Final Fade & Callback)
-    const t3 = setTimeout(() => onComplete?.(), 4800);
+    const t3 = setTimeout(() => {
+      if (onComplete) onComplete();
+    }, 4800);
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [onComplete]);
+  }, []); // Empty dependency array to prevent timer reset on parent re-renders
 
   return (
     <div 

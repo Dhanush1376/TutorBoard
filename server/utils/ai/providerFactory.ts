@@ -110,10 +110,16 @@ export const PRICING_CONFIG: PricingConfig = {
   models: {
     'gpt-4o': { input: 2.50, output: 10.00, provider: 'openai' },
     'gpt-4o-mini': { input: 0.15, output: 0.60, provider: 'openai' },
+    'gemini-3.8-flash': { input: 0.10, output: 0.40, provider: 'google' },
+    'google/gemini-3.8-flash': { input: 0.10, output: 0.40, provider: 'openrouter' },
     'gemini-2.0-flash': { input: 0.10, output: 0.40, provider: 'google' },
     'google/gemini-2.0-flash-001': { input: 0.10, output: 0.40, provider: 'openrouter' },
+    'claude-sonnet-5': { input: 3.00, output: 15.00, provider: 'anthropic' },
+    'anthropic/claude-sonnet-5': { input: 3.00, output: 15.00, provider: 'openrouter' },
     'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00, provider: 'anthropic' },
     'anthropic/claude-3.5-sonnet': { input: 3.00, output: 15.00, provider: 'openrouter' },
+    'openai/gpt-oss-120b': { input: 0.50, output: 1.50, provider: 'groq' },
+    'openai/gpt-oss-20b': { input: 0.10, output: 0.30, provider: 'groq' },
   }
 };
 

@@ -27,6 +27,7 @@ const generateTokens = (id: string) => {
   const refreshJti = crypto.randomUUID();
   
   if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET missing');
+  if (!process.env.JWT_REFRESH_SECRET) throw new Error('JWT_REFRESH_SECRET missing — access and refresh tokens must use independent secrets');
 
   const accessToken = jwt.sign(
     { id, jti: accessJti, type: 'access' } as JWTPayload,
@@ -36,7 +37,7 @@ const generateTokens = (id: string) => {
   
   const refreshToken = jwt.sign(
     { id, jti: refreshJti, type: 'refresh' } as JWTPayload,
-    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+    process.env.JWT_REFRESH_SECRET,
     { expiresIn: REFRESH_TOKEN_EXPIRY }
   );
   
@@ -98,7 +99,8 @@ const sanitize = (str: string | undefined, maxLen = 255): string => {
 };
 
 export const signup = async (req: Request, res: Response) => {
-  let { name, email, password, confirmPassword } = req.body;
+  const { password, confirmPassword } = req.body;
+  let { name, email } = req.body;
 
   name = sanitize(name, 50);
   email = sanitize(email?.toLowerCase(), 100);
@@ -315,8 +317,8 @@ export const refresh = async (req: Request, res: Response) => {
   }
 
   try {
-    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
-    if (!secret) throw new Error('JWT secret missing');
+    const secret = process.env.JWT_REFRESH_SECRET;
+    if (!secret) throw new Error('JWT_REFRESH_SECRET missing — cannot verify refresh tokens');
     
     const decoded = jwt.verify(refreshToken, secret, { algorithms: ['HS256'] }) as JWTPayload;
     

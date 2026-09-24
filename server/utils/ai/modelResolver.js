@@ -9,7 +9,7 @@ export const MODEL_REGISTRY = {
   openai: {
     validation: 'gpt-4o-mini',
     production: 'gpt-4o',
-    fallback: 'gpt-3.5-turbo',
+    fallback: 'gpt-4o-mini',
   },
   anthropic: {
     validation: 'claude-haiku-4-5',
@@ -17,14 +17,14 @@ export const MODEL_REGISTRY = {
     fallback: 'claude-haiku-4-5',
   },
   google: {
-    validation: 'gemini-flash-latest',
-    production: 'gemini-flash-latest',
-    fallback: 'gemini-pro-latest',
+    validation: 'gemini-3.8-flash',
+    production: 'gemini-3.8-flash',
+    fallback: 'gemini-3.6-flash',
   },
   groq: {
-    validation: 'llama-3.1-8b-instant',
-    production: 'llama-3.3-70b-versatile',
-    fallback: 'llama-3.1-8b-instant',
+    validation: 'openai/gpt-oss-20b',
+    production: 'openai/gpt-oss-120b',
+    fallback: 'openai/gpt-oss-20b',
   },
   together: {
     validation: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
@@ -42,8 +42,8 @@ export const MODEL_REGISTRY = {
     fallback: 'deepseek-chat',
   },
   openrouter: {
-    validation: 'google/gemini-flash-latest',
-    production: 'google/gemini-pro-latest',
+    validation: 'openai/gpt-4o-mini',
+    production: 'google/gemini-3.8-flash',
     fallback: 'openai/gpt-4o-mini',
   },
   ollama: {
@@ -57,9 +57,9 @@ export const MODEL_REGISTRY = {
     fallback: 'local-model',
   },
   default: {
-    validation: 'gpt-3.5-turbo',
-    production: 'gpt-4o',
-    fallback: 'gpt-3.5-turbo',
+    validation: 'gemini-3.8-flash',
+    production: 'gemini-3.8-flash',
+    fallback: 'gemini-3.8-flash',
   }
 };
 
@@ -67,12 +67,19 @@ export const MODEL_REGISTRY = {
  * Common typo and deprecation mappings
  */
 const ALIASES = {
+  'llama-3.3-70b-versatile': 'openai/gpt-oss-120b',
+  'llama-3.1-8b-instant': 'openai/gpt-oss-20b',
+  'llama-3.3-70b': 'openai/gpt-oss-120b',
+  'llama-3.1-8b': 'openai/gpt-oss-20b',
   'llama-3-8b-chat-hf': 'meta-llama/Meta-Llama-3-8B-Instruct',
   'llama-3-70b-chat-hf': 'meta-llama/Meta-Llama-3-70B-Instruct',
   'claude-v3-opus': 'claude-opus-4-8',
-  'gemini-pro': 'gemini-pro-latest',
-  'gemini-1.5-flash': 'gemini-flash-latest',
-  'gemini-1.5-pro': 'gemini-pro-latest',
+  'gemini-pro': 'gemini-3.8-flash',
+  'gemini-1.5-flash': 'gemini-3.8-flash',
+  'gemini-1.5-pro': 'gemini-3.8-flash',
+  'gemini-2.0-flash': 'gemini-3.8-flash',
+  'gemini-flash-latest': 'gemini-3.8-flash',
+  'gemini-pro-latest': 'gemini-3.8-flash',
   'gpt-4-turbo': 'gpt-4-turbo-preview'
 };
 

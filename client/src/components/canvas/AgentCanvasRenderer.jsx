@@ -7,7 +7,7 @@ import { isDSAContent, getRenderer } from '../../engine/RendererRouter';
 
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
-import { ZoomIn, ZoomOut, Maximize2, Move } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Move, AlertTriangle } from 'lucide-react';
 import useWindowSize from '../../hooks/useWindowSize';
 
 import { SceneOrchestrator } from '../../engine/SceneOrchestrator';

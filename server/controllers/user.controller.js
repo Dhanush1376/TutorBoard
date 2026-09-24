@@ -191,7 +191,7 @@ export const wipeCloudData = async (req, res) => {
     // Invalidate cache
     if (container.has('redis-main')) {
       try {
-        await container.resolve<any>('redis-main').del(`user:${userId}`);
+        await container.resolve('redis-main').del(`user:${userId}`);
       } catch (err) {}
     }
 
@@ -226,7 +226,7 @@ export const deleteAccount = async (req, res) => {
 
     if (container.has('redis-main')) {
       try {
-        const client = container.resolve<any>('redis-main');
+        const client = container.resolve('redis-main');
         await client.del(`user:${userId}`);
         await client.del(`auth:refresh:${userId}`);
       } catch (err) {}

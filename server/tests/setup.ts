@@ -6,6 +6,7 @@ let mongo: MongoMemoryServer;
 
 beforeAll(async () => {
   process.env.JWT_SECRET = 'test-secret';
+  process.env.JWT_REFRESH_SECRET = 'test-refresh-secret';
   mongo = await MongoMemoryServer.create();
   const uri = mongo.getUri();
   await mongoose.connect(uri);

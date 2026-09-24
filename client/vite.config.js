@@ -30,7 +30,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
         secure: false,
         ws: true,
@@ -55,7 +55,7 @@ export default defineConfig({
         },
       },
       '/socket.io': {
-        target: 'ws://127.0.0.1:3001',
+        target: 'ws://127.0.0.1:5000',
         ws: true,
         changeOrigin: true,
         secure: false,
@@ -69,7 +69,7 @@ export default defineConfig({
         },
       },
       '/teaching': {
-        target: 'ws://127.0.0.1:3001',
+        target: 'ws://127.0.0.1:5000',
         ws: true,
         changeOrigin: true,
         secure: false,
@@ -86,5 +86,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    pool: 'forks'
   }
 });
