@@ -2,6 +2,7 @@
  * bootstrap.ts - infrastructure startup orchestration
  */
 
+import crypto from 'crypto';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import { childLogger } from './logger.js';
@@ -13,7 +14,7 @@ const envSchema = z.object({
   PORT: z.string().default('5000'),
   MONGODB_URI: z.string().url(),
   JWT_SECRET: z.string().min(32),
-  JWT_REFRESH_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32).optional(),
   ENCRYPTION_KEY: z.string().length(64),
   FRONTEND_URL: z.string().url(),
   OPENROUTER_API_KEY: z.string().min(1),
@@ -41,6 +42,14 @@ export async function bootstrap(isWorker: boolean = false, signal?: AbortSignal)
       process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
       process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
       process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'mock-openrouter-key-for-testing';
+    }
+
+    if (!process.env.JWT_REFRESH_SECRET && process.env.JWT_SECRET) {
+      process.env.JWT_REFRESH_SECRET = crypto
+        .createHmac('sha256', process.env.JWT_SECRET)
+        .update('tutorboard-jwt-refresh-secret-derivation')
+        .digest('hex');
+      log.warn('JWT_REFRESH_SECRET was not configured in environment; derived deterministic fallback from JWT_SECRET.');
     }
 
     process.env.MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || (process.env.E2E_MODE === 'true' ? 'mongodb://127.0.0.1:27017/test' : undefined);

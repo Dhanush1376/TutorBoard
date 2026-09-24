@@ -22,12 +22,25 @@ interface JWTPayload {
   exp?: number;
 }
 
+const getRefreshSecret = (): string => {
+  if (process.env.JWT_REFRESH_SECRET) return process.env.JWT_REFRESH_SECRET;
+  if (process.env.JWT_SECRET) {
+    const derived = crypto
+      .createHmac('sha256', process.env.JWT_SECRET)
+      .update('tutorboard-jwt-refresh-secret-derivation')
+      .digest('hex');
+    process.env.JWT_REFRESH_SECRET = derived;
+    return derived;
+  }
+  throw new Error('JWT_REFRESH_SECRET missing — access and refresh tokens must use independent secrets');
+};
+
 const generateTokens = (id: string) => {
   const accessJti = crypto.randomUUID();
   const refreshJti = crypto.randomUUID();
   
   if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET missing');
-  if (!process.env.JWT_REFRESH_SECRET) throw new Error('JWT_REFRESH_SECRET missing — access and refresh tokens must use independent secrets');
+  const refreshSecret = getRefreshSecret();
 
   const accessToken = jwt.sign(
     { id, jti: accessJti, type: 'access' } as JWTPayload,
@@ -37,7 +50,7 @@ const generateTokens = (id: string) => {
   
   const refreshToken = jwt.sign(
     { id, jti: refreshJti, type: 'refresh' } as JWTPayload,
-    process.env.JWT_REFRESH_SECRET,
+    refreshSecret,
     { expiresIn: REFRESH_TOKEN_EXPIRY }
   );
   
@@ -317,8 +330,7 @@ export const refresh = async (req: Request, res: Response) => {
   }
 
   try {
-    const secret = process.env.JWT_REFRESH_SECRET;
-    if (!secret) throw new Error('JWT_REFRESH_SECRET missing — cannot verify refresh tokens');
+    const secret = getRefreshSecret();
     
     const decoded = jwt.verify(refreshToken, secret, { algorithms: ['HS256'] }) as JWTPayload;
     
