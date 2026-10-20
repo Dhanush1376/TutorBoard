@@ -43,8 +43,8 @@ const StudyPanel = ({ onClose }) => {
             </div>
             {!isMinimized && (
               <div className="flex flex-col">
-                <h3 className="text-[11px] font-bold tracking-[0.1em] uppercase text-[var(--text-primary)]">Key Insights</h3>
-                <span className="text-[9px] font-medium text-amber-500/80">{takeaways.length} Moments Pinned</span>
+                <h3 className="text-xs font-semibold text-[var(--text-primary)]">Key Insights</h3>
+                <span className="text-[10px] font-medium text-amber-500/80">{takeaways.length} Moments Pinned</span>
               </div>
             )}
           </div>
@@ -124,7 +124,7 @@ const StudyPanel = ({ onClose }) => {
                 <div className="p-4 mt-auto border-t border-white/[0.05]" style={{ background: 'rgba(0,0,0,0.1)' }}>
                   <button
                     onClick={clearTakeaways}
-                    className="w-full py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-[0.2em] text-red-400/70 hover:text-red-400 hover:bg-red-500/5 transition-all border border-red-500/10"
+                    className="w-full py-2.5 rounded-xl text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all border border-red-500/20"
                   >
                     Clear Collection
                   </button>

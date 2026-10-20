@@ -21,7 +21,7 @@ const AgentCanvasRenderer = forwardRef(({
   width, height, // Explicit dimensions to bypass DOM measurement
   ...doubtProps
 }, ref) => {
-  const { activeScene, currentStoreStepIndex, isPlaying, isPaused, playbackSpeed, setDeltaRunning, setDeltaState, deltaState } = useTutorStore(useShallow(s => ({
+  const { activeScene, currentStoreStepIndex, isPlaying, isPaused, playbackSpeed, setDeltaRunning, setDeltaState, deltaState, replayNonce } = useTutorStore(useShallow(s => ({
     activeScene: s.activeScene,
     currentStoreStepIndex: s.currentStepIndex,
     isPlaying: s.isPlaying,
@@ -30,6 +30,7 @@ const AgentCanvasRenderer = forwardRef(({
     setDeltaRunning: s.setDeltaRunning,
     setDeltaState: s.setDeltaState,
     deltaState: s.deltaState,
+    replayNonce: s.replayNonce,
   })));
 
   const timeline = activeScene;
@@ -113,12 +114,14 @@ const AgentCanvasRenderer = forwardRef(({
     };
   }, []);
 
+  // The lesson stays paused on the answered doubt so the student can read the
+  // answer; they continue with Resume (session panel / "Resume Lesson Flow").
+  // Auto-resuming here advanced the lesson before the answer could be read.
   const onDeltaComplete = useCallback(() => {
-    import.meta.env.DEV && console.log('[AgentCanvasRenderer] ✅ Delta complete — resuming lesson step.');
+    import.meta.env.DEV && console.log('[AgentCanvasRenderer] ✅ Delta complete — holding on the answered step.');
     setDeltaRunning(false);
     setDeltaState(null);
-    if (doubtProps.onResume) doubtProps.onResume();
-  }, [setDeltaRunning, setDeltaState, doubtProps.onResume]);
+  }, [setDeltaRunning, setDeltaState]);
 
   const lastSceneIdRef = useRef(null);
   const lastLoadedSceneRef = useRef(null);
@@ -209,6 +212,7 @@ const AgentCanvasRenderer = forwardRef(({
   // 3. Playback Orchestration
   const lastPlayedDeltaRef = useRef(null);
   const lastWidthRef = useRef(0);
+  const lastReplayRef = useRef(replayNonce);
 
   useEffect(() => {
     const orch = orchestratorRef.current;
@@ -223,7 +227,12 @@ const AgentCanvasRenderer = forwardRef(({
       lastPlayedDeltaRef.current = deltaState.timestamp;
       orch.playDelta(deltaState.actions, onDeltaComplete);
     } else {
-      if (lastPlayedStepRef.current === currentStepIndex && !dimensionsChanged) return;
+      const replay = replayNonce !== lastReplayRef.current;
+      lastReplayRef.current = replayNonce;
+      if (lastPlayedStepRef.current === currentStepIndex && !dimensionsChanged && !replay) return;
+      // The lesson's first reveal and an explicit Replay animate even while
+      // playback is paused — otherwise the board just appeared, fully drawn.
+      const force = replay || lastPlayedStepRef.current === -1;
       
       // If dimensions changed, sync the renderer's logical coordinate system first
       if (actualWidth > 0 && actualHeight > 0) {
@@ -237,6 +246,7 @@ const AgentCanvasRenderer = forwardRef(({
       lastPlayedDeltaRef.current = null;
       const playedIndex = currentStepIndex;
       orch.playStep(playedIndex, {
+        force,
         // Signals the narration-gated autoplay drivers that this step's
         // master timeline genuinely finished (fires from GSAP onComplete,
         // not a guess-timer).
@@ -245,7 +255,7 @@ const AgentCanvasRenderer = forwardRef(({
         },
       });
     }
-  }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, layoutReady, actualWidth, actualHeight, renderersReady]);
+  }, [currentStepIndex, timeline?.steps, deltaState?.timestamp, layoutReady, actualWidth, actualHeight, renderersReady, replayNonce]);
 
   // Sync Playback State
   useEffect(() => {

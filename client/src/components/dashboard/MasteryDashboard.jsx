@@ -638,7 +638,7 @@ function StatsCard({ title, value, description, icon, progress }) {
 
       {progress !== undefined && (
         <div className="mt-8 space-y-2">
-          <div className="flex justify-between text-[9px] font-mono text-[var(--text-tertiary)] opacity-60 uppercase">
+          <div className="flex justify-between text-[11px] font-medium text-[var(--text-tertiary)] opacity-60">
             <span>Optimization</span>
             <span>{(progress * 100).toFixed(1)}%</span>
           </div>
@@ -673,7 +673,7 @@ function TopicMasteryCard({ topic, mastery, index }) {
         </div>
         <div className="flex flex-col items-end">
           <span className="text-xl font-mono font-bold tracking-tighter text-blue-400">{Math.round(mastery * 100)}%</span>
-          <span className="text-[8px] uppercase tracking-widest text-[var(--text-tertiary)] opacity-60">Status: Optimal</span>
+          <span className="text-[10px] text-[var(--text-tertiary)] opacity-60">Status: Optimal</span>
         </div>
       </div>
 
@@ -698,7 +698,7 @@ function TopicMasteryCard({ topic, mastery, index }) {
             </div>
           ))}
         </div>
-        <span className="text-[9px] text-[var(--text-tertiary)] font-mono opacity-50 uppercase">Domain: Concept</span>
+        <span className="text-[11px] text-[var(--text-tertiary)] opacity-50">Domain: Concept</span>
       </div>
     </motion.div>
   );

@@ -1,0 +1,202 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Construct Perpendicular Bisector",
+  "domain": "geometry",
+  "summary": "Find the midpoint of a segment and draw a line through it that is perpendicular to the segment.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     6
+    ],
+    "axes": false,
+    "grid": true,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "A",
+    "label": "A",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     2,
+     2
+    ]
+   },
+   {
+    "id": "B",
+    "label": "B",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     8,
+     2
+    ]
+   },
+   {
+    "id": "AB",
+    "label": "AB",
+    "space": "plane",
+    "type": "line",
+    "from": "A",
+    "to": "B",
+    "dashed": false
+   },
+   {
+    "id": "M",
+    "label": "M",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     5,
+     2
+    ]
+   },
+   {
+    "id": "L1",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     5,
+     0
+    ]
+   },
+   {
+    "id": "L2",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     5,
+     4
+    ]
+   },
+   {
+    "id": "bis",
+    "label": "Perp Bis",
+    "space": "plane",
+    "type": "line",
+    "from": "L1",
+    "to": "L2",
+    "dashed": false
+   },
+   {
+    "id": "note",
+    "type": "text",
+    "text": "The perpendicular bisector passes through the midpoint and is perpendicular to the segment.",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "note",
+    "of": "plane",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Draw segment AB",
+    "narration": "Points A and B are placed and the segment AB is drawn.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "A",
+       "B",
+       "AB"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Find midpoint M",
+    "narration": "The midpoint M of AB is marked at the center of the segment.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "M",
+      "effect": "draw"
+     },
+     {
+      "do": "annotate",
+      "target": "M",
+      "text": "midpoint",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Draw perpendicular bisector",
+    "narration": "A line through M perpendicular to AB is drawn, forming the bisector.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "L1",
+       "L2",
+       "bis"
+      ],
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "bis",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "AB",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "The perpendicular bisector passes through M and is at 90° to AB, dividing the segment equally.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "note",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[2]",
+   "message": "auto-fixed: removed a beat with no actions"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 58340,
+ "model": "gemini-3.6-flash",
+ "domain": "geometry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Construct Perpendicular Bisector\",\"domain\":\"geometry\",\"summary\":\"Find the midpoint of a segment and draw a line through it that is perpendicular to the segment.\",\"spaces\":[{\"id\":\"plane\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,6],\"axes\":false,\"grid\":true,\"equalAspect\":true}],\"entities\":[{\"id\":\"A\",\"type\":\"point\",\"space\":\"plane\",\"at\":[2,2],\"label\":\"A\"},{\"id\":\"B\",\"type\":\"point\",\"space\":\"plane\",\"at\":[8,2],\"label\":\"B\"},{\"id\":\"AB\",\"type\":\"line\",\"space\":\"plane\",\"from\":\"A\",\"to\":\"B\",\"label\":\"AB\"},{\"id\":\"M\",\"type\":\"point\",\"space\":\"plane\",\"at\":[5,2],\"label\":\"M\"},{\"id\":\"L1\",\"type\":\"point\",\"space\":\"plane\",\"at\":[5,0]},{\"id\":\"L2\",\"type\":\"point\",\"space\":\"plane\",\"at\":[5,4]},{\"id\":\"bis\",\"type\":\"line\",\"space\":\"plane\",\"from\":\"L1\",\"to\":\"L2\",\"label\":\"Perp Bis\"},{\"id\":\"note\",\"type\":\"text\",\"text\":\"The perpendicular bisector passes through the midpoint and is perpendicular to the segment.\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"plane\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"note\",\"of\":\"plane\"}],\"beats\":[{\"title\":\"Draw segment AB\",\"narration\":\"Points A and B are placed and the segment AB is drawn.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"A\",\"B\",\"AB\"],\"effect\":\"draw\"}]},{\"title\":\"Find midpoint M\",\"narration\":\"The midpoint M of AB is marked at the center of the segment.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"M\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"M\",\"text\":\"midpoint\",\"side\":\"above\"}]},{\"title\":\"Predict bisector direction\",\"narration\":\"What line should be drawn through M to bisect AB?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"Which direction should the bisector line go through M?\",\"choices\":[\"Parallel to AB\",\"Perpendicular to AB\",\"Through A\"],\"answer\":1,\"explain\":\"A perpendicular line through the midpoint bisects the segment.\"}},{\"title\":\"Draw perpendicular bisector\",\"narration\":\"A line through M perpendicular to AB is drawn, forming the bisector.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"L1\",\"L2\",\"bis\"],\"effect\":\"draw\"},{\"do\":\"highlight\",\"target\":\"bis\",\"state\":\"found\"},{\"do\":\"highlight\",\"target\":\"AB\",\"state\":\"insight\"}]},{\"title\":\"Recap\",\"narration\":\"The perpendicular bisector passes through M and is at 90° to AB, dividing the segment equally.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"note\",\"effect\":\"type\"}]}]}"
+}

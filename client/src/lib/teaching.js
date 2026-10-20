@@ -56,7 +56,20 @@ export const DOUBT_PLACEHOLDERS = {
   general:          'Ask a doubt or give a command... (?)',
 };
 
-export const PANEL_VISIBLE_STATES = ['TEACHING', 'RESPONDING', 'RESUMING'];
+/** Key of a lesson step's "predict the next step" check (answers are kept per lesson). */
+export const checkKey = (lesson, stepIndex) => `${lesson?.title ?? lesson?.id ?? 'lesson'}:${stepIndex}`; // title: stable while a lesson streams in
+
+/** Is the lesson waiting at this step for the learner to answer its check? */
+export const awaitingCheck = (lesson, stepIndex, answers) => {
+  const steps = lesson?.steps || lesson?.timeline || [];
+  return !!steps[stepIndex]?.check && answers?.[checkKey(lesson, stepIndex)] === undefined;
+};
+
+/** The learner's level from their checks this session (5.2): lessons get smaller steps or sharper ones. */
+export const learnerLevelFrom = ({ right = 0, wrong = 0 } = {}) =>
+  wrong >= 2 && wrong > right ? 'beginner' : right >= 3 && wrong === 0 ? 'advanced' : 'intermediate';
+
+export const PANEL_VISIBLE_STATES = ['TEACHING', 'RESPONDING', 'RESUMING', 'DOUBT_TRIGGERED', 'PAUSED'];
 
 export const formatTopicTitle = (raw) => {
   if (!raw) return 'Session';

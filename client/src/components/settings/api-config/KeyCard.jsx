@@ -5,6 +5,7 @@ import {
   Activity, Zap, Edit2, CheckCircle, XCircle
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
+import API from '../../../services/api';
 import {
   AppleToggle, PremiumDropdown,
   StatusBadge, ValidationError, API_URL
@@ -14,14 +15,14 @@ import { PROVIDER_INFO, MODEL_LABELS } from './ProviderRegistry';
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
 const fieldLabel = {
-  fontSize: '10px', fontWeight: 500, color: 'var(--text-tertiary)',
-  marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em',
+  fontSize: '10px', fontWeight: 400, color: 'var(--text-tertiary)', fontFamily: '"JetBrains Mono", monospace',
+  marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.14em',
 };
 
 const fieldInput = {
-  width: '100%', padding: '8px 10px', borderRadius: '8px',
-  border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)', fontSize: '12px', outline: 'none',
+  width: '100%', height: '36px', padding: '0 12px', borderRadius: '10px',
+  border: '1px solid var(--st-line-strong)', background: 'var(--bg-primary)',
+  color: 'var(--text-primary)', fontSize: '13px', outline: 'none',
   boxSizing: 'border-box', transition: 'border-color 0.12s',
 };
 
@@ -64,10 +65,10 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
   return (
     <div 
       style={{ 
-        background: 'var(--bg-secondary)', 
-        border: '1px solid var(--border-color)',
-        borderRadius: '12px', 
-        padding: '12px 14px', 
+        background: 'var(--st-surface)', 
+        border: '1px solid var(--st-line-strong)',
+        borderRadius: '16px', 
+        padding: '14px 16px', 
         opacity: keyData.isActive ? 1 : 0.55,
         transition: 'opacity 0.12s',
       }}
@@ -91,7 +92,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
             <StatusBadge isValid={keyData.isValid} isActive={keyData.isActive} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', color: 'var(--text-tertiary)', marginTop: '2px', fontWeight: 400 }}>
-            <span style={{ fontFamily: '"Geist Mono", monospace', opacity: 0.7 }}>{keyData.maskedKey}</span>
+            <span style={{ fontFamily: '"JetBrains Mono", monospace', opacity: 0.7 }}>{keyData.maskedKey}</span>
             <span style={{ opacity: 0.3 }}>·</span>
             <span>{MODEL_LABELS[keyData.model] || keyData.model}</span>
           </div>
@@ -114,7 +115,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
           <button 
             onClick={() => setExpanded(e => !e)} 
             title="Edit"
-            style={{ background: expanded ? 'var(--bg-tertiary)' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '5px', borderRadius: '6px', opacity: expanded ? 1 : 0.5, transition: 'all 0.12s' }}
+            style={{ background: expanded ? 'var(--st-fill-strong)' : 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '5px', borderRadius: '6px', opacity: expanded ? 1 : 0.5, transition: 'all 0.12s' }}
             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
             onMouseLeave={e => !expanded && (e.currentTarget.style.opacity = '0.5')}
           >
@@ -171,7 +172,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
           >
             <div style={{ 
               marginTop: '12px', paddingTop: '12px', 
-              borderTop: '1px solid var(--border-color)', 
+              borderTop: '1px solid var(--st-line-strong)', 
               display: 'flex', flexDirection: 'column', gap: '10px' 
             }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -182,7 +183,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
                 <div>
                   <div style={fieldLabel}>Model</div>
                   {isCustom
-                    ? <input type="text" value={editModel} onChange={e => setEditModel(e.target.value)} style={{ ...fieldInput, fontFamily: '"Geist Mono", monospace' }} />
+                    ? <input type="text" value={editModel} onChange={e => setEditModel(e.target.value)} style={{ ...fieldInput, fontFamily: '"JetBrains Mono", monospace' }} />
                     : info?.models?.length > 0 && (
                       <PremiumDropdown value={editModel} onChange={setEditModel} options={info.models.map(m => ({ value: m, label: MODEL_LABELS[m] || m }))} styleContext="form" />
                     )
@@ -198,7 +199,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
                     value={editKey} 
                     onChange={e => setEditKey(e.target.value)} 
                     placeholder="••••••••••••" 
-                    style={{ ...fieldInput, paddingRight: '36px', fontFamily: '"Geist Mono", monospace' }} 
+                    style={{ ...fieldInput, paddingRight: '36px', fontFamily: '"JetBrains Mono", monospace' }} 
                   />
                   <button onClick={() => setShowKey(s => !s)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '2px', opacity: 0.5 }}>
                     {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -209,7 +210,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
               {isCustom && (
                 <div>
                   <div style={fieldLabel}>Base URL</div>
-                  <input type="text" value={editBaseUrl} onChange={e => setEditBaseUrl(e.target.value)} style={{ ...fieldInput, fontFamily: '"Geist Mono", monospace' }} />
+                  <input type="text" value={editBaseUrl} onChange={e => setEditBaseUrl(e.target.value)} style={{ ...fieldInput, fontFamily: '"JetBrains Mono", monospace' }} />
                 </div>
               )}
 
@@ -232,7 +233,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
                   onClick={() => { setExpanded(false); setEditErr(''); }} 
                   style={{ 
                     flex: 1, padding: '8px', borderRadius: '8px', 
-                    background: 'transparent', border: '1px solid var(--border-color)', 
+                    background: 'transparent', border: '1px solid var(--st-line-strong)', 
                     fontSize: '11px', cursor: 'pointer', color: 'var(--text-secondary)', 
                     fontWeight: 400,
                   }}
@@ -247,10 +248,10 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
 
       {/* Usage bar */}
       {keyData.isActive && keyData.usage && (
-        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--st-line-strong)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '6px', fontWeight: 400, color: 'var(--text-tertiary)' }}>
             <span>{keyData.usage.requests} requests</span>
-            <span style={{ fontFamily: '"Geist Mono", monospace' }}>${(keyData.usage.costCents / 100).toFixed(2)}</span>
+            <span style={{ fontFamily: '"JetBrains Mono", monospace' }}>${(keyData.usage.costCents / 100).toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', gap: '2px', height: '3px' }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(seg => {
@@ -261,7 +262,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
                   key={seg}
                   style={{ 
                     flex: 1, height: '100%', 
-                    background: isActive ? pc : 'var(--bg-tertiary)', 
+                    background: isActive ? pc : 'var(--st-fill-strong)', 
                     borderRadius: '1px',
                     opacity: isActive ? (0.4 + (seg * 0.06)) : 0.15,
                   }} 

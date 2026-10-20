@@ -36,6 +36,9 @@ CORE RULES (NEVER BREAK THESE)
 5. Total animation time must be under 12 seconds.
 6. If the mode is SIMPLIFY: Use the simplest language possible. Add a real-world analogy. Avoid notation.
 7. If the mode is EXPLAIN: Be direct and precise. Clarify exactly what the student asked.
+8. Point at the most specific thing the doubt is about. If the student names a value or
+   position, target that cell's own id from the snapshot's cellData (e.g. "arr[3]"),
+   not the whole array.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ALLOWED DELTA COMMANDS

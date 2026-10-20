@@ -1,0 +1,65 @@
+{
+  "version": "1",
+  "title": "Area of a parallelogram",
+  "domain": "geometry",
+  "summary": "Cut a triangle off one end and slide it to the other: the parallelogram becomes a rectangle with the same base and height.",
+  "spaces": [
+    { "id": "plane", "kind": "cartesian", "x": [0, 12], "y": [0, 5], "axes": false, "grid": false, "equalAspect": true }
+  ],
+  "entities": [
+    { "id": "para", "type": "polygon", "space": "plane", "points": [[1, 1], [8, 1], [10, 4], [3, 4]], "vertexLabels": ["A", "B", "C", "D"], "tone": "primary", "fill": true },
+    { "id": "h", "type": "line", "space": "plane", "from": [3, 4], "to": [3, 1], "dashed": true, "label": "h" },
+    { "id": "cut", "type": "polygon", "space": "plane", "points": [[1, 1], [3, 1], [3, 4]], "tone": "warning", "fill": true },
+    { "id": "rect", "type": "polygon", "space": "plane", "points": [[3, 1], [10, 1], [10, 4], [3, 4]], "tone": "success", "fill": true },
+    { "id": "eq", "type": "math", "latex": "A = b \\times h" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "plane", "region": "center" },
+    { "rel": "below", "id": "eq", "of": "plane" }
+  ],
+  "beats": [
+    {
+      "title": "A parallelogram",
+      "narration": "Here is a parallelogram ABCD with base b = AB.",
+      "actions": [{ "do": "create", "target": "para", "effect": "draw" }]
+    },
+    {
+      "title": "Drop the height",
+      "narration": "Drop a straight line from D down to the base. Its length is the height h.",
+      "actions": [
+        { "do": "create", "target": "h", "effect": "draw" },
+        { "do": "annotate", "target": "h", "text": "height h", "side": "right" }
+      ],
+      "check": {
+        "question": "Cut off the triangle left of the height and slide it right. What do you get?",
+        "choices": ["A rectangle", "A triangle", "A bigger parallelogram"],
+        "answer": 0,
+        "explain": "The triangle fits exactly into the gap on the right, squaring off the ends."
+      }
+    },
+    {
+      "title": "Cut and slide",
+      "narration": "Cut off that triangle and slide it across by the base length. It fills the gap exactly.",
+      "actions": [
+        { "do": "unannotate", "target": "h" },
+        { "do": "create", "target": "cut", "effect": "fade" },
+        { "do": "move", "target": "cut", "by": [7, 0] }
+      ],
+      "pace": "slow"
+    },
+    {
+      "title": "Now it's a rectangle",
+      "narration": "Nothing was added or lost, so the area is the same. And this rectangle is b wide and h tall.",
+      "actions": [
+        { "do": "remove", "target": "para", "effect": "fade" },
+        { "do": "create", "target": "rect", "effect": "draw", "with": "previous" },
+        { "do": "create", "target": "eq", "effect": "type" }
+      ]
+    },
+    {
+      "title": "Area = base × height",
+      "narration": "So a parallelogram's area is base times height, just like the rectangle.",
+      "actions": [{ "do": "highlight", "target": "eq", "state": "found" }]
+    }
+  ]
+}

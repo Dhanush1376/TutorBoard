@@ -570,7 +570,7 @@ const StepPanel = ({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 8, fontWeight: 400, color: cfg.accent, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                <span style={{ fontSize: 9.5, fontWeight: 500, color: cfg.accent }}>
                   Lesson Arc • Phase {learningNodes.findIndex(n => n === node) + 1} of {learningNodes.length}
                 </span>
                 <span style={{ fontSize: 9, opacity: 0.5 }}>{cfg.icon}</span>
@@ -587,7 +587,7 @@ const StepPanel = ({
 
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, marginTop: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)' }}>
             Step {currentStepIndex + 1} / {totalSteps}
           </span>
 
@@ -598,7 +598,7 @@ const StepPanel = ({
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 padding: '2px 9px', borderRadius: 999,
-                fontSize: 9, fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.07em',
+                fontSize: 10, fontWeight: 500,
                 background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.accent,
               }}
             >
@@ -693,7 +693,7 @@ const StepPanel = ({
                 borderRadius: 12,
               }}
             >
-              <span style={{ display: 'block', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--text-tertiary)', marginBottom: 5 }}>
+              <span style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--text-tertiary)', marginBottom: 5 }}>
                 Memory Anchor ★
               </span>
               <p style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--text-primary)', lineHeight: 1.55, margin: 0 }}>

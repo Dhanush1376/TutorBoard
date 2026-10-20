@@ -1,0 +1,204 @@
+.border-glow-card {
+  --edge-proximity: 0;
+  --cursor-angle: 45deg;
+  --edge-sensitivity: 25;
+  --color-sensitivity: calc(var(--edge-sensitivity) + 15);
+  --border-radius: 9999px;
+  --glow-padding: 30px;
+  --cone-spread: 30;
+
+  position: relative;
+  border-radius: var(--border-radius);
+  isolation: isolate;
+  transform: translate3d(0, 0, 0.01px);
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-bg, #000000);
+  overflow: visible;
+  max-width: 100%;
+  box-sizing: border-box;
+  box-shadow:
+    rgba(0, 0, 0, 0.04) 0px 1px 2px,
+    rgba(0, 0, 0, 0.06) 0px 3px 8px;
+  transition: border-color 0.25s ease-out;
+}
+
+.border-glow-card--light,
+:root:not(.dark) .border-glow-card {
+  border-color: rgba(10, 9, 8, 0.14);
+  background: var(--card-bg, #ffffff);
+  box-shadow:
+    rgba(10, 9, 8, 0.03) 0px 1px 2px,
+    rgba(10, 9, 8, 0.05) 0px 3px 8px;
+}
+
+.border-glow-card--light::after,
+.border-glow-card--light > .edge-light,
+:root:not(.dark) .border-glow-card::after,
+:root:not(.dark) .border-glow-card > .edge-light {
+  mix-blend-mode: normal;
+}
+
+.border-glow-card.border-glow-btn {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.border-glow-card::before,
+.border-glow-card::after,
+.border-glow-card > .edge-light {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transition: opacity 0.25s ease-out;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.border-glow-card:not(:hover):not(.sweep-active):not(.is-focused)::before,
+.border-glow-card:not(:hover):not(.sweep-active):not(.is-focused)::after,
+.border-glow-card:not(:hover):not(.sweep-active):not(.is-focused) > .edge-light {
+  opacity: 0;
+  transition: opacity 0.4s ease-in-out;
+}
+
+.border-glow-card.is-focused {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.border-glow-card--light.is-focused,
+:root:not(.dark) .border-glow-card.is-focused {
+  border-color: rgba(10, 9, 8, 0.22);
+}
+
+.border-glow-card.is-focused::before {
+  opacity: calc(0.85 + 0.15 * var(--corner-bloom, 0)) !important;
+}
+
+.border-glow-card.is-focused::after {
+  opacity: 0 !important;
+  display: none !important;
+}
+
+.border-glow-card.is-focused > .edge-light {
+  opacity: calc(0.42 + 0.15 * var(--corner-bloom, 0)) !important;
+}
+
+/* colored mesh-gradient border with traveling white spark beam */
+.border-glow-card::before {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--card-bg, #000000) 0 100%) padding-box,
+    var(--spark-beam,
+      conic-gradient(
+        from var(--cursor-angle) at center,
+        #ffffff 0deg,
+        rgba(255, 255, 255, 0.96) 1.5deg,
+        #fdba74 4.5deg,
+        #fb923c 12deg,
+        #ea580c 24deg,
+        transparent 38deg,
+        transparent 322deg,
+        #ea580c 336deg,
+        #fb923c 348deg,
+        #fdba74 355.5deg,
+        rgba(255, 255, 255, 0.96) 358.5deg,
+        #ffffff 360deg
+      )
+    ) border-box;
+
+  opacity: calc((var(--edge-proximity) - var(--color-sensitivity)) / (100 - var(--color-sensitivity)));
+
+  mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      black calc(var(--cone-spread) * 1%),
+      transparent calc((var(--cone-spread) + 12) * 1%),
+      transparent calc((100 - var(--cone-spread) - 12) * 1%),
+      black calc((100 - var(--cone-spread)) * 1%)
+    );
+  -webkit-mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      black calc(var(--cone-spread) * 1%),
+      transparent calc((var(--cone-spread) + 12) * 1%),
+      transparent calc((100 - var(--cone-spread) - 12) * 1%),
+      black calc((100 - var(--cone-spread)) * 1%)
+    );
+}
+
+/* Disabled loud background fill flare for minimal aesthetic */
+.border-glow-card::after {
+  display: none !important;
+}
+
+/* subtle outer glow layer */
+.border-glow-card > .edge-light {
+  inset: calc(var(--glow-padding) * -1);
+  pointer-events: none;
+  z-index: 1;
+
+  mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      black calc(var(--cone-spread) * 0.7%),
+      transparent calc((var(--cone-spread) + 14) * 1%),
+      transparent calc((100 - var(--cone-spread) - 14) * 1%),
+      black calc((100 - var(--cone-spread) * 0.7) * 1%)
+    );
+  -webkit-mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      black calc(var(--cone-spread) * 0.7%),
+      transparent calc((var(--cone-spread) + 14) * 1%),
+      transparent calc((100 - var(--cone-spread) - 14) * 1%),
+      black calc((100 - var(--cone-spread) * 0.7) * 1%)
+    );
+
+  opacity: calc((var(--edge-proximity) - var(--edge-sensitivity)) / (100 - var(--edge-sensitivity)));
+  mix-blend-mode: plus-lighter;
+}
+
+.border-glow-card > .edge-light::before {
+  content: "";
+  position: absolute;
+  inset: var(--glow-padding);
+  border-radius: inherit;
+  box-shadow:
+    0 0 2.5px 0.5px rgba(255, 255, 255, 0.85),
+    0 0 6px 1px var(--glow-color-40, hsl(26deg 90% 58% / 40%)),
+    0 0 12px 2px var(--glow-color-20, hsl(26deg 90% 58% / 20%)),
+    0 0 18px 3px var(--glow-color-10, hsl(26deg 90% 58% / 10%));
+}
+
+.border-glow-inner {
+  display: block;
+  position: relative;
+  overflow: visible;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+}
+
+/* Ensure inner input inside BorderGlow does not draw redundant outer borders */
+.border-glow-card .auth-input {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.border-glow-card .auth-input:focus {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.dark .border-glow-card .auth-input,
+.dark .border-glow-card .auth-input:focus {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+

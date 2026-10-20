@@ -14,81 +14,71 @@
 
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import Message from './Message';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ArrowDown, AlertCircle, RotateCcw, RefreshCw, WifiOff, Zap,
-  Sparkles, Code2, BarChart3, FileText, Lightbulb, Pen
+  BarChart3, FileText, Lightbulb, Pen
 } from 'lucide-react';
 import SkeletonMessage from './SkeletonMessage';
 import { useAuth } from '../../hooks/useAuth';
-import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
 import VisaiLogo from '../layout/VisaiLogo';
 import ErrorBoundary from '../common/ErrorBoundary';
+import { describeChatError } from '../../lib/chatErrors';
 
-const MessageErrorFallback = ({ error }) => (
-  <motion.div 
-    initial={{ opacity: 0, scale: 0.98 }}
-    animate={{ opacity: 1, scale: 1 }}
-    className="mx-auto my-2 p-4 rounded-2xl border flex flex-col items-center justify-center text-center max-w-[420px] w-full"
-    style={{ 
-      background: 'rgba(239,68,68,0.05)', 
-      borderColor: 'rgba(239,68,68,0.15)',
-      boxShadow: '0 8px 32px rgba(239,68,68,0.03)'
-    }}
+const MessageErrorFallback = () => (
+  <div
+    role="note"
+    className="my-1 flex items-center gap-2 rounded-lg px-3 py-2 text-[13px]"
+    style={{ background: 'var(--st-fill, var(--bg-secondary))', color: 'var(--text-secondary)' }}
   >
-    <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2"
-      style={{ background: 'rgba(239,68,68,0.12)' }}>
-      <AlertCircle size={16} style={{ color: '#ef4444' }} />
-    </div>
-    <h4 className="text-[13px] font-semibold mb-0.5 tracking-tight" style={{ color: 'var(--text-primary)' }}>
-      Rendering Exception
-    </h4>
-    <p className="text-[11.5px] leading-relaxed mb-0 px-2" style={{ color: 'var(--text-tertiary)' }}>
-      Unable to render message node safely. Please reload the workspace session.
-    </p>
-  </motion.div>
+    <AlertCircle size={14} aria-hidden="true" style={{ color: 'var(--text-tertiary)' }} />
+    This message couldn't be displayed. Reload the conversation to try again.
+  </div>
 );
 
 /* =============================================================================
    THINKING INDICATOR -- Orbital pulse with phase label
    ============================================================================= */
 const ThinkingIndicator = ({ phase, progress }) => {
+  const reduceMotion = useReducedMotion();
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    // A long lesson can take a while: say so instead of spinning silently
+    const t = setTimeout(() => setSlow(true), 20000);
+    return () => clearTimeout(t);
+  }, []);
+
   const label = progress || ({
     waiting: 'Thinking',
-    searching: 'Searching',
+    searching: 'Searching the web',
     generating: 'Writing',
     thinking: 'Reasoning',
   }[phase] || 'Thinking');
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 5 }}
+      initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="w-full py-2 flex items-center gap-3 px-2"
+      role="status"
+      aria-live="polite"
+      className="flex w-full items-center gap-2.5 py-2"
     >
-      <div className="flex items-center gap-1.5 h-6">
+      <div className="flex h-5 items-center gap-1" aria-hidden="true">
         {[0, 1, 2].map((i) => (
-          <motion.div
+          <motion.span
             key={i}
-            animate={{ 
-              y: [0, -3, 0],
-              opacity: [0.3, 1, 0.3]
-            }}
-            transition={{ 
-              duration: 1, 
-              repeat: Infinity, 
-              delay: i * 0.15,
-              ease: "easeInOut"
-            }}
-            className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)]/40"
+            animate={reduceMotion ? { opacity: 0.6 } : { opacity: [0.25, 1, 0.25] }}
+            transition={reduceMotion ? undefined : { duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
+            className="h-1.5 w-1.5 rounded-full bg-[var(--text-secondary)]"
           />
         ))}
       </div>
-      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] opacity-60">
-        {label}
+      <span className="text-[13px] text-[var(--text-secondary)]">
+        {label}…
+        {slow && <span className="ml-1.5 text-[var(--text-tertiary)]">still working — detailed answers can take a minute.</span>}
       </span>
     </motion.div>
   );
@@ -97,18 +87,17 @@ const ThinkingIndicator = ({ phase, progress }) => {
 /* =============================================================================
    WELCOME SCREEN -- AI Workspace Landing
    ============================================================================= */
+// Prompt starters. Only "Draw a diagram" switches the mode, because drawing on
+// the canvas is the one mode that changes how the answer is made.
 const SUGGESTION_CHIPS = [
-  { label: 'Explain a concept', icon: Lightbulb, prompt: 'Explain ', mode: 'explain', color: '#f59e0b' },
-  { label: 'Write code', icon: Code2, prompt: 'Write code for ', mode: 'code', color: '#6366f1' },
-  { label: 'Create a diagram', icon: BarChart3, prompt: 'Create a diagram of ', mode: 'deep', color: '#0ea5e9' },
-  { label: 'Summarize text', icon: FileText, prompt: 'Summarize: ', mode: 'summarize', color: '#10b981' },
-  { label: 'Help me write', icon: Pen, prompt: 'Help me write ', mode: 'write', color: '#ec4899' },
-  { label: 'Generate ideas', icon: Sparkles, prompt: 'Generate ideas for ', mode: 'ideas', color: '#a855f7' },
+  { label: 'Explain something', icon: Lightbulb, prompt: 'Explain ' },
+  { label: 'Draw a diagram', icon: BarChart3, prompt: 'Draw a diagram of ', mode: 'deep' },
+  { label: 'Summarize text', icon: FileText, prompt: 'Summarize: ' },
+  { label: 'Help me write', icon: Pen, prompt: 'Help me write ' },
 ];
 
 const ChatLanding = ({ onSuggestionClick }) => {
   const { user } = useAuth();
-  const { isMobile } = useWindowSize();
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -117,62 +106,52 @@ const ChatLanding = ({ onSuggestionClick }) => {
     return 'Good evening';
   }, []);
 
-  const firstName = user?.name?.split(' ')[0] || '';
+  const firstName = user?.isGuest ? '' : (user?.name?.split(' ')[0] || '');
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="flex-1 flex flex-col items-start justify-center select-none no-scrollbar px-10 pb-2"
-      style={{ maxWidth: 600, margin: '0', width: '100%', color: 'var(--text-primary)' }}
+      className="flex w-full flex-1 select-none flex-col justify-center px-1 pb-4 text-[var(--text-primary)]"
     >
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="mb-3 mt-[-40px]"
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="px-2"
       >
-        <div className="mb-2.5 relative flex items-center gap-2">
-          <VisaiLogo size="xxs" className="opacity-60" />
-          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)] opacity-20">Workspace</span>
+        <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--text-tertiary)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--mk-accent)]" />
+          New session
         </div>
-        
-        <h2 className="text-[16px] font-bold tracking-tight mb-0" style={{ color: 'var(--text-primary)' }}>
-          {greeting}, {firstName}
+        <h2 className="mt-3 text-[20px] font-[450] leading-[1.15] tracking-[-0.03em]">
+          {greeting}{firstName ? `, ${firstName}` : ''}.
+          <span className="block text-[var(--text-tertiary)]">Pick a way to start, or just ask.</span>
         </h2>
-        <p className="text-[10px] tracking-tight font-medium uppercase mt-0.5" style={{ color: 'var(--text-tertiary)', opacity: 0.4 }}>
-          Select a directive
-        </p>
       </motion.div>
 
-      <div className="flex flex-col gap-0.5 w-full max-w-[240px]">
+      <ul className="mt-5 flex flex-col">
         {SUGGESTION_CHIPS.map((chip, i) => (
-          <motion.button
+          <motion.li
             key={chip.label}
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.08 + i * 0.02, duration: 0.3 }}
-            onClick={() => {
-              if (chip.mode) {
-                onSuggestionClick?.(chip.prompt, chip.mode);
-              } else {
-                onSuggestionClick?.(chip.prompt);
-              }
-            }}
-            className="group flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-transparent border border-transparent hover:bg-[var(--text-primary)]/5 transition-all active:scale-[0.98] text-left"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.08 + i * 0.05 }}
           >
-            <div 
-              className="w-4 h-4 rounded-sm flex items-center justify-center transition-colors"
-              style={{ background: chip.color + '05' }}
+            <button
+              onClick={() => onSuggestionClick?.(chip.prompt, chip.mode)}
+              className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-[var(--st-fill)] active:scale-[0.99]"
             >
-              <chip.icon size={9} strokeWidth={2} style={{ color: chip.color }} />
-            </div>
-            <span className="text-[11px] font-medium transition-colors" style={{ color: 'var(--text-tertiary)' }}>
-              {chip.label}
-            </span>
-          </motion.button>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)] transition-colors group-hover:text-[var(--text-primary)]">
+                <chip.icon size={15} strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">
+                {chip.label}
+              </span>
+            </button>
+          </motion.li>
         ))}
-      </div>
+      </ul>
     </motion.div>
   );
 };
@@ -180,64 +159,58 @@ const ChatLanding = ({ onSuggestionClick }) => {
 /* =============================================================================
    ERROR CARD -- Inline error recovery
    ============================================================================= */
-const ErrorCard = ({ error, onRetry }) => {
-  const getFriendlyError = (err) => {
-    const msg = typeof err === 'string' ? err : (err?.message || err?.content || err?.error || '');
-    if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
-      return { title: "Rate Limited", desc: "Too many requests. Please wait a moment before trying again.", icon: Zap, color: 'amber' };
-    }
-    if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('connection') || msg.toLowerCase().includes('econnrefused')) {
-      return { title: "Connection Disrupted", desc: msg || "Check your active connection and synchronize to resume.", icon: WifiOff, color: 'blue' };
-    }
-    return { title: "Generation Incomplete", desc: msg || "An unexpected orchestration error occurred during streaming.", icon: AlertCircle, color: 'red' };
-  };
-
-  const info = getFriendlyError(error);
-  const Icon = info.icon;
-
-  const colorMap = {
-    red: { bg: 'rgba(239,68,68,0.05)', border: 'rgba(239,68,68,0.15)', iconBg: 'rgba(239,68,68,0.12)', icon: '#ef4444', glow: 'rgba(239,68,68,0.03)' },
-    amber: { bg: 'rgba(245,158,11,0.05)', border: 'rgba(245,158,11,0.15)', iconBg: 'rgba(245,158,11,0.12)', icon: '#f59e0b', glow: 'rgba(245,158,11,0.03)' },
-    blue: { bg: 'rgba(59,130,246,0.05)', border: 'rgba(59,130,246,0.15)', iconBg: 'rgba(59,130,246,0.12)', icon: '#3b82f6', glow: 'rgba(59,130,246,0.03)' },
-  };
-  const c = colorMap[info.color] || colorMap.red;
+const ErrorCard = ({ error, onRetry, onDismiss }) => {
+  const info = describeChatError(error);
+  const Icon = info.tone === 'blue' ? WifiOff : info.tone === 'amber' ? Zap : AlertCircle;
+  const accent = { red: '#ef4444', amber: '#f59e0b', blue: '#3b82f6' }[info.tone] || '#ef4444';
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98, y: 8 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98, y: 8 }}
-      className="mx-auto my-2 p-4 rounded-2xl border flex flex-col items-center justify-center text-center max-w-[420px] w-full transition-all"
-      style={{ 
-        background: c.bg, 
-        borderColor: c.border,
-        boxShadow: `0 8px 32px ${c.glow}`
-      }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.18 }}
+      role="alert"
+      className="my-2 w-full rounded-xl px-3.5 py-3"
+      style={{ border: '1px solid var(--st-line-strong, var(--border-color))', background: 'var(--st-fill, var(--bg-secondary))' }}
     >
-      <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2 transition-colors"
-        style={{ background: c.iconBg }}>
-        <Icon size={16} style={{ color: c.icon }} />
+      <div className="flex items-start gap-2.5">
+        <Icon size={16} className="mt-[2px] shrink-0" style={{ color: accent }} aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13.5px] font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>
+            {info.title}
+          </p>
+          <p className="mt-0.5 text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            {info.desc}
+          </p>
+        </div>
       </div>
-      
-      <h4 className="text-[13px] font-semibold mb-0.5 tracking-tight" style={{ color: 'var(--text-primary)' }}>
-        {info.title}
-      </h4>
-      
-      <p className="text-[11.5px] leading-relaxed mb-3 px-2" style={{ color: 'var(--text-tertiary)' }}>
-        {info.desc}
-      </p>
-      
-      <button
-        onClick={onRetry}
-        className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[11.5px] font-semibold transition-all active:scale-95 shadow-md hover:opacity-90"
-        style={{
-          background: c.icon,
-          color: '#ffffff',
-        }}
-      >
-        <RotateCcw size={13} strokeWidth={2.5} />
-        <span>Try Again</span>
-      </button>
+      {(onRetry || onDismiss) && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-[26px]">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--st-fill-strong,var(--bg-tertiary))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ color: 'var(--text-primary)', border: '1px solid var(--st-line-strong, var(--border-color))' }}
+            >
+              <RotateCcw size={13} strokeWidth={2.3} aria-hidden="true" />
+              Try again
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label="Dismiss error"
+              className="rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--st-fill-strong,var(--bg-tertiary))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -285,8 +258,11 @@ const ChatWindow = ({
   const isCurrentlyWaiting = (isWaitingForAI && waitingSessionId === currentSessionId) || isGenerating;
   const isActive = isCurrentlyStreaming || isCurrentlyWaiting;
 
+  // An error belongs to the conversation it happened in — never show it in another one.
+  const visibleError = lastAIError && (!lastAIError.sessionId || lastAIError.sessionId === currentSessionId) ? lastAIError : null;
+
   const isEmpty =
-    (messages || []).length === 0 && !isCurrentlyWaiting && !isCurrentlyStreaming && !lastAIError && !isMessagesLoading;
+    (messages || []).length === 0 && !isCurrentlyWaiting && !isCurrentlyStreaming && !visibleError && !isMessagesLoading;
 
   const streamingInList = (messages || []).some((m) => m.id === currentStreamingMessageId);
 
@@ -451,13 +427,18 @@ const ChatWindow = ({
               key="messages"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="relative py-1"
-              style={{ 
-                maxWidth: 780, 
-                margin: '0 auto', 
-                width: '100%', 
-                padding: '8px 16px 8px 20px',
-                height: `${rowVirtualizer.getTotalSize()}px`
+              className="relative"
+              style={{
+                // one reading column for messages, thinking and errors
+                maxWidth: 760,
+                margin: '8px auto 0',
+                width: '100%',
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                // The rows are absolutely positioned, so this flex item has no
+                // content height of its own: without this the column scroller
+                // shrank it, the last messages overflowed under the thinking /
+                // error rows, and the chat could not scroll to its end.
+                flexShrink: 0,
               }}
             >
               <div className="sr-only" aria-live="polite" aria-atomic="false">
@@ -473,6 +454,7 @@ const ChatWindow = ({
                       key="streaming-new"
                       data-index={virtualRow.index}
                       ref={rowVirtualizer.measureElement}
+                      className="px-4"
                       style={{
                         position: 'absolute',
                         top: 0,
@@ -483,6 +465,7 @@ const ChatWindow = ({
                     >
                       <ErrorBoundary fallback={<MessageErrorFallback />}>
                         <Message
+                          isLatest
                           role="assistant"
                           content={currentStreamingContent}
                           messageId={currentStreamingMessageId}
@@ -518,6 +501,7 @@ const ChatWindow = ({
                     key={msgKey} 
                     data-index={virtualRow.index}
                     ref={rowVirtualizer.measureElement}
+                    className="px-4"
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -528,10 +512,12 @@ const ChatWindow = ({
                   >
                     <ErrorBoundary fallback={<MessageErrorFallback />}>
                       <Message
+                        isLatest={virtualRow.index === messages.length - 1 && !showStreamingNew}
                         role={msg.role}
                         content={msg.content}
                         messageId={msg.id}
                         timestamp={msg.timestamp}
+                        status={msg.status}
                         metadata={msg.metadata}
                         isStreaming={isThisStreaming}
                         isSessionActive={isActive}
@@ -570,6 +556,7 @@ const ChatWindow = ({
           )}
         </AnimatePresence>
 
+          <div className="mx-auto w-full max-w-[760px] shrink-0 px-4">
           <AnimatePresence mode="wait">
             {(isCurrentlyWaiting || (isCurrentlyStreaming && !currentStreamingContent && !currentStreamingThought)) && !streamingInList && (
               <ThinkingIndicator
@@ -581,23 +568,26 @@ const ChatWindow = ({
           </AnimatePresence>
 
           <AnimatePresence>
-            {lastAIError && (
+            {visibleError && (
               <ErrorCard
                 key="error"
-                error={lastAIError}
-                onRetry={() => {
-                  if (lastAIError?.messageId) {
-                    onRegenerateMessage(lastAIError.messageId);
-                  } else {
-                    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-                    onRegenerateMessage(lastAssistant?.id || null);
-                  }
-                }}
+                error={visibleError}
+                onDismiss={() => useTutorStore.setState({ lastAIError: null })}
+                onRetry={
+                  // Re-send the SAME request (same requestId): the server re-uses the
+                  // saved user message, so a retry never duplicates it.
+                  visibleError.retry && onSubmit
+                    ? () => onSubmit(visibleError.retry.text, null, null, false, null, null, visibleError.retry)
+                    : visibleError.messageId
+                      ? () => onRegenerateMessage(visibleError.messageId)
+                      : null
+                }
               />
             )}
           </AnimatePresence>
+          </div>
 
-          <div ref={bottomRef} className="h-1" />
+          <div ref={bottomRef} className="h-4 shrink-0" />
       </div>
 
       {/* Premium High-Fidelity Scroll to Bottom Button */}

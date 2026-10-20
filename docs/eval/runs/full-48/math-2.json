@@ -1,0 +1,168 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Roots of x² − 4x + 3",
+  "domain": "math",
+  "summary": "The quadratic x²−4x+3 factors to (x−1)(x−3), so its roots are x=1 and x=3.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     4
+    ],
+    "y": [
+     -2,
+     5
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "y",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "parabola",
+    "tone": "info",
+    "space": "plane",
+    "type": "plot",
+    "expr": "x^2 - 4*x + 3",
+    "domain": [
+     0,
+     4
+    ]
+   },
+   {
+    "id": "v",
+    "label": "Vertex",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     2,
+     -1
+    ]
+   },
+   {
+    "id": "r1",
+    "label": "x=1",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     1,
+     0
+    ]
+   },
+   {
+    "id": "r2",
+    "label": "x=3",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     3,
+     0
+    ]
+   },
+   {
+    "id": "eq",
+    "tone": "primary",
+    "type": "math",
+    "latex": "x^2 - 4x + 3 = (x-1)(x-3)"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Plot the quadratic",
+    "narration": "We draw the curve y = x² − 4x + 3, an upward‑opening parabola.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "parabola",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Find the vertex",
+    "narration": "The vertex is at x = 2, y = –1.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "v",
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "v",
+      "text": "vertex",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Mark the roots",
+    "narration": "The curve crosses the x‑axis at x = 1 and x = 3.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "r1",
+       "r2"
+      ],
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "r1",
+      "text": "root",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "r2",
+      "text": "root",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Factor form",
+    "narration": "Thus the quadratic factors as (x‑1)(x‑3), confirming the roots.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 55432,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Roots of x² − 4x + 3\",\"domain\":\"math\",\"summary\":\"The quadratic x²−4x+3 factors to (x−1)(x−3), so its roots are x=1 and x=3.\",\"spaces\":[{\"id\":\"plane\",\"kind\":\"cartesian\",\"x\":[0,4],\"y\":[-2,5],\"axes\":true,\"grid\":true,\"xLabel\":\"x\",\"yLabel\":\"y\"}],\"entities\":[{\"id\":\"parabola\",\"type\":\"plot\",\"space\":\"plane\",\"expr\":\"x^2 - 4*x + 3\",\"domain\":[0,4],\"tone\":\"info\"},{\"id\":\"v\",\"type\":\"point\",\"space\":\"plane\",\"at\":[2,-1],\"label\":\"Vertex\"},{\"id\":\"r1\",\"type\":\"point\",\"space\":\"plane\",\"at\":[1,0],\"label\":\"x=1\"},{\"id\":\"r2\",\"type\":\"point\",\"space\":\"plane\",\"at\":[3,0],\"label\":\"x=3\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"x^2 - 4x + 3 = (x-1)(x-3)\",\"tone\":\"primary\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"plane\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Plot the quadratic\",\"narration\":\"We draw the curve y = x² − 4x + 3, an upward‑opening parabola.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"parabola\",\"effect\":\"draw\"}]},{\"title\":\"Find the vertex\",\"narration\":\"The vertex is at x = 2, y = –1.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"v\",\"effect\":\"pop\"},{\"do\":\"annotate\",\"target\":\"v\",\"text\":\"vertex\",\"side\":\"above\"}]},{\"title\":\"Mark the roots\",\"narration\":\"The curve crosses the x‑axis at x = 1 and x = 3.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"r1\",\"r2\"],\"effect\":\"pop\"},{\"do\":\"annotate\",\"target\":\"r1\",\"text\":\"root\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"r2\",\"text\":\"root\",\"side\":\"above\"}]},{\"title\":\"Factor form\",\"narration\":\"Thus the quadratic factors as (x‑1)(x‑3), confirming the roots.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"type\"}]}]}"
+}

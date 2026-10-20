@@ -1,0 +1,255 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Blood Flow Through the Heart",
+  "domain": "biology",
+  "summary": "Deoxygenated blood travels from the body to the right side of the heart, to the lungs, back to the left side, and out to the body.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "bodyDeoxy",
+    "tone": "info",
+    "type": "text",
+    "text": "Body (deoxygenated)",
+    "role": "title"
+   },
+   {
+    "id": "ra",
+    "label": "RA",
+    "tone": "primary",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "rv",
+    "label": "RV",
+    "tone": "primary",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "lungs",
+    "tone": "info",
+    "type": "text",
+    "text": "Lungs",
+    "role": "title"
+   },
+   {
+    "id": "la",
+    "label": "LA",
+    "tone": "primary",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "lv",
+    "label": "LV",
+    "tone": "primary",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "bodyOxy",
+    "tone": "info",
+    "type": "text",
+    "text": "Body (oxygenated)",
+    "role": "title"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "column",
+    "ids": [
+     "bodyDeoxy",
+     "ra",
+     "rv",
+     "lungs",
+     "la",
+     "lv",
+     "bodyOxy"
+    ],
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Heart chambers",
+    "narration": "The heart consists of four chambers that move blood in a loop.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "bodyDeoxy",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "ra",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "rv",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "lungs",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "la",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "lv",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "bodyOxy",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pulmonary circulation",
+    "narration": "Deoxygenated blood returns from the body to the right atrium, passes to the right ventricle, and is pumped to the lungs.",
+    "actions": [
+     {
+      "do": "connect",
+      "from": "bodyDeoxy",
+      "to": "ra",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "ra",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "ra",
+      "to": "rv",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "rv",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "rv",
+      "to": "lungs",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "lungs",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "After the blood reaches the lungs, where does it go next?",
+     "choices": [
+      "To the left atrium",
+      "Back to the body",
+      "To the right atrium"
+     ],
+     "answer": 0,
+     "explain": "Oxygen‑rich blood leaves the lungs and enters the left atrium."
+    }
+   },
+   {
+    "title": "Systemic circulation",
+    "narration": "Oxygenated blood leaves the lungs, enters the left atrium, moves to the left ventricle, and is pumped out to the body.",
+    "actions": [
+     {
+      "do": "connect",
+      "from": "lungs",
+      "to": "la",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "la",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "la",
+      "to": "lv",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "lv",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "lv",
+      "to": "bodyOxy",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "bodyOxy",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "The heart circulates blood in two loops: pulmonary (right side) and systemic (left side).",
+    "actions": [
+     {
+      "do": "annotate",
+      "target": "ra",
+      "text": "Pulmonary loop",
+      "side": "right"
+     },
+     {
+      "do": "annotate",
+      "target": "la",
+      "text": "Systemic loop",
+      "side": "left"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "ra",
+       "rv",
+       "lungs",
+       "la",
+       "lv"
+      ],
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 20320,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Blood Flow Through the Heart\",\"domain\":\"biology\",\"summary\":\"Deoxygenated blood travels from the body to the right side of the heart, to the lungs, back to the left side, and out to the body.\",\"spaces\":[],\"entities\":[{\"id\":\"bodyDeoxy\",\"type\":\"text\",\"text\":\"Body (deoxygenated)\",\"role\":\"title\",\"tone\":\"info\"},{\"id\":\"ra\",\"type\":\"rect\",\"size\":\"md\",\"label\":\"RA\",\"tone\":\"primary\"},{\"id\":\"rv\",\"type\":\"rect\",\"size\":\"md\",\"label\":\"RV\",\"tone\":\"primary\"},{\"id\":\"lungs\",\"type\":\"text\",\"text\":\"Lungs\",\"role\":\"title\",\"tone\":\"info\"},{\"id\":\"la\",\"type\":\"rect\",\"size\":\"md\",\"label\":\"LA\",\"tone\":\"primary\"},{\"id\":\"lv\",\"type\":\"rect\",\"size\":\"md\",\"label\":\"LV\",\"tone\":\"primary\"},{\"id\":\"bodyOxy\",\"type\":\"text\",\"text\":\"Body (oxygenated)\",\"role\":\"title\",\"tone\":\"info\"}],\"layout\":[{\"rel\":\"column\",\"ids\":[\"bodyDeoxy\",\"ra\",\"rv\",\"lungs\",\"la\",\"lv\",\"bodyOxy\"],\"gap\":\"md\"}],\"beats\":[{\"title\":\"Heart chambers\",\"narration\":\"The heart consists of four chambers that move blood in a loop.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"bodyDeoxy\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"ra\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"rv\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"lungs\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"la\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"lv\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"bodyOxy\",\"effect\":\"pop\"}]},{\"title\":\"Pulmonary circulation\",\"narration\":\"Deoxygenated blood returns from the body to the right atrium, passes to the right ventricle, and is pumped to the lungs.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"connect\",\"from\":\"bodyDeoxy\",\"to\":\"ra\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"ra\",\"state\":\"active\"},{\"do\":\"connect\",\"from\":\"ra\",\"to\":\"rv\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"rv\",\"state\":\"active\"},{\"do\":\"connect\",\"from\":\"rv\",\"to\":\"lungs\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"lungs\",\"state\":\"active\"}],\"check\":{\"question\":\"After the blood reaches the lungs, where does it go next?\",\"choices\":[\"To the left atrium\",\"Back to the body\",\"To the right atrium\"],\"answer\":0,\"explain\":\"Oxygen‑rich blood leaves the lungs and enters the left atrium.\"}},{\"title\":\"Systemic circulation\",\"narration\":\"Oxygenated blood leaves the lungs, enters the left atrium, moves to the left ventricle, and is pumped out to the body.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"connect\",\"from\":\"lungs\",\"to\":\"la\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"la\",\"state\":\"active\"},{\"do\":\"connect\",\"from\":\"la\",\"to\":\"lv\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"lv\",\"state\":\"active\"},{\"do\":\"connect\",\"from\":\"lv\",\"to\":\"bodyOxy\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"bodyOxy\",\"state\":\"active\"}]},{\"title\":\"Recap\",\"narration\":\"The heart circulates blood in two loops: pulmonary (right side) and systemic (left side).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"annotate\",\"target\":\"ra\",\"text\":\"Pulmonary loop\",\"side\":\"right\"},{\"do\":\"annotate\",\"target\":\"la\",\"text\":\"Systemic loop\",\"side\":\"left\"},{\"do\":\"highlight\",\"target\":[\"ra\",\"rv\",\"lungs\",\"la\",\"lv\"],\"state\":\"insight\"}]}]}"
+}

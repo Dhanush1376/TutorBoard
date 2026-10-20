@@ -1,0 +1,236 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How Gradient Descent Finds a Minimum",
+  "domain": "ml",
+  "summary": "Gradient descent computes the slope of the loss function and steps downhill against the gradient until reaching the minimum.",
+  "spaces": [
+   {
+    "id": "loss_space",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     4.5
+    ],
+    "y": [
+     0,
+     4.5
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "Parameter (w)",
+    "yLabel": "Loss J(w)",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "curve",
+    "label": "J(w)",
+    "space": "loss_space",
+    "type": "plot",
+    "expr": "0.5 * (x - 1)^2 + 0.5"
+   },
+   {
+    "id": "ball",
+    "label": "w = 3.5",
+    "tone": "primary",
+    "space": "loss_space",
+    "type": "body",
+    "at": [
+     3.5,
+     3.625
+    ],
+    "size": "sm"
+   },
+   {
+    "id": "min_marker",
+    "label": "min (w* = 1)",
+    "tone": "success",
+    "space": "loss_space",
+    "type": "point",
+    "at": [
+     1,
+     0.5
+    ]
+   },
+   {
+    "id": "rule",
+    "type": "math",
+    "latex": "w_{t+1} = w_t - \\eta \\cdot \\nabla J(w_t)"
+   },
+   {
+    "id": "step_desc",
+    "type": "text",
+    "text": "Initial weight chosen at w = 3.5",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "loss_space",
+    "region": "left"
+   },
+   {
+    "rel": "place",
+    "id": "rule",
+    "region": "top-right"
+   },
+   {
+    "rel": "below",
+    "id": "step_desc",
+    "of": "rule",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The Loss Landscape",
+    "narration": "We want to find the parameter w that minimizes the loss J(w). We start at an arbitrary guess.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "curve",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "ball",
+      "effect": "drop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "rule",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "step_desc",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Evaluate the Gradient",
+    "narration": "The slope is positive, meaning loss rises to the right. Stepping opposite the gradient moves us downhill.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "ball",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "ball",
+      "text": "Slope > 0, go left!",
+      "side": "left"
+     },
+     {
+      "do": "set",
+      "target": "step_desc",
+      "text": "Gradient = +2.5 (points uphill right)"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 1: Descending Downhill",
+    "narration": "Multiplying the gradient by the learning rate gives the step size, moving the parameter toward lower loss.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "ball"
+     },
+     {
+      "do": "move",
+      "target": "ball",
+      "to": [
+       2.25,
+       1.28
+      ]
+     },
+     {
+      "do": "set",
+      "target": "step_desc",
+      "text": "Step 1: w moves from 3.5 to 2.25"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 2: Smaller Steps Near Valley",
+    "narration": "As the curve flattens, the gradient gets smaller, naturally taking shorter steps as we near the bottom.",
+    "actions": [
+     {
+      "do": "annotate",
+      "target": "ball",
+      "text": "Slope shrinks to +1.25",
+      "side": "left"
+     },
+     {
+      "do": "move",
+      "target": "ball",
+      "to": [
+       1.4,
+       0.58
+      ]
+     },
+     {
+      "do": "set",
+      "target": "step_desc",
+      "text": "Step 2: w moves closer to 1.4"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Convergence at the Minimum",
+    "narration": "At the minimum, the gradient reaches zero and parameter updates halt at the optimal solution.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "ball"
+     },
+     {
+      "do": "create",
+      "target": "min_marker",
+      "effect": "pop"
+     },
+     {
+      "do": "move",
+      "target": "ball",
+      "to": [
+       1,
+       0.5
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": "ball",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "step_desc",
+      "text": "Gradient = 0: converged at optimal w*"
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 22568,
+ "model": "gemini-3.7-flash",
+ "domain": "ml"
+}

@@ -1,0 +1,140 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Balancing Methane Combustion",
+  "domain": "chemistry",
+  "summary": "Step‑by‑step balancing of CH₄ + O₂ → CO₂ + H₂O to CH₄ + 2 O₂ → CO₂ + 2 H₂O.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "eq",
+    "label": "Equation",
+    "type": "text",
+    "text": "",
+    "role": "body"
+   },
+   {
+    "id": "cnt",
+    "label": "Counts",
+    "type": "text",
+    "text": "",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "cnt",
+    "of": "eq",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Unbalanced equation",
+    "narration": "The combustion of methane starts as CH₄ + O₂ → CO₂ + H₂O.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "eq",
+      "text": "CH₄ + O₂ → CO₂ + H₂O"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Count atoms",
+    "narration": "Count atoms of each element on both sides of the equation.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "cnt",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "cnt",
+      "text": "C:1, H:4, O:2 → C:1, O:2, H:2"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Add hydrogen coefficient",
+    "narration": "Hydrogen is balanced by placing a 2 in front of H₂O.",
+    "actions": [
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "eq",
+      "text": "CH₄ + O₂ → CO₂ + 2 H₂O"
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "What coefficient should multiply O₂ to balance oxygen?",
+     "choices": [
+      "1",
+      "2",
+      "3"
+     ],
+     "answer": 1,
+     "explain": "Right side has 4 O atoms (2 from CO₂ + 2 from 2 H₂O), so 2 O₂ gives 4 O atoms."
+    }
+   },
+   {
+    "title": "Final balanced equation",
+    "narration": "Insert the needed O₂ coefficient and the equation is balanced.",
+    "actions": [
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "eq",
+      "text": "CH₄ + 2 O₂ → CO₂ + 2 H₂O"
+     },
+     {
+      "do": "highlight",
+      "target": "eq",
+      "state": "sorted",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "Balanced combustion: one methane reacts with two oxygen molecules to produce carbon dioxide and water.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "eq",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 43466,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Balancing Methane Combustion\",\"domain\":\"chemistry\",\"summary\":\"Step‑by‑step balancing of CH₄ + O₂ → CO₂ + H₂O to CH₄ + 2 O₂ → CO₂ + 2 H₂O.\",\"spaces\":[],\"entities\":[{\"id\":\"eq\",\"type\":\"text\",\"text\":\"\",\"role\":\"body\",\"label\":\"Equation\"},{\"id\":\"cnt\",\"type\":\"text\",\"text\":\"\",\"role\":\"caption\",\"label\":\"Counts\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"cnt\",\"of\":\"eq\"}],\"beats\":[{\"title\":\"Unbalanced equation\",\"narration\":\"The combustion of methane starts as CH₄ + O₂ → CO₂ + H₂O.\",\"actions\":[{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"pop\"},{\"do\":\"set\",\"target\":\"eq\",\"text\":\"CH₄ + O₂ → CO₂ + H₂O\",\"with\":\"previous\"}]},{\"title\":\"Count atoms\",\"narration\":\"Count atoms of each element on both sides of the equation.\",\"actions\":[{\"do\":\"create\",\"target\":\"cnt\",\"effect\":\"fade\"},{\"do\":\"set\",\"target\":\"cnt\",\"text\":\"C:1, H:4, O:2 → C:1, O:2, H:2\",\"with\":\"previous\"}]},{\"title\":\"Add hydrogen coefficient\",\"narration\":\"Hydrogen is balanced by placing a 2 in front of H₂O.\",\"actions\":[{\"do\":\"set\",\"target\":\"eq\",\"text\":\"CH₄ + O₂ → CO₂ + 2 H₂O\",\"with\":\"previous\"}],\"check\":{\"question\":\"What coefficient should multiply O₂ to balance oxygen?\",\"choices\":[\"1\",\"2\",\"3\"],\"answer\":1,\"explain\":\"Right side has 4 O atoms (2 from CO₂ + 2 from 2 H₂O), so 2 O₂ gives 4 O atoms.\"}},{\"title\":\"Final balanced equation\",\"narration\":\"Insert the needed O₂ coefficient and the equation is balanced.\",\"actions\":[{\"do\":\"set\",\"target\":\"eq\",\"text\":\"CH₄ + 2 O₂ → CO₂ + 2 H₂O\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"eq\",\"state\":\"sorted\"}]},{\"title\":\"Recap\",\"narration\":\"Balanced combustion: one methane reacts with two oxygen molecules to produce carbon dioxide and water.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"eq\",\"state\":\"insight\",\"hold\":true}]}]}"
+}

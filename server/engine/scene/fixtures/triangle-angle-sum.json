@@ -1,0 +1,56 @@
+{
+  "version": "1",
+  "title": "Why a triangle's angles add up to 180°",
+  "domain": "geometry",
+  "spaces": [
+    { "id": "plane", "kind": "cartesian", "x": [0, 10], "y": [0, 7], "axes": false, "equalAspect": true }
+  ],
+  "entities": [
+    { "id": "tri", "type": "polygon", "space": "plane", "points": [[1, 1], [9, 1], [4, 6]], "vertexLabels": ["A", "B", "C"], "tone": "primary" },
+    { "id": "aA", "type": "angle", "vertex": "tri.A", "from": "tri.B", "to": "tri.C", "label": "α", "tone": "warning" },
+    { "id": "aB", "type": "angle", "vertex": "tri.B", "from": "tri.C", "to": "tri.A", "label": "β", "tone": "success" },
+    { "id": "aC", "type": "angle", "vertex": "tri.C", "from": "tri.A", "to": "tri.B", "label": "γ", "tone": "accent" },
+    { "id": "par", "type": "line", "space": "plane", "from": [0, 6], "to": [10, 6], "dashed": true, "label": "∥ AB" },
+    { "id": "aA2", "type": "angle", "space": "plane", "vertex": "tri.C", "from": [0, 6], "to": "tri.A", "label": "α", "tone": "warning" },
+    { "id": "aB2", "type": "angle", "space": "plane", "vertex": "tri.C", "from": "tri.B", "to": [10, 6], "label": "β", "tone": "success" },
+    { "id": "eq", "type": "math", "latex": "\\alpha + \\beta + \\gamma = 180^\\circ" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "plane", "region": "center" },
+    { "rel": "below", "id": "eq", "of": "plane" }
+  ],
+  "beats": [
+    {
+      "title": "Construct triangle ABC",
+      "narration": "Start with any triangle ABC.",
+      "actions": [{ "do": "create", "target": "tri", "effect": "draw" }]
+    },
+    {
+      "title": "Mark the three angles",
+      "narration": "Call its angles α, β and γ.",
+      "actions": [{ "do": "create", "target": ["aA", "aB", "aC"], "effect": "grow" }]
+    },
+    {
+      "title": "Draw a parallel through C",
+      "narration": "Draw the line through C that is parallel to AB.",
+      "actions": [{ "do": "create", "target": "par", "effect": "draw" }]
+    },
+    {
+      "title": "Alternate angles",
+      "narration": "Alternate angles are equal, so α and β reappear at C, on either side of γ.",
+      "actions": [
+        { "do": "create", "target": ["aA2", "aB2"], "effect": "grow" },
+        { "do": "highlight", "target": ["aA", "aA2"], "state": "insight", "hold": false },
+        { "do": "highlight", "target": ["aB", "aB2"], "state": "insight", "hold": false }
+      ]
+    },
+    {
+      "title": "They form a straight line",
+      "narration": "α, γ and β now sit side by side on a straight line — so together they make 180°.",
+      "actions": [
+        { "do": "highlight", "target": ["aA2", "aC", "aB2"], "state": "found" },
+        { "do": "create", "target": "eq", "effect": "type" }
+      ]
+    }
+  ]
+}

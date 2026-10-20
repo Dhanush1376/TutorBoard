@@ -1,0 +1,266 @@
+{
+ "version": "1",
+ "title": "Visualizing the Area of a Circle",
+ "domain": "math",
+ "summary": "Discover why the area of a circle is πr² by slicing a circle into sectors and rearranging them into a rectangle.",
+ "spaces": [
+  {
+   "id": "shape_space",
+   "kind": "cartesian",
+   "x": [
+    0,
+    12
+   ],
+   "y": [
+    0,
+    6
+   ],
+   "axes": false,
+   "grid": false,
+   "equalAspect": true
+  }
+ ],
+ "entities": [
+  {
+   "id": "pie1",
+   "label": "Circle Cut into 8 Sectors",
+   "tone": "primary",
+   "type": "pie",
+   "slices": 8,
+   "shaded": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "size": "lg"
+  },
+  {
+   "id": "eq_circ",
+   "type": "math",
+   "latex": "C = 2\\pi r"
+  },
+  {
+   "id": "rect_poly",
+   "tone": "primary",
+   "space": "shape_space",
+   "type": "polygon",
+   "points": [
+    [
+     2,
+     1
+    ],
+    [
+     10,
+     1
+    ],
+    [
+     10,
+     4
+    ],
+    [
+     2,
+     4
+    ]
+   ],
+   "vertexLabels": [
+    "A",
+    "B",
+    "C",
+    "D"
+   ],
+   "fill": true
+  },
+  {
+   "id": "base_line",
+   "tone": "accent",
+   "space": "shape_space",
+   "type": "line",
+   "from": [
+    2,
+    0.6
+   ],
+   "to": [
+    10,
+    0.6
+   ],
+   "dashed": false
+  },
+  {
+   "id": "height_line",
+   "tone": "warning",
+   "space": "shape_space",
+   "type": "line",
+   "from": [
+    10.4,
+    1
+   ],
+   "to": [
+    10.4,
+    4
+   ],
+   "dashed": false
+  },
+  {
+   "id": "eq_base",
+   "type": "math",
+   "latex": "\\text{Base} = \\frac{C}{2} = \\pi r"
+  },
+  {
+   "id": "eq_height",
+   "type": "math",
+   "latex": "\\text{Height} = r"
+  },
+  {
+   "id": "eq_area",
+   "type": "math",
+   "latex": "\\text{Area} = \\text{Base} \\times \\text{Height} = \\pi r \\cdot r = \\pi r^2"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "pie1",
+   "region": "top-left"
+  },
+  {
+   "rel": "place",
+   "id": "shape_space",
+   "region": "top-right"
+  },
+  {
+   "rel": "below",
+   "id": "eq_circ",
+   "of": "pie1",
+   "gap": "md"
+  },
+  {
+   "rel": "below",
+   "id": "eq_base",
+   "of": "shape_space",
+   "gap": "md"
+  },
+  {
+   "rel": "below",
+   "id": "eq_height",
+   "of": "eq_base",
+   "gap": "md"
+  },
+  {
+   "rel": "below",
+   "id": "eq_area",
+   "of": "eq_height",
+   "gap": "md"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Start with the circle",
+   "narration": "A circle with radius r has a total perimeter called circumference, C = 2πr.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "pie1",
+     "effect": "pop"
+    },
+    {
+     "do": "create",
+     "target": "eq_circ",
+     "effect": "type"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Slice into sectors",
+   "narration": "We slice the circle into equal wedges. The top half and bottom half equal half the circumference each.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "pie1.s0",
+      "pie1.s1",
+      "pie1.s2",
+      "pie1.s3"
+     ],
+     "state": "active",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Rearrange side by side",
+   "narration": "Alternating top and bottom wedges side by side forms an interlocking shape.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "rect_poly",
+     "effect": "draw"
+    }
+   ],
+   "pace": "normal",
+   "check": {
+    "question": "If we divide the circle into infinitely many tiny slices, what shape does this arrangement become?",
+    "choices": [
+     "A triangle",
+     "A rectangle",
+     "A pentagon",
+     "A straight line"
+    ],
+    "answer": 1,
+    "explain": "As sectors get infinitely thin, their curved bases flatten and sides become vertical, forming a rectangle!"
+   }
+  },
+  {
+   "title": "Measure base and height",
+   "narration": "The height of this rectangle is radius r, and its base is half the circumference, πr.",
+   "actions": [
+    {
+     "do": "create",
+     "target": [
+      "base_line",
+      "height_line"
+     ],
+     "effect": "grow"
+    },
+    {
+     "do": "create",
+     "target": [
+      "eq_base",
+      "eq_height"
+     ],
+     "effect": "type"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "base_line",
+      "height_line"
+     ],
+     "state": "insight",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Area equals base times height",
+   "narration": "Multiplying base by height gives Area = πr × r = πr², completing the visual proof!",
+   "actions": [
+    {
+     "do": "create",
+     "target": "eq_area",
+     "effect": "type"
+    },
+    {
+     "do": "highlight",
+     "target": "eq_area",
+     "state": "found",
+     "hold": true
+    }
+   ],
+   "pace": "slow"
+  }
+ ]
+}

@@ -1,0 +1,254 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Merge Sort on [38, 27, 43, 3, 9, 82, 10]",
+  "domain": "algorithms",
+  "summary": "Merge sort recursively divides an array into halves, sorts the small sub-lists, and merges them back together into a ordered list.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "arr_orig",
+    "label": "Original Array",
+    "type": "array",
+    "values": [
+     38,
+     27,
+     43,
+     3,
+     9,
+     82,
+     10
+    ],
+    "indices": true
+   },
+   {
+    "id": "arr_left",
+    "label": "Left Half",
+    "type": "array",
+    "values": [
+     38,
+     27,
+     43,
+     3
+    ],
+    "indices": false
+   },
+   {
+    "id": "arr_right",
+    "label": "Right Half",
+    "type": "array",
+    "values": [
+     9,
+     82,
+     10
+    ],
+    "indices": false
+   },
+   {
+    "id": "merged_left",
+    "label": "Sorted Left Sub-array",
+    "type": "array",
+    "values": [
+     3,
+     27,
+     38,
+     43
+    ],
+    "indices": false
+   },
+   {
+    "id": "merged_right",
+    "label": "Sorted Right Sub-array",
+    "type": "array",
+    "values": [
+     9,
+     10,
+     82
+    ],
+    "indices": false
+   },
+   {
+    "id": "sorted_final",
+    "label": "Final Sorted Array",
+    "type": "array",
+    "values": [
+     3,
+     9,
+     10,
+     27,
+     38,
+     43,
+     82
+    ],
+    "indices": true
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "arr_orig",
+    "region": "top"
+   },
+   {
+    "rel": "row",
+    "ids": [
+     "arr_left",
+     "arr_right"
+    ],
+    "gap": "lg"
+   },
+   {
+    "rel": "below",
+    "id": "arr_left",
+    "of": "arr_orig",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "merged_left",
+    "of": "arr_left",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "merged_right",
+    "of": "arr_right",
+    "gap": "md"
+   },
+   {
+    "rel": "place",
+    "id": "sorted_final",
+    "region": "bottom"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The Unsorted Array",
+    "narration": "Merge sort uses Divide and Conquer. It recursively breaks the problem down into smaller sub-problems.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "arr_orig",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Divide into Halves",
+    "narration": "The array of 7 elements is divided near the middle into two sub-arrays: [38, 27, 43, 3] and [9, 82, 10].",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr_orig[0]",
+       "arr_orig[1]",
+       "arr_orig[2]",
+       "arr_orig[3]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr_orig[4]",
+       "arr_orig[5]",
+       "arr_orig[6]"
+      ],
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": [
+       "arr_left",
+       "arr_right"
+      ],
+      "effect": "drop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Sort & Merge Left Half",
+    "narration": "Recursively, [38, 27] becomes [27, 38] and [43, 3] becomes [3, 43]. Merging them yields [3, 27, 38, 43].",
+    "actions": [
+     {
+      "do": "clear",
+      "target": "arr_orig"
+     },
+     {
+      "do": "create",
+      "target": "merged_left",
+      "effect": "grow"
+     },
+     {
+      "do": "highlight",
+      "target": "merged_left",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Sort & Merge Right Half",
+    "narration": "On the right, [82, 10] becomes [10, 82] and merges with single element [9] to form [9, 10, 82].",
+    "actions": [
+     {
+      "do": "create",
+      "target": "merged_right",
+      "effect": "grow"
+     },
+     {
+      "do": "highlight",
+      "target": "merged_right",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Final Merge Step",
+    "narration": "Comparing the front items of both sorted halves creates the complete ordered list from smallest to largest.",
+    "actions": [
+     {
+      "do": "clear",
+      "target": [
+       "merged_left",
+       "merged_right"
+      ]
+     },
+     {
+      "do": "create",
+      "target": "sorted_final",
+      "effect": "drop"
+     },
+     {
+      "do": "highlight",
+      "target": "sorted_final",
+      "state": "sorted",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "layout",
+   "message": "\"arr_left\" is positioned by 2 relations; the first one wins"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 18614,
+ "model": "gemini-3.6-flash",
+ "domain": "algorithms",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Merge Sort on [38, 27, 43, 3, 9, 82, 10]\",\"domain\":\"algorithms\",\"summary\":\"Merge sort recursively divides an array into halves, sorts the small sub-lists, and merges them back together into a ordered list.\",\"spaces\":[],\"entities\":[{\"id\":\"arr_orig\",\"type\":\"array\",\"values\":[38,27,43,3,9,82,10],\"indices\":true,\"label\":\"Original Array\"},{\"id\":\"arr_left\",\"type\":\"array\",\"values\":[38,27,43,3],\"indices\":false,\"label\":\"Left Half\"},{\"id\":\"arr_right\",\"type\":\"array\",\"values\":[9,82,10],\"indices\":false,\"label\":\"Right Half\"},{\"id\":\"merged_left\",\"type\":\"array\",\"values\":[3,27,38,43],\"indices\":false,\"label\":\"Sorted Left Sub-array\"},{\"id\":\"merged_right\",\"type\":\"array\",\"values\":[9,10,82],\"indices\":false,\"label\":\"Sorted Right Sub-array\"},{\"id\":\"sorted_final\",\"type\":\"array\",\"values\":[3,9,10,27,38,43,82],\"indices\":true,\"label\":\"Final Sorted Array\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"arr_orig\",\"region\":\"top\"},{\"rel\":\"row\",\"ids\":[\"arr_left\",\"arr_right\"],\"gap\":\"lg\"},{\"rel\":\"below\",\"id\":\"arr_left\",\"of\":\"arr_orig\"},{\"rel\":\"below\",\"id\":\"merged_left\",\"of\":\"arr_left\"},{\"rel\":\"below\",\"id\":\"merged_right\",\"of\":\"arr_right\"},{\"rel\":\"place\",\"id\":\"sorted_final\",\"region\":\"bottom\"}],\"beats\":[{\"title\":\"The Unsorted Array\",\"narration\":\"Merge sort uses Divide and Conquer. It recursively breaks the problem down into smaller sub-problems.\",\"actions\":[{\"do\":\"create\",\"target\":\"arr_orig\",\"effect\":\"pop\"}]},{\"title\":\"Divide into Halves\",\"narration\":\"The array of 7 elements is divided near the middle into two sub-arrays: [38, 27, 43, 3] and [9, 82, 10].\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"arr_orig[0]\",\"arr_orig[1]\",\"arr_orig[2]\",\"arr_orig[3]\"],\"state\":\"comparing\",\"hold\":true},{\"do\":\"highlight\",\"target\":[\"arr_orig[4]\",\"arr_orig[5]\",\"arr_orig[6]\"],\"state\":\"pivot\",\"hold\":true},{\"do\":\"create\",\"target\":[\"arr_left\",\"arr_right\"],\"effect\":\"drop\"}]},{\"title\":\"Sort & Merge Left Half\",\"narration\":\"Recursively, [38, 27] becomes [27, 38] and [43, 3] becomes [3, 43]. Merging them yields [3, 27, 38, 43].\",\"actions\":[{\"do\":\"clear\",\"target\":\"arr_orig\"},{\"do\":\"create\",\"target\":\"merged_left\",\"effect\":\"grow\"},{\"do\":\"highlight\",\"target\":\"merged_left\",\"state\":\"active\"}]},{\"title\":\"Sort & Merge Right Half\",\"narration\":\"On the right, [82, 10] becomes [10, 82] and merges with single element [9] to form [9, 10, 82].\",\"actions\":[{\"do\":\"create\",\"target\":\"merged_right\",\"effect\":\"grow\"},{\"do\":\"highlight\",\"target\":\"merged_right\",\"state\":\"active\"}]},{\"title\":\"Final Merge Step\",\"narration\":\"Comparing the front items of both sorted halves creates the complete ordered list from smallest to largest.\",\"actions\":[{\"do\":\"clear\",\"target\":[\"merged_left\",\"merged_right\"]},{\"do\":\"create\",\"target\":\"sorted_final\",\"effect\":\"drop\"},{\"do\":\"highlight\",\"target\":\"sorted_final\",\"state\":\"sorted\",\"hold\":true}]}],\"tone\":\"\"}"
+}

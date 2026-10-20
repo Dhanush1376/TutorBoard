@@ -102,6 +102,23 @@ export class CanvasEngine implements ICanvasEngine {
     if (!node || typeof node.getBBox !== 'function') return null;
     try {
       const b = node.getBBox();
+      // Map through the full transform chain into main-layer space, so nested
+      // targets (e.g. an array cell "arr[3]" inside its translated array group)
+      // resolve to where they actually are, not near the origin.
+      const nodeCTM = node.getCTM?.();
+      const layerCTM = (this.mainLayer.node() as SVGGElement | null)?.getCTM?.();
+      if (nodeCTM && layerCTM) {
+        const m = layerCTM.inverse().multiply(nodeCTM);
+        const xs: number[] = [];
+        const ys: number[] = [];
+        for (const [px, py] of [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]) {
+          xs.push(m.a * px + m.c * py + m.e);
+          ys.push(m.b * px + m.d * py + m.f);
+        }
+        const x = Math.min(...xs);
+        const y = Math.min(...ys);
+        return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+      }
       const m = /translate\(([-\d.]+)[,\s]+([-\d.]+)/.exec(node.getAttribute('transform') || '');
       const tx = m ? parseFloat(m[1]) : 0;
       const ty = m ? parseFloat(m[2]) : 0;

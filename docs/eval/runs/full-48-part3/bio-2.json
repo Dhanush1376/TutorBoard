@@ -1,0 +1,159 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "DNA Replication Overview",
+  "domain": "biology",
+  "summary": "Helicase unwinds DNA, polymerase builds a new strand, and ligase joins fragments, producing two identical DNA molecules.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "template",
+    "label": "Template",
+    "type": "text",
+    "text": "5'‑ATG‑CGA‑TTC‑3'",
+    "role": "title"
+   },
+   {
+    "id": "fork",
+    "label": "Replication fork",
+    "type": "text",
+    "text": "↔",
+    "role": "caption"
+   },
+   {
+    "id": "helicase",
+    "tone": "primary",
+    "type": "rect",
+    "size": "sm",
+    "text": "Helicase"
+   },
+   {
+    "id": "polymerase",
+    "tone": "primary",
+    "type": "rect",
+    "size": "sm",
+    "text": "DNA Pol"
+   },
+   {
+    "id": "ligase",
+    "tone": "primary",
+    "type": "rect",
+    "size": "sm",
+    "text": "Ligase"
+   },
+   {
+    "id": "direction",
+    "type": "text",
+    "text": "5'→3'",
+    "role": "caption"
+   },
+   {
+    "id": "complement",
+    "label": "New strand",
+    "type": "text",
+    "text": "3'‑TAC‑GCT‑AAG‑5'",
+    "role": "title"
+   },
+   {
+    "id": "new_dna",
+    "label": "New DNA",
+    "type": "text",
+    "text": "5'‑ATG‑CGA‑TTC‑3'",
+    "role": "title"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "template",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "fork",
+    "of": "template",
+    "gap": "md"
+   },
+   {
+    "rel": "grid",
+    "ids": [
+     "helicase",
+     "polymerase",
+     "ligase"
+    ],
+    "cols": 3,
+    "gap": "lg"
+   },
+   {
+    "rel": "above",
+    "id": "direction",
+    "of": "polymerase",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "complement",
+    "of": "ligase",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "new_dna",
+    "of": "complement",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Helicase opens the fork",
+    "narration": "Helicase binds to the DNA and unwinds the double helix, creating a replication fork.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "template",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities",
+   "message": "\"fork\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"helicase\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"polymerase\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"ligase\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"direction\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"complement\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"new_dna\" is never shown"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 58248,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"DNA Replication Overview\",\"domain\":\"biology\",\"summary\":\"Helicase unwinds DNA, polymerase builds a new strand, and ligase joins fragments, producing two identical DNA molecules.\",\"spaces\":[],\"entities\":[{\"id\":\"template\",\"type\":\"text\",\"text\":\"5'‑ATG‑CGA‑TTC‑3'\",\"role\":\"title\",\"label\":\"Template\"},{\"id\":\"fork\",\"type\":\"text\",\"text\":\"↔\",\"role\":\"caption\",\"label\":\"Replication fork\"},{\"id\":\"helicase\",\"type\":\"rect\",\"size\":\"sm\",\"text\":\"Helicase\",\"tone\":\"primary\"},{\"id\":\"polymerase\",\"type\":\"rect\",\"size\":\"sm\",\"text\":\"DNA Pol\",\"tone\":\"primary\"},{\"id\":\"ligase\",\"type\":\"rect\",\"size\":\"sm\",\"text\":\"Ligase\",\"tone\":\"primary\"},{\"id\":\"direction\",\"type\":\"text\",\"text\":\"5'→3'\",\"role\":\"caption\"},{\"id\":\"complement\",\"type\":\"text\",\"text\":\"3'‑TAC‑GCT‑AAG‑5'\",\"role\":\"title\",\"label\":\"New strand\"},{\"id\":\"new_dna\",\"type\":\"text\",\"text\":\"5'‑ATG‑CGA‑TTC‑3'\",\"role\":\"title\",\"label\":\"New DNA\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"template\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"fork\",\"of\":\"template\"},{\"rel\":\"grid\",\"ids\":[\"helicase\",\"polymerase\",\"ligase\"],\"cols\":3},{\"rel\":\"above\",\"id\":\"direction\",\"of\":\"polymerase\"},{\"rel\":\"below\",\"id\":\"complement\",\"of\":\"ligase\"},{\"rel\":\"below\",\"id\":\"new_dna\",\"of\":\"complement\"}],\"beats\":[{\"title\":\"Helicase opens the fork\",\"narration\":\"Helicase binds to the DNA and unwinds the double helix, creating a replication fork.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"template\",\"effect\":\"pop\"}]}]}"
+}

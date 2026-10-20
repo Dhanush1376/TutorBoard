@@ -1,0 +1,49 @@
+{
+  "version": "1",
+  "title": "Why water is bent",
+  "domain": "chemistry",
+  "summary": "Two lone pairs on oxygen squeeze the H–O–H angle to 104.5°, making water bent and polar.",
+  "entities": [
+    { "id": "formula", "type": "text", "text": "H₂O", "role": "title" },
+    {
+      "id": "h2o",
+      "type": "molecule",
+      "atoms": [{ "id": "O", "el": "O" }, { "id": "H1", "el": "H" }, { "id": "H2", "el": "H" }],
+      "bonds": [[0, 1, 1], [0, 2, 1]],
+      "lonePairs": [{ "atom": 0, "count": 2 }]
+    },
+    { "id": "bond", "type": "angle", "vertex": "h2o.O", "from": "h2o.H1", "to": "h2o.H2", "label": "104.5°", "tone": "warning" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "h2o", "region": "center" },
+    { "rel": "place", "id": "formula", "region": "top-left" }
+  ],
+  "beats": [
+    {
+      "title": "Oxygen bonds two hydrogens",
+      "narration": "Oxygen shares one electron pair with each hydrogen.",
+      "actions": [
+        { "do": "create", "target": "formula", "effect": "fade" },
+        { "do": "create", "target": "h2o", "effect": "pop", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Two lone pairs push back",
+      "narration": "Oxygen also keeps two lone pairs. They repel the bonding pairs more strongly than the bonds repel each other.",
+      "actions": [
+        { "do": "highlight", "target": "h2o.O", "state": "insight" },
+        { "do": "annotate", "target": "h2o.O", "text": "2 lone pairs", "side": "above", "with": "previous" }
+      ]
+    },
+    {
+      "title": "The 104.5° bond angle",
+      "narration": "The bonds are squeezed from 109.5° to 104.5°, so water is bent — and because oxygen pulls electrons harder, it is polar.",
+      "actions": [
+        { "do": "create", "target": "bond", "effect": "grow" },
+        { "do": "unannotate", "target": "h2o.O" },
+        { "do": "annotate", "target": "h2o.H1", "text": "δ+", "side": "below" },
+        { "do": "annotate", "target": "h2o.H2", "text": "δ+", "side": "below", "with": "previous" }
+      ]
+    }
+  ]
+}

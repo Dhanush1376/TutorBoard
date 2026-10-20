@@ -137,6 +137,11 @@ export function buildTimelinePayload(sessionId, timeline) {
     viewportState:      timeline.viewportState || null,
     expansionGraph:     timeline.expansionGraph || [],
     cinematicMeta:      timeline.cinematicMeta || null,
+    // SimulatorAgent lessons: without this the generated simulation never
+    // reached the client and it showed "No simulation available."
+    ...(timeline.simulationHtml ? { simulationHtml: timeline.simulationHtml } : {}),
+    // Engine v2 lessons carry their Scene Language scene (renderer 'scene-v2')
+    ...(timeline.sceneV2 ? { sceneV2: timeline.sceneV2 } : {}),
   };
 }
 
@@ -368,8 +373,12 @@ export async function resolveUserConfig(socketOrReq, socketUser, inputText, sele
  * Shared Progress Emitter — Handles Socket.IO broadcasting
  */
 export function emitProgress(socket, streamChannel, stage, chunk = null) {
-  const event = chunk ? 'teaching:progress-tokens' : 'teaching:progress';
-  const data = chunk ? { stage, text: chunk } : { message: stage };
+  // Only string chunks are streamed narration tokens. Callers such as the agent
+  // loop pass stage metadata objects ({ stage, totalStages }) as the second
+  // argument; emitting those as tokens crashed the client's NarrationBar.
+  const isTokenChunk = typeof chunk === 'string' && chunk.length > 0;
+  const event = isTokenChunk ? 'teaching:progress-tokens' : 'teaching:progress';
+  const data = isTokenChunk ? { stage, text: chunk } : { message: stage };
   
   // Local emit
   socket.emit(event, data);

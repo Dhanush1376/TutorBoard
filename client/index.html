@@ -2,36 +2,43 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/TutorBoardLogo.png" />
-    <link rel="apple-touch-icon" href="/TutorBoardLogo.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#fdfaf3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f0f0e" media="(prefers-color-scheme: dark)" />
 
     <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
     <!-- Critical UI font loaded sync; decorative fonts deferred -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@100..900&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" media="print" onload="this.media='all'" />
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@100..900&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" /></noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Geist+Mono:wght@400;500;600&family=Outfit:wght@100..900&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Geist+Mono:wght@400;500;600&family=Outfit:wght@100..900&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" /></noscript>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TutorBoard — AI Workspace</title>
-    <meta name="description" content="TutorBoard is a next-generation AI workspace. Chat, create, visualize, and build with an intelligent AI copilot that understands context deeply." />
+    <title>TutorBoard — AI Visual Learning & Canvas</title>
+    <meta name="description" content="TutorBoard is an AI-powered visual learning canvas. Watch complex algorithms, science, and math concepts come to life step-by-step on an interactive whiteboard." />
     <meta name="robots" content="index, follow" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://tutor-board.vercel.app/" />
-    <meta property="og:title" content="TutorBoard — AI Workspace" />
-    <meta property="og:description" content="A next-generation AI workspace. Chat, create, visualize, and build with an intelligent AI copilot." />
+    <meta property="og:title" content="TutorBoard — AI Visual Learning & Canvas" />
+    <meta property="og:description" content="An AI-powered visual learning canvas. Watch complex algorithms, science, and math come to life step-by-step on an interactive whiteboard." />
+    <meta property="og:site_name" content="TutorBoard" />
     <meta property="og:image" content="https://tutor-board.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="TutorBoard logo: a dark tile with one drawn line ending in an amber point" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://tutor-board.vercel.app/" />
-    <meta property="twitter:title" content="TutorBoard — AI Workspace" />
-    <meta property="twitter:description" content="A next-generation AI workspace. Chat, create, visualize, and build with an intelligent AI copilot." />
+    <meta property="twitter:title" content="TutorBoard — AI Visual Learning & Canvas" />
+    <meta property="twitter:description" content="An AI-powered visual learning canvas. Watch complex algorithms, science, and math come to life step-by-step on an interactive whiteboard." />
     <meta property="twitter:image" content="https://tutor-board.vercel.app/og-image.png" />
     <style>
       /* Critical Loader CSS — Prevents "black / white flash" before index.css loads */
@@ -48,12 +55,14 @@
         --accent: #fdfaf3;
       }
 
-      body {
+      html, body {
         background-color: var(--bg-primary);
         color: var(--text-primary);
         margin: 0;
         padding: 0;
         overflow: hidden;
+        max-width: 100vw;
+        height: 100%;
         transition: background-color 0.3s ease;
       }
     </style>

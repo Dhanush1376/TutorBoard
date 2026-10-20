@@ -1,0 +1,34 @@
+[
+ {
+  "effort": "lite",
+  "id": "heap",
+  "s": 2.9,
+  "attempts": 1,
+  "what": "branch from beat 1, 2 beat(s)",
+  "answer": "A new node always enters at the bottom-most, left-most open spot, which sits under 7, not 9. Once 3 is there, it only compares against its direct parent as it bubbles up."
+ },
+ {
+  "effort": "lite",
+  "id": "bubble",
+  "s": 2.8,
+  "attempts": 1,
+  "what": "branch from beat 3, 2 beat(s)",
+  "answer": "5 keeps moving because it's larger than its neighbors, so it bubbles up until it hits a larger number or the end of the list."
+ },
+ {
+  "effort": "lite",
+  "id": "projectile",
+  "s": 2.6,
+  "attempts": 1,
+  "what": "branch from beat 2, 2 beat(s)",
+  "answer": "Gravity constantly pulls the vertical velocity downward while horizontal velocity stays constant, bending the straight line into a parabola."
+ },
+ {
+  "effort": "lite",
+  "id": "water",
+  "s": 3.5,
+  "attempts": 1,
+  "what": "branch from beat 2, 3 beat(s)",
+  "answer": "If water were linear at 180°, the two lone pairs and two bonds would be tightly cramped on one side. By bending to 104.5°, the four electron pairs get as far apart from each other as possible in three-dimensional space."
+ }
+]

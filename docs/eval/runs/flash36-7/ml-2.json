@@ -1,0 +1,231 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How Gradient Descent Finds a Minimum",
+  "domain": "ml",
+  "summary": "Gradient descent calculates the slope of the loss function at the current point and steps downhill in the opposite direction until reaching zero slope.",
+  "spaces": [
+   {
+    "id": "loss_space",
+    "kind": "cartesian",
+    "x": [
+     -0.5,
+     5
+    ],
+    "y": [
+     0,
+     8
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "Weight (w)",
+    "yLabel": "Loss L(w)",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "loss_curve",
+    "tone": "primary",
+    "space": "loss_space",
+    "type": "plot",
+    "expr": "(x - 2)^2 + 1"
+   },
+   {
+    "id": "w_body",
+    "label": "w",
+    "tone": "accent",
+    "space": "loss_space",
+    "type": "body",
+    "at": [
+     4.5,
+     7.25
+    ],
+    "size": "sm"
+   },
+   {
+    "id": "min_pt",
+    "label": "w*",
+    "tone": "success",
+    "space": "loss_space",
+    "type": "point",
+    "at": [
+     2,
+     1
+    ]
+   },
+   {
+    "id": "eqn",
+    "type": "math",
+    "latex": "w_{next} = w - \\alpha \\cdot \\nabla L(w)"
+   },
+   {
+    "id": "step_status",
+    "tone": "warning",
+    "type": "text",
+    "text": "Slope > 0 → Move Left",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "loss_space",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "eqn",
+    "of": "loss_space",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "step_status",
+    "of": "loss_space",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The Loss Landscape",
+    "narration": "To optimize a model, we plot Loss against weight w. We start at a random initial weight with high loss.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "loss_curve",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "w_body",
+      "effect": "drop"
+     },
+     {
+      "do": "create",
+      "target": "eqn",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Calculate the Gradient",
+    "narration": "The gradient measures the slope at w = 4.5. A positive slope means moving right goes uphill, so we must step left.",
+    "actions": [
+     {
+      "do": "annotate",
+      "target": "w_body",
+      "text": "Slope = +5 (Uphill)"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "step_status",
+      "effect": "fade"
+     },
+     {
+      "do": "highlight",
+      "target": "w_body",
+      "state": "comparing",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step Downhill",
+    "narration": "We subtract a fraction of the gradient to move downhill. The weight updates from 4.5 to 3.0.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "w_body"
+     },
+     {
+      "do": "move",
+      "target": "w_body",
+      "to": [
+       3,
+       2
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "step_status",
+      "text": "w = 3.0 | Loss = 2.0"
+     },
+     {
+      "do": "highlight",
+      "target": "w_body",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Adaptive Steps Near Bottom",
+    "narration": "As the curve flattens, the slope becomes smaller, naturally reducing the step size to avoid overshooting.",
+    "actions": [
+     {
+      "do": "move",
+      "target": "w_body",
+      "to": [
+       2.3,
+       1.09
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "step_status",
+      "text": "w = 2.3 | Smaller Slope"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Convergence at Minimum",
+    "narration": "At the minimum w* = 2.0, the gradient is exactly zero, so updates stop and optimization is complete.",
+    "actions": [
+     {
+      "do": "move",
+      "target": "w_body",
+      "to": [
+       2,
+       1
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "min_pt",
+      "effect": "pop"
+     },
+     {
+      "do": "highlight",
+      "target": "w_body",
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "step_status",
+      "text": "Slope = 0 | Minimal Loss Reached!"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 19562,
+ "model": "gemini-3.6-flash",
+ "domain": "ml"
+}

@@ -1,0 +1,288 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "BFS Exploration of a Simple Graph",
+  "domain": "algorithms",
+  "summary": "Breadth‑first search starts at A, discovers neighbors B and C, then D, and finally E, using a queue to track the frontier.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "g",
+    "type": "graph",
+    "nodes": [
+     {
+      "id": "A",
+      "value": "A"
+     },
+     {
+      "id": "B",
+      "value": "B"
+     },
+     {
+      "id": "C",
+      "value": "C"
+     },
+     {
+      "id": "D",
+      "value": "D"
+     },
+     {
+      "id": "E",
+      "value": "E"
+     }
+    ],
+    "edges": [
+     {
+      "from": "A",
+      "to": "B"
+     },
+     {
+      "from": "A",
+      "to": "C"
+     },
+     {
+      "from": "B",
+      "to": "D"
+     },
+     {
+      "from": "C",
+      "to": "D"
+     },
+     {
+      "from": "D",
+      "to": "E"
+     }
+    ],
+    "directed": false,
+    "arrangement": "auto"
+   },
+   {
+    "id": "q",
+    "type": "queue",
+    "values": []
+   },
+   {
+    "id": "cap",
+    "type": "text",
+    "text": "BFS from A",
+    "role": "title"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "cap",
+    "region": "top"
+   },
+   {
+    "rel": "place",
+    "id": "g",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "q",
+    "region": "bottom"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Graph Overview",
+    "narration": "Here is the graph we will traverse with BFS starting at A.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "g",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "q",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "cap",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Start at A",
+    "narration": "BFS begins at node A, marking it visited and adding its neighbors B and C to the queue.",
+    "actions": [
+     {
+      "do": "enqueue",
+      "target": "q",
+      "value": "A"
+     },
+     {
+      "do": "highlight",
+      "target": "g.A",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.B",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.C",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "enqueue",
+      "target": "q",
+      "value": "B"
+     },
+     {
+      "with": "previous",
+      "do": "enqueue",
+      "target": "q",
+      "value": "C"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.A",
+      "state": "visited",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Process B",
+    "narration": "Dequeue B, visit it, and discover D, which is added to the queue.",
+    "actions": [
+     {
+      "do": "dequeue",
+      "target": "q"
+     },
+     {
+      "do": "highlight",
+      "target": "g.B",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "g.D",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "enqueue",
+      "target": "q",
+      "value": "D"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.B",
+      "state": "visited",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Process C",
+    "narration": "Dequeue C and visit it; D is already discovered, so no new nodes are added.",
+    "actions": [
+     {
+      "do": "dequeue",
+      "target": "q"
+     },
+     {
+      "do": "highlight",
+      "target": "g.C",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.C",
+      "state": "visited",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Finish",
+    "narration": "Process D (discover E) and then E; all nodes are now visited.",
+    "actions": [
+     {
+      "do": "dequeue",
+      "target": "q"
+     },
+     {
+      "do": "highlight",
+      "target": "g.D",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "g.E",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "enqueue",
+      "target": "q",
+      "value": "E"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.D",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "dequeue",
+      "target": "q"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.E",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "g.E",
+      "state": "visited",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 26906,
+ "model": "gemini-3.6-flash",
+ "domain": "algorithms",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"BFS Exploration of a Simple Graph\",\"domain\":\"algorithms\",\"summary\":\"Breadth‑first search starts at A, discovers neighbors B and C, then D, and finally E, using a queue to track the frontier.\",\"spaces\":[],\"entities\":[{\"id\":\"g\",\"type\":\"graph\",\"nodes\":[{\"id\":\"A\",\"value\":\"A\"},{\"id\":\"B\",\"value\":\"B\"},{\"id\":\"C\",\"value\":\"C\"},{\"id\":\"D\",\"value\":\"D\"},{\"id\":\"E\",\"value\":\"E\"}],\"edges\":[{\"from\":\"A\",\"to\":\"B\"},{\"from\":\"A\",\"to\":\"C\"},{\"from\":\"B\",\"to\":\"D\"},{\"from\":\"C\",\"to\":\"D\"},{\"from\":\"D\",\"to\":\"E\"}],\"directed\":false,\"arrangement\":\"auto\"},{\"id\":\"q\",\"type\":\"queue\",\"values\":[]},{\"id\":\"cap\",\"type\":\"text\",\"text\":\"BFS from A\",\"role\":\"title\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"cap\",\"region\":\"top\"},{\"rel\":\"place\",\"id\":\"g\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"q\",\"region\":\"bottom\"}],\"beats\":[{\"title\":\"Graph Overview\",\"narration\":\"Here is the graph we will traverse with BFS starting at A.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"g\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"q\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"cap\",\"effect\":\"type\"}]},{\"title\":\"Start at A\",\"narration\":\"BFS begins at node A, marking it visited and adding its neighbors B and C to the queue.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"enqueue\",\"target\":\"q\",\"value\":\"A\"},{\"do\":\"highlight\",\"target\":\"g.A\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"g.B\",\"state\":\"found\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"g.C\",\"state\":\"found\",\"with\":\"previous\"},{\"do\":\"enqueue\",\"target\":\"q\",\"value\":\"B\",\"with\":\"previous\"},{\"do\":\"enqueue\",\"target\":\"q\",\"value\":\"C\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"g.A\",\"state\":\"visited\",\"with\":\"previous\"}]},{\"title\":\"Process B\",\"narration\":\"Dequeue B, visit it, and discover D, which is added to the queue.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"dequeue\",\"target\":\"q\",\"value\":\"B\"},{\"do\":\"highlight\",\"target\":\"g.B\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"g.D\",\"state\":\"found\"},{\"do\":\"enqueue\",\"target\":\"q\",\"value\":\"D\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"g.B\",\"state\":\"visited\",\"with\":\"previous\"}]},{\"title\":\"Process C\",\"narration\":\"Dequeue C and visit it; D is already discovered, so no new nodes are added.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"dequeue\",\"target\":\"q\",\"value\":\"C\"},{\"do\":\"highlight\",\"target\":\"g.C\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"g.C\",\"state\":\"visited\",\"with\":\"previous\"}]},{\"title\":\"Finish\",\"narration\":\"Process D (discover E) and then E; all nodes are now visited.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"dequeue\",\"target\":\"q\",\"value\":\"D\"},{\"do\":\"highlight\",\"target\":\"g.D\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"g.E\",\"state\":\"found\"},{\"do\":\"enqueue\",\"target\":\"q\",\"value\":\"E\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"g.D\",\"state\":\"visited\",\"with\":\"previous\"},{\"do\":\"dequeue\",\"target\":\"q\",\"value\":\"E\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"g.E\",\"state\":\"active\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"g.E\",\"state\":\"visited\",\"with\":\"previous\"}]}]}"
+}

@@ -1,0 +1,231 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How a neural network recognises a cat",
+  "domain": "ml",
+  "summary": "Pixels become features, features flow through hidden layers, and the output neuron with the highest activation decides the class.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "img",
+    "label": "input image",
+    "type": "pixels",
+    "grid": [
+     [
+      0.2,
+      0.3,
+      0.5,
+      0.3,
+      0.2
+     ],
+     [
+      0.3,
+      0.7,
+      0.9,
+      0.7,
+      0.3
+     ],
+     [
+      0.5,
+      0.9,
+      1,
+      0.9,
+      0.5
+     ],
+     [
+      0.3,
+      0.7,
+      0.9,
+      0.7,
+      0.3
+     ],
+     [
+      0.2,
+      0.3,
+      0.5,
+      0.3,
+      0.2
+     ]
+    ]
+   },
+   {
+    "id": "net",
+    "type": "network",
+    "layers": [
+     3,
+     4,
+     2
+    ],
+    "inputLabels": [
+     "pixel"
+    ],
+    "outputLabels": [
+     "cat",
+     "dog"
+    ]
+   },
+   {
+    "id": "probs",
+    "type": "table",
+    "columns": [
+     "class",
+     "probability"
+    ],
+    "rows": [
+     [
+      "cat",
+      "94%"
+     ],
+     [
+      "dog",
+      "6%"
+     ]
+    ]
+   },
+   {
+    "id": "pred",
+    "tone": "warning",
+    "type": "text",
+    "text": "Prediction: cat",
+    "role": "title"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "row",
+    "ids": [
+     "img",
+     "net",
+     "probs"
+    ],
+    "gap": "xl"
+   },
+   {
+    "rel": "below",
+    "id": "pred",
+    "of": "net",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Image enters",
+    "narration": "The picture is fed as a grid of pixel intensities.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "img",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "net",
+      "effect": "draw"
+     },
+     {
+      "do": "connect",
+      "from": "img",
+      "to": "net.L0",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "net.L0",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First layer detects edges",
+    "narration": "The first hidden layer responds to simple patterns like edges and corners.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "net.L1",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Deeper layer finds cat parts",
+    "narration": "Later layers combine edges into shapes such as ears and whiskers, forming a cat concept.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "net.L2",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "Which output neuron will fire strongest?",
+     "choices": [
+      "cat",
+      "dog"
+     ],
+     "answer": 0,
+     "explain": "The cat neuron receives the strongest combined evidence."
+    }
+   },
+   {
+    "title": "Prediction",
+    "narration": "The output neuron for cat has the highest activation, so the network predicts a cat.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "net.L2n0",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "probs",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "pred",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Takeaway",
+    "narration": "A neural network transforms raw pixels into high‑level concepts, ending with the most confident class label.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "pred",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "beats[3].actions[0].target",
+    "message": "\"net\" has no part \"L3n0\" (available: layer refs like \"L0\" or \"L1n2\")"
+   }
+  ]
+ ],
+ "ms": 37633,
+ "model": "gemini-3.6-flash",
+ "domain": "ml",
+ "drafts": [
+  "{\"version\":\"1\",\"title\":\"How a neural network recognises a cat\",\"domain\":\"ml\",\"summary\":\"Pixels become features, features flow through hidden layers, and the output neuron with the highest activation decides the class.\",\"spaces\":[],\"entities\":[{\"id\":\"img\",\"type\":\"pixels\",\"label\":\"input image\",\"grid\":[[0.2,0.3,0.5,0.3,0.2],[0.3,0.7,0.9,0.7,0.3],[0.5,0.9,1,0.9,0.5],[0.3,0.7,0.9,0.7,0.3],[0.2,0.3,0.5,0.3,0.2]]},{\"id\":\"net\",\"type\":\"network\",\"layers\":[3,4,2],\"inputLabels\":[\"pixel\"],\"outputLabels\":[\"cat\",\"dog\"]},{\"id\":\"probs\",\"type\":\"table\",\"columns\":[\"class\",\"probability\"],\"rows\":[[\"cat\",\"94%\"],[\"dog\",\"6%\"]]},{\"id\":\"pred\",\"type\":\"text\",\"text\":\"Prediction: cat\",\"role\":\"title\",\"tone\":\"warning\"}],\"layout\":[{\"rel\":\"row\",\"ids\":[\"img\",\"net\",\"probs\"],\"gap\":\"xl\"},{\"rel\":\"below\",\"id\":\"pred\",\"of\":\"net\"}],\"beats\":[{\"title\":\"Image enters\",\"narration\":\"The picture is fed as a grid of pixel intensities.\",\"actions\":[{\"do\":\"create\",\"target\":\"img\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"net\",\"effect\":\"draw\"},{\"do\":\"connect\",\"from\":\"img\",\"to\":\"net.L0\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"net.L0\",\"state\":\"active\"}]},{\"title\":\"First layer detects edges\",\"narration\":\"The first hidden layer responds to simple patterns like edges and corners.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"net.L1\",\"state\":\"active\"}]},{\"title\":\"Deeper layer finds cat parts\",\"narration\":\"Later layers combine edges into shapes such as ears and whiskers, forming a cat concept.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"net.L2\",\"state\":\"active\"}],\"check\":{\"question\":\"Which output neuron will fire strongest?\",\"choices\":[\"cat\",\"dog\"],\"answer\":0,\"explain\":\"The cat neuron receives the strongest combined evidence.\"}},{\"title\":\"Prediction\",\"narration\":\"The output neuron for cat has the highest activation, so the network predicts a cat.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"net.L3n0\",\"state\":\"found\"},{\"do\":\"create\",\"target\":\"probs\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"pred\",\"effect\":\"pop\"}]},{\"title\":\"Takeaway\",\"narration\":\"A neural network transforms raw pixels into high‑level concepts, ending with the most confident class label.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"pred\",\"state\":\"insight\"}]}]}"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"How a neural network recognises a cat\",\"domain\":\"ml\",\"summary\":\"Pixels become features, features flow through hidden layers, and the output neuron with the highest activation decides the class.\",\"spaces\":[],\"entities\":[{\"id\":\"img\",\"type\":\"pixels\",\"label\":\"input image\",\"grid\":[[0.2,0.3,0.5,0.3,0.2],[0.3,0.7,0.9,0.7,0.3],[0.5,0.9,1,0.9,0.5],[0.3,0.7,0.9,0.7,0.3],[0.2,0.3,0.5,0.3,0.2]]},{\"id\":\"net\",\"type\":\"network\",\"layers\":[3,4,2],\"inputLabels\":[\"pixel\"],\"outputLabels\":[\"cat\",\"dog\"]},{\"id\":\"probs\",\"type\":\"table\",\"columns\":[\"class\",\"probability\"],\"rows\":[[\"cat\",\"94%\"],[\"dog\",\"6%\"]]},{\"id\":\"pred\",\"type\":\"text\",\"text\":\"Prediction: cat\",\"role\":\"title\",\"tone\":\"warning\"}],\"layout\":[{\"rel\":\"row\",\"ids\":[\"img\",\"net\",\"probs\"],\"gap\":\"xl\"},{\"rel\":\"below\",\"id\":\"pred\",\"of\":\"net\"}],\"beats\":[{\"title\":\"Image enters\",\"narration\":\"The picture is fed as a grid of pixel intensities.\",\"actions\":[{\"do\":\"create\",\"target\":\"img\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"net\",\"effect\":\"draw\"},{\"do\":\"connect\",\"from\":\"img\",\"to\":\"net.L0\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":\"net.L0\",\"state\":\"active\"}]},{\"title\":\"First layer detects edges\",\"narration\":\"The first hidden layer responds to simple patterns like edges and corners.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"net.L1\",\"state\":\"active\"}]},{\"title\":\"Deeper layer finds cat parts\",\"narration\":\"Later layers combine edges into shapes such as ears and whiskers, forming a cat concept.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"net.L2\",\"state\":\"active\"}],\"check\":{\"question\":\"Which output neuron will fire strongest?\",\"choices\":[\"cat\",\"dog\"],\"answer\":0,\"explain\":\"The cat neuron receives the strongest combined evidence.\"}},{\"title\":\"Prediction\",\"narration\":\"The output neuron for cat has the highest activation, so the network predicts a cat.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"net.L2n0\",\"state\":\"found\"},{\"do\":\"create\",\"target\":\"probs\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"pred\",\"effect\":\"pop\"}]},{\"title\":\"Takeaway\",\"narration\":\"A neural network transforms raw pixels into high‑level concepts, ending with the most confident class label.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"pred\",\"state\":\"insight\"}]}]}"
+}

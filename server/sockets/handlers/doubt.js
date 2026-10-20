@@ -16,6 +16,8 @@ import {
   emitProfile
 } from '../utils.js';
 import { runDeltaAgent } from '../../engine/agents/deltaAgent.js';
+import { engineV2Enabled } from '../../engine/scene/lesson.js';
+import { answerOnBoard, toBranch } from '../../engine/scene/doubt.js';
 import { trackEvent } from '../../utils/core/analytics.js';
 
 export function registerDoubtHandlers(socket, machine, sessionId) {
@@ -59,6 +61,28 @@ export function registerDoubtHandlers(socket, machine, sessionId) {
         
         const confusionIndex = s?.learnerProfile?.confusionIndex || 0;
         const mode = confusionIndex > 0.4 ? 'SIMPLIFY' : 'EXPLAIN';
+
+        // Engine v2 lesson: answer on its board, as a branch of the lesson
+        if (engineV2Enabled() && snapshot?.sceneV2 && !file) {
+          const model = userConfig?.useCustomApi ? resolveModelId(selectedAgent) : undefined;
+          const d = await withTimeout(answerOnBoard(cleanQuestion, snapshot.sceneV2, Number(snapshot.beatIndex) || 0, { model, userConfig }), 90000);
+          console.log(`[Doubt] Engine v2 → ${d.ok ? d.kind : 'FAILED'} in ${d.ms} ms, ${d.attempts} attempt(s)`);
+          if (d.ok && d.kind === 'branch') {
+            machine.send(EVENTS.DOUBT_RESPONSE_READY, { response: { answer: d.answer } });
+            socket.emit('teaching:doubt-response', {
+              _question: cleanQuestion,
+              answer: d.answer,
+              isRelevant: true,
+              hasVisuals: true,
+              sceneBranch: toBranch(d),
+            });
+            await sessionStore.addMessage(sessionId, 'user', cleanQuestion);
+            await sessionStore.addMessage(sessionId, 'assistant', d.answer);
+            await syncToDatabase(sessionId);
+            return;
+          }
+          // not drawable on this board (or a different subject): the text pipeline answers
+        }
 
         const response = await withTimeout(
           handleDoubt(

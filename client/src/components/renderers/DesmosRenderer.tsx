@@ -117,12 +117,12 @@ const DesmosRenderer = forwardRef((props: DesmosRendererProps, ref) => {
           <h2 className="text-2xl font-bold text-white tracking-tight">
             {timeline.title || "Functional Analysis"}
           </h2>
-          <p className="text-blue-400/80 text-xs font-mono uppercase tracking-widest mt-1">
+          <p className="text-blue-400/80 text-xs font-medium mt-1">
             Desmos Interactive Graphing Engine
           </p>
         </div>
         <div className="text-right">
-          <span className="text-[10px] font-mono text-white/20">RENDERER_ID: DESMOS_V1</span>
+          <span className="text-[11px] font-medium text-white/30">Desmos Engine v1</span>
         </div>
       </div>
 

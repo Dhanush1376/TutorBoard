@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "about": "Fixed evaluation set for the visual engine. Every change to the planner, validator or renderer is scored against it (checklist 0.4). 'mustShow' lists what a correct lesson visibly does.",
+  "rubric": {
+    "correctness": "Facts, values and steps are right (checked against tools where possible). 0–5",
+    "visualMatch": "Each beat's board shows what its narration says. 0–5",
+    "clarity": "Nothing overlaps, clips or goes off-screen; text is readable; the focus is obvious. 0–5",
+    "motion": "Changes are animated as transitions (swap, move, morph, trace), not cuts; pacing is calm. 0–5",
+    "pedagogy": "Beats build from simple to complete; titles are useful; ends with the answer. 0–5",
+    "validity": "Scene passes validateScene without repair (5), after one repair (3), after two (1), never (0).",
+    "latencySeconds": "Time to first beat on screen (recorded, not scored)."
+  },
+  "questions": [
+    { "id": "alg-1", "domain": "algorithms", "level": "intro", "question": "How does Bubble Sort work on [5, 1, 4, 2, 8]?", "mustShow": ["array of the given values", "compare highlights", "animated swaps", "sorted state at the end"] },
+    { "id": "alg-2", "domain": "algorithms", "level": "intro", "question": "Show binary search for 23 in [2, 5, 8, 12, 16, 23, 38, 56, 72, 91].", "mustShow": ["low/mid/high pointers", "halving the range", "found at index 5"] },
+    { "id": "alg-3", "domain": "algorithms", "level": "core", "question": "How does merge sort sort [38, 27, 43, 3, 9, 82, 10]?", "mustShow": ["recursive splits", "merging in order", "final sorted array"] },
+    { "id": "alg-4", "domain": "algorithms", "level": "core", "question": "Walk through quicksort's partition step on [7, 2, 1, 6, 8, 5, 3, 4] with the last element as pivot.", "mustShow": ["pivot highlighted", "elements moved around the pivot", "pivot in final position"] },
+    { "id": "alg-5", "domain": "algorithms", "level": "core", "question": "How does BFS explore this graph from A: A-B, A-C, B-D, C-D, D-E?", "mustShow": ["graph", "queue of frontier", "visit order A B C D E"] },
+    { "id": "alg-6", "domain": "algorithms", "level": "advanced", "question": "Explain Dijkstra's algorithm on a small weighted graph.", "mustShow": ["weighted graph", "distance table updating", "shortest path highlighted"] },
+
+    { "id": "ds-1", "domain": "data-structures", "level": "intro", "question": "What is the difference between a stack and a queue?", "mustShow": ["stack and queue side by side", "push/pop at top", "enqueue at rear, dequeue at front"] },
+    { "id": "ds-2", "domain": "data-structures", "level": "intro", "question": "How do you insert a node at the head of a linked list?", "mustShow": ["linked list", "new node", "pointer rewiring"] },
+    { "id": "ds-3", "domain": "data-structures", "level": "core", "question": "Insert 15, 10, 20, 8, 12 into a binary search tree.", "mustShow": ["tree growing node by node", "left/right decisions", "final BST"] },
+    { "id": "ds-4", "domain": "data-structures", "level": "core", "question": "How does a hash map handle collisions with chaining?", "mustShow": ["buckets", "hashing a key to an index", "collision chained in a bucket"] },
+    { "id": "ds-5", "domain": "data-structures", "level": "core", "question": "How does a min-heap insert 3 into [5, 9, 7, 12, 10]?", "mustShow": ["heap as tree", "sift-up swaps", "heap property restored"] },
+    { "id": "ds-6", "domain": "data-structures", "level": "advanced", "question": "How does an LRU cache evict items?", "mustShow": ["ordered list of keys", "access moves to front", "least recent evicted"] },
+
+    { "id": "math-1", "domain": "math", "level": "intro", "question": "Solve 2x + 3 = 11 step by step.", "mustShow": ["equation transformed step by step", "x = 4"] },
+    { "id": "math-2", "domain": "math", "level": "core", "question": "Where are the roots of x² − 4x + 3?", "mustShow": ["parabola plot", "roots at x = 1 and x = 3 marked", "factorisation"] },
+    { "id": "math-3", "domain": "math", "level": "core", "question": "What does the derivative of x² mean geometrically?", "mustShow": ["curve", "tangent line moving", "slope = 2x"] },
+    { "id": "math-4", "domain": "math", "level": "core", "question": "Why is the area under y = x from 0 to 2 equal to 2?", "mustShow": ["shaded region", "triangle area", "integral result"] },
+    { "id": "math-5", "domain": "math", "level": "intro", "question": "What is a fraction like 3/4 of a pizza?", "mustShow": ["circle split into 4", "3 parts highlighted"] },
+    { "id": "math-6", "domain": "math", "level": "advanced", "question": "How does matrix multiplication of a 2×2 by a 2×2 work?", "mustShow": ["two matrices", "row × column highlights", "result filled cell by cell"] },
+
+    { "id": "geo-1", "domain": "geometry", "level": "core", "question": "Why do the angles of a triangle add up to 180°?", "mustShow": ["triangle construction", "three angles marked", "parallel line", "straight angle = 180°"] },
+    { "id": "geo-2", "domain": "geometry", "level": "core", "question": "Prove the Pythagorean theorem visually.", "mustShow": ["right triangle", "squares on each side", "areas a² + b² = c²"] },
+    { "id": "geo-3", "domain": "geometry", "level": "intro", "question": "What is the area of a circle and why πr²?", "mustShow": ["circle", "sectors rearranged", "area formula"] },
+    { "id": "geo-4", "domain": "geometry", "level": "intro", "question": "What is the sum of interior angles of a hexagon?", "mustShow": ["hexagon", "split into triangles", "720°"] },
+    { "id": "geo-5", "domain": "geometry", "level": "core", "question": "Construct the perpendicular bisector of a segment.", "mustShow": ["segment", "arcs from both ends", "bisector line"] },
+    { "id": "geo-6", "domain": "geometry", "level": "core", "question": "What are sine and cosine on the unit circle?", "mustShow": ["unit circle", "rotating point", "x = cos θ, y = sin θ"] },
+
+    { "id": "phy-1", "domain": "physics", "level": "core", "question": "How does a ball kicked at 45° travel?", "mustShow": ["axes", "velocity components", "parabolic path traced", "max height and range"] },
+    { "id": "phy-2", "domain": "physics", "level": "core", "question": "Why does a pendulum swing the way it does?", "mustShow": ["pendulum", "gravity and tension vectors", "energy exchange"] },
+    { "id": "phy-3", "domain": "physics", "level": "intro", "question": "What forces act on a block sliding down a ramp?", "mustShow": ["incline", "free-body vectors", "components along the slope"] },
+    { "id": "phy-4", "domain": "physics", "level": "core", "question": "What happens in an elastic collision between two balls?", "mustShow": ["two bodies", "before/after velocities", "momentum conserved"] },
+    { "id": "phy-5", "domain": "physics", "level": "core", "question": "How do transverse waves move?", "mustShow": ["wave plot", "travelling motion", "wavelength and amplitude labelled"] },
+    { "id": "phy-6", "domain": "physics", "level": "advanced", "question": "Show the electric field around a positive and a negative charge.", "mustShow": ["two charges", "field lines from + to −"] },
+
+    { "id": "chem-1", "domain": "chemistry", "level": "core", "question": "Why is a water molecule bent?", "mustShow": ["H₂O molecule", "lone pairs", "104.5° angle", "partial charges"] },
+    { "id": "chem-2", "domain": "chemistry", "level": "intro", "question": "What does an ionic bond in NaCl look like?", "mustShow": ["Na and Cl atoms", "electron transfer", "Na⁺ and Cl⁻"] },
+    { "id": "chem-3", "domain": "chemistry", "level": "core", "question": "Why is methane tetrahedral?", "mustShow": ["CH₄ molecule", "four bonds", "109.5°"] },
+    { "id": "chem-4", "domain": "chemistry", "level": "core", "question": "Balance the combustion of methane.", "mustShow": ["equation", "atom counts", "balanced coefficients"] },
+    { "id": "chem-5", "domain": "chemistry", "level": "intro", "question": "What are the electron shells of carbon?", "mustShow": ["nucleus", "two shells", "2 + 4 electrons"] },
+    { "id": "chem-6", "domain": "chemistry", "level": "advanced", "question": "How does a catalyst lower activation energy?", "mustShow": ["energy diagram", "two curves", "lower peak"] },
+
+    { "id": "bio-1", "domain": "biology", "level": "intro", "question": "How does mitosis divide a cell?", "mustShow": ["stages in order", "chromosomes splitting", "two cells"] },
+    { "id": "bio-2", "domain": "biology", "level": "core", "question": "How does DNA replicate?", "mustShow": ["double helix unzipping", "complementary bases", "two copies"] },
+    { "id": "bio-3", "domain": "biology", "level": "intro", "question": "How does blood flow through the heart?", "mustShow": ["four chambers", "flow order", "lungs and body loops"] },
+    { "id": "bio-4", "domain": "biology", "level": "core", "question": "What happens in photosynthesis?", "mustShow": ["inputs CO₂ + H₂O + light", "outputs glucose + O₂"] },
+    { "id": "bio-5", "domain": "biology", "level": "core", "question": "How does a neuron fire?", "mustShow": ["neuron", "signal travelling", "synapse"] },
+    { "id": "bio-6", "domain": "biology", "level": "advanced", "question": "How does natural selection change a population?", "mustShow": ["population", "selection pressure", "trait frequency shift"] },
+
+    { "id": "ml-1", "domain": "ml", "level": "core", "question": "How does a neural network recognise a cat?", "mustShow": ["input pixels", "layers", "signal flow", "prediction with confidence"] },
+    { "id": "ml-2", "domain": "ml", "level": "core", "question": "How does gradient descent find a minimum?", "mustShow": ["loss curve", "step by step descent", "minimum reached"] },
+    { "id": "ml-3", "domain": "ml", "level": "intro", "question": "What does linear regression do?", "mustShow": ["scatter points", "best-fit line", "residuals"] },
+    { "id": "ml-4", "domain": "ml", "level": "core", "question": "How does k-means cluster points?", "mustShow": ["points", "centroids moving", "clusters coloured"] },
+    { "id": "ml-5", "domain": "ml", "level": "core", "question": "What is a decision boundary in classification?", "mustShow": ["two classes", "boundary line", "points on each side"] },
+    { "id": "ml-6", "domain": "ml", "level": "advanced", "question": "How does attention work in a transformer?", "mustShow": ["tokens", "attention weights", "weighted sum"] }
+  ]
+}

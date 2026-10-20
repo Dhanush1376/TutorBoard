@@ -305,6 +305,7 @@ export const createConversationSlice = (set, get) => ({
       // FIX: Validate token     drop stale/mismatched chunks
       const activeToken = state.sessionStates[sid]?.streamToken;
       if (streamToken && activeToken && streamToken !== activeToken) return;
+      if (state.sessionStates[sid]?.aborted) return; // stopped: late chunks are dropped
 
       if (!state.sessionStates[sid]) state.sessionStates[sid] = { content: '' };
       state.sessionStates[sid].content = (state.sessionStates[sid].content || '') + chunk;
@@ -577,8 +578,20 @@ export const createConversationSlice = (set, get) => ({
       state.waitingSessionId = null;
 
       // #7 & #9: Commit partial content as an aborted version entry and clear memory
+      const isOnScreen = sid === state.chatSessionId || sid === state.sessionId || sid === state.activeConversationSessionId;
       if (msgId && partialContent) {
         const idx = state.conversationMessages.findIndex((m) => m.id === msgId);
+        if (idx === -1 && isOnScreen) {
+          // The answer was still streaming (not in the list yet): keep what the
+          // learner saw, clearly marked as stopped — the server saves the same.
+          const stopped = toUiMessage({
+            id: msgId, role: 'assistant', content: partialContent,
+            timestamp: new Date().toISOString(), status: 'cancelled',
+            metadata: { aborted: true, versions: [{ text: partialContent, subsequentMessages: [] }], activeVersionIndex: 0 },
+          });
+          state.conversationMessages = [...state.conversationMessages, stopped];
+          resyncNormalizedSession(state, sid, state.conversationMessages);
+        }
         if (idx !== -1) {
           const targetMsg = state.conversationMessages[idx];
           const existingVersions = targetMsg.metadata.versions || [{ text: targetMsg.content, subsequentMessages: [] }];
@@ -675,6 +688,57 @@ export const createConversationSlice = (set, get) => ({
   //                                                                                                                                                                                                                                        
   // EDITING
   //                                                                                                                                                                                                                                        
+
+  /**
+   * A chat request failed. Ends the stream for that conversation, keeps any text
+   * that already streamed as a `failed` message (never as a finished answer),
+   * and records the error — with what a retry needs — for the error card.
+   */
+  failStreaming: ({ sessionId = null, streamToken = null, assistantMessageId = null, error }) => {
+    const sid = sessionId || get().getSid();
+    set((state) => {
+      const sessionState = state.sessionStates[sid] || {};
+      if (streamToken && sessionState.streamToken && sessionState.streamToken !== streamToken) return;
+      const partial = sessionState.content || '';
+      const isOnScreen = sid === state.chatSessionId || sid === state.sessionId || sid === state.activeConversationSessionId;
+
+      state.sessionStates[sid] = { ...sessionState, isStreaming: false, isWaitingForAI: false, content: '', thought: '', streamToken: null, error };
+      if (sid === state.streamingSessionId || sid === state.waitingSessionId || isOnScreen) {
+        state.isStreaming = false;
+        state.isWaitingForAI = false;
+        state.streamingContent = '';
+        state.streamingThought = '';
+        state.streamingMessageId = null;
+        state.streamingSessionId = null;
+        state.waitingSessionId = null;
+      }
+      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      state.conversationSessions[sid].streamState.status = 'failed';
+
+      if (!isOnScreen) return;
+      state.lastAIError = { ...error, sessionId: sid };
+      if (partial && assistantMessageId && !state.conversationMessages.some((m) => m.id === assistantMessageId)) {
+        state.conversationMessages = [...state.conversationMessages, toUiMessage({
+          id: assistantMessageId, role: 'assistant', content: partial,
+          timestamp: new Date().toISOString(), status: 'failed',
+          metadata: { error: error?.message || 'Generation failed', versions: [{ text: partial, subsequentMessages: [] }], activeVersionIndex: 0 },
+        })];
+        resyncNormalizedSession(state, sid, state.conversationMessages);
+      }
+    });
+  },
+
+  /** Before retrying a failed request: drop its failed partial answer and the error card. */
+  prepareRetry: (requestId, sessionId = null) => {
+    const sid = sessionId || get().getSid();
+    set((state) => {
+      state.lastAIError = null;
+      const before = state.conversationMessages.length;
+      state.conversationMessages = state.conversationMessages.filter((m) => !(m.role === 'assistant' && m.status === 'failed'));
+      if (state.conversationMessages.length !== before) resyncNormalizedSession(state, sid, state.conversationMessages);
+      if (state.sessionStates[sid]) state.sessionStates[sid].error = null;
+    });
+  },
 
   startEditingMessage: (messageId) => {
     const msg = get().conversationMessages.find((m) => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
@@ -812,9 +876,14 @@ export const createConversationSlice = (set, get) => ({
     return updated;
   },
 
-  setConversationMessages: (messages) => {
+  /**
+   * Replace the visible conversation. Pass the conversation id when switching:
+   * getSid() still points at the PREVIOUS conversation until the view effect
+   * runs, so defaulting to it wrote one chat's messages into another's store.
+   */
+  setConversationMessages: (messages, sessionId = null) => {
     set((state) => {
-      const sid = state.getSid();
+      const sid = sessionId || state.getSid();
       const existingMessages = state.conversationMessages || [];
 
       const normalized = messages.map((m) => {
@@ -830,6 +899,8 @@ export const createConversationSlice = (set, get) => ({
         return {
           id: mId || generateId(m.role),
           role: m.role, content: resolvedContent,
+          // completed / failed / cancelled — keeps "Stopped" labels after a reload
+          ...(m.status ? { status: m.status } : {}),
           timestamp: m.timestamp || new Date().toISOString(),
           hasCanvas: m.hasCanvas || false,
           canvasType: m.canvasType || null,
@@ -1067,6 +1138,10 @@ export const createConversationSlice = (set, get) => ({
       const { default: API } = await import('../../services/api');
       const response = await API.get(`/api/sessions/${sessionId}`);
       
+      // The learner switched conversations while this loaded: don't paint it over the new one.
+      const { chatSessionId: nowChat, sessionId: nowSession } = get();
+      if (nowChat !== sessionId && nowSession !== sessionId) return;
+
       if (response.data) {
         const { messages, canvasState, canvasSteps, currentTopic, topic, title } = response.data;
         
@@ -1076,7 +1151,7 @@ export const createConversationSlice = (set, get) => ({
           
           const currentCount = get().conversationMessages.length;
           if (messages.length > currentCount) {
-            get().setConversationMessages(messages);
+            get().setConversationMessages(messages, sessionId);
           }
         }
 

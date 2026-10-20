@@ -73,7 +73,7 @@ const CodeRenderer = ({ content, language, onContentChange, isDark }) => {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--border-color)]/30 bg-[var(--bg-secondary)]/50">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+          <span className="text-[11px] font-medium text-[var(--text-tertiary)]">
             {monacoLang}
           </span>
           <span className="text-[9px] text-[var(--text-tertiary)]">

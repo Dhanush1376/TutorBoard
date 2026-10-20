@@ -55,7 +55,7 @@ const MonacoRenderer = forwardRef((props: MonacoRendererProps, ref) => {
           </h2>
           <div className="flex items-center gap-2 mt-1">
             <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-            <p className="text-yellow-400/80 text-xs font-mono uppercase tracking-widest">
+            <p className="text-yellow-400/80 text-xs font-medium">
               Live Code Trace: {language}
             </p>
           </div>
@@ -85,7 +85,7 @@ const MonacoRenderer = forwardRef((props: MonacoRendererProps, ref) => {
               scrollBeyondLastLine: false,
               automaticLayout: true,
               padding: { top: 20 },
-              fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
+              fontFamily: 'var(--font-mono)',
               fontLigatures: true,
               renderLineHighlight: 'all',
               selectionHighlight: true,
@@ -97,7 +97,7 @@ const MonacoRenderer = forwardRef((props: MonacoRendererProps, ref) => {
         <div className="flex-1 flex flex-col gap-4">
           {/* Variable Watch */}
           <div className="flex-[2] bg-black/40 rounded-2xl border border-white/5 p-5 overflow-y-auto">
-            <h3 className="text-[10px] font-mono text-white/40 uppercase tracking-widest mb-4">Variable Watch</h3>
+            <h3 className="text-xs font-medium text-white/60 mb-4">Variable Watch</h3>
             <div className="space-y-3">
               {Object.entries(displayVariables).map(([key, val]) => (
                 <div key={key} className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
@@ -110,7 +110,7 @@ const MonacoRenderer = forwardRef((props: MonacoRendererProps, ref) => {
 
           {/* Terminal Output */}
           <div className="flex-1 bg-black/60 rounded-2xl border border-white/5 p-5 font-mono text-xs text-green-400 overflow-y-auto">
-            <h3 className="text-[10px] text-white/40 uppercase tracking-widest mb-3">Terminal</h3>
+            <h3 className="text-xs font-medium text-white/60 mb-3">Terminal</h3>
             <div className="space-y-1">
               {terminalOutput.map((line: string, i: number) => (
                 <div key={i} className="flex gap-2">

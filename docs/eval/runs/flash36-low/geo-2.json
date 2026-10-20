@@ -1,0 +1,537 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Visual Proof of the Pythagorean Theorem",
+  "domain": "geometry",
+  "summary": "By arranging four identical right triangles in two different ways inside equal squares, we visually prove that a² + b² = c².",
+  "spaces": [
+   {
+    "id": "gspace",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     12
+    ],
+    "y": [
+     -1,
+     6
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "tri_demo",
+    "label": "Right triangle (a, b, c)",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "vertexLabels": [
+     "",
+     "a",
+     "b"
+    ],
+    "fill": true
+   },
+   {
+    "id": "outer1",
+    "tone": "muted",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      5,
+      0
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      0,
+      5
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t1",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t2",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      3,
+      0
+     ],
+     [
+      5,
+      0
+     ],
+     [
+      5,
+      3
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t3",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      5,
+      3
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      2,
+      5
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t4",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sq_c",
+    "tone": "accent",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      3,
+      0
+     ],
+     [
+      5,
+      3
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "lbl_c2",
+    "type": "text",
+    "text": "c²",
+    "role": "title"
+   },
+   {
+    "id": "outer2",
+    "tone": "muted",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      6,
+      0
+     ],
+     [
+      11,
+      0
+     ],
+     [
+      11,
+      5
+     ],
+     [
+      6,
+      5
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "rt1",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      8,
+      0
+     ],
+     [
+      11,
+      0
+     ],
+     [
+      11,
+      2
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "rt2",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      8,
+      0
+     ],
+     [
+      8,
+      2
+     ],
+     [
+      11,
+      2
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "rt3",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      6,
+      2
+     ],
+     [
+      8,
+      2
+     ],
+     [
+      6,
+      5
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "rt4",
+    "tone": "info",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      8,
+      2
+     ],
+     [
+      8,
+      5
+     ],
+     [
+      6,
+      5
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sq_a",
+    "tone": "primary",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      8,
+      2
+     ],
+     [
+      11,
+      2
+     ],
+     [
+      11,
+      5
+     ],
+     [
+      8,
+      5
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sq_b",
+    "tone": "warning",
+    "space": "gspace",
+    "type": "polygon",
+    "points": [
+     [
+      6,
+      0
+     ],
+     [
+      8,
+      0
+     ],
+     [
+      8,
+      2
+     ],
+     [
+      6,
+      2
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "lbl_a2",
+    "type": "text",
+    "text": "a²",
+    "role": "title"
+   },
+   {
+    "id": "lbl_b2",
+    "type": "text",
+    "text": "b²",
+    "role": "title"
+   },
+   {
+    "id": "proof_eq",
+    "type": "math",
+    "latex": "a^2 + b^2 = c^2"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "gspace",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "proof_eq",
+    "region": "bottom"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Start with a right triangle",
+    "narration": "Consider a right triangle with legs of length a and b, and hypotenuse c.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "tri_demo",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Form a large square",
+    "narration": "Place four identical copies of this triangle along the border of a square with side length (a + b).",
+    "actions": [
+     {
+      "do": "remove",
+      "target": "tri_demo",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "outer1",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": [
+       "t1",
+       "t2",
+       "t3",
+       "t4"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Uncovered center area c²",
+    "narration": "The four hypotenuses enclose a central tilted square with side length c, giving an area of c².",
+    "actions": [
+     {
+      "do": "create",
+      "target": "sq_c",
+      "effect": "grow"
+     },
+     {
+      "do": "annotate",
+      "target": "sq_c",
+      "text": "Area = c²"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Rearrange the four triangles",
+    "narration": "Now take an identical (a + b) square and rearrange the four triangles into two rectangles of size a × b.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "outer2",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": [
+       "rt1",
+       "rt2",
+       "rt3",
+       "rt4"
+      ],
+      "effect": "drop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Remaining areas a² and b²",
+    "narration": "The remaining space forms two separate squares with side lengths a and b, giving areas a² and b².",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "sq_a",
+       "sq_b"
+      ],
+      "effect": "grow"
+     },
+     {
+      "do": "annotate",
+      "target": "sq_a",
+      "text": "Area = a²"
+     },
+     {
+      "do": "annotate",
+      "target": "sq_b",
+      "text": "Area = b²"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Conclusion: a² + b² = c²",
+    "narration": "Since both outer squares are identical and contain four identical triangles, the remaining areas must be equal!",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "sq_c",
+      "state": "insight",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "sq_a",
+       "sq_b"
+      ],
+      "state": "insight",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "proof_eq",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities",
+   "message": "\"lbl_c2\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"lbl_a2\" is never shown"
+  },
+  {
+   "path": "entities",
+   "message": "\"lbl_b2\" is never shown"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 18539,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

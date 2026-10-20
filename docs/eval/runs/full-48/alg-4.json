@@ -1,0 +1,284 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Quicksort Lomuto Partitioning",
+  "domain": "algorithms",
+  "summary": "Walk through partitioning [7, 2, 1, 6, 8, 5, 3, 4] using the last element (4) as the pivot to separate smaller and larger elements.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "arr",
+    "label": "Array",
+    "type": "array",
+    "values": [
+     7,
+     2,
+     1,
+     6,
+     8,
+     5,
+     3,
+     4
+    ],
+    "indices": true
+   },
+   {
+    "id": "status",
+    "type": "text",
+    "text": "",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "arr",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "status",
+    "of": "arr",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Select the pivot",
+    "narration": "We select the last element, 4, as the pivot. The goal is to move all elements ≤ 4 to its left and all elements > 4 to its right.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "arr",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "status",
+      "effect": "fade"
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Pivot = 4 (at index 7)"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[7]",
+      "state": "pivot",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Process 7, 2, and 1",
+    "narration": "7 is greater than 4 and stays. 2 and 1 are smaller than 4, so each swaps forward into the left section.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "status",
+      "text": "7 > 4 (keep) | 2 ≤ 4 (swap) | 1 ≤ 4 (swap)"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[7]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[1]",
+       "arr[7]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 0,
+      "j": 1
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[2]",
+       "arr[7]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 1,
+      "j": 2
+     },
+     {
+      "do": "clear",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Process 6, 8, and 5",
+    "narration": "6, 8, and 5 are all greater than 4, so the scan moves past them without swapping.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "status",
+      "text": "6, 8, 5 > 4 — no swaps"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[3]",
+       "arr[4]",
+       "arr[5]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "clear",
+      "target": [
+       "arr[3]",
+       "arr[4]",
+       "arr[5]"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Process element 3",
+    "narration": "3 is less than 4, so it swaps with 7 at index 2 to extend the smaller elements partition.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "status",
+      "text": "3 ≤ 4 — swap 3 with 7"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[6]",
+       "arr[7]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 2,
+      "j": 6
+     },
+     {
+      "do": "clear",
+      "target": "arr[6]"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[2]",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Place pivot in position",
+    "narration": "With all elements scanned, pivot 4 swaps with 6 at index 3. Pivot 4 is now in its exact sorted position!",
+    "actions": [
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Swap pivot 4 to index 3"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[3]",
+       "arr[7]"
+      ],
+      "state": "swapping",
+      "hold": true
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 3,
+      "j": 7
+     },
+     {
+      "do": "clear",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[7]"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": "arr[3]",
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[4]",
+       "arr[5]",
+       "arr[6]",
+       "arr[7]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 19055,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Quicksort Lomuto Partitioning\",\"domain\":\"algorithms\",\"summary\":\"Walk through partitioning [7, 2, 1, 6, 8, 5, 3, 4] using the last element (4) as the pivot to separate smaller and larger elements.\",\"entities\":[{\"id\":\"arr\",\"type\":\"array\",\"values\":[7,2,1,6,8,5,3,4],\"indices\":true,\"label\":\"Array\"},{\"id\":\"status\",\"type\":\"text\",\"text\":\"\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"arr\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"status\",\"of\":\"arr\"}],\"beats\":[{\"title\":\"Select the pivot\",\"narration\":\"We select the last element, 4, as the pivot. The goal is to move all elements ≤ 4 to its left and all elements > 4 to its right.\",\"actions\":[{\"do\":\"create\",\"target\":\"arr\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"status\",\"effect\":\"fade\"},{\"do\":\"set\",\"target\":\"status\",\"text\":\"Pivot = 4 (at index 7)\"},{\"do\":\"highlight\",\"target\":\"arr[7]\",\"state\":\"pivot\"}]},{\"title\":\"Process 7, 2, and 1\",\"narration\":\"7 is greater than 4 and stays. 2 and 1 are smaller than 4, so each swaps forward into the left section.\",\"actions\":[{\"do\":\"set\",\"target\":\"status\",\"text\":\"7 > 4 (keep) | 2 ≤ 4 (swap) | 1 ≤ 4 (swap)\"},{\"do\":\"highlight\",\"target\":[\"arr[0]\",\"arr[7]\"],\"state\":\"comparing\"},{\"do\":\"highlight\",\"target\":[\"arr[1]\",\"arr[7]\"],\"state\":\"comparing\"},{\"do\":\"swap\",\"target\":\"arr\",\"i\":0,\"j\":1},{\"do\":\"highlight\",\"target\":[\"arr[2]\",\"arr[7]\"],\"state\":\"comparing\"},{\"do\":\"swap\",\"target\":\"arr\",\"i\":1,\"j\":2},{\"do\":\"clear\",\"target\":[\"arr[0]\",\"arr[1]\",\"arr[2]\"]},{\"do\":\"highlight\",\"target\":[\"arr[0]\",\"arr[1]\"],\"state\":\"active\"}]},{\"title\":\"Process 6, 8, and 5\",\"narration\":\"6, 8, and 5 are all greater than 4, so the scan moves past them without swapping.\",\"actions\":[{\"do\":\"set\",\"target\":\"status\",\"text\":\"6, 8, 5 > 4 — no swaps\"},{\"do\":\"highlight\",\"target\":[\"arr[3]\",\"arr[4]\",\"arr[5]\"],\"state\":\"comparing\"},{\"do\":\"clear\",\"target\":[\"arr[3]\",\"arr[4]\",\"arr[5]\"]}]},{\"title\":\"Process element 3\",\"narration\":\"3 is less than 4, so it swaps with 7 at index 2 to extend the smaller elements partition.\",\"actions\":[{\"do\":\"set\",\"target\":\"status\",\"text\":\"3 ≤ 4 — swap 3 with 7\"},{\"do\":\"highlight\",\"target\":[\"arr[6]\",\"arr[7]\"],\"state\":\"comparing\"},{\"do\":\"swap\",\"target\":\"arr\",\"i\":2,\"j\":6},{\"do\":\"clear\",\"target\":\"arr[6]\"},{\"do\":\"highlight\",\"target\":\"arr[2]\",\"state\":\"active\"}]},{\"title\":\"Place pivot in position\",\"narration\":\"With all elements scanned, pivot 4 swaps with 6 at index 3. Pivot 4 is now in its exact sorted position!\",\"actions\":[{\"do\":\"set\",\"target\":\"status\",\"text\":\"Swap pivot 4 to index 3\"},{\"do\":\"highlight\",\"target\":[\"arr[3]\",\"arr[7]\"],\"state\":\"swapping\"},{\"do\":\"swap\",\"target\":\"arr\",\"i\":3,\"j\":7},{\"do\":\"clear\",\"target\":[\"arr[0]\",\"arr[1]\",\"arr[2]\",\"arr[3]\",\"arr[7]\"]},{\"do\":\"highlight\",\"target\":\"arr[3]\",\"state\":\"sorted\"},{\"do\":\"highlight\",\"target\":[\"arr[0]\",\"arr[1]\",\"arr[2]\"],\"state\":\"active\"},{\"do\":\"highlight\",\"target\":[\"arr[4]\",\"arr[5]\",\"arr[6]\",\"arr[7]\"],\"state\":\"eliminated\"}]}]}"
+}

@@ -1,0 +1,330 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Electric field of opposite charges",
+  "domain": "physics",
+  "summary": "Visualize electric field vectors radiating outward from a positive charge and inward toward a negative charge, and see the combined direction at the midpoint.",
+  "spaces": [
+   {
+    "id": "field",
+    "kind": "cartesian",
+    "x": [
+     -5,
+     5
+    ],
+    "y": [
+     -5,
+     5
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "y",
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "pos",
+    "type": "circle",
+    "size": "md",
+    "text": "+"
+   },
+   {
+    "id": "neg",
+    "type": "circle",
+    "size": "md",
+    "text": "−"
+   },
+   {
+    "id": "vP_up",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     -2,
+     1
+    ],
+    "to": [
+     -2,
+     1.8
+    ],
+    "angleDeg": 90,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vP_down",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     -2,
+     -1
+    ],
+    "to": [
+     -2,
+     -1.8
+    ],
+    "angleDeg": 270,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vP_left",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     -3,
+     0
+    ],
+    "to": [
+     -3.8,
+     0
+    ],
+    "angleDeg": 180,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vP_right",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     -1,
+     0
+    ],
+    "to": [
+     -0.2,
+     0
+    ],
+    "angleDeg": 0,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vN_up",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2,
+     1
+    ],
+    "to": [
+     2,
+     0.2
+    ],
+    "angleDeg": 270,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vN_down",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2,
+     -1
+    ],
+    "to": [
+     2,
+     -0.2
+    ],
+    "angleDeg": 90,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vN_left",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     3,
+     0
+    ],
+    "to": [
+     2.2,
+     0
+    ],
+    "angleDeg": 180,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vN_right",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     1,
+     0
+    ],
+    "to": [
+     1.8,
+     0
+    ],
+    "angleDeg": 0,
+    "magnitude": 0.8
+   },
+   {
+    "id": "vMid",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     1,
+     0
+    ],
+    "angleDeg": 0,
+    "magnitude": 1
+   },
+   {
+    "id": "eq",
+    "type": "math",
+    "latex": "\\vec E = k \\frac{q}{r^2}\\,\\hat r"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "field",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Two point charges",
+    "narration": "A positive charge (+) sits on the left and a negative charge (–) on the right.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "pos",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "neg",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Field from positive",
+    "narration": "Field vectors radiate outward from the positive charge.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "vP_up",
+       "vP_down",
+       "vP_left",
+       "vP_right"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Field toward negative",
+    "narration": "Field vectors point inward toward the negative charge.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "vN_up",
+       "vN_down",
+       "vN_left",
+       "vN_right"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Midpoint field",
+    "narration": "The combined field at the centre points right, from the positive toward the negative charge.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "vMid",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "Electric field lines start on positive charges and end on negative ones; between opposite charges they point from + to –.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "pos",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "neg",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "vMid",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[11].latex",
+   "message": "auto-fixed: restored LaTeX backslashes eaten by JSON escapes"
+  },
+  {
+   "path": "beats[3]",
+   "message": "auto-fixed: removed a beat with no actions"
+  },
+  {
+   "path": "entities",
+   "message": "\"eq\" is never shown"
+  }
+ ],
+ "attempts": 3,
+ "repairs": [
+  [
+   {
+    "path": "(root)",
+    "message": "response was not a JSON object"
+   }
+  ],
+  [
+   {
+    "path": "(root)",
+    "message": "response was not a JSON object"
+   }
+  ]
+ ],
+ "ms": 118452,
+ "model": "openai/gpt-oss-120b",
+ "domain": "physics",
+ "drafts": [
+  "[\n{\"version\":\"1\",\"title\":\"Electric field of opposite charges\",\"domain\":\"physics\",\"summary\":\"Visualize how a positive and a negative point charge generate electric field vectors that point outward from the positive and inward toward the negative, and combine to point from + to –.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,5],\"axes\":true,\"grid\":true,\"equalAspect\":true,\"xLabel\":\"x\",\"yLabel\":\"y\"}],\"entities\":[{\"id\":\"pos\",\"type\":\"circle\",\"space\":\"field\",\"at\":[-2,0],\"size\":\"md\",\"text\":\"+\"},{\"id\":\"neg\",\"type\":\"circle\",\"space\":\"field\",\"at\":[2,0],\"size\":\"md\",\"text\":\"−\"},{\"id\":\"vP_left\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-3,0],\"angleDeg\":180,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vP_up\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-2,1],\"angleDeg\":90,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vP_down\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-2,-1],\"angleDeg\":270,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vP_right\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-1,0],\"angleDeg\":0,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_left\",\"type\":\"vector\",\"space\":\"field\",\"from\":[1,0],\"angleDeg\":0,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_up\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,1],\"angleDeg\":270,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_down\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,-1],\"angleDeg\":90,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_right\",\"type\":\"vector\",\"space\":\"field\",\"from\":[3,0],\"angleDeg\":180,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vMid\",\"type\":\"vector\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":0,\"magnitude\":1,\"tone\":\"primary\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\\\\\vec E = k \\\\\\\\frac{q}{r^2}\\\\\\\\,\\\\\\\\hat r\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Two point charges\",\"narration\":\"A positive charge (+) sits at left and a negative charge (–) at right.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"pos\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"neg\",\"effect\":\"pop\"}]},{\"title\":\"Field from positive\",\"narration\":\"Field vectors radiate outward from the positive charge.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"vP_left\",\"vP_up\",\"vP_down\",\"vP_right\"],\"effect\":\"draw\"}]},{\"title\":\"Field toward negative\",\"narration\":\"Field vectors point inward toward the negative charge.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"vN_left\",\"vN_up\",\"vN_down\",\"vN_right\"],\"effect\":\"draw\"}]},{\"title\":\"Predict midpoint direction\",\"narration\":\"What direction will the net electric field point at the midpoint between the charges?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"Direction at midpoint\",\"choices\":[\"right\",\"left\",\"up\",\"down\"],\"answer\":0,\"explain\":\"Fields add, giving a vector from + to –.\"}},\"title\",\":\",\"Midpoint field\",\"narration\",\":\",\"The combined field at the centre points right\", \"from the positive toward the negative charge.\",\"pace\",\":\",\"normal\",\"actions\",\":\",[{\"do\":\"create\",\"target\":\"vMid\",\"effect\":\"draw\"}]]},{\"title\":\"Recap\",\"narration\":\"Electric field lines start on positive charges and end on negative ones; between opposite charges they point from + to –.\",\"pace\":\"slow\",\"actions\":[{\"do\":\"highlight\",\"target\":\"pos\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"neg\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"vMid\",\"state\":\"active\"}]}\n]",
+  "[\n{\"version\":\"1\",\"title\":\"Electric field of opposite charges\",\"domain\":\"physics\",\"summary\":\"Visualize the electric field vectors radiating outward from a positive charge and inward toward a negative charge, showing the combined field direction at the midpoint.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,5],\"axes\":true,\"grid\":true,\"equalAspect\":true,\"xLabel\":\"x\",\"yLabel\":\"y\"}],\"entities\":[{\"id\":\"pos\",\"type\":\"circle\",\"space\":\"field\",\"at\":[-2,0],\"size\":\"md\",\"text\":\"+\"},{\"id\":\"neg\",\"type\":\"circle\",\"space\":\"field\",\"at\":[2,0],\"size\":\"md\",\"text\":\"−\"},{\"id\":\"vP_up\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-2,1],\"angleDeg\":90,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vP_down\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-2,-1],\"angleDeg\":270,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vP_left\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-3,0],\"angleDeg\":180,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vP_right\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-1,0],\"angleDeg\":0,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_up\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,1],\"angleDeg\":270,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_down\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,-1],\"angleDeg\":90,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_left\",\"type\":\"vector\",\"space\":\"field\",\"from\":[3,0],\"angleDeg\":180,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vN_right\",\"type\":\"vector\",\"space\":\"field\",\"from\":[1,0],\"angleDeg\":0,\"magnitude\":0.8,\"tone\":\"info\"},{\"id\":\"vMid\",\"type\":\"vector\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":0,\"magnitude\":1,\"tone\":\"primary\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\\\\\vec E = k \\\\\\\\frac{q}{r^2}\\\\\\\\,\\\\\\\\hat r\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Two point charges\",\"narration\":\"A positive charge (+) sits on the left and a negative charge (–) on the right.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"pos\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"neg\",\"effect\":\"pop\"}]},{\"title\":\"Field from positive\",\"narration\":\"Field vectors radiate outward from the positive charge.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"vP_up\",\"vP_down\",\"vP_left\",\"vP_right\"],\"effect\":\"draw\"}]},{\"title\":\"Field toward negative\",\"narration\":\"Field vectors point inward toward the negative charge.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"vN_up\",\"vN_down\",\"vN_left\",\"vN_right\"],\"effect\":\"draw\"}]},{\"title\":\"Predict midpoint direction\",\"narration\":\"What direction does the net electric field point at the midpoint between the charges?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"Direction at midpoint\",\"choices\":[\"right\",\"left\",\"up\",\"down\"],\"answer\":0,\"explain\":\"Fields add, giving a vector from + to –.\"}}]},{\"title\":\"Midpoint field\",\"narration\":\"The combined field at the centre points right, from the positive toward the negative charge.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"vMid\",\"effect\":\"draw\"}]},{\"title\":\"Recap\",\"narration\":\"Electric field lines start on positive charges and end on negative ones; between opposite charges they point from + to –.\",\"pace\":\"slow\",\"actions\":[{\"do\":\"highlight\",\"target\":\"pos\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"neg\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"vMid\",\"state\":\"active\"}]}\n]"
+ ],
+ "accepted": "{\n  \"version\":\"1\",\n  \"title\":\"Electric field of opposite charges\",\n  \"domain\":\"physics\",\n  \"summary\":\"Visualize electric field vectors radiating outward from a positive charge and inward toward a negative charge, and see the combined direction at the midpoint.\",\n  \"spaces\":[\n    {\n      \"id\":\"field\",\n      \"kind\":\"cartesian\",\n      \"x\":[-5,5],\n      \"y\":[-5,5],\n      \"axes\":true,\n      \"grid\":true,\n      \"equalAspect\":true,\n      \"xLabel\":\"x\",\n      \"yLabel\":\"y\"\n    }\n  ],\n  \"entities\":[\n    {\"id\":\"pos\",\"type\":\"circle\",\"space\":\"field\",\"at\":[-2,0],\"size\":\"md\",\"text\":\"+\"},\n    {\"id\":\"neg\",\"type\":\"circle\",\"space\":\"field\",\"at\":[2,0],\"size\":\"md\",\"text\":\"−\"},\n    {\"id\":\"vP_up\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-2,1],\"angleDeg\":90,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vP_down\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-2,-1],\"angleDeg\":270,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vP_left\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-3,0],\"angleDeg\":180,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vP_right\",\"type\":\"vector\",\"space\":\"field\",\"from\":[-1,0],\"angleDeg\":0,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vN_up\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,1],\"angleDeg\":270,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vN_down\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,-1],\"angleDeg\":90,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vN_left\",\"type\":\"vector\",\"space\":\"field\",\"from\":[3,0],\"angleDeg\":180,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vN_right\",\"type\":\"vector\",\"space\":\"field\",\"from\":[1,0],\"angleDeg\":0,\"magnitude\":0.8,\"tone\":\"info\"},\n    {\"id\":\"vMid\",\"type\":\"vector\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":0,\"magnitude\":1,\"tone\":\"primary\"},\n    {\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\\\\\vec E = k \\\\\\\\frac{q}{r^2}\\\\\\\\,\\\\\\\\hat r\"}\n  ],\n  \"layout\":[\n    {\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},\n    {\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}\n  ],\n  \"beats\":[\n    {\n      \"title\":\"Two point charges\",\n      \"narration\":\"A positive charge (+) sits on the left and a negative charge (–) on the right.\",\n      \"pace\":\"normal\",\n      \"actions\":[\n        {\"do\":\"create\",\"target\":\"pos\",\"effect\":\"pop\"},\n        {\"do\":\"create\",\"target\":\"neg\",\"effect\":\"pop\"}\n      ]\n    },\n    {\n      \"title\":\"Field from positive\",\n      \"narration\":\"Field vectors radiate outward from the positive charge.\",\n      \"pace\":\"normal\",\n      \"actions\":[\n        {\"do\":\"create\",\"target\":[\"vP_up\",\"vP_down\",\"vP_left\",\"vP_right\"],\"effect\":\"draw\"}\n      ]\n    },\n    {\n      \"title\":\"Field toward negative\",\n      \"narration\":\"Field vectors point inward toward the negative charge.\",\n      \"pace\":\"normal\",\n      \"actions\":[\n        {\"do\":\"create\",\"target\":[\"vN_up\",\"vN_down\",\"vN_left\",\"vN_right\"],\"effect\":\"draw\"}\n      ]\n    },\n    {\n      \"title\":\"Predict midpoint direction\",\n      \"narration\":\"What direction does the net electric field point at the midpoint between the charges?\",\n      \"pace\":\"normal\",\n      \"actions\":[],\n      \"check\":{\n        \"question\":\"Direction at midpoint\",\n        \"choices\":[\"right\",\"left\",\"up\",\"down\"],\n        \"answer\":0,\n        \"explain\":\"Fields add, giving a vector from + to –.\"\n      }\n    },\n    {\n      \"title\":\"Midpoint field\",\n      \"narration\":\"The combined field at the centre points right, from the positive toward the negative charge.\",\n      \"pace\":\"normal\",\n      \"actions\":[\n        {\"do\":\"create\",\"target\":\"vMid\",\"effect\":\"draw\"}\n      ]\n    },\n    {\n      \"title\":\"Recap\",\n      \"narration\":\"Electric field lines start on positive charges and end on negative ones; between opposite charges they point from + to –.\",\n      \"pace\":\"slow\",\n      \"actions\":[\n        {\"do\":\"highlight\",\"target\":\"pos\",\"state\":\"active\"},\n        {\"do\":\"highlight\",\"target\":\"neg\",\"state\":\"active\"},\n        {\"do\":\"highlight\",\"target\":\"vMid\",\"state\":\"active\"}\n      ]\n    }\n  ]\n}"
+}

@@ -1,0 +1,141 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "LRU Cache Eviction Explained",
+  "domain": "algorithms",
+  "summary": "Shows how accessing items moves them to most recent and how inserting beyond capacity evicts the least recently used item.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "cap",
+    "type": "text",
+    "text": "Capacity = 3",
+    "role": "caption"
+   },
+   {
+    "id": "cache",
+    "type": "array",
+    "values": [],
+    "indices": true
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "cache",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "cap",
+    "of": "cache",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Empty cache",
+    "narration": "We start with an empty LRU cache of capacity three.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "cap",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "cache",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert A, B, C",
+    "narration": "Insert three items A, B, C; each new item becomes the most recently used.",
+    "actions": [
+     {
+      "do": "morph",
+      "target": "cache",
+      "values": [
+       "A",
+       "B",
+       "C"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Access A",
+    "narration": "Accessing A moves it to the most recent position, shifting others back.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "cache[0]",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "morph",
+      "target": "cache",
+      "values": [
+       "B",
+       "C",
+       "A"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert D evicts B",
+    "narration": "Adding D exceeds capacity, so the least recently used item B is evicted and D becomes most recent.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "cache[0]",
+      "state": "eliminated",
+      "hold": true
+     },
+     {
+      "do": "morph",
+      "target": "cache",
+      "values": [
+       "C",
+       "A",
+       "D"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Final cache state",
+    "narration": "The cache now holds C, A, and D with D as the most recent item.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "cache[0]",
+       "cache[1]",
+       "cache[2]"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 42872,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"LRU Cache Eviction Explained\",\"domain\":\"algorithms\",\"summary\":\"Shows how accessing items moves them to most recent and how inserting beyond capacity evicts the least recently used item.\",\"spaces\":[],\"entities\":[{\"id\":\"cap\",\"type\":\"text\",\"text\":\"Capacity = 3\",\"role\":\"caption\"},{\"id\":\"cache\",\"type\":\"array\",\"values\":[],\"indices\":true}],\"layout\":[{\"rel\":\"place\",\"id\":\"cache\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"cap\",\"of\":\"cache\"}],\"beats\":[{\"title\":\"Empty cache\",\"narration\":\"We start with an empty LRU cache of capacity three.\",\"actions\":[{\"do\":\"create\",\"target\":\"cap\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"cache\",\"effect\":\"pop\"}]},{\"title\":\"Insert A, B, C\",\"narration\":\"Insert three items A, B, C; each new item becomes the most recently used.\",\"actions\":[{\"do\":\"morph\",\"target\":\"cache\",\"values\":[\"A\",\"B\",\"C\"]}]},{\"title\":\"Access A\",\"narration\":\"Accessing A moves it to the most recent position, shifting others back.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"cache[0]\",\"state\":\"active\"},{\"do\":\"morph\",\"target\":\"cache\",\"values\":[\"B\",\"C\",\"A\"]}]},{\"title\":\"Insert D evicts B\",\"narration\":\"Adding D exceeds capacity, so the least recently used item B is evicted and D becomes most recent.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"cache[0]\",\"state\":\"eliminated\"},{\"do\":\"morph\",\"target\":\"cache\",\"values\":[\"C\",\"A\",\"D\"]}]},{\"title\":\"Final cache state\",\"narration\":\"The cache now holds C, A, and D with D as the most recent item.\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"cache[0]\",\"cache[1]\",\"cache[2]\"],\"state\":\"found\"}]}]}"
+}

@@ -75,7 +75,7 @@ const MasteryHUD = ({ collapsed = false }) => {
           <>
             {/* Mind State + Label */}
             <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] opacity-60">
+              <span className="text-[10px] font-medium text-[var(--text-tertiary)] opacity-70">
                 Mind State
               </span>
               <div className="flex items-center gap-1.5">
@@ -97,7 +97,7 @@ const MasteryHUD = ({ collapsed = false }) => {
               <div className="flex flex-col items-center gap-0.5">
                 <div className="flex items-center gap-1 text-[var(--text-tertiary)]">
                   <MessageSquare size={9} />
-                  <span className="text-[7px] font-medium uppercase tracking-wider">Doubts</span>
+                  <span className="text-[9px] font-medium text-[var(--text-tertiary)]">Doubts</span>
                 </div>
                 <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular-nums leading-none">{doubtsCount}</span>
               </div>
@@ -107,7 +107,7 @@ const MasteryHUD = ({ collapsed = false }) => {
               <div className="flex flex-col items-center gap-0.5">
                 <div className="flex items-center gap-1 text-[var(--text-tertiary)]">
                   <BookOpen size={9} />
-                  <span className="text-[7px] font-medium uppercase tracking-wider">Sessions</span>
+                  <span className="text-[9px] font-medium text-[var(--text-tertiary)]">Sessions</span>
                 </div>
                 <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular-nums leading-none">{learnerProfile?.totalSessions || 1}</span>
               </div>

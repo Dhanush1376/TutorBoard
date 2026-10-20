@@ -1,0 +1,338 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How Blood Flows Through the Heart",
+  "domain": "biology",
+  "summary": "Blood moves through a dual-pump circuit: the right heart sends deoxygenated blood to the lungs, and the left heart delivers oxygenated blood to the body.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "lungs",
+    "tone": "accent",
+    "type": "rect",
+    "size": "lg",
+    "text": "Lungs"
+   },
+   {
+    "id": "ra",
+    "label": "Right Heart (O₂ poor)",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Right Atrium"
+   },
+   {
+    "id": "rv",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Right Ventricle"
+   },
+   {
+    "id": "la",
+    "label": "Left Heart (O₂ rich)",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Left Atrium"
+   },
+   {
+    "id": "lv",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Left Ventricle"
+   },
+   {
+    "id": "body",
+    "tone": "muted",
+    "type": "rect",
+    "size": "lg",
+    "text": "Body Tissues"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "lungs",
+    "region": "top"
+   },
+   {
+    "rel": "place",
+    "id": "body",
+    "region": "bottom"
+   },
+   {
+    "rel": "below",
+    "id": "ra",
+    "of": "lungs",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "la",
+    "of": "lungs",
+    "gap": "md"
+   },
+   {
+    "rel": "left-of",
+    "id": "ra",
+    "of": "la",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "rv",
+    "of": "ra",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "lv",
+    "of": "la",
+    "gap": "md"
+   },
+   {
+    "rel": "left-of",
+    "id": "rv",
+    "of": "lv",
+    "gap": "md"
+   },
+   {
+    "rel": "above",
+    "id": "body",
+    "of": "rv",
+    "gap": "md"
+   },
+   {
+    "rel": "above",
+    "id": "body",
+    "of": "lv",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The heart as a double pump",
+    "narration": "The heart acts as two coordinated pumps: the anatomical right side moves oxygen-poor blood, while the left side moves oxygen-rich blood.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "lungs",
+       "body"
+      ],
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": [
+       "ra",
+       "rv"
+      ],
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": [
+       "la",
+       "lv"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Returning from the body",
+    "narration": "Oxygen-depleted blood from body tissues enters the right atrium via the vena cava, then passes down into the right ventricle.",
+    "actions": [
+     {
+      "do": "connect",
+      "from": "body",
+      "to": "ra",
+      "label": "Vena Cava",
+      "style": "arrow"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "ra",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "ra",
+      "to": "rv",
+      "label": "Tricuspid",
+      "style": "arrow"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "rv",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "ra",
+      "text": "Collects O₂-poor blood",
+      "side": "left"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Lungs oxygenate the blood",
+    "narration": "The right ventricle pumps blood into the pulmonary artery toward the lungs, where it expels carbon dioxide and absorbs fresh oxygen.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "ra"
+     },
+     {
+      "do": "connect",
+      "from": "rv",
+      "to": "lungs",
+      "label": "Pulmonary Artery",
+      "style": "arrow"
+     },
+     {
+      "do": "clear",
+      "target": [
+       "ra",
+       "rv"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": "lungs",
+      "state": "insight",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "lungs",
+      "text": "Gas exchange: +O₂ / -CO₂",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Refilling the left heart",
+    "narration": "Freshly oxygenated blood returns via pulmonary veins into the left atrium, flowing through the mitral valve into the muscular left ventricle.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "lungs"
+     },
+     {
+      "do": "clear",
+      "target": "lungs"
+     },
+     {
+      "do": "connect",
+      "from": "lungs",
+      "to": "la",
+      "label": "Pulm. Veins",
+      "style": "arrow"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "la",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "la",
+      "to": "lv",
+      "label": "Mitral Valve",
+      "style": "arrow"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "lv",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "lv",
+      "text": "Thick muscular wall",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Oxygen delivery to the body",
+    "narration": "The left ventricle contracts forcefully, ejecting oxygen-rich blood into the aorta to sustain all organs and tissues across the body.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "lv"
+     },
+     {
+      "do": "connect",
+      "from": "lv",
+      "to": "body",
+      "label": "Aorta",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "body",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "body",
+      "text": "Full circulation complete",
+      "side": "below"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "layout",
+   "message": "\"body\" is positioned by 3 relations; the first one wins"
+  },
+  {
+   "path": "layout",
+   "message": "\"ra\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "layout",
+   "message": "\"rv\" is positioned by 2 relations; the first one wins"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "beats[2].actions[4].side",
+    "message": "Invalid enum value. Expected 'above' | 'below' | 'left' | 'right', received 'top'"
+   },
+   {
+    "path": "beats[4].actions[3].side",
+    "message": "Invalid enum value. Expected 'above' | 'below' | 'left' | 'right', received 'bottom'"
+   }
+  ]
+ ],
+ "ms": 38112,
+ "model": "gemini-3.7-flash",
+ "domain": "general"
+}

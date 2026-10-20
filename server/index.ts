@@ -20,6 +20,7 @@ import { runtimeState } from './core/runtimeState.js';
 
 import healthRoutes from './routes/health.js';
 import generateRoutes from './routes/generate.js';
+import sceneLabRoutes from './routes/sceneLab.js';
 import doubtRoutes from './routes/doubt.js';
 import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/session.js';
@@ -30,6 +31,7 @@ import learnerRoutes from './routes/learner.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import artifactRoutes from './routes/artifact.routes.js';
 import compilerRoutes from './routes/compiler.js';
+import visualizerRoutes from './routes/visualizer.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,7 +94,9 @@ export function createApp(): Application {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control', 'x-e2e-mock-ai'],
     exposedHeaders: ['X-Request-ID', 'X-CSRF-Token']
   }));
-  app.use(express.json({ limit: '1mb' }));
+  // A saved code walkthrough can be larger than a normal request; its route parses its own body (3 MB).
+  const jsonBody = express.json({ limit: '1mb' });
+  app.use((req, res, next) => (req.path === '/api/visualizer/save' ? next() : jsonBody(req, res, next)));
   app.use(cookieParser());
   app.use(requestIdMiddleware);
   app.use(httpRateLimiter);
@@ -177,6 +181,11 @@ export function createApp(): Application {
     res.json({ status: 'ok', message: 'TutorBoard API is running' });
   });
 
+  // Engine v2 Scene Lab (dev only — unauthenticated LLM calls): ENABLE_SCENE_LAB=1
+  if (process.env.ENABLE_SCENE_LAB === '1' && process.env.NODE_ENV !== 'production') {
+    app.use('/', sceneLabRoutes);
+    console.log('[SceneLab] /api/scene/generate enabled');
+  }
   app.use('/', dbCheck, generateRoutes);
   app.use('/', dbCheck, doubtRoutes);
   app.use('/api/auth', dbCheck, authRoutes);
@@ -186,8 +195,12 @@ export function createApp(): Application {
   app.use('/api/learner', dbCheck, learnerRoutes);
   app.use('/api/chat', dbCheck, chatRoutes);
   app.use('/api/artifact', dbCheck, artifactRoutes);
+  // Mounted before uploadRoutes: that router protects everything under /api that comes after it,
+  // and guests may run and step through code (both are rate limited).
+  app.use('/api/compiler', compilerRoutes); // POST /api/compiler/execute (what the client calls)
+  app.use('/api/visualizer', dbCheck, visualizerRoutes); // step-through code walkthroughs
   app.use('/api', dbCheck, uploadRoutes);
-  app.use('/', compilerRoutes);
+  app.use('/', compilerRoutes); // legacy path: POST /execute
 
   app.get('/uploads/:filename', protect, (req, res) => {
     const filename = path.basename(req.params.filename);

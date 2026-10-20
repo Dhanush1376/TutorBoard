@@ -1,0 +1,250 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Sine and Cosine on the Unit Circle",
+  "domain": "math",
+  "summary": "The x‑coordinate of a point on the unit circle is cos θ and the y‑coordinate is sin θ.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     -1.5,
+     1.5
+    ],
+    "y": [
+     -1.5,
+     1.5
+    ],
+    "axes": true,
+    "grid": false,
+    "xLabel": "x",
+    "yLabel": "y",
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "unit",
+    "label": "Unit circle",
+    "type": "circle",
+    "size": "lg"
+   },
+   {
+    "id": "P",
+    "label": "P",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     0.5,
+     0.866
+    ]
+   },
+   {
+    "id": "radius",
+    "space": "plane",
+    "type": "line",
+    "from": [
+     0,
+     0
+    ],
+    "to": "P",
+    "dashed": false
+   },
+   {
+    "id": "base",
+    "space": "plane",
+    "type": "line",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     0.5,
+     0
+    ],
+    "dashed": false
+   },
+   {
+    "id": "vert",
+    "space": "plane",
+    "type": "line",
+    "from": [
+     0.5,
+     0
+    ],
+    "to": "P",
+    "dashed": false
+   },
+   {
+    "id": "thetaLbl",
+    "type": "text",
+    "text": "θ",
+    "role": "caption"
+   },
+   {
+    "id": "cosLbl",
+    "type": "text",
+    "text": "cosθ",
+    "role": "caption"
+   },
+   {
+    "id": "sinLbl",
+    "type": "text",
+    "text": "sinθ",
+    "role": "caption"
+   },
+   {
+    "id": "recap",
+    "type": "math",
+    "latex": "\\cos\\theta = x,\\; \\sin\\theta = y"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "thetaLbl",
+    "of": "radius",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "cosLbl",
+    "of": "base",
+    "gap": "md"
+   },
+   {
+    "rel": "right-of",
+    "id": "sinLbl",
+    "of": "vert",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "recap",
+    "of": "plane",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Draw the unit circle",
+    "narration": "A circle of radius 1 centered at the origin is the unit circle.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "unit",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pick an angle",
+    "narration": "Choose θ = 60°. The point on the circle is P(0.5, 0.866).",
+    "actions": [
+     {
+      "with": "previous",
+      "do": "create",
+      "target": [
+       "P",
+       "radius",
+       "base",
+       "vert"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Show the coordinates",
+    "narration": "The horizontal side equals the x‑coordinate (cos θ) and the vertical side equals the y‑coordinate (sin θ).",
+    "actions": [
+     {
+      "with": "previous",
+      "do": "create",
+      "target": [
+       "thetaLbl",
+       "cosLbl",
+       "sinLbl"
+      ],
+      "effect": "type"
+     },
+     {
+      "do": "highlight",
+      "target": "base",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "vert",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Reveal the answer",
+    "narration": "The vertical segment is sin θ, while the horizontal segment is cos θ.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "vert",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "base",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "On the unit circle, the x‑coordinate of a point is cos θ and the y‑coordinate is sin θ.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "recap",
+      "effect": "type"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "P",
+       "radius"
+      ],
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[3]",
+   "message": "auto-fixed: removed a beat with no actions"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 50060,
+ "model": "gemini-3.6-flash",
+ "domain": "geometry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Sine and Cosine on the Unit Circle\",\"domain\":\"math\",\"summary\":\"The x‑coordinate of a point on the unit circle is cos θ and the y‑coordinate is sin θ.\",\"spaces\":[{\"id\":\"plane\",\"kind\":\"cartesian\",\"x\":[-1.5,1.5],\"y\":[-1.5,1.5],\"axes\":true,\"grid\":false,\"equalAspect\":true,\"xLabel\":\"x\",\"yLabel\":\"y\"}],\"entities\":[{\"id\":\"unit\",\"type\":\"circle\",\"space\":\"plane\",\"size\":\"lg\",\"label\":\"Unit circle\"},{\"id\":\"P\",\"type\":\"point\",\"space\":\"plane\",\"at\":[0.5,0.866],\"label\":\"P\"},{\"id\":\"radius\",\"type\":\"line\",\"space\":\"plane\",\"from\":[0,0],\"to\":\"P\"},{\"id\":\"base\",\"type\":\"line\",\"space\":\"plane\",\"from\":[0,0],\"to\":[0.5,0]},{\"id\":\"vert\",\"type\":\"line\",\"space\":\"plane\",\"from\":[0.5,0],\"to\":\"P\"},{\"id\":\"thetaLbl\",\"type\":\"text\",\"text\":\"θ\",\"role\":\"caption\"},{\"id\":\"cosLbl\",\"type\":\"text\",\"text\":\"cosθ\",\"role\":\"caption\"},{\"id\":\"sinLbl\",\"type\":\"text\",\"text\":\"sinθ\",\"role\":\"caption\"},{\"id\":\"recap\",\"type\":\"math\",\"latex\":\"\\\\cos\\\\theta = x,\\\\; \\\\sin\\\\theta = y\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"plane\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"thetaLbl\",\"of\":\"radius\"},{\"rel\":\"below\",\"id\":\"cosLbl\",\"of\":\"base\"},{\"rel\":\"right-of\",\"id\":\"sinLbl\",\"of\":\"vert\"},{\"rel\":\"below\",\"id\":\"recap\",\"of\":\"plane\"}],\"beats\":[{\"title\":\"Draw the unit circle\",\"narration\":\"A circle of radius 1 centered at the origin is the unit circle.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"unit\",\"effect\":\"draw\"}]},{\"title\":\"Pick an angle\",\"narration\":\"Choose θ = 60°. The point on the circle is P(0.5, 0.866).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"P\",\"radius\",\"base\",\"vert\"],\"effect\":\"draw\",\"with\":\"previous\"}]},{\"title\":\"Show the coordinates\",\"narration\":\"The horizontal side equals the x‑coordinate (cos θ) and the vertical side equals the y‑coordinate (sin θ).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"thetaLbl\",\"cosLbl\",\"sinLbl\"],\"effect\":\"type\",\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":\"base\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"vert\",\"state\":\"active\"}]},{\"title\":\"Predict the sine side\",\"narration\":\"Which highlighted segment represents sin θ?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"Which highlighted segment is sin θ?\",\"choices\":[\"Horizontal side\",\"Vertical side\",\"Radius\"],\"answer\":1,\"explain\":\"The vertical side’s length equals the y‑coordinate, which is sin θ.\"}},{\"title\":\"Reveal the answer\",\"narration\":\"The vertical segment is sin θ, while the horizontal segment is cos θ.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"vert\",\"state\":\"found\"},{\"do\":\"highlight\",\"target\":\"base\",\"state\":\"found\"}]},{\"title\":\"Recap\",\"narration\":\"On the unit circle, the x‑coordinate of a point is cos θ and the y‑coordinate is sin θ.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"recap\",\"effect\":\"type\"},{\"do\":\"highlight\",\"target\":[\"P\",\"radius\"],\"state\":\"insight\"}]}]}"
+}

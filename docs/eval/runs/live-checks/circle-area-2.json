@@ -1,0 +1,204 @@
+{
+ "version": "1",
+ "title": "Area of a Circle Visualized",
+ "domain": "geometry",
+ "summary": "Shows a circle with its radius, the surrounding square, and derives the area formula A=πr².",
+ "spaces": [
+  {
+   "id": "plane",
+   "kind": "cartesian",
+   "x": [
+    -5,
+    5
+   ],
+   "y": [
+    -5,
+    5
+   ],
+   "axes": true,
+   "grid": false,
+   "equalAspect": true
+  }
+ ],
+ "entities": [
+  {
+   "id": "c1",
+   "tone": "primary",
+   "type": "circle",
+   "size": "lg"
+  },
+  {
+   "id": "rad",
+   "tone": "accent",
+   "space": "plane",
+   "type": "line",
+   "from": [
+    0,
+    0
+   ],
+   "to": [
+    3,
+    0
+   ],
+   "dashed": false
+  },
+  {
+   "id": "sq",
+   "tone": "muted",
+   "space": "plane",
+   "type": "polygon",
+   "points": [
+    [
+     -3,
+     -3
+    ],
+    [
+     3,
+     -3
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     -3,
+     3
+    ]
+   ],
+   "fill": true
+  },
+  {
+   "id": "formula",
+   "tone": "primary",
+   "type": "math",
+   "latex": "A = \\pi r^2"
+  },
+  {
+   "id": "lblR",
+   "tone": "info",
+   "type": "text",
+   "text": "r",
+   "role": "label"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "plane",
+   "region": "center"
+  },
+  {
+   "rel": "below",
+   "id": "formula",
+   "of": "plane",
+   "gap": "md"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Draw the circle",
+   "narration": "A circle of radius r is drawn and its radius is highlighted.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "c1",
+     "effect": "draw"
+    },
+    {
+     "do": "create",
+     "target": "rad",
+     "effect": "draw"
+    },
+    {
+     "do": "annotate",
+     "target": "rad",
+     "text": "r"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Enclose in a square",
+   "narration": "A square whose side equals the diameter (2r) is placed around the circle.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "sq",
+     "effect": "draw"
+    },
+    {
+     "do": "highlight",
+     "target": "rad",
+     "state": "active",
+     "hold": true
+    },
+    {
+     "do": "highlight",
+     "target": "sq",
+     "state": "active",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "What fraction?",
+   "narration": "What fraction of the square’s area is occupied by the circle?",
+   "actions": [
+    {
+     "do": "create",
+     "target": "lblR",
+     "effect": "type"
+    }
+   ],
+   "pace": "normal",
+   "check": {
+    "question": "Choose the correct fraction:",
+    "choices": [
+     "π/4",
+     "1/2",
+     "π"
+    ],
+    "answer": 0,
+    "explain": "The circle’s area is πr², the square’s area is (2r)²=4r², so the ratio is π/4."
+   }
+  },
+  {
+   "title": "Area formula",
+   "narration": "Thus the area of a circle equals π r².",
+   "actions": [
+    {
+     "do": "create",
+     "target": "formula",
+     "effect": "type"
+    },
+    {
+     "do": "highlight",
+     "target": "formula",
+     "state": "found",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Recap",
+   "narration": "Remember: A = π r² – the area grows with the square of the radius.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "c1",
+     "state": "insight",
+     "hold": true
+    },
+    {
+     "do": "highlight",
+     "target": "formula",
+     "state": "insight",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

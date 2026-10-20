@@ -123,11 +123,11 @@ export default function NarrativeRenderer({ timeline, currentStepIndex }: Narrat
         >
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h4 className="text-blue-400 text-xs font-bold uppercase tracking-[0.2em] mb-1">Current Focus</h4>
+              <h4 className="text-blue-400 text-xs font-semibold mb-1">Current focus</h4>
               <h3 className="text-xl font-semibold text-white">{activeStep.label || activeStep.title || "Key Event"}</h3>
             </div>
             <div className="text-right">
-              <span className="text-[10px] font-mono text-white/30 uppercase">Temporal Index</span>
+              <span className="text-xs font-medium text-white/50">Temporal Index</span>
               <p className="text-lg font-bold text-white/50">{currentStepIndex + 1} / {displaySteps.length}</p>
             </div>
           </div>

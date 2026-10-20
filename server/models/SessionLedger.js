@@ -35,6 +35,15 @@ const sessionLedgerSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  /** Safe failure category of the last attempt (never a raw provider message). */
+  errorCode: {
+    type: String,
+    default: null,
+  },
+  attempts: {
+    type: Number,
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

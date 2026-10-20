@@ -1,0 +1,242 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Binary search for 23",
+  "domain": "algorithms",
+  "summary": "Binary search repeatedly cuts the search space in half by comparing the target with the middle element.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "target_badge",
+    "type": "text",
+    "text": "Target: 23",
+    "role": "title"
+   },
+   {
+    "id": "arr",
+    "label": "Sorted Array",
+    "type": "array",
+    "values": [
+     2,
+     5,
+     8,
+     12,
+     16,
+     23,
+     38,
+     56,
+     72,
+     91
+    ],
+    "indices": true
+   },
+   {
+    "id": "status",
+    "type": "text",
+    "text": "Search range: index 0 to 9",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "target_badge",
+    "region": "top"
+   },
+   {
+    "rel": "place",
+    "id": "arr",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "status",
+    "of": "arr",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Set search boundaries",
+    "narration": "We start binary search across the entire sorted array. Pointers low and high mark the initial boundaries.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "target_badge",
+       "arr",
+       "status"
+      ],
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "arr[0]",
+      "text": "low",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "arr[9]",
+      "text": "high",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First midpoint: index 4",
+    "narration": "The midpoint is index 4 with value 16. Since 23 is greater than 16, the target must be in the right half.",
+    "actions": [
+     {
+      "do": "annotate",
+      "target": "arr[4]",
+      "text": "mid",
+      "side": "below"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[4]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "16 < 23 → Discard left half"
+     },
+     {
+      "do": "unannotate",
+      "target": "arr[0]"
+     },
+     {
+      "do": "unannotate",
+      "target": "arr[4]"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[4]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "arr[5]",
+      "text": "low",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Second midpoint: index 7",
+    "narration": "In the remaining range from 5 to 9, the midpoint is index 7 with value 56. Since 23 is smaller, discard the right half.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Search range: index 5 to 9"
+     },
+     {
+      "do": "annotate",
+      "target": "arr[7]",
+      "text": "mid",
+      "side": "below"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[7]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "56 > 23 → Discard right half"
+     },
+     {
+      "do": "unannotate",
+      "target": "arr[9]"
+     },
+     {
+      "do": "unannotate",
+      "target": "arr[7]"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[7]",
+       "arr[8]",
+       "arr[9]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "arr[6]",
+      "text": "high",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Found target at index 5",
+    "narration": "The new midpoint is index 5 with value 23. It matches our target, successfully completing the search.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Search range: index 5 to 6"
+     },
+     {
+      "do": "annotate",
+      "target": "arr[5]",
+      "text": "mid",
+      "side": "below"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[5]",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "23 == 23 → Found at index 5!"
+     },
+     {
+      "do": "unannotate",
+      "target": "arr[5]"
+     },
+     {
+      "do": "unannotate",
+      "target": "arr[6]"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[5]",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 19535,
+ "model": "gemini-3.7-flash",
+ "domain": "algorithms"
+}

@@ -41,6 +41,11 @@ export interface SceneDefinition {
   mode?: string;
 }
 
+// Morphing an array into the next step's array (swap arcs, drop-ins, ghost
+// exits) is new and not yet verified in a live lesson — opt in with
+// VITE_ARRAY_MORPH=true. Off, each step's array is drawn fresh as before.
+const ARRAY_MORPH = (import.meta as any).env?.VITE_ARRAY_MORPH === 'true';
+
 export interface SceneStep {
   title?: string;
   type?: string;
@@ -49,6 +54,7 @@ export interface SceneStep {
   pedagogicalNarration?: string;
   commands?: Command[];
   objects?: string[];              // IDs of objects visible in this step
+  objectIds?: string[];            // Same, as sent by the server pipeline
   durationMs?: number;
   duration?: number;
   variables?: Record<string, any>;
@@ -74,6 +80,8 @@ export interface SceneElement {
 
 export interface PlayOptions {
   animate?: boolean;
+  /** Animate even while playback is paused (first reveal, Replay). */
+  force?: boolean;
   duration?: number;
   onComplete?: () => void;
   onNarrate?: (text: string) => void;
@@ -281,7 +289,7 @@ export class SceneOrchestrator {
   ): void {
     if (!this.renderers) return;
 
-    const commands = step.commands || this._buildCommandsFromStep(step, index);
+    let commands = step.commands || this._buildCommandsFromStep(step, index);
     const isForwardAdjacent = index === prevIndex + 1;
 
     // Instant (no animation): rebuild the full cumulative state up to this step.
@@ -304,14 +312,56 @@ export class SceneOrchestrator {
       // Progressive reveal: draw only THIS step's new commands on top of the
       // existing frame — the previous steps stay on screen. (index 0 from a
       // fresh -1 start also lands here and simply draws step 0 onto an empty canvas.)
-      this.executor.play(commands, this.renderers, finish);
+      if (!step.commands) commands = this._retireStaleElements(prevIndex, step, commands);
+      this.executor.play(commands, this.renderers, finish, { ignorePause: !!options.force });
     } else {
       // Jump or backward seek: clear, instantly rebuild everything before the
       // target step, then animate the target step so the destination is correct.
       this.renderers.d3?.clear?.();
       this._executeCumulativeInstant(index - 1);
-      this.executor.play(commands, this.renderers, finish);
+      if (!step.commands) commands = this._retireStaleElements(index - 1, step, commands);
+      this.executor.play(commands, this.renderers, finish, { ignorePause: !!options.force });
     }
+  }
+
+  /**
+   * The step's explicit visible-object set. The server sends it as `objectIds`
+   * (older scenes use `objects`); null means the step is purely additive.
+   */
+  private _visibleIdsOf(step?: SceneStep): string[] | null {
+    const ids = step?.objects?.length ? step.objects : step?.objectIds;
+    return Array.isArray(ids) && ids.length > 0 ? ids.map(String) : null;
+  }
+
+  /**
+   * When consecutive steps both declare their visible set, remove what the
+   * earlier step showed but the target no longer lists, and skip re-creating
+   * elements that stay on screen. Removal is synchronous so the layout slot is
+   * free before the replacement is placed — otherwise "replace-style" lessons
+   * stacked every step's objects on top of each other.
+   */
+  private _retireStaleElements(fromIndex: number, toStep: SceneStep, commands: Command[]): Command[] {
+    const target = this._visibleIdsOf(toStep);
+    const prev = fromIndex >= 0 ? this._visibleIdsOf(this.scene?.steps?.[fromIndex]) : null;
+    if (!target || !prev) return commands;
+
+    const keep = new Set(target);
+    const d3: any = this.renderers?.d3;
+    // Arrays leaving the board hand their state to the arrays arriving, so a
+    // step that rearranges values animates the change (swap, push, dequeue…)
+    // instead of cutting to the new state.
+    const outgoing: any[] = [];
+    for (const id of prev) {
+      if (keep.has(id)) continue;
+      const snap = ARRAY_MORPH ? d3?.snapshotArray?.(id) : null;
+      if (snap) outgoing.push(snap);
+      d3?.removeElement?.(id);
+    }
+    const stillShown = new Set(prev.filter((id) => keep.has(id)));
+    let k = 0;
+    return commands
+      .filter((c) => !c.id || !stillShown.has(String(c.id)))
+      .map((c) => (c.cmd === 'array' && outgoing[k] ? { ...c, morphFrom: outgoing[k++] } : c));
   }
 
   /**
@@ -322,7 +372,8 @@ export class SceneOrchestrator {
     if (!this.scene) return;
     const steps = this.scene.steps || [];
     for (let i = 0; i <= uptoIndex && i < steps.length; i++) {
-      const cmds = steps[i].commands || this._buildCommandsFromStep(steps[i], i);
+      let cmds = steps[i].commands || this._buildCommandsFromStep(steps[i], i);
+      if (!steps[i].commands) cmds = this._retireStaleElements(i - 1, steps[i], cmds);
       if (cmds.length > 0) this._executeCommandsInstantly(cmds);
     }
   }
@@ -344,11 +395,13 @@ export class SceneOrchestrator {
       if (cmd.id) deltaEntityIds.push(cmd.id);
     }
 
+    // Doubts are asked with the lesson paused; the answer's visual delta must
+    // still animate rather than snapping to its end state.
     this.executor.play(commands, this.renderers, () => {
       // Tag delta entities for easy cleanup later
       this.sceneGraph.tagStep(-1, deltaEntityIds); // -1 = delta
       onComplete?.();
-    });
+    }, { ignorePause: true });
   }
 
   // ── Playback Controls ──────────────────────────────────────────────────
@@ -506,6 +559,21 @@ export class SceneOrchestrator {
    * Build commands from a step that doesn't have explicit commands.
    * This is the backward-compatibility bridge for existing timeline data.
    */
+  /** ContentPlugin command for a lesson-engine node ({ id, type, x, y, props }). */
+  private _contentCommand(element: any): Command {
+    return {
+      cmd: 'content',
+      id: element.id,
+      kind: element.type,
+      x: element.x ?? element.position?.x,
+      y: element.y ?? element.position?.y,
+      props: element.props || {},
+      label: element.label,
+      text: element.text,
+      latex: element.latex,
+    } as Command;
+  }
+
   private _buildCommandsFromStep(step: SceneStep, stepIndex: number): Command[] {
     if (!this.scene) return [];
 
@@ -513,7 +581,7 @@ export class SceneOrchestrator {
     const rootElements = this.scene.elements || this.scene.objects || [];
     const stepElements = step.elements || [];
     const elements = [...rootElements, ...stepElements];
-    const stepObjects = step.objects || [];
+    const stepObjects = this._visibleIdsOf(step) || [];
 
     // Find elements that belong to this step
     for (const element of elements) {
@@ -581,9 +649,16 @@ export class SceneOrchestrator {
           });
           break;
 
+        case 'orb':
+          // An orb with a title is a concept-graph node; a bare orb with props
+          // is a physical body from the lesson engine (ball, particle…).
+          if (!element.title && !element.label) {
+            commands.push(this._contentCommand(element));
+            break;
+          }
+        // falls through
         case 'node':
         case 'edge':
-        case 'orb':
         case 'badge':
         case 'block':
         case 'step':
@@ -593,6 +668,29 @@ export class SceneOrchestrator {
             id: element.id,
             ...element,
           });
+          break;
+
+        // General teaching content the lesson engine emits for maths,
+        // science and ML (rendered by ContentPlugin).
+        case 'text':
+        case 'equation':
+        case 'formula':
+        case 'rect':
+        case 'box':
+        case 'circle':
+        case 'triangle':
+        case 'atom':
+        case 'plot':
+        case 'curve':
+        case 'polygon':
+        case 'shape':
+        case 'line':
+        case 'arrow':
+        case 'vector':
+        case 'molecule':
+        case 'network':
+        case 'neural_network':
+          commands.push(this._contentCommand(element));
           break;
 
         default:
@@ -666,6 +764,7 @@ export class SceneOrchestrator {
         case 'step':
         case 'callout': d3?.createNode(cmd.id!, cmd); break;
         case 'edge': d3?.createEdge(cmd.id!, cmd); break;
+        case 'content': d3?.createContent?.(cmd.id!, cmd); break;
         case 'pointer': d3?.createPointer(cmd.id!, cmd.atIndex!, cmd.label || '', cmd.color, cmd.targetArrayId); break;
         case 'move_pointer': d3?.updatePointer(cmd.id!, cmd.atIndex!, cmd.targetArrayId); break;
         case 'draw_boundary': d3?.drawBoundary(cmd.atIndex!, cmd.label || '', cmd.targetArrayId, cmd.endIndex); break;

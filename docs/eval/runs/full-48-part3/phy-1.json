@@ -1,0 +1,274 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Ball kicked at 45° trajectory",
+  "domain": "physics",
+  "summary": "A ball launched at 45° follows a parabola: horizontal speed stays constant, vertical speed changes due to gravity, reaching a peak then landing.",
+  "spaces": [
+   {
+    "id": "field",
+    "kind": "cartesian",
+    "x": [
+     0,
+     50
+    ],
+    "y": [
+     0,
+     15
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x (m)",
+    "yLabel": "y (m)",
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "ball",
+    "tone": "info",
+    "space": "field",
+    "type": "body",
+    "at": [
+     0,
+     0
+    ],
+    "size": "sm"
+   },
+   {
+    "id": "v0",
+    "label": "v₀ = 20 m/s",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     5.657,
+     5.657
+    ],
+    "angleDeg": 45,
+    "magnitude": 8
+   },
+   {
+    "id": "vx",
+    "label": "vₓ",
+    "tone": "success",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     6,
+     0
+    ]
+   },
+   {
+    "id": "vy",
+    "label": "v_y",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     0,
+     6
+    ]
+   },
+   {
+    "id": "traj",
+    "tone": "info",
+    "space": "field",
+    "type": "plot",
+    "expr": "x - 0.0245*x^2",
+    "domain": [
+     0,
+     40.8
+    ]
+   },
+   {
+    "id": "apex",
+    "label": "max height 10.2 m",
+    "tone": "warning",
+    "space": "field",
+    "type": "point",
+    "at": [
+     20.4,
+     10.2
+    ]
+   },
+   {
+    "id": "land",
+    "label": "range 40.8 m",
+    "tone": "warning",
+    "space": "field",
+    "type": "point",
+    "at": [
+     40.8,
+     0
+    ]
+   },
+   {
+    "id": "eq",
+    "type": "math",
+    "latex": "R = \\frac{v_0^2 \\sin 2\\theta}{g} \\approx 40.8\\,\\mathrm{m}"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "field",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Kick at 45°",
+    "narration": "The ball is kicked from the ground at 45°, splitting its speed into equal horizontal and vertical components.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "ball",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "v0",
+      "effect": "grow"
+     },
+     {
+      "do": "create",
+      "target": [
+       "vx",
+       "vy"
+      ],
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Speed components",
+    "narration": "The launch speed resolves into a horizontal part vₓ and a vertical part v_y, each half the magnitude.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "vx",
+       "vy"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "What shape will the ball’s path take?",
+     "choices": [
+      "Straight line",
+      "Parabola",
+      "Circle"
+     ],
+     "answer": 1,
+     "explain": "Gravity causes a constant horizontal speed and a uniformly accelerated vertical speed, producing a parabola."
+    }
+   },
+   {
+    "title": "Parabolic path",
+    "narration": "Gravity pulls the ball down, curving its motion into a parabola.",
+    "actions": [
+     {
+      "do": "remove",
+      "target": [
+       "v0",
+       "vx",
+       "vy"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "traj",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "trace",
+      "target": "ball",
+      "along": "traj",
+      "duration": "normal"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Peak and landing",
+    "narration": "The ball reaches its highest point at 10.2 m after 20.4 m and lands 40.8 m away.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "apex",
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "apex",
+      "text": "peak",
+      "side": "above"
+     },
+     {
+      "do": "create",
+      "target": "land",
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "land",
+      "text": "landing",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Result",
+    "narration": "A 45° launch gives the longest range; the path is a parabola with range 40.8 m.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     },
+     {
+      "do": "highlight",
+      "target": "traj",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 21221,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Ball kicked at 45° trajectory\",\"domain\":\"physics\",\"summary\":\"A ball launched at 45° follows a parabola: horizontal speed stays constant, vertical speed changes due to gravity, reaching a peak then landing.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[0,50],\"y\":[0,15],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\"}],\"entities\":[{\"id\":\"ball\",\"type\":\"body\",\"space\":\"field\",\"at\":[0,0],\"tone\":\"info\"},{\"id\":\"v0\",\"type\":\"vector\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":45,\"magnitude\":8,\"label\":\"v₀ = 20 m/s\",\"tone\":\"primary\"},{\"id\":\"vx\",\"type\":\"vector\",\"space\":\"field\",\"from\":[0,0],\"to\":[6,0],\"label\":\"vₓ\",\"tone\":\"success\"},{\"id\":\"vy\",\"type\":\"vector\",\"space\":\"field\",\"from\":[0,0],\"to\":[0,6],\"label\":\"v_y\",\"tone\":\"primary\"},{\"id\":\"traj\",\"type\":\"plot\",\"space\":\"field\",\"expr\":\"x - 0.0245*x^2\",\"domain\":[0,40.8],\"tone\":\"info\"},{\"id\":\"apex\",\"type\":\"point\",\"space\":\"field\",\"at\":[20.4,10.2],\"label\":\"max height 10.2 m\",\"tone\":\"warning\"},{\"id\":\"land\",\"type\":\"point\",\"space\":\"field\",\"at\":[40.8,0],\"label\":\"range 40.8 m\",\"tone\":\"warning\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"R = \\\\frac{v_0^2 \\\\sin 2\\\\theta}{g} \\\\approx 40.8\\\\,\\\\mathrm{m}\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Kick at 45°\",\"narration\":\"The ball is kicked from the ground at 45°, splitting its speed into equal horizontal and vertical components.\",\"actions\":[{\"do\":\"create\",\"target\":\"ball\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"v0\",\"effect\":\"grow\"},{\"do\":\"create\",\"target\":[\"vx\",\"vy\"],\"effect\":\"grow\"}]},{\"title\":\"Speed components\",\"narration\":\"The launch speed resolves into a horizontal part vₓ and a vertical part v_y, each half the magnitude.\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"vx\",\"vy\"],\"state\":\"active\"}],\"check\":{\"question\":\"What shape will the ball’s path take?\",\"choices\":[\"Straight line\",\"Parabola\",\"Circle\"],\"answer\":1,\"explain\":\"Gravity causes a constant horizontal speed and a uniformly accelerated vertical speed, producing a parabola.\"}},{\"title\":\"Parabolic path\",\"narration\":\"Gravity pulls the ball down, curving its motion into a parabola.\",\"actions\":[{\"do\":\"remove\",\"target\":[\"v0\",\"vx\",\"vy\"],\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"traj\",\"effect\":\"draw\"},{\"do\":\"trace\",\"target\":\"ball\",\"along\":\"traj\",\"duration\":\"normal\",\"with\":\"previous\"}]},{\"title\":\"Peak and landing\",\"narration\":\"The ball reaches its highest point at 10.2 m after 20.4 m and lands 40.8 m away.\",\"actions\":[{\"do\":\"create\",\"target\":\"apex\",\"effect\":\"pop\"},{\"do\":\"annotate\",\"target\":\"apex\",\"text\":\"peak\",\"side\":\"above\"},{\"do\":\"create\",\"target\":\"land\",\"effect\":\"pop\"},{\"do\":\"annotate\",\"target\":\"land\",\"text\":\"landing\",\"side\":\"above\"}]},{\"title\":\"Result\",\"narration\":\"A 45° launch gives the longest range; the path is a parabola with range 40.8 m.\",\"actions\":[{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"type\"},{\"do\":\"highlight\",\"target\":\"traj\",\"state\":\"insight\"}]}]}"
+}

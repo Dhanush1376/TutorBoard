@@ -66,7 +66,7 @@ const SessionResumeOverlay = () => {
 
             <div className="px-4 py-2 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2">
               <PlayCircle size={14} className="text-[var(--text-tertiary)]" />
-              <span className="text-[11px] font-normal text-[var(--text-secondary)] uppercase tracking-wider">
+              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
                 Step {resumeContext.stepIndex + 1}
               </span>
             </div>
@@ -80,7 +80,7 @@ const SessionResumeOverlay = () => {
               </button>
               
               <div className="flex flex-col items-center gap-1.5 mt-2">
-                <p className="text-[10px] text-[var(--text-tertiary)] font-normal uppercase tracking-widest">
+                <p className="text-[11px] text-[var(--text-tertiary)] font-medium">
                   Starting fresh in <span className="tabular-nums font-bold text-[var(--text-primary)]">{timeLeft}s</span>
                 </p>
                 <div className="w-24 h-0.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
@@ -96,7 +96,7 @@ const SessionResumeOverlay = () => {
 
             <button 
               onClick={() => setResumeContext(null)}
-              className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] opacity-60 uppercase tracking-widest font-normal transition-colors"
+              className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] opacity-70 font-medium transition-colors"
             >
               Start fresh now
             </button>

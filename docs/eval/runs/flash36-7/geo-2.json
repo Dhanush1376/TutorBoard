@@ -1,0 +1,324 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Visual Proof of the Pythagorean Theorem",
+  "domain": "geometry",
+  "summary": "Arranging four identical right triangles inside a square proves that a² + b² = c² through area equivalence.",
+  "spaces": [
+   {
+    "id": "board",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     8
+    ],
+    "y": [
+     -1,
+     8
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "t1",
+    "label": "Triangle",
+    "tone": "primary",
+    "space": "board",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      4,
+      0
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t2",
+    "tone": "primary",
+    "space": "board",
+    "type": "polygon",
+    "points": [
+     [
+      4,
+      0
+     ],
+     [
+      7,
+      0
+     ],
+     [
+      7,
+      4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t3",
+    "tone": "primary",
+    "space": "board",
+    "type": "polygon",
+    "points": [
+     [
+      7,
+      4
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      3,
+      7
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t4",
+    "tone": "primary",
+    "space": "board",
+    "type": "polygon",
+    "points": [
+     [
+      3,
+      7
+     ],
+     [
+      0,
+      7
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sq_outer",
+    "tone": "default",
+    "space": "board",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      7,
+      0
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      0,
+      7
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sq_inner",
+    "label": "c²",
+    "tone": "accent",
+    "space": "board",
+    "type": "polygon",
+    "points": [
+     [
+      4,
+      0
+     ],
+     [
+      7,
+      4
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "eq_total",
+    "type": "math",
+    "latex": "\\text{Total Area} = (a + b)^2"
+   },
+   {
+    "id": "eq_sum",
+    "type": "math",
+    "latex": "(a + b)^2 = c^2 + 4 \\cdot \\left(\\frac{1}{2} a b\\right)"
+   },
+   {
+    "id": "eq_expanded",
+    "type": "math",
+    "latex": "a^2 + 2ab + b^2 = c^2 + 2ab"
+   },
+   {
+    "id": "eq_final",
+    "tone": "success",
+    "type": "math",
+    "latex": "a^2 + b^2 = c^2"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "board",
+    "region": "left"
+   },
+   {
+    "rel": "place",
+    "id": "eq_total",
+    "region": "top-right"
+   },
+   {
+    "rel": "below",
+    "id": "eq_sum",
+    "of": "eq_total",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq_expanded",
+    "of": "eq_sum",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq_final",
+    "of": "eq_expanded",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "A right triangle",
+    "narration": "Start with a right-angled triangle with legs a and b, and hypotenuse c.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "t1",
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "t1",
+      "text": "legs a, b and hypotenuse c"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Arrange four triangles",
+    "narration": "Four identical copies of the triangle are arranged around the border to form a large square of side (a + b).",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "t1"
+     },
+     {
+      "do": "create",
+      "target": [
+       "t2",
+       "t3",
+       "t4"
+      ],
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "sq_outer",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "The inner square c²",
+    "narration": "The enclosed central region forms a square with side c and area c².",
+    "actions": [
+     {
+      "do": "create",
+      "target": "sq_inner",
+      "effect": "fade"
+     },
+     {
+      "do": "highlight",
+      "target": "sq_inner",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Equate the total area",
+    "narration": "The area of the big square equals the central square plus the four right triangles.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq_total",
+      "effect": "type"
+     },
+     {
+      "do": "create",
+      "target": "eq_sum",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Cancel equal terms",
+    "narration": "Expanding (a+b)² and subtracting 2ab from both sides reveals a² + b² = c².",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq_expanded",
+      "effect": "type"
+     },
+     {
+      "do": "create",
+      "target": "eq_final",
+      "effect": "type"
+     },
+     {
+      "do": "highlight",
+      "target": "eq_final",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 25880,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

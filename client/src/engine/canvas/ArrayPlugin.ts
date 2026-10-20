@@ -10,6 +10,14 @@ import { ICanvasEngine, ICanvasPlugin, AnimContext } from './types';
 import { staggerIn, flashFill, fadeIn } from '../anim/primitives';
 
 const CELL_H = 54;
+
+export interface ArraySnapshot {
+  values: (number | string)[];
+  x: number;     // left of cell 0 (logical)
+  y: number;     // top of the row (logical)
+  cellW: number;
+  gap: number;
+}
 const CELL_GAP = 10;
 const POINTER_ZONE = 64; // reserved space under each array for pointers
 
@@ -96,6 +104,9 @@ export class ArrayPlugin implements ICanvasPlugin {
         .text((_d, i) => i);
     }
 
+    if (ctx && options.morphFrom) {
+      return this.morph(group, cells.nodes() as Element[], values, rect, cellW, options.morphFrom, ctx);
+    }
     if (ctx) {
       return staggerIn(ctx.tl, cells.nodes() as Element[], ctx.at, {
         duration: 0.4,
@@ -103,6 +114,77 @@ export class ArrayPlugin implements ICanvasPlugin {
       });
     }
     return 0;
+  }
+
+  /** Values and cell geometry of a drawn array (logical coordinates). */
+  snapshot(id: string): ArraySnapshot | null {
+    const group = this.engine.mainLayer.select(`#${CSS.escape(id)}`);
+    if (group.empty()) return null;
+    const meta = (group.node() as any)._meta;
+    if (!meta) return null;
+    const values = group.selectAll('g.cell').data() as (number | string)[];
+    return { values, x: meta.offsetX, y: meta.y, cellW: meta.cellWidth, gap: meta.cellGap };
+  }
+
+  /**
+   * Turn the previous step's array into this one. Values present in both
+   * travel to their new index (crossing pairs arc over/under each other —
+   * a swap), new values drop in (push / enqueue), and values that vanished
+   * leave as ghosts (pop from the top / dequeue from the front).
+   */
+  private morph(
+    group: any, cellNodes: Element[], values: (number | string)[],
+    rect: { x: number; y: number }, cellW: number, from: ArraySnapshot, ctx: AnimContext,
+  ): number {
+    const { tl, at } = ctx;
+    const D = 0.75;
+    const step = cellW + CELL_GAP;
+    const used = new Set<number>();
+    let moved = false;
+    cellNodes.forEach((el, i) => {
+      const v = String(values[i]);
+      const j = from.values.findIndex((w, k) => !used.has(k) && String(w) === v);
+      const base = i * step;
+      if (j < 0) {
+        // new value: drops into place after the others start moving
+        tl.fromTo(el, { autoAlpha: 0, x: base, y: -CELL_H * 1.1 }, { autoAlpha: 1, x: base, y: 0, duration: 0.5, ease: 'back.out(1.6)' }, at + 0.2);
+        return;
+      }
+      used.add(j);
+      const dx = from.x + j * (from.cellW + from.gap) - (rect.x + base);
+      const dy = from.y - rect.y;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return; // stays put
+      moved = true;
+      const arc = (dx < 0 ? -1 : 1) * CELL_H * 0.85; // moving right goes over, left goes under
+      tl.set(el, { x: base + dx, y: dy }, at);
+      tl.to(el, { x: base, duration: D, ease: 'power2.inOut' }, at);
+      tl.to(el, { y: dy / 2 + arc, duration: D / 2, ease: 'sine.out' }, at);
+      tl.to(el, { y: 0, duration: D / 2, ease: 'sine.in' }, at + D / 2);
+      const r = el.querySelector('rect');
+      if (r) flashFill(tl, r, at, '#F59E0B', { duration: D });
+    });
+
+    // vanished values exit from where they were
+    from.values.forEach((w, k) => {
+      if (used.has(k)) return;
+      const gx = from.x + k * (from.cellW + from.gap) - rect.x;
+      const gy = from.y - rect.y;
+      const ghost = group.append('g').attr('class', 'cell-ghost').attr('transform', `translate(${gx}, ${gy})`);
+      ghost.append('rect').attr('width', from.cellW).attr('height', CELL_H).attr('rx', Math.min(12, from.cellW / 4))
+        .attr('fill', 'rgba(255, 255, 255, 0.03)').attr('stroke', 'rgba(255, 255, 255, 0.12)');
+      ghost.append('text').attr('x', from.cellW / 2).attr('y', CELL_H / 2).attr('dy', '0.35em').attr('text-anchor', 'middle')
+        .attr('font-size', '16px').attr('font-family', 'var(--font-mono)').attr('fill', 'var(--text-primary)').text(String(w));
+      const node = ghost.node() as Element;
+      const front = k === 0;
+      tl.fromTo(node, { autoAlpha: 1, x: gx, y: gy }, {
+        autoAlpha: 0,
+        x: front ? gx - step * 1.2 : gx,
+        y: front ? gy : gy - CELL_H * 1.3,
+        duration: 0.55,
+        ease: 'power2.in',
+      }, at);
+    });
+    return moved ? D : 0.7;
   }
 
   highlightCell(id: string, color: string = '#fef08a', duration: number = 500, ctx?: AnimContext): number {

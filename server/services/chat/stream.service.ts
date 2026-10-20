@@ -10,6 +10,7 @@ import { AppError, ErrorCode } from '../../shared/errors.js';
 import { container } from '../../core/container.js';
 import { captureException } from '../../utils/core/monitoring.js';
 import { childLogger } from '../../core/logger.js';
+import { toChatClientError, classifyChatError } from './chatErrors.js';
 
 const log = childLogger({ subsystem: 'stream-manager' });
 
@@ -29,6 +30,8 @@ export class StreamLifecycleManager {
   private isClosed: boolean = false;
   private tokenCount: number = 0;
   private heartbeatInterval?: NodeJS.Timeout;
+  /** True once the client went away (closed tab, pressed Stop, network drop). */
+  clientDisconnected: boolean = false;
 
   constructor(res: Response, requestId: string, sessionId?: string) {
     this.res = res;
@@ -42,7 +45,10 @@ export class StreamLifecycleManager {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no', // Disable buffering on Nginx
+      'X-Request-Id': requestId,
     });
+    // Flush the headers now so the client sees the stream open immediately.
+    (this.res as any).flushHeaders?.();
 
     // Handle client disconnect
     this.res.on('close', () => {
@@ -55,6 +61,15 @@ export class StreamLifecycleManager {
 
   get signal() {
     return this.controller.signal;
+  }
+
+  get closed() {
+    return this.isClosed;
+  }
+
+  /** The conversation this stream belongs to (known once the session is resolved). */
+  setSessionId(sessionId: string) {
+    this.sessionId = sessionId;
   }
 
   /**
@@ -112,18 +127,32 @@ export class StreamLifecycleManager {
    * Signals an error mid-stream and closes gracefully
    */
   error(err: any) {
-    log.error(`Stream Error for ${this.requestId}:`, { error: err.message, stack: err.stack });
-    
+    const clientError = toChatClientError(err);
+    const logFn = clientError.code === 'CANCELLED' ? log.info.bind(log) : log.error.bind(log);
+    logFn(`Stream failed for ${this.requestId}`, {
+      requestId: this.requestId,
+      sessionId: this.sessionId,
+      category: clientError.code,
+      error: err?.message,
+      status: err?.status,
+    });
+
+    // Only the safe category reaches the browser — never provider bodies or stacks.
     const errorChunk: StreamChunk = {
       type: 'error',
-      content: err.message || 'An unexpected error occurred during generation.',
-      error: err.message || 'An unexpected error occurred during generation.',
-      data: { code: err.code || ErrorCode.INTERNAL_ERROR },
+      content: clientError.message,
+      error: clientError.message,
+      code: clientError.code,
+      retryable: clientError.retryable,
+      requestId: this.requestId,
+      data: { code: clientError.code, retryable: clientError.retryable },
       timestamp: Date.now(),
     };
 
     this.send(errorChunk);
-    captureException(err, { requestId: this.requestId, sessionId: this.sessionId });
+    if (classifyChatError(err) === 'INTERNAL') {
+      captureException(err, { requestId: this.requestId, sessionId: this.sessionId });
+    }
     this.close();
   }
 
@@ -161,7 +190,11 @@ export class StreamLifecycleManager {
 
   private cleanup() {
     if (this.isClosed) return;
+    // Product rule: a closed connection (Stop button, closed tab, dropped
+    // network) cancels the generation. ChatService keeps whatever was already
+    // streamed as a `cancelled` message so the history matches what was seen.
     log.info(`Client disconnected for ${this.requestId}. Aborting work...`);
+    this.clientDisconnected = true;
     this.controller.abort();
     this.isClosed = true;
 

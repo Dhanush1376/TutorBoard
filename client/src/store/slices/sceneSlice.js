@@ -106,6 +106,7 @@ export const createSceneSlice = (set, get) => ({
         steps: canvasSteps,
         timeline: canvasSteps
       };
+      state.sceneBranch = null;
       state.canvasObjects = canvasObjects;
       state.canvasConnections = canvasConnections;
       state.canvasSteps = canvasSteps;
@@ -137,6 +138,7 @@ export const createSceneSlice = (set, get) => ({
 
   clearScene: () => set({
     activeScene: null,
+    sceneBranch: null,
     sceneReady: false,
     sceneDomain: 'general',
     canvasMode: CANVAS_MODE.CLOSED,
@@ -218,6 +220,7 @@ export const createSceneSlice = (set, get) => ({
     const currentStepIndex = snapshot.currentStepIndex || 0;
 
     set((state) => {
+      state.sceneBranch = null;
       state.canvasObjects = canvasObjects;
       state.canvasSteps = canvasSteps;
       state.canvasConnections = canvasConnections;
@@ -236,6 +239,8 @@ export const createSceneSlice = (set, get) => ({
           timeline: canvasSteps,
           objects: canvasObjects,
           steps: canvasSteps,
+          // an Engine v2 lesson replays from its scene
+          ...(snapshot.sceneV2 ? { sceneV2: snapshot.sceneV2 } : {}),
         };
       }
     });
@@ -256,7 +261,73 @@ export const createSceneSlice = (set, get) => ({
   setCanvasMode: (mode) => set({ canvasMode: mode }),
   
   setCanvasTransform: (transform) => set({ canvasTransform: transform }),
-  
+
+  // Doubt deltas: AgentCanvasRenderer plays `deltaState.actions` on top of the
+  // live lesson, then clears it with setDeltaState(null).
+  setDeltaState: (deltaState) => set({ deltaState }),
+
+  // ── Engine v2 doubts ───────────────────────────────────────────────────
+  // A question asked during a v2 lesson is answered on its board: a branch of
+  // the lesson (its beats up to the current one + the answer's beats). The
+  // lesson waits at its step; "back to the lesson" restores it exactly there.
+  // sceneBranch: { title, scene, from, beats, answer, steps, at, resumePlaying }
+  sceneBranch: null,
+  _resumeAfterQuestion: false,
+
+  /** The learner asked about the board: hold the lesson where it is until the answer plays. */
+  holdLessonForQuestion: () => set((state) => {
+    state._resumeAfterQuestion = state._resumeAfterQuestion || state.isPlaying;
+    state.isPlaying = false;
+  }),
+
+  enterSceneBranch: (branch) => set((state) => {
+    if (!branch?.scene || typeof branch.from !== 'number') return;
+    const resumePlaying = state.sceneBranch?.resumePlaying ?? (state._resumeAfterQuestion || state.isPlaying);
+    state.sceneBranch = { ...branch, at: branch.from + 1, resumePlaying };
+    state._resumeAfterQuestion = false;
+    state.isPlaying = false;
+    state.isPaused = false;
+  }),
+
+  setBranchBeat: (at) => set((state) => {
+    if (state.sceneBranch) state.sceneBranch.at = at;
+  }),
+
+  /** Back to the lesson at the step it was on (already seen: it carries on from there). */
+  exitSceneBranch: () => set((state) => {
+    if (!state.sceneBranch) return;
+    const resume = state.sceneBranch.resumePlaying;
+    state.sceneBranch = null;
+    state.isPlaying = !!resume;
+    state.isPaused = false;
+    state.stepPlayback = { index: state.currentStepIndex, animDone: true, voiceDone: true };
+  }),
+
+  // ── Engine v2 checks: "predict the next step" (5.1) ─────────────────────
+  // checkAnswers: `${lesson}:${step}` → the choice picked. A miss slows the
+  // lesson a little, a right answer brings it back (adaptive pace, 5.2).
+  checkAnswers: {},
+  checkStats: { right: 0, wrong: 0 },
+  answerCheck: (key, choice, correct) => set((state) => {
+    state.checkAnswers[key] = choice;
+    state.checkStats = { ...state.checkStats, [correct ? 'right' : 'wrong']: (state.checkStats?.[correct ? 'right' : 'wrong'] || 0) + 1 };
+    const speed = state.playbackSpeed || 1;
+    if (!correct) state.playbackSpeed = Math.max(0.8, Math.round((speed - 0.1) * 100) / 100);
+    else if (speed < 1) state.playbackSpeed = Math.min(1, Math.round((speed + 0.1) * 100) / 100);
+  }),
+
+  // Replay the current step's animation (the canvas skips a step it has
+  // already played, so re-selecting the same index did nothing).
+  replayNonce: 0,
+  replayStep: () => set((state) => { state.replayNonce = (state.replayNonce || 0) + 1; }),
+
+  // Non-delta doubt responses carry the same command list as `mutations`;
+  // route them through the delta player rather than rewriting objects.
+  mutateCanvasObjects: (mutations) => {
+    if (!Array.isArray(mutations) || mutations.length === 0) return;
+    set({ deltaState: { actions: mutations, timestamp: Date.now() } });
+  },
+
   setCanvasObjectsWithHistory: (objects) => set((state) => {
     state.history.past.push([...state.canvasObjects]);
     if (state.history.past.length > MAX_HISTORY) state.history.past.shift();

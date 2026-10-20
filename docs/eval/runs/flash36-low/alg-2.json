@@ -1,0 +1,206 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Binary Search for 23",
+  "domain": "algorithms",
+  "summary": "Binary search repeatedly divides a sorted array in half by comparing the target value to the middle element.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "arr",
+    "label": "Sorted Array",
+    "type": "array",
+    "values": [
+     2,
+     5,
+     8,
+     12,
+     16,
+     23,
+     38,
+     56,
+     72,
+     91
+    ],
+    "indices": true
+   },
+   {
+    "id": "target_info",
+    "tone": "primary",
+    "type": "text",
+    "text": "Target: 23",
+    "role": "title"
+   },
+   {
+    "id": "status",
+    "type": "text",
+    "text": "Range: [0..9]",
+    "role": "caption"
+   },
+   {
+    "id": "cmp_text",
+    "type": "text",
+    "text": "",
+    "role": "body"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "arr",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "target_info",
+    "of": "arr",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "status",
+    "of": "arr",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "cmp_text",
+    "of": "status",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Initial setup",
+    "narration": "We search for target 23 in a sorted 10-element array. Search range covers indices 0 to 9.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "arr",
+       "target_info",
+       "status"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 1: Check middle element",
+    "narration": "Middle index is (0 + 9) / 2 = 4. Element at index 4 is 16.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[4]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "cmp_text"
+     },
+     {
+      "do": "set",
+      "target": "cmp_text",
+      "text": "16 < 23 (Target is larger, search right half)"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 1: Eliminate left half",
+    "narration": "Since 16 is less than 23, we eliminate indices 0 to 4 and narrow search to indices 5 to 9.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[4]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Range: [5..9]"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 2: Check new middle element",
+    "narration": "New middle is (5 + 9) / 2 = 7. Element at index 7 is 56.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[7]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "cmp_text",
+      "text": "56 > 23 (Target is smaller, search left half)"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 2: Eliminate right half",
+    "narration": "Since 56 is greater than 23, we eliminate indices 7 to 9. Search narrows to indices 5 to 6.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[7]",
+       "arr[8]",
+       "arr[9]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Range: [5..6]"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 3: Target found!",
+    "narration": "New middle is (5 + 6) / 2 = 5. Element at index 5 is 23, matching our target!",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[5]",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "cmp_text",
+      "text": "23 == 23 (Target found at index 5!)"
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Found at index 5 in 3 steps"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 10872,
+ "model": "gemini-3.6-flash",
+ "domain": "algorithms"
+}

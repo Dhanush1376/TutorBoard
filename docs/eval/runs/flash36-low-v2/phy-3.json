@@ -1,0 +1,191 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Forces on a sliding block",
+  "domain": "physics",
+  "summary": "Gravity pulls down, the ramp provides a normal force, and kinetic friction opposes motion; the net force down the slope accelerates the block.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     6
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x (m)",
+    "yLabel": "y (m)",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "ramp",
+    "label": "ramp",
+    "tone": "muted",
+    "space": "plane",
+    "type": "line",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     8,
+     4
+    ],
+    "dashed": false
+   },
+   {
+    "id": "block",
+    "label": "m",
+    "type": "rect",
+    "size": "sm"
+   },
+   {
+    "id": "g",
+    "label": "\\\\mathbf{g}",
+    "tone": "danger",
+    "space": "plane",
+    "type": "vector",
+    "from": [
+     4,
+     2
+    ],
+    "angleDeg": 270,
+    "magnitude": 3
+   },
+   {
+    "id": "n",
+    "label": "\\\\mathbf{N}",
+    "tone": "primary",
+    "space": "plane",
+    "type": "vector",
+    "from": [
+     4,
+     2
+    ],
+    "angleDeg": 150,
+    "magnitude": 2.5
+   },
+   {
+    "id": "f",
+    "label": "\\\\mathbf{f}_k",
+    "tone": "warning",
+    "space": "plane",
+    "type": "vector",
+    "from": [
+     4,
+     2
+    ],
+    "angleDeg": 210,
+    "magnitude": 1.5
+   },
+   {
+    "id": "net",
+    "label": "\\\\mathbf{F}_{net}",
+    "tone": "success",
+    "space": "plane",
+    "type": "vector",
+    "from": [
+     4,
+     2
+    ],
+    "angleDeg": 180,
+    "magnitude": 1.2
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Ramp and block",
+    "narration": "A block sits on a 26.6° inclined ramp (rise 4 m over run 8 m).",
+    "actions": [
+     {
+      "do": "create",
+      "target": "ramp",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "block",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Gravity",
+    "narration": "Gravity pulls straight down with magnitude mg.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "g",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Normal force",
+    "narration": "The ramp pushes back with a normal force perpendicular to its surface.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "n",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Kinetic friction",
+    "narration": "Kinetic friction acts opposite the motion, parallel to the ramp surface.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "f",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Net down‑slope force",
+    "narration": "The component of gravity along the ramp minus friction gives the net force down the slope, accelerating the block.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "net",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "entities[2]",
+    "message": "Expected object, received string"
+   }
+  ]
+ ],
+ "ms": 66998,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

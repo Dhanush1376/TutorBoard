@@ -63,6 +63,11 @@ jobs:
       working-directory: ./client
       run: npm test
 
+    # Engine v2 (client/src/scene) is strict TypeScript inside a JS app: check it on its own
+    - name: Typecheck Engine v2
+      working-directory: ./client
+      run: npx tsc -p tsconfig.scene.json
+
     - name: Typecheck Server
       working-directory: ./server
       run: npm run build
@@ -106,10 +111,13 @@ jobs:
 
   deploy-client:
     needs: build-and-test
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push' && secrets.VERCEL_TOKEN != ''
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - name: Deploy to Vercel
+        if: env.VERCEL_TOKEN != ''
         uses: amondnet/vercel-action@v20
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -120,11 +128,14 @@ jobs:
 
   deploy-server:
     needs: build-and-test
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push' && secrets.RENDER_DEPLOY_HOOK_URL != ''
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
     runs-on: ubuntu-latest
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
     steps:
       - name: Trigger Render Deploy Hook
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
             --fail \
-            "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+            "$RENDER_DEPLOY_HOOK_URL"

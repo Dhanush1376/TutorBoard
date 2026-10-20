@@ -17,6 +17,7 @@ export const PROGRAM_LANGS = [
   'javascript', 'js', 'typescript', 'ts', 'python', 'py', 'java', 'cpp', 'c++', 'c', 'rust', 'rs', 'go', 'ruby', 'swift', 'kotlin', 'php', 'bash', 'sh', 'sql', 'html', 'css'
 ];
 
+// The five languages that really run — and can be stepped through — in TutorBoard.
 export const RUNNABLE_LANGS = [
-  'javascript', 'js', 'python', 'py', 'java', 'cpp', 'c++', 'c', 'rust', 'rs', 'go', 'ruby', 'ts', 'typescript'
+  'javascript', 'js', 'python', 'py', 'java', 'cpp', 'c++', 'cc', 'c'
 ];

@@ -267,21 +267,18 @@ const UnifiedControlBar = ({
           padding: '0 2px'
         }}>
           <span style={{
-            fontSize: 9,
+            fontSize: 10,
             color: 'var(--text-tertiary)',
-            fontWeight: 700,
+            fontWeight: 500,
             fontVariantNumeric: 'tabular-nums',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase'
           }}>
             Step {currentStepIndex + 1} <span style={{ opacity: 0.4 }}>/</span> {totalSteps}
           </span>
           <span style={{
-            fontSize: 9,
+            fontSize: 10,
             color: 'var(--text-tertiary)',
-            fontWeight: 700,
+            fontWeight: 500,
             fontVariantNumeric: 'tabular-nums',
-            letterSpacing: '0.05em',
             opacity: 0.8
           }}>
             {elapsedTime} <span style={{ opacity: 0.4 }}>/</span> {totalTime}
@@ -381,6 +378,11 @@ const UnifiedControlBar = ({
             >
               <input
                 ref={doubtInputRef}
+                // Focus on mount: AnimatePresence mode="wait" mounts this only
+                // after the trigger's exit animation, so the isDoubtExpanded
+                // effect runs too early and keystrokes went to the page (Space
+                // toggled playback instead of typing).
+                autoFocus
                 value={doubtText}
                 onChange={(e) => setDoubtText(e.target.value)}
                 onKeyDown={handleDoubtKeyDown}

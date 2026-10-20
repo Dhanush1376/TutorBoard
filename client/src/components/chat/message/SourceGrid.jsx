@@ -90,9 +90,9 @@ const SourceGrid = ({ sources, searchPerformed }) => {
               >
                 <div className="flex items-center gap-1.5 mb-1.5 overflow-hidden">
                   {favicon && <img src={favicon} alt="" style={{ width: 12, height: 12, borderRadius: 2, opacity: 0.7 }} onError={e => { e.target.style.display = 'none'; }} />}
-                  <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostname}</span>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostname}</span>
                   {source.isMock && (
-                    <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', padding: '1px 4px', borderRadius: 4, marginLeft: 'auto' }}>SIMULATED</span>
+                    <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', padding: '1px 5px', borderRadius: 4, marginLeft: 'auto' }}>Simulated</span>
                   )}
                 </div>
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

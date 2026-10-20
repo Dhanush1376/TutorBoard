@@ -1,56 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Bell, BellOff, Sparkles, User, Mail, GraduationCap } from 'lucide-react';
+import { Check, Bell, BellOff, Plus, User, AtSign, GraduationCap } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
   AppleToggle, RightInlineInput, RightInlineSelect
 } from './SettingsShared';
-
-const AVATAR_PALETTE = [
-  ['#f97316', '#fff7ed'],
-  ['#8b5cf6', '#f5f3ff'],
-  ['#10b981', '#ecfdf5'],
-  ['#3b82f6', '#eff6ff'],
-  ['#f43f5e', '#fff1f2'],
-  ['#06b6d4', '#ecfeff'],
-];
-
-function getAvatarColor(name = '') {
-  const idx = name.charCodeAt(0) % AVATAR_PALETTE.length;
-  return AVATAR_PALETTE[idx] || AVATAR_PALETTE[0];
-}
-
-function AvatarCircle({ user, size = 48 }) {
-  const [imgError, setImgError] = useState(false);
-  const name = user?.name || '';
-  const initials = name
-    ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-    : '?';
-  const [bg, fg] = getAvatarColor(name);
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '14px',
-      background: bg, color: fg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.35, fontWeight: 500, letterSpacing: '-0.02em',
-      flexShrink: 0, userSelect: 'none',
-      transition: 'all 0.2s ease',
-      overflow: 'hidden',
-    }}>
-      {user?.avatar && !user.isGuest && !imgError ? (
-        <img 
-          src={user.avatar} 
-          alt="" 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        initials
-      )}
-    </div>
-  );
-}
 
 const MAX_PREFS = 300;
 
@@ -166,196 +121,103 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
   const prefsOverLimit = prefsLeft < 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="flex flex-col gap-8 pt-6">
 
-      {/* Profile Header */}
-      <div 
-        style={{
-          display: 'flex', alignItems: 'center', gap: '14px',
-          padding: '16px',
-          background: 'var(--bg-secondary)', borderRadius: '14px',
-          border: '1px solid var(--border-color)',
-          position: 'relative',
-        }}
-      >
-        <AvatarCircle user={user} size={48} />
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
-            {displayName || 'Your Name'}
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Mail size={11} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
-              <span style={{ fontSize: '11.5px', color: 'var(--text-tertiary)', fontWeight: 400 }}>
-                {user?.email || 'guest@tutorboard.ai'}
-              </span>
-            </div>
-            <span style={{ width: '2px', height: '2px', borderRadius: '50%', background: 'var(--text-tertiary)', opacity: 0.3 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <GraduationCap size={11} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
-              <span style={{ fontSize: '11.5px', color: 'var(--text-tertiary)', fontWeight: 400 }}>
-                {ROLE_OPTIONS.find(o => o.value === role)?.label.split(' ').pop() || 'Learner'}
-              </span>
-            </div>
-          </div>
-        </div>
-
+      {/* Profile details; a small tick confirms each save */}
+      <section className="relative">
         <AnimatePresence>
           {saveStatus && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                fontSize: '10px', fontWeight: 500,
-                color: saveStatus === 'saved' ? '#10b981' : 'var(--text-tertiary)',
-                padding: '4px 10px', borderRadius: '8px',
-                background: saveStatus === 'saved' ? 'rgba(16,185,129,0.08)' : 'var(--bg-tertiary)',
-              }}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className={`absolute -top-7 right-1 inline-flex items-center gap-1.5 text-[12px] font-medium ${
+                saveStatus === 'saved' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-tertiary)]'
+              }`}
             >
-              {saveStatus === 'saved' ? <Check size={10} strokeWidth={3} /> : null}
-              {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
+              {saveStatus === 'saved' ? <Check size={12} strokeWidth={2.6} /> : <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--mk-accent)]" />}
+              {saveStatus === 'saving' ? 'Saving' : 'Saved'}
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-
-      {/* Profile Details */}
-      <div>
-        <SectionTitle>Profile</SectionTitle>
         <SettingsGroup>
           <SettingsRow
-            label="Full Name"
             icon={User}
-            rightElement={
-              <RightInlineInput
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                placeholder="Your full name"
-              />
-            }
+            label="Name" wide
+            rightElement={<RightInlineInput value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your full name" />}
           />
           <SettingsRow
-            label="Preferred Name"
-            description="How the AI addresses you"
-            rightElement={
-              <RightInlineInput
-                value={nickname}
-                onChange={e => setNickname(e.target.value)}
-                placeholder="e.g. Alex"
-              />
-            }
+            icon={AtSign}
+            label="Call me" wide
+            rightElement={<RightInlineInput value={nickname} onChange={e => setNickname(e.target.value)} placeholder="e.g. Alex" />}
           />
           <SettingsRow
-            label="Current Role"
-            borderBottom={false}
-            rightElement={
-              <RightInlineSelect
-                value={role}
-                onChange={setRole}
-                options={ROLE_OPTIONS}
-              />
-            }
+            icon={GraduationCap}
+            label="I am a" wide
+            rightElement={<RightInlineSelect value={role} onChange={setRole} options={ROLE_OPTIONS} />}
           />
         </SettingsGroup>
-      </div>
+      </section>
 
-      {/* AI Preferences */}
-      <div>
-        <SectionTitle>Custom Instructions</SectionTitle>
-        <div style={{
-          background: 'var(--bg-secondary)',
-          borderRadius: '12px',
-          border: '1px solid var(--border-color)',
-          padding: '16px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={14} strokeWidth={2} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
-              <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                Behavior & Personality
-              </span>
-            </div>
-            <span style={{
-              fontSize: '10px', fontWeight: 500,
-              color: prefsOverLimit ? '#ef4444' : 'var(--text-tertiary)',
-              opacity: 0.6,
-            }}>
-              {prefsLeft} left
+      {/* Custom instructions */}
+      <section>
+        <SectionTitle
+          action={
+            <span className={`font-mono text-[10.5px] tabular-nums ${prefsOverLimit ? 'text-red-500' : 'text-[var(--text-tertiary)]'}`}>
+              {preferences.length}/{MAX_PREFS}
             </span>
-          </div>
-
+          }
+        >
+          Custom instructions
+        </SectionTitle>
+        <div className="rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] p-4">
+          <label htmlFor="tb-prefs" className="text-[13.5px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">
+            How should the tutor teach you?
+          </label>
           <textarea
+            id="tb-prefs"
             value={preferences}
             onChange={e => setPreferences(e.target.value.slice(0, MAX_PREFS + 20))}
-            placeholder='e.g. "Explain concepts using analogies. Keep responses concise but include code snippets."'
-            style={{
-              width: '100%',
-              padding: '12px',
-              minHeight: '100px',
-              maxHeight: '240px',
-              background: 'var(--bg-primary)',
-              border: `1px solid ${prefsOverLimit ? 'rgba(239,68,68,0.3)' : 'var(--border-color)'}`,
-              borderRadius: '10px',
-              color: 'var(--text-primary)',
-              fontSize: '12.5px',
-              lineHeight: '1.6',
-              outline: 'none',
-              resize: 'vertical',
-              fontFamily: 'inherit',
-              transition: 'border-color 0.15s',
-              boxSizing: 'border-box',
-            }}
+            placeholder='e.g. "Explain with analogies first. Keep answers short, then go deeper if I ask."'
+            className={`mt-3 block min-h-[112px] w-full resize-y rounded-xl border bg-[var(--bg-primary)] px-3.5 py-3 text-[13.5px] leading-[1.6] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus:shadow-[0_0_0_3px_var(--mk-accent-soft)] ${
+              prefsOverLimit ? 'border-red-500/40' : 'border-[var(--st-line-strong)] focus:border-[var(--text-tertiary)]'
+            }`}
+            style={{ maxHeight: 240 }}
           />
-
-          {/* Quick chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {[
-              { label: 'Conceptual', text: 'Prioritize conceptual understanding over direct answers.' },
-              { label: 'Technical', text: 'Provide detailed technical explanations with code.' },
-              { label: 'Iterative', text: 'Ask follow-up questions to verify my understanding.' }
+              { label: 'Concepts first', text: 'Prioritize conceptual understanding over direct answers.' },
+              { label: 'Show the working', text: 'Show each step and the reasoning behind it.' },
+              { label: 'Check my understanding', text: 'Ask follow-up questions to verify my understanding.' },
             ].map((chip) => (
               <button
                 key={chip.label}
+                type="button"
                 onClick={() => {
-                  const newPrefs = preferences ? `${preferences} ${chip.text}` : chip.text;
-                  if (newPrefs.length <= MAX_PREFS) setPreferences(newPrefs);
+                  const next = preferences ? `${preferences} ${chip.text}` : chip.text;
+                  if (next.length <= MAX_PREFS) setPreferences(next);
                 }}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-tertiary)',
-                  fontSize: '10px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.12s',
-                  letterSpacing: '0.02em',
-                }}
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]"
               >
+                <Plus size={12} strokeWidth={2} />
                 {chip.label}
               </button>
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Notifications */}
-      <div>
+      <section>
         <SectionTitle>Notifications</SectionTitle>
         <SettingsGroup>
           <SettingsRow
             icon={notifCompletion ? Bell : BellOff}
-            label="Push Notifications"
-            description="Updates when an agent finishes a task"
-            borderBottom={false}
-            rightElement={<AppleToggle value={notifCompletion} onChange={handleNotifToggle} />}
+            label="Tell me when a lesson is ready"
+            rightElement={<AppleToggle label="Lesson ready alerts" value={notifCompletion} onChange={handleNotifToggle} />}
           />
         </SettingsGroup>
-      </div>
+      </section>
     </div>
   );
 }

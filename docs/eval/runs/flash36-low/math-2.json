@@ -1,0 +1,194 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Finding the roots of x² − 4x + 3",
+  "domain": "math",
+  "summary": "The roots of x² − 4x + 3 are x = 1 and x = 3, where the parabola crosses the x-axis.",
+  "spaces": [
+   {
+    "id": "graph",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     5
+    ],
+    "y": [
+     -2,
+     6
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "y",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "p",
+    "tone": "primary",
+    "space": "graph",
+    "type": "plot",
+    "expr": "x^2 - 4*x + 3"
+   },
+   {
+    "id": "eq1",
+    "type": "math",
+    "latex": "y = x^2 - 4x + 3"
+   },
+   {
+    "id": "eq_factored",
+    "type": "math",
+    "latex": "y = (x - 1)(x - 3)"
+   },
+   {
+    "id": "eq_roots",
+    "type": "math",
+    "latex": "x - 1 = 0 \\implies x = 1 \\quad | \\quad x - 3 = 0 \\implies x = 3"
+   },
+   {
+    "id": "root1",
+    "label": "(1,0)",
+    "tone": "success",
+    "space": "graph",
+    "type": "point",
+    "at": [
+     1,
+     0
+    ]
+   },
+   {
+    "id": "root2",
+    "label": "(3,0)",
+    "tone": "success",
+    "space": "graph",
+    "type": "point",
+    "at": [
+     3,
+     0
+    ]
+   },
+   {
+    "id": "vertex",
+    "label": "Vertex (2,-1)",
+    "tone": "info",
+    "space": "graph",
+    "type": "point",
+    "at": [
+     2,
+     -1
+    ]
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "graph",
+    "region": "left"
+   },
+   {
+    "rel": "place",
+    "id": "eq1",
+    "region": "top-right"
+   },
+   {
+    "rel": "below",
+    "id": "eq_factored",
+    "of": "eq1",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq_roots",
+    "of": "eq_factored",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Plot the quadratic function",
+    "narration": "Let's graph y = x² − 4x + 3 to visually find where it equals zero.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq1",
+      "effect": "type"
+     },
+     {
+      "do": "create",
+      "target": "p",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Factor the expression",
+    "narration": "Factor x² − 4x + 3 into (x − 1)(x − 3) to find the values of x that make y equal zero.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq_factored",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Solve for the roots",
+    "narration": "Setting each factor to zero gives x = 1 and x = 3 as the roots.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq_roots",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Locate x-intercepts on the graph",
+    "narration": "The roots correspond to the points (1, 0) and (3, 0) where the parabola crosses the x-axis.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "root1",
+       "root2"
+      ],
+      "effect": "pop"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "root1",
+       "root2"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Identify the vertex",
+    "narration": "Symmetrically between the two roots at x = 2 lies the vertex at (2, -1).",
+    "actions": [
+     {
+      "do": "create",
+      "target": "vertex",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 4807,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

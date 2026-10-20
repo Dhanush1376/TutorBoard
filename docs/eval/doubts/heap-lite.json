@@ -1,0 +1,147 @@
+{
+ "version": "1",
+ "title": "Inserting 3 into a min-heap",
+ "domain": "data-structures",
+ "summary": "A new value goes into the next free spot, then swaps upward while it is smaller than its parent.",
+ "spaces": [],
+ "entities": [
+  {
+   "id": "heap",
+   "label": "min-heap",
+   "type": "tree",
+   "nodes": [
+    {
+     "id": "n0",
+     "value": 5
+    },
+    {
+     "id": "n1",
+     "value": 9,
+     "parent": "n0"
+    },
+    {
+     "id": "n2",
+     "value": 7,
+     "parent": "n0"
+    },
+    {
+     "id": "n3",
+     "value": 12,
+     "parent": "n1"
+    },
+    {
+     "id": "n4",
+     "value": 10,
+     "parent": "n1"
+    },
+    {
+     "id": "n5",
+     "value": 3,
+     "parent": "n2"
+    }
+   ]
+  },
+  {
+   "id": "arr",
+   "label": "array view",
+   "type": "array",
+   "values": [
+    5,
+    9,
+    7,
+    12,
+    10
+   ],
+   "indices": true
+  },
+  {
+   "id": "rule",
+   "type": "text",
+   "text": "parent ≤ children",
+   "role": "caption"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "heap",
+   "region": "center"
+  },
+  {
+   "rel": "below",
+   "id": "arr",
+   "of": "heap",
+   "gap": "md"
+  },
+  {
+   "rel": "above",
+   "id": "rule",
+   "of": "heap",
+   "gap": "md"
+  }
+ ],
+ "beats": [
+  {
+   "title": "A valid min-heap",
+   "narration": "Every parent is smaller than its children, so the minimum, 5, sits at the root.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "rule"
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "heap"
+    },
+    {
+     "do": "create",
+     "target": "arr"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Next free spot",
+   "narration": "Look at the available spots at the bottom level. The next free position is under 7, making 7 its direct parent.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "heap.n2",
+      "heap.n1"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "do": "annotate",
+     "target": "heap.n2",
+     "text": "next free spot is here",
+     "side": "right"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Direct parent only",
+   "narration": "A heap invariant only checks a node against its immediate parent, so 3 compares with 7 and ignores 9 entirely.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "heap.n1",
+     "state": "eliminated",
+     "hold": true
+    },
+    {
+     "do": "clear"
+    },
+    {
+     "do": "unannotate",
+     "target": "heap.n2"
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

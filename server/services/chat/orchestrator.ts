@@ -14,10 +14,18 @@ import { AppError, ErrorCode } from '../../shared/errors.js';
 import { extractJSON, strictParseJSON } from '../../engine/core/utils/jsonUtils.js';
 import { VisualScriptSchema } from '../../engine/core/utils/visualizerSchemas.js';
 import { generateFallbackVisualScript, getHardcodedPythagorasLesson } from '../../engine/core/utils/fallbackVisualizer.js';
+import { engineV2Enabled, learnerLevelOf, lessonFailure, planLesson, sceneModel, type SceneTimeline } from '../../engine/scene/lesson.js';
+import { toBranch, type DoubtResult, type SceneBranch } from '../../engine/scene/doubt.js';
 
 export interface OrchestrationResult {
   narration: any;
   visualScript?: any;
+  /** Engine v2 lesson (Scene Language) — replaces visualScript when ENGINE_V2=1 */
+  sceneV2?: SceneTimeline | null;
+  /** Engine v2 doubt answered on the lesson's board */
+  sceneBranch?: SceneBranch | null;
+  /** Engine v2 couldn't draw the lesson: what to tell the learner */
+  sceneFailure?: string;
   criticScore: number;
   metadata: {
     stages: Record<string, { duration: number; model: string; success: boolean; tokens?: number }>;
@@ -25,11 +33,23 @@ export interface OrchestrationResult {
   };
 }
 
+type VisualResult = { script: any; sceneV2?: SceneTimeline | null; sceneBranch?: SceneBranch | null; sceneFailure?: string; tokens: number; duration: number; model: string };
+
 export class AgentOrchestrator {
   /**
    * Executes the full multi-agent loop based on a strategic plan.
    */
-  async execute(plan: StrategicPlan, context: { sessionId: string; requestId: string; topic: string; userMessage: string; signal?: AbortSignal; userConfig?: any; userTier?: 'free' | 'pro' | 'enterprise' }): Promise<OrchestrationResult> {
+  async execute(plan: StrategicPlan, context: {
+    sessionId: string; requestId: string; topic: string; userMessage: string; signal?: AbortSignal; userConfig?: any; userTier?: 'free' | 'pro' | 'enterprise';
+    /** Engine v2: the lesson so far, each time another beat is ready (streamed to the client) */
+    onScenePartial?: (timeline: SceneTimeline) => void;
+    /** Engine v2: the whole lesson, validated — sent at once, not after the text answer */
+    onSceneReady?: (timeline: SceneTimeline) => void;
+    /** Engine v2: a question about the lesson on screen, already being drawn on its board */
+    lessonDoubt?: Promise<DoubtResult>;
+    /** beginner | intermediate | advanced — shapes the lesson (5.2) */
+    learnerLevel?: string;
+  }): Promise<OrchestrationResult> {
     const startTime = Date.now();
     const stages: Record<string, any> = {};
     let totalTokens = 0;
@@ -54,10 +74,16 @@ export class AgentOrchestrator {
     const planSummary = { ...plan, educational_intent: undefined };
 
     // 3. Parallel Stage Execution: Narration + Visualization
-    const narrationPromise = this.runNarrator(planSummary as any, context, protectedUserMessage);
-    const visualizationPromise = plan.visualization.generate || plan.artifacts.generate
-      ? this.runVisualizer(planSummary as any, context, protectedUserMessage)
-      : Promise.resolve({ script: null, tokens: 0, duration: 0, model: 'none' });
+    const wantsVisual = plan.visualization.generate || plan.artifacts.generate;
+    // Engine v2 beats carry their own narration — skip the separate narrator call then.
+    const narrationPromise = wantsVisual && engineV2Enabled()
+      ? Promise.resolve({ content: { narrations: [] }, tokens: 0, duration: 0, model: 'none' })
+      : this.runNarrator(planSummary as any, context, protectedUserMessage);
+    const visualizationPromise: Promise<VisualResult> = !wantsVisual
+      ? Promise.resolve({ script: null, tokens: 0, duration: 0, model: 'none' })
+      : engineV2Enabled()
+        ? this.runSceneV2(planSummary as any, context)
+        : this.runVisualizer(planSummary as any, context, protectedUserMessage);
 
     const [narrationResult, visualResult] = await Promise.all([
       narrationPromise,
@@ -88,6 +114,9 @@ export class AgentOrchestrator {
     return {
       narration: narrationResult.content,
       visualScript: visualResult.script,
+      sceneV2: visualResult.sceneV2 ?? null,
+      sceneBranch: visualResult.sceneBranch ?? null,
+      sceneFailure: visualResult.sceneFailure,
       criticScore,
       metadata: {
         stages,
@@ -129,6 +158,46 @@ export class AgentOrchestrator {
       duration: Date.now() - start,
       model
     };
+  }
+
+  /**
+   * Engine v2: plan a Scene Language lesson, streaming beats as they are ready.
+   * When planning fails, `sceneFailure` says why (the text answer still stands).
+   */
+  private async runSceneV2(plan: StrategicPlan, context: any): Promise<VisualResult> {
+    const start = Date.now();
+    if (context.lessonDoubt) {
+      const d: DoubtResult = await context.lessonDoubt;
+      if (d.ok && d.kind === 'branch') return { script: null, sceneBranch: toBranch(d), tokens: 0, duration: Date.now() - start, model: d.model };
+      // couldn't draw it on the board: the chat answer stands on its own (never replace the lesson with a v1 scene)
+      if (!(d.ok && d.kind === 'new-topic')) return { script: null, tokens: 0, duration: Date.now() - start, model: d.model };
+      // a different subject: a new lesson, below
+    }
+    const model = context.userConfig?.useCustomApi
+      ? await BudgetService.resolveOptimizedModel('visualization', context.sessionId, context.userTier || 'free')
+      : sceneModel();
+    const topic = (plan as any).topic || context.topic;
+    // follow-ups ("now do it for 7") need the conversation's subject
+    const question = topic && topic !== 'General' && context.userMessage.length < 80
+      ? `${context.userMessage}\n(The conversation is about: ${topic})`
+      : context.userMessage;
+    try {
+      const { timeline, result } = await planLesson(question, {
+        model,
+        userConfig: context.userConfig,
+        signal: context.signal,
+        learner: learnerLevelOf({ level: context.learnerLevel }),
+        onPartial: context.onScenePartial,
+      });
+      if (!timeline) return { script: null, sceneFailure: lessonFailure(result), tokens: 0, duration: Date.now() - start, model: result.model || model };
+      // the whole lesson now, not after the text answer finishes streaming
+      context.onSceneReady?.(timeline);
+      return { script: null, sceneV2: timeline, tokens: 0, duration: Date.now() - start, model: result.model || model };
+    } catch (err) {
+      if (context.signal?.aborted) throw err;
+      console.error(`[Orchestrator] Engine v2 failed (${(err as Error).message?.slice(0, 160)}).`);
+      return { script: null, sceneFailure: lessonFailure(null, err), tokens: 0, duration: Date.now() - start, model };
+    }
   }
 
   private async runVisualizer(plan: StrategicPlan, context: any, userMessage: string) {

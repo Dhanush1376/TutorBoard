@@ -11,17 +11,15 @@ import { useTheme } from '../../context/useTheme';
 
 // V-3 FIX: Layout dimensions as CSS custom property defaults — can be overridden via @media or :root
 const SIDEBAR_WIDTH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--layout-sidebar-width') || '350');
-const PANEL_RADIUS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--layout-panel-radius') || '28');
 const PANEL_GAP = 0;
 
+// No border of its own: the canvas draws the dividing line, curved at the corners.
 const sidebarStyle = {
   background: 'var(--bg-primary)',
-  borderRight: '1px solid var(--border-subtle)',
 };
 
 const sidebarStyleRight = {
   background: 'var(--bg-primary)',
-  borderLeft: '1px solid var(--border-subtle)',
 };
 
 const miniGlass = {
@@ -112,10 +110,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         className={`tb-sidebar flex-shrink-0 flex flex-col overflow-hidden h-full z-[5000] md:z-30 fixed md:relative ${sidebarVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}
         style={{
           ...(isRightHand ? sidebarStyleRight : sidebarStyle),
-          boxShadow: sidebarVisible 
-            ? (isDark 
-                ? '8px 0 30px -6px rgba(0, 0, 0, 0.3), 2px 0 10px -2px rgba(0, 0, 0, 0.18)' 
-                : '6px 0 24px -6px rgba(0, 0, 0, 0.05), 2px 0 8px -2px rgba(0, 0, 0, 0.02)')
+          boxShadow: sidebarVisible && !isMobile
+            ? (isDark
+                ? `${isRightHand ? '-' : ''}18px 0 36px -14px rgba(0, 0, 0, 0.85)`
+                : `${isRightHand ? '-' : ''}16px 0 32px -16px rgba(0, 0, 0, 0.16)`)
             : 'none',
         }}
       >
@@ -134,36 +132,35 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           background: 'var(--bg-primary)',
         }}
       >
-        {/* Floating Glass Layer (Decorative) */}
-        <div
-          className="absolute inset-0 z-0 pointer-events-none transition-all duration-500"
-          style={{
-            margin: 0,
-            borderRadius: 0,
-            borderTopLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderTopRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            background: 'var(--glass-bg)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            boxShadow: 'none',
-          }}
-        />
-
         {/* The Actual Interactive Canvas + Artifact Panel */}
+        {/* The canvas fills the space; the sidebar's edge shadow is what separates the two */}
         <div
-          className="relative w-full h-full z-10 flex"
-          style={{
-            borderRadius: 0,
-            borderTopLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomLeftRadius: !isMobile && !isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderTopRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            borderBottomRightRadius: !isMobile && isRightHand && sidebarVisible ? PANEL_RADIUS : 0,
-            overflow: 'hidden',
-            borderLeft: !isMobile && !isRightHand && sidebarVisible ? 'var(--glass-border-width) solid var(--border-color)' : 'none',
-            borderRight: !isMobile && isRightHand && sidebarVisible ? 'var(--glass-border-width) solid var(--border-color)' : 'none',
-          }}
+          className="relative w-full h-full z-10 flex overflow-hidden"
+          style={
+            !isMobile && sidebarVisible
+              ? {
+                  // Rounded inward where it meets the sidebar; the top and bottom
+                  // edges sit just off-screen so only the curved side line shows.
+                  borderTopLeftRadius: isRightHand ? 0 : 22,
+                  borderBottomLeftRadius: isRightHand ? 0 : 22,
+                  borderTopRightRadius: isRightHand ? 22 : 0,
+                  borderBottomRightRadius: isRightHand ? 22 : 0,
+                  border: isDark 
+                    ? '1px solid rgba(255, 255, 255, 0.28)' 
+                    : '1px solid rgba(255, 255, 255, 0.65)',
+                  [isRightHand ? 'borderRight' : 'borderLeft']: isDark 
+                    ? '1px solid rgba(255, 255, 255, 0.45)' 
+                    : '1px solid rgba(255, 255, 255, 0.85)',
+                  [isRightHand ? 'borderLeft' : 'borderRight']: 'none',
+                  boxShadow: isDark
+                    ? `${isRightHand ? '' : '-'}1px 0 0 rgba(255, 255, 255, 0.4), inset ${isRightHand ? '-1px' : '1px'} 1px 0 rgba(255, 255, 255, 0.35)`
+                    : `${isRightHand ? '' : '-'}1px 0 0 rgba(255, 255, 255, 0.8), inset ${isRightHand ? '-1px' : '1px'} 1px 0 rgba(255, 255, 255, 0.7)`,
+                  marginTop: -1,
+                  height: 'calc(100% + 2px)',
+                  transition: 'border-radius 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
+                }
+              : undefined
+          }
         >
           <div className={`relative h-full overflow-hidden transition-all duration-300 ${isArtifactPanelOpen && !isMobile && !isMinimap ? 'flex-1 min-w-0' : 'w-full'}`}>
             {children}
@@ -235,7 +232,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
         <div id="radial-nav-portal" className="fixed inset-0 z-[6000] pointer-events-none" />
 
         {/* --- 5. UNIFIED TOP CONTROLS --- */}
-        <div className={`absolute top-5 left-0 right-0 px-5 z-[50] pointer-events-none flex items-center justify-between gap-4 ${isRightHand ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div className={`absolute top-3 left-0 right-0 px-3 sm:top-5 sm:px-5 z-[50] pointer-events-none flex items-center justify-between gap-2 sm:gap-4 ${isRightHand ? 'flex-row-reverse' : 'flex-row'}`}>
           {/* Workspace Toggle Pill */}
           <div className="pointer-events-auto flex-shrink-0">
             <AnimatePresence>
@@ -251,15 +248,16 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
                     border: '1px solid var(--glass-border)',
                     boxShadow: 'var(--glass-shadow)',
                     borderRadius: 'var(--radius-2xl)',
-                    padding: '6px 10px',
+                    padding: isMobile ? '4px' : '6px 10px',
                   }}
                 >
                   <button
                     onClick={toggleSidebar}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:bg-[var(--bg-tertiary)]/40"
+                    aria-label={isSidebarOpen ? 'Close workspace' : 'Open workspace'}
+                    className="flex items-center gap-2 rounded-xl p-2 transition-all hover:bg-[var(--bg-tertiary)]/40 md:px-3"
                   >
-                    {isSidebarOpen ? <PanelRight size={15} strokeWidth={2} /> : <PanelLeft size={15} strokeWidth={2} />}
-                    <span className="hidden md:block text-[10px] uppercase tracking-[0.25em] font-bold opacity-90" style={{ color: 'var(--text-secondary)' }}>
+                    {isSidebarOpen ? <PanelRight size={16} strokeWidth={1.8} /> : <PanelLeft size={16} strokeWidth={1.8} />}
+                    <span className="hidden text-[13px] font-medium tracking-[-0.01em] text-[var(--text-secondary)] md:block">
                       {isSidebarOpen ? 'Close' : 'Workspace'}
                     </span>
                   </button>
@@ -270,9 +268,9 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
 
           {/* Main Toolbar */}
           <div
-            className={`pointer-events-auto transition-all duration-500 flex-1 flex ${isRightHand ? 'justify-start' : 'justify-end'} ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none -translate-y-10' : 'opacity-100'}`}
+            className={`pointer-events-auto transition-all duration-500 flex-1 min-w-0 flex ${isRightHand ? 'justify-start' : 'justify-end'} ${isSidebarOpen && isMobile ? 'opacity-0 pointer-events-none -translate-y-10' : 'opacity-100'}`}
           >
-            <div className="w-fit">
+            <div className="w-fit min-w-0 max-w-full">
               <Toolbar
                 onSettingsClick={() => useTutorStore.getState().setOverlay('settings')}
               />

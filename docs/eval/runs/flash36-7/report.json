@@ -1,0 +1,110 @@
+{
+ "summary": {
+  "run": "2026-10-18T20-55-57",
+  "questions": 7,
+  "valid": 7,
+  "firstTry": 6,
+  "avgSeconds": 24.1,
+  "withOverlaps": 0
+ },
+ "rows": [
+  {
+   "id": "alg-2",
+   "domain": "algorithms",
+   "question": "Show binary search for 23 in [2, 5, 8, 12, 16, 23, 38, 56, 72, 91].",
+   "model": "gemini-3.6-flash",
+   "ok": true,
+   "attempts": 1,
+   "seconds": 15.1,
+   "beats": 4,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "Binary Search for 23",
+   "error": ""
+  },
+  {
+   "id": "ds-5",
+   "domain": "data-structures",
+   "question": "How does a min-heap insert 3 into [5, 9, 7, 12, 10]?",
+   "model": "gemini-3.6-flash",
+   "ok": true,
+   "attempts": 1,
+   "seconds": 30.6,
+   "beats": 6,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "Inserting 3 into a Min-Heap",
+   "error": ""
+  },
+  {
+   "id": "math-2",
+   "domain": "math",
+   "question": "Where are the roots of x² − 4x + 3?",
+   "model": "gemini-3.6-flash",
+   "ok": true,
+   "attempts": 1,
+   "seconds": 14.4,
+   "beats": 4,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "Finding the roots of x² − 4x + 3",
+   "error": ""
+  },
+  {
+   "id": "geo-2",
+   "domain": "geometry",
+   "question": "Prove the Pythagorean theorem visually.",
+   "model": "gemini-3.6-flash",
+   "ok": true,
+   "attempts": 1,
+   "seconds": 25.9,
+   "beats": 5,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "Visual Proof of the Pythagorean Theorem",
+   "error": ""
+  },
+  {
+   "id": "phy-3",
+   "domain": "physics",
+   "question": "What forces act on a block sliding down a ramp?",
+   "model": "gemini-3.6-flash",
+   "ok": true,
+   "attempts": 1,
+   "seconds": 36.2,
+   "beats": 5,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "Forces on a Block Sliding Down a Ramp",
+   "error": ""
+  },
+  {
+   "id": "bio-3",
+   "domain": "biology",
+   "question": "How does blood flow through the heart?",
+   "model": "gemini-3.6-flash",
+   "ok": true,
+   "attempts": 2,
+   "seconds": 26.8,
+   "beats": 6,
+   "overlaps": 0,
+   "warnings": 3,
+   "title": "How Blood Flows Through the Heart",
+   "error": ""
+  },
+  {
+   "id": "ml-2",
+   "domain": "ml",
+   "question": "How does gradient descent find a minimum?",
+   "model": "gemini-3.6-flash",
+   "ok": true,
+   "attempts": 1,
+   "seconds": 19.6,
+   "beats": 5,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "How Gradient Descent Finds a Minimum",
+   "error": ""
+  }
+ ]
+}

@@ -64,6 +64,7 @@ const CinematicStage = ({
 
   const containerRef = useRef(null);
   const [scale, setScale] = useState(0.1); // Start with a small default to prevent layout jump
+  const [box, setBox] = useState({ w: 0, h: 0 });
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // ── Responsive Scaling ─────────────────────────────────────────────────
@@ -92,6 +93,7 @@ const CinematicStage = ({
 
       const newScale = targetW / STAGE_BASE_W;
       setScale(Math.max(0.1, Math.min(newScale, 1.6))); // Capped at 1.6 to prevent over-scaling on 4K
+      setBox({ w: clientWidth, h: clientHeight });
     };
 
     const observer = new ResizeObserver(handleResize);
@@ -172,13 +174,20 @@ const CinematicStage = ({
           overflow: 'visible',
         }}
       >
+        {/* The logical box is the container divided by the scale, so after
+            scaling it exactly fills the stage. Scaling a full-size (inset: 0)
+            box instead magnified the canvas past the viewport and clipped the
+            top rows of every lesson. */}
         <div
           style={{
             position: 'absolute',
-            inset: 0,
+            left: '50%',
+            top: '50%',
+            width: box.w ? box.w / scale : '100%',
+            height: box.h ? box.h / scale : '100%',
             pointerEvents: 'auto',
             overflow: 'visible',
-            transform: `scale(${scale}) translateZ(0)`,
+            transform: `translate(-50%, -50%) scale(${scale}) translateZ(0)`,
             transformOrigin: 'center center',
             transformStyle: 'flat',
             WebkitTransformStyle: 'flat',

@@ -1,0 +1,205 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Understanding 3/4 of a pizza",
+  "domain": "math",
+  "summary": "A pizza is divided into four equal slices; three of them represent three quarters.",
+  "spaces": [
+   {
+    "id": "s",
+    "kind": "cartesian",
+    "x": [
+     -5,
+     5
+    ],
+    "y": [
+     -5,
+     5
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "pizza",
+    "label": "Pizza",
+    "type": "circle",
+    "size": "lg"
+   },
+   {
+    "id": "slice1",
+    "tone": "muted",
+    "space": "s",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      4,
+      0
+     ],
+     [
+      0,
+      4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "slice2",
+    "tone": "muted",
+    "space": "s",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      -4,
+      0
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "slice3",
+    "tone": "muted",
+    "space": "s",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      -4,
+      0
+     ],
+     [
+      0,
+      -4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "slice4",
+    "tone": "muted",
+    "space": "s",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0,
+      -4
+     ],
+     [
+      4,
+      0
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "frac",
+    "type": "text",
+    "text": "3/4 of the pizza",
+    "role": "title"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "s",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "frac",
+    "of": "s",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Whole pizza",
+    "narration": "Here is a whole pizza, shown as a circle.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "pizza",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Divide into quarters",
+    "narration": "We cut the pizza into four equal slices.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "slice1",
+       "slice2",
+       "slice3",
+       "slice4"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Three quarters",
+    "narration": "Three of the four slices together make three quarters of the pizza.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "slice1",
+       "slice2",
+       "slice3"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Fraction notation",
+    "narration": "We write this amount as the fraction 3/4.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "frac",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 42948,
+ "model": "gemini-3.6-flash",
+ "domain": "math",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Understanding 3/4 of a pizza\",\"domain\":\"math\",\"summary\":\"A pizza is divided into four equal slices; three of them represent three quarters.\",\"spaces\":[{\"id\":\"s\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,5],\"axes\":false,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"pizza\",\"type\":\"circle\",\"space\":\"s\",\"size\":\"lg\",\"label\":\"Pizza\"},{\"id\":\"slice1\",\"type\":\"polygon\",\"space\":\"s\",\"points\":[[0,0],[4,0],[0,4]],\"tone\":\"muted\"},{\"id\":\"slice2\",\"type\":\"polygon\",\"space\":\"s\",\"points\":[[0,0],[0,4],[-4,0]],\"tone\":\"muted\"},{\"id\":\"slice3\",\"type\":\"polygon\",\"space\":\"s\",\"points\":[[0,0],[-4,0],[0,-4]],\"tone\":\"muted\"},{\"id\":\"slice4\",\"type\":\"polygon\",\"space\":\"s\",\"points\":[[0,0],[0,-4],[4,0]],\"tone\":\"muted\"},{\"id\":\"frac\",\"type\":\"text\",\"text\":\"3/4 of the pizza\",\"role\":\"title\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"s\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"frac\",\"of\":\"s\"}],\"beats\":[{\"title\":\"Whole pizza\",\"narration\":\"Here is a whole pizza, shown as a circle.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"pizza\",\"effect\":\"pop\"}]},{\"title\":\"Divide into quarters\",\"narration\":\"We cut the pizza into four equal slices.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"slice1\",\"slice2\",\"slice3\",\"slice4\"],\"effect\":\"draw\"}]},{\"title\":\"Three quarters\",\"narration\":\"Three of the four slices together make three quarters of the pizza.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"slice1\",\"slice2\",\"slice3\"],\"state\":\"active\"}]},{\"title\":\"Fraction notation\",\"narration\":\"We write this amount as the fraction 3/4.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"frac\",\"effect\":\"type\"}]}]}"
+}

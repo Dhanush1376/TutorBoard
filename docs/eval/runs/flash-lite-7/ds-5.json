@@ -1,0 +1,166 @@
+{
+ "ok": false,
+ "errors": [
+  {
+   "path": "beats[1].actions[0].target",
+   "message": "morph animates array/stack/queue/linkedlist values; \"heapTree\" is a tree"
+  },
+  {
+   "path": "beats[1].actions[3].target",
+   "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+  },
+  {
+   "path": "beats[2].actions[0].target",
+   "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+  },
+  {
+   "path": "beats[3].actions[0].target",
+   "message": "morph animates array/stack/queue/linkedlist values; \"heapTree\" is a tree"
+  },
+  {
+   "path": "beats[3].actions[2].target",
+   "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+  },
+  {
+   "path": "beats[4].actions[0].target",
+   "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+  },
+  {
+   "path": "beats[5].actions[0].target",
+   "message": "morph animates array/stack/queue/linkedlist values; \"heapTree\" is a tree"
+  },
+  {
+   "path": "beats[5].actions[2].target",
+   "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+  }
+ ],
+ "attempts": 3,
+ "repairs": [
+  [
+   {
+    "path": "beats[0].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   }
+  ],
+  [
+   {
+    "path": "beats[1].actions[0].values",
+    "message": "Required"
+   },
+   {
+    "path": "beats[3].actions[0].values",
+    "message": "Required"
+   },
+   {
+    "path": "beats[5].actions[0].values",
+    "message": "Required"
+   }
+  ],
+  [
+   {
+    "path": "beats[1].actions[0].target",
+    "message": "morph animates array/stack/queue/linkedlist values; \"heapTree\" is a tree"
+   },
+   {
+    "path": "beats[1].actions[3].target",
+    "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+   },
+   {
+    "path": "beats[2].actions[0].target",
+    "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+   },
+   {
+    "path": "beats[3].actions[0].target",
+    "message": "morph animates array/stack/queue/linkedlist values; \"heapTree\" is a tree"
+   },
+   {
+    "path": "beats[3].actions[2].target",
+    "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+   },
+   {
+    "path": "beats[4].actions[0].target",
+    "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+   },
+   {
+    "path": "beats[5].actions[0].target",
+    "message": "morph animates array/stack/queue/linkedlist values; \"heapTree\" is a tree"
+   },
+   {
+    "path": "beats[5].actions[2].target",
+    "message": "\"heapTree\" has no part \"n3\" (available: \"n5\", \"n9\", \"n7\", \"n12\", \"n10\")"
+   }
+  ]
+ ],
+ "ms": 13841,
+ "model": "gemini-3.5-flash-lite",
+ "domain": "data-structures",
+ "raw": "{\n  \"version\": \"1\",\n  \"title\": \"Min-Heap Insertion of 3\",\n  \"domain\": \"data-structures\",\n  \"summary\": \"Inserting 3 into a min-heap involves appending it at the bottom-most right position and bubbling it up until the min-heap property is satisfied.\",\n  \"entities\": [\n    {\n      \"id\": \"heapTree\",\n      \"type\": \"tree\",\n      \"label\": \"Min-Heap\",\n      \"nodes\": [\n        { \"id\": \"n5\", \"value\": \"5\" },\n        { \"id\": \"n9\", \"value\": \"9\", \"parent\": \"n5\" },\n        { \"id\": \"n7\", \"value\": \"7\", \"parent\": \"n5\" },\n        { \"id\": \"n12\", \"value\": \"12\", \"parent\": \"n9\" },\n        { \"id\": \"n10\", \"value\": \"10\", \"parent\": \"n9\" }\n      ]\n    },\n    {\n      \"id\": \"arr\",\n      \"type\": \"array\",\n      \"values\": [5, 9, 7, 12, 10],\n      \"label\": \"Array Representation\",\n      \"indices\": true\n    },\n    {\n      \"id\": \"msg\",\n      \"type\": \"text\",\n      \"text\": \"\",\n      \"role\": \"caption\"\n    }\n  ],\n  \"layout\": [\n    {\n      \"rel\": \"place\",\n      \"id\": \"heapTree\",\n      \"region\": \"center\"\n    },\n    {\n      \"rel\": \"below\",\n      \"id\": \"arr\",\n      \"of\": \"heapTree\"\n    },\n    {\n      \"rel\": \"above\",\n      \"id\": \"msg\",\n      \"of\": \"heapTree\"\n    }\n  ],\n  \"beats\": [\n    {\n      \"title\": \"Initial Min-Heap\",\n      \"narration\": \"Here is our current min-heap. Every parent is smaller than or equal to its children.\",\n      \"actions\": [\n        {\n          \"do\": \"create\",\n          \"target\": \"heapTree\",\n          \"effect\": \"draw\"\n        },\n        {\n          \"do\": \"create\",\n          \"target\": \"arr\",\n          \"effect\": \"fade\",\n          \"with\": \"previous\"\n        },\n        {\n          \"do\": \"set\",\n          \"target\": \"msg\",\n          \"text\": \"Starting Min-Heap\",\n          \"with\": \"previous\"\n        }\n      ]\n    },\n    {\n      \"title\": \"Insert 3 at the bottom\",\n      \"narration\": \"We always insert a new value at the next available position in the complete tree, right under 7.\",\n      \"actions\": [\n        {\n          \"do\": \"morph\",\n          \"target\": \"heapTree\",\n          \"values\": [\"5\", \"9\", \"7\", \"12\", \"10\", \"3\"]\n        },\n        {\n          \"do\": \"morph\",\n          \"target\": \"arr\",\n          \"values\": [5, 9, 7, 12, 10, 3],\n          \"with\": \"previous\"\n        },\n        {\n          \"do\": \"set\",\n          \"target\": \"msg\",\n          \"text\": \"Insert 3 as child of 7\",\n          \"with\": \"previous\"\n        },\n        {\n          \"do\": \"highlight\",\n          \"target\": \"heapTree.n3\",\n          \"state\": \"active\",\n          \"hold\": true\n        }\n      ]\n    },\n    {\n      \"title\": \"Compare 3 with parent 7\",\n      \"narration\": \"We compare the new value 3 with its parent 7. Since 3 is smaller, it violates the min-heap property.\",\n      \"actions\": [\n        {\n          \"do\": \"highlight\",\n          \"target\": [\n            \"heapTree.n3\",\n            \"heapTree.n7\"\n          ],\n          \"state\": \"comparing\",\n          \"hold\": true\n        },\n        {\n          \"do\": \"set\",\n          \"target\": \"msg\",\n          \"text\": \"3 < 7, bubble up!\"\n        }\n      ]\n    },\n    {\n      \"title\": \"Swap 3 and 7\",\n      \"narration\": \"We swap 3 and its parent 7. Now 3 moves up to the parent position.\",\n      \"actions\": [\n        {\n          \"do\": \"morph\",\n          \"target\": \"heapTree\",\n          \"values\": [\"5\", \"9\", \"3\", \"12\", \"10\", \"7\"]\n        },\n        {\n          \"do\": \"morph\",\n          \"target\": \"arr\",\n          \"values\": [5, 9, 3, 12, 10, 7],\n          \"with\": \"previous\"\n        },\n        {\n          \"do\": \"highlight\",\n          \"target\": \"heapTree.n3\",\n          \"state\": \"active\",\n          \"hold\": true\n        }\n      ]\n    },\n    {\n      \"title\": \"Compare 3 with new parent 5\",\n      \"narration\": \"Next, we compare 3 with its new parent, 5.\",\n      \"actions\": [\n        {\n          \"do\": \"highlight\",\n          \"target\": [\n            \"heapTree.n3\",\n            \"heapTree.n5\"\n          ],\n          \"state\": \"comparing\",\n          \"hold\": true\n        },\n        {\n          \"do\": \"set\",\n          \"target\": \"msg\",\n          \"text\": \"3 < 5, bubble up again!\"\n        }\n      ]\n    },\n    {\n      \"title\": \"Swap 3 and 5\",\n      \"narration\": \"Since 3 is smaller than 5, we swap them. 3 becomes the new root of the heap.\",\n      \"actions\": [\n        {\n          \"do\": \"morph\",\n          \"target\": \"heapTree\",\n          \"values\": [\"3\", \"9\", \"5\", \"12\", \"10\", \"7\"]\n        },\n        {\n          \"do\": \"morph\",\n          \"target\": \"arr\",\n          \"values\": [3, 9, 5, 12, 10, 7],\n          \"with\": \"previous\"\n        },\n        {\n          \"do\": \"highlight\",\n          \"target\": \"heapTree.n3\",\n          \"state\": \"sorted\",\n          \"hold\": true\n        },\n        {\n          \"do\": \"set\",\n          \"target\": \"msg\",\n          \"text\": \"Insertion complete: Min-heap property restored\"\n        }\n      ]\n    }\n  ]\n}"
+}

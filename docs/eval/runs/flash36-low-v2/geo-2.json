@@ -1,0 +1,291 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Visual Proof of Pythagoras",
+  "domain": "geometry",
+  "summary": "A right triangle with squares on each side shows the area of the hypotenuse square equals the sum of the other two squares.",
+  "spaces": [
+   {
+    "id": "geo",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     10
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "tri",
+    "label": "Right triangle",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      6,
+      0
+     ],
+     [
+      0,
+      8
+     ]
+    ],
+    "vertexLabels": [
+     "A",
+     "B",
+     "C"
+    ],
+    "fill": true
+   },
+   {
+    "id": "sqAB",
+    "label": "Square on AB",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      6,
+      0
+     ],
+     [
+      6,
+      6
+     ],
+     [
+      0,
+      6
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sqAC",
+    "label": "Square on AC",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0,
+      8
+     ],
+     [
+      -8,
+      8
+     ],
+     [
+      -8,
+      0
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sqBC",
+    "label": "Square on BC",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      6,
+      0
+     ],
+     [
+      6,
+      8
+     ],
+     [
+      14,
+      8
+     ],
+     [
+      14,
+      0
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "areaAB",
+    "type": "text",
+    "text": "Area = 36",
+    "role": "caption"
+   },
+   {
+    "id": "areaAC",
+    "type": "text",
+    "text": "Area = 64",
+    "role": "caption"
+   },
+   {
+    "id": "areaBC",
+    "type": "text",
+    "text": "Area = 100",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "geo",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "areaAB",
+    "of": "sqAB",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "areaAC",
+    "of": "sqAC",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "areaBC",
+    "of": "sqBC",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Draw right triangle",
+    "narration": "A right triangle ABC with legs 6 and 8 and hypotenuse 10 is drawn.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "tri",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Add squares on legs",
+    "narration": "Squares are built on the two legs, showing areas 6²=36 and 8²=64.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "sqAB",
+       "sqAC"
+      ],
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": [
+       "areaAB",
+       "areaAC"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Add square on hypotenuse",
+    "narration": "A square is built on the hypotenuse, its area is 10²=100.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "sqBC",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "areaBC",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Rearrange pieces",
+    "narration": "The two smaller squares can be cut and rearranged to exactly fill the large square, confirming 36+64=100.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "sqAB",
+       "sqAC"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "sqBC",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "sqBC",
+      "text": "36+64=100"
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[3].actions[2].side",
+   "message": "auto-fixed: dropped unknown side \"center\""
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "entities[1]",
+    "message": "Expected object, received string"
+   },
+   {
+    "path": "entities[2]",
+    "message": "Expected object, received string"
+   },
+   {
+    "path": "entities[3]",
+    "message": "Expected object, received string"
+   },
+   {
+    "path": "entities[4]",
+    "message": "Expected object, received string"
+   },
+   {
+    "path": "entities[5]",
+    "message": "Expected object, received string"
+   },
+   {
+    "path": "entities[6]",
+    "message": "Expected object, received string"
+   }
+  ]
+ ],
+ "ms": 54881,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

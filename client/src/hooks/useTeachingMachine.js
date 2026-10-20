@@ -4,11 +4,17 @@ import useSocket from './useSocket';
 import useTutorStore, { STATES } from '../store/tutorStore';
 import { trackEvent, identifyUser } from '../utils/analytics';
 import CanvasStateSnapshot from '../engine/CanvasStateSnapshot';
+import { awaitingCheck } from '../lib/teaching';
 import { smartPauseMs, stepDeadlineMs } from '../engine/narrationTiming';
 
 export { STATES };
 
 const EMPTY_ARRAY = [];
+
+/** Is `incoming` more of the Engine v2 lesson that is currently streaming in? */
+const isStreamingLesson = (active, incoming) =>
+  incoming?.renderer === 'scene-v2' && active?.renderer === 'scene-v2' && active.streaming === true
+  && active.sessionId === incoming.sessionId && active.title === incoming.title;
 
 export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   const { emit, on, isConnected, connectionError } = useSocket(isAuthReady);
@@ -264,9 +270,46 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
       // ATOMIC UPDATE: Use the combined setter to prevent UI flicker/race conditions
       // This sets machineState, timeline, objects, and totalSteps in one go.
-      useTutorStore.getState().setTeachingTimeline(normalizedTimeline);
+      // An Engine v2 lesson that streamed in is already playing: finish it in place.
+      if (isStreamingLesson(useTutorStore.getState().activeScene, data)) {
+        useTutorStore.getState().extendSceneLesson({ ...normalizedTimeline, streaming: false });
+      } else {
+        useTutorStore.getState().setTeachingTimeline(normalizedTimeline);
+      }
+
+      // Hand the chat its reply. Without this the sidebar kept showing
+      // "Thinking" next to a finished lesson until the 30s stuck-guard fired.
+      if (data.chatMessage && !data.isResume) {
+        const store = useTutorStore.getState();
+        const sid = data.sessionId || store.chatSessionId || store.sessionId || store.activeConversationSessionId || 'temp';
+        const token = `ltok-${Date.now()}`;
+        store.startStreaming(`lesson-${Date.now()}`, sid, token);
+        setTimeout(() => {
+          store.finishStreaming(data.chatMessage, sid, null, [], null, null, 0, token);
+        }, 50);
+      }
 
       notifyUser("TutorBoard Agent", "Your lesson session is ready!");
+    }));
+
+    // Engine v2: the lesson arrives beat by beat while the model is still
+    // writing. The first beats start the lesson; later ones extend it.
+    cleanups.push(on('scene:partial', (data) => {
+      const steps = data.steps || data.timeline || [];
+      const lesson = {
+        ...data,
+        elements: [], objects: [], connections: [],
+        steps, timeline: steps, totalSteps: steps.length,
+        renderer: 'scene-v2',
+        streaming: true,
+      };
+      const store = useTutorStore.getState();
+      if (isStreamingLesson(store.activeScene, data)) {
+        store.extendSceneLesson(lesson);
+      } else {
+        if (data.title) setTopic(data.title);
+        store.setTeachingTimeline(lesson);
+      }
     }));
 
     // Step update from server
@@ -289,7 +332,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Streaming tokens for narration (Phase 1/2)
     cleanups.push(on('teaching:progress-tokens', (data) => {
-      setNarrationTokens(data.text || '');
+      setNarrationTokens(typeof data?.text === 'string' ? data.text : '');
     }));
 
     // Doubt acknowledged by server
@@ -310,11 +353,14 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     // Doubt response received
     cleanups.push(on('teaching:doubt-response', (data) => {
+      // Engine v2: the answer plays on the lesson's board
+      if (data.sceneBranch) useTutorStore.getState().enterSceneBranch(data.sceneBranch);
       addDoubt(
         data._question || '',
         data.answer,
         data.hasVisuals,
-        data.visualUpdate
+        data.visualUpdate,
+        data.followUp
       );
 
       if (data.hasVisuals && data.visualUpdate) {
@@ -326,6 +372,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       }
 
       setDoubtProcessing(false); // Bug 54 Fix: Reset spinner when response arrives
+      useTutorStore.getState().setWaitingForAI(false); // doubts typed in the chat box
       notifyUser("New Agent Reply", "The AI has responded to your doubt.");
     }));
 
@@ -344,12 +391,13 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
         timestamp: Date.now() 
       });
 
-      addDoubt(data._question, data.answer, true, { 
-        actions: data.actions || [], 
-        isDelta: true 
-      });
+      addDoubt(data._question, data.answer, true, {
+        actions: data.actions || [],
+        isDelta: true
+      }, data.followUp);
       
       setDoubtProcessing(false);
+      useTutorStore.getState().setWaitingForAI(false); // doubts typed in the chat box
       notifyUser("Adaptive Support", "The AI has updated the visuals to answer your doubt.");
     }));
 
@@ -498,6 +546,12 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       }
     };
 
+    // A streaming Engine v2 lesson has more beats coming: wait at the last one
+    // that has arrived instead of finishing (the next partial re-runs this).
+    if (timeline?.streaming && currentStepIndex >= totalSteps - 1) return undefined;
+    // a "predict the next step" check: the learner moves on, not a timer
+    if (awaitingCheck(timeline, currentStepIndex, useTutorStore.getState().checkAnswers)) return undefined;
+
     const ready = stepPlayback?.index === currentStepIndex && stepPlayback.animDone && stepPlayback.voiceDone;
 
     if (ready) {
@@ -636,6 +690,7 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
     storePause();
     setDoubtProcessing(true);
+    useTutorStore.getState().setPendingDoubt?.(question);
     trackEvent('doubt_asked', { question, agent: selectedAgent });
 
     // --- Phase 3: Surgical Snapshot ---
@@ -648,12 +703,20 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
       topic
     });
 
+    // Engine v2 lesson: the doubt is answered on its board — send the scene and where we are
+    const live = useTutorStore.getState();
+    const v2 = timeline?.renderer === 'scene-v2' && timeline?.sceneV2
+      ? (live.sceneBranch
+        ? { sceneV2: live.sceneBranch.scene, beatIndex: live.sceneBranch.at }
+        : { sceneV2: timeline.sceneV2, beatIndex: currentStepIndex })
+      : null;
+
     emit('session:doubt', {
       question,
       selectedAgent,
       activeMode,
       file,
-      snapshot // CRITICAL: Send context-rich state to DeltaAgent
+      snapshot: v2 ? { ...snapshot, ...v2 } : snapshot // CRITICAL: Send context-rich state to DeltaAgent
     });
   }, [emit, storePause, setDoubtProcessing, selectedAgent, incrementGuestUsage, canvasObjects, canvasConnections, currentStepIndex, timeline, topic]);
 
@@ -676,8 +739,10 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
   }, [emit, storePause]);
 
   const resume = useCallback(() => {
-    // Clear the doubt panel before resuming
+    // Clear the doubt panel before resuming. activeDoubtId must clear too:
+    // while it is set, nextStep() only resumes and can never advance.
     setDoubtResponse(null);
+    useTutorStore.getState().setActiveDoubt?.(null);
     storePlay();
     emit('session:resume');
   }, [emit, storePlay, setDoubtResponse]);

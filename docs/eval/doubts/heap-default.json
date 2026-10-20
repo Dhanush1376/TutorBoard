@@ -1,0 +1,162 @@
+{
+ "version": "1",
+ "title": "Inserting 3 into a min-heap",
+ "domain": "data-structures",
+ "summary": "A new value goes into the next free spot, then swaps upward while it is smaller than its parent.",
+ "spaces": [],
+ "entities": [
+  {
+   "id": "heap",
+   "label": "min-heap",
+   "type": "tree",
+   "nodes": [
+    {
+     "id": "n0",
+     "value": 5
+    },
+    {
+     "id": "n1",
+     "value": 9,
+     "parent": "n0"
+    },
+    {
+     "id": "n2",
+     "value": 7,
+     "parent": "n0"
+    },
+    {
+     "id": "n3",
+     "value": 12,
+     "parent": "n1"
+    },
+    {
+     "id": "n4",
+     "value": 10,
+     "parent": "n1"
+    },
+    {
+     "id": "n5",
+     "value": 3,
+     "parent": "n2"
+    }
+   ]
+  },
+  {
+   "id": "arr",
+   "label": "array view",
+   "type": "array",
+   "values": [
+    5,
+    9,
+    7,
+    12,
+    10
+   ],
+   "indices": true
+  },
+  {
+   "id": "rule",
+   "type": "text",
+   "text": "parent ≤ children",
+   "role": "caption"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "heap",
+   "region": "center"
+  },
+  {
+   "rel": "below",
+   "id": "arr",
+   "of": "heap",
+   "gap": "md"
+  },
+  {
+   "rel": "above",
+   "id": "rule",
+   "of": "heap",
+   "gap": "md"
+  }
+ ],
+ "beats": [
+  {
+   "title": "A valid min-heap",
+   "narration": "Every parent is smaller than its children, so the minimum, 5, sits at the root.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "rule"
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "heap"
+    },
+    {
+     "do": "create",
+     "target": "arr"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Show parent of new spot",
+   "narration": "3 will be inserted at index 5, whose parent is the node with value 7, not 9.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "heap.n5",
+      "heap.n2"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "do": "highlight",
+     "target": "heap.n1",
+     "state": "eliminated",
+     "hold": true
+    },
+    {
+     "do": "annotate",
+     "target": "heap.n2",
+     "text": "parent",
+     "side": "right"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Explain swap choice",
+   "narration": "Because 7 is the direct parent, 3 swaps with 7 first; 9 is not involved.",
+   "actions": [
+    {
+     "do": "clear"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "heap.n5",
+      "heap.n2"
+     ],
+     "state": "active",
+     "hold": true
+    },
+    {
+     "do": "annotate",
+     "target": "heap.n5",
+     "text": "swap with 7",
+     "side": "right"
+    },
+    {
+     "do": "wait",
+     "beats": 1
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

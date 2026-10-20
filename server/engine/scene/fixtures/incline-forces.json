@@ -1,0 +1,70 @@
+{
+  "version": "1",
+  "title": "Forces on a block on a 30° ramp",
+  "domain": "physics",
+  "summary": "A 2 kg block slides down a 30° ramp (μ = 0.2): gravity splits into a part along the slope and a part into it; the ramp pushes back with N, friction opposes the slide, and what's left accelerates the block.",
+  "spaces": [
+    { "id": "field", "kind": "cartesian", "x": [0, 10], "y": [0, 6.5], "axes": false, "equalAspect": true }
+  ],
+  "entities": [
+    { "id": "wedge", "type": "polygon", "space": "field", "tone": "muted", "points": [[0, 0], [8.66, 0], { "from": [0, 0], "angleDeg": 30, "length": 10 }], "vertexLabels": ["A", "B", "C"] },
+    { "id": "slope", "type": "line", "space": "field", "from": "wedge.A", "to": "wedge.C", "tone": "default" },
+    { "id": "theta", "type": "angle", "space": "field", "vertex": "wedge.A", "from": "wedge.B", "to": "wedge.C", "degrees": 30, "label": "θ = 30°" },
+    { "id": "block", "type": "body", "space": "field", "at": { "along": "slope", "t": 0.5 }, "size": "md", "label": "m = 2 kg" },
+    { "id": "W", "type": "vector", "space": "field", "from": "block", "angleDeg": -90, "magnitude": 2.4, "tone": "danger", "label": "W = mg = 19.6 N" },
+    { "id": "Wpar", "type": "vector", "space": "field", "from": "block", "along": "slope", "toward": "from", "magnitude": 1.2, "tone": "warning", "label": "mg sin θ = 9.8 N" },
+    { "id": "Wperp", "type": "vector", "space": "field", "from": "block", "perp": "slope", "side": "right", "magnitude": 2.08, "tone": "muted", "label": "mg cos θ = 17 N" },
+    { "id": "N", "type": "vector", "space": "field", "from": "block", "perp": "slope", "side": "left", "magnitude": 2.08, "tone": "primary", "label": "N = 17 N" },
+    { "id": "f", "type": "vector", "space": "field", "from": "block", "along": "slope", "toward": "to", "magnitude": 0.42, "tone": "info", "label": "f = μN = 3.4 N" },
+    { "id": "net", "type": "math", "latex": "a = \\frac{mg\\sin\\theta - \\mu mg\\cos\\theta}{m} \\approx 3.2\\,\\mathrm{m/s^2}" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "field", "region": "center" },
+    { "rel": "place", "id": "net", "region": "top-right" }
+  ],
+  "beats": [
+    {
+      "title": "A block on a 30° ramp",
+      "narration": "A 2 kg block sits on a ramp tilted 30° above the ground.",
+      "actions": [
+        { "do": "create", "target": ["wedge", "slope"], "effect": "draw" },
+        { "do": "create", "target": "theta", "effect": "draw" },
+        { "do": "create", "target": "block", "effect": "drop" }
+      ]
+    },
+    {
+      "title": "Gravity pulls straight down",
+      "narration": "Gravity pulls the block straight down with its weight, mg = 19.6 N — not along the ramp.",
+      "actions": [
+        { "do": "create", "target": "W", "effect": "grow" },
+        { "do": "highlight", "target": "W", "state": "active", "hold": false }
+      ]
+    },
+    {
+      "title": "Split gravity along the ramp",
+      "narration": "Split the weight in two: mg sin θ pulls down along the slope, mg cos θ presses into it.",
+      "actions": [
+        { "do": "create", "target": ["Wpar", "Wperp"], "effect": "grow" },
+        { "do": "highlight", "target": "Wpar", "state": "insight", "hold": true }
+      ]
+    },
+    {
+      "title": "The ramp pushes back",
+      "narration": "The ramp pushes back with the normal force N, exactly cancelling mg cos θ — so the block doesn't sink in.",
+      "actions": [
+        { "do": "create", "target": "N", "effect": "grow" },
+        { "do": "highlight", "target": ["N", "Wperp"], "state": "comparing", "hold": false }
+      ]
+    },
+    {
+      "title": "Friction and what's left",
+      "narration": "Friction, μN = 3.4 N, points up the slope against the slide; the 6.4 N that's left speeds the block up at 3.2 m/s².",
+      "actions": [
+        { "do": "clear", "target": "Wpar" },
+        { "do": "create", "target": "f", "effect": "grow" },
+        { "do": "create", "target": "net", "effect": "type" },
+        { "do": "highlight", "target": ["Wpar", "f"], "state": "found", "hold": true }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,171 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Binary Search for 23",
+  "domain": "algorithms",
+  "summary": "Binary search repeatedly halves the search space by comparing the target with the middle element until 23 is found at index 5.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "target_txt",
+    "tone": "primary",
+    "type": "text",
+    "text": "Target: 23",
+    "role": "title"
+   },
+   {
+    "id": "arr",
+    "label": "Sorted Array",
+    "type": "array",
+    "values": [
+     2,
+     5,
+     8,
+     12,
+     16,
+     23,
+     38,
+     56,
+     72,
+     91
+    ],
+    "indices": true
+   },
+   {
+    "id": "status_txt",
+    "type": "text",
+    "text": "Search range: indices 0 to 9",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "target_txt",
+    "region": "top"
+   },
+   {
+    "rel": "place",
+    "id": "arr",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "status_txt",
+    "of": "arr",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Search setup",
+    "narration": "We want to locate 23 inside a sorted array of 10 elements using binary search.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "target_txt",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "arr",
+      "effect": "drop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "status_txt",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First midpoint: index 4",
+    "narration": "With range 0 to 9, the midpoint is index 4 (16). Since 16 is less than 23, the target must lie to the right.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[4]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status_txt",
+      "text": "low = 0, high = 9 → mid = 4 (val = 16 < 23)"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[4]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Second midpoint: index 7",
+    "narration": "The new range is 5 to 9. Midpoint index 7 contains 56, which is greater than 23, ruling out the right side.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[7]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status_txt",
+      "text": "low = 5, high = 9 → mid = 7 (val = 56 > 23)"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[7]",
+       "arr[8]",
+       "arr[9]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Target found at index 5",
+    "narration": "The range narrows to indices 5 to 6. Midpoint index 5 contains 23 — target found in just 3 steps!",
+    "actions": [
+     {
+      "do": "set",
+      "target": "status_txt",
+      "text": "low = 5, high = 6 → mid = 5 (val = 23 = target)"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[5]",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 16712,
+ "model": "gemini-3.6-flash",
+ "domain": "algorithms",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Binary Search for 23\",\"domain\":\"algorithms\",\"summary\":\"Binary search repeatedly halves the search space by comparing the target with the middle element until 23 is found at index 5.\",\"spaces\":[],\"entities\":[{\"id\":\"target_txt\",\"type\":\"text\",\"text\":\"Target: 23\",\"role\":\"title\",\"tone\":\"primary\"},{\"id\":\"arr\",\"type\":\"array\",\"values\":[2,5,8,12,16,23,38,56,72,91],\"indices\":true,\"label\":\"Sorted Array\"},{\"id\":\"status_txt\",\"type\":\"text\",\"text\":\"Search range: indices 0 to 9\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"target_txt\",\"region\":\"top\"},{\"rel\":\"place\",\"id\":\"arr\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"status_txt\",\"of\":\"arr\"}],\"beats\":[{\"title\":\"Search setup\",\"narration\":\"We want to locate 23 inside a sorted array of 10 elements using binary search.\",\"actions\":[{\"do\":\"create\",\"target\":\"target_txt\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"arr\",\"effect\":\"drop\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"status_txt\",\"effect\":\"fade\",\"with\":\"previous\"}]},{\"title\":\"First midpoint: index 4\",\"narration\":\"With range 0 to 9, the midpoint is index 4 (16). Since 16 is less than 23, the target must lie to the right.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"arr[4]\",\"state\":\"pivot\"},{\"do\":\"set\",\"target\":\"status_txt\",\"text\":\"low = 0, high = 9 → mid = 4 (val = 16 < 23)\"},{\"do\":\"highlight\",\"target\":[\"arr[0]\",\"arr[1]\",\"arr[2]\",\"arr[3]\",\"arr[4]\"],\"state\":\"eliminated\"}]},{\"title\":\"Second midpoint: index 7\",\"narration\":\"The new range is 5 to 9. Midpoint index 7 contains 56, which is greater than 23, ruling out the right side.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"arr[7]\",\"state\":\"pivot\"},{\"do\":\"set\",\"target\":\"status_txt\",\"text\":\"low = 5, high = 9 → mid = 7 (val = 56 > 23)\"},{\"do\":\"highlight\",\"target\":[\"arr[7]\",\"arr[8]\",\"arr[9]\"],\"state\":\"eliminated\"}]},{\"title\":\"Target found at index 5\",\"narration\":\"The range narrows to indices 5 to 6. Midpoint index 5 contains 23 — target found in just 3 steps!\",\"actions\":[{\"do\":\"set\",\"target\":\"status_txt\",\"text\":\"low = 5, high = 6 → mid = 5 (val = 23 = target)\"},{\"do\":\"highlight\",\"target\":\"arr[5]\",\"state\":\"found\"}]}]}"
+}

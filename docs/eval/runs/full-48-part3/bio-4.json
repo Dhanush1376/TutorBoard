@@ -1,0 +1,231 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Photosynthesis Overview",
+  "domain": "biology",
+  "summary": "Sunlight powers the leaf to turn water and carbon dioxide into glucose and oxygen.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "sun",
+    "label": "Sun",
+    "tone": "warning",
+    "type": "circle",
+    "size": "lg"
+   },
+   {
+    "id": "leaf",
+    "label": "Leaf",
+    "tone": "success",
+    "type": "rect",
+    "size": "lg"
+   },
+   {
+    "id": "water",
+    "tone": "info",
+    "type": "text",
+    "text": "H₂O",
+    "role": "body"
+   },
+   {
+    "id": "co2",
+    "tone": "info",
+    "type": "text",
+    "text": "CO₂",
+    "role": "body"
+   },
+   {
+    "id": "chloroplast",
+    "label": "Chloroplast",
+    "tone": "primary",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "glucose",
+    "tone": "accent",
+    "type": "text",
+    "text": "C₆H₁₂O₆",
+    "role": "body"
+   },
+   {
+    "id": "o2",
+    "tone": "accent",
+    "type": "text",
+    "text": "O₂",
+    "role": "body"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "sun",
+    "region": "top-left"
+   },
+   {
+    "rel": "place",
+    "id": "leaf",
+    "region": "center"
+   },
+   {
+    "rel": "left-of",
+    "id": "water",
+    "of": "leaf",
+    "gap": "md"
+   },
+   {
+    "rel": "right-of",
+    "id": "co2",
+    "of": "leaf",
+    "gap": "md"
+   },
+   {
+    "rel": "right-of",
+    "id": "glucose",
+    "of": "co2",
+    "gap": "md"
+   },
+   {
+    "rel": "place",
+    "id": "o2",
+    "region": "top-right"
+   },
+   {
+    "rel": "inside",
+    "id": "chloroplast",
+    "of": "leaf"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Sunlight reaches leaf",
+    "narration": "Sunlight shines onto the leaf, providing the energy needed for photosynthesis.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "sun",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "leaf",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": [
+       "water",
+       "co2"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "connect",
+      "from": "sun",
+      "to": "leaf",
+      "style": "arrow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Chloroplast captures light",
+    "narration": "Chloroplasts inside the leaf absorb the light and start the chemical process.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "chloroplast",
+      "effect": "grow"
+     },
+     {
+      "do": "highlight",
+      "target": "chloroplast",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Glucose and oxygen formed",
+    "narration": "The leaf creates glucose for energy storage and releases oxygen as a by‑product.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "glucose",
+       "o2"
+      ],
+      "effect": "pop"
+     },
+     {
+      "do": "connect",
+      "from": "leaf",
+      "to": "glucose",
+      "style": "arrow"
+     },
+     {
+      "do": "connect",
+      "from": "leaf",
+      "to": "o2",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "glucose",
+       "o2"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap of photosynthesis",
+    "narration": "Sunlight + H₂O + CO₂ → C₆H₁₂O₆ + O₂. The leaf captures light, uses water and carbon dioxide, and outputs glucose and oxygen.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "sun",
+       "leaf",
+       "water",
+       "co2",
+       "chloroplast",
+       "glucose",
+       "o2"
+      ],
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[2]",
+   "message": "auto-fixed: removed a beat with no actions"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "layout[5].rel",
+    "message": "Invalid discriminator value. Expected 'place' | 'row' | 'column' | 'grid' | 'above' | 'below' | 'left-of' | 'right-of' | 'inside'"
+   }
+  ]
+ ],
+ "ms": 93355,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [
+  "{\"version\":\"1\",\"title\":\"Photosynthesis Overview\",\"domain\":\"biology\",\"summary\":\"Sunlight powers the leaf to turn water and carbon dioxide into glucose and oxygen.\",\"spaces\":[],\"entities\":[{\"id\":\"sun\",\"type\":\"circle\",\"size\":\"lg\",\"label\":\"Sun\",\"tone\":\"warning\"},{\"id\":\"leaf\",\"type\":\"rect\",\"size\":\"lg\",\"label\":\"Leaf\",\"tone\":\"success\"},{\"id\":\"water\",\"type\":\"text\",\"text\":\"H₂O\",\"role\":\"body\",\"tone\":\"info\"},{\"id\":\"co2\",\"type\":\"text\",\"text\":\"CO₂\",\"role\":\"body\",\"tone\":\"info\"},{\"id\":\"chloroplast\",\"type\":\"rect\",\"size\":\"md\",\"label\":\"Chloroplast\",\"tone\":\"primary\"},{\"id\":\"glucose\",\"type\":\"text\",\"text\":\"C₆H₁₂O₆\",\"role\":\"body\",\"tone\":\"accent\"},{\"id\":\"o2\",\"type\":\"text\",\"text\":\"O₂\",\"role\":\"body\",\"tone\":\"accent\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"sun\",\"region\":\"top-left\"},{\"rel\":\"place\",\"id\":\"leaf\",\"region\":\"center\"},{\"rel\":\"left-of\",\"id\":\"water\",\"of\":\"leaf\"},{\"rel\":\"right-of\",\"id\":\"co2\",\"of\":\"leaf\"},{\"rel\":\"right-of\",\"id\":\"glucose\",\"of\":\"co2\"},{\"rel\":\"top-right\",\"id\":\"o2\",\"region\":\"top-right\"},{\"rel\":\"inside\",\"id\":\"chloroplast\",\"of\":\"leaf\"}],\"beats\":[{\"title\":\"Sunlight reaches leaf\",\"narration\":\"Sunlight shines onto the leaf, providing the energy needed for photosynthesis.\",\"actions\":[{\"do\":\"create\",\"target\":\"sun\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"leaf\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"water\",\"co2\"],\"effect\":\"fade\"},{\"do\":\"connect\",\"from\":\"sun\",\"to\":\"leaf\",\"style\":\"arrow\"}]},{\"title\":\"Chloroplast captures light\",\"narration\":\"Chloroplasts inside the leaf absorb the light and start the chemical process.\",\"actions\":[{\"do\":\"create\",\"target\":\"chloroplast\",\"effect\":\"grow\"},{\"do\":\"highlight\",\"target\":\"chloroplast\",\"state\":\"active\"}]},{\"title\":\"Predict the products\",\"narration\":\"What are the main products of photosynthesis?\",\"actions\":[],\"check\":{\"question\":\"What does the leaf produce?\",\"choices\":[\"Glucose and O₂\",\"Water and CO₂\",\"O₂ and ATP\"],\"answer\":0,\"explain\":\"Photosynthesis converts CO₂ and H₂O into glucose and oxygen.\"}},{\"title\":\"Glucose and oxygen formed\",\"narration\":\"The leaf creates glucose for energy storage and releases oxygen as a by‑product.\",\"actions\":[{\"do\":\"create\",\"target\":[\"glucose\",\"o2\"],\"effect\":\"pop\"},{\"do\":\"connect\",\"from\":\"leaf\",\"to\":\"glucose\",\"style\":\"arrow\"},{\"do\":\"connect\",\"from\":\"leaf\",\"to\":\"o2\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":[\"glucose\",\"o2\"],\"state\":\"found\"}]},{\"title\":\"Recap of photosynthesis\",\"narration\":\"Sunlight + H₂O + CO₂ → C₆H₁₂O₆ + O₂. The leaf captures light, uses water and carbon dioxide, and outputs glucose and oxygen.\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"sun\",\"leaf\",\"water\",\"co2\",\"chloroplast\",\"glucose\",\"o2\"],\"state\":\"insight\"}]}]}"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"Photosynthesis Overview\",\"domain\":\"biology\",\"summary\":\"Sunlight powers the leaf to turn water and carbon dioxide into glucose and oxygen.\",\"spaces\":[],\"entities\":[{\"id\":\"sun\",\"type\":\"circle\",\"size\":\"lg\",\"label\":\"Sun\",\"tone\":\"warning\"},{\"id\":\"leaf\",\"type\":\"rect\",\"size\":\"lg\",\"label\":\"Leaf\",\"tone\":\"success\"},{\"id\":\"water\",\"type\":\"text\",\"text\":\"H₂O\",\"role\":\"body\",\"tone\":\"info\"},{\"id\":\"co2\",\"type\":\"text\",\"text\":\"CO₂\",\"role\":\"body\",\"tone\":\"info\"},{\"id\":\"chloroplast\",\"type\":\"rect\",\"size\":\"md\",\"label\":\"Chloroplast\",\"tone\":\"primary\"},{\"id\":\"glucose\",\"type\":\"text\",\"text\":\"C₆H₁₂O₆\",\"role\":\"body\",\"tone\":\"accent\"},{\"id\":\"o2\",\"type\":\"text\",\"text\":\"O₂\",\"role\":\"body\",\"tone\":\"accent\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"sun\",\"region\":\"top-left\"},{\"rel\":\"place\",\"id\":\"leaf\",\"region\":\"center\"},{\"rel\":\"left-of\",\"id\":\"water\",\"of\":\"leaf\"},{\"rel\":\"right-of\",\"id\":\"co2\",\"of\":\"leaf\"},{\"rel\":\"right-of\",\"id\":\"glucose\",\"of\":\"co2\"},{\"rel\":\"place\",\"id\":\"o2\",\"region\":\"top-right\"},{\"rel\":\"inside\",\"id\":\"chloroplast\",\"of\":\"leaf\"}],\"beats\":[{\"title\":\"Sunlight reaches leaf\",\"narration\":\"Sunlight shines onto the leaf, providing the energy needed for photosynthesis.\",\"actions\":[{\"do\":\"create\",\"target\":\"sun\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"leaf\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"water\",\"co2\"],\"effect\":\"fade\"},{\"do\":\"connect\",\"from\":\"sun\",\"to\":\"leaf\",\"style\":\"arrow\"}]},{\"title\":\"Chloroplast captures light\",\"narration\":\"Chloroplasts inside the leaf absorb the light and start the chemical process.\",\"actions\":[{\"do\":\"create\",\"target\":\"chloroplast\",\"effect\":\"grow\"},{\"do\":\"highlight\",\"target\":\"chloroplast\",\"state\":\"active\"}]},{\"title\":\"Predict the products\",\"narration\":\"What are the main products of photosynthesis?\",\"actions\":[],\"check\":{\"question\":\"What does the leaf produce?\",\"choices\":[\"Glucose and O₂\",\"Water and CO₂\",\"O₂ and ATP\"],\"answer\":0,\"explain\":\"Photosynthesis converts CO₂ and H₂O into glucose and oxygen.\"}},{\"title\":\"Glucose and oxygen formed\",\"narration\":\"The leaf creates glucose for energy storage and releases oxygen as a by‑product.\",\"actions\":[{\"do\":\"create\",\"target\":[\"glucose\",\"o2\"],\"effect\":\"pop\"},{\"do\":\"connect\",\"from\":\"leaf\",\"to\":\"glucose\",\"style\":\"arrow\"},{\"do\":\"connect\",\"from\":\"leaf\",\"to\":\"o2\",\"style\":\"arrow\"},{\"do\":\"highlight\",\"target\":[\"glucose\",\"o2\"],\"state\":\"found\"}]},{\"title\":\"Recap of photosynthesis\",\"narration\":\"Sunlight + H₂O + CO₂ → C₆H₁₂O₆ + O₂. The leaf captures light, uses water and carbon dioxide, and outputs glucose and oxygen.\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"sun\",\"leaf\",\"water\",\"co2\",\"chloroplast\",\"glucose\",\"o2\"],\"state\":\"insight\"}]}]}"
+}

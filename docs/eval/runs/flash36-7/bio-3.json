@@ -1,0 +1,328 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How Blood Flows Through the Heart",
+  "domain": "biology",
+  "summary": "The heart acts as a dual pump, sending oxygen-poor blood to the lungs and oxygen-rich blood to the rest of the body in a continuous loop.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "title_txt",
+    "type": "text",
+    "text": "Blood Flow Through the Heart",
+    "role": "title"
+   },
+   {
+    "id": "lungs",
+    "tone": "success",
+    "type": "rect",
+    "size": "lg",
+    "text": "Lungs (Gas Exchange)"
+   },
+   {
+    "id": "ra",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Right Atrium"
+   },
+   {
+    "id": "la",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Left Atrium"
+   },
+   {
+    "id": "rv",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Right Ventricle"
+   },
+   {
+    "id": "lv",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Left Ventricle"
+   },
+   {
+    "id": "body",
+    "tone": "muted",
+    "type": "rect",
+    "size": "lg",
+    "text": "Body Systems"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "title_txt",
+    "region": "top"
+   },
+   {
+    "rel": "below",
+    "id": "lungs",
+    "of": "title_txt",
+    "gap": "md"
+   },
+   {
+    "rel": "grid",
+    "ids": [
+     "ra",
+     "la",
+     "rv",
+     "lv"
+    ],
+    "cols": 2,
+    "gap": "lg"
+   },
+   {
+    "rel": "below",
+    "id": "ra",
+    "of": "lungs",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "body",
+    "of": "rv",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The Heart Circuit",
+    "narration": "The heart operates as a double pump, dividing circulation into two loops: pulmonary (lungs) and systemic (body).",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "title_txt",
+       "lungs",
+       "ra",
+       "la",
+       "rv",
+       "lv",
+       "body"
+      ],
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Return to Right Atrium",
+    "narration": "Deoxygenated blood returning from body tissues enters the right atrium via the vena cava.",
+    "actions": [
+     {
+      "do": "connect",
+      "from": "body",
+      "to": "ra",
+      "label": "Vena Cava",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "ra",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "ra",
+      "text": "Receives CO2-rich blood",
+      "side": "left"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pumping to the Lungs",
+    "narration": "Blood travels to the right ventricle, which pumps it through the pulmonary artery into the lungs to collect oxygen.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "ra"
+     },
+     {
+      "do": "connect",
+      "from": "ra",
+      "to": "rv",
+      "label": "Tricuspid Valve",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "rv",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "rv",
+      "to": "lungs",
+      "label": "Pulmonary Artery",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "lungs",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "lungs",
+      "text": "Gains O2, releases CO2",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Return to Left Atrium",
+    "narration": "Freshly oxygenated blood returns from the lungs through pulmonary veins into the left atrium.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "lungs"
+     },
+     {
+      "do": "connect",
+      "from": "lungs",
+      "to": "la",
+      "label": "Pulmonary Vein",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "la",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "la",
+      "text": "O2-rich blood returns",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pumping to the Body",
+    "narration": "Blood moves into the thick muscular left ventricle, which contracts powerfully to force blood through the aorta to the body.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "la"
+     },
+     {
+      "do": "connect",
+      "from": "la",
+      "to": "lv",
+      "label": "Mitral Valve",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "lv",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "connect",
+      "from": "lv",
+      "to": "body",
+      "label": "Aorta",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "body",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "lv",
+      "text": "High-pressure pump",
+      "side": "below"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Continuous Double Circulation",
+    "narration": "This dual-pump loop runs continuously, keeping oxygenated and deoxygenated blood strictly separated.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "lv"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "ra",
+       "rv"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "la",
+       "lv"
+      ],
+      "state": "error",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "lungs",
+       "body"
+      ],
+      "state": "sorted",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[5].actions[1].state",
+   "message": "auto-fixed: \"info\" → \"active\""
+  },
+  {
+   "path": "beats[5].actions[2].state",
+   "message": "auto-fixed: \"danger\" → \"error\""
+  },
+  {
+   "path": "layout",
+   "message": "\"ra\" is positioned by 2 relations; the first one wins"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "beats[2].actions[5].side",
+    "message": "Invalid enum value. Expected 'above' | 'below' | 'left' | 'right', received 'top'"
+   },
+   {
+    "path": "beats[4].actions[5].side",
+    "message": "Invalid enum value. Expected 'above' | 'below' | 'left' | 'right', received 'bottom'"
+   }
+  ]
+ ],
+ "ms": 26837,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

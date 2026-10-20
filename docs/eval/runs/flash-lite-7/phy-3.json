@@ -1,0 +1,248 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Forces on a block sliding down a ramp",
+  "domain": "physics",
+  "summary": "Gravity, normal force, and friction act on the block. Decomposing gravity reveals the components parallel and perpendicular to the incline.",
+  "spaces": [
+   {
+    "id": "ramp_space",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     8
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "surface",
+    "space": "ramp_space",
+    "type": "polygon",
+    "points": [
+     [
+      1,
+      1
+     ],
+     [
+      9,
+      1
+     ],
+     [
+      1,
+      6
+     ]
+    ],
+    "vertexLabels": [
+     "A",
+     "B",
+     "C"
+    ],
+    "fill": true
+   },
+   {
+    "id": "block",
+    "label": "m",
+    "space": "ramp_space",
+    "type": "body",
+    "at": [
+     4,
+     3.2
+    ],
+    "size": "sm"
+   },
+   {
+    "id": "w_vec",
+    "label": "W = mg",
+    "tone": "danger",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4,
+     3.2
+    ],
+    "to": [
+     4,
+     0.2
+    ]
+   },
+   {
+    "id": "n_vec",
+    "label": "N",
+    "tone": "primary",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4,
+     3.2
+    ],
+    "to": [
+     6,
+     5
+    ]
+   },
+   {
+    "id": "f_vec",
+    "label": "f",
+    "tone": "warning",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4,
+     3.2
+    ],
+    "to": [
+     2.5,
+     2.1
+    ]
+   },
+   {
+    "id": "w_par",
+    "label": "mg sinθ",
+    "tone": "accent",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4,
+     3.2
+    ],
+    "to": [
+     2.5,
+     2.1
+    ]
+   },
+   {
+    "id": "w_perp",
+    "label": "mg cosθ",
+    "tone": "muted",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4,
+     3.2
+    ],
+    "to": [
+     2.2,
+     5
+    ]
+   },
+   {
+    "id": "formula",
+    "type": "math",
+    "latex": "F_{net} = mg \\sin\\theta - f = ma"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "ramp_space",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "formula",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The sliding block",
+    "narration": "A block of mass m rests on a ramp inclined at an angle theta.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "surface",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "block",
+      "effect": "drop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Gravity acts downward",
+    "narration": "Gravity pulls straight down with force W equals mg.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "w_vec",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Normal force and friction",
+    "narration": "The surface pushes back perpendicularly with normal force N, and friction f opposes motion up the ramp.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "n_vec",
+      "effect": "grow"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "f_vec",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Decomposing gravity",
+    "narration": "We split weight into components: mg sin theta pulls it down the ramp, while mg cos theta presses it into the surface.",
+    "actions": [
+     {
+      "do": "remove",
+      "target": "w_vec",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "w_par",
+      "effect": "grow"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "w_perp",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Net force equation",
+    "narration": "The net force along the ramp drives the acceleration of the block.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "formula",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 3645,
+ "model": "gemini-3.5-flash-lite",
+ "domain": "general"
+}

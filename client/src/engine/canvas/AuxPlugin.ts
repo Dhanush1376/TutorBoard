@@ -45,13 +45,19 @@ export class AuxPlugin implements ICanvasPlugin {
     const boxW = textW + padX * 2;
     const boxH = lines.length * lineH + 14;
 
-    // Prefer a spot above the target; LayoutEngine dodges collisions.
+    // Prefer a spot above the target; when that would leave the safe area (e.g.
+    // the target is on the top row), go below it instead. LayoutEngine dodges
+    // collisions either way.
+    const bbox = this.engine.getBBoxOf(targetId);
+    const halfH = bbox ? bbox.h / 2 : 0;
+    const aboveY = target.y - halfH - boxH - 36;
+    const roomAbove = aboveY >= layout.safeArea.y;
     const placed = layout.place(id, {
       x: target.x - boxW / 2,
-      y: target.y - boxH - 52,
+      y: roomAbove ? aboveY : target.y + halfH + 36,
       w: boxW,
       h: boxH,
-    }, { padding: 8, prefer: 'up' });
+    }, { padding: 8, prefer: roomAbove ? 'up' : 'down' });
 
     const bx = placed.x + boxW / 2;   // box center
     const by = placed.y + boxH / 2;

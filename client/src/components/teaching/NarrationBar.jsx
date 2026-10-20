@@ -22,7 +22,7 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
       ? (Array.isArray(narrationTokens) ? narrationTokens.join(' ') : narrationTokens) 
       : text;
 
-    if (!rawText || !rawText.trim()) { 
+    if (typeof rawText !== 'string' || !rawText.trim()) {
       setWords([]); 
       setVisibleCount(0); 
       return; 
@@ -84,8 +84,8 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
                 <div className="w-full flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)] animate-pulse" />
-                    <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--text-secondary)]">
-                      {generationProgress?.label || 'Initializing Agent Pipeline...'}
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">
+                      {generationProgress?.label || 'Initializing agent pipeline...'}
                     </span>
                   </div>
                   <button 
@@ -93,7 +93,7 @@ const NarrationBar = ({ text: propText, isGenerating, onCancel }) => {
                       e.stopPropagation();
                       onCancel?.();
                     }}
-                    className="text-[9px] uppercase tracking-widest font-bold text-red-400 hover:text-red-500 transition-colors px-2 py-1 rounded-md hover:bg-red-500/10 active:scale-95"
+                    className="text-xs font-medium text-red-400 hover:text-red-500 transition-colors px-2.5 py-1 rounded-md hover:bg-red-500/10 active:scale-95"
                   >
                     Cancel
                   </button>

@@ -1,0 +1,219 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Binary search for 23",
+  "domain": "algorithms",
+  "summary": "Binary search repeatedly halves the sorted range until it finds the target value 23.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "arr",
+    "type": "array",
+    "values": [
+     2,
+     5,
+     8,
+     12,
+     16,
+     23,
+     38,
+     56,
+     72,
+     91
+    ],
+    "indices": true
+   },
+   {
+    "id": "target_text",
+    "type": "text",
+    "text": "Target: 23",
+    "role": "label"
+   },
+   {
+    "id": "status",
+    "type": "text",
+    "text": "L = 0, R = 9",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "arr",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "target_text",
+    "of": "arr",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "status",
+    "of": "arr",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Initial range",
+    "narration": "We search for 23 in the sorted array. The pointers start at the very beginning (index 0) and the end (index 9).",
+    "actions": [
+     {
+      "do": "create",
+      "target": "arr",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "target_text",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "status",
+      "effect": "fade"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[9]"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First middle element",
+    "narration": "The middle index is (0 + 9) / 2 = 4. The value at index 4 is 16, which is smaller than our target 23.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[4]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Mid = 4 (value 16) < 23. Move L to 5."
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Narrowing the range",
+    "narration": "Since 16 is too small, we discard the left half and move L to index 5. Our new range is from index 5 to 9.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[4]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "arr[9]"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "L = 5, R = 9"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Second middle element",
+    "narration": "The new middle index is (5 + 9) / 2 = 7. The value at index 7 is 56, which is greater than our target 23.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[7]",
+      "state": "pivot",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Mid = 7 (value 56) > 23. Move R to 6."
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Narrowing again",
+    "narration": "Since 56 is too large, we discard the right half and move R to index 6. Our range is now indices 5 to 6.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[7]",
+       "arr[8]",
+       "arr[9]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "arr[6]"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "L = 5, R = 6"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Found the target",
+    "narration": "The middle index is (5 + 6) / 2 = 5. The value at index 5 is exactly 23. Target found!",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "arr[5]",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Found 23 at index 5!"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 4636,
+ "model": "gemini-3.5-flash-lite",
+ "domain": "algorithms"
+}

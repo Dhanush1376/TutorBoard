@@ -27,17 +27,28 @@ export class CanvasStateSnapshot {
    * Note: This assumes it's called from a context where useTutorStore is accessible or passed.
    */
   static capture(storeState: any): CanvasSnapshot {
-    const nodes = [...(storeState.canvasObjects || [])];
+    // Only what the student is looking at: when the current step declares its
+    // visible set, drop every other lesson element. Sending all of them made
+    // the DeltaAgent annotate objects from earlier steps that weren't on screen.
+    const step = storeState.timeline?.steps?.[storeState.currentStepIndex];
+    const visible: string[] | undefined = step?.objectIds?.length ? step.objectIds : step?.objects;
+    const allObjects = storeState.canvasObjects || [];
+    const nodes: any[] = Array.isArray(visible) && visible.length > 0
+      ? allObjects.filter((o: any) => visible.includes(String(o.id)))
+      : [...allObjects];
     const edges = [...(storeState.canvasConnections || [])];
 
     // --- Phase 4: D3 DOM Crawling ---
     // In DSA/Algorithm mode, visuals are in the D3 SVG, not the Zustand store.
-    const d3Svg = document.querySelector('svg#teaching-canvas-svg') || document.querySelector('.infinite-canvas-content svg');
+    const d3Svg = document.querySelector('svg#teaching-canvas-svg')
+      || document.querySelector('.infinite-canvas-content svg')
+      || (document.querySelector('svg .canvas-main-layer') as SVGGElement | null)?.ownerSVGElement;
     if (d3Svg) {
       import.meta.env.DEV && console.log('[Snapshot] 🕵️ Crawling D3 SVG for rendered state...');
       
       // 1. Find Arrays
-      d3Svg.querySelectorAll('g[id*="array"]').forEach(group => {
+      // (cells carry ids like "arr[0]", so exclude them from the array match)
+      d3Svg.querySelectorAll('g[id*="array"]:not(.cell)').forEach(group => {
         const id = group.getAttribute('id');
         const cells = Array.from(group.querySelectorAll('g.cell')).map(cell => ({
           id: cell.getAttribute('id'),
@@ -45,13 +56,11 @@ export class CanvasStateSnapshot {
           color: cell.querySelector('rect.cell-bg')?.getAttribute('fill')
         }));
         
-        nodes.push({
-          id,
-          type: 'array',
-          values: cells.map(c => c.value),
-          cellData: cells,
-          _rendered: true
-        });
+        const rendered = { values: cells.map(c => c.value), cellData: cells, _rendered: true };
+        // Store objects are frozen (immer) — replace, never mutate.
+        const at = nodes.findIndex((n: any) => String(n.id) === id);
+        if (at >= 0) nodes[at] = { ...nodes[at], ...rendered };
+        else nodes.push({ id, type: 'array', ...rendered });
       });
 
       // 2. Find Pointers
@@ -96,9 +105,16 @@ export class CanvasStateSnapshot {
           id: 'result-banner', 
           type: 'result_banner',
           text: resultBanner.querySelector('text')?.textContent || '', 
-          _rendered: true 
+          _rendered: true
         });
       }
+
+      // Keep only what is actually drawn on the board. Lesson elements that
+      // the canvas renders as narration (text/rect in DSA scenes) are not on
+      // screen; offering them let the DeltaAgent anchor callouts to nothing.
+      const onBoard = nodes.filter((n: any) =>
+        n._rendered || (n.id && d3Svg.querySelector(`#${CSS.escape(String(n.id))}`)));
+      if (onBoard.length > 0) nodes.splice(0, nodes.length, ...onBoard);
     }
 
     return {

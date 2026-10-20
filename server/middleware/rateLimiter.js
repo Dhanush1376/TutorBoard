@@ -248,3 +248,20 @@ export const strictGuestLimiter = async (req, res, next) => {
   }
   next();
 };
+
+// Code runs (Java, C++, C) go to a remote compiler, so cap them per person.
+// Guests may run code too; this keeps the shared compiler from being abused.
+export const codeRunLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createStore('code'),
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'You are running code very fast. Wait a moment and try again.',
+      code: 'RATE_LIMIT',
+      retryAfterSeconds: 60,
+    });
+  },
+});

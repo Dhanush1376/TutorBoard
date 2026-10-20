@@ -53,9 +53,11 @@ export const createSessionSlice = (set, get) => ({
   resumeContext:      null, // { topic, stepIndex }
   activeSnapshotId:   null, // ID of message whose snapshot we are currently viewing/editing
   levelUpEvent:       null, // { message, newLevel, ts }
+  learnerProfile:     null, // server `teaching:profile` (read by MasteryHUD / MasteryDashboard)
 
 
   setResumeContext: (ctx) => set({ resumeContext: ctx }),
+  setLearnerProfile: (profile) => set({ learnerProfile: profile }),
   setActiveSnapshotId: (id) => set({ activeSnapshotId: id }),
   setLevelUpEvent: (evt) => set({ levelUpEvent: evt }),
 
@@ -218,7 +220,9 @@ export const createSessionSlice = (set, get) => ({
     };
 
     if (updatedManifest[newId]) {
-      updatedManifest[newId].lastActive = Date.now();
+      // Entries come from the (frozen) store state: replace, never mutate in place —
+      // mutating threw, which silently broke switching to an existing conversation.
+      updatedManifest[newId] = { ...updatedManifest[newId], lastActive: Date.now() };
     }
 
     const cappedManifest = capManifest(updatedManifest, 20, get);
@@ -366,6 +370,7 @@ export const createSessionSlice = (set, get) => ({
     streamingMessageId: null,
     streamingSessionId: null,
     waitingSessionId:   null,
+    sceneBranch:        null,
   }),
 });
 

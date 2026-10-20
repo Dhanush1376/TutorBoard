@@ -47,10 +47,8 @@ const SegButton = ({ isActive, onClick, children, style: extraStyle, className =
       color:       isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
       border:      isActive ? '1px solid var(--border-color)' : '1px solid transparent',
       boxShadow:   isActive ? '0 2px 8px rgba(0,0,0,.12)' : 'none',
-      fontSize: 9,
-      fontWeight: 400,
-      textTransform: 'uppercase',
-      letterSpacing: '.04em',
+      fontSize: 10,
+      fontWeight: 500,
       minHeight: '40px',
       ...extraStyle,
     }}
@@ -141,7 +139,7 @@ const ShapeTool = (props) => {
 
       {/* Shape grid */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+        <span className="text-[11px] font-medium text-[var(--text-tertiary)] px-1">
           Geometric primitives
         </span>
         <div className="grid grid-cols-5 gap-1.5">
@@ -171,7 +169,7 @@ const ShapeTool = (props) => {
 
       {/* Stroke style */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest px-1">
+        <span className="text-[11px] font-medium text-[var(--text-tertiary)] px-1">
           Outline style
         </span>
         <SegBar>

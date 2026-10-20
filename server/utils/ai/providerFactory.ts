@@ -43,6 +43,8 @@ export interface ProviderRequestParams {
   response_format?: any;
   onStream?: (token: string) => void;
   file?: { url: string; type: string };
+  /** How long reasoning models think before answering (OpenAI-compatible `reasoning_effort`). */
+  reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high';
 }
 
 export interface ProviderResponse {
@@ -191,7 +193,7 @@ export async function executeProviderRequest(
   params: ProviderRequestParams, 
   signal?: AbortSignal
 ): Promise<ProviderResponse> {
-  const { model, messages, temperature, maxTokens, tools, response_format, onStream, file } = params;
+  const { model, messages, temperature, maxTokens, tools, response_format, onStream, file, reasoningEffort } = params;
 
   // ANTHROPIC NATIVE FETCH (due to SDK differences)
   if (provider === 'anthropic') {
@@ -221,7 +223,8 @@ export async function executeProviderRequest(
     tools: tools ? tools.map(t => ({ type: 'function', function: t })) : undefined,
     response_format: effectiveResponseFormat,
     stream: !!onStream,
-  }, { signal });
+    ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+  } as any, { signal });
 
   let finalContent = '';
   let finishReason = 'stop';

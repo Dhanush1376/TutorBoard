@@ -107,12 +107,26 @@ async function runStage(params: runStageParams): Promise<any> {
         console.log(`[AgentLoop:Cost] ${stageName}: ${(response._meta?.estimated_cost_cents || 0).toFixed(2)}¢ | Pipeline Total: ${pipelineState.total_cost_cents.toFixed(2)}¢`);
       }
 
-      const parsed = extractJSON(response.content);
+      let parsed = extractJSON(response.content);
       if (!parsed) throw new Error(`JSON parse failed.`);
+
+      // Structured output follows the schema's wrapper (LessonSchema is
+      // { lesson: { title, steps } }). Unwrap it when the required keys live one
+      // level down — otherwise every correct first answer was rejected and the
+      // retry came back without step titles or narration.
+      if (requiredKeys.length > 0 && requiredKeys.some(k => !parsed[k])) {
+        const inner = Object.values(parsed).find((v: any) =>
+          v && typeof v === 'object' && !Array.isArray(v) && requiredKeys.every(k => v[k]));
+        if (inner) parsed = inner;
+      }
 
       if (requiredKeys.length > 0) {
         const missing = requiredKeys.filter(k => !parsed[k]);
-        if (missing.length > 0) throw new Error(`Missing required keys: ${missing.join(', ')}`);
+        if (missing.length > 0) {
+          const shape = Object.entries(parsed).map(([k, v]) =>
+            `${k}:${Array.isArray(v) ? `array(${v.length})` : typeof v === 'object' && v ? `{${Object.keys(v).join(',')}}` : typeof v}`);
+          throw new Error(`Missing required keys: ${missing.join(', ')} (got ${shape.join(' ')})`);
+        }
       }
 
       return parsed;
@@ -394,11 +408,45 @@ export async function runAgentLoop(params: AgentLoopParams) {
     Your response MUST match the JSON schema provided exactly. NEVER output plain text.
     
     1. For each step, create a 'scene' containing 'nodes', 'edges', and 'animations'.
-    2. Available node types: 'orb', 'rect', 'circle', 'triangle', 'text', 'equation', 'atom', 'tree', 'array'.
+    2. Available node types: 'orb', 'rect', 'circle', 'triangle', 'text', 'equation', 'atom', 'tree', 'array', 'plot'.
+       'plot' draws a real graph: props { "expr": "x^2 - 4*x + 3", "xMin": -1, "xMax": 5,
+       "points": [[x, y], ...], "marks": [{ "x": 1, "y": 0, "label": "root" }], "xLabel": "x", "yLabel": "y" }.
+       Use a plot for any function, trajectory, curve, loss landscape or dataset — show it, don't just state it.
+       Add "tracer": true to send a body along the curve (a thrown ball, a particle, a descent step).
+       'polygon' constructs a shape edge by edge: props { "points": [[0,1],[1,1],[0.5,0]] (unit square coords),
+       "labels": ["A","B","C"], "sides": ["c","a","b"], "angles": [{ "at": 0, "label": "60°" }] }.
+       'line' / 'arrow': props { "length": 160, "angle": 45, "label": "v" } — vectors, forces, rays.
+       'molecule': props { "atoms": [{ "el": "O" }, { "el": "H" }, { "el": "H" }], "bonds": [[0,1,1],[0,2,1]] }.
+       'network' (neural net): props { "layers": [3,4,2], "inputs": ["pixels","edges","shape"],
+       "outputs": ["cat","dog"], "prediction": 0, "layerLabels": ["Input","Hidden","Output"] }.
+       'array': props { "values": [5,1,4,2,8] }. Give each step the array's new state — when values move
+       between steps (swaps, push, pop, enqueue, dequeue) the board animates the change.
     3. Use 'position: {x, y}' where x and y are between 0.0 and 1.0 (e.g. {x: 0.5, y: 0.5} is center).
     4. Provide specific properties in 'props' depending on the node type (e.g., 'base', 'height', 'labels').
     5. Animate the appearance of elements using the 'animations' array (e.g., 'draw', 'fade', 'move').
-    
+    6. Every step needs a short 'title' and a 'narration' of 1–3 sentences that teaches that step —
+       the student reads these beside the canvas.
+    7. Make every step visibly change the board: 2–4 nodes per step (an equation for each
+       transformation, the shape or body being discussed, a plot with the relevant points marked).
+    8. Pick the visual language of the subject: algorithms and data structures → arrays (a stack and
+       a queue are two arrays side by side); geometry → polygons, lines, circles with angles and labels;
+       physics → bodies, vectors and a plot with a tracer; chemistry → molecules and atoms; machine
+       learning → a network or data points; functions → plots. Don't reduce every subject to a graph.
+
+    Return JSON in exactly this shape (no other top-level keys):
+    {
+      "title": "Lesson title",
+      "steps": [
+        {
+          "id": "s1",
+          "title": "Short step title",
+          "narration": "What this step shows and why it matters.",
+          "scene": { "nodes": [ { "id": "n1", "type": "equation", "position": { "x": 0.5, "y": 0.4 }, "props": { "latex": "..." } } ],
+                     "edges": [], "animations": [ { "target": "n1", "type": "fade", "duration": 0.6 } ] }
+        }
+      ]
+    }
+
     Context:
     ${webContextStr || ''}`;
 

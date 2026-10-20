@@ -1,0 +1,53 @@
+{
+  "version": "1",
+  "title": "Stack vs Queue",
+  "domain": "data-structures",
+  "summary": "A stack serves the newest item first (LIFO); a queue serves the oldest first (FIFO).",
+  "entities": [
+    { "id": "st", "type": "stack", "values": [], "label": "Stack · LIFO" },
+    { "id": "qu", "type": "queue", "values": [], "label": "Queue · FIFO" }
+  ],
+  "layout": [
+    { "rel": "row", "ids": ["st", "qu"], "gap": "xl" }
+  ],
+  "beats": [
+    {
+      "title": "Push onto the stack",
+      "narration": "A stack only touches its top. Each push lands on the one before it.",
+      "actions": [
+        { "do": "create", "target": "st", "effect": "draw" },
+        { "do": "push", "target": "st", "value": "A" },
+        { "do": "push", "target": "st", "value": "B" },
+        { "do": "push", "target": "st", "value": "C" }
+      ]
+    },
+    {
+      "title": "Enqueue at the rear",
+      "narration": "A queue adds at the rear and serves from the front, like a line at a counter.",
+      "actions": [
+        { "do": "create", "target": "qu", "effect": "draw" },
+        { "do": "enqueue", "target": "qu", "value": "A" },
+        { "do": "enqueue", "target": "qu", "value": "B" },
+        { "do": "enqueue", "target": "qu", "value": "C" }
+      ]
+    },
+    {
+      "title": "pop() takes the newest",
+      "narration": "Pop removes the most recent push — C. Last in, first out.",
+      "actions": [
+        { "do": "highlight", "target": "st[2]", "state": "active" },
+        { "do": "pop", "target": "st" },
+        { "do": "annotate", "target": "st", "text": "pop() → C", "side": "right", "with": "previous" }
+      ]
+    },
+    {
+      "title": "dequeue() takes the oldest",
+      "narration": "Dequeue serves the oldest item — A. First in, first out.",
+      "actions": [
+        { "do": "highlight", "target": "qu[0]", "state": "active" },
+        { "do": "dequeue", "target": "qu" },
+        { "do": "annotate", "target": "qu", "text": "dequeue() → A", "side": "left", "with": "previous" }
+      ]
+    }
+  ]
+}

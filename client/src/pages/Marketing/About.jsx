@@ -1,286 +1,318 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, useMotionValue, useTransform, useSpring, useInView, animate } from 'framer-motion';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { motion, useInView, useScroll, useTransform } from 'framer-motion';
+import { EASE, Container, SectionIntro, SectionHead, Reveal, Eyebrow, SlideArrow, mapRange, useScrollContainer, useSpy, useStartLearning } from './kit';
 
-const WORDS = ["Visual", "Spatial", "Interactive", "Tactile", "Kinetic"];
+const MANIFESTO =
+  'Humans learn by seeing and interacting, not reading walls of text. TutorBoard turns complex ideas into live interactive lessons you can watch, pause, and question.';
 
-function AnimatedCounter({ from, to, duration = 2 }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true });
-  const [val, setVal] = useState(from);
+const PRINCIPLES = [
+  {
+    title: 'Show, then tell.',
+    body: 'A picture comes first and words second. Narration explains what you are already looking at.',
+    glyph: 'eye',
+  },
+  {
+    title: 'Every step reversible.',
+    body: 'Learning is not linear. Any moment can be revisited, questioned and replayed.',
+    glyph: 'rewind',
+  },
+  {
+    title: 'Calm by default.',
+    body: 'No confetti, no noise. Motion is used only when it carries meaning.',
+    glyph: 'calm',
+  },
+  {
+    title: 'Curiosity first.',
+    body: 'Questions are welcome at any point in a lesson, not saved for the end.',
+    glyph: 'ask',
+  },
+];
 
-  useEffect(() => {
-    if (!inView) return;
-    const controls = animate(from, to, {
-      duration,
-      ease: [0.16, 1, 0.3, 1],
-      onUpdate: (v) => setVal(Math.round(v)),
-    });
-    return controls.stop;
-  }, [inView]);
-
-  return <span ref={ref}>{val.toLocaleString()}</span>;
-}
-
-function MagneticWord({ children, delay = 0 }) {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const sx = useSpring(x, { stiffness: 200, damping: 20 });
-  const sy = useSpring(y, { stiffness: 200, damping: 20 });
-  const ref = useRef(null);
-
-  const handleMove = (e) => {
-    const rect = ref.current.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = e.clientX - cx;
-    const dy = e.clientY - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const pull = Math.max(0, 1 - dist / 120);
-    x.set(dx * pull * 0.3);
-    y.set(dy * pull * 0.3);
-  };
-
+function Word({ children, progress, range }) {
+  const opacity = useTransform(progress, mapRange(range, [0.28, 1]));
   return (
-    <motion.span
-      ref={ref}
-      onMouseMove={handleMove}
-      onMouseLeave={() => { x.set(0); y.set(0); }}
-      style={{ x: sx, y: sy, display: 'inline-block' }}
-      initial={{ opacity: 0, y: 40 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-    >
-      {children}
+    <motion.span style={{ opacity }} className="transition-none">
+      {children}{' '}
     </motion.span>
   );
 }
 
-function CyclingWord() {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setIndex(i => (i + 1) % WORDS.length), 2000);
-    return () => clearInterval(id);
-  }, []);
-
+function Manifesto() {
+  const ref = useRef(null);
+  const container = useScrollContainer();
+  const { scrollYProgress } = useScroll({ container: container || undefined, target: ref, offset: ['start 0.85', 'end 0.5'] });
+  const words = MANIFESTO.split(' ');
   return (
-    <span style={{ display: 'inline-block', position: 'relative', color: 'var(--text-primary)', minWidth: 220 }}>
-      <motion.span
-        key={index}
-        initial={{ opacity: 0, y: 20, filter: 'blur(6px)' }}
-        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        style={{ display: 'inline-block', fontStyle: 'italic' }}
-      >
-        {WORDS[index]}
-      </motion.span>
-    </span>
+    <Container className="py-20 lg:py-32">
+      <div className="grid gap-10 lg:grid-cols-12">
+        <div className="lg:col-span-3">
+          <Reveal>
+            <Eyebrow index="4.1">Why we exist</Eyebrow>
+          </Reveal>
+        </div>
+        <p ref={ref} className="text-[clamp(1.55rem,3.1vw,2.6rem)] font-[450] leading-[1.22] tracking-[-0.035em] text-[var(--text-primary)] lg:col-span-9">
+          {words.map((w, i) => (
+            <Word key={i} progress={scrollYProgress} range={[i / words.length, (i + 1) / words.length]}>
+              {w}
+            </Word>
+          ))}
+        </p>
+      </div>
+    </Container>
   );
 }
 
-function FloatingOrb({ style, delay = 0 }) {
-  return (
-    <motion.div
-      style={{
-        position: 'absolute',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(var(--text-primary-rgb,0,0,0), 0.06) 0%, transparent 70%)',
-        pointerEvents: 'none',
-        ...style,
-      }}
-      animate={{ y: [0, -30, 0], scale: [1, 1.08, 1] }}
-      transition={{ duration: 6 + delay, repeat: Infinity, ease: 'easeInOut', delay }}
-    />
-  );
-}
-
-function StatPill({ label, value, from = 0, suffix = '' }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.85 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true }}
-      whileHover={{ scale: 1.04 }}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 4,
-        padding: '28px 36px',
-        borderRadius: 24,
-        border: '1.5px solid var(--border-color)',
-        background: 'var(--bg-secondary)',
-        backdropFilter: 'blur(20px)',
-        cursor: 'default',
-      }}
-    >
-      <span style={{ fontSize: 42, fontWeight: 400, letterSpacing: '-2px', fontFamily: 'var(--font-serif, serif)', color: 'var(--text-primary)', lineHeight: 1 }}>
-        <AnimatedCounter from={from} to={value} />{suffix}
-      </span>
-      <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>{label}</span>
-    </motion.div>
-  );
-}
-
-const About = () => {
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const rotateX = useTransform(mouseY, [-300, 300], [8, -8]);
-  const rotateY = useTransform(mouseX, [-300, 300], [-8, 8]);
-  const heroRef = useRef(null);
-
-  const handleMouseMove = (e) => {
-    const rect = heroRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    mouseX.set(e.clientX - rect.left - rect.width / 2);
-    mouseY.set(e.clientY - rect.top - rect.height / 2);
+function Glyph({ kind }) {
+  const draw = {
+    initial: { pathLength: 0, opacity: 0 },
+    whileInView: { pathLength: 1, opacity: 1 },
+    viewport: { once: true, amount: 0.8 },
+    transition: { duration: 1.2, ease: EASE },
   };
-
+  const s = { fill: 'none', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round', style: { stroke: 'var(--text-primary)' } };
   return (
-    <div style={{ overflow: 'hidden' }}>
-      {/* Hero */}
-      <div
-        ref={heroRef}
-        onMouseMove={handleMouseMove}
-        style={{ position: 'relative', minHeight: '85vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '80px 24px' }}
-      >
-        <FloatingOrb style={{ width: 600, height: 600, top: '-20%', left: '-15%', opacity: 0.6 }} delay={0} />
-        <FloatingOrb style={{ width: 400, height: 400, bottom: '0%', right: '-10%', opacity: 0.4 }} delay={2} />
-
-        {/* Badge */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 20px',
-            borderRadius: 99,
-            border: '1px solid var(--border-color)',
-            background: 'var(--bg-secondary)',
-            fontSize: 12,
-            fontWeight: 400,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'var(--text-secondary)',
-            marginBottom: 40,
-          }}
-        >
-         
-          Founded 2026
-        </motion.div>
-
-        {/* Headline */}
-        <h1 style={{
-          fontSize: 'clamp(52px, 8vw, 96px)',
-          lineHeight: 1.0,
-          fontFamily: 'var(--font-serif, serif)',
-          letterSpacing: '-3px',
-          color: 'var(--text-primary)',
-          marginBottom: 16,
-          maxWidth: 900,
-        }}>
-          <MagneticWord delay={0.1}>The&nbsp;</MagneticWord>
-          <MagneticWord delay={0.2}>Future&nbsp;</MagneticWord>
-          <MagneticWord delay={0.3}>of&nbsp;</MagneticWord>
-          <br />
-          <MagneticWord delay={0.4}>Learning&nbsp;</MagneticWord>
-          <span style={{ display: 'inline-block' }}>
-            <span style={{ opacity: 0.4 }}>is&nbsp;</span>
-            <CyclingWord />
-          </span>
-        </h1>
-
-        {/* Subtitle */}
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.8 }}
-          style={{ fontSize: 18, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 560, marginTop: 24, marginBottom: 48 }}
-        >
-          An LLM that only generates text is like a brilliant tutor who refuses to use a whiteboard.
-          We built TutorBoard to change that.
-        </motion.p>
-
-        {/* CTA */}
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.9 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.97 }}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '16px 36px',
-            borderRadius: 99,
-            background: 'var(--text-primary)',
-            color: 'var(--bg-primary)',
-            border: 'none',
-            fontSize: 15,
-            fontWeight: 400,
-            cursor: 'pointer',
-            letterSpacing: '-0.01em',
-          }}
-        >
-          Start Learning Visually <ArrowRight size={16} />
-        </motion.button>
-
-        {/* Scroll hint */}
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          style={{ position: 'absolute', bottom: 32, left: '50%', translateX: '-50%', opacity: 0.3 }}
-        >
-          <div style={{ width: 1, height: 48, background: 'var(--text-primary)', margin: '0 auto' }} />
-        </motion.div>
-      </div>
-
-      {/* Stats Row */}
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.8 }}
-        style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', padding: '40px 24px 80px' }}
-      >
-        <StatPill label="Learners" value={12000} from={0} suffix="+" />
-        <StatPill label="Concepts Visualized" value={340000} from={0} suffix="+" />
-        <StatPill label="Accuracy Rate" value={99} from={0} suffix="%" />
-      </motion.div>
-
-      {/* Mission Section */}
-      <div style={{ padding: '60px 24px 100px', maxWidth: 900, margin: '0 auto' }}>
-        {['We absorb complex concepts best when we can see them, interact with them, and break them down spatially.',
-          'That\'s why we built TutorBoard—an intelligent canvas designed specifically to illustrate, rather than just explain.',
-          'Our mission is to bridge the gap between abstract text and intuitive understanding, providing learners with a sandbox where concepts come alive.'
-        ].map((text, i) => (
-          <motion.p
-            key={i}
-            initial={{ opacity: 0, x: -30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: '-60px' }}
-            transition={{ duration: 0.7, delay: i * 0.1 }}
-            style={{
-              fontSize: 'clamp(18px, 2.5vw, 26px)',
-              lineHeight: 1.6,
-              color: i === 1 ? 'var(--text-primary)' : 'var(--text-secondary)',
-              fontWeight: i === 1 ? 600 : 400,
-              marginBottom: 32,
-              paddingLeft: i === 1 ? 24 : 0,
-              borderLeft: i === 1 ? '3px solid var(--text-primary)' : 'none',
-            }}
-          >
-            {text}
-          </motion.p>
-        ))}
-      </div>
-    </div>
+    <svg viewBox="0 0 48 48" className="h-12 w-12">
+      {kind === 'eye' && (
+        <>
+          <motion.path d="M4 24 C 12 12, 36 12, 44 24 C 36 36, 12 36, 4 24 Z" {...s} {...draw} />
+          <motion.circle
+            cx="24"
+            cy="24"
+            r="5"
+            style={{ fill: 'var(--mk-accent)' }}
+            initial={{ scale: 0 }}
+            whileInView={{ scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.8 }}
+          />
+        </>
+      )}
+      {kind === 'rewind' && (
+        <>
+          <motion.path d="M38 24 A 14 14 0 1 1 30 11.4" {...s} {...draw} />
+          <motion.path d="M30 5 L31 12 L24 13" {...s} {...draw} transition={{ ...draw.transition, delay: 0.9, duration: 0.4 }} />
+          <circle cx="24" cy="24" r="2.5" style={{ fill: 'var(--mk-accent)' }} />
+        </>
+      )}
+      {kind === 'calm' && (
+        <>
+          <motion.path d="M4 30 C 12 22, 18 22, 24 30 S 36 38, 44 30" {...s} {...draw} />
+          <motion.path d="M4 20 C 12 12, 18 12, 24 20 S 36 28, 44 20" {...s} {...draw} style={{ stroke: 'var(--mk-line-strong)' }} transition={{ ...draw.transition, delay: 0.2 }} />
+        </>
+      )}
+      {kind === 'ask' && (
+        <>
+          <motion.path d="M17 17 C 17 9, 31 9, 31 17 C 31 23, 24 23, 24 30" {...s} {...draw} />
+          <motion.circle
+            cx="24"
+            cy="38"
+            r="2.6"
+            style={{ fill: 'var(--mk-accent)' }}
+            initial={{ scale: 0 }}
+            whileInView={{ scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ type: 'spring', stiffness: 300, damping: 14, delay: 1 }}
+          />
+        </>
+      )}
+    </svg>
   );
-};
+}
 
-export default About;
+/** One principle: set large; it lights up and opens when it reaches the middle of the screen. */
+function PrincipleRow({ p, index, active, onActive }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { margin: '-45% 0px -50% 0px' });
+  useEffect(() => {
+    if (inView) onActive(index);
+  }, [inView, index, onActive]);
+  return (
+    <li ref={ref} onMouseEnter={() => onActive(index)} className="border-t border-[var(--mk-line)] py-7 last:border-b lg:py-9">
+      <div className="flex items-baseline gap-5 sm:gap-8">
+        <span
+          className={`w-6 shrink-0 font-mono text-[11px] transition-colors duration-500 ${
+            active ? 'text-[var(--mk-accent)]' : 'text-[var(--text-tertiary)]'
+          }`}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+        <h3
+          className={`text-[clamp(1.9rem,4.4vw,3.8rem)] font-[450] leading-[1.02] tracking-[-0.045em] transition-[color,opacity] duration-500 ${
+            active ? 'text-[var(--text-primary)] opacity-100' : 'text-[var(--text-tertiary)] opacity-45'
+          }`}
+        >
+          {p.title}
+        </h3>
+      </div>
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] ${
+          active ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <p className="overflow-hidden pl-11 text-[16px] leading-[1.65] text-[var(--text-secondary)] sm:pl-14 sm:text-[17px]">
+          <span className="block max-w-[50ch] pt-4">{p.body}</span>
+        </p>
+      </div>
+    </li>
+  );
+}
+
+function Principles() {
+  const [active, setActive] = useState(0);
+  const p = PRINCIPLES[active];
+  return (
+    <Container className="py-20 lg:py-32">
+      <div className="grid gap-10 lg:grid-cols-12 lg:gap-16">
+        <div className="lg:col-span-4">
+          <div className="lg:sticky lg:top-36">
+            <SectionHead index="4.2" label="What we believe" title="Four principles," muted="applied everywhere." />
+            <div className="mt-10 hidden items-center gap-6 lg:flex">
+              <div key={active} className="grid h-24 w-24 place-items-center rounded-full border border-[var(--mk-line-strong)] [&_svg]:h-14 [&_svg]:w-14">
+                <Glyph kind={p.glyph} />
+              </div>
+              <div className="text-[12px] font-medium text-[var(--text-tertiary)]">
+                <span className="text-[var(--text-primary)]">{String(active + 1).padStart(2, '0')}</span> / {String(PRINCIPLES.length).padStart(2, '0')}
+                <div className="mt-1 normal-case tracking-normal">{p.title}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ol className="lg:col-span-8">
+          {PRINCIPLES.map((x, i) => (
+            <PrincipleRow key={x.title} p={x} index={i} active={active === i} onActive={setActive} />
+          ))}
+        </ol>
+      </div>
+    </Container>
+  );
+}
+
+const SUBJECTS = ['Physics', 'Biology', 'History', 'Economics', 'Maths', 'Chemistry', 'Geography', 'Code'];
+
+function FactCard({ k, delay = 0, className = '', children }) {
+  return (
+    <motion.li
+      className={`group relative flex min-h-[200px] flex-col overflow-hidden rounded-[20px] border border-[var(--mk-line)] bg-[var(--mk-surface)] p-6 transition-colors duration-300 hover:border-[var(--mk-line-strong)] ${className}`}
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ duration: 0.8, ease: EASE, delay }}
+    >
+      <div className="text-[12px] font-medium text-[var(--text-tertiary)]">{k}</div>
+      {children}
+    </motion.li>
+  );
+}
+
+const big = 'text-[clamp(1.7rem,2.6vw,2.2rem)] font-[450] leading-[1.05] tracking-[-0.04em] text-[var(--text-primary)]';
+const small = 'mt-2 text-[14px] leading-[1.55] text-[var(--text-secondary)]';
+
+function Colophon() {
+  const start = useStartLearning();
+  return (
+    <Container className="py-12 lg:py-20">
+      <div className="grid gap-10 lg:grid-cols-12">
+        <div className="lg:col-span-3">
+          <Reveal>
+            <Eyebrow index="4.3">In brief</Eyebrow>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <p className="mt-6 max-w-[24ch] text-[22px] font-[450] leading-[1.2] tracking-[-0.03em] text-[var(--text-primary)]">
+              The short version, <span className="text-[var(--text-tertiary)]">for the curious.</span>
+            </p>
+          </Reveal>
+        </div>
+
+        <ol className="grid gap-3 sm:grid-cols-2 lg:col-span-9 lg:grid-cols-3">
+          {/* Engine: the four systems as a small rail */}
+          <FactCard k="Engine" className="sm:col-span-2">
+            <div className={`mt-auto pt-8 ${big}`}>Four systems, one lesson.</div>
+            <div className="mt-6 grid grid-cols-4 gap-2">
+              {['Intent', 'Planner', 'Renderer', 'Narrator'].map((n, i) => (
+                <div key={n} className="min-w-0">
+                  <div className="relative h-px bg-[var(--mk-line-strong)]">
+                    <motion.span
+                      className="absolute inset-0 origin-left bg-[var(--text-primary)]"
+                      initial={{ scaleX: 0 }}
+                      whileInView={{ scaleX: 1 }}
+                      viewport={{ once: true, amount: 0.6 }}
+                      transition={{ duration: 0.6, ease: EASE, delay: 0.3 + i * 0.25 }}
+                    />
+                    <span className={`absolute -top-[3px] left-0 h-[7px] w-[7px] rounded-full ${i === 3 ? 'bg-[var(--mk-accent)]' : 'bg-[var(--text-primary)]'}`} />
+                  </div>
+                  <div className="mt-3 truncate text-[13px] text-[var(--text-secondary)]">{n}</div>
+                </div>
+              ))}
+            </div>
+          </FactCard>
+
+          <FactCard k="Experience" delay={0.06}>
+            <div className="mt-auto pt-8">
+              <div className="font-mono text-[clamp(2.4rem,3.8vw,3.2rem)] leading-none tracking-[-0.04em] text-[var(--text-primary)]">
+                60<span className="text-[0.55em] font-sans font-normal text-[var(--mk-accent)] ml-1">FPS</span>
+              </div>
+              <p className={small}>Real-time interactive canvas. Pan, scrub, and question live.</p>
+            </div>
+          </FactCard>
+
+          <FactCard k="Subjects" delay={0.1}>
+            <div className={`mt-auto pt-8 ${big}`}>Any you can ask about.</div>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {SUBJECTS.map((s, i) => (
+                <motion.span
+                  key={s}
+                  className="rounded-full border border-[var(--mk-line-strong)] px-2.5 py-1 text-[12px] text-[var(--text-secondary)]"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, ease: EASE, delay: 0.2 + i * 0.05 }}
+                >
+                  {s}
+                </motion.span>
+              ))}
+            </div>
+          </FactCard>
+
+          <FactCard k="Intelligence" delay={0.14}>
+            <div className="mt-auto pt-8">
+              <div className={`font-[450] tracking-[-0.03em] ${big}`}>Multi-model AI</div>
+              <p className={small}>Dynamic visual synthesis with synchronized voice narration.</p>
+            </div>
+          </FactCard>
+
+          <FactCard k="Try it" delay={0.18} className="bg-[var(--text-primary)]! border-transparent! hover:border-transparent!">
+            <div className="mt-auto pt-8 text-[clamp(1.7rem,2.6vw,2.2rem)] font-[450] leading-[1.05] tracking-[-0.04em] text-[var(--bg-primary)]">
+              No account needed.
+            </div>
+            <button
+              type="button"
+              onClick={start}
+              className="group mt-5 inline-flex h-10 w-fit cursor-pointer items-center gap-2 rounded-full bg-[var(--bg-primary)] px-4 text-[13.5px] font-medium text-[var(--text-primary)] transition-opacity hover:opacity-90"
+            >
+              Start as a guest
+              <SlideArrow />
+            </button>
+          </FactCard>
+        </ol>
+      </div>
+    </Container>
+  );
+}
+
+export default function AboutSection() {
+  const ref = useSpy('about');
+  return (
+    <section id="about" ref={ref} className="relative">
+      <SectionIntro
+        index="04"
+        label="About"
+        title="Great tutors"
+        muted="reach for the whiteboard."
+        lede="AI explains in walls of text. We built the interactive tutor that draws live."
+      />
+      <Manifesto />
+      <Principles />
+      <Colophon />
+    </section>
+  );
+}

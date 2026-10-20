@@ -1,0 +1,332 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Forces on a Block Sliding Down a Ramp",
+  "domain": "physics",
+  "summary": "Gravity, normal force, and friction act on a sliding block; resolving gravity into components explains the downhill acceleration.",
+  "spaces": [
+   {
+    "id": "ramp_space",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     6.5
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "wedge",
+    "tone": "muted",
+    "space": "ramp_space",
+    "type": "polygon",
+    "points": [
+     [
+      1,
+      1
+     ],
+     [
+      8.5,
+      1
+     ],
+     [
+      1,
+      5.33
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "theta",
+    "space": "ramp_space",
+    "type": "angle",
+    "vertex": [
+     8.5,
+     1
+    ],
+    "from": [
+     1,
+     1
+    ],
+    "to": [
+     1,
+     5.33
+    ],
+    "showValue": true
+   },
+   {
+    "id": "block",
+    "tone": "primary",
+    "space": "ramp_space",
+    "type": "polygon",
+    "points": [
+     [
+      4.23,
+      3.46
+     ],
+     [
+      5.27,
+      2.86
+     ],
+     [
+      5.67,
+      3.56
+     ],
+     [
+      4.63,
+      4.16
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "fg",
+    "label": "mg (gravity)",
+    "tone": "danger",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4.95,
+     3.51
+    ],
+    "to": [
+     4.95,
+     1.11
+    ]
+   },
+   {
+    "id": "fn",
+    "label": "F_N (normal)",
+    "tone": "primary",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4.95,
+     3.51
+    ],
+    "to": [
+     5.99,
+     5.31
+    ]
+   },
+   {
+    "id": "fk",
+    "label": "f_k (friction)",
+    "tone": "warning",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4.95,
+     3.51
+    ],
+    "to": [
+     4,
+     4.06
+    ]
+   },
+   {
+    "id": "fg_perp",
+    "label": "mg cos θ",
+    "tone": "muted",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4.95,
+     3.51
+    ],
+    "to": [
+     3.91,
+     1.71
+    ]
+   },
+   {
+    "id": "fg_par",
+    "label": "mg sin θ",
+    "tone": "accent",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     4.95,
+     3.51
+    ],
+    "to": [
+     5.99,
+     2.91
+    ]
+   },
+   {
+    "id": "eq_fn",
+    "type": "math",
+    "latex": "F_N = mg \\cos\\theta"
+   },
+   {
+    "id": "eq_fk",
+    "type": "math",
+    "latex": "f_k = \\mu_k F_N"
+   },
+   {
+    "id": "eq_net",
+    "type": "math",
+    "latex": "F_{\\text{net}} = mg \\sin\\theta - f_k = ma"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "ramp_space",
+    "region": "left"
+   },
+   {
+    "rel": "place",
+    "id": "eq_fn",
+    "region": "top-right"
+   },
+   {
+    "rel": "below",
+    "id": "eq_fk",
+    "of": "eq_fn",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq_net",
+    "of": "eq_fk",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The three forces",
+    "narration": "A sliding block experiences three forces: gravity pulling straight down, the surface pushing perpendicularly with normal force, and friction opposing motion up the ramp.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "wedge",
+       "theta",
+       "block"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "fg",
+      "effect": "grow"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "fn",
+      "effect": "grow"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "fk",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Perpendicular balance",
+    "narration": "Decomposing gravity yields mg cos θ pressing into the ramp. The normal force F_N balances it exactly so the block does not sink into the surface.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "fg_perp",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "fn",
+       "fg_perp"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "eq_fn",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Friction opposes sliding",
+    "narration": "Kinetic friction acts parallel to the incline, pointing up the ramp. Its magnitude depends directly on the normal force pressing the surfaces together.",
+    "actions": [
+     {
+      "do": "clear",
+      "target": [
+       "fn",
+       "fg_perp"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": "fk",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "eq_fk",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Downhill acceleration",
+    "narration": "The parallel gravity component, mg sin θ, pulls the block down the ramp. The net driving force is mg sin θ minus friction.",
+    "actions": [
+     {
+      "do": "clear",
+      "target": "fk"
+     },
+     {
+      "do": "create",
+      "target": "fg_par",
+      "effect": "grow"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "fg_par",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "eq_net",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[2].actions[1].state",
+   "message": "auto-fixed: \"warning\" → \"comparing\""
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 41472,
+ "model": "gemini-3.7-flash",
+ "domain": "general"
+}

@@ -1,73 +1,220 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play, Square, ChevronRight, ChevronLeft, ChevronDown, Globe, Circle, Minus, AlertCircle, CheckCircle2, Copy, Trash2, Layout, Terminal } from 'lucide-react';
+import {
+  Play, PanelRight, PanelLeft, Square, Copy, Check, ChevronDown, Terminal, Footprints, Loader2, Code2, Trash2, PencilLine, Keyboard,
+} from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import useTutorStore from '../../store/tutorStore';
 import { useTheme } from '../../context/useTheme';
-import VisaiLogo from '../layout/VisaiLogo';
+import useWindowSize from '../../hooks/useWindowSize';
+import WindowControls from '../common/WindowControls';
 import { executeCode } from '../../utils/codeRunner';
+import { traceCode, findWalkthrough, saveWalkthrough } from '../../visualizer/runTrace';
+import TracePlayer from '../../visualizer/ui/TracePlayer';
 
+const EASE = [0.22, 1, 0.36, 1];
+
+// The five languages that really run (see utils/codeRunner.js).
 const LANGUAGES = {
-  javascript: { name: 'JavaScript', boiler: 'import.meta.env.DEV && console.log("Hello, World!");' },
-  python: { name: 'Python', boiler: 'print("Hello, World!")' },
-  java: { name: 'Java', boiler: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}' },
-  cpp: { name: 'C++', boiler: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, World!" << std::endl;\n    return 0;\n}' },
-  c: { name: 'C', boiler: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}' },
-  typescript: { name: 'TypeScript', boiler: 'const message: string = "Hello, World!";\nimport.meta.env.DEV && console.log(message);' },
-  ruby: { name: 'Ruby', boiler: 'puts "Hello, World!"' },
-  go: { name: 'Go', boiler: 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}' },
-  rust: { name: 'Rust', boiler: 'fn main() {\n    println!("Hello, World!");\n}' },
-  sql: { name: 'SQL', boiler: 'SELECT * FROM users WHERE active = true;' },
-  html: { name: 'HTML', boiler: '<!DOCTYPE html>\n<html>\n<head>\n  <title>Hello</title>\n</head>\n<body>\n  <h1>Hello, World!</h1>\n</body>\n</html>' },
-  css: { name: 'CSS', boiler: 'body {\n  background: #f0f0f0;\n  color: #333;\n  font-family: sans-serif;\n}' },
+  javascript: { name: 'JavaScript', ext: 'js', boiler: 'console.log("Hello, World!");' },
+  python: { name: 'Python', ext: 'py', boiler: 'print("Hello, World!")' },
+  java: { name: 'Java', ext: 'java', boiler: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}' },
+  cpp: { name: 'C++', ext: 'cpp', boiler: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, World!" << std::endl;\n    return 0;\n}' },
+  c: { name: 'C', ext: 'c', boiler: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}' },
 };
 
-const CodeVisualizerModal = () => {
-  const { 
-    activeOverlay, setOverlay, addCanvasObjects, addCanvasConnections, layoutView,
-    isVisualizerMinimized, setVisualizerMinimized,
-    codeEditorCode, codeEditorLang, showToast
-  } = useTutorStore();
+/* Editor themes in the app's ink-and-amber palette. */
+function defineThemes(monaco) {
+  const css = getComputedStyle(document.documentElement);
+  const read = (v, fb) => (css.getPropertyValue(v).trim() || fb).slice(0, 7);
+  monaco.editor.defineTheme('tb-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: '6f6a60', fontStyle: 'italic' },
+      { token: 'keyword', foreground: 'f5a524' },
+      { token: 'string', foreground: 'a6d6a0' },
+      { token: 'number', foreground: 'e9b872' },
+      { token: 'type', foreground: '9cc3f0' },
+    ],
+    colors: {
+      'editor.background': read('--bg-primary', '#0a0908'),
+      'editor.foreground': '#ece8dd',
+      'editorLineNumber.foreground': '#4a4740',
+      'editorLineNumber.activeForeground': '#bdb6a6',
+      'editor.lineHighlightBackground': '#ffffff08',
+      'editor.lineHighlightBorder': '#00000000',
+      'editorCursor.foreground': '#f5a524',
+      'editor.selectionBackground': '#f5a52433',
+      'editor.inactiveSelectionBackground': '#f5a5241a',
+      'editorIndentGuide.background1': '#ffffff0d',
+      'editorWidget.background': '#141311',
+      'scrollbarSlider.background': '#ffffff14',
+      'scrollbarSlider.hoverBackground': '#ffffff22',
+    },
+  });
+  monaco.editor.defineTheme('tb-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: '9a958a', fontStyle: 'italic' },
+      { token: 'keyword', foreground: 'b4630a' },
+      { token: 'string', foreground: '2f7a3b' },
+      { token: 'number', foreground: 'a35c12' },
+      { token: 'type', foreground: '2a5d9c' },
+    ],
+    colors: {
+      'editor.background': read('--bg-primary', '#fdfcf9'),
+      'editor.foreground': '#1a1814',
+      'editorLineNumber.foreground': '#c2bdb1',
+      'editorLineNumber.activeForeground': '#5c574d',
+      'editor.lineHighlightBackground': '#0000000a',
+      'editor.lineHighlightBorder': '#00000000',
+      'editorCursor.foreground': '#e08a0b',
+      'editor.selectionBackground': '#e08a0b2e',
+      'editor.inactiveSelectionBackground': '#e08a0b18',
+      'editorIndentGuide.background1': '#0000000d',
+      'scrollbarSlider.background': '#00000014',
+      'scrollbarSlider.hoverBackground': '#00000022',
+    },
+  });
+}
 
-  const isVisualizerOpen = activeOverlay === 'code-editor';
-  const setVisualizerOpen = (val) => setOverlay(val ? 'code-editor' : null);
+function IconBtn({ label, onClick, active, children }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className={`grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full transition-colors ${
+        active ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+const CodeVisualizerModal = () => {
+  const {
+    activeOverlay, setOverlay, layoutView,
+    isVisualizerMinimized, setVisualizerMinimized, codeEditorCode, codeEditorLang, codeEditorContext, showToast, isSidebarOpen,
+  } = useTutorStore();
   const { mode } = useTheme();
+  const { isMobile } = useWindowSize();
+
+  const isOpen = activeOverlay === 'code-editor';
+  const close = () => {
+    setVisualizerMinimized(false);
+    setOverlay(null);
+  };
+
   const [lang, setLang] = useState('javascript');
-  const [code, setCode] = useState('import.meta.env.DEV && console.log("Hello, World!");');
+  const [code, setCode] = useState(LANGUAGES.javascript.boiler);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [isTrafficHovered, setIsTrafficHovered] = useState(false);
+  const [dockSide, setDockSide] = useState(null); // null = centred, or 'left' / 'right'
+  const isDocked = !!dockSide;
   const [showLangMenu, setShowLangMenu] = useState(false);
-  const [isDocked, setIsDocked] = useState(false);
   const [showOutput, setShowOutput] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState([]);
-  const [runStatus, setRunStatus] = useState(null);
+  const [runStatus, setRunStatus] = useState(null); // null | success | error
+  const [copied, setCopied] = useState(false);
+  const [cursor, setCursor] = useState({ line: 1, col: 1 });
   const langMenuRef = useRef(null);
+  // Step-through walkthrough: { trace, id, followUps } while it's open.
+  const [walk, setWalk] = useState(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [tracing, setTracing] = useState(false);
+  const [traceStatus, setTraceStatus] = useState('');
+  const [stdin, setStdin] = useState('');
+  const [showInput, setShowInput] = useState(false);
   const editorRef = useRef(null);
+  const decoRef = useRef(null);
+  const contextRef = useRef(null);
 
   useEffect(() => {
-    if (isVisualizerOpen && codeEditorCode) {
+    if (isOpen && codeEditorCode) {
       setCode(codeEditorCode);
-      setLang(codeEditorLang || 'javascript');
+      setLang(LANGUAGES[codeEditorLang] ? codeEditorLang : 'javascript');
+      setWalk(null);
     }
-  }, [isVisualizerOpen, codeEditorCode, codeEditorLang]);
+  }, [isOpen, codeEditorCode, codeEditorLang]);
 
-  const handleLangChange = (newLang) => {
-    setLang(newLang);
-    setCode(LANGUAGES[newLang].boiler);
+  useEffect(() => {
+    if (!showLangMenu) return undefined;
+    const outside = (e) => langMenuRef.current && !langMenuRef.current.contains(e.target) && setShowLangMenu(false);
+    document.addEventListener('mousedown', outside);
+    return () => document.removeEventListener('mousedown', outside);
+  }, [showLangMenu]);
+
+  const startWalkthrough = useCallback(async (source, language) => {
+    if (tracing) return;
+    const ctx = contextRef.current;
+    const where = { sessionId: ctx?.sessionId, messageId: ctx?.messageId, language, source, stdin };
+    setTracing(true);
+    setTraceStatus(language === 'python' ? 'Loading Python…' : ['java', 'cpp', 'c'].includes(language) ? 'Compiling and running…' : 'Running your code…');
+    setShowOutput(false);
+    try {
+      const saved = await findWalkthrough(where);
+      let trace = saved?.trace;
+      let id = saved?.id || null;
+      if (!trace) {
+        trace = await traceCode(source, language, { stdin, onStatus: setTraceStatus });
+        // A walkthrough worth keeping has steps; errors before the first step are just shown.
+        if (trace.steps.length) id = await saveWalkthrough(where, trace, `${LANGUAGES[language].name} walkthrough`);
+      }
+      setWalk({ trace, id, followUps: saved?.followUps || [] });
+      setStepIndex(0);
+    } catch (e) {
+      showToast?.({ message: e?.message || 'The step-through could not start.', type: 'error', duration: 4000 });
+    } finally {
+      setTracing(false);
+    }
+  }, [tracing, stdin, showToast]);
+
+  // Opened from a code block's "Step through": start straight away.
+  useEffect(() => {
+    if (!isOpen || !codeEditorContext) return;
+    contextRef.current = codeEditorContext;
+    if (codeEditorContext.autoVisualize && codeEditorCode) {
+      const language = LANGUAGES[codeEditorLang] ? codeEditorLang : 'javascript';
+      startWalkthrough(codeEditorCode, language);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, codeEditorContext?.nonce]);
+
+  // The line about to run, and the one that just ran, marked in the editor.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (!decoRef.current) decoRef.current = editor.createDecorationsCollection([]);
+    const step = walk?.trace.steps[stepIndex];
+    if (!step) {
+      decoRef.current.clear();
+      return;
+    }
+    const prev = stepIndex > 0 ? walk.trace.steps[stepIndex - 1] : null;
+    const marks = [];
+    if (prev && prev.line !== step.line) marks.push({ range: { startLineNumber: prev.line, startColumn: 1, endLineNumber: prev.line, endColumn: 1 }, options: { isWholeLine: true, className: 'tb-trace-prev' } });
+    marks.push({
+      range: { startLineNumber: step.line, startColumn: 1, endLineNumber: step.line, endColumn: 1 },
+      options: { isWholeLine: true, className: step.event === 'exception' ? 'tb-trace-error' : 'tb-trace-line', glyphMarginClassName: 'tb-trace-glyph' },
+    });
+    decoRef.current.set(marks);
+    editor.revealLineInCenterIfOutsideViewport(step.line);
+  }, [walk, stepIndex]);
+
+  const changeLang = (id) => {
+    // Keep the learner's code if they've written something; only swap untouched starters.
+    const untouched = Object.values(LANGUAGES).some((l) => l.boiler === code) || !code.trim();
+    setLang(id);
+    setWalk(null);
+    if (untouched) setCode(LANGUAGES[id].boiler);
     setShowLangMenu(false);
   };
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (langMenuRef.current && !langMenuRef.current.contains(event.target)) {
-        setShowLangMenu(false);
-      }
-    };
-    if (showLangMenu) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showLangMenu]);
 
   const handleRun = useCallback(async () => {
     if (isRunning) return;
@@ -75,228 +222,442 @@ const CodeVisualizerModal = () => {
     setRunStatus(null);
     setIsRunning(true);
     setShowOutput(true);
-
     try {
-      const result = await executeCode(code, lang, (log) => {
-        setLogs(prev => [...prev, log]);
-      });
-      
+      const result = await executeCode(code, lang, (log) => setLogs((prev) => [...prev, log]));
       setRunStatus(result.success ? 'success' : 'error');
-      setShowOutput(true);
-
-      if (!result.success) {
-        showToast({
-          message: result.error || 'Code execution failed',
-          type: 'error',
-          duration: 4000
-        });
-      }
+      if (!result.success) showToast({ message: result.error || 'Your code stopped with an error.', type: 'error', duration: 4000 });
     } catch (e) {
-      setLogs(prev => [...prev, { type: 'error', text: String(e) }]);
+      setLogs((prev) => [...prev, { type: 'error', text: String(e) }]);
       setRunStatus('error');
     } finally {
       setIsRunning(false);
     }
   }, [code, lang, isRunning, showToast]);
 
-  // Keyboard Shortcuts (Ctrl+Enter to run)
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         handleRun();
       }
+      if (e.key === 'Escape' && !showLangMenu && !isMaximized) close();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleRun]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, handleRun, showLangMenu, isMaximized]);
 
-  const handleVisualize = useCallback(() => {
-    const lines = code.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('//'));
-    if (lines.length === 0) return;
-    const objects = [];
-    const timestamp = Date.now();
-    const startX = isDocked ? (layoutView === 'left' ? 0.65 : 0.35) : 0.5;
-    let startY = 0.15;
-    lines.forEach((line, index) => {
-      const id = `manual-flow-${timestamp}-${index}`;
-      objects.push({ id, type: 'flowstep', x: startX, y: startY, label: line, color: 'var(--accent-primary)', styles: { fontSize: 14, fontFamily: "'JetBrains Mono', monospace" } });
-      startY += 0.13;
-    });
-    addCanvasObjects(objects);
-    const newConns = lines.slice(0, -1).map((_, i) => ({ from: objects[i].id, to: objects[i + 1].id, type: 'arrow', color: 'var(--text-tertiary)' }));
-    if (newConns.length > 0) addCanvasConnections(newConns);
-    setIsDocked(true);
-  }, [code, addCanvasObjects, layoutView, isDocked]);
+  // Read the editor itself: the `code` state can be a render behind what's on screen.
+  const handleVisualize = useCallback(() => startWalkthrough(editorRef.current?.getValue() ?? code, lang), [startWalkthrough, code, lang]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard blocked */
+    }
+  };
+
+  const L = LANGUAGES[lang];
+  const full = isMaximized || isMobile;
+  const walking = !!walk;
+  const sideBySide = walking && !isDocked && !isMobile;
+  // Docking on the chat panel's side sits beside the panel, never on top of it.
+  const chatSide = layoutView === 'right' ? 'right' : 'left';
+  const chatWidth = isSidebarOpen && !isMobile ? document.querySelector('aside.tb-sidebar')?.getBoundingClientRect().width || 0 : 0;
+  const dockOffset = 16 + (dockSide === chatSide ? chatWidth : 0);
+
+  // Every position key is set in every mode: framer-motion keeps a key alive once
+  // it has been used, so a dropped `left` or `right` would linger.
+  const frame = full
+    ? { top: 0, bottom: 0, left: 0, right: 0, margin: 0, width: '100vw', height: '100dvh', borderRadius: 0 }
+    : isDocked
+      ? {
+          top: 80,
+          bottom: 16,
+          left: dockSide === 'left' ? dockOffset : 'auto',
+          right: dockSide === 'right' ? dockOffset : 'auto',
+          margin: 0,
+          width: 'min(460px, 40vw)',
+          height: 'auto',
+          borderRadius: 22,
+        }
+      : {
+          top: 0, bottom: 0, left: 0, right: 0, margin: 'auto',
+          width: walking ? 'min(1180px, 96vw)' : 'min(980px, 94vw)',
+          height: walking ? 'min(760px, 90vh)' : 'min(680px, 88vh)',
+          borderRadius: 22,
+        };
 
   return createPortal(
     <AnimatePresence>
-      {(isVisualizerOpen || isVisualizerMinimized) && (
-        <div className="fixed inset-0 z-[99999] pointer-events-none">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: isVisualizerMinimized || isDocked ? 0 : 1 }} exit={{ opacity: 0 }} onClick={() => setVisualizerOpen(false)} className={`fixed inset-0 ${isVisualizerMinimized || isDocked ? 'pointer-events-none' : 'pointer-events-auto'}`} style={{ zIndex: -1 }} />
-          {/* Minimized Tab */}
-          <motion.div initial={{ x: '100%' }} animate={{ x: isVisualizerMinimized ? 0 : '100%' }} transition={{ type: 'tween', ease: [0.25, 1, 0.5, 1], duration: 0.4 }} style={{ position: 'fixed', top: 'calc(50vh - 48px)', right: 0, width: '40px', height: '96px', zIndex: 100000 }} className="pointer-events-auto">
-            <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border-color)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', borderRadius: '16px 0 0 16px', boxShadow: '-4px 0 16px rgba(0,0,0,0.1)' }} onClick={() => setVisualizerMinimized(false)}>
-              <ChevronLeft size={20} color="var(--text-secondary)" />
-            </div>
-          </motion.div>
+      {(isOpen || isVisualizerMinimized) && (
+        <div className="pointer-events-none fixed inset-0 z-[99999] font-sans">
+          {/* Backdrop (centred mode only) */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: !isVisualizerMinimized && !isDocked && !full ? 1 : 0 }}
+            exit={{ opacity: 0 }}
+            onClick={close}
+            className={`fixed inset-0 -z-10 bg-black/35 backdrop-blur-[3px] dark:bg-black/55 ${!isVisualizerMinimized && !isDocked && !full ? 'pointer-events-auto' : 'pointer-events-none'}`}
+          />
 
-          <motion.div layout initial={{ x: '100%', y: 0, scale: 1, opacity: 1 }} animate={
-            isMaximized ? { position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, width: '100vw', height: '100vh', borderRadius: 0, scale: 1, opacity: 1, y: 0, x: isVisualizerMinimized ? '100%' : 0 } :
-            isDocked ? { position: 'fixed', top: 'auto', bottom: '100px', left: layoutView === 'right' ? '24px' : 'auto', right: layoutView === 'right' ? 'auto' : '24px', width: 'min(500px, 45vw)', height: 'min(550px, 70vh)', borderRadius: '24px', scale: 1, opacity: 1, y: 0, x: isVisualizerMinimized ? (layoutView === 'right' ? '-100vw' : '100vw') : 0 } :
-            { position: 'fixed', bottom: 0, right: 0, width: 'min(900px, 95vw)', height: 'min(650px, 88vh)', borderRadius: '16px 0 0 0', scale: 1, opacity: 1, y: 0, x: isVisualizerMinimized ? '100%' : 0 }
-          } exit={{ x: '100%', y: 0, scale: 1, opacity: 1 }} transition={{ type: 'tween', ease: [0.25, 1, 0.5, 1], duration: 0.4 }} className="pointer-events-auto" style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(20px)', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid var(--border-color)', borderBottom: 'none', borderRight: 'none', boxShadow: '0 16px 64px rgba(0,0,0,0.2)', zIndex: 100000 }}>
-            
-            <>
-              <div style={{ height: 44, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
+          {/* Minimised: a small tab on the screen edge */}
+          <AnimatePresence>
+            {isVisualizerMinimized && (
+              <motion.button
+                type="button"
+                initial={{ x: 60, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 60, opacity: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                onClick={() => setVisualizerMinimized(false)}
+                className="pointer-events-auto fixed right-0 top-1/2 flex -translate-y-1/2 cursor-pointer items-center gap-2 rounded-l-2xl border border-r-0 border-[var(--st-line-strong)] bg-[var(--bg-primary)] py-3 pl-3 pr-3.5 text-[13px] font-medium text-[var(--text-primary)] shadow-[0_12px_32px_-14px_rgba(0,0,0,0.45)]"
+              >
+                <Code2 size={16} strokeWidth={1.8} />
+                <span className="max-md:hidden">Code</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
 
-                  <div onMouseEnter={() => setIsTrafficHovered(true)} onMouseLeave={() => setIsTrafficHovered(false)} style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => setVisualizerOpen(false)} style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{isTrafficHovered && <X size={7} />}</button>
-                    <button onClick={(e) => { e.stopPropagation(); setVisualizerMinimized(true); }} style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{isTrafficHovered && <Minus size={8} />}</button>
-                    <button onClick={(e) => { e.stopPropagation(); setIsMaximized(!isMaximized); }} style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{isTrafficHovered && (isMaximized ? <Minus size={8} style={{ transform: 'rotate(90deg)' }} /> : <X size={7} style={{ transform: 'rotate(45deg)' }} />)}</button>
-                  </div>
-                  <div style={{ width: 1, height: 16, background: 'var(--border-color)', opacity: 0.3 }} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                    <VisaiLogo size="xxs" className={isRunning ? "animate-pulse" : ""} />
-                    <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>visualizer.js</span>
-                    {runStatus === 'success' && <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#86efac', fontSize: 10 }}><CheckCircle2 size={10} /><span>passed</span></div>}
-                    {runStatus === 'error' && <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#f87171', fontSize: 10 }}><AlertCircle size={10} /><span>error</span></div>}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ position: 'relative' }} ref={langMenuRef}>
-                      <button onClick={() => setShowLangMenu(!showLangMenu)} style={{ height: 26, padding: '0 10px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: 10, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                        <Globe size={11} className="opacity-70" />{LANGUAGES[lang].name.toUpperCase()}<ChevronDown size={10} />
-                      </button>
-                      <AnimatePresence>
-                        {showLangMenu && (
-                          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 150, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 12px 40px rgba(0,0,0,0.3)', padding: '6px', zIndex: 1000 }}>
-                            {Object.keys(LANGUAGES).map(lId => (
-                              <button key={lId} onClick={() => handleLangChange(lId)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', background: lang === lId ? 'rgba(96,165,250,0.1)' : 'transparent', border: 'none', color: lang === lId ? '#60a5fa' : 'var(--text-secondary)', fontSize: 11, cursor: 'pointer', textAlign: 'left' }}>{LANGUAGES[lId].name}</button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                    <button onClick={() => { setIsDocked(!isDocked); setIsMaximized(false); }} style={{ padding: '6px', borderRadius: '8px', background: isDocked ? 'rgba(96,165,250,0.1)' : 'transparent', border: 'none', color: isDocked ? '#60a5fa' : 'var(--text-tertiary)', cursor: 'pointer' }}><Layout size={15} /></button>
-                    <button onClick={() => navigator.clipboard.writeText(code)} style={{ padding: '6px', borderRadius: '8px', background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}><Copy size={15} /></button>
+          <motion.div
+            layout
+            role="dialog"
+            aria-label="Code editor"
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{
+              opacity: isVisualizerMinimized ? 0 : 1,
+              scale: isVisualizerMinimized ? 0.94 : 1,
+              y: isVisualizerMinimized ? 28 : 0,
+            }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{
+              type: 'spring',
+              stiffness: 300,
+              damping: 32,
+              mass: 0.8,
+              layout: { type: 'spring', stiffness: 300, damping: 32, mass: 0.8 },
+            }}
+            className={`fixed flex flex-col overflow-hidden border bg-[var(--bg-primary)] text-[var(--text-primary)] ${
+              isVisualizerMinimized ? 'pointer-events-none' : 'pointer-events-auto'
+            } ${full ? 'border-transparent' : 'border-[var(--st-line-strong)] shadow-[0_50px_120px_-40px_rgba(0,0,0,0.6)]'}`}
+            // Position is plain style (always exact); `layout` animates the move between positions.
+            style={{ ...frame, willChange: 'transform' }}
+          >
+            {/* ── Header ───────────────────────────────────────────── */}
+            <div className={`flex h-14 shrink-0 items-center gap-2 border-b border-[var(--st-line)] ${isMobile ? 'px-3 pt-[env(safe-area-inset-top)]' : 'px-4'}`}>
+              <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
+                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border${isDocked ? ' hidden' : ''} border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)]`}>
+                  <Code2 size={15} strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate font-mono text-[12.5px] text-[var(--text-primary)]">main.{L.ext}</div>
+                  <div className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                    {isRunning ? (
+                      <><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--mk-accent)]" />Running</>
+                    ) : runStatus === 'success' ? (
+                      <><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Ran fine</>
+                    ) : runStatus === 'error' ? (
+                      <><span className="h-1.5 w-1.5 rounded-full bg-red-500" />Error</>
+                    ) : (
+                      <><span className="h-1.5 w-1.5 rounded-full bg-[var(--st-line-strong)]" />Ready</>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                <div style={{ flex: 1, overflow: 'hidden', position: 'relative', background: 'var(--bg-primary)' }}>
-                  <Editor
-                    height="100%"
-                    language={lang}
-                    value={code}
-                    theme={mode === 'dark' ? 'vs-dark' : 'vs-light'}
-                    onChange={(val) => setCode(val || '')}
-                    onMount={(editor) => { editorRef.current = editor; }}
-                    options={{
-                      fontSize: 13,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      minimap: { enabled: false },
-                      padding: { top: 16 },
-                      scrollBeyondLastLine: false,
-                      lineNumbers: 'on',
-                      renderLineHighlight: 'all',
-                      automaticLayout: true,
-                      tabSize: 2,
-                    }}
-                  />
-
-                  {/* Slide-up Output Panel */}
+              <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                <div className="relative mr-1" ref={langMenuRef}>
+                  <button
+                    type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded={showLangMenu}
+                    onClick={() => setShowLangMenu((v) => !v)}
+                    className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition-colors ${
+                      showLangMenu ? 'border-[var(--text-tertiary)] text-[var(--text-primary)]' : 'border-[var(--st-line-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {L.name}
+                    <ChevronDown size={13} className={`transition-transform ${showLangMenu ? 'rotate-180' : ''}`} />
+                  </button>
                   <AnimatePresence>
-                    {showOutput && (
+                    {showLangMenu && (
                       <motion.div
-                        initial={{ y: '100%' }}
-                        animate={{ y: 0 }}
-                        exit={{ y: '100%' }}
-                        style={{
-                          position: 'absolute', bottom: 0, left: 0, right: 0,
-                          height: '40%',
-                          background: 'var(--bg-secondary)',
-                          borderTop: '1px solid var(--border-color)',
-                          zIndex: 10,
-                          display: 'flex', flexDirection: 'column'
-                        }}
+                        role="listbox"
+                        initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                        transition={{ duration: 0.16, ease: EASE }}
+                        className="absolute right-0 top-[calc(100%+8px)] z-50 flex w-52 flex-col gap-0.5 rounded-2xl border border-[var(--st-line-strong)] bg-[var(--bg-primary)] p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)]"
                       >
-                        <div style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-tertiary)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>
-                            <Terminal size={12} /> CONSOLE
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <button onClick={() => setLogs([])} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: 10, cursor: 'pointer' }}>Clear</button>
-                            <button onClick={() => setShowOutput(false)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}><X size={14} /></button>
-                          </div>
-                        </div>
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5 }}>
-                          {logs.length === 0 && <div style={{ color: 'var(--text-tertiary)' }}>No output to display.</div>}
-                          {logs.map((log, i) => (
-                            <div key={i} style={{ marginBottom: 4, color: log.type === 'error' ? '#f87171' : log.type === 'success' ? '#86efac' : (log.type === 'info' ? 'var(--text-tertiary)' : 'var(--text-primary)'), whiteSpace: 'pre-wrap' }}>
-                              <span style={{ color: 'var(--text-tertiary)', marginRight: 12, opacity: 0.5 }}>{i + 1}</span>
-                              {log.text}
-                            </div>
-                          ))}
-                          {runStatus && (
-                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)', opacity: 0.5, fontSize: 10, color: runStatus === 'success' ? '#86efac' : '#f87171' }}>
-                              [Process finished with exit code {runStatus === 'success' ? '0' : '1'}]
-                            </div>
-                          )}
-                        </div>
+                        {Object.entries(LANGUAGES).map(([id, l]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            role="option"
+                            aria-selected={lang === id}
+                            onClick={() => changeLang(id)}
+                            className={`flex cursor-pointer items-center justify-between rounded-[10px] px-2.5 py-2 text-left text-[13px] transition-colors ${
+                              lang === id ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'
+                            }`}
+                          >
+                            {l.name}
+                            <span className="font-mono text-[10px] text-[var(--text-tertiary)]">.{l.ext}</span>
+                          </button>
+                        ))}
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
 
-                <div style={{ height: 60, background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 12 }}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 11 }}>
-                    <Terminal size={12} className="opacity-50" />
-                    <span style={{ letterSpacing: '0.02em' }}>Compiler Ready</span>
-                    <span style={{ opacity: 0.2 }}>|</span>
-                    <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{lang.toUpperCase()}</span>
+                {!isDocked && (
+                  <IconBtn label={copied ? 'Copied' : 'Copy code'} onClick={copy}>
+                    {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} strokeWidth={1.8} />}
+                  </IconBtn>
+                )}
+                {!isMobile && (
+                  <div role="radiogroup" aria-label="Window position" className="ml-1 flex h-8 items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill-strong)] p-0.5">
+                    {[
+                      { id: 'left', label: 'Dock left', icon: PanelLeft },
+                      { id: null, label: 'Centre', icon: Square },
+                      { id: 'right', label: 'Dock right', icon: PanelRight },
+                    ].map((o) => {
+                      const on = dockSide === o.id && !isMaximized;
+                      return (
+                        <button
+                          key={o.label}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          title={o.label}
+                          aria-label={o.label}
+                          onClick={() => { setDockSide(o.id); setIsMaximized(false); }}
+                          className={`grid h-7 w-8 cursor-pointer place-items-center rounded-full transition-colors ${
+                            on ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.25)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <o.icon size={o.id ? 15 : 13} strokeWidth={1.8} />
+                        </button>
+                      );
+                    })}
                   </div>
-                  
-                  <motion.button 
-                    whileHover={{ backgroundColor: 'var(--text-primary)', opacity: 0.9 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleRun} 
-                    style={{ 
-                      display: 'flex', alignItems: 'center', gap: 7, 
-                      padding: '8px 16px', borderRadius: '8px', 
-                      background: isRunning ? '#ef4444' : 'var(--text-primary)',
-                      color: 'var(--bg-primary)', 
-                      fontSize: '11px', fontWeight: 600,
-                      border: 'none', cursor: 'pointer',
-                      letterSpacing: '0.03em'
-                    }}
-                  >
-                    {isRunning ? <><Square size={12} fill="currentColor" /> STOP</> : <><Play size={12} fill="currentColor" /> RUN</>}
-                  </motion.button>
+                )}
+                <span className="ml-1.5">
+                  <WindowControls
+                    onMinimize={() => setVisualizerMinimized(true)}
+                    onMaximize={isMobile ? undefined : () => { setIsMaximized((m) => !m); setDockSide(null); }}
+                    maximized={isMaximized}
+                    onClose={close}
+                  />
+                </span>
+              </div>
+            </div>
 
-                  <motion.button 
-                    whileHover={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--text-tertiary)' }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleVisualize} 
-                    style={{ 
-                      display: 'flex', alignItems: 'center', gap: 7, 
-                      padding: '8px 16px', borderRadius: '8px', 
-                      background: 'transparent',
-                      color: 'var(--text-secondary)', 
-                      fontSize: '11px', fontWeight: 500,
-                      border: '1px solid var(--border-color)', 
-                      cursor: 'pointer',
-                      letterSpacing: '0.03em'
-                    }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><line x1="10" y1="6.5" x2="14" y2="6.5" /><line x1="12" y1="10" x2="12" y2="14" /><line x1="10" y1="17.5" x2="14" y2="17.5" /></svg>
-                    VISUALIZE
-                  </motion.button>
+            {/* ── Editor + console (+ walkthrough) ─────────────────── */}
+            <div className={`relative flex min-h-0 flex-1 ${sideBySide ? 'flex-row' : 'flex-col'}`}>
+              <div className={`relative min-h-0 ${walking && !sideBySide ? 'h-[38%] shrink-0' : 'flex-1'} ${sideBySide ? 'min-w-0' : ''}`}>
+                {tracing && (
+                  <div className="absolute inset-0 z-10 grid place-items-center bg-[var(--bg-primary)]/70 backdrop-blur-[2px]">
+                    <div className="flex items-center gap-2 rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)] px-3.5 py-2 text-[12.5px] text-[var(--text-primary)] shadow-[0_12px_30px_-14px_rgba(0,0,0,0.4)]">
+                      <Loader2 size={14} className="animate-spin text-[var(--mk-accent)]" />
+                      {traceStatus || 'Running your code…'}
+                    </div>
+                  </div>
+                )}
+                <Editor
+                  height="100%"
+                  language={lang === 'cpp' ? 'cpp' : lang}
+                  value={code}
+                  theme={mode === 'dark' ? 'tb-dark' : 'tb-light'}
+                  beforeMount={defineThemes}
+                  onChange={(val) => setCode(val || '')}
+                  onMount={(editor) => {
+                    editorRef.current = editor;
+                    decoRef.current = null;
+                    editor.onDidChangeCursorPosition((e) => setCursor({ line: e.position.lineNumber, col: e.position.column }));
+                  }}
+                  loading={<div className="grid h-full place-items-center font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">Loading editor</div>}
+                  options={{
+                    fontSize: isMobile ? 13 : 13.5,
+                    lineHeight: 22,
+                    fontFamily: "'JetBrains Mono', 'Geist Mono', monospace",
+                    fontLigatures: true,
+                    minimap: { enabled: false },
+                    padding: { top: 18, bottom: 18 },
+                    scrollBeyondLastLine: false,
+                    lineNumbers: 'on',
+                    lineNumbersMinChars: 3,
+                    renderLineHighlight: 'line',
+                    cursorBlinking: 'smooth',
+                    cursorSmoothCaretAnimation: 'on',
+                    smoothScrolling: true,
+                    automaticLayout: true,
+                    tabSize: 2,
+                    overviewRulerLanes: 0,
+                    hideCursorInOverviewRuler: true,
+                    scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8, useShadows: false },
+                    guides: { indentation: true },
+                    readOnly: walking,
+                    glyphMargin: walking,
+                    domReadOnly: walking,
+                  }}
+                />
+              </div>
+
+              {walking && (
+                <div className={`flex min-h-0 flex-col bg-[var(--bg-primary)] ${sideBySide ? 'w-[400px] shrink-0 border-l border-[var(--st-line-strong)]' : 'flex-1 border-t border-[var(--st-line-strong)]'}`}>
+                  <TracePlayer
+                    trace={walk.trace}
+                    index={stepIndex}
+                    onIndex={setStepIndex}
+                    visualizationId={walk.id}
+                    followUps={walk.followUps}
+                    compact={!sideBySide}
+                  />
                 </div>
-              </>
+              )}
+
+              <AnimatePresence>
+                {showOutput && !walking && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: '42%', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: EASE }}
+                    className="flex min-h-0 shrink-0 flex-col overflow-hidden border-t border-[var(--st-line-strong)] bg-[var(--st-fill)]"
+                  >
+                    <div className="flex h-10 shrink-0 items-center gap-3 px-4">
+                      <span className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+                        <Terminal size={13} strokeWidth={1.8} />
+                        Console
+                      </span>
+                      {runStatus && !isRunning && (
+                        <span className={`font-mono text-[10.5px] ${runStatus === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                          exit {runStatus === 'success' ? 0 : 1}
+                        </span>
+                      )}
+                      <div className="ml-auto flex items-center gap-0.5">
+                        <IconBtn label="Clear console" onClick={() => { setLogs([]); setRunStatus(null); }}>
+                          <Trash2 size={14} strokeWidth={1.8} />
+                        </IconBtn>
+                        <IconBtn label="Hide console" onClick={() => setShowOutput(false)}>
+                          <ChevronDown size={16} strokeWidth={1.8} />
+                        </IconBtn>
+                      </div>
+                    </div>
+                    <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4 font-mono text-[12.5px] leading-[1.6]">
+                      {isRunning && logs.length === 0 && (
+                        <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
+                          <Loader2 size={13} className="animate-spin" /> Running…
+                        </div>
+                      )}
+                      {!isRunning && logs.length === 0 && <div className="text-[var(--text-tertiary)]">Nothing printed yet. Press Run to see output here.</div>}
+                      {logs.map((log, i) => (
+                        <div
+                          key={i}
+                          className={`flex gap-3 whitespace-pre-wrap ${
+                            log.type === 'error' ? 'text-red-500' : log.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : log.type === 'info' ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <span className="select-none text-[var(--text-tertiary)] opacity-50">›</span>
+                          <span className="min-w-0 flex-1">{log.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* ── Program input (stdin) ────────────────────────────── */}
+            <AnimatePresence>
+              {showInput && !walking && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: EASE }}
+                  className="shrink-0 overflow-hidden border-t border-[var(--st-line)]"
+                >
+                  <div className="px-4 py-3">
+                    <label htmlFor="tb-stdin" className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+                      Input · one value per line
+                    </label>
+                    <textarea
+                      id="tb-stdin"
+                      value={stdin}
+                      onChange={(e) => setStdin(e.target.value)}
+                      rows={3}
+                      maxLength={10000}
+                      placeholder="What your program reads with input(), scanf, cin or Scanner"
+                      className="w-full resize-none rounded-[12px] border border-[var(--st-line-strong)] bg-[var(--st-fill)] px-3 py-2 font-mono text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-tertiary)]"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* ── Footer ───────────────────────────────────────────── */}
+            <div className={`flex shrink-0 items-center gap-2 border-t border-[var(--st-line)] px-4 ${isMobile ? 'pb-[max(env(safe-area-inset-bottom),12px)] pt-3' : 'h-[60px]'}`}>
+              <div className="flex min-w-0 flex-1 items-center gap-3 font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                <span className="truncate">{L.name}</span>
+                <span className="h-3 w-px bg-[var(--st-line-strong)]" />
+                <span className="whitespace-nowrap normal-case tracking-normal">Ln {cursor.line}, Col {cursor.col}</span>
+                {!isMobile && (
+                  <>
+                    <span className="h-3 w-px bg-[var(--st-line-strong)]" />
+                    <button type="button" onClick={() => setShowOutput((v) => !v)} className="cursor-pointer hover:text-[var(--text-primary)]">
+                      {showOutput ? 'Hide console' : 'Console'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {walking ? (
+                <button
+                  type="button"
+                  onClick={() => setWalk(null)}
+                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3.5 text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)]"
+                >
+                  <PencilLine size={15} strokeWidth={1.8} />
+                  <span className="max-sm:hidden">Edit code</span>
+                </button>
+              ) : (
+                <>
+                  <IconBtn label={stdin ? 'Input (set)' : 'Input for your program'} onClick={() => setShowInput((v) => !v)} active={showInput || !!stdin}>
+                    <Keyboard size={15} strokeWidth={1.8} />
+                  </IconBtn>
+                  <button
+                    type="button"
+                    onClick={handleVisualize}
+                    disabled={tracing}
+                    title="Run it one step at a time and watch the variables change"
+                    className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3.5 text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)] disabled:opacity-60"
+                  >
+                    {tracing ? <Loader2 size={15} className="animate-spin" /> : <Footprints size={15} strokeWidth={1.8} />}
+                    <span className="max-sm:hidden">Step through</span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={handleRun}
+                disabled={isRunning}
+                className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full bg-[var(--text-primary)] pl-3.5 pr-3 text-[13px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-70"
+              >
+                {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
+                {isRunning ? 'Running' : 'Run'}
+                {!isMobile && !isRunning && <kbd className="ml-0.5 font-mono text-[10px] opacity-55">⌘↵</kbd>}
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 };
 

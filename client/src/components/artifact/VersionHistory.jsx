@@ -54,7 +54,7 @@ const VersionHistory = ({ versions, currentVersion, onRevert, isOpen, onClose })
                   <span className="text-[11px] font-medium text-[var(--text-primary)]">
                     Version {v.version}
                     {isCurrent && (
-                      <span className="ml-1.5 text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-wider">
+                      <span className="ml-1.5 text-[10px] font-medium text-[var(--text-tertiary)]">
                         current
                       </span>
                     )}

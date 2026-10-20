@@ -15,6 +15,7 @@ const CONFIGS = {
   matter:     { icon: Activity,     label: 'Dynamics',           desc: 'Physical interaction engine',   accent: '#ec4899', tag: 'PHYSICS'   },
   algorithm:  { icon: Terminal,     label: 'Logic Flow',         desc: 'Step-through visualizer',      accent: '#10b981', tag: 'LOGIC'     },
   code:       { icon: Code,         label: 'Source Code',        desc: 'Functional code block',        accent: '#6366f1', tag: 'CODE'      },
+  'scene-v2': { icon: Sparkles,     label: 'Visual Lesson',      desc: 'Animated step-by-step lesson', accent: '#818cf8', tag: 'LESSON'    },
   default:    { icon: Sparkles,     label: 'Artifact',           desc: 'AI-generated intelligence',    accent: '#64748b', tag: 'AI'        },
 };
 
@@ -151,7 +152,7 @@ const VisualArtifactCard = ({
               </h4>
               {!isGenerating && (
                 <span 
-                  className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border"
+                  className="text-[11px] font-medium px-2 py-0.5 rounded-md border"
                   style={{
                     background: isActive ? 'rgba(99,102,241,0.15)' : 'var(--bg-tertiary)',
                     borderColor: isActive ? 'rgba(99,102,241,0.3)' : 'var(--border-color)',
@@ -172,7 +173,7 @@ const VisualArtifactCard = ({
           <div className="shrink-0 flex items-center gap-3">
             {stepCount > 0 && !isGenerating && (
               <div className="px-2 py-1 rounded-md border" style={{ background: 'var(--bg-tertiary)', borderColor: 'var(--border-color)' }}>
-                <span className="text-[10px] font-bold uppercase tracking-tighter" style={{ color: 'var(--text-tertiary)' }}>
+                <span className="text-[11px] font-medium" style={{ color: 'var(--text-tertiary)' }}>
                   {stepCount} layers
                 </span>
               </div>

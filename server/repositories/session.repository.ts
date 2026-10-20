@@ -19,61 +19,73 @@ class SessionRepository extends BaseRepository<any> {
   }
 
   /**
-   * Find or create a session — atomic upsert
+   * Resolve the conversation for a chat request.
+   *
+   *  - no id            → a new session is created (legacy non-stream callers)
+   *  - a Mongo ObjectId → must already exist and belong to the caller; it is
+   *                       never upserted (a client must not pick database ids,
+   *                       and a miss must not silently fork a new conversation)
+   *  - any other string → the client's stable conversation key: the first
+   *                       request creates the session, every retry or follow-up
+   *                       with the same key resolves to that same session
    */
   async findOrCreate(userId: string | null, sessionId: string, defaults: Record<string, unknown> = {}, includeMessages: boolean = true) {
-    // If sessionId is falsy, we must create a new session. We cannot query for empty string.
     if (!sessionId) {
       const session = await this.model.create({
         userId,
         title: 'New Session',
         ...defaults
       });
-      return session.toObject ? session.toObject() : session;
+      const obj = session.toObject ? session.toObject() : session;
+      if (includeMessages) obj.messages = [];
+      return obj;
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
-    const query = isMongoId 
-      ? (userId ? { _id: sessionId, userId } : { _id: sessionId, userId: null })
-      : (userId ? { engineSessionId: sessionId, userId } : { engineSessionId: sessionId, userId: null });
+    const owner = userId ? { userId } : { userId: null };
+
+    if (isMongoId) {
+      const session = await this.model.findOne({ _id: sessionId, ...owner, isDeleted: { $ne: true } })
+        .select('-canvasState -snapshots').lean().exec();
+      if (!session) throw new AppError(ErrorCode.SESSION_NOT_FOUND, 'Session not found');
+      await this.model.updateOne({ _id: session._id }, { $set: { lastUpdated: new Date() } }).exec();
+      if (includeMessages) session.messages = await this.getMessages(session._id, 1, 50);
+      return session;
+    }
+
+    const query = { engineSessionId: sessionId, ...owner };
 
     // Build $setOnInsert excluding any fields that also appear in $set
     // to prevent MongoDB "would create a conflict" errors.
     const setFields: Record<string, unknown> = { lastUpdated: new Date() };
-    const insertFields: Record<string, unknown> = { 
-      userId, 
+    const insertFields: Record<string, unknown> = {
+      userId,
       title: 'New Session',
-      ...defaults 
+      ...defaults
     };
-    // Remove any keys from $setOnInsert that are also in $set
     for (const key of Object.keys(setFields)) {
       delete insertFields[key];
     }
 
+    let session: any;
     try {
-      const session = await this.model.findOneAndUpdate(
+      session = await this.model.findOneAndUpdate(
         query,
         buildSafeUpsert(setFields, insertFields),
         { upsert: true, returnDocument: 'after', runValidators: true }
       ).select('-canvasState -snapshots').lean().exec();
-
-      if (session && includeMessages) {
-        session.messages = await this.getMessages(session._id, 1, 50);
-      }
-      
-      return session;
     } catch (err: any) {
-      // If we hit a race condition (E11000 duplicate key), retry once to find the existing document
-      if (err.code === 11000 && !isMongoId) {
-        console.log(`[SessionRepo] Concurrent upsert detected for ${sessionId}, retrying find...`);
-        const session = await this.model.findOne(query).select('-canvasState -snapshots').lean().exec();
-        if (session) {
-          if (includeMessages) session.messages = await this.getMessages(session._id, 1, 50);
-          return session;
-        }
-      }
-      throw err;
+      // Two first-message requests raced on the same key: the loser re-reads the
+      // winner's document. A key owned by someone else stays a miss.
+      if (err.code !== 11000) throw err;
+      session = await this.model.findOne(query).select('-canvasState -snapshots').lean().exec();
+      if (!session) throw new AppError(ErrorCode.SESSION_ACCESS_DENIED, 'Session key belongs to another owner');
     }
+
+    if (session && includeMessages) {
+      session.messages = await this.getMessages(session._id, 1, 50);
+    }
+    return session;
   }
 
   async getByIdOrEngineId(id?: string, userId?: string, projection?: any) {
@@ -139,8 +151,9 @@ class SessionRepository extends BaseRepository<any> {
    * Get messages for a session with pagination
    */
   async getMessages(sessionId: string, page = 1, limit = 50) {
+    // _id breaks timestamp ties so pages never duplicate or skip a message
     return ChatMessage.find({ sessionId })
-      .sort({ timestamp: -1 })
+      .sort({ timestamp: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean()
@@ -155,21 +168,33 @@ class SessionRepository extends BaseRepository<any> {
   }
 
   /**
-   * Atomic message creation in separate collection
+   * Atomic message creation in separate collection.
+   *
+   * With a `requestId`, the (sessionId, requestId, role) unique index makes this
+   * idempotent: a second insert for the same request returns the first message.
    */
   async addMessage(sessionId: string, message: any) {
-    const msg = await ChatMessage.create({
-      ...message,
-      sessionId,
-      timestamp: new Date()
-    });
-    
+    let msgId: string;
+    try {
+      const msg = await ChatMessage.create({
+        ...message,
+        sessionId,
+        timestamp: new Date()
+      });
+      msgId = msg._id.toString();
+    } catch (err: any) {
+      if (err.code !== 11000 || !message.requestId) throw err;
+      const existing = await ChatMessage.findOne({ sessionId, requestId: message.requestId, role: message.role }).lean().exec();
+      if (!existing) throw err;
+      msgId = (existing as any)._id.toString();
+    }
+
     // Update session heartbeat
-    await this.model.findByIdAndUpdate(sessionId, { 
-      $set: { lastUpdated: new Date() } 
+    await this.model.findByIdAndUpdate(sessionId, {
+      $set: { lastUpdated: new Date() }
     });
 
-    return msg._id.toString();
+    return msgId;
   }
 
   /**

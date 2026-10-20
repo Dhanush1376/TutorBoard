@@ -1,0 +1,303 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Why a pendulum swings",
+  "domain": "physics",
+  "summary": "A pendulum swings because gravity’s component along the arc creates a restoring torque, converting potential energy to kinetic and back.",
+  "spaces": [
+   {
+    "id": "field",
+    "kind": "cartesian",
+    "x": [
+     -6,
+     6
+    ],
+    "y": [
+     -6,
+     2
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x (m)",
+    "yLabel": "y (m)",
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "pivot",
+    "label": "pivot",
+    "space": "field",
+    "type": "point",
+    "at": [
+     0,
+     0
+    ]
+   },
+   {
+    "id": "bob",
+    "label": "bob",
+    "space": "field",
+    "type": "body",
+    "at": [
+     2.5,
+     -4.33
+    ],
+    "size": "md"
+   },
+   {
+    "id": "string",
+    "space": "field",
+    "type": "line",
+    "from": "pivot",
+    "to": "bob",
+    "dashed": false
+   },
+   {
+    "id": "g",
+    "label": "g",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2.5,
+     -4.33
+    ],
+    "to": [
+     2.5,
+     -6.33
+    ],
+    "angleDeg": -90,
+    "magnitude": 2
+   },
+   {
+    "id": "T",
+    "label": "T",
+    "tone": "info",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2.5,
+     -4.33
+    ],
+    "to": [
+     1.5,
+     -2.598
+    ],
+    "magnitude": 2
+   },
+   {
+    "id": "g_tan",
+    "label": "g_{tan}",
+    "tone": "accent",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2.5,
+     -4.33
+    ],
+    "to": [
+     3,
+     -5.196
+    ],
+    "angleDeg": -60,
+    "magnitude": 1
+   },
+   {
+    "id": "arcPath",
+    "space": "field",
+    "type": "path",
+    "points": [
+     [
+      2.5,
+      -4.33
+     ],
+     [
+      0,
+      -5
+     ]
+    ],
+    "smooth": true
+   },
+   {
+    "id": "g_tan2",
+    "label": "g_{tan}",
+    "tone": "accent",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2.5,
+     -4.33
+    ],
+    "to": [
+     2,
+     -5.196
+    ],
+    "angleDeg": -120,
+    "magnitude": 1
+   },
+   {
+    "id": "eq",
+    "tone": "info",
+    "type": "math",
+    "latex": "\\tau = -mgL\\sin\\theta"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "field",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Pendulum at an angle",
+    "narration": "The bob hangs at 30° from vertical, held by tension and pulled down by gravity.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "pivot",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "string",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "bob",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": [
+       "g",
+       "T"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Gravity’s component",
+    "narration": "Gravity can be split; the component along the swing direction (gₜₐₙ) pushes the bob toward the bottom.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "g_tan",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "g_tan",
+      "state": "active",
+      "hold": false
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Bob accelerates down",
+    "narration": "The tangential component accelerates the bob, so it moves along the arc toward the lowest point.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "arcPath"
+     },
+     {
+      "do": "trace",
+      "target": "bob",
+      "along": "arcPath",
+      "duration": "normal"
+     },
+     {
+      "do": "highlight",
+      "target": "g_tan",
+      "state": "pivot",
+      "hold": false
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Swing to the other side",
+    "narration": "The bob climbs back up, reaching the symmetric angle on the opposite side.",
+    "actions": [
+     {
+      "do": "remove",
+      "target": "g_tan",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "g_tan2",
+      "effect": "draw"
+     },
+     {
+      "do": "move",
+      "target": "bob",
+      "to": [
+       -2.5,
+       -4.33
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": "g_tan2",
+      "state": "active",
+      "hold": false
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Energy exchange",
+    "narration": "Potential energy at the ends becomes kinetic at the bottom and back again, described by the restoring torque equation.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     },
+     {
+      "do": "highlight",
+      "target": "eq",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[8].latex",
+   "message": "auto-fixed: restored LaTeX backslashes eaten by JSON escapes"
+  },
+  {
+   "path": "beats[3]",
+   "message": "auto-fixed: removed a beat with no actions"
+  },
+  {
+   "path": "beats[2].actions[0].along",
+   "message": "\"arcPath\" was used before being created — added a create"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 10334,
+ "model": "openai/gpt-oss-120b",
+ "domain": "physics",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Why a pendulum swings\",\"domain\":\"physics\",\"summary\":\"A pendulum swings because gravity’s component along the arc creates a restoring torque, converting potential energy to kinetic and back.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-6,6],\"y\":[-6,2],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\"}],\"entities\":[{\"id\":\"pivot\",\"type\":\"point\",\"space\":\"field\",\"at\":[0,0],\"label\":\"pivot\"},{\"id\":\"bob\",\"type\":\"body\",\"space\":\"field\",\"at\":[2.5,-4.33],\"size\":\"md\",\"label\":\"bob\"},{\"id\":\"string\",\"type\":\"line\",\"space\":\"field\",\"from\":\"pivot\",\"to\":\"bob\"},{\"id\":\"g\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-90,\"magnitude\":2,\"label\":\"g\",\"tone\":\"primary\"},{\"id\":\"T\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"along\":\"string\",\"toward\":\"from\",\"magnitude\":2,\"label\":\"T\",\"tone\":\"info\"},{\"id\":\"g_tan\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-60,\"magnitude\":1,\"label\":\"g_{tan}\",\"tone\":\"accent\"},{\"id\":\"arcPath\",\"type\":\"path\",\"space\":\"field\",\"points\":[[2.5,-4.33],[0,-5]]},{\"id\":\"g_tan2\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-120,\"magnitude\":1,\"label\":\"g_{tan}\",\"tone\":\"accent\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\\\\\tau = -mgL\\\\\\\\sin\\\\\\\\theta\",\"tone\":\"info\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Pendulum at an angle\",\"narration\":\"The bob hangs at 30° from vertical, held by tension and pulled down by gravity.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"pivot\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"string\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"bob\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"g\",\"T\"],\"effect\":\"draw\"}]},{\"title\":\"Gravity’s component\",\"narration\":\"Gravity can be split; the component along the swing direction (gₜₐₙ) pushes the bob toward the bottom.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"g_tan\",\"effect\":\"draw\"},{\"do\":\"highlight\",\"target\":\"g_tan\",\"state\":\"active\",\"hold\":false}]},{\"title\":\"Bob accelerates down\",\"narration\":\"The tangential component accelerates the bob, so it moves along the arc toward the lowest point.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"trace\",\"target\":\"bob\",\"along\":\"arcPath\",\"duration\":\"normal\"},{\"do\":\"highlight\",\"target\":\"g_tan\",\"state\":\"pivot\",\"hold\":false}]},{\"title\":\"Predict the next motion\",\"narration\":\"What will happen after the bob passes the lowest point?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"What happens after the bob passes the lowest point?\",\"choices\":[\"It stops\",\"It swings back up\",\"It keeps accelerating upward\"],\"answer\":1,\"explain\":\"It rises to the opposite side.\"}},{\"title\":\"Swing to the other side\",\"narration\":\"The bob climbs back up, reaching the symmetric angle on the opposite side.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"remove\",\"target\":\"g_tan\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"g_tan2\",\"effect\":\"draw\"},{\"do\":\"move\",\"target\":\"bob\",\"to\":[-2.5,-4.33]},{\"do\":\"highlight\",\"target\":\"g_tan2\",\"state\":\"active\",\"hold\":false}]},{\"title\":\"Energy exchange\",\"narration\":\"Potential energy at the ends becomes kinetic at the bottom and back again, described by the restoring torque equation.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"type\"},{\"do\":\"highlight\",\"target\":\"eq\",\"state\":\"insight\",\"hold\":true}]}]}"
+}

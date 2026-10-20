@@ -59,7 +59,7 @@ const StepFilmstrip = ({ steps, currentStepIndex, goToStep }) => {
 
               {/* Tooltip on hover */}
               <div className="absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[200] scale-90 group-hover:scale-100 translate-y-1 group-hover:translate-y-0">
-                <div className="px-2.5 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap liquid-glass"
+                <div className="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap liquid-glass"
                   style={{ color: 'var(--text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                   {step.title || `Step ${index + 1}`}
                 </div>

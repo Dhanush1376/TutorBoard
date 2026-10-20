@@ -1,0 +1,308 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Blood Flow Through the Heart",
+  "domain": "biology",
+  "summary": "Shows the path of blood from body to lungs and back, passing through the four heart chambers and major vessels.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "ra",
+    "label": "Right Atrium",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "rv",
+    "label": "Right Ventricle",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "la",
+    "label": "Left Atrium",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "lv",
+    "label": "Left Ventricle",
+    "type": "rect",
+    "size": "md"
+   },
+   {
+    "id": "vc",
+    "type": "text",
+    "text": "Vena Cava",
+    "role": "caption"
+   },
+   {
+    "id": "pv",
+    "type": "text",
+    "text": "Pulmonary Veins",
+    "role": "caption"
+   },
+   {
+    "id": "pa",
+    "type": "text",
+    "text": "Pulmonary Artery",
+    "role": "caption"
+   },
+   {
+    "id": "av",
+    "type": "text",
+    "text": "Aorta",
+    "role": "caption"
+   },
+   {
+    "id": "tr",
+    "type": "line",
+    "from": "vc",
+    "to": "ra",
+    "dashed": false
+   },
+   {
+    "id": "ts",
+    "label": "Tricuspid",
+    "type": "line",
+    "from": "ra",
+    "to": "rv",
+    "dashed": false
+   },
+   {
+    "id": "pv2",
+    "type": "line",
+    "from": "rv",
+    "to": "pa",
+    "dashed": false
+   },
+   {
+    "id": "pl",
+    "label": "Lungs",
+    "type": "line",
+    "from": "pa",
+    "to": "la",
+    "dashed": false
+   },
+   {
+    "id": "mi",
+    "label": "Mitral",
+    "type": "line",
+    "from": "la",
+    "to": "lv",
+    "dashed": false
+   },
+   {
+    "id": "ao",
+    "type": "line",
+    "from": "lv",
+    "to": "av",
+    "dashed": false
+   }
+  ],
+  "layout": [
+   {
+    "rel": "grid",
+    "ids": [
+     "vc",
+     "ra",
+     "rv",
+     "pa",
+     "la",
+     "lv",
+     "av"
+    ],
+    "cols": 3,
+    "gap": "lg"
+   },
+   {
+    "rel": "place",
+    "id": "vc",
+    "region": "top-left"
+   },
+   {
+    "rel": "place",
+    "id": "pa",
+    "region": "bottom-left"
+   },
+   {
+    "rel": "place",
+    "id": "av",
+    "region": "bottom-right"
+   },
+   {
+    "rel": "place",
+    "id": "pv",
+    "region": "top-right"
+   },
+   {
+    "rel": "place",
+    "id": "pv2",
+    "region": "bottom-left"
+   },
+   {
+    "rel": "place",
+    "id": "pl",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Chambers appear",
+    "narration": "Four chambers of the heart are shown in their positions.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "ra",
+       "rv",
+       "la",
+       "lv"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Systemic return",
+    "narration": "Deoxygenated blood returns from the body via the vena cava into the right atrium.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "vc",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "tr",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "tr",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Right side to lungs",
+    "narration": "Blood flows through the tricuspid valve into the right ventricle, then out the pulmonary artery to the lungs.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "ts",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "ts",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "pv2",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "pv2",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "pa",
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "pa",
+      "text": "to lungs",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pulmonary return",
+    "narration": "Oxygenated blood returns via pulmonary veins to the left atrium.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "pv",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "pl",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "pl",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Left side to body",
+    "narration": "Blood passes through the mitral valve into the left ventricle and is pumped out the aorta to the body.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "mi",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "mi",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "ao",
+      "effect": "pop"
+     },
+     {
+      "do": "annotate",
+      "target": "ao",
+      "text": "to body",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "layout",
+   "message": "\"vc\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "layout",
+   "message": "\"pa\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "layout",
+   "message": "\"av\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "entities",
+   "message": "\"av\" is never shown"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 33098,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

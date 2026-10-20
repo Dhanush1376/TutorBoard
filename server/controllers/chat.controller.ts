@@ -6,17 +6,27 @@ import { resolveUserConfig } from '../sockets/utils.js';
 import messageRepository from '../repositories/message.repository.js';
 import sessionRepository from '../repositories/session.repository.js';
 import { requestCompletion, getTextModel } from '../utils/ai/llmClient.js';
+import { toChatClientError } from '../services/chat/chatErrors.js';
+
+/** Client idempotency keys / conversation keys: short, printable, no operators. */
+const KEY = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 const sendMessageSchema = z.object({
-  sessionId: z.string().optional().nullable(),
-  userMessage: z.string().min(1).max(10000),
-  requestId: z.string().optional(),
+  sessionId: z.string().regex(KEY).optional().nullable(),
+  title: z.string().max(200).optional(),
+  userMessage: z.string().trim().min(1).max(10000),
+  requestId: z.string().regex(KEY).optional(),
   isRegenerate: z.boolean().optional(),
   originalMessageId: z.string().optional(),
   teachingContext: z.object({
     currentTopic: z.string().optional(),
     explanationMode: z.enum(['basic', 'advanced']).optional(),
     learnerLevel: z.string().optional(),
+  }).optional(),
+  /** Engine v2 lesson on screen when the question was asked (re-validated server side) */
+  lessonContext: z.object({
+    scene: z.record(z.any()),
+    beatIndex: z.number().int().min(0).max(500),
   }).optional(),
 }).passthrough();
 
@@ -32,13 +42,15 @@ export const sendMessage = async (req: Request, res: Response) => {
       userMessage: validation.userMessage,
       mode: 'explain',
       teachingContext: validation.teachingContext,
-      requestId: validation.requestId || `req-${Date.now()}`,
+      requestId: validation.requestId || (req as any).requestId || `req-${Date.now()}`,
       isRegenerate: validation.isRegenerate,
       originalMessageId: validation.originalMessageId,
+      existingUserMessageId: (req as any).editedUserMessageId,
     });
     res.json(result);
   } catch (err: any) {
-    res.status(err.status || 500).json({ error: err.message });
+    const clientError = toChatClientError(err);
+    res.status(clientError.status).json({ error: clientError.message, code: clientError.code, retryable: clientError.retryable });
   }
 };
 
@@ -47,24 +59,23 @@ export const sendMessage = async (req: Request, res: Response) => {
  */
 
 export const streamMessage = async (req: Request, res: Response) => {
-  console.log(`[streamMessage] Headers:`, JSON.stringify(req.headers));
-  const requestId = req.headers['x-request-id']?.toString() || `req-${Date.now()}`;
   let validation;
   try {
     validation = sendMessageSchema.parse(req.body);
   } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'Invalid request body' });
+    return res.status(400).json({ error: 'Invalid request', code: 'INVALID_REQUEST', retryable: false });
   }
+  // The body requestId is the idempotency key: the client keeps it across
+  // retries of the same logical message and makes a new one per submission.
+  const requestId = validation.requestId || req.headers['x-request-id']?.toString() || `req-${Date.now()}`;
   const streamManager = new StreamLifecycleManager(res, requestId, validation.sessionId || undefined);
   try {
     const baseConfig = await resolveUserConfig(req, (req as any).user, validation.userMessage);
     const userConfig: any = baseConfig ? { ...baseConfig } : { useCustomApi: false };
     
     // SECURITY: E2E Mock must ONLY be accessible in test environments
-    console.warn(`[E2E-DEBUG] Header: ${req.headers['x-e2e-mock-ai']} | NODE_ENV: ${process.env.NODE_ENV} | E2E_MODE: ${process.env.E2E_MODE}`);
     if (req.headers['x-e2e-mock-ai'] && (process.env.NODE_ENV === 'test' || String(process.env.E2E_MODE) === 'true')) {
       userConfig.isE2EMock = true;
-      console.warn(`[E2E-DEBUG] E2E Mock Enabled!`);
     }
 
     await chatService.processMessage({
@@ -74,11 +85,13 @@ export const streamMessage = async (req: Request, res: Response) => {
       userMessage: validation.userMessage,
       mode: 'explain',
       teachingContext: validation.teachingContext,
+      lessonContext: validation.lessonContext,
       userConfig,
       requestId,
       streamManager,
       isRegenerate: validation.isRegenerate,
       originalMessageId: validation.originalMessageId,
+      existingUserMessageId: (req as any).editedUserMessageId,
     });
   } catch (err: any) {
     streamManager.error(err);
@@ -100,7 +113,11 @@ export const editMessage = async (req: Request, res: Response) => {
     const { sessionId, messageId, newContent } = req.body;
     const userId = (req as any).user?._id?.toString();
     
+    if (typeof newContent !== 'string' || !newContent.trim() || newContent.length > 10000) {
+      return res.status(400).json({ error: 'Invalid request', code: 'INVALID_REQUEST', retryable: false });
+    }
     const message = await assertMessageOwnership(messageId, userId, sessionId);
+    if (message.role !== 'user') throw { status: 400, message: 'Only your own messages can be edited' };
     const actualSessionId = message.sessionId.toString();
 
     // Branching: Delete all messages after this one to maintain logical flow
@@ -118,9 +135,11 @@ export const editMessage = async (req: Request, res: Response) => {
 
     req.body.sessionId = actualSessionId;
     req.body.userMessage = newContent;
+    // answer the edited message itself — don't save the new text as a second user message
+    (req as any).editedUserMessageId = messageId;
     return sendMessage(req, res);
   } catch (err: any) {
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.status && err.status < 500 ? err.message : 'Request failed' });
   }
 };
 
@@ -129,7 +148,11 @@ export const streamEditMessage = async (req: Request, res: Response) => {
     const { sessionId, messageId, newContent } = req.body;
     const userId = (req as any).user?._id?.toString();
     
+    if (typeof newContent !== 'string' || !newContent.trim() || newContent.length > 10000) {
+      return res.status(400).json({ error: 'Invalid request', code: 'INVALID_REQUEST', retryable: false });
+    }
     const message = await assertMessageOwnership(messageId, userId, sessionId);
+    if (message.role !== 'user') throw { status: 400, message: 'Only your own messages can be edited' };
     const actualSessionId = message.sessionId.toString();
 
     await messageRepository.deleteMessagesAfter(actualSessionId, message.timestamp);
@@ -144,9 +167,11 @@ export const streamEditMessage = async (req: Request, res: Response) => {
 
     req.body.sessionId = actualSessionId;
     req.body.userMessage = newContent;
+    // answer the edited message itself — don't save the new text as a second user message
+    (req as any).editedUserMessageId = messageId;
     return streamMessage(req, res);
   } catch (err: any) {
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.status && err.status < 500 ? err.message : 'Request failed' });
   }
 };
 
@@ -159,7 +184,7 @@ export const deleteMessage = async (req: Request, res: Response) => {
     await messageRepository.deleteMessage(messageId);
     res.json({ success: true });
   } catch (err: any) {
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.status && err.status < 500 ? err.message : 'Request failed' });
   }
 };
 
@@ -172,7 +197,7 @@ export const updateMessageFeedback = async (req: Request, res: Response) => {
     await messageRepository.updateMetadata(messageId, { feedback });
     res.json({ success: true });
   } catch (err: any) {
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.status && err.status < 500 ? err.message : 'Request failed' });
   }
 };
 
@@ -189,7 +214,7 @@ export const switchMessageVersion = async (req: Request, res: Response) => {
     const result = await chatService.switchMessageVersion(messageId, versionIndex);
     res.json(result);
   } catch (err: any) {
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.status && err.status < 500 ? err.message : 'Request failed' });
   }
 };
 

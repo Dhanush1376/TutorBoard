@@ -1,0 +1,288 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Dijkstra's shortest‑path walk‑through",
+  "domain": "algorithms",
+  "summary": "Step‑by‑step visual of Dijkstra on a 4‑node weighted graph, showing tentative distances and visited nodes.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "g",
+    "type": "graph",
+    "nodes": [
+     {
+      "id": "A",
+      "value": "A"
+     },
+     {
+      "id": "B",
+      "value": "B"
+     },
+     {
+      "id": "C",
+      "value": "C"
+     },
+     {
+      "id": "D",
+      "value": "D"
+     }
+    ],
+    "edges": [
+     {
+      "from": "A",
+      "to": "B",
+      "weight": 1
+     },
+     {
+      "from": "A",
+      "to": "C",
+      "weight": 4
+     },
+     {
+      "from": "B",
+      "to": "C",
+      "weight": 2
+     },
+     {
+      "from": "B",
+      "to": "D",
+      "weight": 5
+     },
+     {
+      "from": "C",
+      "to": "D",
+      "weight": 1
+     }
+    ],
+    "directed": false,
+    "arrangement": "auto"
+   },
+   {
+    "id": "dist",
+    "label": "dist",
+    "type": "array",
+    "values": [
+     "∞",
+     "∞",
+     "∞",
+     "∞"
+    ],
+    "indices": true
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "g",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "dist",
+    "of": "g",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Graph and initial distances",
+    "narration": "We show the graph and set all distances to ∞, then give the source A distance 0.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "g",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "dist",
+      "effect": "pop"
+     },
+     {
+      "do": "set",
+      "target": "dist[0]",
+      "value": "0"
+     },
+     {
+      "do": "highlight",
+      "target": "g.A",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "dist[0]",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Visit source A",
+    "narration": "Node A is now visited; its distance is final.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "g.A",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "dist[0]",
+      "state": "visited",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Relax A’s neighbours",
+    "narration": "Examine edges A‑B (1) and A‑C (4) and update their tentative distances.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "g.B",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "dist[1]",
+      "value": "1"
+     },
+     {
+      "do": "highlight",
+      "target": "g.C",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "dist[2]",
+      "value": "4"
+     },
+     {
+      "do": "clear",
+      "target": [
+       "g.B",
+       "g.C"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pick next node B",
+    "narration": "The smallest tentative distance is B=1, so we visit B and relax its edges.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "g.B",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "dist[1]",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "g.C",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "dist[2]",
+      "value": "3"
+     },
+     {
+      "do": "highlight",
+      "target": "g.D",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "dist[3]",
+      "value": "6"
+     },
+     {
+      "do": "clear",
+      "target": [
+       "g.C",
+       "g.D"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Visit C and improve D",
+    "narration": "Next smallest is C=3; visiting C gives a shorter path to D via C.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "g.C",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "dist[2]",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "g.D",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "dist[3]",
+      "value": "4"
+     },
+     {
+      "do": "clear",
+      "target": "g.D"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "All nodes visited",
+    "narration": "All nodes are visited; final shortest distances are A=0, B=1, C=3, D=4.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "g.D",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "dist[3]",
+      "state": "visited",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 43416,
+ "model": "gemini-3.6-flash",
+ "domain": "algorithms",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Dijkstra's shortest‑path walk‑through\",\"domain\":\"algorithms\",\"summary\":\"Step‑by‑step visual of Dijkstra on a 4‑node weighted graph, showing tentative distances and visited nodes.\",\"spaces\":[],\"entities\":[{\"id\":\"g\",\"type\":\"graph\",\"nodes\":[{\"id\":\"A\",\"value\":\"A\"},{\"id\":\"B\",\"value\":\"B\"},{\"id\":\"C\",\"value\":\"C\"},{\"id\":\"D\",\"value\":\"D\"}],\"edges\":[{\"from\":\"A\",\"to\":\"B\",\"weight\":1},{\"from\":\"A\",\"to\":\"C\",\"weight\":4},{\"from\":\"B\",\"to\":\"C\",\"weight\":2},{\"from\":\"B\",\"to\":\"D\",\"weight\":5},{\"from\":\"C\",\"to\":\"D\",\"weight\":1}],\"directed\":false,\"arrangement\":\"auto\"},{\"id\":\"dist\",\"type\":\"array\",\"values\":[\"∞\",\"∞\",\"∞\",\"∞\"],\"indices\":true,\"label\":\"dist\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"g\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"dist\",\"of\":\"g\"}],\"beats\":[{\"title\":\"Graph and initial distances\",\"narration\":\"We show the graph and set all distances to ∞, then give the source A distance 0.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"g\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"dist\",\"effect\":\"pop\"},{\"do\":\"set\",\"target\":\"dist[0]\",\"value\":\"0\"},{\"do\":\"highlight\",\"target\":\"g.A\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"dist[0]\",\"state\":\"active\"}]},{\"title\":\"Visit source A\",\"narration\":\"Node A is now visited; its distance is final.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"g.A\",\"state\":\"visited\"},{\"do\":\"highlight\",\"target\":\"dist[0]\",\"state\":\"visited\"}]},{\"title\":\"Relax A’s neighbours\",\"narration\":\"Examine edges A‑B (1) and A‑C (4) and update their tentative distances.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"g.B\",\"state\":\"comparing\"},{\"do\":\"set\",\"target\":\"dist[1]\",\"value\":\"1\"},{\"do\":\"highlight\",\"target\":\"g.C\",\"state\":\"comparing\"},{\"do\":\"set\",\"target\":\"dist[2]\",\"value\":\"4\"},{\"do\":\"clear\",\"target\":[\"g.B\",\"g.C\"]}]},{\"title\":\"Pick next node B\",\"narration\":\"The smallest tentative distance is B=1, so we visit B and relax its edges.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"g.B\",\"state\":\"visited\"},{\"do\":\"highlight\",\"target\":\"dist[1]\",\"state\":\"visited\"},{\"do\":\"highlight\",\"target\":\"g.C\",\"state\":\"comparing\"},{\"do\":\"set\",\"target\":\"dist[2]\",\"value\":\"3\"},{\"do\":\"highlight\",\"target\":\"g.D\",\"state\":\"comparing\"},{\"do\":\"set\",\"target\":\"dist[3]\",\"value\":\"6\"},{\"do\":\"clear\",\"target\":[\"g.C\",\"g.D\"]}]},{\"title\":\"Visit C and improve D\",\"narration\":\"Next smallest is C=3; visiting C gives a shorter path to D via C.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"g.C\",\"state\":\"visited\"},{\"do\":\"highlight\",\"target\":\"dist[2]\",\"state\":\"visited\"},{\"do\":\"highlight\",\"target\":\"g.D\",\"state\":\"comparing\"},{\"do\":\"set\",\"target\":\"dist[3]\",\"value\":\"4\"},{\"do\":\"clear\",\"target\":\"g.D\"}]},{\"title\":\"All nodes visited\",\"narration\":\"All nodes are visited; final shortest distances are A=0, B=1, C=3, D=4.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"g.D\",\"state\":\"visited\"},{\"do\":\"highlight\",\"target\":\"dist[3]\",\"state\":\"visited\"}]}]}"
+}

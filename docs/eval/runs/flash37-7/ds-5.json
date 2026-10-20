@@ -1,0 +1,327 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Min-Heap Insert: Adding 3",
+  "domain": "data-structures",
+  "summary": "Inserting into a min-heap appends the element at the next free leaf and bubbles it up by swapping with its parent until the heap order is restored.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "heap",
+    "label": "Min-Heap Tree",
+    "type": "tree",
+    "nodes": [
+     {
+      "id": "n0",
+      "value": 5
+     },
+     {
+      "id": "n1",
+      "value": 9,
+      "parent": "n0"
+     },
+     {
+      "id": "n2",
+      "value": 7,
+      "parent": "n0"
+     },
+     {
+      "id": "n3",
+      "value": 12,
+      "parent": "n1"
+     },
+     {
+      "id": "n4",
+      "value": 10,
+      "parent": "n1"
+     },
+     {
+      "id": "n5",
+      "value": "",
+      "parent": "n2"
+     }
+    ]
+   },
+   {
+    "id": "arr",
+    "label": "Array Representation",
+    "type": "array",
+    "values": [
+     5,
+     9,
+     7,
+     12,
+     10
+    ],
+    "indices": true
+   },
+   {
+    "id": "info",
+    "type": "text",
+    "text": "Initial min-heap satisfies parent <= children",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "heap",
+    "region": "top"
+   },
+   {
+    "rel": "below",
+    "id": "arr",
+    "of": "heap",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "info",
+    "of": "arr",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Initial valid min-heap",
+    "narration": "The heap contains 5 elements. Every parent value is smaller than or equal to its children.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "heap",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "arr",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "info",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Append 3 at the next leaf",
+    "narration": "To keep the complete binary tree shape, 3 is placed at index 5, the left child of 7.",
+    "actions": [
+     {
+      "do": "push",
+      "target": "arr",
+      "value": 3
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "heap.n5",
+      "value": 3
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "heap.n5"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "info",
+      "text": "Appended 3 at index 5 (child of index 2)"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Bubble up: compare 3 with 7",
+    "narration": "We compare 3 with its parent 7. Because 3 is less than 7, min-heap property is violated, so they swap.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "arr[2]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "heap.n2"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "info",
+      "text": "3 < 7 -> swap child and parent"
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 5,
+      "j": 2
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "heap.n5",
+      "value": 7
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "heap.n2",
+      "value": 3
+     },
+     {
+      "do": "clear",
+      "target": [
+       "arr[5]",
+       "heap.n5"
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "arr[2]",
+       "heap.n2"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Bubble up: compare 3 with 5",
+    "narration": "Next, compare 3 at index 2 with its parent 5 at index 0. Since 3 is less than 5, they swap.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[2]",
+       "arr[0]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "heap.n2",
+       "heap.n0"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "info",
+      "text": "3 < 5 -> swap with root"
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 2,
+      "j": 0
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "heap.n2",
+      "value": 5
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "heap.n0",
+      "value": 3
+     },
+     {
+      "do": "clear",
+      "target": [
+       "arr[2]",
+       "heap.n2"
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "heap.n0"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Heap restored with 3 at root",
+    "narration": "3 has reached the root and is now the minimum value. The array is [3, 9, 5, 12, 10, 7].",
+    "actions": [
+     {
+      "do": "clear",
+      "target": [
+       "arr[0]",
+       "heap.n0"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "heap.n0"
+      ],
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "info",
+      "text": "Insertion complete! Min-heap property satisfied."
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 3,
+ "repairs": [
+  [
+   {
+    "path": "(root)",
+    "message": "response was not a JSON object"
+   }
+  ],
+  [
+   {
+    "path": "(root)",
+    "message": "response was not a JSON object"
+   }
+  ]
+ ],
+ "ms": 136212,
+ "model": "gemini-3.7-flash",
+ "domain": "data-structures"
+}

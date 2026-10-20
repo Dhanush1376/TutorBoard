@@ -15,7 +15,7 @@ const ProtectedRoute = ({ children, guestAllowed = true }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // Handle guest restriction for sensitive routes (e.g. settings)

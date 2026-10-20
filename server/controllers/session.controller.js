@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import ChatSession from '../models/ChatSession.js';
@@ -42,40 +43,40 @@ export const logActivity = async ({ userId, sessionId, eventType, eventData, met
  */
 export const getSessions = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
     const skip = (page - 1) * limit;
 
     const query = req.user?._id 
       ? { userId: req.user._id, isDeleted: { $ne: true } } 
       : { userId: null, isDeleted: { $ne: true } };
     
-    const [sessions, total] = await Promise.all([
-      ChatSession.find(query)
-        .sort({ lastUpdated: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+    // One round trip: each conversation with its 50 most recent messages
+    // (ChatMessage is the source of truth). Previously this ran one extra query
+    // per conversation. The client hides conversations without a user message.
+    const [sessionsWithMessages, total] = await Promise.all([
+      ChatSession.aggregate([
+        // aggregate() does not cast like find(): make the owner an ObjectId
+        { $match: { ...query, userId: query.userId ? new mongoose.Types.ObjectId(String(query.userId)) : null } },
+        { $sort: { lastUpdated: -1, _id: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        { $project: { messages: 0, canvasArchive: 0, snapshots: 0 } },
+        {
+          $lookup: {
+            from: ChatMessage.collection.name,
+            let: { sid: '$_id' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$sessionId', '$$sid'] } } },
+              { $sort: { timestamp: -1, _id: -1 } },
+              { $limit: 50 },
+            ],
+            as: 'messages',
+          },
+        },
+      ]).then((rows) => rows.map((s) => ({ ...s, messages: s.messages.reverse() }))),
       ChatSession.countDocuments(query)
     ]);
-
-    // CRITICAL FIX: Fetch messages from the ChatMessage collection (source of truth)
-    // instead of the deprecated embedded ChatSession.messages[] array.
-    // The client filters sessions by whether they have user messages — if we return
-    // an empty array, ALL sessions without canvas data get filtered out and "vanish".
-    const sessionsWithMessages = await Promise.all(
-      sessions.map(async (s) => {
-        try {
-          const messages = await ChatMessage.find({ sessionId: s._id })
-            .sort({ timestamp: -1 })
-            .limit(50)
-            .lean();
-          return { ...s, messages: messages.reverse() };
-        } catch {
-          return { ...s, messages: s.messages || [] }; // Fallback to embedded array
-        }
-      })
-    );
 
     res.json({
       sessions: sessionsWithMessages,
@@ -83,7 +84,7 @@ export const getSessions = async (req, res) => {
         total,
         page,
         pages: Math.ceil(total / limit),
-        hasMore: skip + sessions.length < total
+        hasMore: skip + sessionsWithMessages.length < total
       }
     });
   } catch (err) {
@@ -98,6 +99,7 @@ export const getSessions = async (req, res) => {
  */
 export const getSession = async (req, res) => {
   try {
+    if (!/^[0-9a-fA-F]{24}$/.test(req.params.id || '')) return res.status(404).json({ error: 'Session not found' });
     const query = req.user?._id 
       ? { _id: req.params.id, userId: req.user._id }
       : { _id: req.params.id, userId: null };
@@ -114,7 +116,7 @@ export const getSession = async (req, res) => {
     // instead of the deprecated embedded ChatSession.messages[] array.
     try {
       const chatMessages = await ChatMessage.find({ sessionId: session._id })
-        .sort({ timestamp: 1 })
+        .sort({ timestamp: 1, _id: 1 })
         .limit(200)
         .lean();
       if (chatMessages.length > 0) {
@@ -203,9 +205,11 @@ export const saveSession = async (req, res) => {
         if (canvasSteps) setFields.canvasSteps = canvasSteps;
       }
 
-      // Handle messages — persist to ChatMessage collection AFTER session upsert
-      // so we have a real MongoDB _id to link messages to.
-      const pendingMessages = (messages !== undefined && messages.length > 0) ? messages.slice(-50) : [];
+      // Messages are NOT written here. Every chat, lesson and doubt turn is
+      // persisted by the server when it is generated (ChatService / sessionStore),
+      // and feedback / edit / delete / versions have their own endpoints. Writing
+      // the client's copy back used to insert duplicates (content-matched upserts
+      // with client timestamps) and overwrite server metadata (lost visuals).
 
       const updatePayload = { 
         $set: setFields, 
@@ -219,7 +223,9 @@ export const saveSession = async (req, res) => {
           updatePayload,
           { 
             returnDocument: 'after', 
-            upsert: true, 
+            // Only a client conversation key may create a session; an ObjectId
+            // must already exist and belong to the caller.
+            upsert: !isMongoId, 
             runValidators: true,
           }
         );
@@ -239,42 +245,6 @@ export const saveSession = async (req, res) => {
         return res.status(404).json({ error: 'Session not found or update failed' });
       }
 
-      // Now persist messages using the real MongoDB session _id
-      if (pendingMessages.length > 0) {
-        const realSessionId = session._id;
-        try {
-          for (const msg of pendingMessages) {
-            if (msg.role && msg.content) {
-              const msgId = msg.id || msg._id;
-              const isMongoId = /^[0-9a-fA-F]{24}$/.test(msgId || '');
-              const filter = isMongoId 
-                ? { _id: msgId } 
-                : { 
-                    sessionId: realSessionId, 
-                    content: msg.content, 
-                    role: msg.role,
-                    timestamp: msg.timestamp || { $exists: false } // Hardened dedup
-                  };
-                
-              const updateDoc = {
-                $set: {
-                  content: msg.content,
-                  ...(msg.metadata ? { metadata: msg.metadata } : {})
-                },
-                $setOnInsert: {
-                  sessionId: realSessionId,
-                  role: msg.role,
-                  timestamp: msg.timestamp || new Date()
-                }
-              };
-              
-              await ChatMessage.updateOne(filter, updateDoc, { upsert: true });
-            }
-          }
-        } catch (msgErr) {
-          console.warn('[Session] Failed to sync messages to ChatMessage collection:', msgErr.message);
-        }
-      }
     }
 
     if (!session) return res.status(404).json({ error: 'Session not found or update failed' });
@@ -286,7 +256,7 @@ export const saveSession = async (req, res) => {
     // CRITICAL FIX: Return messages from ChatMessage collection (source of truth)
     try {
       const chatMessages = await ChatMessage.find({ sessionId: session._id })
-        .sort({ timestamp: 1 })
+        .sort({ timestamp: 1, _id: 1 })
         .limit(200)
         .lean();
       if (chatMessages.length > 0) {
@@ -349,41 +319,7 @@ export const beaconSave = async (req, res) => {
 
     const updateFields = { lastUpdated: Date.now() };
     if (data.title !== undefined) updateFields.title = data.title;
-    // Messages: persist to ChatMessage collection instead of embedded array
-    if (data.messages !== undefined && Array.isArray(data.messages)) {
-      try {
-        for (const msg of data.messages.slice(-20)) {
-          if (msg.role && msg.content) {
-            const msgId = msg.id || msg._id;
-            const isMongoId = /^[0-9a-fA-F]{24}$/.test(msgId || '');
-            const filter = isMongoId 
-              ? { _id: msgId } 
-              : { 
-                  sessionId, 
-                  content: msg.content, 
-                  role: msg.role,
-                  timestamp: msg.timestamp || { $exists: false }
-                };
-              
-            const updateDoc = {
-              $set: {
-                content: msg.content,
-                ...(msg.metadata ? { metadata: msg.metadata } : {})
-              },
-              $setOnInsert: {
-                sessionId,
-                role: msg.role,
-                timestamp: msg.timestamp || new Date()
-              }
-            };
-            
-            await ChatMessage.updateOne(filter, updateDoc, { upsert: true });
-          }
-        }
-      } catch (msgErr) {
-        console.warn('[Beacon] Failed to sync messages to ChatMessage:', msgErr.message);
-      }
-    }
+    // Messages are persisted server-side as they are generated (see saveSession).
     if (data.canvasState !== undefined) updateFields.canvasState = data.canvasState;
     if (data.canvasSteps !== undefined) updateFields.canvasSteps = data.canvasSteps;
     if (data.canvasVersion !== undefined) updateFields.canvasVersion = data.canvasVersion;

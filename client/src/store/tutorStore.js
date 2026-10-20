@@ -122,6 +122,7 @@ const useTutorStore = create(
             steps: canvasSteps,
             timeline: canvasSteps
           };
+          state.sceneBranch = null;
           state.canvasObjects = timelineData.elements || timelineData.objects || [];
           state.canvasConnections = timelineData.connections || [];
           state.canvasSteps = canvasSteps;
@@ -131,6 +132,20 @@ const useTutorStore = create(
             : 0;
           state.sceneReady = false;
           state.isPlaying = false;
+        });
+      },
+
+      /**
+       * Engine v2: more beats of the lesson that is already playing (streamed in
+       * while the model writes, then the final scene). Keeps the learner's step,
+       * play state and step-completion signals.
+       */
+      extendSceneLesson: (timelineData) => {
+        set((state) => {
+          const steps = timelineData.steps || timelineData.timeline || [];
+          state.activeScene = { ...timelineData, steps, timeline: steps };
+          state.canvasSteps = steps;
+          state.totalSteps = steps.length;
         });
       },
 
@@ -372,6 +387,79 @@ const useTutorStore = create(
               }
               state.canvasSessionVersion++;
             });
+            break;
+          }
+
+          case 'scene_v2': {
+            // Engine v2 lesson (Scene Language), streamed beat by beat:
+            // eventData: { timeline: { title, domain, renderer: 'scene-v2', sceneV2, steps }, partial }
+            const t = eventData.timeline;
+            if (!t?.sceneV2) break;
+            const steps = t.steps || [];
+            const active = get().activeScene;
+            const id = get()._pendingSceneId || `scene_${get().chatSessionId || get().sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            const lesson = {
+              ...t, id, steps, timeline: steps,
+              objects: [], elements: [], connections: [],
+              renderer: 'scene-v2',
+              streaming: !!eventData.partial,
+            };
+            const continuing = active?.renderer === 'scene-v2' && active.streaming && active.id === id && active.title === t.title;
+            if (continuing) {
+              // more beats of the lesson that is playing: keep the learner's place
+              get().extendSceneLesson(lesson);
+            } else {
+              get().setTimeline(lesson);
+              set((state) => {
+                state.currentStepIndex = 0;
+                state.isPlaying = true;
+                state.isPaused = false;
+                state.stepPlayback = { index: 0, animDone: false, voiceDone: false };
+              });
+            }
+            const v2MsgId = get().streamingMessageId;
+            if (v2MsgId) {
+              get().updateMessageMetadata(v2MsgId, {
+                hasVisualArtifact: true,
+                rendererType: 'scene-v2',
+                artifactStatus: eventData.partial ? 'generating' : 'completed',
+                artifactTitle: t.title,
+              });
+            }
+            set((state) => {
+              if (state.canvasLayout === 'inline') state.canvasLayout = 'split';
+              if (!continuing) state.canvasSessionVersion++;
+            });
+            break;
+          }
+
+          case 'scene_branch': {
+            // Engine v2 doubt answered on the lesson's board:
+            // eventData.branch = { title, scene, from, beats, answer, steps }
+            if (!eventData.branch?.scene) break;
+            get().enterSceneBranch(eventData.branch);
+            const branchMsgId = get().streamingMessageId;
+            if (branchMsgId) {
+              get().updateMessageMetadata(branchMsgId, {
+                hasVisualArtifact: true,
+                rendererType: 'scene-v2',
+                artifactStatus: 'completed',
+                artifactTitle: eventData.branch.steps?.[0]?.title || eventData.branch.title,
+              });
+            }
+            break;
+          }
+
+          case 'scene_failed': {
+            // Engine v2 couldn't draw this lesson: drop the "generating" card and say why
+            const failedMsgId = get().streamingMessageId;
+            if (failedMsgId) {
+              get().updateMessageMetadata(failedMsgId, { hasVisualArtifact: false, artifactStatus: undefined, rendererType: undefined });
+            }
+            set((state) => {
+              if (!state.activeScene && state.canvasLayout === 'split') state.canvasLayout = 'inline';
+            });
+            get().showToast?.({ message: eventData.message || "I couldn't draw this lesson. Please try again.", type: 'warning' });
             break;
           }
 

@@ -1,0 +1,270 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Visual Proof of the Pythagorean Theorem",
+  "domain": "geometry",
+  "summary": "Arranging four identical right triangles inside a large square demonstrates that a² + b² = c².",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     10
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "outer",
+    "label": "Square (c²)",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      1,
+      1
+     ],
+     [
+      9,
+      1
+     ],
+     [
+      9,
+      9
+     ],
+     [
+      1,
+      9
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "c_label",
+    "type": "math",
+    "latex": "c^2"
+   },
+   {
+    "id": "t1",
+    "label": "A",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      1,
+      1
+     ],
+     [
+      5,
+      1
+     ],
+     [
+      1,
+      4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t2",
+    "label": "B",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      9,
+      1
+     ],
+     [
+      9,
+      5
+     ],
+     [
+      6,
+      1
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t3",
+    "label": "C",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      9,
+      9
+     ],
+     [
+      5,
+      9
+     ],
+     [
+      9,
+      6
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t4",
+    "label": "D",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      1,
+      9
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      4,
+      9
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "inner",
+    "label": "Area c²",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      5,
+      1
+     ],
+     [
+      9,
+      5
+     ],
+     [
+      5,
+      9
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "eq",
+    "type": "math",
+    "latex": "a^2 + b^2 = c^2"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "bottom"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The Large Square",
+    "narration": "Start with a large square of side length c, giving a total area of c squared.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "outer",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "c_label",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Four Right Triangles",
+    "narration": "Inside the square, we place four identical right triangles, each with legs a and b and hypotenuse c.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "t1",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "t2",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "t3",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "t4",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "The Inner Square",
+    "narration": "The empty space left in the middle forms a smaller square with side length c.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "inner",
+      "effect": "grow"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "inner",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Algebraic Proof",
+    "narration": "The area of the large square equals the area of the four triangles plus the inner square: 2ab + (b - a)² equals a² + b² = c².",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 2663,
+ "model": "gemini-3.5-flash-lite",
+ "domain": "general"
+}

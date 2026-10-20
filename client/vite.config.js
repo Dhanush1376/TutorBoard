@@ -1,4 +1,5 @@
-import { defineConfig } from 'vite';
+import { defineConfig, searchForWorkspaceRoot } from 'vite';
+import { fileURLToPath } from 'node:url';
 import reactPlugin from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -13,6 +14,10 @@ const react = reactPlugin.default || reactPlugin;
  * 3. Graceful fallback/error handling preventing ECONNREFUSED crash loops.
  * 4. Optimized WebSocket (ws: true) proxying with long timeout thresholds.
  */
+// Backend the dev proxy talks to. Default 127.0.0.1:5000; TB_BACKEND=127.0.0.1:5055 targets the
+// Engine v2 dev backend (server/scripts/scene-lab-backend.mjs) — see client/scripts/dev-v2.mjs.
+const BACKEND = process.env.TB_BACKEND || '127.0.0.1:5000';
+
 export default defineConfig({
   plugins: [
     react({
@@ -21,6 +26,15 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
+    // Scene Lab (dev only) reads the golden scenes from the server package.
+    fs: {
+      allow: [
+        searchForWorkspaceRoot(process.cwd()),
+        fileURLToPath(new URL('../server/engine/scene/fixtures', import.meta.url)),
+        // the geometry resolver is shared with the server (pure, no imports)
+        fileURLToPath(new URL('../server/engine/scene/resolveGeometry.ts', import.meta.url)),
+      ],
+    },
     port: 5173,
     strictPort: false,
     host: true, // Listen on all local addresses
@@ -30,7 +44,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: `http://${BACKEND}`,
         changeOrigin: true,
         secure: false,
         ws: true,
@@ -55,7 +69,7 @@ export default defineConfig({
         },
       },
       '/socket.io': {
-        target: 'ws://127.0.0.1:5000',
+        target: `ws://${BACKEND}`,
         ws: true,
         changeOrigin: true,
         secure: false,
@@ -69,7 +83,7 @@ export default defineConfig({
         },
       },
       '/teaching': {
-        target: 'ws://127.0.0.1:5000',
+        target: `ws://${BACKEND}`,
         ws: true,
         changeOrigin: true,
         secure: false,

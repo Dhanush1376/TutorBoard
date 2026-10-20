@@ -63,8 +63,9 @@ export async function bootstrap(isWorker: boolean = false, signal?: AbortSignal)
 
     // 2. Connect to MongoDB directly
     const uri = process.env.MONGODB_URI;
-    console.log(`[BOOTSTRAP] Connecting to MongoDB URI: ${uri}`);
     if (!uri) throw new Error('MONGODB_URI missing');
+    // Never log credentials: strip the user:password@ portion of the URI.
+    console.log(`[BOOTSTRAP] Connecting to MongoDB URI: ${uri.replace(/\/\/[^@/]*@/, '//<credentials>@')}`);
 
     const options = {
       maxPoolSize: 10,

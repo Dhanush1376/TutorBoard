@@ -1,0 +1,63 @@
+{
+  "version": "1",
+  "title": "How a neural network spots a cat",
+  "domain": "ml",
+  "summary": "Pixels become features, features flow through weighted layers, and the strongest output wins.",
+  "entities": [
+    {
+      "id": "img",
+      "type": "pixels",
+      "label": "input",
+      "grid": [
+        [0.8, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.8],
+        [0.8, 0.8, 0.1, 0.1, 0.1, 0.1, 0.8, 0.8],
+        [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+        [0.8, 0.1, 0.8, 0.8, 0.8, 0.8, 0.1, 0.8],
+        [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+        [0.8, 0.8, 0.8, 1.0, 1.0, 0.8, 0.8, 0.8],
+        [0.1, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.1],
+        [0.1, 0.1, 0.8, 0.8, 0.8, 0.8, 0.1, 0.1]
+      ]
+    },
+    { "id": "net", "type": "network", "layers": [4, 5, 4, 2], "inputLabels": ["edges", "ears", "eyes", "fur"], "outputLabels": ["cat", "dog"] },
+    { "id": "probs", "type": "table", "columns": ["class", "probability"], "rows": [["cat", "94%"], ["dog", "6%"]] },
+    { "id": "pred", "type": "text", "text": "Prediction: cat", "role": "title", "tone": "warning" }
+  ],
+  "layout": [
+    { "rel": "row", "ids": ["img", "net", "probs"], "gap": "xl" },
+    { "rel": "below", "id": "pred", "of": "net" }
+  ],
+  "beats": [
+    {
+      "title": "Pixels in",
+      "narration": "The image enters as a grid of brightness values.",
+      "actions": [{ "do": "create", "target": "img", "effect": "fade" }]
+    },
+    {
+      "title": "Features light up",
+      "narration": "The first layer responds to simple patterns — edges, ear shapes, eyes, fur texture.",
+      "actions": [
+        { "do": "create", "target": "net", "effect": "draw" },
+        { "do": "connect", "from": "img", "to": "net.L0", "style": "arrow" },
+        { "do": "highlight", "target": "net.L0", "state": "active" }
+      ]
+    },
+    {
+      "title": "Signal flows through the layers",
+      "narration": "Each layer weighs the evidence from the one before it.",
+      "actions": [
+        { "do": "highlight", "target": "net.L1", "state": "active" },
+        { "do": "highlight", "target": "net.L2", "state": "active" }
+      ]
+    },
+    {
+      "title": "Prediction",
+      "narration": "The output with the most evidence wins: cat, with 94% confidence.",
+      "actions": [
+        { "do": "highlight", "target": "net.L3n0", "state": "found" },
+        { "do": "create", "target": "probs", "effect": "fade" },
+        { "do": "create", "target": "pred", "effect": "pop" }
+      ]
+    }
+  ]
+}

@@ -134,7 +134,7 @@ const SessionOverlay = ({
 
             <button
               onClick={() => store.setCanvasMode('FULLSCREEN')}
-              className="group flex items-center gap-3 px-8 py-4 rounded-2xl text-[14px] font-normal uppercase tracking-widest hover:scale-[1.02] active:scale-[0.96] transition-all"
+              className="group flex items-center gap-3 px-8 py-4 rounded-2xl text-[14px] font-medium hover:scale-[1.02] active:scale-[0.96] transition-all"
               style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)', boxShadow: '0 12px 32px -8px rgba(0,0,0,0.25)' }}
             >
               Start Discovery
@@ -189,7 +189,7 @@ const SessionOverlay = ({
             <div className="flex gap-3">
               <button
                 onClick={onRetry}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-normal uppercase tracking-wider hover:opacity-90 active:scale-[0.96] transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-medium hover:opacity-90 active:scale-[0.96] transition-all"
                 style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
               >
                 <RotateCcw size={14} />
@@ -197,7 +197,7 @@ const SessionOverlay = ({
               </button>
               <button
                 onClick={onClose}
-                className="px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] rounded-xl text-[12px] font-normal uppercase tracking-wider hover:text-[var(--text-primary)] active:scale-95 transition-all"
+                className="px-5 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] rounded-xl text-xs font-medium hover:text-[var(--text-primary)] active:scale-95 transition-all"
               >
                 Close
               </button>
@@ -243,12 +243,12 @@ const SessionOverlay = ({
             <div className="flex gap-8">
               <div className="text-center">
                 <div className="text-3xl font-normal text-[var(--text-primary)]">{totalSteps}</div>
-                <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-normal">Steps</div>
+                <div className="text-xs text-[var(--text-tertiary)] font-medium">Steps</div>
               </div>
               <div className="w-px bg-[var(--border-color)]" />
               <div className="text-center">
                 <div className="text-3xl font-normal text-[var(--text-primary)]">{doubtHistory?.length || 0}</div>
-                <div className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] font-normal">Doubts</div>
+                <div className="text-xs text-[var(--text-tertiary)] font-medium">Doubts</div>
               </div>
             </div>
 

@@ -1,0 +1,296 @@
+{
+ "version": "1",
+ "title": "Projectile motion at 45°",
+ "domain": "physics",
+ "summary": "Launch at 20 m/s and 45°: horizontal speed stays constant while gravity curves the path into a parabola.",
+ "spaces": [
+  {
+   "id": "field",
+   "kind": "cartesian",
+   "x": [
+    0,
+    45
+   ],
+   "y": [
+    0,
+    14
+   ],
+   "axes": true,
+   "grid": false,
+   "xLabel": "x (m)",
+   "yLabel": "y (m)",
+   "equalAspect": false
+  }
+ ],
+ "entities": [
+  {
+   "id": "ball",
+   "space": "field",
+   "type": "body",
+   "at": [
+    0,
+    0
+   ],
+   "size": "sm"
+  },
+  {
+   "id": "v0",
+   "label": "v₀ = 20 m/s",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    0,
+    0
+   ],
+   "angleDeg": 45,
+   "magnitude": 8
+  },
+  {
+   "id": "vx",
+   "label": "vₓ",
+   "tone": "success",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    0,
+    0
+   ],
+   "to": [
+    5.66,
+    0
+   ]
+  },
+  {
+   "id": "vy",
+   "label": "v_y",
+   "tone": "primary",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    0,
+    0
+   ],
+   "to": [
+    0,
+    5.66
+   ]
+  },
+  {
+   "id": "traj",
+   "tone": "info",
+   "space": "field",
+   "type": "plot",
+   "expr": "x - 0.0245*x^2",
+   "domain": [
+    0,
+    40.8
+   ]
+  },
+  {
+   "id": "apex",
+   "label": "max height 10.2 m",
+   "tone": "warning",
+   "space": "field",
+   "type": "point",
+   "at": [
+    20.4,
+    10.2
+   ]
+  },
+  {
+   "id": "land",
+   "label": "range 40.8 m",
+   "tone": "warning",
+   "space": "field",
+   "type": "point",
+   "at": [
+    40.8,
+    0
+   ]
+  },
+  {
+   "id": "eq",
+   "type": "math",
+   "latex": "R = \\frac{v_0^2 \\sin 2\\theta}{g} \\approx 40.8\\,\\mathrm{m}"
+  },
+  {
+   "id": "gvec",
+   "label": "g = 9.8 m/s²",
+   "tone": "danger",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    0,
+    0
+   ],
+   "to": [
+    0,
+    -2
+   ]
+  },
+  {
+   "id": "p10",
+   "label": "(10,7.55)",
+   "tone": "info",
+   "space": "field",
+   "type": "point",
+   "at": [
+    10,
+    7.55
+   ]
+  },
+  {
+   "id": "straight",
+   "tone": "muted",
+   "space": "field",
+   "type": "line",
+   "from": [
+    0,
+    0
+   ],
+   "to": [
+    10,
+    7.55
+   ],
+   "dashed": false
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "field",
+   "region": "center"
+  },
+  {
+   "rel": "place",
+   "id": "eq",
+   "region": "top-right"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Split the launch velocity",
+   "narration": "At 45° the launch speed splits into equal horizontal and vertical parts.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "ball",
+     "effect": "pop"
+    },
+    {
+     "do": "create",
+     "target": "v0",
+     "effect": "grow"
+    },
+    {
+     "do": "create",
+     "target": [
+      "vx",
+      "vy"
+     ],
+     "effect": "grow"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Gravity bends the path",
+   "narration": "The horizontal speed never changes, but gravity pulls the vertical speed down by 9.8 m/s every second.",
+   "actions": [
+    {
+     "do": "remove",
+     "target": [
+      "v0",
+      "vx",
+      "vy"
+     ],
+     "effect": "fade"
+    },
+    {
+     "do": "create",
+     "target": "traj",
+     "effect": "draw"
+    },
+    {
+     "with": "previous",
+     "do": "trace",
+     "target": "ball",
+     "along": "traj",
+     "duration": "long"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Gravity vector",
+   "narration": "Gravity adds a constant downward acceleration, shown by the vector g.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "gvec",
+     "effect": "draw"
+    },
+    {
+     "do": "annotate",
+     "target": "gvec",
+     "text": "downward accel",
+     "side": "right"
+    },
+    {
+     "do": "highlight",
+     "target": "gvec",
+     "state": "active",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Straight line comparison",
+   "narration": "A straight line from the start to the point at x=10 m would be the path without gravity.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "p10",
+     "effect": "draw"
+    },
+    {
+     "do": "create",
+     "target": "straight",
+     "effect": "draw"
+    },
+    {
+     "do": "annotate",
+     "target": "straight",
+     "text": "no gravity",
+     "side": "above"
+    },
+    {
+     "do": "highlight",
+     "target": "straight",
+     "state": "eliminated",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Curve vs line",
+   "narration": "The real trajectory bends away from the straight line because the vertical speed changes under gravity.",
+   "actions": [
+    {
+     "do": "unannotate",
+     "target": "gvec"
+    },
+    {
+     "do": "unannotate",
+     "target": "straight"
+    },
+    {
+     "do": "clear"
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

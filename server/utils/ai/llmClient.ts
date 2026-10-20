@@ -14,7 +14,25 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { container } from '../../core/container.js';
-import { withCircuitBreaker } from '../../engine/core/circuitBreaker.js';
+import { circuitBreaker, retryAfterMs, withCircuitBreaker } from '../../engine/core/circuitBreaker.js';
+
+/**
+ * A provider that is only briefly unavailable — a per-minute limit ("try again in 4.6s") or a
+ * circuit about to reopen — is worth one short wait before falling back (or failing).
+ */
+const SHORT_WAIT_MS = 15000;
+function shortWaitMs(err: any, provider: string): number | null {
+  const status = err?.status ?? err?.response?.status;
+  if (status === 429) {
+    const ms = retryAfterMs(err);
+    return ms !== null && ms <= SHORT_WAIT_MS ? ms + 250 : null;
+  }
+  if (/^CIRCUIT_OPEN/.test(err?.message || '')) {
+    const ms = circuitBreaker.retryInMs(provider);
+    return ms > 0 && ms <= SHORT_WAIT_MS ? ms + 250 : null;
+  }
+  return null;
+}
 import { captureException } from '../core/monitoring.js';
 import { MODEL_REGISTRY } from './modelRegistry.js';
 import UsageLog from '../../models/UsageLog.js';
@@ -53,6 +71,8 @@ export interface LLMParams {
   sessionContext?: any;
   skipRacing?: boolean;
   requestId?: string;
+  /** Thinking budget for reasoning models; part of the cache key. */
+  reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high';
 }
 
 export interface LLMResponse {
@@ -168,13 +188,14 @@ function getCacheKey(messages: LLMMessage[], model: string, userId: string | nul
 export function resolveModelId(modelId?: string): string {
   const normalizedId = (modelId || '').trim();
 
-  // 1. Default for empty, universal, or generic agent names
+  // 1. Default for empty, universal, or generic agent names — honours AI_MODEL
+  // so the default model can be switched by configuration alone.
   if (!normalizedId ||
     normalizedId.toLowerCase().includes('universal') ||
     normalizedId.toLowerCase() === 'tutor' ||
     normalizedId.toLowerCase() === 'bytez' ||
     normalizedId.toLowerCase() === 'tutu') {
-    return 'gemini-3.8-flash';
+    return getModel();
   }
 
   const mapping: Record<string, string> = {
@@ -397,7 +418,7 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
   // 2. Cache Check (Skip for highly personalized final_answer calls to avoid serving stale context, Audit v3 #64)
   const isCustom = !!userConfig?.useCustomApi;
   const canCache = params.taskType !== 'final_answer';
-  const cacheKey = getCacheKey(messages, canonicalModel, userId, isCustom, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.taskType);
+  const cacheKey = getCacheKey(messages, canonicalModel, userId, isCustom, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.reasoningEffort ? `${params.taskType}|${params.reasoningEffort}` : params.taskType);
   
   if (canCache) {
     const cached = await getCachedResponse(cacheKey);
@@ -413,6 +434,17 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
   }
 
   // 3. Execution Path
+  // Track whether any token reached the caller. Once part of an answer has been
+  // streamed, falling back to another provider would stream a SECOND answer
+  // after the first one (duplicated text in the chat), so mid-stream failures
+  // surface as interrupted instead. A cancelled request never falls back.
+  let streamedTokens = 0;
+  if (params.onStream) {
+    const original = params.onStream;
+    params = { ...params, onStream: (token: string) => { streamedTokens++; original(token); } };
+  }
+  (params as any).__noFallback = () => streamedTokens > 0 || !!params.signal?.aborted;
+
   try {
     initClients();
 
@@ -428,6 +460,7 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
         const isQuotaOrCredits = status === 402 || /credit|quota|balance|payment/i.test(errMsg);
 
         console.warn(`[AI:Custom] Custom provider ${userConfig?.provider} failed: ${errMsg}`);
+        if ((params as any).__noFallback()) throw asInterrupted(customErr, params.signal);
 
         if (isQuotaOrCredits) {
           markKeyLowCredits(userConfig?.userId, userConfig?.keyId, userConfig?.provider);
@@ -469,6 +502,20 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
   }
 }
 
+/** A failure after tokens were streamed (or after the caller aborted): keep the cause, mark it. */
+function asInterrupted(err: any, signal?: AbortSignal) {
+  if (signal?.aborted) {
+    const abortErr = new Error('Request aborted by client');
+    abortErr.name = 'AbortError';
+    return abortErr;
+  }
+  const e: any = new Error(`STREAM_INTERRUPTED: ${err?.message || err}`);
+  e.code = 'AI_3007';
+  e.status = err?.status;
+  e.cause = err;
+  return e;
+}
+
 const GROQ_FALLBACK_MODELS: Record<string, string> = {
   'gemini-flash-latest': 'openai/gpt-oss-120b',
   'gemini-pro-latest': 'openai/gpt-oss-120b',
@@ -488,6 +535,26 @@ const GROQ_FALLBACK_MODELS: Record<string, string> = {
   'claude-sonnet-4-20250514': 'openai/gpt-oss-120b',
 };
 
+/** Groq-servable model for a fallback. Gemini/Claude IDs missing from the
+ *  table (e.g. a new AI_MODEL) used to be forwarded as-is and 404 on Groq. */
+const GROQ_MAX_OUTPUT = Number(process.env.GROQ_MAX_OUTPUT_TOKENS) || 3500;
+/** Groq's tokens-per-minute budget (8k on the free tier); a request's prompt + max output must fit in it. */
+const GROQ_TPM = Number(process.env.GROQ_TPM) || 8000;
+
+/** Output we can ask Groq for: what's left of its per-minute budget after the prompt (≈3.3 chars a token). */
+export function groqMaxOutput(messages: unknown, requested?: number): number {
+  const promptTokens = Math.ceil(JSON.stringify(messages ?? '').length / 3.3);
+  return Math.max(1024, Math.min(requested ?? GROQ_MAX_OUTPUT, GROQ_MAX_OUTPUT, GROQ_TPM - promptTokens - 150));
+}
+
+function toGroqModel(model: string, providerModel: string): string {
+  const base = model.includes('/') ? model.split('/').pop()! : model;
+  const mapped = GROQ_FALLBACK_MODELS[base] || GROQ_FALLBACK_MODELS[providerModel];
+  if (mapped) return mapped;
+  if (/^(gemini|claude)/i.test(base)) return 'openai/gpt-oss-120b';
+  return providerModel;
+}
+
 async function _executeCustomPath(params: LLMParams, model: string, response_format: any, headers: any, startTime: number): Promise<LLMResponse> {
   const { userConfig, messages, temperature, maxTokens, tools, onStream, file, signal } = params;
   const provider = userConfig.provider || 'openai';
@@ -498,15 +565,14 @@ async function _executeCustomPath(params: LLMParams, model: string, response_for
   if (!providerModel) {
     providerModel = sanitizeModelIdForProvider(model, provider);
     if (provider === 'groq') {
-      const baseModelName = model.includes('/') ? model.split('/').pop()! : model;
-      providerModel = GROQ_FALLBACK_MODELS[baseModelName] || GROQ_FALLBACK_MODELS[providerModel] || providerModel;
+      providerModel = toGroqModel(model, providerModel);
     }
   }
 
   return await withCircuitBreaker(`custom:${provider}`, async () => {
     const client = createProviderClient(provider, userConfig.getApiKey(), userConfig.baseUrl);
     const result = await executeProviderRequest(client, provider, {
-      model: providerModel, messages, temperature, maxTokens, tools, response_format, onStream, file
+      model: providerModel, messages, temperature, maxTokens, tools, response_format, onStream, file, reasoningEffort: params.reasoningEffort
     }, signal);
 
     const responseTimeMs = Date.now() - startTime;
@@ -532,7 +598,7 @@ async function _executeCustomPath(params: LLMParams, model: string, response_for
     };
 
     if (params.taskType !== 'final_answer') {
-      await setCachedResponse(getCacheKey(messages, model, userConfig.userId, true, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.taskType), response);
+      await setCachedResponse(getCacheKey(messages, model, userConfig.userId, true, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.reasoningEffort ? `${params.taskType}|${params.reasoningEffort}` : params.taskType), response);
     }
     return response;
   });
@@ -553,25 +619,28 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
   for (const entry of chain) {
     if (!entry.client) continue;
 
+    for (let round = 0; round < 2; round++) {
     try {
       return await withCircuitBreaker(entry.id, async () => {
         let providerModel = sanitizeModelIdForProvider(model, entry.id);
         
         // FIX: If falling back to Groq, use a Groq-compatible model
         if (entry.id === 'groq') {
-          const baseModelName = model.includes('/') ? model.split('/').pop()! : model;
-          providerModel = GROQ_FALLBACK_MODELS[baseModelName] || GROQ_FALLBACK_MODELS[providerModel] || providerModel;
+          providerModel = toGroqModel(model, providerModel);
         }
 
         const result = await executeProviderRequest(entry.client!, entry.id, {
           model: providerModel,
           messages: params.messages,
           temperature: params.temperature,
-          maxTokens: params.maxTokens,
+          // Groq counts the requested output against its per-minute token budget (8k on the free
+          // tier): a 4k-token prompt asking for 8k out is refused outright (413), so cap it there.
+          maxTokens: entry.id === 'groq' ? groqMaxOutput(params.messages, params.maxTokens) : params.maxTokens,
           tools: params.tools,
           response_format,
           onStream: params.onStream,
-          file: params.file
+          file: params.file,
+          reasoningEffort: params.reasoningEffort,
         }, params.signal);
 
         const responseTimeMs = Date.now() - startTime;
@@ -585,7 +654,8 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
           tool_calls: result.tool_calls,
           _meta: {
             mode: 'system',
-            model_used: model,
+            // what actually answered (a fallback provider runs its own model)
+            model_used: providerModel,
             provider_used: entry.id,
             fallback_triggered: entry.id !== chain[0].id,
             cached: false,
@@ -597,14 +667,23 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
         };
 
         if (params.taskType !== 'final_answer') {
-          await setCachedResponse(getCacheKey(params.messages, model, params.userConfig?.userId, false, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.taskType), response);
+          await setCachedResponse(getCacheKey(params.messages, model, params.userConfig?.userId, false, params.sessionContext, params.temperature, params.maxTokens, params.responseMimeType, params.reasoningEffort ? `${params.taskType}|${params.reasoningEffort}` : params.taskType), response);
         }
         return response;
       });
     } catch (err) {
+      if ((params as any).__noFallback?.()) throw asInterrupted(err, params.signal);
       const msg = (err as any)?.message || String(err);
+      const wait = round === 0 && !params.signal?.aborted ? shortWaitMs(err, entry.id) : null;
+      if (wait !== null) {
+        console.warn(`[AI:System] ${entry.id} is briefly limited — waiting ${(wait / 1000).toFixed(1)}s, then retrying once`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
       console.warn(`[AI:System] ${entry.id} failed (${String(msg).slice(0, 300)}), trying next...`);
       lastErr = err;
+      break;
+    }
     }
   }
 

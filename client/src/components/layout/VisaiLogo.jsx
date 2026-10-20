@@ -1,55 +1,48 @@
-import React from 'react';
+import React, { useId } from 'react';
 
-const VisaiLogo = ({ className = "", size = "md", showLabel = false }) => {
-  const dimensions = {
-    xxs: 18,
-    xs: 24,
-    sm: 28,
-    md: 36,
-    lg: 48,
-    xl: 80
-  };
+/**
+ * TutorBoard mark: "Stroke Tile". A solid tile is the canvas, a single fluid
+ * line is drawn through it, and it ends at an amber point.
+ * The tile takes `currentColor`; the stroke is cut out, so it shows whatever
+ * sits behind the mark.
+ */
+const DIMENSIONS = {
+  xxs: 16,
+  xs: 22,
+  sm: 26,
+  md: 32,
+  lg: 44,
+  xl: 72,
+};
 
-  const currentSize = dimensions[size] || dimensions.md;
+export const STROKE_PATH = 'M15 43 C 23 43, 25 22, 33 23 S 39 39, 46 24';
+
+const VisaiLogo = ({ className = '', size = 'md', title }) => {
+  const id = `tb-mark-${useId().replace(/:/g, '')}`;
+  const px = typeof size === 'number' ? size : DIMENSIONS[size] || DIMENSIONS.md;
 
   return (
-    <div className={`inline-flex flex-col items-center justify-center shrink-0 ${className}`}>
-      <svg 
-        width={currentSize} 
-        height={showLabel ? currentSize * (530/680) : currentSize * (260/200)} 
-        viewBox={showLabel ? "0 0 680 530" : "240 60 200 260"} 
+    <span className={`inline-flex shrink-0 items-center justify-center ${className}`}>
+      <svg
+        width={px}
+        height={px}
+        viewBox="4 4 56 56"
         xmlns="http://www.w3.org/2000/svg"
-        className="drop-shadow-sm transition-transform duration-300 hover:scale-105"
+        role={title ? 'img' : undefined}
+        aria-label={title}
+        aria-hidden={title ? undefined : true}
+        className="block"
       >
-        {/* Outer cube faces */}
-        <polygon points="340,90 427,140 340,190 253,140" fill="currentColor" fillOpacity="0.1" />
-        <polygon points="253,140 340,190 340,290 253,240" fill="currentColor" fillOpacity="0.3" />
-        <polygon points="340,190 427,140 427,240 340,290" fill="currentColor" fillOpacity="0.5" />
-
-        {/* Inner cube */}
-        <polygon points="340,158 376,179 340,200 304,179" fill="currentColor" fillOpacity="0.2" />
-        <polygon points="304,179 340,200 340,242 304,221" fill="currentColor" fillOpacity="0.4" />
-        <polygon points="340,200 376,179 376,221 340,242" fill="currentColor" fillOpacity="0.8" />
-
-        {/* Optional Label */}
-        {showLabel && (
-          <text 
-            x="340" 
-            y="458" 
-            textAnchor="middle"
-            fontFamily="inherit"
-            fontSize="16"   // slightly bigger text
-            fontWeight="600" 
-            letterSpacing="2"
-            fill="currentColor" 
-            fillOpacity="0.6"
-            className="uppercase"
-          >
-            Interactive AI Visualization System
-          </text>
-        )}
+        <defs>
+          <mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+            <rect width="64" height="64" fill="white" />
+            <path d={STROKE_PATH} fill="none" stroke="black" strokeWidth="5.2" strokeLinecap="round" />
+          </mask>
+        </defs>
+        <rect x="5" y="5" width="54" height="54" rx="16" fill="currentColor" mask={`url(#${id})`} />
+        <circle cx="46.5" cy="23" r="4.6" fill="var(--mk-accent, #e08a0b)" />
       </svg>
-    </div>
+    </span>
   );
 };
 

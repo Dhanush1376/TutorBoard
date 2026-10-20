@@ -1,0 +1,60 @@
+{
+ "ok": false,
+ "errors": [
+  {
+   "path": "beats",
+   "message": "Array must contain at least 1 element(s)"
+  }
+ ],
+ "attempts": 3,
+ "repairs": [
+  [
+   {
+    "path": "entities[3].from",
+    "message": "\"bob\" is not a point, body or polygon vertex of this scene"
+   },
+   {
+    "path": "entities[4].from",
+    "message": "\"bob\" is not a point, body or polygon vertex of this scene"
+   },
+   {
+    "path": "entities[7].from",
+    "message": "\"bob\" is not a point, body or polygon vertex of this scene"
+   },
+   {
+    "path": "entities[3].from",
+    "message": "Expected array, received string"
+   },
+   {
+    "path": "entities[4].from",
+    "message": "Expected array, received string"
+   },
+   {
+    "path": "entities[7].from",
+    "message": "Expected array, received string"
+   }
+  ],
+  [
+   {
+    "path": "entities[7].degrees",
+    "message": "the drawing makes this angle 0°, but the lesson says 30°: don't compute coordinates by hand — build the sides by intent, e.g. a line {\"from\": [0, 0], \"angleDeg\": 30, \"length\": 10}, points {\"along\": \"<line id>\", \"t\": 0.5}, vectors \"along\"/\"perp\" a line"
+   }
+  ],
+  [
+   {
+    "path": "beats",
+    "message": "Array must contain at least 1 element(s)"
+   }
+  ]
+ ],
+ "ms": 133489,
+ "model": "gemini-3.6-flash",
+ "domain": "physics",
+ "raw": "{\"version\":\"1\",\"title\":\"Why a pendulum swings\",\"domain\":\"physics\",\"summary\":\"Gravity’s component along the arc creates a restoring force, causing the bob to accelerate back toward the vertical and oscillate.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,1],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\",\"equalAspect\":true}],\"entities\":[{\"id\":\"pivot\",\"type\":\"point\",\"space\":\"field\",\"at\":[0,0],\"label\":\"pivot\",\"tone\":\"info\"},{\"id\":\"bob\",\"type\":\"body\",\"space\":\"field\",\"at\":[0,-4],\"size\":\"md\",\"label\":\"m\",\"tone\":\"primary\"},{\"id\":\"string\",\"type\":\"line\",\"space\":\"field\",\"from\":\"pivot\",\"to\":\"bob\"},{\"id\":\"g\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-90,\"magnitude\":2,\"label\":\"mg\",\"tone\":\"danger\"},{\"id\":\"T\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"along\":\"string\",\"magnitude\":2.2,\"label\":\"T\",\"tone\":\"success\"},{\"id\":\"vert\",\"type\":\"line\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":-90,\"length\":4,\"tone\":\"muted\"}]}",
+ "drafts": [
+  "{\"version\":\"1\",\"title\":\"Why a pendulum swings\",\"domain\":\"physics\",\"summary\":\"Gravity’s component along the arc creates a restoring force, causing the bob to accelerate back toward the vertical and oscillate.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,1],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\",\"equalAspect\":true}],\"entities\":[{\"id\":\"pivot\",\"type\":\"point\",\"space\":\"field\",\"at\":[0,0],\"label\":\"pivot\",\"tone\":\"info\"},{\"id\":\"bob\",\"type\":\"circle\",\"space\":\"field\",\"at\":[0,-4],\"size\":\"md\",\"label\":\"m\",\"tone\":\"primary\"},{\"id\":\"string\",\"type\":\"line\",\"space\":\"field\",\"from\":[0,0],\"to\":\"bob\"},{\"id\":\"g\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-90,\"magnitude\":2,\"label\":\"mg\",\"tone\":\"danger\"},{\"id\":\"T\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"along\":\"string\",\"magnitude\":2.2,\"label\":\"T\",\"tone\":\"success\"},{\"id\":\"vert\",\"type\":\"line\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":-90,\"length\":4,\"tone\":\"muted\"},{\"id\":\"theta\",\"type\":\"angle\",\"space\":\"field\",\"vertex\":\"pivot\",\"from\":\"vert\",\"to\":\"string\",\"degrees\":30,\"label\":\"θ\"},{\"id\":\"gt\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"perp\":\"string\",\"side\":\"right\",\"magnitude\":0.8,\"label\":\"mg·sinθ\",\"tone\":\"primary\"},{\"id\":\"caption\",\"type\":\"text\",\"text\":\"\",\"role\":\"caption\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\tau = -m g L \\\\sin\\\\theta \\\\approx -m g L \\\\theta\",\"tone\":\"info\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"caption\",\"region\":\"top\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"bottom-right\"}],\"beats\":[{\"title\":\"Pendulum at rest\",\"narration\":\"When hanging straight down, tension balances gravity and the bob stays still.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"pivot\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"bob\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"string\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"g\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"T\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"T\",\"text\":\"T = mg\",\"side\":\"right\"}]},{\"title\":\"Displace the bob\",\"narration\":\"Pull the bob to an angle θ; gravity still points down while tension follows the string.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"move\",\"target\":\"bob\",\"to\":[2,-3.464]},{\"do\":\"create\",\"target\":\"theta\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"gt\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"gt\",\"text\":\"mg·sinθ\",\"side\":\"right\"}]},{\"title\":\"What causes the swing?\",\"narration\":\"Which direction does the bob accelerate when displaced?\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"gt\",\"state\":\"active\"}],\"check\":{\"question\":\"Direction of acceleration?\",\"choices\":[\"Along the string toward pivot\",\"Along the arc toward center\",\"Straight down\",\"No acceleration\"],\"answer\":1,\"explain\":\"The tangential component of gravity pulls the bob toward the equilibrium position.\"}},{\"title\":\"Restoring acceleration\",\"narration\":\"The tangential component of gravity provides a restoring force, giving the bob a sideways acceleration back toward the vertical.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"set\",\"target\":\"caption\",\"text\":\"Acceleration along the arc\"},{\"do\":\"highlight\",\"target\":\"gt\",\"state\":\"insight\"},{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"type\"}]},{\"title\":\"Oscillation\",\"narration\":\"The bob overshoots, then the opposite tangential component pulls it back, producing continuous back‑and‑forth motion.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"move\",\"target\":\"bob\",\"to\":[-2,-3.464]},{\"do\":\"highlight\",\"target\":\"gt\",\"state\":\"active\",\"with\":\"previous\"},{\"do\":\"move\",\"target\":\"bob\",\"to\":[0,-4],\"with\":\"previous\"}]}]}",
+  "{\"version\":\"1\",\"title\":\"Why a pendulum swings\",\"domain\":\"physics\",\"summary\":\"Gravity’s component along the arc creates a restoring force, causing the bob to accelerate back toward the vertical and oscillate.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,1],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\",\"equalAspect\":true}],\"entities\":[{\"id\":\"pivot\",\"type\":\"point\",\"space\":\"field\",\"at\":[0,0],\"label\":\"pivot\",\"tone\":\"info\"},{\"id\":\"bob\",\"type\":\"body\",\"space\":\"field\",\"at\":[0,-4],\"size\":\"md\",\"label\":\"m\",\"tone\":\"primary\"},{\"id\":\"string\",\"type\":\"line\",\"space\":\"field\",\"from\":\"pivot\",\"to\":\"bob\"},{\"id\":\"g\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-90,\"magnitude\":2,\"label\":\"mg\",\"tone\":\"danger\"},{\"id\":\"T\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"along\":\"string\",\"magnitude\":2.2,\"label\":\"T\",\"tone\":\"success\"},{\"id\":\"vert\",\"type\":\"line\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":-90,\"length\":4,\"tone\":\"muted\"},{\"id\":\"vertPt\",\"type\":\"point\",\"space\":\"field\",\"at\":[0,-4],\"tone\":\"muted\"},{\"id\":\"theta\",\"type\":\"angle\",\"space\":\"field\",\"vertex\":\"pivot\",\"from\":\"vertPt\",\"to\":\"bob\",\"degrees\":30,\"label\":\"θ\"},{\"id\":\"gt\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"perp\":\"string\",\"side\":\"right\",\"magnitude\":0.8,\"label\":\"mg·sinθ\",\"tone\":\"primary\"},{\"id\":\"caption\",\"type\":\"text\",\"text\":\"\",\"role\":\"caption\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\\\\\tau = -m g L \\\\\\\\sin\\\\\\\\theta \\\\approx -m g L \\\\theta\",\"tone\":\"info\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"caption\",\"region\":\"top\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"bottom-right\"}],\"beats\":[{\"title\":\"Pendulum at rest\",\"narration\":\"When hanging straight down, tension balances gravity and the bob stays still.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"pivot\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"bob\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"string\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"g\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"T\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"T\",\"text\":\"T = mg\",\"side\":\"right\"}]},{\"title\":\"Displace the bob\",\"narration\":\"Pull the bob to an angle θ; gravity still points down while tension follows the string.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"move\",\"target\":\"bob\",\"to\":[2,-3.464]},{\"do\":\"create\",\"target\":\"theta\",\"effect\":\"draw\"}]}]}",
+  "{\"version\":\"1\",\"title\":\"Why a pendulum swings\",\"domain\":\"physics\",\"summary\":\"Gravity’s component along the arc creates a restoring force, causing the bob to accelerate back toward the vertical and oscillate.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,1],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\",\"equalAspect\":true}],\"entities\":[{\"id\":\"pivot\",\"type\":\"point\",\"space\":\"field\",\"at\":[0,0],\"label\":\"pivot\",\"tone\":\"info\"},{\"id\":\"bob\",\"type\":\"body\",\"space\":\"field\",\"at\":[0,-4],\"size\":\"md\",\"label\":\"m\",\"tone\":\"primary\"},{\"id\":\"string\",\"type\":\"line\",\"space\":\"field\",\"from\":\"pivot\",\"to\":\"bob\"},{\"id\":\"g\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-90,\"magnitude\":2,\"label\":\"mg\",\"tone\":\"danger\"},{\"id\":\"T\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"along\":\"string\",\"magnitude\":2.2,\"label\":\"T\",\"tone\":\"success\"},{\"id\":\"vert\",\"type\":\"line\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":-90,\"length\":4,\"tone\":\"muted\"}]}"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"Why a pendulum swings\",\"domain\":\"physics\",\"summary\":\"Gravity’s component along the arc creates a restoring force, causing the bob to accelerate back toward the vertical and oscillate.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,1],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\",\"equalAspect\":true}],\"entities\":[{\"id\":\"pivot\",\"type\":\"point\",\"space\":\"field\",\"at\":[0,0],\"label\":\"pivot\",\"tone\":\"info\"},{\"id\":\"bob\",\"type\":\"body\",\"space\":\"field\",\"at\":[0,-4],\"size\":\"md\",\"label\":\"m\",\"tone\":\"primary\"},{\"id\":\"string\",\"type\":\"line\",\"space\":\"field\",\"from\":\"pivot\",\"to\":\"bob\"},{\"id\":\"g\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"angleDeg\":-90,\"magnitude\":2,\"label\":\"mg\",\"tone\":\"danger\"},{\"id\":\"T\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"bob\",\"along\":\"string\",\"magnitude\":2.2,\"label\":\"T\",\"tone\":\"success\"},{\"id\":\"vert\",\"type\":\"line\",\"space\":\"field\",\"from\":[0,0],\"angleDeg\":-90,\"length\":4,\"tone\":\"muted\"}]}"
+}

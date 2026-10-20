@@ -1,0 +1,110 @@
+{
+ "summary": {
+  "run": "2026-10-18T21-09-50",
+  "questions": 7,
+  "valid": 0,
+  "firstTry": 0,
+  "avgSeconds": 0,
+  "withOverlaps": 0
+ },
+ "rows": [
+  {
+   "id": "alg-2",
+   "domain": "algorithms",
+   "question": "Show binary search for 23 in [2, 5, 8, 12, 16, 23, 38, 56, 72, 91].",
+   "model": "gemini-3.6-flash",
+   "ok": false,
+   "attempts": 0,
+   "seconds": 4.5,
+   "beats": 0,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "",
+   "error": "400 `reasoning_effort` must be one of `low`, `medium`, or `high`"
+  },
+  {
+   "id": "ds-5",
+   "domain": "data-structures",
+   "question": "How does a min-heap insert 3 into [5, 9, 7, 12, 10]?",
+   "model": "gemini-3.6-flash",
+   "ok": false,
+   "attempts": 0,
+   "seconds": 0.4,
+   "beats": 0,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "",
+   "error": "400 `reasoning_effort` must be one of `low`, `medium`, or `high`"
+  },
+  {
+   "id": "math-2",
+   "domain": "math",
+   "question": "Where are the roots of x² − 4x + 3?",
+   "model": "gemini-3.6-flash",
+   "ok": false,
+   "attempts": 0,
+   "seconds": 0.2,
+   "beats": 0,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "",
+   "error": "400 `reasoning_effort` must be one of `low`, `medium`, or `high`"
+  },
+  {
+   "id": "geo-2",
+   "domain": "geometry",
+   "question": "Prove the Pythagorean theorem visually.",
+   "model": "gemini-3.6-flash",
+   "ok": false,
+   "attempts": 0,
+   "seconds": 0.1,
+   "beats": 0,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "",
+   "error": "CIRCUIT_OPEN: groq is currently unavailable."
+  },
+  {
+   "id": "phy-3",
+   "domain": "physics",
+   "question": "What forces act on a block sliding down a ramp?",
+   "model": "gemini-3.6-flash",
+   "ok": false,
+   "attempts": 0,
+   "seconds": 0.1,
+   "beats": 0,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "",
+   "error": "CIRCUIT_OPEN: groq is currently unavailable."
+  },
+  {
+   "id": "bio-3",
+   "domain": "biology",
+   "question": "How does blood flow through the heart?",
+   "model": "gemini-3.6-flash",
+   "ok": false,
+   "attempts": 0,
+   "seconds": 0.1,
+   "beats": 0,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "",
+   "error": "CIRCUIT_OPEN: groq is currently unavailable."
+  },
+  {
+   "id": "ml-2",
+   "domain": "ml",
+   "question": "How does gradient descent find a minimum?",
+   "model": "gemini-3.6-flash",
+   "ok": false,
+   "attempts": 0,
+   "seconds": 0.2,
+   "beats": 0,
+   "overlaps": 0,
+   "warnings": 0,
+   "title": "",
+   "error": "CIRCUIT_OPEN: groq is currently unavailable."
+  }
+ ]
+}

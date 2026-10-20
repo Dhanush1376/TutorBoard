@@ -1,0 +1,132 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Insert at Head of Linked List",
+  "domain": "data-structures",
+  "summary": "Demonstrates inserting a new node at the beginning of a singly linked list.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "ll",
+    "label": "Linked List",
+    "type": "linkedlist",
+    "values": [
+     2,
+     4,
+     6
+    ],
+    "doubly": false
+   },
+   {
+    "id": "newVal",
+    "type": "text",
+    "text": "1",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "ll",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "newVal",
+    "of": "ll",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Start list",
+    "narration": "The linked list currently holds the nodes 2 → 4 → 6.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "ll",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Node to insert",
+    "narration": "We create a new node with value 1 ready to be added.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "newVal",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert at head",
+    "narration": "Insert the new node at the head, linking it before the former first node.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "ll[0]",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "newVal",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "insert",
+      "target": "ll",
+      "at": 0,
+      "value": 1
+     },
+     {
+      "with": "previous",
+      "do": "remove",
+      "target": "newVal",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Updated list",
+    "narration": "The list now reads 1 → 2 → 4 → 6.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "ll[0]",
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "ll[1]",
+       "ll[2]",
+       "ll[3]"
+      ],
+      "state": "sorted",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 37686,
+ "model": "gemini-3.6-flash",
+ "domain": "data-structures",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Insert at Head of Linked List\",\"domain\":\"data-structures\",\"summary\":\"Demonstrates inserting a new node at the beginning of a singly linked list.\",\"spaces\":[],\"entities\":[{\"id\":\"ll\",\"type\":\"linkedlist\",\"values\":[2,4,6],\"label\":\"Linked List\"},{\"id\":\"newVal\",\"type\":\"text\",\"text\":\"1\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"ll\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"newVal\",\"of\":\"ll\"}],\"beats\":[{\"title\":\"Start list\",\"narration\":\"The linked list currently holds the nodes 2 → 4 → 6.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"ll\",\"effect\":\"draw\"}]},{\"title\":\"Node to insert\",\"narration\":\"We create a new node with value 1 ready to be added.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"newVal\",\"effect\":\"pop\"}]},{\"title\":\"Insert at head\",\"narration\":\"Insert the new node at the head, linking it before the former first node.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"ll[0]\",\"state\":\"active\"},{\"do\":\"highlight\",\"target\":\"newVal\",\"state\":\"active\",\"with\":\"previous\"},{\"do\":\"insert\",\"target\":\"ll\",\"at\":0,\"value\":1},{\"do\":\"remove\",\"target\":\"newVal\",\"effect\":\"fade\",\"with\":\"previous\"}]},{\"title\":\"Updated list\",\"narration\":\"The list now reads 1 → 2 → 4 → 6.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"ll[0]\",\"state\":\"sorted\"},{\"do\":\"highlight\",\"target\":[\"ll[1]\",\"ll[2]\",\"ll[3]\"],\"state\":\"sorted\",\"with\":\"previous\"}]}]}"
+}

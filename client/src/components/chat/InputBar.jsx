@@ -5,29 +5,17 @@ import {
   Square,
   Plus,
   ChevronDown,
-  BookOpen,
-  Lightbulb,
-  GraduationCap,
-  Activity,
-  Layers,
-  HelpCircle,
   FileText,
   Image,
-  Settings2,
   X,
   Cpu,
-  ClipboardCheck,
   Bot,
-  Key,
-  Globe,
-  Sparkles,
   Lock,
   Timer,
-  SkipBack,
   Mic,
-  MicOff,
-  Code2,
-  Pen
+  Shapes,
+  Check,
+  SlidersHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
@@ -35,9 +23,10 @@ import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
 import useWindowSize from '../../hooks/useWindowSize';
 import useVoiceInput from '../../hooks/useVoiceInput';
-import { TRIAL_LIMITS, isFeatureBlocked } from '../../constants/trialConfig';
+import { TRIAL_LIMITS } from '../../constants/trialConfig';
+import BorderGlow from '../ui/BorderGlow';
 
-import { BASE_URL as API_URL, getCookie } from '../../services/api';
+import { BASE_URL as API_URL } from '../../services/api';
 
 const InputBar = ({ 
   value = '', 
@@ -59,8 +48,8 @@ const InputBar = ({
   })));
   const textareaRef = useRef(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
-  const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [attachedFile, setAttachedFile] = useState(null);
@@ -142,11 +131,11 @@ const InputBar = ({
     }
 
     const placeholders = [
-      "How does a Hash Map work?",
-      "Explain quantum computing simply.",
-      "Write a React hook for dark mode.",
-      "Compare SQL and NoSQL databases.",
-      "Explain the theory of relativity."
+      "Why do we have seasons?",
+      "How does photosynthesis work?",
+      "What caused the French Revolution?",
+      "Explain supply and demand.",
+      "How does a neuron fire?"
     ];
 
     let timeout;
@@ -226,6 +215,8 @@ const InputBar = ({
   }, [adjustHeight]);
 
   const handleKeyDown = (e) => {
+    // Enter that confirms an IME composition (Chinese, Japanese, Korean…) is not a send
+    if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && (!e.shiftKey || e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       if (isTrialExhausted || isOnCooldown) return;
@@ -270,31 +261,10 @@ const InputBar = ({
       }))
   ];
 
-  const isAgentActive = (agentId) => {
-    return selectedAgent === agentId;
-  };
-
   const uploadActions = [
     { icon: FileText, label: 'Upload File', type: 'file' },
     { icon: Image, label: 'Upload Photo', type: 'photo' },
   ];
-
-  const quickActions = [
-    { icon: BookOpen, label: 'Quick Answer', mode: 'quick', guestAllowed: true },
-    { icon: Layers, label: 'Deep Visual Dive', mode: 'deep', guestAllowed: false },
-    { icon: GraduationCap, label: 'Explain Concept', mode: 'explain', guestAllowed: true },
-    { icon: FileText, label: 'Summarize Text', mode: 'summarize', guestAllowed: true },
-    { icon: Code2, label: 'Write Code', mode: 'code', guestAllowed: true },
-    { icon: Pen, label: 'Help Me Write', mode: 'write', guestAllowed: true },
-    { icon: Sparkles, label: 'Generate Ideas', mode: 'ideas', guestAllowed: true },
-    { icon: ClipboardCheck, label: 'Test Me', mode: 'test_me', guestAllowed: false },
-  ];
-
-  const handleQuickAction = (mode) => {
-    setActiveMode(mode);
-    setIsToolsMenuOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 50);
-  };
 
   const handleUploadAction = (type) => {
     // BUG FIX #102: Disable uploads in production until S3/Cloudinary is integrated
@@ -368,11 +338,6 @@ const InputBar = ({
     xhr.send(formData);
   };
 
-  const getPlaceholder = () => {
-    if (activeMode === 'teach') return 'Enter a topic for live teaching...';
-    return 'Ask anything...';
-  };
-
   const { isMobile } = useWindowSize();
 
   const { isListening, toggleListening } = useVoiceInput({
@@ -386,458 +351,313 @@ const InputBar = ({
     }
   });
 
-  return (
-    <div className={`w-full max-w-3xl mx-auto`}>
-      <div className={`flex flex-col h-auto input-bar-glass ${isMobile ? 'rounded-2xl mx-2 mb-2' : 'rounded-[32px] mx-4 mb-4'} p-2 relative transition-all duration-500`}>
+  // Menus close when you tap anywhere else.
+  const rootRef = useRef(null);
+  const anyMenu = isPlusMenuOpen || isAgentMenuOpen || isToolsOpen;
+  useEffect(() => {
+    if (!anyMenu) return undefined;
+    const away = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) {
+        setIsPlusMenuOpen(false);
+        setIsAgentMenuOpen(false);
+        setIsToolsOpen(false);
+      }
+    };
+    // Capture phase: the sidebar stops pointer events from bubbling.
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [anyMenu]);
 
-        {/* Upload Progress Bar */}
+  // Only offer what actually works here.
+  const canUpload = !import.meta.env.PROD;
+  const canSpeak = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const drawing = activeMode === 'deep';
+  const hasContent = !!(value?.trim() || attachedFile || selectedTextContext);
+  const currentAgent = agents.find((a) => a.id === selectedAgent) || agents[0];
+
+  const send = () => {
+    if (isTrialExhausted || isOnCooldown || !hasContent) return;
+    onSubmit(value, attachedFile, activeMode);
+    setAttachedFile(null);
+    setIsPlusMenuOpen(false);
+    setIsAgentMenuOpen(false);
+    setIsToolsOpen(false);
+  };
+
+  const closeMenus = () => {
+    setIsPlusMenuOpen(false);
+    setIsAgentMenuOpen(false);
+    setIsToolsOpen(false);
+  };
+
+  const iconBtn = (on) =>
+    `grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full transition-colors ${
+      on ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]'
+    }`;
+  const menu = 'absolute bottom-full left-0 mb-3 z-[100] overflow-hidden rounded-2xl border border-[var(--st-line-strong)] bg-[var(--bg-primary)] p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55)]';
+  const item = 'flex w-full cursor-pointer items-center gap-3 rounded-[11px] px-3 py-2.5 text-left text-[13.5px] transition-colors';
+  const pop = { initial: { opacity: 0, y: 6, scale: 0.98 }, animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: 6, scale: 0.98 }, transition: { duration: 0.16 } };
+
+  return (
+    <div ref={rootRef} className={`mx-auto w-full max-w-3xl overflow-visible ${isMobile ? 'px-3 pb-[max(env(safe-area-inset-bottom),12px)]' : 'px-4 pb-4'}`}>
+      <BorderGlow
+        isFocused={isFocused}
+        borderRadius={28}
+        glowRadius={12}
+        glowIntensity={0.4}
+        edgeSensitivity={20}
+        coneSpread={24}
+        speed={0.016}
+        colors={['#ffffff', '#fb923c', '#ea580c']}
+        glowColor="26 92% 58%"
+        backgroundColor="var(--bg-secondary)"
+        className="w-full overflow-visible transition-[border-color,background-color,box-shadow] duration-300"
+      >
+        <div
+          onClick={(e) => e.target === e.currentTarget && textareaRef.current?.focus()}
+          className="relative flex flex-col rounded-[28px] overflow-visible"
+        >
+        {/* Upload progress */}
         <AnimatePresence>
           {isUploading && (
             <motion.div
               initial={{ scaleX: 0, opacity: 0 }}
               animate={{ scaleX: uploadProgress / 100, opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute top-0 left-0 right-0 h-[3px] bg-[#10b981] origin-left z-50 rounded-t-full shadow-[0_0_12px_rgba(16,185,129,0.5)]"
-              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+              className="absolute left-6 right-6 top-0 z-50 h-[2px] origin-left rounded-full bg-[var(--text-primary)]"
             />
           )}
         </AnimatePresence>
 
-        {/* ── Textarea Area (Top Box) ── */}
-        <div className={`bg-transparent flex flex-col h-auto flex-shrink-0 relative overflow-hidden`}>
-
-          {/* Active Mode/File Chips */}
-          <AnimatePresence>
-            {(activeMode || attachedFile || isUploading) && (
-              <motion.div
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="flex items-center gap-2 pl-3 pt-3 flex-wrap"
-              >
-                {activeMode && (
-                  <motion.div
-                    layoutId="activeMode"
-                    className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full shadow-sm border border-[var(--border-color)]"
-                  >
-                    {(() => {
-                      const action = quickActions.find(a => a.mode === activeMode);
-                      if (!action) return null;
-                      const Icon = action.icon;
-                      return (
-                        <>
-                          <Icon size={11} strokeWidth={2.5} className="opacity-90" />
-                          <span className="text-[9px] font-bold uppercase tracking-wide">{action.label}</span>
-                        </>
-                      );
-                    })()}
-                    <button
-                      onClick={() => setActiveMode(null)}
-                      className="ml-0.5 p-0.5 hover:bg-[var(--bg-primary)]/20 rounded-full transition-colors text-[var(--bg-primary)]/60 hover:text-[var(--bg-primary)]"
-                    >
-                      <X size={10} strokeWidth={3} />
-                    </button>
-                  </motion.div>
-                )}
-
-                {isUploading && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)]/50 text-[var(--text-tertiary)] rounded-full">
-                    <Loader2 size={11} className="animate-spin" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest">Uploading</span>
-                  </div>
-                )}
-
-                {attachedFile && (
-                  <div className="flex items-center gap-2 px-2 py-1.5 bg-[var(--text-primary)]/5 backdrop-blur-md border border-[var(--border-color)] text-[var(--text-primary)] rounded-full shadow-sm pr-1.5">
-                    {attachedFile.type.startsWith('image/') ? (
-                      <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-[var(--border-color)]">
-                        <img src={attachedFile.url} alt="Preview" className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="p-1.5 bg-blue-500/10 rounded-full text-blue-500">
-                        <FileText size={13} strokeWidth={2.5} />
-                      </div>
-                    )}
-                    <span className="text-[11px] font-semibold tracking-tight max-w-[120px] truncate">{attachedFile.name}</span>
-                    <button
-                      onClick={() => setAttachedFile(null)}
-                      className="ml-1 p-1 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-full transition-all"
-                    >
-                      <X size={13} strokeWidth={2.5} />
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Input Field Area */}
-          {isTrialExhausted ? (
-            <div className={`w-full px-6 ${isMobile ? 'pt-6 pb-4' : 'pt-8 pb-6'} flex flex-col items-center gap-3 animate-fade-in`}>
-              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-                <Lock size={20} strokeWidth={2} />
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[14px] font-medium text-[var(--text-primary)]">Trial limit reached</span>
-                <p className="text-[12px] text-[var(--text-tertiary)] text-center max-w-[200px]">
-                  Sign up for a free account to continue your learning journey
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Selected Context Pill */}
-              <AnimatePresence>
-                {selectedTextContext && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 5 }}
-                    className="mx-4 mt-3 mb-1 p-2.5 px-4 bg-[var(--bg-tertiary)]/30 rounded-2xl flex items-center justify-between gap-3 group"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-[11px] text-[var(--text-secondary)] font-medium truncate italic opacity-80">
-                        "{selectedTextContext}"
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setSelectedTextContext(null)}
-                      className="p-1.5 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all"
-                    >
-                      <X size={14} />
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <div className="relative w-full">
-                {/* Guest Trial Counter Pill */}
-                {isGuest && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)]/30 text-[var(--text-tertiary)] rounded-full shadow-sm select-none"
-                  >
-                    <Activity size={10} strokeWidth={2.5} className="animate-pulse" />
-                    <span className="text-[11px] font-bold tabular-nums tracking-tighter">
-                      {guestRemaining}
+        {/* Chips: drawing mode, quoted text, attachment */}
+        <AnimatePresence>
+          {(drawing || attachedFile || isUploading || selectedTextContext) && (
+            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-wrap items-center gap-2 px-4 pt-3.5">
+              {drawing && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--text-primary)] py-1 pl-2.5 pr-1 text-[12px] font-medium text-[var(--bg-primary)]">
+                  <Shapes size={12} strokeWidth={2} />
+                  Draw on canvas
+                  <button type="button" aria-label="Turn off drawing" onClick={() => setActiveMode(null)} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full opacity-70 hover:bg-[var(--bg-primary)]/20 hover:opacity-100">
+                    <X size={11} strokeWidth={2.4} />
+                  </button>
+                </span>
+              )}
+              {selectedTextContext && (
+                <span className="flex max-w-full items-center gap-1.5 rounded-full bg-[var(--st-fill-strong)] py-1 pl-3 pr-1 text-[12.5px] text-[var(--text-secondary)]">
+                  <span className="truncate">“{selectedTextContext}”</span>
+                  <button type="button" aria-label="Remove quote" onClick={() => setSelectedTextContext(null)} className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-full text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                    <X size={11} strokeWidth={2.4} />
+                  </button>
+                </span>
+              )}
+              {isUploading && (
+                <span className="flex items-center gap-2 rounded-full bg-[var(--st-fill-strong)] px-3 py-1 text-[12px] text-[var(--text-tertiary)]">
+                  <Loader2 size={12} className="animate-spin" /> Uploading
+                </span>
+              )}
+              {attachedFile && (
+                <span className="flex items-center gap-2 rounded-full bg-[var(--st-fill-strong)] py-0.5 pl-0.5 pr-1">
+                  {attachedFile.type.startsWith('image/') ? (
+                    <img src={attachedFile.url} alt="" className="h-6 w-6 rounded-full object-cover" />
+                  ) : (
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+                      <FileText size={12} />
                     </span>
-                  </motion.div>
-                )}
-                <textarea
-                  ref={textareaRef}
-                  value={value}
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => setIsFocused(false)}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const maxLen = isGuest ? (TRIAL_LIMITS?.MAX_INPUT_LENGTH || 500) : 5000;
-                    if (val.length <= maxLen) {
-                      if (onChange) onChange(val);
-                    }
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder={isOnCooldown ? `Wait ${cooldownRemaining}s...` : getPlaceholder()}
-                  maxLength={isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000}
-                  disabled={isOnCooldown}
-                  className={`w-full bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] placeholder:opacity-70 resize-none px-5 ${isMobile ? 'py-4' : 'py-5'} text-[15px] outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none shadow-none focus:shadow-none focus-visible:shadow-none border-none font-medium leading-relaxed transition-all duration-300 ${isOnCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
-                  rows={1}
-                  style={{ minHeight: isMobile ? '56px' : '64px' }}
-                />
-
-                {/* Counter */}
-                {(isGuest || value.length > 4000) && value.length > 0 && (
-                  <div className={`absolute right-4 bottom-2 text-[9px] font-medium tabular-nums ${value.length >= (isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000) - 200 ? 'text-red-400' : 'text-[var(--text-tertiary)]/40'}`}>
-                    {value.length}/{isGuest ? TRIAL_LIMITS.MAX_INPUT_LENGTH : 5000}
-                  </div>
-                )}
-              </div>
-            </>
+                  )}
+                  <span className="max-w-[140px] truncate text-[12.5px] text-[var(--text-primary)]">{attachedFile.name}</span>
+                  <button type="button" aria-label="Remove file" onClick={() => setAttachedFile(null)} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                    <X size={11} strokeWidth={2.4} />
+                  </button>
+                </span>
+              )}
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
 
-        {/* ── Action Bar (Bottom Row) ── */}
-        {/* ── Action Bar (Bottom Row) ── */}
-        <div className="relative flex items-center justify-between px-2 py-1.5 min-h-[48px]">
+        {/* Text */}
+        {isTrialExhausted ? (
+          <div className="flex flex-col items-center gap-2 px-6 py-7 text-center">
+            <Lock size={18} className="text-[var(--text-tertiary)]" />
+            <span className="text-[14px] font-medium text-[var(--text-primary)]">Free questions used up</span>
+            <span className="text-[12.5px] text-[var(--text-tertiary)]">Sign up free to keep learning.</span>
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val.length <= 5000) onChange(val);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={isOnCooldown ? `Wait ${cooldownRemaining}s…` : drawing ? 'What should I draw for you?' : 'Ask anything…'}
+            maxLength={5000}
+            disabled={isOnCooldown}
+            rows={2}
+            style={{ minHeight: 96 }}
+            className="w-full resize-none border-none bg-transparent px-5 pb-3 pt-5 text-[15.5px] leading-[1.6] text-[var(--text-primary)] shadow-none outline-none placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:shadow-none disabled:opacity-40"
+          />
+        )}
 
-          {/* Left Cluster */}
-          <div className="flex items-center gap-1 min-w-[80px]">
+        {/* Actions */}
+        <div className="flex items-center gap-2 px-2.5 pb-2.5">
+          {/* Left: may shrink. Right: mic and send never move or overlap. */}
+          <div className="flex min-w-0 flex-1 items-center gap-0.5">
+          {canUpload && (
             <div className="relative">
-              <button
-                onClick={() => { setIsPlusMenuOpen(!isPlusMenuOpen); setIsToolsMenuOpen(false); setIsAgentMenuOpen(false); }}
-                aria-label="Toggle upload and attachment menu"
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)] active:scale-90 ${isPlusMenuOpen ? 'text-[var(--text-primary)] bg-[var(--text-primary)]/10' : 'text-[var(--text-tertiary)]/70'}`}
-              >
-                <Plus size={22} strokeWidth={2} />
+              <button type="button" aria-label="Attach" onClick={() => { const o = !isPlusMenuOpen; closeMenus(); setIsPlusMenuOpen(o); }} className={iconBtn(isPlusMenuOpen)}>
+                <Plus size={20} strokeWidth={1.7} />
               </button>
               <AnimatePresence>
                 {isPlusMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-40' : 'w-44'} rounded-2xl overflow-hidden z-[100] shadow-premium p-1 liquid-glass`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      {uploadActions.map((action) => (
-                        <button
-                          key={action.label}
-                          onClick={() => handleUploadAction(action.type)}
-                          className={`flex items-center justify-between w-full px-2.5 py-2 text-[12px] font-medium rounded-xl transition-all ${import.meta.env.PROD
-                            ? 'opacity-30 cursor-not-allowed text-[var(--text-tertiary)]'
-                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5'
-                            }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <action.icon size={15} strokeWidth={2} />
-                            <span>{action.label}</span>
-                          </div>
-                          {import.meta.env.PROD && (
-                            <span className="text-[8px] uppercase font-bold bg-[var(--text-primary)]/10 text-[var(--text-tertiary)] px-1.5 py-0.5 rounded-md">
-                              Soon
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                  <motion.div {...pop} className={`${menu} w-48`}>
+                    {uploadActions.map((a) => (
+                      <button key={a.label} type="button" onClick={() => handleUploadAction(a.type)} className={`${item} text-[var(--text-primary)] hover:bg-[var(--st-fill)]`}>
+                        <a.icon size={16} strokeWidth={1.8} className="text-[var(--text-secondary)]" />
+                        {a.type === 'photo' ? 'Photo' : 'File'}
+                      </button>
+                    ))}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
+          )}
 
-            <div className="relative">
-              <button
-                onClick={() => { setIsToolsMenuOpen(!isToolsMenuOpen); setIsPlusMenuOpen(false); setIsAgentMenuOpen(false); }}
-                aria-label="Toggle teaching modes and tools"
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)] active:scale-90 ${isToolsMenuOpen ? 'text-[var(--text-primary)] bg-[var(--text-primary)]/10' : 'text-[var(--text-tertiary)]/70'}`}
-              >
-                <Settings2 size={20} strokeWidth={2} />
-              </button>
-              <AnimatePresence>
-                {isToolsMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className={`absolute bottom-full left-0 mb-3 ${isMobile ? 'w-48' : 'w-52'} rounded-2xl overflow-hidden z-[100] shadow-premium p-1 liquid-glass`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      {quickActions.map((action) => {
-                        const isBlocked = isGuest && !action.guestAllowed;
-                        const isActive = activeMode === action.mode;
-                        return (
-                          <button
-                            key={action.label}
-                            onClick={() => {
-                              if (isBlocked) {
-                                showToast({ message: `"${action.label}" requires a free account.`, type: 'info' });
-                                setIsToolsMenuOpen(false);
-                                return;
-                              }
-                              handleQuickAction(action.mode);
-                            }}
-                            className={`flex items-center justify-between gap-3 w-full px-2.5 py-2 text-[12px] font-medium rounded-xl transition-all ${isBlocked
-                              ? 'opacity-40 cursor-not-allowed text-[var(--text-tertiary)]'
-                              : isActive
-                                ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
-                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--text-primary)]/5'
-                              }`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <action.icon size={15} strokeWidth={2} />
-                              <span>{action.label}</span>
-                            </div>
-                            {isBlocked && <Lock size={11} strokeWidth={2.5} className="opacity-50" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          {/* Center: Agent Selector (Fixed Center) */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center z-10">
+          {/* Tools: the one option that changes the answer */}
+          <div className="relative">
             <button
-              onClick={() => { setIsAgentMenuOpen(!isAgentMenuOpen); setIsPlusMenuOpen(false); setIsToolsMenuOpen(false); }}
-              title={`Active Model: ${agents.find(a => a.id === selectedAgent)?.name || 'TutorBoard'}`}
-              aria-label="Select AI model"
-              className={`flex items-center justify-center gap-2 h-10 px-4 min-w-[120px] rounded-full transition-all duration-300 hover:bg-[var(--text-primary)]/5 group active:scale-95 ${isAgentMenuOpen ? 'bg-[var(--text-primary)]/10' : ''}`}
+              type="button"
+              aria-label="Answer options"
+              onClick={() => { const o = !isToolsOpen; closeMenus(); setIsToolsOpen(o); }}
+              className={iconBtn(isToolsOpen || drawing)}
             >
-              {(() => {
-                const agent = agents.find(a => a.id === selectedAgent) || agents[0];
-                const Icon = agent.icon;
-                return (
-                  <>
-                    <Icon size={17} strokeWidth={2} className={`${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`} />
-                    {!isMobile && (
-                      <span className={`text-[9.5px] font-bold tracking-[0.05em] uppercase ${isAgentMenuOpen ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
-                        {agent.name}
-                      </span>
-                    )}
-                    <ChevronDown size={10} strokeWidth={2} className={`transition-transform duration-300 ${isAgentMenuOpen ? 'rotate-180 text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]/50 group-hover:text-[var(--text-tertiary)]'}`} />
-                  </>
-                );
-              })()}
+              <SlidersHorizontal size={18} strokeWidth={1.7} />
             </button>
             <AnimatePresence>
-              {isAgentMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                  className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 ${isMobile ? 'w-48' : 'w-56'} rounded-2xl overflow-hidden z-[100] p-1 shadow-premium flex flex-col gap-1 liquid-glass`}
-                >
-                  {agents.map((agent, idx) => {
-                    const Icon = agent.icon;
-                    const isActive = selectedAgent === agent.id;
-                    const isFirstCustom = agent.isCustom && !agents[idx - 1]?.isCustom;
-
-                    return (
-                      <React.Fragment key={agent.id}>
-                        {isFirstCustom && (
-                          <div className="pt-2 pb-1 px-3 flex items-center gap-3">
-                            <span className="text-[9px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]/60">APIs</span>
-                            <div className="flex-1 h-[0.5px] bg-[var(--text-primary)]/5" />
-                          </div>
-                        )}
-                        <button
-                          onClick={() => { setSelectedAgent(agent.id); setIsAgentMenuOpen(false); }}
-                          className={`flex items-center justify-between w-full px-3 py-2 text-[12px] rounded-xl transition-all font-medium ${isActive
-                            ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
-                            : 'text-[var(--text-secondary)] hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)]'
-                            }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Icon size={16} strokeWidth={2} />
-                            <span className="truncate max-w-[120px]">{agent.name}</span>
-                          </div>
-                          {isActive && (
-                            <>
-                              <motion.div layoutId="agentActive" className="w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.6)] ring-2 ring-[var(--border-color)]" aria-hidden="true" />
-                              <span className="sr-only">Active</span>
-                            </>
-                          )}
-                        </button>
-                      </React.Fragment>
-                    );
-                  })}
+              {isToolsOpen && (
+                <motion.div {...pop} className={`${menu} w-[184px]`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveMode(drawing ? null : 'deep');
+                      setIsToolsOpen(false);
+                    }}
+                    className={`${item} ${
+                      drawing
+                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] font-medium shadow-sm'
+                        : 'text-[var(--text-primary)] hover:bg-[var(--st-fill)]'
+                    }`}
+                  >
+                    <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${drawing ? 'bg-[var(--bg-primary)]/20 text-[var(--bg-primary)]' : 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]'}`}>
+                      <Shapes size={15} strokeWidth={1.9} />
+                    </span>
+                    <span className="flex-1 truncate text-[13px] font-medium">Draw on canvas</span>
+                    {drawing && <Check size={14} strokeWidth={2.4} />}
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* Right Cluster */}
-          <div className="flex items-center justify-end gap-1 min-w-[80px]">
-
-
-            {/* Trial Badge */}
-
-
-            {/* Cooldown */}
-            {isOnCooldown && (
-              <div className="flex items-center gap-1.5 h-10 px-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-tertiary)]">
-                <Timer size={11} strokeWidth={2} className="animate-pulse" />
-                <span className="text-[10px] font-medium tabular-nums">{cooldownRemaining}s</span>
-              </div>
-            )}
-
-            {/* Voice / Mic Button */}
+          {/* Model */}
+          <div className="relative min-w-0">
             <button
-              onClick={toggleListening}
-              aria-label={isListening ? "Stop voice input" : "Start voice input"}
-              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 group active:scale-90 ${isListening ? 'bg-red-500 text-white shadow-lg' : 'text-[var(--text-tertiary)]/70 hover:bg-[var(--text-primary)]/5 hover:text-[var(--text-primary)]'}`}
-              title={isListening ? "Stop Listening" : "Voice Input"}
+              type="button"
+              aria-label="Choose model"
+              onClick={() => { const o = !isAgentMenuOpen; closeMenus(); setIsAgentMenuOpen(o); }}
+              className={`flex h-9 min-w-0 cursor-pointer items-center gap-1.5 rounded-full px-2.5 transition-colors hover:bg-[var(--st-fill-strong)] ${isAgentMenuOpen ? 'bg-[var(--st-fill-strong)]' : ''}`}
             >
-              <div className="relative">
-                {isListening ? (
-                  <>
-                    <Mic size={18} strokeWidth={2.5} />
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0.5 }}
-                      animate={{ scale: 1.5, opacity: 0 }}
-                      transition={{ duration: 1, repeat: Infinity }}
-                      className="absolute inset-0 bg-white rounded-full -z-10"
-                    />
-                  </>
-                ) : (
-                  <Mic size={18} strokeWidth={2} className="group-hover:scale-110 transition-transform" />
-                )}
-              </div>
+              <currentAgent.icon size={16} strokeWidth={1.7} className="shrink-0 text-[var(--text-secondary)]" />
+              <span className="max-w-[120px] truncate text-[12px] font-medium tracking-tight text-[var(--text-primary)]">{currentAgent.name}</span>
+              <ChevronDown size={14} strokeWidth={1.8} className={`shrink-0 text-[var(--text-tertiary)] transition-transform ${isAgentMenuOpen ? 'rotate-180' : ''}`} />
             </button>
-
-            {/* Dynamic Stop/Send Cluster */}
-            <div className="flex items-center gap-1">
-              <AnimatePresence mode="popLayout">
-                {isGenerating && (
-                  <motion.button
-                    key="stop-btn"
-                    initial={{ opacity: 0, scale: 0.8, x: 10 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.8, x: 10 }}
-                    onClick={() => {
-                      setIsStopping(true);
-                      onStopGeneration();
-                    }}
-                    disabled={isStopping}
-                    aria-label="Stop AI generation"
-                    className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 group ${isStopping ? 'bg-red-500 text-white' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'}`}
-                    title="Stop Generation"
-                  >
-                    <Square size={13} strokeWidth={3} className={`fill-current transition-transform ${isStopping ? 'scale-90' : 'group-hover:scale-110'}`} />
-                  </motion.button>
-                )}
-
-                {/* Send Button: Visible if NOT generating OR if there is text (Interruption mode) */}
-                {(!isGenerating || (value.trim() || attachedFile)) && (
-                  <motion.button
-                    key="send-btn"
+            <AnimatePresence>
+              {isAgentMenuOpen && (
+                <motion.div {...pop} className={`${menu} w-60`}>
+                  {agents.map((a) => {
+                    const on = selectedAgent === a.id;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => { setSelectedAgent(a.id); setIsAgentMenuOpen(false); }}
+                        className={`${item} ${on ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'}`}
+                      >
+                        <a.icon size={16} strokeWidth={1.8} />
+                        <span className="flex-1 truncate">{a.name}</span>
+                        {on && <Check size={15} className="text-[var(--mk-accent)]" />}
+                      </button>
+                    );
+                  })}
+                  <div className="my-1 h-px bg-[var(--st-line)]" />
+                  <button
                     type="button"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    onMouseDown={(e) => {
-                      // Prevent input blur to avoid layout shift race conditions during click
-                      e.preventDefault();
-                    }}
                     onClick={() => {
-                      import.meta.env.DEV && console.log('[InputBar] Send clicked. State:', { value: !!value, attachedFile: !!attachedFile, isGenerating, isTrialExhausted, isOnCooldown });
-                      if (isTrialExhausted || isOnCooldown) return;
-                      
-                      const hasContent = value.trim() || attachedFile || selectedTextContext;
-                      if (hasContent) {
-                        onSubmit(value, attachedFile, activeMode);
-                        setAttachedFile(null);
-                        setIsPlusMenuOpen(false);
-                        setIsAgentMenuOpen(false);
-                      }
+                      setIsAgentMenuOpen(false);
+                      const st = useTutorStore.getState();
+                      st.setSettingsActiveSection?.('ai');
+                      st.setOverlay?.('settings');
                     }}
-                    disabled={(() => {
-                      const isDisabled = isTrialExhausted || isOnCooldown || (!value?.trim() && !attachedFile && !selectedTextContext);
-                      if (isDisabled && value?.trim()) {
-                        import.meta.env.DEV && console.warn('[InputBar] Send button disabled. Reason:', { isTrialExhausted, isOnCooldown, hasContent: !!(value?.trim() || attachedFile || selectedTextContext) });
-                      }
-                      return isDisabled;
-                    })()}
-                    aria-label="Send message"
-                    className={`w-11 h-11 flex items-center justify-center rounded-full transition-all duration-500 shadow-premium active:scale-90 group ${(value?.trim() || attachedFile || selectedTextContext)
-                        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-lg scale-100'
-                        : 'bg-[var(--text-primary)]/5 text-[var(--text-tertiary)] opacity-40 scale-95 cursor-not-allowed'
-                      }`}
+                    className={`${item} text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]`}
                   >
-                    <ArrowUp size={22} strokeWidth={2.5} className="transition-transform group-hover:-translate-y-0.5 pointer-events-none" />
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </div>
+                    <Plus size={16} strokeWidth={1.8} />
+                    Add your own key
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1">
+            {isOnCooldown && (
+              <span className="flex h-9 items-center gap-1.5 rounded-full bg-[var(--st-fill-strong)] px-3 text-[12px] tabular-nums text-[var(--text-tertiary)]">
+                <Timer size={12} /> {cooldownRemaining}s
+              </span>
+            )}
+            {canSpeak && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                aria-label={isListening ? 'Stop listening' : 'Speak your question'}
+                className={isListening ? 'grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-red-500 text-white' : iconBtn(false)}
+              >
+                <Mic size={18} strokeWidth={1.7} className={isListening ? 'animate-pulse' : ''} />
+              </button>
+            )}
+            {isGenerating && !hasContent ? (
+              <button
+                type="button"
+                onClick={() => { setIsStopping(true); onStopGeneration(); }}
+                disabled={isStopping}
+                aria-label="Stop"
+                className="grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                <Square size={13} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={send}
+                disabled={!hasContent || isTrialExhausted || isOnCooldown}
+                aria-label="Send"
+                className={`grid h-9 w-9 place-items-center rounded-full transition-all duration-200 ${
+                  hasContent
+                    ? 'cursor-pointer bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[0_6px_16px_-6px_rgba(0,0,0,0.5)] hover:scale-[1.04]'
+                    : 'cursor-default text-[var(--text-primary)] opacity-60'
+                }`}
+              >
+                <ArrowUp size={19} strokeWidth={2.4} />
+              </button>
+            )}
           </div>
         </div>
-      </div>
+        </div>
+      </BorderGlow>
 
       <input ref={fileInputRef} type="file" onChange={onFileChange} className="hidden" />
     </div>

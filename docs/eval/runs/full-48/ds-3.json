@@ -1,0 +1,263 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Building a BST by inserting values",
+  "domain": "data-structures",
+  "summary": "Step‑by‑step insertion of 15, 10, 20, 8, and 12 into a binary search tree.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "bst",
+    "label": "Binary Search Tree",
+    "type": "tree",
+    "nodes": [
+     {
+      "id": "n0",
+      "value": 15
+     },
+     {
+      "id": "n1",
+      "value": 10,
+      "parent": "n0"
+     },
+     {
+      "id": "n2",
+      "value": 20,
+      "parent": "n0"
+     },
+     {
+      "id": "n3",
+      "value": 8,
+      "parent": "n1"
+     },
+     {
+      "id": "n4",
+      "value": 12,
+      "parent": "n1"
+     }
+    ]
+   },
+   {
+    "id": "hdr",
+    "type": "text",
+    "text": "Insert 15, 10, 20, 8, 12",
+    "role": "title"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "hdr",
+    "region": "top"
+   },
+   {
+    "rel": "place",
+    "id": "bst",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Start with empty tree",
+    "narration": "We begin with an empty binary search tree.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "bst",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert 15 as root",
+    "narration": "15 becomes the root because the tree is empty.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "bst.n0"
+     },
+     {
+      "do": "highlight",
+      "target": "bst.n0",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "bst.n0",
+      "text": "root",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert 10 left of 15",
+    "narration": "10 is less than 15, so it becomes the left child.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "bst.n0",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "bst.n1"
+     },
+     {
+      "do": "highlight",
+      "target": "bst.n1",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "bst.n1",
+      "text": "left",
+      "side": "left"
+     },
+     {
+      "do": "clear",
+      "target": "bst.n0"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert 20 right of 15",
+    "narration": "20 is greater than 15, so it becomes the right child.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "bst.n0",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "bst.n2"
+     },
+     {
+      "do": "highlight",
+      "target": "bst.n2",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "bst.n2",
+      "text": "right",
+      "side": "right"
+     },
+     {
+      "do": "clear",
+      "target": "bst.n0"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert 8 under 10",
+    "narration": "8 < 15, go left; 8 < 10, go left again, becoming left child of 10.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "bst.n0",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "bst.n1",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "bst.n3"
+     },
+     {
+      "do": "highlight",
+      "target": "bst.n3",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "bst.n3",
+      "text": "left",
+      "side": "left"
+     },
+     {
+      "do": "clear",
+      "target": [
+       "bst.n0",
+       "bst.n1"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert 12 under 10",
+    "narration": "12 < 15, go left; 12 > 10, go right, becoming right child of 10.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "bst.n0",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "bst.n1",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "bst.n4"
+     },
+     {
+      "do": "highlight",
+      "target": "bst.n4",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "bst.n4",
+      "text": "right",
+      "side": "right"
+     },
+     {
+      "do": "clear",
+      "target": [
+       "bst.n0",
+       "bst.n1"
+      ]
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities",
+   "message": "\"hdr\" is never shown"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 50575,
+ "model": "gemini-3.6-flash",
+ "domain": "algorithms",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Building a BST by inserting values\",\"domain\":\"data-structures\",\"summary\":\"Step‑by‑step insertion of 15, 10, 20, 8, and 12 into a binary search tree.\",\"spaces\":[],\"entities\":[{\"id\":\"bst\",\"type\":\"tree\",\"label\":\"Binary Search Tree\",\"nodes\":[{\"id\":\"n0\",\"value\":15},{\"id\":\"n1\",\"value\":10,\"parent\":\"n0\"},{\"id\":\"n2\",\"value\":20,\"parent\":\"n0\"},{\"id\":\"n3\",\"value\":8,\"parent\":\"n1\"},{\"id\":\"n4\",\"value\":12,\"parent\":\"n1\"}]},{\"id\":\"hdr\",\"type\":\"text\",\"text\":\"Insert 15, 10, 20, 8, 12\",\"role\":\"title\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"hdr\",\"region\":\"top\"},{\"rel\":\"place\",\"id\":\"bst\",\"region\":\"center\"}],\"beats\":[{\"title\":\"Start with empty tree\",\"narration\":\"We begin with an empty binary search tree.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"bst\",\"effect\":\"fade\"}]},{\"title\":\"Insert 15 as root\",\"narration\":\"15 becomes the root because the tree is empty.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"bst.n0\"},{\"do\":\"highlight\",\"target\":\"bst.n0\",\"state\":\"found\"},{\"do\":\"annotate\",\"target\":\"bst.n0\",\"text\":\"root\",\"side\":\"right\"}]},{\"title\":\"Insert 10 left of 15\",\"narration\":\"10 is less than 15, so it becomes the left child.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"bst.n0\",\"state\":\"comparing\"},{\"do\":\"create\",\"target\":\"bst.n1\"},{\"do\":\"highlight\",\"target\":\"bst.n1\",\"state\":\"found\"},{\"do\":\"annotate\",\"target\":\"bst.n1\",\"text\":\"left\",\"side\":\"left\"},{\"do\":\"clear\",\"target\":\"bst.n0\"}]},{\"title\":\"Insert 20 right of 15\",\"narration\":\"20 is greater than 15, so it becomes the right child.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"bst.n0\",\"state\":\"comparing\"},{\"do\":\"create\",\"target\":\"bst.n2\"},{\"do\":\"highlight\",\"target\":\"bst.n2\",\"state\":\"found\"},{\"do\":\"annotate\",\"target\":\"bst.n2\",\"text\":\"right\",\"side\":\"right\"},{\"do\":\"clear\",\"target\":\"bst.n0\"}]},{\"title\":\"Insert 8 under 10\",\"narration\":\"8 < 15, go left; 8 < 10, go left again, becoming left child of 10.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"bst.n0\",\"state\":\"comparing\"},{\"do\":\"highlight\",\"target\":\"bst.n1\",\"state\":\"comparing\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"bst.n3\"},{\"do\":\"highlight\",\"target\":\"bst.n3\",\"state\":\"found\"},{\"do\":\"annotate\",\"target\":\"bst.n3\",\"text\":\"left\",\"side\":\"left\"},{\"do\":\"clear\",\"target\":[\"bst.n0\",\"bst.n1\"]}]},{\"title\":\"Insert 12 under 10\",\"narration\":\"12 < 15, go left; 12 > 10, go right, becoming right child of 10.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"bst.n0\",\"state\":\"comparing\"},{\"do\":\"highlight\",\"target\":\"bst.n1\",\"state\":\"comparing\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"bst.n4\"},{\"do\":\"highlight\",\"target\":\"bst.n4\",\"state\":\"found\"},{\"do\":\"annotate\",\"target\":\"bst.n4\",\"text\":\"right\",\"side\":\"right\"},{\"do\":\"clear\",\"target\":[\"bst.n0\",\"bst.n1\"]}]}]}"
+}

@@ -1,0 +1,271 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Forces on a sliding block",
+  "domain": "physics",
+  "summary": "Visualize weight, normal, friction and net acceleration for a block on a ramp.",
+  "spaces": [
+   {
+    "id": "field",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     6
+    ],
+    "axes": true,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "ramp",
+    "space": "field",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      8,
+      0
+     ],
+     [
+      6.928,
+      4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "slope",
+    "space": "field",
+    "type": "line",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     6.928,
+     4
+    ],
+    "dashed": false
+   },
+   {
+    "id": "block",
+    "space": "field",
+    "type": "body",
+    "at": [
+     3.464,
+     2
+    ],
+    "size": "md"
+   },
+   {
+    "id": "W",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     3.464,
+     2
+    ],
+    "to": [
+     3.464,
+     -1.499
+    ],
+    "angleDeg": -90,
+    "magnitude": 3.499
+   },
+   {
+    "id": "N",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     3.464,
+     2
+    ],
+    "to": [
+     2.065,
+     4.424
+    ],
+    "angleDeg": 120,
+    "magnitude": 2.799
+   },
+   {
+    "id": "f",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     3.464,
+     2
+    ],
+    "to": [
+     2.858,
+     1.65
+    ],
+    "angleDeg": 210,
+    "magnitude": 0.7
+   },
+   {
+    "id": "accel",
+    "type": "math",
+    "latex": "a = \\frac{W_{\\parallel} - f}{m}"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "field",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "accel",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Ramp and block",
+    "narration": "A block sits halfway down a 30° ramp.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "ramp",
+       "slope",
+       "block"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Weight vector",
+    "narration": "Gravity pulls straight down with weight W.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "W"
+     },
+     {
+      "do": "highlight",
+      "target": "W",
+      "state": "active",
+      "hold": false
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Normal force",
+    "narration": "The ramp pushes back with a normal force N perpendicular to the surface.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "N"
+     },
+     {
+      "do": "highlight",
+      "target": "N",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Friction force",
+    "narration": "Friction f acts up the slope opposing motion.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "f"
+     },
+     {
+      "do": "highlight",
+      "target": "f",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Net acceleration",
+    "narration": "The remaining force gives acceleration a as shown.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "accel"
+     },
+     {
+      "do": "highlight",
+      "target": "accel",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 3,
+ "repairs": [
+  [
+   {
+    "path": "(root)",
+    "message": "the answer was cut off at the output limit"
+   }
+  ],
+  [
+   {
+    "path": "entities[2].at.along",
+    "message": "\"slope\" is not a line or vector of this scene"
+   },
+   {
+    "path": "entities[3].from",
+    "message": "\"block\" is not a point, body or polygon vertex of this scene"
+   },
+   {
+    "path": "entities[4].from",
+    "message": "\"block\" is not a point, body or polygon vertex of this scene"
+   },
+   {
+    "path": "entities[5].from",
+    "message": "\"block\" is not a point, body or polygon vertex of this scene"
+   },
+   {
+    "path": "entities[2].at",
+    "message": "Expected array, received object"
+   },
+   {
+    "path": "entities[3].from",
+    "message": "Expected array, received string"
+   },
+   {
+    "path": "entities[4].from",
+    "message": "Expected array, received string"
+   },
+   {
+    "path": "entities[5].from",
+    "message": "Expected array, received string"
+   }
+  ]
+ ],
+ "ms": 119099,
+ "model": "openai/gpt-oss-120b",
+ "domain": "general",
+ "drafts": [
+  "{\"version\":\"1\",\"title\":\"Forces on a block sliding down a ramp\",\"domain\":\"physics\",\"summary\":\"A 2 kg block slides down a 30° ramp. Gravity, the normal reaction, friction, and the resulting net force are shown as vectors and combined into the net‑force equation.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,6],\"axes\":true,\"grid\":true,\"equalAspect\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\"}],\"entities\":[{\"id\":\"wedge\",\"type\":\"polygon\",\"space\":\"field\",\"tone\":\"muted\",\"points\":[[0,0],[8,0],{\"from\":[0,0],\"angleDeg\":30,\"length\":8}],\"vertexLabels\":[\"A\",\"B\",\"C\"]},{\"id\":\"slope\",\"type\":\"line\",\"space\":\"field\",\"tone\":\"default\",\"from\":\"wedge.A\",\"to\":\"wedge.C\"},{\"id\":\"theta\",\"type\":\"angle\",\"space\":\"field\",\"tone\":\"default\",\"vertex\":\"wedge.A\",\"from\":\"wedge.B\",\"to\":\"wedge.C\",\"degrees\":30,\"label\":\"θ = 30°\"},{\"id\":\"block\",\"type\":\"body\",\"space\":\"field\",\"tone\":\"default\",\"at\":{\"along\":\"slope\",\"t\":0.5},\"size\":\"md\",\"label\":\"m = 2 kg\"},{\"id\":\"W\",\"type\":\"vector\",\"space\":\"field\",\"tone\":\"danger\",\"from\":\"block\",\"angleDeg\":-90,\"magnitude\":19.6,\"label\":\"W = mg\"},{\"id\":\"Wpar\",\"type\":\"vector\",\"space\":\"field\",\"tone\":\"warning\",\"from\":\"block\",\"along\":\"slope\",\"toward\":\"from\",\"magnitude\":9.8,\"label\":\"mg sinθ\"},{\"id\":\"Wperp\",\"type\":\"vector\",\"space\":\"field\",\"tone\":\"muted\",\"from\":\"block\",\"perp\":\"slope\",\"side\":\"right\",\"magnitude\":17.0,\"label\":\"mg cosθ\"},{\"id\":\"N\",\"type\":\"vector\",\"space\":\"field\",\"tone\":\"primary\",\"from\":\"block\",\"perp\":\"slope\",\"side\":\"left\",\"magnitude\":17.0,\"label\":\"N\"},{\"id\":\"f\",\"type\":\"vector\",\"space\":\"field\",\"tone\":\"info\",\"from\":\"block\",\"along\":\"slope\",\"toward\":\"to\",\"magnitude\":3.4,\"label\":\"f = μN\"},{\"id\":\"net\",\"type\":\"vector\",\"space\":\"field\",\"tone\":\"success\",\"from\":\"block\",\"along\":\"slope\",\"toward\":\"to\",\"magnitude\":6.4,\"label\":\"F_{net}\"},{\"id\":\"eq\",\"type\":\"math\",\"tone\":\"default\",\"latex\":\"F_{net}=mg\\\\sin\\\\theta-\\\\mu mg\\\\cos\\\\theta\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"}]}",
+  "{\"version\":\"1\",\"title\":\"Forces on a sliding block\",\"domain\":\"physics\",\"summary\":\"Visualize weight, normal, friction and net acceleration for a block on a ramp.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,6],\"axes\":true,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"ramp\",\"type\":\"polygon\",\"space\":\"field\",\"points\":[[0,0],[8,0],{\"from\":[0,0],\"angleDeg\":30,\"length\":8}]},{\"id\":\"slope\",\"type\":\"line\",\"space\":\"field\",\"from\":\"ramp.A\",\"to\":\"ramp.C\"},{\"id\":\"block\",\"type\":\"body\",\"space\":\"field\",\"at\":{\"along\":\"slope\",\"t\":0.5},\"size\":\"md\"},{\"id\":\"W\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"block\",\"angleDeg\":-90,\"magnitude\":10},{\"id\":\"N\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"block\",\"perp\":\"slope\",\"side\":\"left\",\"magnitude\":8},{\"id\":\"f\",\"type\":\"vector\",\"space\":\"field\",\"from\":\"block\",\"along\":\"slope\",\"toward\":\"from\",\"magnitude\":2},{\"id\":\"accel\",\"type\":\"math\",\"latex\":\"a = \\\\frac{W_{\\\\parallel} - f}{m}\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"accel\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Ramp and block\",\"narration\":\"A block sits halfway down a 30° ramp.\",\"actions\":[{\"do\":\"create\",\"target\":[\"ramp\",\"slope\",\"block\"]}]},{\"title\":\"Weight vector\",\"narration\":\"Gravity pulls straight down with weight W.\",\"actions\":[{\"do\":\"create\",\"target\":\"W\"},{\"do\":\"highlight\",\"target\":\"W\",\"state\":\"active\",\"hold\":false}]},{\"title\":\"Normal force\",\"narration\":\"The ramp pushes back with a normal force N perpendicular to the surface.\",\"actions\":[{\"do\":\"create\",\"target\":\"N\"},{\"do\":\"highlight\",\"target\":\"N\",\"state\":\"insight\",\"hold\":true}]},{\"title\":\"Friction force\",\"narration\":\"Friction f acts up the slope opposing motion.\",\"actions\":[{\"do\":\"create\",\"target\":\"f\"},{\"do\":\"highlight\",\"target\":\"f\",\"state\":\"insight\",\"hold\":true}]},{\"title\":\"Net acceleration\",\"narration\":\"The remaining force gives acceleration a as shown.\",\"actions\":[{\"do\":\"create\",\"target\":\"accel\"},{\"do\":\"highlight\",\"target\":\"accel\",\"state\":\"found\",\"hold\":true}]}]}"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"Forces on a sliding block\",\"domain\":\"physics\",\"summary\":\"Visualize weight, normal, friction and net acceleration for a block on a ramp.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,6],\"axes\":true,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"ramp\",\"type\":\"polygon\",\"space\":\"field\",\"points\":[[0,0],[8,0],{\"from\":[0,0],\"angleDeg\":30,\"length\":8}],\"size\":\"lg\"},{\"id\":\"slope\",\"type\":\"line\",\"space\":\"field\",\"from\":[0,0],\"to\":[6.928,4]},{\"id\":\"block\",\"type\":\"body\",\"space\":\"field\",\"at\":[3.464,2],\"size\":\"md\"},{\"id\":\"W\",\"type\":\"vector\",\"space\":\"field\",\"from\":[3.464,2],\"angleDeg\":-90,\"magnitude\":10},{\"id\":\"N\",\"type\":\"vector\",\"space\":\"field\",\"from\":[3.464,2],\"angleDeg\":120,\"magnitude\":8},{\"id\":\"f\",\"type\":\"vector\",\"space\":\"field\",\"from\":[3.464,2],\"angleDeg\":210,\"magnitude\":2},{\"id\":\"accel\",\"type\":\"math\",\"latex\":\"a = \\\\frac{W_{\\\\parallel} - f}{m}\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"accel\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Ramp and block\",\"narration\":\"A block sits halfway down a 30° ramp.\",\"actions\":[{\"do\":\"create\",\"target\":[\"ramp\",\"slope\",\"block\"]}]},{\"title\":\"Weight vector\",\"narration\":\"Gravity pulls straight down with weight W.\",\"actions\":[{\"do\":\"create\",\"target\":\"W\"},{\"do\":\"highlight\",\"target\":\"W\",\"state\":\"active\",\"hold\":false}]},{\"title\":\"Normal force\",\"narration\":\"The ramp pushes back with a normal force N perpendicular to the surface.\",\"actions\":[{\"do\":\"create\",\"target\":\"N\"},{\"do\":\"highlight\",\"target\":\"N\",\"state\":\"insight\",\"hold\":true}]},{\"title\":\"Friction force\",\"narration\":\"Friction f acts up the slope opposing motion.\",\"actions\":[{\"do\":\"create\",\"target\":\"f\"},{\"do\":\"highlight\",\"target\":\"f\",\"state\":\"insight\",\"hold\":true}]},{\"title\":\"Net acceleration\",\"narration\":\"The remaining force gives acceleration a as shown.\",\"actions\":[{\"do\":\"create\",\"target\":\"accel\"},{\"do\":\"highlight\",\"target\":\"accel\",\"state\":\"found\",\"hold\":true}]}]}"
+}

@@ -102,7 +102,7 @@ class CircuitBreaker {
   /**
    * Report a failed request — may trip the breaker
    */
-  reportFailure(provider, statusCode = 500, errorType = 'unknown') {
+  reportFailure(provider, statusCode = 500, errorType = 'unknown', retryAfterMs = null) {
     if (!this.providers[provider]) {
       this.providers[provider] = this._newProviderState(provider);
     }
@@ -130,14 +130,22 @@ class CircuitBreaker {
     
     if (instantTrip || p.consecutiveFailures >= TRIP_THRESHOLD) {
       p.state = 'OPEN';
-      p.nextRetryAt = Date.now() + cooldown;
+      // a per-minute limit that says "try again in 4.6s" is not an outage: block only that long
+      const wait = statusCode === 429 && retryAfterMs ? Math.min(cooldown, Math.max(2000, retryAfterMs + 500)) : cooldown;
+      p.nextRetryAt = Date.now() + wait;
       const reason = instantTrip ? `HTTP ${statusCode}` : `${p.consecutiveFailures} consecutive failures`;
-      console.warn(`[CircuitBreaker] ⚠️ ${provider}: CLOSED → OPEN (${reason}, cooldown ${cooldown / 1000}s)`);
+      console.warn(`[CircuitBreaker] ⚠️ ${provider}: CLOSED → OPEN (${reason}, cooldown ${wait / 1000}s)`);
       this._persistToRedis(provider);
     } else {
       // Just normal failure increment, still persist
       this._persistToRedis(provider);
     }
+  }
+
+  /** ms until an OPEN provider accepts a probe again (0 when it is not open) */
+  retryInMs(provider) {
+    const p = this.providers[provider];
+    return p && p.state === 'OPEN' ? Math.max(0, p.nextRetryAt - Date.now()) : 0;
   }
 
   /**
@@ -222,6 +230,15 @@ export const circuitBreaker = new CircuitBreaker();
 /**
  * Functional wrapper for circuit-protected execution
  */
+/** How long a rate-limited provider asked us to wait (Retry-After header or "try again in 4.59s"), in ms. */
+export function retryAfterMs(err) {
+  const header = err?.headers?.get?.('retry-after') ?? err?.headers?.['retry-after'] ?? err?.response?.headers?.['retry-after'];
+  if (header !== undefined && header !== null && !Number.isNaN(Number(header))) return Number(header) * 1000;
+  const m = /try again in ([\d.]+)\s*(ms|s)\b/i.exec(err?.message || '');
+  if (!m) return null;
+  return m[2].toLowerCase() === 'ms' ? Number(m[1]) : Number(m[1]) * 1000;
+}
+
 export const withCircuitBreaker = async (provider, fn) => {
   if (!circuitBreaker.isAvailable(provider)) {
     throw new Error(`CIRCUIT_OPEN: ${provider} is currently unavailable.`);
@@ -234,7 +251,11 @@ export const withCircuitBreaker = async (provider, fn) => {
     return result;
   } catch (err) {
     const statusCode = err.response?.status || err.status || 500;
-    circuitBreaker.reportFailure(provider, statusCode, err.message);
+    // A cancelled call or a request the provider rejects as malformed (400/404/413/422)
+    // says nothing about the provider's health — only outages, auth and quota should trip it.
+    const aborted = err.name === 'AbortError' || err.name === 'APIUserAbortError' || /abort/i.test(err.message || '');
+    const requestError = [400, 404, 413, 422].includes(statusCode);
+    if (!aborted && !requestError) circuitBreaker.reportFailure(provider, statusCode, err.message, retryAfterMs(err));
     throw err;
   }
 };

@@ -3,73 +3,64 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, ArrowRight, User, Sparkles, Zap, Layout, Info, ChevronRight, Globe, ExternalLink, Code } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import VisaiLogo from './VisaiLogo';
+import BrandLockup from './BrandLockup';
+import ThemeToggle from '../ui/ThemeToggle';
 
-const LoginNavbar = () => {
+const LoginNavbar = ({ compact = false, onMenuOpenChange }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const { isAuthenticated, user, loginGuest } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Lock body scroll when mobile menu is open
+    // Reset menu on route change
     React.useEffect(() => {
-        if (isMenuOpen) {
+        setIsMenuOpen(false);
+        onMenuOpenChange?.(false);
+    }, [location.pathname]);
+
+    // Lock body scroll when mobile menu is open (only in non-compact full screen mode)
+    React.useEffect(() => {
+        if (isMenuOpen && !compact) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [isMenuOpen]);
+    }, [isMenuOpen, compact]);
 
     const links = [
-        { 
-            label: 'How it works', 
-            path: '/how-it-works', 
-            icon: <Zap size={20} />,
-            color: 'text-orange-400',
-            desc: 'The magic behind visual learning' 
-        },
-        { 
-            label: 'Features', 
-            path: '/features', 
-            icon: <Sparkles size={20} />,
-            color: 'text-purple-400',
-            desc: 'Powerful tools for every subject' 
-        },
-        { 
-            label: 'Solutions', 
-            path: '/solutions', 
-            icon: <Layout size={20} />,
-            color: 'text-blue-400',
-            desc: 'Tailored for students & teachers' 
-        },
-        { 
-            label: 'About', 
-            path: '/about', 
-            icon: <Info size={20} />,
-            color: 'text-emerald-400',
-            desc: 'Our mission and the team' 
-        },
+        { label: 'How it works', path: '/how-it-works' },
+        { label: 'Features', path: '/features' },
+        { label: 'Solutions', path: '/solutions' },
+        { label: 'About', path: '/about' },
     ];
 
-    const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+    const mobileDrawerItems = [
+        ...links,
+        ...(!isAuthenticated && location.pathname !== '/login'
+            ? [{ label: 'Get started', path: '/login', isButton: true }]
+            : []),
+    ];
+
+    const toggleMenu = () => {
+        setIsMenuOpen(prev => {
+            const next = !prev;
+            onMenuOpenChange?.(next);
+            return next;
+        });
+    };
 
     return (
         <>
-        <nav className="fixed top-0 left-0 right-0 z-[100] border-b border-[var(--border-color)] bg-[var(--bg-primary)]">
-            <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-20 py-4 flex items-center justify-between font-sans">
+        <nav className={`${compact ? 'relative w-full h-10 lg:h-11 bg-transparent' : 'fixed top-0 left-0 right-0 h-14 bg-transparent'} z-[102] border-none transition-colors pointer-events-auto`}>
+            <div className={`${compact ? 'w-full px-1.5' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-10'} h-full flex items-center justify-between font-sans`}>
                 {/* Logo Area */}
-                <Link to="/" className="flex items-center gap-3 group">
-                    <div className="relative">
-                        <VisaiLogo size="sm" className="text-[var(--text-primary)] transition-transform duration-500 group-hover:rotate-[360deg]" />
-                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--text-primary)] rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <span className="text-[12px] font-heading font-extrabold uppercase tracking-[0.3em] text-[var(--text-primary)]">
-                        TutorBoard
-                    </span>
+                <Link to="/" className="flex items-center cursor-pointer select-none transition-opacity hover:opacity-70">
+                    <BrandLockup />
                 </Link>
 
-                {/* Desktop Navigation Links */}
+                {/* Desktop Navigation Links (Only in full navbar mode) */}
+                {!compact && (
                 <div className="hidden lg:flex items-center gap-10">
                     <div className="flex items-center gap-8 text-[11px] font-normal uppercase tracking-widest text-[var(--text-secondary)]">
                         {links.map((link) => (
@@ -85,6 +76,8 @@ const LoginNavbar = () => {
                     </div>
 
                     <div className="h-4 w-[1px] bg-[var(--border-color)] opacity-50" />
+
+                    <ThemeToggle />
 
                     <AnimatePresence mode="wait">
                         {isAuthenticated ? (
@@ -115,21 +108,46 @@ const LoginNavbar = () => {
                         )}
                     </AnimatePresence>
                 </div>
+                )}
 
-                {/* Mobile Menu Icon Toggle */}
-                <div className="lg:hidden flex items-center gap-4">
+                {/* Navigation Controls */}
+                <div className={`${compact ? 'flex' : 'lg:hidden flex'} items-center gap-2.5`}>
+                    {/* Celestial Theme Toggle Button */}
+                    <ThemeToggle />
+
+                    {/* Tactile Circular Menu Button */}
                     <button 
+                        type="button"
                         onClick={toggleMenu}
-                        className="p-2 text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] rounded-2xl transition-all active:scale-90 relative z-[110]"
+                        aria-label="Toggle navigation menu"
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-xs cursor-pointer relative z-[110] ${
+                            isMenuOpen 
+                                ? 'bg-black/10 dark:bg-white/10 text-[var(--text-primary)] dark:text-white border border-black/15 dark:border-white/20' 
+                                : 'bg-transparent hover:bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)]'
+                        }`}
                     >
                         <AnimatePresence mode="wait">
                             {isMenuOpen ? (
-                                <motion.div key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }}>
-                                    <X size={22} strokeWidth={2.5} />
+                                <motion.div 
+                                    key="close" 
+                                    initial={{ rotate: -90, opacity: 0, scale: 0.8 }} 
+                                    animate={{ rotate: 0, opacity: 1, scale: 1 }} 
+                                    exit={{ rotate: 90, opacity: 0, scale: 0.8 }}
+                                    transition={{ duration: 0.15 }}
+                                >
+                                    <X size={15} strokeWidth={2.2} />
                                 </motion.div>
                             ) : (
-                                <motion.div key="menu" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }}>
-                                    <Menu size={22} strokeWidth={2.5} />
+                                <motion.div 
+                                    key="menu" 
+                                    initial={{ rotate: 90, opacity: 0, scale: 0.8 }} 
+                                    animate={{ rotate: 0, opacity: 1, scale: 1 }} 
+                                    exit={{ rotate: -90, opacity: 0, scale: 0.8 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="flex flex-col items-end justify-center gap-[4px] w-3.5"
+                                >
+                                    <span className="w-3.5 h-[1.75px] bg-current rounded-full" />
+                                    <span className="w-2.5 h-[1.75px] bg-current rounded-full" />
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -138,128 +156,102 @@ const LoginNavbar = () => {
             </div>
         </nav>
 
-        {/* Mobile Sidenav Overlay & Panel - OUTSIDE of nav to avoid backdrop-filter trapping */}
+        {/* Minimalist Animate-Down Popover Menu */}
         <AnimatePresence>
             {isMenuOpen && (
                 <>
+                    {/* Transparent Click-Outside Overlay for entire screen */}
+                    <div
+                        onClick={toggleMenu}
+                        className="fixed inset-0 z-[100] cursor-default"
+                        aria-hidden="true"
+                    />
+
+                    {/* Subtle Transparent Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                         onClick={toggleMenu}
-                        className="fixed inset-0 bg-black/60 z-[100] lg:hidden"
+                        className={`${compact ? 'fixed top-0 left-0 w-full lg:w-1/4 h-screen z-[101]' : 'fixed inset-0 z-[101] lg:hidden'} cursor-default bg-[var(--bg-primary)]/35 dark:bg-black/45 backdrop-blur-sm`}
+                        aria-hidden="true"
                     />
-                    <motion.aside
-                        initial={{ x: '100%' }}
-                        animate={{ x: 0 }}
-                        exit={{ x: '100%' }}
-                        transition={{ type: 'spring', damping: 30, stiffness: 300, mass: 0.8 }}
-                        className="fixed top-0 right-0 h-full w-[85%] max-w-[360px] bg-[var(--bg-primary)] border-l border-[var(--border-color)] z-[110] lg:hidden flex flex-col shadow-2xl overflow-hidden"
+
+                    {/* Floating Menu - All Right-Aligned, Container Removed */}
+                    <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                        style={{ transformOrigin: 'top right' }}
+                        className={`${compact ? 'absolute top-[46px] right-2 z-[105]' : 'fixed top-[58px] right-6 z-[105] lg:hidden'} py-1 px-1 flex flex-col items-end pointer-events-auto select-none`}
                     >
-                        {/* Sidenav Header */}
-                        <div className="p-8 pb-6 border-b border-[var(--border-color)] bg-gradient-to-b from-[var(--bg-secondary)] to-transparent pt-12 relative">
-                            {/* Close button inside aside */}
-                            <button 
-                                onClick={toggleMenu} 
-                                className="absolute top-4 right-4 p-2 text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] rounded-xl transition-all active:scale-95 z-[120]"
-                            >
-                                <X size={20} strokeWidth={2} />
-                            </button>
-
-                            <Link to="/" onClick={toggleMenu} className="flex items-center gap-3 mb-6 group cursor-pointer inline-flex">
-                                <div className="relative">
-                                    <VisaiLogo size="sm" className="text-[var(--text-primary)] transition-transform duration-500 group-hover:rotate-[360deg]" />
-                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--text-primary)] rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[12px] font-heading font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)] group-hover:text-[var(--text-secondary)] transition-colors">TutorBoard</span>
-                                    <span className="text-[9px] font-normal text-[var(--text-tertiary)] uppercase tracking-widest">Visual Learning System</span>
-                                </div>
-                            </Link>
-
-                            <div className="h-[1px] w-full bg-gradient-to-r from-[var(--border-color)] to-transparent" />
-                        </div>
-
-                        {/* Sidenav Content - Links */}
-                        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
-                            {links.map((link, i) => {
-                                const isActive = location.pathname === link.path;
+                        {/* Minimalist Numeric Index Navigation - Right Aligned */}
+                        <div className="flex flex-col items-end gap-3.5 py-1">
+                            {mobileDrawerItems.map((item, i) => {
+                                const isActive = location.pathname === item.path;
                                 return (
                                     <motion.div
-                                        key={link.path}
-                                        initial={{ opacity: 0, x: 40 }}
+                                        key={item.label}
+                                        initial={{ opacity: 0, x: 8 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        transition={{ duration: 0.8, delay: 0.1 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                                        transition={{ duration: 0.18, delay: i * 0.025 }}
+                                        className="flex justify-end w-full"
                                     >
-                                        <Link 
-                                            to={link.path} 
-                                            onClick={toggleMenu}
-                                            className={`group flex items-start gap-4 p-4 rounded-2xl transition-all duration-300 border ${
-                                                isActive 
-                                                ? 'bg-[var(--bg-secondary)] border-[var(--text-primary)]/20 shadow-sm' 
-                                                : 'bg-transparent border-transparent hover:bg-[var(--bg-secondary)] hover:border-[var(--border-color)]'
-                                            }`}
-                                        >
-                                            <div className={`mt-1 p-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)] shadow-sm transition-transform duration-300 group-hover:scale-110 ${link.color}`}>
-                                                {link.icon}
-                                            </div>
-                                            <div className="flex flex-col flex-1">
-                                                <div className="flex items-center justify-between">
-                                                    <span className={`text-[15px] font-normal tracking-tight ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'}`}>
-                                                        {link.label}
-                                                    </span>
-                                                    <ChevronRight size={14} className={`transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'} text-[var(--text-tertiary)]`} />
-                                                </div>
-                                                <span className="text-[11px] text-[var(--text-tertiary)] font-normal leading-tight mt-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                                                    {link.desc}
+                                        {item.isButton ? (
+                                            <Link 
+                                                to={item.path} 
+                                                onClick={toggleMenu}
+                                                style={{
+                                                    backgroundColor: 'var(--text-primary)',
+                                                    color: 'var(--bg-primary)',
+                                                }}
+                                                className="mt-2 inline-flex items-center justify-center px-4 py-2 rounded-full text-[13px] font-semibold tracking-tight hover:opacity-90 active:scale-95 transition-all shadow-sm cursor-pointer select-none"
+                                            >
+                                                {item.label}
+                                            </Link>
+                                        ) : item.onClick ? (
+                                            <button 
+                                                onClick={item.onClick}
+                                                className="group flex items-center justify-end gap-2.5 py-1 text-right cursor-pointer select-none"
+                                            >
+                                                <span className="text-[14px] font-normal tracking-tight text-[var(--text-primary)] dark:text-neutral-200 group-hover:text-purple-600 dark:group-hover:text-white transition-colors">
+                                                    {item.label}
                                                 </span>
-                                            </div>
-                                        </Link>
+                                                <span className="h-[1.5px] rounded-full transition-all duration-300 w-4 bg-[var(--border-color)] dark:bg-neutral-700 group-hover:w-6 group-hover:bg-purple-500" />
+                                            </button>
+                                        ) : (
+                                            <Link 
+                                                to={item.path} 
+                                                onClick={toggleMenu}
+                                                className="group flex items-center justify-end gap-2.5 py-1 text-right cursor-pointer select-none"
+                                            >
+                                                <span className={`text-[14px] tracking-tight transition-colors ${
+                                                    isActive 
+                                                        ? 'text-purple-600 dark:text-purple-300 font-medium' 
+                                                        : 'font-normal text-[var(--text-primary)] dark:text-neutral-200 group-hover:text-purple-600 dark:group-hover:text-white'
+                                                }`}>
+                                                    {item.label}
+                                                </span>
+                                                <span className={`h-[1.5px] rounded-full transition-all duration-300 ${
+                                                    isActive 
+                                                        ? 'w-6 bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]' 
+                                                        : 'w-4 bg-[var(--border-color)] dark:bg-neutral-700 group-hover:w-6 group-hover:bg-purple-500'
+                                                }`} />
+                                            </Link>
+                                        )}
                                     </motion.div>
                                 );
                             })}
                         </div>
 
-                        {/* Sidenav Footer */}
-                        <div className="p-6 mt-auto border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/30">
-                            <motion.div 
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.4 }}
-                                className="relative p-5 rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-color)] overflow-hidden group shadow-sm mb-6"
-                            >
-                                <div className="absolute top-0 right-0 p-3 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
-                                    <Sparkles size={64} className="text-[var(--text-primary)]" />
-                                </div>
-                                <div className="relative z-10 flex flex-col gap-4">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-heading font-extrabold uppercase tracking-[0.2em] text-[var(--text-primary)]">Take the leap</span>
-                                        <span className="text-[14px] font-heading font-medium tracking-tight text-[var(--text-secondary)] mt-1">Start your visual journey today.</span>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            navigate('/');
-                                            toggleMenu();
-                                        }}
-                                        className="w-full flex items-center justify-center gap-2 bg-[var(--text-primary)] text-[var(--bg-primary)] py-3 rounded-xl text-[11px] font-extrabold uppercase tracking-[0.2em] shadow-lg shadow-[var(--text-primary)]/10 hover:opacity-90 active:scale-95 transition-all"
-                                    >
-                                        Get Started <ArrowRight size={14} strokeWidth={3} />
-                                    </button>
-                                </div>
-                            </motion.div>
-
-                            <div className="flex items-center justify-between px-2 opacity-40">
-                                <div className="flex gap-4">
-                                    <Globe size={14} className="hover:text-[var(--text-primary)] transition-colors cursor-pointer" />
-                                    <Code size={14} className="hover:text-[var(--text-primary)] transition-colors cursor-pointer" />
-                                    <Sparkles size={14} className="hover:text-[var(--text-primary)] transition-colors cursor-pointer" />
-                                </div>
-                                <span className="text-[8px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-1">
-                                    v1.0.4 <ExternalLink size={8} />
-                                </span>
-                            </div>
+                        {/* Minimalist Bottom Whisper - Right Aligned */}
+                        <div className="pt-2 mt-1 border-t border-[var(--border-color)]/30 dark:border-white/[0.06] flex items-center justify-end gap-2 text-[11px] font-normal text-[var(--text-tertiary)] dark:text-neutral-500/70 select-none pointer-events-none">
+                            <span>TutorBoard</span>
+                            <span>v1.0.4</span>
                         </div>
-                    </motion.aside>
+                    </motion.div>
                 </>
             )}
         </AnimatePresence>

@@ -6,6 +6,7 @@ import {
   RotateCcw, Play, MessageSquare, Target, BookMarked, X
 } from 'lucide-react';
 import { ALGO_COLORS } from '../../constants/canvas';
+import useTutorStore from '../../store/tutorStore';
 
 const EASE = [0.16, 1, 0.3, 1];
 
@@ -57,6 +58,15 @@ export function SessionGuide({
 
   const progressPercent = totalSteps > 0 ? ((stepIndex + 1) / totalSteps) * 100 : 0;
 
+  // The doubt being answered (pending) or just answered (active) for this lesson.
+  const pendingDoubt = useTutorStore((s) => s.pendingDoubt);
+  const activeDoubt = activeDoubtId ? doubtHistory.find((d) => d.id === activeDoubtId) : null;
+  const showDoubt = (isDoubtProcessing && pendingDoubt) || activeDoubt;
+
+  useEffect(() => {
+    if (showDoubt && scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [showDoubt, activeDoubtId]);
+
   const isEmpty = !narration && !stepTitles.length && !professorNote;
 
   return (
@@ -69,16 +79,16 @@ export function SessionGuide({
           </div>
           <div className="flex flex-col gap-0.5">
              <h2 
-               className="uppercase tracking-[0.25em] text-[var(--text-primary)] leading-none"
+               className="text-[var(--text-primary)] leading-none"
                style={{ fontSize: '13px', fontWeight: 600 }}
              >
                Session
              </h2>
              <span 
-               className="font-bold text-indigo-400/90 tracking-[0.15em] leading-none"
-               style={{ fontSize: '7px' }}
+               className="font-medium text-indigo-400/90 leading-none"
+               style={{ fontSize: '9px' }}
              >
-               {isAlgo ? 'ALGORITHM GUIDE' : 'CONCEPT GUIDE'}
+               {isAlgo ? 'Algorithm Guide' : 'Concept Guide'}
              </span>
           </div>
         </div>
@@ -104,11 +114,64 @@ export function SessionGuide({
         {isEmpty ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8 opacity-40">
             <div className="w-12 h-12 rounded-full border-2 border-dashed border-[var(--text-tertiary)] mb-4 animate-spin-slow" />
-            <p className="text-[11px] font-medium uppercase tracking-widest">Analyzing Context</p>
+            <p className="text-[12px] font-medium text-[var(--text-primary)]">Analyzing context</p>
             <p className="text-[9px] mt-2 leading-relaxed max-w-[140px]">The tutor is orchestrating your visual session...</p>
           </div>
         ) : (
           <>
+            {/* Doubt — asked about the current step, answered in place */}
+            <AnimatePresence>
+              {showDoubt && (
+                <motion.div
+                  key={activeDoubt?.id || 'pending-doubt'}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.35, ease: EASE }}
+                >
+                  <Section icon={<MessageSquare size={12} />} label="Your Question" color="#2dd4bf">
+                    <div className="p-4 rounded-2xl bg-teal-500/[0.03] border border-teal-500/15 relative shadow-inner flex flex-col gap-3">
+                      <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-teal-400/50 to-transparent" />
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-[11px] leading-[1.6] text-[var(--text-secondary)] italic">
+                          “{activeDoubt?.question || pendingDoubt}”
+                        </p>
+                        <span className="shrink-0 px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-[10px] font-medium text-[var(--text-tertiary)]">
+                          Step {(activeDoubt?.stepIndex ?? stepIndex) + 1}
+                        </span>
+                      </div>
+                      {activeDoubt ? (
+                        <>
+                          <p className="text-[11.5px] leading-[1.7] text-[var(--text-primary)] font-light">
+                            {activeDoubt.answer}
+                          </p>
+                          {activeDoubt.followUp && (
+                            <p className="text-[10.5px] leading-[1.6] text-teal-300/80">
+                              {activeDoubt.followUp}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2 text-[10.5px] text-[var(--text-tertiary)]">
+                          <span className="flex gap-1">
+                            {[0, 1, 2].map((i) => (
+                              <motion.span
+                                key={i}
+                                className="w-1 h-1 rounded-full bg-teal-400"
+                                animate={{ opacity: [0.2, 1, 0.2] }}
+                                transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18 }}
+                              />
+                            ))}
+                          </span>
+                          Looking at this step on your canvas…
+                        </div>
+                      )}
+                    </div>
+                  </Section>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Professor's Note */}
             {professorNote && (
               <Section icon={<Brain size={12} />} label="Professor's Note" color="#6366f1">
@@ -145,13 +208,13 @@ export function SessionGuide({
                 <div className="grid grid-cols-2 gap-2.5">
                   {step.timeComplexity && (
                     <div className="p-3 rounded-2xl bg-rose-500/[0.03] border border-rose-500/10">
-                      <span className="text-[8px] uppercase tracking-widest text-rose-500/60 font-bold block mb-1">Time</span>
+                      <span className="text-[10px] text-rose-500/80 font-medium block mb-1">Time</span>
                       <span className="text-[12px] font-mono font-bold text-rose-500">{step.timeComplexity}</span>
                     </div>
                   )}
                   {step.spaceComplexity && (
                     <div className="p-3 rounded-2xl bg-blue-500/[0.03] border border-blue-500/10">
-                      <span className="text-[8px] uppercase tracking-widest text-blue-500/60 font-bold block mb-1">Space</span>
+                      <span className="text-[10px] text-blue-500/80 font-medium block mb-1">Space</span>
                       <span className="text-[12px] font-mono font-bold text-blue-500">{step.spaceComplexity}</span>
                     </div>
                   )}
@@ -165,7 +228,7 @@ export function SessionGuide({
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(variables).map(([k, v]) => (
                     <div key={k} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5">
-                      <span className="text-[8.5px] uppercase tracking-wider text-[var(--text-tertiary)] font-bold">{k}</span>
+                      <span className="text-[10px] text-[var(--text-tertiary)] font-medium">{k}</span>
                       <span className="text-[10px] font-mono font-bold text-[#10b981]">{String(v)}</span>
                     </div>
                   ))}
@@ -210,7 +273,7 @@ export function SessionGuide({
         <button
           onClick={onReplay}
           disabled={totalSteps === 0}
-          className="flex-1 apple-pill bg-white/5 border border-white/10 text-[10px] uppercase tracking-widest text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex-1 apple-pill bg-white/5 border border-white/10 text-xs font-medium text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <RotateCcw size={12} />
           Replay
@@ -218,7 +281,7 @@ export function SessionGuide({
         <button
           onClick={onResume}
           disabled={totalSteps === 0}
-          className="flex-1 apple-pill bg-[var(--text-primary)] text-[var(--bg-primary)] text-[10px] uppercase tracking-widest hover:opacity-90 shadow-premium disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex-1 apple-pill bg-[var(--text-primary)] text-[var(--bg-primary)] text-xs font-medium hover:opacity-90 shadow-premium disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <Play size={12} fill="currentColor" />
           Resume
@@ -231,9 +294,9 @@ export function SessionGuide({
 function Section({ label, icon, children, color = 'var(--text-primary)' }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 opacity-50">
+      <div className="flex items-center gap-2 opacity-70">
         <div style={{ color }}>{icon}</div>
-        <span className="text-[8.5px] font-bold uppercase tracking-[0.2em] text-[var(--text-primary)]">
+        <span className="text-[11px] font-medium text-[var(--text-primary)]">
           {label}
         </span>
       </div>
@@ -256,7 +319,7 @@ export function AlgoLegend({ activeStates = [] }) {
         return (
           <div key={s} className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-            <span className="text-[10px] font-medium uppercase tracking-wider opacity-50" style={{ color: 'var(--text-primary)' }}>
+            <span className="text-[11px] font-medium opacity-60" style={{ color: 'var(--text-primary)' }}>
               {LABELS[s] || s}
             </span>
           </div>

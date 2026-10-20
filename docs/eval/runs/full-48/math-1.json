@@ -1,0 +1,110 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Solving 2x + 3 = 11",
+  "domain": "math",
+  "summary": "Subtract 3 then divide by 2 to isolate x.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "eq0",
+    "label": "Equation",
+    "type": "math",
+    "latex": "2x + 3 = 11"
+   },
+   {
+    "id": "step1",
+    "type": "math",
+    "latex": "2x = 8"
+   },
+   {
+    "id": "step2",
+    "type": "math",
+    "latex": "x = 4"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "column",
+    "ids": [
+     "eq0",
+     "step1",
+     "step2"
+    ],
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Start",
+    "narration": "Write the original equation.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq0",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Subtract 3",
+    "narration": "Subtract 3 from both sides to get 2x = 8.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "step1",
+      "effect": "fade"
+     },
+     {
+      "do": "annotate",
+      "target": "step1",
+      "text": "Subtract 3",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Divide by 2",
+    "narration": "Divide both sides by 2 to isolate x, giving x = 4.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "step2",
+      "effect": "fade"
+     },
+     {
+      "do": "annotate",
+      "target": "step2",
+      "text": "Divide by 2",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Solution",
+    "narration": "The solution is x = 4.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "step2",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 27896,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Solving 2x + 3 = 11\",\"domain\":\"math\",\"summary\":\"Subtract 3 then divide by 2 to isolate x.\",\"spaces\":[],\"entities\":[{\"id\":\"eq0\",\"type\":\"math\",\"latex\":\"2x + 3 = 11\",\"label\":\"Equation\"},{\"id\":\"step1\",\"type\":\"math\",\"latex\":\"2x = 8\"},{\"id\":\"step2\",\"type\":\"math\",\"latex\":\"x = 4\"}],\"layout\":[{\"rel\":\"column\",\"ids\":[\"eq0\",\"step1\",\"step2\"],\"gap\":\"md\"}],\"beats\":[{\"title\":\"Start\",\"narration\":\"Write the original equation.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"eq0\",\"effect\":\"pop\"}]},{\"title\":\"Subtract 3\",\"narration\":\"Subtract 3 from both sides to get 2x = 8.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"step1\",\"effect\":\"fade\"},{\"do\":\"annotate\",\"target\":\"step1\",\"text\":\"Subtract 3\",\"side\":\"right\"}]},{\"title\":\"Divide by 2\",\"narration\":\"Divide both sides by 2 to isolate x, giving x = 4.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"step2\",\"effect\":\"fade\"},{\"do\":\"annotate\",\"target\":\"step2\",\"text\":\"Divide by 2\",\"side\":\"right\"}]},{\"title\":\"Solution\",\"narration\":\"The solution is x = 4.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"step2\",\"state\":\"found\"}]}]}"
+}

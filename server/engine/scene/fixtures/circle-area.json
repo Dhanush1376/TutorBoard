@@ -1,0 +1,61 @@
+{
+  "version": "1",
+  "title": "Why a circle's area is πr²",
+  "domain": "geometry",
+  "summary": "Cut a circle into slices and lay them side by side: they form an almost-rectangle πr wide and r tall.",
+  "spaces": [],
+  "entities": [
+    { "id": "disc", "type": "pie", "slices": 16, "shaded": [0, 1, 2, 3, 4, 5, 6, 7], "size": "lg", "label": "circle of radius r", "tone": "primary" },
+    { "id": "circ", "type": "math", "latex": "C = 2\\pi r" },
+    { "id": "dims", "type": "math", "latex": "\\text{base} \\approx \\tfrac{1}{2}C = \\pi r, \\quad \\text{height} = r" },
+    { "id": "area", "type": "math", "latex": "A = \\pi r \\times r = \\pi r^2" }
+  ],
+  "layout": [
+    { "rel": "column", "ids": ["disc", "circ", "dims", "area"], "gap": "md" }
+  ],
+  "beats": [
+    {
+      "title": "A circle of radius r",
+      "narration": "Here is a circle of radius r. Its rim, the circumference, is 2πr long.",
+      "actions": [
+        { "do": "create", "target": "disc", "effect": "pop" },
+        { "do": "create", "target": "circ", "effect": "type" }
+      ]
+    },
+    {
+      "title": "Cut it into slices",
+      "narration": "Cut it into 16 equal slices. The shaded half carries half the rim: πr of it.",
+      "actions": [
+        { "do": "highlight", "target": ["disc.s0", "disc.s1", "disc.s2", "disc.s3", "disc.s4", "disc.s5", "disc.s6", "disc.s7"], "state": "insight", "hold": false }
+      ],
+      "check": {
+        "question": "Lay the slices side by side, tips alternating up and down. What shape appears?",
+        "choices": ["A triangle", "Almost a rectangle", "A circle again"],
+        "answer": 1,
+        "explain": "The slices interlock: the shaded arcs make the top edge, the others the bottom."
+      }
+    },
+    {
+      "title": "Lay the slices in a row",
+      "narration": "Unroll the slices, alternating up and down. They interlock into an almost-rectangle.",
+      "actions": [{ "do": "rearrange", "target": "disc", "into": "strip" }],
+      "pace": "slow"
+    },
+    {
+      "title": "Measure its sides",
+      "narration": "Its top edge is half the rim, πr. Its height is a slice's length: r.",
+      "actions": [
+        { "do": "create", "target": "dims", "effect": "type" },
+        { "do": "annotate", "target": "disc", "text": "πr wide, r tall", "side": "below" }
+      ]
+    },
+    {
+      "title": "Area = πr²",
+      "narration": "Width times height: πr × r. So a circle's area is πr².",
+      "actions": [
+        { "do": "create", "target": "area", "effect": "type" },
+        { "do": "highlight", "target": "area", "state": "found" }
+      ]
+    }
+  ]
+}

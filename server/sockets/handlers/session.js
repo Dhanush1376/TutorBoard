@@ -5,6 +5,7 @@ import LearnerProfile from '../../models/LearnerProfile.js';
 import ChatSession from '../../models/ChatSession.js';
 import SpacedRepetitionScheduler from '../../engine/core/SpacedRepetitionScheduler.js';
 import { generateTimeline, generateTextResponse, generateQuiz } from '../../engine/core/pedagogyEngine.js';
+import { engineV2Enabled, learnerLevelOf, lessonFailure, planLesson, sceneModel } from '../../engine/scene/lesson.js';
 import { detectIntent } from '../../engine/core/intentEngine.js';
 import { checkSocketRate, checkGuestUsage, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../../middleware/rateLimiter.js';
 
@@ -284,7 +285,43 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       }, 5000);
 
       try {
-        const timeline = await withTimeout(
+        let timeline = null;
+        let streamedBeats = 0;
+        if (engineV2Enabled() && !file) {
+          // Engine v2: stream the lesson beat by beat. v1 below only handles lessons
+          // about an attached file (v2 can't read files yet); when v2 fails the learner
+          // is told why rather than shown v1's one-node placeholder.
+          const genericAgent = !selectedAgent || /universal|tutor|bytez|tutu/i.test(selectedAgent);
+          const model = userConfig?.useCustomApi || !genericAgent ? resolveModelId(selectedAgent) : sceneModel();
+          try {
+            const profile = (await sessionStore.get(sessionId))?.learnerProfile;
+            const v2 = await withTimeout(planLesson(cleanTopic, {
+              model,
+              userConfig,
+              signal,
+              learner: learnerLevelOf({ confusionIndex: profile?.confusionIndex, style: profile?.learningStyle }),
+              onProgress: (label) => {
+                if (signal.aborted) return;
+                lastProgressAt = Date.now();
+                socket.emit('teaching:progress', { message: label });
+              },
+              onPartial: (partial) => {
+                if (signal.aborted) return;
+                lastProgressAt = Date.now();
+                streamedBeats = partial.steps.length;
+                socket.emit('scene:partial', buildTimelinePayload(sessionId, partial));
+              },
+            }), 150000);
+            timeline = v2.timeline;
+            if (!timeline) throw Object.assign(new Error(lessonFailure(v2.result)), { lessonFailure: true });
+          } catch (err) {
+            if (signal.aborted || err.lessonFailure) throw err;
+            console.warn(`[WS] Engine v2 error (${err.message})`);
+            throw Object.assign(new Error(lessonFailure(null, err)), { lessonFailure: true });
+          }
+        }
+
+        timeline ??= await withTimeout(
           generateTimeline(sessionId, cleanTopic, (stage, chunk) => {
             if (signal.aborted) return;
             lastProgressAt = Date.now();
@@ -307,7 +344,8 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
           canvasSnapshot: {
             canvasObjects: timeline.elements || timeline.objects || [],
             canvasSteps: timeline.steps || timeline.timeline || [],
-            totalSteps: (timeline.steps || timeline.timeline || []).length
+            totalSteps: (timeline.steps || timeline.timeline || []).length,
+            ...(timeline.sceneV2 ? { title: timeline.title, domain: timeline.domain, renderer: timeline.renderer, sceneV2: timeline.sceneV2 } : {}),
           }
         });
 
@@ -316,8 +354,11 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
         machine.send(EVENTS.TIMELINE_READY, { timeline });
 
         const payload = buildTimelinePayload(sessionId, timeline);
-        socket.emit('teaching:timeline', payload);
-        if (payload.timeline.length > 0) {
+        // The chat shows this as the assistant's reply (a failsafe lesson carries
+        // its own explanation in timeline.chatMessage).
+        socket.emit('teaching:timeline', { ...payload, chatMessage: timeline.chatMessage || introMsg });
+        // a lesson that streamed in is already playing — don't send the learner back to step 1
+        if (payload.timeline.length > 0 && !(timeline.sceneV2 && streamedBeats > 0)) {
           socket.emit('teaching:step', { step: payload.timeline[0], index: 0, total: payload.timeline.length, isInit: true });
         }
 
@@ -347,7 +388,10 @@ export function registerSessionHandlers(socket, machine, sessionId, requestId) {
       let errorMessage = 'Failed to generate lesson.';
       let errorType = 'generic';
       
-      if (isCustomApiError) {
+      if (err.lessonFailure) {
+        errorMessage = err.message;
+        errorType = 'lesson_unavailable';
+      } else if (isCustomApiError) {
         errorMessage = err.message;
         errorType = 'custom_api_error';
       } else if (isSystemError) {

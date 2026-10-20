@@ -1,0 +1,3 @@
+{
+ "error": "429 Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m44bab8vezf8pnzke49yhahq` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 193611, Requested 6666. Please try again in 1m59.664s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing"
+}

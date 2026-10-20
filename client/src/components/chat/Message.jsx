@@ -21,28 +21,20 @@ import { buildMarkdownComponents } from './message/MessageMarkdown';
 import { extractJsonResponse } from './message/MessageUtils';
 
 // Sub-component for actions
-const ActionBtn = ({ onClick, title, children, className = '', isMobile = false }) => (
+const ActionBtn = ({ onClick, title, children, className = '' }) => (
   <button
     type="button"
     onClick={onClick}
     title={title}
     aria-label={title}
-    className={`apple-pill p-1 min-w-[28px] min-h-[28px] transition-all hover:bg-[var(--bg-tertiary)] hover:opacity-100 ${className}`}
-    style={{
-      color: 'var(--text-tertiary)',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      lineHeight: 0,
-      opacity: isMobile ? 0.7 : 0.5,
-    }}
+    className={`inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--st-fill-strong,var(--bg-tertiary))] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--text-primary)] ${className}`}
   >
     {children}
   </button>
 );
 
 const Message = ({
-  role, content, messageId, timestamp,
+  role, content, messageId, timestamp, status,
   isStreaming, streamingContent, streamingThought,
   streamingSources,
   isSearchPerformed: streamingSearchPerformed,
@@ -56,6 +48,7 @@ const Message = ({
   streamingMessageId,
   onHover,
   onUndoMessage,
+  isLatest = false,
 }) => {
   const isAssistant = role === 'assistant';
   const { isMobile } = useWindowSize();
@@ -89,7 +82,9 @@ const Message = ({
   const baseArtifactData = metadata?.artifactData || extractedArtifact || metadata?.visuals;
   const artifactData = baseArtifactData || (hasCanvas ? { steps, canvasSnapshot, type: canvasType } : null);
   const finalTitle = extractedTitle || artifactData?.title || metadata?.artifactTitle || canvasSnapshot?.title || metadata?.canvasSnapshot?.title || metadata?.stepTitle || metadata?.title || 'Interactive Lesson';
-  const finalRendererType = extractedCanvasType || artifactData?.rendererType || artifactData?.type || metadata?.rendererType || canvasType || 'cinematic';
+  // an Engine v2 lesson is always shown as one, whatever the answer text suggests
+  const finalRendererType = metadata?.rendererType === 'scene-v2' ? 'scene-v2'
+    : extractedCanvasType || artifactData?.rendererType || artifactData?.type || metadata?.rendererType || canvasType || 'cinematic';
   const isBeingRegenerated = isSessionActive && streamingMessageId === messageId;
   const showLocalIndicator = isBeingRegenerated && (!isStreaming || !displayContent);
 
@@ -99,9 +94,11 @@ const Message = ({
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(displayContent || content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(displayContent || content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard blocked: nothing to confirm */ }
   };
 
   const handleStartEdit = () => {
@@ -130,13 +127,16 @@ const Message = ({
   // Although useMemo with [] technically works, this ref pattern is safer against 
   // future refactors that might add dependencies to buildMarkdownComponents.
   const onOpenArtifactRef = useRef(onOpenArtifact);
+  const messageIdRef = useRef(messageId);
   React.useEffect(() => {
     onOpenArtifactRef.current = onOpenArtifact;
-  }, [onOpenArtifact]);
+    messageIdRef.current = messageId;
+  }, [onOpenArtifact, messageId]);
   // Stable reference — components are only created once per component lifecycle
   const markdownComponents = React.useMemo(
+    // Code opened from this answer remembers which message it came from (for saving its walkthrough).
     // eslint-disable-next-line react-hooks/refs
-    () => buildMarkdownComponents((...args) => onOpenArtifactRef.current?.(...args)),
+    () => buildMarkdownComponents((code, lang, opts) => onOpenArtifactRef.current?.(code, lang, { ...opts, messageId: messageIdRef.current })),
     []  
   );
 
@@ -146,11 +146,11 @@ const Message = ({
   return (
     <div 
       data-message-id={messageId} 
-      className={`w-full py-0.5 flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
+      className={`flex w-full flex-col ${isAssistant ? 'items-start pb-3' : 'items-end pt-3 pb-1'}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div className={`relative group min-w-0 ${isAssistant ? 'max-w-[96%] w-full' : 'max-w-[82%]'}`}>
+      <div className={`relative group min-w-0 ${isAssistant ? 'w-full' : 'max-w-[85%]'}`}>
         <AnimatePresence mode="wait">
           {isEditing ? (
             <motion.div
@@ -201,9 +201,9 @@ const Message = ({
                   </button>
                   {showConfirmCancel && (
                     <div className="flex items-center gap-1.5 bg-red-500/10 px-2 py-1 rounded-md border border-red-500/20">
-                      <span className="text-[10px] text-red-500 font-bold uppercase tracking-tighter">Discard?</span>
-                      <button onClick={() => { setIsEditing(false); setShowConfirmCancel(false); }} className="text-[10px] text-red-500 font-bold hover:underline">YES</button>
-                      <button onClick={() => setShowConfirmCancel(false)} className="text-[10px] text-[var(--text-tertiary)] font-bold hover:underline">NO</button>
+                      <span className="text-xs text-red-500 font-medium">Discard?</span>
+                      <button onClick={() => { setIsEditing(false); setShowConfirmCancel(false); }} className="text-xs text-red-500 font-medium hover:underline">Yes</button>
+                      <button onClick={() => setShowConfirmCancel(false)} className="text-xs text-[var(--text-tertiary)] font-medium hover:underline">No</button>
                     </div>
                   )}
                   <button
@@ -238,18 +238,16 @@ const Message = ({
                 initial={isStreaming ? { opacity: 1 } : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={isStreaming ? { duration: 0 } : { duration: 0.2 }}
-                className={`relative min-w-0 max-w-full break-words overflow-hidden transition-all duration-300 ${isAssistant ? '' : 'shadow-premium'}`}
+                className="relative min-w-0 max-w-full break-words"
                 style={isAssistant ? {
                   color: 'var(--text-primary)',
-                  padding: '4px 0 6px 0',
-                  background: 'transparent',
-                  border: 'none',
+                  padding: '2px 0 4px',
                 } : {
-                  background: 'var(--text-primary)',
-                  color: 'var(--bg-primary)', 
-                  borderRadius: '24px 24px 4px 24px',
-                  padding: '14px 20px',
-                  border: '1px solid rgba(var(--text-primary-rgb), 0.1)',
+                  // The learner's turn: quietly tinted, not an inverted slab
+                  background: 'var(--st-fill-strong, var(--bg-tertiary))',
+                  color: 'var(--text-primary)',
+                  borderRadius: 18,
+                  padding: '10px 15px',
                 }}
               >
                 {isAssistant ? (
@@ -287,6 +285,17 @@ const Message = ({
                           {displayContent || ''}
                         </ReactMarkdown>
                       )}
+                      {/* An unfinished answer is labelled as such, never shown as complete */}
+                      {!isStreaming && (status === 'cancelled' || status === 'failed' || metadata?.aborted) && (
+                        <p
+                          className="mt-2 inline-flex items-center gap-1.5 text-[12.5px]"
+                          style={{ color: 'var(--text-tertiary)' }}
+                          role="note"
+                        >
+                          <span aria-hidden="true" className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: status === 'failed' ? '#ef4444' : 'var(--text-tertiary)' }} />
+                          {status === 'failed' ? 'Answer incomplete — generation failed.' : 'Stopped before the answer finished.'}
+                        </p>
+                      )}
                     </div>
                 ) : (
                   <div className="flex flex-col gap-2.5">
@@ -299,11 +308,11 @@ const Message = ({
                           <>
                             <div
                               className="py-1.5 mb-2 mt-1"
-                              style={{ borderLeft: '4px solid currentColor', paddingLeft: 18, opacity: 0.6 }}
+                              style={{ borderLeft: '2px solid var(--st-line-strong, currentColor)', paddingLeft: 12, color: 'var(--text-secondary)' }}
                             >
                               <div className="flex items-center gap-2 mb-1 opacity-80">
                                 <Quote size={10} className="fill-current" />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Context</span>
+                                <span className="text-xs font-medium">Context</span>
                               </div>
                               <p
                                 className="text-[13px] leading-relaxed italic font-normal"
@@ -321,15 +330,15 @@ const Message = ({
                               {context.length > 100 && (
                                 <button
                                   onClick={() => setIsContextExpanded(!isContextExpanded)}
-                                  className="mt-2 text-[10px] font-bold uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity block text-left"
+                                  className="mt-2 text-xs font-medium opacity-70 hover:opacity-100 transition-opacity block text-left"
                                 >
-                                  {isContextExpanded ? 'Collapse' : 'READ MORE ...'}
+                                  {isContextExpanded ? 'Collapse' : 'Read more...'}
                                 </button>
                               )}
                             </div>
                             <p 
-                              className="text-[14px] leading-relaxed font-medium px-1"
-                              style={{ color: 'var(--bg-primary)', opacity: 1 }}
+                              className="text-[15px] leading-relaxed"
+                              style={{ color: 'var(--text-primary)' }}
                             >
                               {question}
                             </p>
@@ -340,13 +349,11 @@ const Message = ({
                       return (
                         <p
                           style={{
-                            color: 'var(--bg-primary)',
-                            opacity: 1,
+                            color: 'var(--text-primary)',
                             whiteSpace: 'pre-wrap',
+                            overflowWrap: 'anywhere',
                             lineHeight: 1.6,
-                            fontWeight: 500,
-                            letterSpacing: '-0.01em',
-                            fontSize: 14,
+                            fontSize: 15,
                             margin: 0,
                             display: !isExpanded && displayContent?.length > 400 ? '-webkit-box' : 'block',
                             WebkitLineClamp: !isExpanded && displayContent?.length > 400 ? 8 : undefined,
@@ -363,14 +370,13 @@ const Message = ({
                       <button
                         onClick={() => setIsExpanded(!isExpanded)}
                         style={{ 
-                          marginTop: 6, fontSize: 11, fontWeight: 700, 
-                          textTransform: 'uppercase', letterSpacing: '0.08em', 
-                          opacity: 0.8, color: 'var(--bg-primary)', 
+                          marginTop: 6, fontSize: 12.5, fontWeight: 500,
+                          color: 'var(--text-secondary)',
                           background: 'none', border: 'none', cursor: 'pointer', 
                           padding: 0, textAlign: 'left', display: 'block', width: 'fit-content'
                         }}
                       >
-                        {isExpanded ? 'Show less' : 'READ MORE ...'}
+                        {isExpanded ? 'Show less' : 'Read more...'}
                       </button>
                     )}
                   </div>
@@ -392,15 +398,17 @@ const Message = ({
 
               {/* Action Row */}
               <div
-                className={`flex items-center select-none ${isMobile ? 'flex-wrap' : 'flex-nowrap'}`}
+                className={`flex items-center select-none transition-opacity duration-150 ${isMobile ? 'flex-wrap' : 'flex-nowrap'} ${
+                  isMobile || (isLatest && isAssistant) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+                }`}
                 style={{
                   width: 'fit-content',
                   maxWidth: '100%',
-                  marginTop: 0,
                   marginLeft: isAssistant ? 0 : 'auto',
                   flexDirection: isAssistant ? 'row' : 'row-reverse',
-                  gap: isMobile ? 1.5 : 2,
-                  minHeight: 22,
+                  gap: 2,
+                  marginTop: 2,
+                  minHeight: 32,
                 }}
               >
                 {!isEditing && !isStreaming && !isBeingRegenerated && (
@@ -446,14 +454,14 @@ const Message = ({
                     <button
                       onClick={() => onSwitchVersion?.(messageId, Math.max(0, metadata.activeVersionIndex - 1))}
                       disabled={metadata.activeVersionIndex === 0}
-                      className={`w-4 h-4 flex items-center justify-center rounded-md transition-all ${metadata.activeVersionIndex === 0 ? 'opacity-0 pointer-events-none' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/50 active:scale-90'}`}
+                      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${metadata.activeVersionIndex === 0 ? 'opacity-30 cursor-default' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--st-fill-strong,var(--bg-tertiary))]'}`}
                       aria-label="Previous version"
                     >
-                      <ChevronLeft size={10} strokeWidth={3} />
+                      <ChevronLeft size={14} strokeWidth={2.2} />
                     </button>
                     
                     <span 
-                      className="text-[9px] font-bold tabular-nums text-[var(--text-tertiary)] px-1 opacity-40 group-hover/versions:opacity-100 transition-opacity"
+                      className="text-[11.5px] font-medium tabular-nums text-[var(--text-tertiary)] px-0.5"
                       aria-label={`Version ${metadata.activeVersionIndex + 1} of ${metadata.versions.length}`}
                     >
                       {metadata.activeVersionIndex + 1}<span className="mx-0.5 opacity-30">/</span>{metadata.versions.length}
@@ -462,10 +470,10 @@ const Message = ({
                     <button
                       onClick={() => onSwitchVersion?.(messageId, Math.min(metadata.versions.length - 1, metadata.activeVersionIndex + 1))}
                       disabled={metadata.activeVersionIndex === metadata.versions.length - 1}
-                      className={`w-4 h-4 flex items-center justify-center rounded-md transition-all ${metadata.activeVersionIndex === metadata.versions.length - 1 ? 'opacity-0 pointer-events-none' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]/50 active:scale-90'}`}
+                      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${metadata.activeVersionIndex === metadata.versions.length - 1 ? 'opacity-30 cursor-default' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--st-fill-strong,var(--bg-tertiary))]'}`}
                       aria-label="Next version"
                     >
-                      <ChevronRight size={10} strokeWidth={3} />
+                      <ChevronRight size={14} strokeWidth={2.2} />
                     </button>
                   </div>
                 )}
@@ -504,6 +512,10 @@ export default React.memo(Message, (prev, next) => {
     prev.streamingContent === next.streamingContent &&
     prev.streamingMessageId === next.streamingMessageId &&
     prev.isSessionActive === next.isSessionActive &&
+    prev.status === next.status &&
+    prev.isLatest === next.isLatest &&
+    prev.metadata?.aborted === next.metadata?.aborted &&
+    prev.metadata?.error === next.metadata?.error &&
     prev.metadata?.activeVersionIndex === next.metadata?.activeVersionIndex &&
     prev.metadata?.feedback === next.metadata?.feedback &&
     prev.metadata?.edited === next.metadata?.edited &&

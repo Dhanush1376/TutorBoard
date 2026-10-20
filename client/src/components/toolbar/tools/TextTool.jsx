@@ -55,10 +55,8 @@ const SegButton = ({ isActive, onClick, children, style: extraStyle }) => (
       color:       isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
       border:      isActive ? '1px solid var(--border-color)' : '1px solid transparent',
       boxShadow:   isActive ? '0 2px 8px rgba(0,0,0,.12)' : 'none',
-      fontSize: 9,
-      fontWeight: 400,
-      textTransform: 'uppercase',
-      letterSpacing: '.04em',
+      fontSize: 10,
+      fontWeight: 500,
       ...extraStyle,
     }}
   >
@@ -145,7 +143,7 @@ const TextTool = (props) => {
       {/* ─── Header: Quick Add ─── */}
       <div className="px-4 py-3 bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)]">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-normal text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
+          <span className="text-[11px] font-medium text-[var(--text-tertiary)]">
             Quick Add
           </span>
         </div>
@@ -166,7 +164,7 @@ const TextTool = (props) => {
               <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)] transition-transform group-hover:scale-105 shadow-sm">
                 <Icon size={14} className="text-blue-400" />
               </div>
-              <span className="text-[8px] font-normal text-[var(--text-primary)] uppercase tracking-wider text-center">
+              <span className="text-[9.5px] font-medium text-[var(--text-primary)] text-center">
                 {label}
               </span>
             </button>

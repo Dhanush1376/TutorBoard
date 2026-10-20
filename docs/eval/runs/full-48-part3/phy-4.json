@@ -1,0 +1,288 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Elastic collision of two balls",
+  "domain": "physics",
+  "summary": "Two equal‑mass balls collide elastically, swapping their velocities while conserving momentum and kinetic energy.",
+  "spaces": [
+   {
+    "id": "field",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     -1,
+     5
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x (m)",
+    "yLabel": "y (m)",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "ball1",
+    "label": "Ball 1",
+    "tone": "primary",
+    "space": "field",
+    "type": "body",
+    "at": [
+     2,
+     0
+    ],
+    "size": "sm"
+   },
+   {
+    "id": "ball2",
+    "label": "Ball 2",
+    "tone": "primary",
+    "space": "field",
+    "type": "body",
+    "at": [
+     6,
+     0
+    ],
+    "size": "sm"
+   },
+   {
+    "id": "v1b",
+    "label": "v₁=3 m/s",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2,
+     0
+    ],
+    "to": [
+     5,
+     0
+    ],
+    "angleDeg": 0,
+    "magnitude": 3
+   },
+   {
+    "id": "v2b",
+    "label": "v₂=2 m/s",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     6,
+     0
+    ],
+    "to": [
+     4,
+     0
+    ],
+    "angleDeg": 180,
+    "magnitude": 2
+   },
+   {
+    "id": "coll",
+    "label": "collision",
+    "tone": "warning",
+    "space": "field",
+    "type": "point",
+    "at": [
+     4,
+     0
+    ]
+   },
+   {
+    "id": "v1a",
+    "label": "v₁'=2 m/s",
+    "tone": "accent",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     4,
+     0
+    ],
+    "to": [
+     2,
+     0
+    ],
+    "angleDeg": 180,
+    "magnitude": 2
+   },
+   {
+    "id": "v2a",
+    "label": "v₂'=3 m/s",
+    "tone": "accent",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     4,
+     0
+    ],
+    "to": [
+     7,
+     0
+    ],
+    "angleDeg": 0,
+    "magnitude": 3
+   },
+   {
+    "id": "eq",
+    "tone": "info",
+    "type": "math",
+    "latex": "m v_{1}+m v_{2}=m v_{1}'+m v_{2}'\\\\frac12 m v_{1}^{2}+\\frac12 m v_{2}^{2}=\\frac12 m v_{1}'^{2}+\\frac12 m v_{2}'^{2}"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "field",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Approaching balls",
+    "narration": "Two equal‑mass balls move toward each other with speeds 3 m/s and 2 m/s.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "ball1",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "ball2",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": [
+       "v1b",
+       "v2b"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Collision point",
+    "narration": "They meet at the midpoint; the collision is elastic.",
+    "actions": [
+     {
+      "do": "move",
+      "target": "ball1",
+      "to": [
+       4,
+       0
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "move",
+      "target": "ball2",
+      "to": [
+       4,
+       0
+      ]
+     },
+     {
+      "do": "create",
+      "target": "coll",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": "coll",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Predict outcome",
+    "narration": "What happens to their velocities after the elastic collision?",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "coll",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "After the collision, what are the velocities of the balls?",
+     "choices": [
+      "They exchange velocities",
+      "They stop",
+      "They bounce back with same speeds"
+     ],
+     "answer": 0,
+     "explain": "In an elastic collision of equal masses, each ball takes the other's speed."
+    }
+   },
+   {
+    "title": "Velocities exchanged",
+    "narration": "After an elastic collision of equal masses, they exchange velocities.",
+    "actions": [
+     {
+      "do": "remove",
+      "target": [
+       "v1b",
+       "v2b"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": [
+       "v1a",
+       "v2a"
+      ],
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "eq",
+      "with": "previous"
+     },
+     {
+      "do": "highlight",
+      "target": "eq",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[7].latex",
+   "message": "auto-fixed: restored LaTeX backslashes eaten by JSON escapes"
+  },
+  {
+   "path": "beats[3].actions[2].target",
+   "message": "\"eq\" was used before being created — added a create"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 41215,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Elastic collision of two balls\",\"domain\":\"physics\",\"summary\":\"Two equal‑mass balls collide elastically, swapping their velocities while conserving momentum and kinetic energy.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[-1,5],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\",\"equalAspect\":false}],\"entities\":[{\"id\":\"ball1\",\"type\":\"body\",\"space\":\"field\",\"at\":[2,0],\"label\":\"Ball 1\",\"tone\":\"primary\"},{\"id\":\"ball2\",\"type\":\"body\",\"space\":\"field\",\"at\":[6,0],\"label\":\"Ball 2\",\"tone\":\"primary\"},{\"id\":\"v1b\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,0],\"angleDeg\":0,\"magnitude\":3,\"label\":\"v₁=3 m/s\",\"tone\":\"primary\"},{\"id\":\"v2b\",\"type\":\"vector\",\"space\":\"field\",\"from\":[6,0],\"angleDeg\":180,\"magnitude\":2,\"label\":\"v₂=2 m/s\",\"tone\":\"primary\"},{\"id\":\"coll\",\"type\":\"point\",\"space\":\"field\",\"at\":[4,0],\"label\":\"collision\",\"tone\":\"warning\"},{\"id\":\"v1a\",\"type\":\"vector\",\"space\":\"field\",\"from\":[4,0],\"angleDeg\":180,\"magnitude\":2,\"label\":\"v₁'=2 m/s\",\"tone\":\"accent\"},{\"id\":\"v2a\",\"type\":\"vector\",\"space\":\"field\",\"from\":[4,0],\"angleDeg\":0,\"magnitude\":3,\"label\":\"v₂'=3 m/s\",\"tone\":\"accent\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"m v_{1}+m v_{2}=m v_{1}'+m v_{2}'\\\\\\\\\\\\frac12 m v_{1}^{2}+\\\\frac12 m v_{2}^{2}=\\\\frac12 m v_{1}'^{2}+\\\\frac12 m v_{2}'^{2}\",\"tone\":\"info\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Approaching balls\",\"narration\":\"Two equal‑mass balls move toward each other with speeds 3 m/s and 2 m/s.\",\"actions\":[{\"do\":\"create\",\"target\":\"ball1\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"ball2\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"v1b\",\"v2b\"],\"effect\":\"draw\"}]},{\"title\":\"Collision point\",\"narration\":\"They meet at the midpoint; the collision is elastic.\",\"actions\":[{\"do\":\"move\",\"target\":\"ball1\",\"to\":[4,0]},{\"do\":\"move\",\"target\":\"ball2\",\"to\":[4,0],\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"coll\",\"effect\":\"pop\"},{\"do\":\"highlight\",\"target\":\"coll\",\"state\":\"active\",\"with\":\"previous\"}]},{\"title\":\"Predict outcome\",\"narration\":\"What happens to their velocities after the elastic collision?\",\"actions\":[{\"do\":\"highlight\",\"target\":\"coll\",\"state\":\"active\"}],\"check\":{\"question\":\"After the collision, what are the velocities of the balls?\",\"choices\":[\"They exchange velocities\",\"They stop\",\"They bounce back with same speeds\"],\"answer\":0,\"explain\":\"In an elastic collision of equal masses, each ball takes the other's speed.\"}},{\"title\":\"Velocities exchanged\",\"narration\":\"After an elastic collision of equal masses, they exchange velocities.\",\"actions\":[{\"do\":\"remove\",\"target\":[\"v1b\",\"v2b\"],\"effect\":\"fade\"},{\"do\":\"create\",\"target\":[\"v1a\",\"v2a\"],\"effect\":\"pop\"},{\"do\":\"highlight\",\"target\":\"eq\",\"state\":\"insight\"}]}]}"
+}

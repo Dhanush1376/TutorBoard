@@ -1,0 +1,162 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Roots of x² − 4x + 3",
+  "domain": "math",
+  "summary": "Find the roots of the quadratic equation x² − 4x + 3 by factoring and locating where the parabola crosses the x-axis.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     5
+    ],
+    "y": [
+     -2,
+     5
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "y",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "eq",
+    "type": "math",
+    "latex": "y = x^2 - 4x + 3"
+   },
+   {
+    "id": "factored",
+    "type": "math",
+    "latex": "y = (x - 1)(x - 3)"
+   },
+   {
+    "id": "parabola",
+    "tone": "primary",
+    "space": "plane",
+    "type": "plot",
+    "expr": "x^2 - 4*x + 3",
+    "domain": [
+     -0.5,
+     4.5
+    ]
+   },
+   {
+    "id": "root1",
+    "label": "x = 1",
+    "tone": "success",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     1,
+     0
+    ]
+   },
+   {
+    "id": "root2",
+    "label": "x = 3",
+    "tone": "success",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     3,
+     0
+    ]
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "top-right"
+   },
+   {
+    "rel": "below",
+    "id": "factored",
+    "of": "eq",
+    "gap": "md"
+   },
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The Quadratic Equation",
+    "narration": "We want to find the roots of the quadratic function y = x² - 4x + 3, which are the points where the graph crosses the x-axis.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Graphing the Parabola",
+    "narration": "Let's plot the curve on the Cartesian plane to see its shape.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "parabola",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Factoring the Equation",
+    "narration": "We can rewrite the quadratic equation in factored form by finding two numbers that multiply to 3 and add up to -4: -1 and -3.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "factored",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Finding the Roots",
+    "narration": "Setting y to zero gives us our roots at x = 1 and x = 3, where the parabola intersects the x-axis.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "root1",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "root2",
+      "effect": "pop"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "root1",
+       "root2"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 3074,
+ "model": "gemini-3.5-flash-lite",
+ "domain": "general"
+}

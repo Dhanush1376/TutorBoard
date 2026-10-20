@@ -85,7 +85,9 @@ class PlannerService {
 
       try {
         const res = await requestCompletion({
-          model: 'google/gemini-3.8-flash',
+          // A small routing decision that every chat message waits on, so a fast model:
+          // with gemini-3.8-flash / 3.6-flash it took ~7 s before any answer or visual could start.
+          model: process.env.CHAT_PLANNER_MODEL || 'google/gemini-3.5-flash-lite',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0,
           responseMimeType: 'application/json',

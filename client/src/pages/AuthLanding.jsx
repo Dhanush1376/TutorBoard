@@ -1,29 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator, Check } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import VisaiLogo from '../components/layout/VisaiLogo';
 import useTutorStore from '../store/tutorStore';
 import LoginNavbar from '../components/layout/LoginNavbar';
+import BorderGlow from '../components/ui/BorderGlow';
+import AuthFormSkeleton from '../components/auth/AuthFormSkeleton';
 const CinematicTransition = React.lazy(() => import('../components/auth/CinematicTransition'));
 import { BASE_URL as API_URL } from '../services/api';
+// The galaxy panel pulls in three.js, so it loads after the form is usable.
+const AuthShowcase = React.lazy(() => import('../components/auth/AuthShowcase'));
+
+// Fast, silky staggered entry variants for login elements
+const formContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.042,
+      delayChildren: 0.02,
+    },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.98,
+    filter: 'blur(3px)',
+    transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] },
+  },
+};
+
+const formItemVariants = {
+  hidden: { 
+    opacity: 0, 
+    y: 10, 
+    filter: 'blur(3px)',
+  },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    filter: 'blur(0px)',
+    transition: { 
+      duration: 0.28, 
+      ease: [0.16, 1, 0.3, 1],
+    },
+  },
+};
 
 const AuthLanding = () => {
   const navigate = useNavigate();
-  const { login, signup, loginGuest, isAuthenticated, user } = useAuth();
+  const { login, signup, loginGuest, isAuthenticated, user, loading: authLoading, isAuthResolved } = useAuth();
   
-  const [isLogin, setIsLogin] = useState(false);
+  const location = useLocation();
+  // "/login?mode=signup" opens on sign-up; plain "/login" opens on sign-in.
+  const [isLogin, setIsLogin] = useState(() => new URLSearchParams(location.search).get('mode') !== 'signup');
   const { showToast } = useTutorStore();
-  const [formData, setFormData] = useState({    name: '',
-
+  const [formData, setFormData] = useState({
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const isFormLoading = loading || (authLoading && !isAuthResolved);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
+  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+  const passwordFocused = focusedField === 'password';
+
+  // Sync browser autofill values into React state
+  useEffect(() => {
+    const syncAutofill = () => {
+      const emailEl = document.querySelector('input[type="email"]');
+      const passEl = document.querySelector('input[autoComplete="current-password"]');
+      const nameEl = document.querySelector('input[autoComplete="name"]');
+      if (emailEl?.value || passEl?.value || nameEl?.value) {
+        setFormData(prev => ({
+          ...prev,
+          ...(emailEl?.value ? { email: emailEl.value } : {}),
+          ...(passEl?.value ? { password: passEl.value } : {}),
+          ...(nameEl?.value ? { name: nameEl.value } : {}),
+        }));
+      }
+    };
+    const t1 = setTimeout(syncAutofill, 50);
+    const t2 = setTimeout(syncAutofill, 250);
+    const t3 = setTimeout(syncAutofill, 600);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []);
 
   // Redirect if already authenticated — differentiated flow for returning vs new
   useEffect(() => {
@@ -40,64 +107,6 @@ const AuthLanding = () => {
       navigate('/session', { replace: true });
     }
   }, [isAuthenticated, user?.isGuest, isSuccess, loading, navigate]);
-
-  // Advanced Demo State
-  const [activeTopicIndex, setActiveTopicIndex] = useState(0);
-  const [demoPhase, setDemoPhase] = useState('ask'); // 'ask', 'think', 'view'
-
-  const topics = [
-    {
-      subject: "Computer Science",
-      question: "How does a BST work?",
-      icon: <Code className="w-5 h-5" />,
-      color: "var(--text-primary)",
-      visualization: "bst"
-    },
-    {
-      subject: "Biology",
-      question: "Show me the structure of a Cell.",
-      icon: <Zap className="w-5 h-5 opacity-70" />,
-      color: "var(--text-secondary)",
-      visualization: "cell"
-    },
-    {
-      subject: "Physics",
-      question: "Why do planets stay in orbit?",
-      icon: <Globe className="w-5 h-5 opacity-70" />,
-      color: "var(--text-secondary)",
-      visualization: "orbit"
-    },
-    {
-      subject: "Mathematics",
-      question: "How to find the area of a circle?",
-      icon: <Calculator className="w-5 h-5 opacity-70" />,
-      color: "var(--text-secondary)",
-      visualization: "math"
-    }
-  ];
-
-  useEffect(() => {
-    let isMounted = true;
-    const runSequence = async () => {
-      while (isMounted) {
-        setDemoPhase('ask');
-        await new Promise(r => setTimeout(r, 2500));
-        if (!isMounted) break;
-        
-        setDemoPhase('think');
-        await new Promise(r => setTimeout(r, 1500));
-        if (!isMounted) break;
-        
-        setDemoPhase('view');
-        await new Promise(r => setTimeout(r, 5000));
-        if (!isMounted) break;
-        
-        setActiveTopicIndex((prev) => (prev + 1) % topics.length);
-      }
-    };
-    runSequence();
-    return () => { isMounted = false; };
-  }, []);
 
   const validatePassword = (pass) => {
     if (pass.length < 8) return 'Password must be at least 8 characters.';
@@ -156,10 +165,9 @@ const AuthLanding = () => {
     }
   };
 
-  const currentTopic = topics[activeTopicIndex];
 
   return (
-    <div className="lg:h-screen w-full flex flex-col lg:flex-row bg-[var(--bg-primary)] font-sans overflow-hidden selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)] pt-16 lg:pt-0">
+    <div className="h-screen w-full flex flex-col lg:flex-row bg-[var(--bg-primary)] font-sans overflow-hidden selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)]">
       
       <AnimatePresence mode="wait">
         {isSuccess ? (
@@ -177,40 +185,85 @@ const AuthLanding = () => {
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
             transition={{ duration: 0.8 }}
-            className="flex flex-col lg:flex-row w-full lg:h-screen overflow-hidden"
+            className="flex flex-col lg:flex-row w-full h-screen overflow-hidden flex-1"
           >
-            <div className="lg:hidden relative z-[9999]">
-              <LoginNavbar />
-            </div>
-            
             {/* ── LEFT COLUMN: AUTH FORM ────────────────────────────────────────── */}
-            <div className="lg:w-[40%] xl:w-[35%] flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-10 relative z-10 bg-[var(--bg-primary)]">
-        
+            <div className="w-full lg:w-1/4 lg:flex-none flex flex-col justify-between items-center px-4 sm:px-6 lg:px-4 py-2 lg:py-2.5 relative z-10 bg-[var(--bg-primary)] h-screen min-h-0 overflow-x-hidden overflow-y-auto thin-scrollbar">
+              
+              {/* Top Navbar Elements (Mobile & Desktop in left column) */}
+              <div className="w-full relative z-[999] shrink-0 mb-0.5">
+                <LoginNavbar compact={true} onMenuOpenChange={setIsNavMenuOpen} />
+              </div>
 
-        <div className="max-w-[320px] w-full mx-auto lg:mx-0">
-          {/* Mobile Hero (Value Proposition) - FO-05 */}
-          <div className="lg:hidden mb-8">
-            <div className="flex items-center gap-2 mb-3">
-              <VisaiLogo size="sm" className="text-[var(--text-primary)]" />
-              <span className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-primary)]">TutorBoard</span>
-            </div>
-            <h2 className="text-[28px] leading-[1.1] font-heading font-semibold mb-3 text-[var(--text-primary)] tracking-tight">
-              Visualize your <br /> knowledge.
-            </h2>
-            <p className="text-[var(--text-secondary)] text-[14px] font-normal opacity-80 leading-relaxed">
-              TutorBoard is an AI-powered cinematic learning system that maps complex ideas into interactive visual canvases.
-            </p>
-          </div>
-          <div className="mb-6">
-            <h1 
-              className="text-[38px] lg:text-[46px] leading-[1.05] font-serif font-normal mb-3 text-[var(--text-primary)] tracking-tight whitespace-pre-line"
-            >
-              {isLogin ? 'Sign in' : 'Create an\naccount'}
-            </h1>
-            <p className="text-[var(--text-secondary)] text-[12px] font-normal opacity-80 whitespace-pre-line">
-              {isLogin ? 'Welcome back, please enter your details.' : 'Enter your details to get started.'}
-            </p>
-          </div>
+              {/* Left Column Architectural Grid Pattern */}
+              <div 
+                className="absolute inset-0 pointer-events-none overflow-hidden" 
+                aria-hidden="true"
+              >
+                <div 
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: `
+                      linear-gradient(to right, var(--border-color) 1px, transparent 1px),
+                      linear-gradient(to bottom, var(--border-color) 1px, transparent 1px)
+                    `,
+                    backgroundSize: '28px 28px',
+                    backgroundPosition: 'center center',
+                    opacity: 0.55,
+                    maskImage: 'radial-gradient(ellipse 100% 100% at 50% 50%, black 60%, transparent 100%)',
+                    WebkitMaskImage: 'radial-gradient(ellipse 100% 100% at 50% 50%, black 60%, transparent 100%)',
+                  }}
+                />
+                <div className="absolute -top-32 -left-32 w-80 h-80 rounded-full bg-neutral-400/5 dark:bg-white/[0.02] blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-32 -right-32 w-80 h-80 rounded-full bg-neutral-400/5 dark:bg-white/[0.02] blur-3xl pointer-events-none" />
+              </div>
+
+              <div className={`w-full max-w-[295px] lg:max-w-[310px] mx-auto relative z-10 my-auto py-1 transition-all duration-300 ${isNavMenuOpen ? 'blur-sm opacity-25 scale-[0.98] pointer-events-none' : 'blur-0 opacity-100 scale-100'}`}>
+                <AnimatePresence mode="wait" initial={false}>
+                  {isFormLoading ? (
+                    <motion.div
+                      key="form-skeleton-view"
+                      initial={{ opacity: 0, scale: 0.98, filter: 'blur(3px)' }}
+                      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, scale: 0.98, filter: 'blur(3px)' }}
+                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      className="w-full"
+                    >
+                      <AuthFormSkeleton isLogin={isLogin} />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="form-actual-view"
+                      variants={formContainerVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      className="w-full flex flex-col"
+                    >
+          <motion.div variants={formItemVariants} className="mb-3 lg:mb-4 overflow-hidden">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={isLogin ? 'login-header' : 'signup-header'}
+                initial={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <h1 
+                  className="font-heading font-semibold text-[var(--text-primary)] tracking-tight leading-[1.1] text-[20px] lg:text-[22px]"
+                  style={{
+                    fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
+                    letterSpacing: '-0.025em',
+                  }}
+                >
+                  {isLogin ? 'Welcome back' : 'Create an account'}
+                </h1>
+                <p className="text-[var(--text-secondary)] text-[11px] lg:text-[11.5px] leading-[1.35] mt-1 font-normal">
+                  {isLogin ? 'Sign in to continue to your workspace.' : 'Join TutorBoard to explore interactive visual learning.'}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
 
           <AnimatePresence>
             {error && (
@@ -218,9 +271,9 @@ const AuthLanding = () => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[13px] font-normal flex items-center gap-2"
+                className="mb-3 p-2 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-[6px] text-[10.5px] font-normal flex items-center gap-2"
               >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 {error}
@@ -228,399 +281,504 @@ const AuthLanding = () => {
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <AnimatePresence mode="popLayout">
+          <motion.form 
+            variants={formContainerVariants}
+            initial="hidden"
+            animate="visible"
+            onSubmit={handleSubmit} 
+            className="flex flex-col gap-3.5 pt-1.5 overflow-visible"
+          >
+            <AnimatePresence initial={false}>
               {!isLogin && (
                 <motion.div
                   key="name-field"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="flex flex-col gap-1.5 overflow-hidden"
+                  variants={formItemVariants}
+                  initial={{ opacity: 0, height: 0, scale: 0.96, y: -6 }}
+                  animate={{ 
+                    opacity: 1, 
+                    height: 'auto', 
+                    scale: 1, 
+                    y: 0,
+                    transitionEnd: { overflow: 'visible' }
+                  }}
+                  exit={{ opacity: 0, height: 0, scale: 0.96, y: -6, transitionEnd: { overflow: 'hidden' } }}
+                  transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                  className="notch-group overflow-visible"
+                  style={{ overflow: 'visible' }}
                 >
-                  <label className="text-[7.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] ml-1">Full Name</label>
-                  <div className="relative group">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
-                    <input
-                      type="text"
-                      placeholder="Your full name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
-                      disabled={loading}
-                    />
-                  </div>
+                  <BorderGlow
+                    isFocused={focusedField === 'name'}
+                    borderRadius={9999}
+                    glowRadius={10}
+                    glowIntensity={0.35}
+                    edgeSensitivity={20}
+                    coneSpread={20}
+                    speed={0.016}
+                    colors={['#ffffff', '#fb923c', '#ea580c']}
+                    glowColor="26 92% 58%"
+                    className="w-full"
+                  >
+                    <div className="relative w-full h-11 flex items-center">
+                      <User className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10 transition-colors ${focusedField === 'name' ? 'text-orange-500 dark:text-orange-400' : 'text-neutral-400 dark:text-neutral-500'}`} />
+                      <input
+                        type="text"
+                        placeholder=" "
+                        autoComplete="name"
+                        value={formData.name}
+                        onFocus={() => setFocusedField('name')}
+                        onBlur={() => setFocusedField(null)}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        onInput={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+                        className="auth-input notch-input w-full rounded-full h-full pl-10 pr-4 outline-none text-[12.5px] font-normal"
+                        disabled={loading}
+                      />
+                      <label
+                        className={`notch-label ${(formData.name || focusedField === 'name') ? 'floated' : ''}`}
+                      >
+                        Full Name
+                      </label>
+                    </div>
+                  </BorderGlow>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[7.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] ml-1">Email Address</label>
-              <div className="relative group">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
-                <input
-                  type="email"
-                  placeholder="name@company.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center px-1 text-[7.5px]">
-                <label className="font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)]">Password</label>
-                {isLogin && (
-                  <button 
-                    type="button" 
-                    onClick={() => showToast({
-                      message: "Password reset instructions have been sent to your email (Demo mode: Please check your console or contact support).",
-                      type: "info"
-                    })}
-
-                    className="font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-                  >
-                    Forgot password?
-                  </button>
-                )}
-              </div>
-              <div className="relative group">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
-                  disabled={loading}
-                />
-              </div>
-              {!isLogin && formData.password && (
-                <div className="px-1 mt-1">
-                  <div className="flex gap-1 h-1">
-                    <div className={`h-full flex-1 rounded-full transition-all ${formData.password.length >= 8 ? 'bg-green-500/50' : 'bg-[var(--border-color)] opacity-20'}`}></div>
-                    <div className={`h-full flex-1 rounded-full transition-all ${/\d/.test(formData.password) ? 'bg-green-500/50' : 'bg-[var(--border-color)] opacity-20'}`}></div>
-                    <div className={`h-full flex-1 rounded-full transition-all ${/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) ? 'bg-green-500/50' : 'bg-[var(--border-color)] opacity-20'}`}></div>
-                  </div>
-                  <p className="text-[9px] text-[var(--text-tertiary)] mt-1 opacity-60">
-                    Use 8+ chars with numbers & symbols
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {!isLogin && (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[7.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] ml-1">Confirm Password</label>
-                <div className="relative group">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+            <motion.div 
+              layout 
+              variants={formItemVariants}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              className="notch-group overflow-visible"
+              style={{ overflow: 'visible' }}
+            >
+              <BorderGlow
+                isFocused={focusedField === 'email'}
+                borderRadius={9999}
+                glowRadius={10}
+                glowIntensity={0.35}
+                edgeSensitivity={20}
+                coneSpread={20}
+                speed={0.016}
+                colors={['#ffffff', '#fb923c', '#ea580c']}
+                glowColor="26 92% 58%"
+                className="w-full"
+              >
+                <div className="relative w-full h-11 flex items-center">
+                  <Mail className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10 transition-colors ${focusedField === 'email' ? 'text-orange-500 dark:text-orange-400' : 'text-neutral-400 dark:text-neutral-500'}`} />
                   <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                    className="w-full bg-[var(--bg-secondary)] border border-transparent focus:border-[var(--border-color)] text-[var(--text-primary)] rounded-xl py-2 pl-10 pr-4 outline-none placeholder:text-[var(--text-tertiary)] transition-all text-[12px] font-normal"
+                    type="email"
+                    placeholder=" "
+                    autoComplete="email"
+                    value={formData.email}
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => setFocusedField(null)}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    onInput={(e) => setFormData(prev => ({...prev, email: e.target.value}))}
+                    className="auth-input notch-input w-full rounded-full h-full pl-10 pr-4 outline-none text-[12.5px] font-normal"
                     disabled={loading}
                   />
+                  <label
+                    className={`notch-label ${(formData.email || focusedField === 'email') ? 'floated' : ''}`}
+                  >
+                    Email Address
+                  </label>
                 </div>
-              </div>
-            )}
+              </BorderGlow>
+            </motion.div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] text-[var(--bg-primary)] rounded-xl py-2 px-4 font-normal text-[11.5px] hover:opacity-95 shadow-xl shadow-[var(--border-color)] active:scale-[0.98] transition-all mt-2 flex justify-center items-center gap-2 group border border-white/5"
+            <motion.div 
+              layout 
+              variants={formItemVariants}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              className="notch-group overflow-visible"
+              style={{ overflow: 'visible' }}
             >
-              {loading ? (
-                <div className="w-3.5 h-3.5 border-2 border-current/20 border-t-current rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  {isLogin ? 'Sign In' : 'Create Account'}
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </>
+              <BorderGlow
+                isFocused={focusedField === 'password'}
+                borderRadius={9999}
+                glowRadius={10}
+                glowIntensity={0.35}
+                edgeSensitivity={20}
+                coneSpread={20}
+                speed={0.016}
+                colors={['#ffffff', '#fb923c', '#ea580c']}
+                glowColor="26 92% 58%"
+                className="w-full"
+              >
+                <div className="relative w-full h-11 flex items-center">
+                  <Lock className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10 transition-colors ${focusedField === 'password' ? 'text-orange-500 dark:text-orange-400' : 'text-neutral-400 dark:text-neutral-500'}`} />
+                  <input
+                    type="password"
+                    placeholder=" "
+                    id={isLogin ? "signin-password" : "signup-password"}
+                    name={isLogin ? "password" : "new-password"}
+                    autoComplete={isLogin ? "current-password" : "new-password"}
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
+                    value={formData.password}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => setFocusedField(null)}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    onInput={(e) => setFormData(prev => ({...prev, password: e.target.value}))}
+                    className="auth-input notch-input w-full rounded-full h-full pl-10 pr-4 outline-none text-[12.5px] font-normal"
+                    disabled={loading}
+                  />
+                  <label
+                    className={`notch-label ${(formData.password || focusedField === 'password') ? 'floated' : ''}`}
+                  >
+                    Password
+                  </label>
+                  {isLogin && (
+                    <button 
+                      type="button" 
+                      onClick={() => showToast({
+                        message: "Password reset instructions have been sent to your email (Demo mode: Please check your console or contact support).",
+                        type: "info"
+                      })}
+                      className="absolute right-5 top-0 -translate-y-1/2 bg-[var(--bg-primary)] px-1.5 text-[9.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer z-10"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+              </BorderGlow>
+
+              {/* Password Requirements Pop-Up Tooltip Box (Positioned ABOVE input to prevent browser autofill collision) */}
+              {(() => {
+                const hasLength = (formData.password || '').length >= 8;
+                const hasNumber = /\d/.test(formData.password || '');
+                const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password || '');
+                const passStrength = [hasLength, hasNumber, hasSymbol].filter(Boolean).length;
+                return (
+                  <AnimatePresence>
+                    {!isLogin && passwordFocused && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                        transition={{ duration: 0.15 }}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className="absolute left-0 right-0 bottom-[calc(100%+12px)] z-50 p-3.5 rounded-2xl bg-[#ffffff] dark:bg-[#121210] border border-[#e5e5e0] dark:border-[#262624] shadow-[0_16px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-colors duration-200"
+                      >
+                        {/* Downward caret pointer */}
+                        <div className="absolute -bottom-1.5 left-7 w-3 h-3 bg-[#ffffff] dark:bg-[#121210] border-b border-r border-[#e5e5e0] dark:border-[#262624] rotate-45 pointer-events-none transition-colors duration-200" />
+
+                        {/* Header Row */}
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 dark:bg-orange-400" />
+                            <span className="text-[11px] font-semibold text-[#1a1a18] dark:text-[#f3f3ee] tracking-tight">
+                              Password requirements
+                            </span>
+                          </div>
+                          <span className={`text-[9.5px] font-semibold px-2 py-0.5 rounded-full border transition-all duration-300 ${
+                            passStrength === 3 ? 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/50 dark:border-emerald-500/30' :
+                            passStrength === 2 ? 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/50 dark:border-amber-500/30' :
+                            passStrength === 1 ? 'text-rose-700 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-950/50 dark:border-rose-500/30' :
+                            'text-[#6b6960] bg-[#f4f2ec] border-[#e2e0d8] dark:text-[#a09e95] dark:bg-[#1e1e1b] dark:border-[#33322d]'
+                          }`}>
+                            {passStrength === 3 ? 'Strong' : passStrength === 2 ? 'Medium' : passStrength === 1 ? 'Weak' : 'Required'}
+                          </span>
+                        </div>
+
+                        {/* Segmented Strength Bar */}
+                        <div className="flex gap-1.5 h-[3px] mb-3">
+                          <div className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                            passStrength >= 1 
+                              ? (passStrength === 1 ? 'bg-rose-500' : passStrength === 2 ? 'bg-amber-500' : 'bg-emerald-500') 
+                              : 'bg-[#e5e5e0] dark:bg-[#262624]'
+                          }`} />
+                          <div className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                            passStrength >= 2 
+                              ? (passStrength === 2 ? 'bg-amber-500' : 'bg-emerald-500') 
+                              : 'bg-[#e5e5e0] dark:bg-[#262624]'
+                          }`} />
+                          <div className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                            passStrength >= 3 ? 'bg-emerald-500' : 'bg-[#e5e5e0] dark:bg-[#262624]'
+                          }`} />
+                        </div>
+
+                        {/* Checklist */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-200 ${
+                              hasLength 
+                                ? 'bg-emerald-500/15 border border-emerald-500/35 text-emerald-600 dark:text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]' 
+                                : 'bg-[#f4f2ec] dark:bg-[#1e1e1b] border border-[#e2e0d8] dark:border-[#33322d] text-[#8c897f] dark:text-[#737168]'
+                            }`}>
+                              {hasLength ? <Check className="w-2.5 h-2.5 stroke-[2.5]" /> : <div className="w-1 h-1 rounded-full bg-[#8c897f] dark:bg-[#737168]" />}
+                            </div>
+                            <span className={`text-[11px] transition-colors duration-200 ${
+                              hasLength ? 'text-[#1a1a18] dark:text-[#f3f3ee] font-medium' : 'text-[#6b6960] dark:text-[#a09e95] font-normal'
+                            }`}>
+                              8+ characters
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-200 ${
+                              hasNumber 
+                                ? 'bg-emerald-500/15 border border-emerald-500/35 text-emerald-600 dark:text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]' 
+                                : 'bg-[#f4f2ec] dark:bg-[#1e1e1b] border border-[#e2e0d8] dark:border-[#33322d] text-[#8c897f] dark:text-[#737168]'
+                            }`}>
+                              {hasNumber ? <Check className="w-2.5 h-2.5 stroke-[2.5]" /> : <div className="w-1 h-1 rounded-full bg-[#8c897f] dark:bg-[#737168]" />}
+                            </div>
+                            <span className={`text-[11px] transition-colors duration-200 ${
+                              hasNumber ? 'text-[#1a1a18] dark:text-[#f3f3ee] font-medium' : 'text-[#6b6960] dark:text-[#a09e95] font-normal'
+                            }`}>
+                              At least one number (0–9)
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-200 ${
+                              hasSymbol 
+                                ? 'bg-emerald-500/15 border border-emerald-500/35 text-emerald-600 dark:text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]' 
+                                : 'bg-[#f4f2ec] dark:bg-[#1e1e1b] border border-[#e2e0d8] dark:border-[#33322d] text-[#8c897f] dark:text-[#737168]'
+                            }`}>
+                              {hasSymbol ? <Check className="w-2.5 h-2.5 stroke-[2.5]" /> : <div className="w-1 h-1 rounded-full bg-[#8c897f] dark:bg-[#737168]" />}
+                            </div>
+                            <span className={`text-[11px] transition-colors duration-200 ${
+                              hasSymbol ? 'text-[#1a1a18] dark:text-[#f3f3ee] font-medium' : 'text-[#6b6960] dark:text-[#a09e95] font-normal'
+                            }`}>
+                              At least one symbol (!@#$%^&*)
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                );
+              })()}
+            </motion.div>
+
+            <AnimatePresence initial={false}>
+              {!isLogin && (
+                <motion.div
+                  key="confirm-password-field"
+                  initial={{ opacity: 0, height: 0, scale: 0.96, y: -6 }}
+                  animate={{ 
+                    opacity: 1, 
+                    height: 'auto', 
+                    scale: 1, 
+                    y: 0,
+                    transitionEnd: { overflow: 'visible' }
+                  }}
+                  exit={{ opacity: 0, height: 0, scale: 0.96, y: -6, transitionEnd: { overflow: 'hidden' } }}
+                  transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                  className="notch-group overflow-visible"
+                  style={{ overflow: 'visible' }}
+                >
+                  <BorderGlow
+                    isFocused={focusedField === 'confirmPassword'}
+                    borderRadius={9999}
+                    glowRadius={10}
+                    glowIntensity={0.35}
+                    edgeSensitivity={20}
+                    coneSpread={20}
+                    speed={0.016}
+                    colors={['#ffffff', '#fb923c', '#ea580c']}
+                    glowColor="26 92% 58%"
+                    className="w-full"
+                  >
+                    <div className="relative w-full h-11 flex items-center">
+                      <Lock className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10 transition-colors ${focusedField === 'confirmPassword' ? 'text-orange-500 dark:text-orange-400' : 'text-neutral-400 dark:text-neutral-500'}`} />
+                      <input
+                        type="password"
+                        placeholder=" "
+                        autoComplete="new-password"
+                        value={formData.confirmPassword}
+                        onFocus={() => setFocusedField('confirmPassword')}
+                        onBlur={() => setFocusedField(null)}
+                        onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                        onInput={(e) => setFormData(prev => ({...prev, confirmPassword: e.target.value}))}
+                        className="auth-input notch-input w-full rounded-full h-full pl-10 pr-4 outline-none text-[12.5px] font-normal"
+                        disabled={loading}
+                      />
+                      <label
+                        className={`notch-label ${(formData.confirmPassword || focusedField === 'confirmPassword') ? 'floated' : ''}`}
+                      >
+                        Confirm Password
+                      </label>
+                    </div>
+                  </BorderGlow>
+                </motion.div>
               )}
-            </button>
-          </form>
+            </AnimatePresence>
 
-          <div className="flex items-center gap-4 my-4">
-            <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
-            <span className="text-[var(--text-tertiary)] text-[7.5px] font-bold tracking-[0.2em] uppercase">Or continue with</span>
-            <div className="h-[1px] flex-1 bg-[var(--border-color)] opacity-40"></div>
-          </div>
+            <motion.div 
+              layout 
+              variants={formItemVariants}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              className="w-full mt-1.5"
+            >
+              <BorderGlow
+                hoverGlow
+                borderRadius={9999}
+                glowRadius={12}
+                glowIntensity={0.38}
+                coneSpread={20}
+                colors={['#ffffff', '#fb923c', '#ea580c']}
+                glowColor="26 92% 58%"
+                className="border-glow-btn w-full"
+              >
+                <button
+                  type="submit"
+                  disabled={isFormLoading}
+                  className="w-full bg-[var(--text-primary)] text-[var(--bg-primary)] font-semibold text-[11.5px] rounded-full py-2.5 px-4 hover:opacity-95 active:scale-[0.98] transition-all shadow-md flex justify-center items-center gap-1.5 cursor-pointer disabled:opacity-50 border-0 h-10"
+                  style={{ borderRadius: '9999px' }}
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={isLogin ? 'btn-signin' : 'btn-signup'}
+                      initial={{ opacity: 0, y: 4, filter: 'blur(2px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -4, filter: 'blur(2px)' }}
+                      transition={{ duration: 0.18 }}
+                      className="flex items-center gap-1.5"
+                    >
+                      <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </motion.span>
+                  </AnimatePresence>
+                </button>
+              </BorderGlow>
+            </motion.div>
+          </motion.form>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <button 
-              type="button" 
-              onClick={() => window.location.href = `${API_URL}/api/auth/google`}
-              className="flex items-center justify-center gap-2 py-1.5 rounded-xl text-[10.5px] font-normal text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] hover:border-[var(--text-tertiary)] transition-all active:scale-95 shadow-sm"
-            >
-              <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-3.5 h-3.5" alt="Google" />
-              Google
-            </button>
-            <button 
-              type="button" 
-              onClick={() => window.location.href = `${API_URL}/api/auth/github`}
-              className="flex items-center justify-center gap-2 py-1.5 rounded-xl text-[10.5px] font-normal text-white bg-[#0d1117] border border-white/10 hover:bg-[#161b22] hover:border-white/20 transition-all active:scale-95 shadow-lg"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-              GitHub
-            </button>
-          </div>
+          <motion.div 
+            layout 
+            variants={formItemVariants}
+            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+            className="flex items-center gap-2 my-3"
+          >
+            <div className="h-[1px] flex-1 bg-[var(--border-color)]"></div>
+            <span className="text-[var(--text-tertiary)] text-[11px] font-medium">Or continue with</span>
+            <div className="h-[1px] flex-1 bg-[var(--border-color)]"></div>
+          </motion.div>
 
-          <div className="text-center flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              className="text-[12px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          <motion.div 
+            layout 
+            variants={formItemVariants}
+            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+            className="grid grid-cols-2 gap-2.5 mb-3"
+          >
+            <BorderGlow
+              hoverGlow
+              borderRadius={9999}
+              glowRadius={10}
+              glowIntensity={0.32}
+              coneSpread={20}
+              colors={['#ffffff', '#fb923c', '#ea580c']}
+              glowColor="26 92% 58%"
+              className="border-glow-btn w-full"
             >
-              {isLogin ? "Don't have an account? Sign In" : "Already have an account? Sign In"}
-            </button>
-            <div className="h-[1px] w-8 bg-[var(--border-color)] opacity-20 mx-auto"></div>
-            <button
-              type="button"
-              onClick={() => {
-                loginGuest();
-                sessionStorage.setItem('tb-just-logged-in', 'true');
-                setIsSuccess(true);
-                try {
-                  sessionStorage.setItem('tb-welcome-played', 'true');
-                } catch (e) { /* ignore */ }
-              }}
-              className="text-[11px] font-normal text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center gap-1.5 italic opacity-60 hover:opacity-100"
+              <button 
+                type="button" 
+                onClick={() => {
+                  setLoading(true);
+                  window.location.href = `${API_URL}/api/auth/google`;
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-full text-[11px] font-medium text-[var(--text-primary)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all active:scale-[0.98] cursor-pointer h-9"
+                style={{ borderRadius: '9999px' }}
+              >
+                <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-3.5 h-3.5" alt="Google" />
+                <span>Google</span>
+              </button>
+            </BorderGlow>
+            <BorderGlow
+              hoverGlow
+              borderRadius={9999}
+              glowRadius={10}
+              glowIntensity={0.32}
+              coneSpread={20}
+              colors={['#ffffff', '#fb923c', '#ea580c']}
+              glowColor="26 92% 58%"
+              className="border-glow-btn w-full"
             >
-              Skip and try free — 10 messages <Sparkles className="w-2.5 h-2.5" />
-            </button>
-          </div>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setLoading(true);
+                  window.location.href = `${API_URL}/api/auth/github`;
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-full text-[11px] font-medium text-[var(--text-primary)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all active:scale-[0.98] cursor-pointer h-9"
+                style={{ borderRadius: '9999px' }}
+              >
+                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                <span>GitHub</span>
+              </button>
+            </BorderGlow>
+          </motion.div>
+
+          <motion.div 
+            layout 
+            variants={formItemVariants}
+            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+            className="text-center mt-2 pt-0.5"
+          >
+            <div className="relative inline-flex items-center justify-center">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.button
+                  key={isLogin ? 'switch-to-signup' : 'switch-to-signin'}
+                  initial={{ opacity: 0, y: 6, filter: 'blur(3px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  exit={{ opacity: 0, y: -6, filter: 'blur(3px)' }}
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setError('');
+                    setFocusedField(null);
+                  }}
+                  className="text-[11.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer py-1 px-3 rounded-full hover:bg-[var(--bg-secondary)]/70 active:scale-95 group inline-flex items-center gap-1.5"
+                >
+                  {isLogin ? (
+                    <span>
+                      Don't have an account?{' '}
+                      <span className="font-semibold text-[var(--text-primary)] underline underline-offset-4 decoration-[var(--border-color)] group-hover:decoration-[var(--text-primary)] transition-colors">
+                        Sign up
+                      </span>
+                    </span>
+                  ) : (
+                    <span>
+                      Already have an account?{' '}
+                      <span className="font-semibold text-[var(--text-primary)] underline underline-offset-4 decoration-[var(--border-color)] group-hover:decoration-[var(--text-primary)] transition-colors">
+                        Sign in
+                      </span>
+                    </span>
+                  )}
+                </motion.button>
+              </AnimatePresence>
+            </div>
+          </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+          {/* Mobile System Badge / Footer Anchor */}
+          <motion.div 
+            variants={formItemVariants}
+            className="lg:hidden mt-4 text-center select-none pointer-events-none"
+          >
+            <span className="text-[11px] font-normal text-[var(--text-tertiary)] opacity-60">
+              TutorBoard • AI Visual Learning & Canvas
+            </span>
+          </motion.div>
         </div>
 
       </div>
 
-      {/* ── RIGHT COLUMN: SHOWCASE ────────────────────────────────────────── */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-[var(--bg-secondary)] via-[var(--bg-primary)] to-[var(--bg-tertiary)] relative overflow-hidden flex-col h-screen border-l border-[var(--border-color)]">
-
-        {/* Glow Effects */}
-        <div className="absolute top-[10%] right-[5%] w-[500px] h-[500px] bg-purple-200/10 rounded-full blur-[140px] pointer-events-none"></div>
-        <div className="absolute bottom-[10%] left-[5%] w-[450px] h-[450px] bg-orange-100/10 rounded-full blur-[120px] pointer-events-none"></div>
-
-        {/* Navbar - Desktop/Laptop Only */}
-        <nav className="hidden lg:flex items-center justify-between w-full px-10 py-6 relative z-20 shrink-0">
-          <div className="flex items-center gap-2">
-            <VisaiLogo size="sm" className="text-[var(--text-primary)]" />
-            <span className="text-[11px] font-normal uppercase tracking-wider text-[var(--text-primary)]">
-              TutorBoard
-            </span>
-          </div>
-
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-7 text-[10.5px] font-normal uppercase tracking-wider text-[var(--text-secondary)]">
-               <Link to="/how-it-works" className="hover:text-[var(--text-primary)] transition-colors">How it works</Link>
-               <Link to="/features" className="hover:text-[var(--text-primary)] transition-colors">Features</Link>
-               <Link to="/solutions" className="hover:text-[var(--text-primary)] transition-colors">Solutions</Link>
-               <Link to="/about" className="hover:text-[var(--text-primary)] transition-colors">About</Link>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {isAuthenticated ? (
-                <motion.div 
-                  key="authenticated-nav"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-6"
-                >
-                  {!user?.isGuest && (
-                    <button className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5">
-                      <User size={13} /> Profile
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => navigate('/session')}
-                    className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
-                  >
-                    Dashboard <ArrowRight className="w-2.5 h-2.5 opacity-50" />
-                  </button>
-                </motion.div>
-              ) : (
-                <motion.button 
-                  key="guest-nav"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  onClick={() => {
-                    loginGuest();
-                    navigate('/session');
-                  }}
-                  className="text-[10.5px] font-normal text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center gap-1.5"
-                >
-                  Try Free — 10 Messages <ArrowRight className="w-2.5 h-2.5 opacity-50" />
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
-        </nav>
-
-
-        {/* Showcase Container */}
-        <div className="flex-1 flex items-center justify-center p-8 lg:p-12 relative z-10 min-h-0 overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div 
-              key={activeTopicIndex}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-[40px] p-8 lg:p-10 max-w-[540px] w-full shadow-[0_40px_80px_-20px_rgba(0,0,0,0.06)] relative flex flex-col max-h-[85vh]"
-            >
-              <div className="flex items-center justify-between mb-8 shrink-0">
-                <div className="w-11 h-11 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center shadow-sm">
-                   {currentTopic.icon}
-                </div>
-                <div className="px-3.5 py-1.5 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[10px] font-normal uppercase tracking-widest text-[var(--text-secondary)]">
-                  {currentTopic.subject}
-                </div>
-              </div>
-
-              <h2 className="text-[30px] lg:text-[34px] leading-[1.05] font-heading font-semibold mb-4 text-[var(--text-primary)] tracking-tight shrink-0">
-                {currentTopic.visualization === 'bst' && "Master concepts faster with interactive models."}
-                {currentTopic.visualization === 'cell' && "Explore the building blocks of life."}
-                {currentTopic.visualization === 'orbit' && "Understand the laws of the universe."}
-                {currentTopic.visualization === 'math' && "Visualize calculations with geometric clarity."}
-              </h2>
-              
-              <p className="text-[var(--text-secondary)] text-[14px] leading-[1.5] mb-6 font-normal max-w-[90%] shrink-0 opacity-80">
-                {currentTopic.visualization === 'bst' && "TutorBoard is your personal learning canvas. Join a community of learners pushing boundaries."}
-                {currentTopic.visualization === 'cell' && "Internal structures aren't just diagrams anymore. Experience them in 3D-like clarity."}
-                {currentTopic.visualization === 'orbit' && "From planetary orbits to atomic systems, visualize the invisible patterns of reality."}
-                {currentTopic.visualization === 'math' && "Abstract formulas become concrete visual relationships. Learn math by seeing it happen."}
-              </p>
-
-              {/* Animation Arena */}
-              <div className="flex-1 min-h-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[28px] overflow-hidden flex flex-col relative">
-                  <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none" />
-                  
-                  <div className="flex-1 p-6 flex flex-col justify-center gap-4 relative overflow-hidden">
-                    <AnimatePresence mode="wait">
-                      {demoPhase === 'ask' && (
-                        <motion.div
-                          key="q"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          className="self-end bg-[var(--text-primary)] text-[var(--bg-primary)] px-4 py-2.5 rounded-2xl rounded-tr-none text-[13px] font-normal shadow-sm max-w-[80%]"
-                        >
-                          {currentTopic.question}
-                        </motion.div>
-                      )}
-
-                      {demoPhase === 'think' && (
-                        <motion.div
-                          key="t"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="self-start flex gap-3 items-center"
-                        >
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center bg-[var(--bg-primary)] border border-[var(--border-color)]">
-                             <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }}>
-                                <Sparkles className="w-3 h-3 text-[var(--text-primary)]" />
-                             </motion.div>
-                          </div>
-                          <span className="text-[12px] font-normal text-[var(--text-secondary)] tracking-wide italic">Generating visual...</span>
-                        </motion.div>
-                      )}
-
-                      {demoPhase === 'view' && (
-                        <motion.div
-                          key="v"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="flex flex-col items-center gap-4 w-full h-full justify-center"
-                        >
-                           {/* BST VISUALIZATION */}
-                           {currentTopic.visualization === 'bst' && (
-                             <div className="flex flex-col items-center gap-3">
-                                <div className="w-9 h-9 rounded-full border-2 border-[var(--text-primary)]/20 flex items-center justify-center font-normal text-[var(--text-primary)] bg-[var(--bg-primary)] text-[13px] shadow-sm">8</div>
-                                <div className="flex justify-between w-28 px-4 opacity-10">
-                                   <div className="h-6 w-[1.5px] bg-[var(--text-primary)] rotate-[35deg]" />
-                                   <div className="h-6 w-[1.5px] bg-[var(--text-primary)] -rotate-[35deg]" />
-                                </div>
-                                <div className="flex justify-between w-32 px-1">
-                                   <div className="w-9 h-9 rounded-full border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] bg-[var(--bg-primary)] text-[12px]">3</div>
-                                   <div className="w-9 h-9 rounded-full border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] bg-[var(--bg-primary)] text-[12px]">10</div>
-                                </div>
-                             </div>
-                           )}
-
-                           {/* CELL VISUALIZATION */}
-                           {currentTopic.visualization === 'cell' && (
-                             <div className="relative w-32 h-32 flex items-center justify-center">
-                                <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ repeat: Infinity, duration: 3 }} className="absolute inset-0 bg-[var(--text-primary)]/5 border-2 border-[var(--text-primary)]/10 rounded-full shadow-inner" />
-                                <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="w-12 h-12 bg-[var(--text-primary)]/20 border border-[var(--text-primary)]/30 rounded-full flex items-center justify-center">
-                                  <div className="w-4 h-4 bg-[var(--text-primary)]/40 rounded-full" />
-                                </motion.div>
-                                <motion.div animate={{ x: [0, 40, 0, -40, 0], y: [0, -40, -80, -40, 0] }} transition={{ repeat: Infinity, duration: 8 }} className="absolute w-4 h-2 bg-[var(--text-primary)]/20 rounded-full flex items-center justify-center text-[6px]">
-                                   <div className="w-full h-[1px] bg-[var(--text-primary)]/30 rotate-45" />
-                                </motion.div>
-                             </div>
-                           )}
-
-                           {/* ORBIT VISUALIZATION */}
-                           {currentTopic.visualization === 'orbit' && (
-                             <div className="relative w-40 h-40 flex items-center justify-center">
-                                <div className="w-12 h-12 bg-[var(--text-primary)]/10 border border-[var(--border-color)] rounded-full shadow-[0_0_20px_rgba(0,0,0,0.02)]" />
-                                <motion.div 
-                                  animate={{ rotate: 360 }} 
-                                  transition={{ repeat: Infinity, duration: 5, ease: "linear" }}
-                                  className="absolute w-full h-full border border-[var(--text-primary)]/5 rounded-full"
-                                >
-                                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-[var(--text-primary)]/80 rounded-full shadow-md" />
-                                </motion.div>
-                             </div>
-                           )}
-
-                           {/* MATH VISUALIZATION */}
-                           {currentTopic.visualization === 'math' && (
-                             <div className="flex flex-col items-center gap-4">
-                                <div className="relative w-28 h-28 border-2 border-[var(--text-primary)]/20 rounded-full flex items-center justify-center bg-[var(--text-primary)]/5">
-                                   <motion.div initial={{ width: 0 }} animate={{ width: 56 }} transition={{ duration: 1, delay: 0.5 }} className="h-[2px] bg-[var(--text-primary)]/40 absolute left-1/2 origin-left flex items-center justify-center">
-                                      <span className="text-[10px] bg-[var(--bg-primary)] px-1 border border-[var(--border-color)] rounded relative -top-3 text-[var(--text-secondary)]">r</span>
-                                   </motion.div>
-                                   <div className="w-1 h-1 rounded-full bg-[var(--text-primary)]/60" />
-                                </div>
-                                <div className="font-serif italic text-[var(--text-primary)] text-[20px]">
-                                  A = <span className="text-[var(--text-primary)] opacity-70">π</span> r<sup className="text-[14px]">2</sup>
-                                </div>
-                             </div>
-                           )}
-
-                           <div className="text-[10px] font-normal uppercase tracking-widest text-[var(--text-tertiary)] bg-[var(--bg-tertiary)] px-3 py-1 rounded-full border border-[var(--border-color)] mt-2">
-                             Visual Understanding
-                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  <div className="px-5 py-3 border-t border-[var(--border-color)] bg-[var(--bg-primary)] opacity-40 flex items-center justify-between shrink-0">
-                    <div className="flex gap-1.5 grayscale">
-                      <div className="w-2 h-2 rounded-full bg-[var(--text-primary)] opacity-20" />
-                      <div className="w-2 h-2 rounded-full bg-[var(--text-primary)] opacity-20" />
-                      <div className="w-2 h-2 rounded-full bg-[var(--text-primary)] opacity-20" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-primary)] animate-pulse" />
-                       <span className="text-[9px] font-normal uppercase tracking-tighter text-[var(--text-tertiary)]">Powered by TutorBoard AI</span>
-                    </div>
-                  </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-            <div className="p-8 mt-auto text-[var(--text-primary)] opacity-20 text-[9px] uppercase font-normal tracking-[0.4em] shrink-0 text-center">
-              Across every subject · Experience the Future
-            </div>
-          </div>
+      {/* ── RIGHT COLUMN: SHOWCASE (the landing page's galaxy) ───────────── */}
+      <div className="hidden lg:flex lg:w-3/4 lg:flex-1 relative overflow-hidden flex-col h-screen border-l border-[var(--border-color)] z-20">
+        <ErrorBoundary fallback={null}>
+          <React.Suspense fallback={null}>
+            <AuthShowcase />
+          </React.Suspense>
+        </ErrorBoundary>
+      </div>
         </motion.div>
       )}
     </AnimatePresence>

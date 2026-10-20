@@ -33,6 +33,8 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
+import RootErrorFallback from './components/common/RootErrorFallback';
+
 /**
  * Global Error Boundary for the entire application lifecycle.
  */
@@ -52,21 +54,7 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif', backgroundColor: '#f7f4ed', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <h1 style={{ fontSize: '24px', color: '#1c1711', marginBottom: '16px' }}>Initialization Failed</h1>
-          <p style={{ color: '#4f473a', marginBottom: '24px' }}>TutorBoard encountered a critical error during startup.</p>
-          <button 
-            onClick={() => { localStorage.clear(); window.location.reload(); }}
-            style={{ padding: '12px 24px', backgroundColor: '#1c1711', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            Reset Session & Retry
-          </button>
-          <pre style={{ marginTop: '40px', padding: '20px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '8px', fontSize: '12px', textAlign: 'left', maxWidth: '80%', overflow: 'auto' }}>
-            {this.state.error?.toString()}
-          </pre>
-        </div>
-      );
+      return <RootErrorFallback error={this.state.error} />;
     }
 
     return this.props.children;

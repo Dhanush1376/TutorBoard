@@ -410,7 +410,7 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
                 <div className="w-full bg-black/50 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-gradient-to-r from-emerald-500 to-emerald-300 h-1.5 rounded-full transition-all duration-75" style={{ width: `${kePercent}%` }} />
                 </div>
-                <div className="mt-1 text-[9px] text-right text-white/40 font-mono uppercase tracking-wider">KE: {ke.toFixed(0)} J</div>
+                <div className="mt-1 text-[10px] text-right text-white/50 font-medium">KE: {ke.toFixed(0)} J</div>
               </div>
             );
           })}

@@ -4,13 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Menu, PanelRight, PanelRightClose, ChevronLeft, ArrowUp, Loader2, Sparkles,
   RotateCcw, RefreshCw, Dices, Crosshair, Volume2, VolumeX, AlertTriangle, BookOpen,
-  Minimize2, Undo2, Redo2, Bookmark, Clock
+  Minimize2, Undo2, Redo2, Bookmark, Clock, CornerUpLeft
 } from 'lucide-react';
 import { useElapsedTime } from '../../hooks/useElapsedTime';
 
 const AgentCanvasRenderer = React.lazy(() => import('../canvas/AgentCanvasRenderer'));
 const FixedTeachingStage = lazy(() => import('../canvas/FixedTeachingStage'));
 const CinematicStage = lazy(() => import('../canvas/CinematicStage'));
+const SceneV2Stage = lazy(() => import('../canvas/SceneV2Stage'));
+import CheckCard from './CheckCard';
 import FloatingSidebar from './FloatingSidebar';
 import StepPanel from './StepPanel';
 import NarrationBar from './NarrationBar';
@@ -27,7 +29,7 @@ import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useVoiceNarrator from '../../hooks/useVoiceNarrator';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
-import { DOMAIN_STYLES, PANEL_VISIBLE_STATES as PANEL_VISIBLE_STATES_ARR, formatTopicTitle } from '../../lib/teaching';
+import { DOMAIN_STYLES, PANEL_VISIBLE_STATES as PANEL_VISIBLE_STATES_ARR, formatTopicTitle, checkKey } from '../../lib/teaching';
 
 const PANEL_VISIBLE_STATES = new Set(PANEL_VISIBLE_STATES_ARR);
 
@@ -83,16 +85,32 @@ const TeachingSession = ({ initialTopic }) => {
 
   const toolbarLeft = isSidebarOpen ? 350 + 16 : 16;
 
+  // Engine v2: a question answered on the board, played as a branch of the lesson
+  const sceneBranch = useTutorStore((s) => s.sceneBranch);
+  const branchStep = sceneBranch ? sceneBranch.steps?.[sceneBranch.at - sceneBranch.from - 1] ?? null : null;
+
+  // "predict the next step" (5.1): shown once the step's beat has played
+  const stepCheck = timeline?.renderer === 'scene-v2' ? (timeline?.steps || [])[currentStepIndex]?.check : null;
+  const stepCheckKey = checkKey(timeline, currentStepIndex);
+  const checkAnswer = useTutorStore((s) => s.checkAnswers[stepCheckKey]);
+  const beatPlayed = useTutorStore((s) => s.stepPlayback?.index === currentStepIndex && s.stepPlayback?.animDone);
+  const showCheck = !!stepCheck && !sceneBranch && (beatPlayed || checkAnswer !== undefined);
+
   const isOpen = machineState !== STATES.IDLE || canvasLayout !== 'inline';
   const isGenerating = machineState === STATES.GENERATING;
   // FIX: Also show the canvas body when viewing a snapshot (canvasLayout !== 'inline' but machineState === IDLE)
   const isSnapshotView = canvasLayout !== 'inline' && machineState === STATES.IDLE;
-  const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING || isGenerating || isSnapshotView;
+  // The lesson must stay on screen while a doubt is being answered and while
+  // paused (server state 'PAUSED') — the doubt is *about* what's on the canvas.
+  const isTeaching = machineState === STATES.TEACHING || machineState === STATES.RESPONDING || machineState === STATES.RESUMING
+    || machineState === STATES.DOUBT_TRIGGERED || machineState === 'PAUSED' || isGenerating || isSnapshotView;
   
   const domain = timeline?.domain?.toLowerCase() || 'general';
   const ds = DOMAIN_STYLES[domain] || DOMAIN_STYLES.general;
   const domainColor = ds.accent || '#6366f1';
-  const isAlgo = isDSAContent(timeline);
+  // Engine v2 lessons (Scene Language) play on their own stage, with the narration bar
+  const isSceneV2 = timeline?.renderer === 'scene-v2' && !!timeline?.sceneV2;
+  const isAlgo = !isSceneV2 && isDSAContent(timeline);
   const useAlgoPanel = isAlgo;
 
   const stepType = currentStep?.type || (
@@ -120,12 +138,21 @@ const TeachingSession = ({ initialTopic }) => {
   // cutting narration off mid-sentence.
   useEffect(() => {
     if (isTeaching && currentStep && !isGenerating) {
-      const text = currentStep.narration || currentStep.explanation;
+      const text = branchStep?.narration || currentStep.narration || currentStep.explanation;
       narrateStep(currentStepIndex, text || '');
     } else {
       cancel();
     }
-  }, [currentStepIndex, isTeaching, isGenerating, narrateStep, cancel, currentStep]);
+  }, [currentStepIndex, isTeaching, isGenerating, narrateStep, cancel, currentStep, branchStep]);
+
+  // Engine v2: click an element on the board → ask about it (socket lessons take
+  // it as a doubt; chat lessons send it through the chat box like a typed question)
+  const handleAskAbout = useCallback((entity, verbatim = false) => {
+    const label = String(entity.label ?? entity.text ?? entity.latex ?? entity.id).slice(0, verbatim ? 240 : 60);
+    const question = verbatim ? label : `What is "${label}" showing at this point?`;
+    if (machineState === STATES.TEACHING || machineState === 'PAUSED') askDoubt(question);
+    else useTutorStore.getState().queueQuestion(question);
+  }, [machineState, askDoubt]);
 
   const handleElementClick = useCallback((id, event, data) => {
     if (event === 'click') {
@@ -192,6 +219,9 @@ const TeachingSession = ({ initialTopic }) => {
   useEffect(() => {
     if (!isOpen) return;
     const fn = (e) => {
+      // Never hijack keys while the student is typing (e.g. a doubt) —
+      // arrows move the caret, Escape belongs to the field.
+      if (e.target?.matches?.('input, textarea, select, [contenteditable="true"]')) return;
       if (e.key === 'Escape') {
         handleClose();
       } else if (e.key === 'ArrowRight') {
@@ -325,7 +355,7 @@ const TeachingSession = ({ initialTopic }) => {
           className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--bg-tertiary)] active:scale-95 transition-all group"
         >
           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-          <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--text-primary)] truncate max-w-[140px]">
+          <span className="text-[12px] font-medium text-[var(--text-primary)] truncate max-w-[140px]">
             {topic || 'Active Session'}
           </span>
           <ChevronLeft size={12} className="text-[var(--text-tertiary)] group-hover:translate-x-0.5 transition-transform rotate-180" />
@@ -381,6 +411,18 @@ const TeachingSession = ({ initialTopic }) => {
           {/* Canvas Area (Flex sibling for dynamic adjustment) */}
           <motion.div layout className="teaching-canvas-area" style={{ background: 'transparent' }}>
             <div className="absolute inset-0 overflow-visible">
+              {isSceneV2 ? (
+              <Suspense fallback={null}>
+                <SceneV2Stage
+                  ref={canvasRef}
+                  scene={timeline.sceneV2}
+                  stepIndex={currentStepIndex}
+                  onAskAbout={handleAskAbout}
+                  // keep clear of the toolbar, step pill, narration + controls and the guide panel
+                  insets={{ top: 104, bottom: 212, left: 72, right: panelOpen ? 392 : 48 }}
+                />
+              </Suspense>
+              ) : (
               <Suspense fallback={null}>
                 <CinematicStage
                   topic={topic}
@@ -406,7 +448,58 @@ const TeachingSession = ({ initialTopic }) => {
                   </React.Suspense>
                 </CinematicStage>
               </Suspense>
+              )}
             </div>
+
+            {/* ── Engine v2: predict the next step ── */}
+            <AnimatePresence>
+              {showCheck && (
+                <div
+                  key={`check-${stepCheckKey}`}
+                  className="absolute bottom-[212px] left-0 z-[65] flex justify-center pointer-events-none"
+                  style={{ right: panelOpen ? 380 : 0 }}
+                >
+                  <CheckCard
+                    check={stepCheck}
+                    answered={checkAnswer}
+                    onAnswer={(choice, correct) => useTutorStore.getState().answerCheck(stepCheckKey, choice, correct)}
+                    onContinue={() => {
+                      const next = currentStepIndex + 1;
+                      if (next < (timeline?.steps || []).length) useTutorStore.getState().setCurrentStep(next);
+                    }}
+                    onExplain={() => handleAskAbout({ label: `${stepCheck.question} — why is the answer "${stepCheck.choices[stepCheck.answer]}"`, id: 'check' }, true)}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* ── Engine v2: answering a question on the board → back to the lesson ── */}
+            <AnimatePresence>
+              {isSceneV2 && sceneBranch && (
+                <motion.div
+                  key="scene-branch"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute top-[84px] left-0 z-[60] flex justify-center pointer-events-none"
+                  style={{ right: panelOpen ? 380 : 0 }}
+                >
+                <div className="pointer-events-auto flex items-center gap-3 pl-4 pr-1.5 py-1.5 rounded-full liquid-glass shadow-premium">
+                  <span className="text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap">
+                    Your question · {Math.min(sceneBranch.beats, sceneBranch.at - sceneBranch.from)}/{sceneBranch.beats}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => useTutorStore.getState().exitSceneBranch()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] text-[11px] font-semibold hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    <CornerUpLeft size={12} />
+                    Back to the lesson · step {currentStepIndex + 1}
+                  </button>
+                </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* ── Step Orientation Pill (Floating Context) ── */}
             <div className="absolute top-[80px] left-6 z-[30] pointer-events-none flex flex-col gap-3">
@@ -424,7 +517,7 @@ const TeachingSession = ({ initialTopic }) => {
                         stepType?.toLowerCase() === 'intro' ? '#2563eb' : 'var(--text-primary)'
                   }}
                 />
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
+                <span className="text-xs font-medium text-[var(--text-secondary)]">
                   {stepType ? `${stepType} · ` : ''}{currentStepIndex + 1}
                 </span>
               </motion.div>
@@ -458,7 +551,7 @@ const TeachingSession = ({ initialTopic }) => {
                       transition={{ duration: 4, repeat: Infinity }}
                       className="flex flex-col items-center"
                     >
-                      <h3 className="text-[11px] font-black tracking-[0.6em] text-[var(--text-primary)] uppercase">
+                      <h3 className="text-xs font-medium text-[var(--text-primary)]">
                         {topic ? topic : "TutorBoard AI"}
                       </h3>
                     </motion.div>
@@ -513,7 +606,7 @@ const TeachingSession = ({ initialTopic }) => {
                       key={machine.generationProgress?.label || 'init'}
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="text-[10px] font-bold text-[var(--text-primary)] tracking-[0.4em] uppercase"
+                      className="text-xs font-medium text-[var(--text-primary)]"
                     >
                       {machine.generationProgress?.label || 'Initializing Neural Canvas'}
                     </motion.p>
@@ -534,7 +627,7 @@ const TeachingSession = ({ initialTopic }) => {
                             />
                           ))}
                         </div>
-                        <span className="text-[8px] font-medium text-[var(--text-tertiary)] uppercase tracking-widest opacity-60">
+                        <span className="text-[10px] font-medium text-[var(--text-tertiary)] opacity-70">
                           Stage {machine.generationProgress.stage} of {machine.generationProgress.totalStages}
                         </span>
                       </div>
@@ -560,7 +653,7 @@ const TeachingSession = ({ initialTopic }) => {
               <div className="absolute bottom-[140px] left-1/2 -translate-x-1/2 z-[60] flex justify-center w-full max-w-[90%] md:max-w-3xl pointer-events-none">
                 <div className="pointer-events-auto w-full flex justify-center">
                   <NarrationBar 
-                    text={currentStep?.narration || currentStep?.explanation} 
+                    text={branchStep?.narration || currentStep?.narration || currentStep?.explanation} 
                     isGenerating={isGenerating} 
                     onCancel={cancelSession}
                   />
@@ -693,7 +786,7 @@ const TeachingSession = ({ initialTopic }) => {
                       onResume={resume} 
                       onAskDoubt={askDoubt}
                       isAlgo={isAlgo}
-                      onReplay={() => goToStep(currentStepIndex)}
+                      onReplay={() => { goToStep(currentStepIndex); useTutorStore.getState().replayStep(); }}
                       onClose={() => setPanelOpen(false)}
                     />
                   </div>
@@ -738,7 +831,7 @@ const TeachingSession = ({ initialTopic }) => {
                 <span style={{ color: 'var(--text-primary)' }} className="text-[13px] font-sans font-bold tracking-tight group-hover:text-indigo-400 transition-colors">
                   {formatTopicTitle(timeline?.title || topic)}
                 </span>
-                <span className="text-[9px] font-medium text-[var(--text-tertiary)] uppercase tracking-widest opacity-60">
+                <span className="text-[11px] font-medium text-[var(--text-tertiary)] opacity-70">
                    {isAlgo ? 'Algorithm Session' : (timeline?.domain || 'Interactive Guide')}
                 </span>
               </button>

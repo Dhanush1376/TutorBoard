@@ -1,0 +1,239 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How Gradient Descent Finds a Minimum",
+  "domain": "math",
+  "summary": "A point follows the negative gradient on a curve, stepping toward the lowest value.",
+  "spaces": [
+   {
+    "id": "s1",
+    "kind": "cartesian",
+    "x": [
+     -2,
+     6
+    ],
+    "y": [
+     -1,
+     9
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "f(x)",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "func",
+    "space": "s1",
+    "type": "plot",
+    "expr": "(x-2)^2"
+   },
+   {
+    "id": "pt",
+    "label": "x₀",
+    "tone": "primary",
+    "space": "s1",
+    "type": "point",
+    "at": [
+     5,
+     9
+    ]
+   },
+   {
+    "id": "grad",
+    "label": "-∇f",
+    "tone": "accent",
+    "space": "s1",
+    "type": "vector",
+    "from": [
+     5,
+     9
+    ],
+    "to": [
+     5,
+     7
+    ]
+   },
+   {
+    "id": "eq",
+    "tone": "info",
+    "type": "math",
+    "latex": "f(x)\\\\;=\\\\;(x-2)^2"
+   },
+   {
+    "id": "step",
+    "type": "text",
+    "text": "Step size \\(\\\\alpha\\)",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "func",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "eq",
+    "of": "func",
+    "gap": "md"
+   },
+   {
+    "rel": "right-of",
+    "id": "pt",
+    "of": "func",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "step",
+    "of": "pt",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Define the function",
+    "narration": "We plot the quadratic f(x) = (x‑2)², a bowl‑shaped curve with its minimum at x=2.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "func",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Start at a point",
+    "narration": "Place a point at x = 5, the current location on the curve.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "pt",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Compute gradient",
+    "narration": "The gradient ∇f at x=5 is 2·(5‑2)=6; the negative gradient points downhill.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "grad",
+      "effect": "draw"
+     },
+     {
+      "do": "annotate",
+      "target": "grad",
+      "text": "-∇f",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Take a step",
+    "narration": "Move the point opposite the gradient by a step size α=0.5: new x = 5 – 0.5·6 = 2.",
+    "actions": [
+     {
+      "do": "move",
+      "target": "pt",
+      "to": [
+       2,
+       0
+      ]
+     },
+     {
+      "do": "set",
+      "target": "pt",
+      "text": "x₁"
+     },
+     {
+      "do": "remove",
+      "target": "grad"
+     },
+     {
+      "do": "highlight",
+      "target": "pt",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Reach the minimum",
+    "narration": "The point arrives at x = 2, where the gradient is zero—the function’s minimum.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "pt",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "pt",
+      "text": "minimum",
+      "side": "above"
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[3].actions[1].text",
+   "message": "auto-fixed: taken from its label/to"
+  },
+  {
+   "path": "layout[0].id",
+   "message": "\"func\" lives in space \"s1\"; place the space instead"
+  },
+  {
+   "path": "layout[2].id",
+   "message": "\"pt\" lives in space \"s1\"; place the space instead"
+  },
+  {
+   "path": "beats[3].actions[1].text",
+   "message": "\"text\" applies to text/rect/circle; \"pt\" is a point"
+  },
+  {
+   "path": "entities",
+   "message": "\"step\" is never shown"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "spaces[0].kind",
+    "message": "Invalid discriminator value. Expected 'cartesian'"
+   },
+   {
+    "path": "entities[1].space",
+    "message": "Required"
+   },
+   {
+    "path": "entities[2].space",
+    "message": "Required"
+   }
+  ]
+ ],
+ "ms": 70987,
+ "model": "gemini-3.6-flash",
+ "domain": "ml"
+}

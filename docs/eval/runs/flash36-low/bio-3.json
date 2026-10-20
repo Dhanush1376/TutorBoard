@@ -1,0 +1,367 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Blood Flow Through the Heart",
+  "domain": "biology",
+  "summary": "Deoxygenated blood returns from the body to the right side of the heart, gets oxygenated in the lungs, and returns to the left side to be pumped back to the body.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "title_deox",
+    "type": "text",
+    "text": "Right Heart (Oxygen-poor)",
+    "role": "title"
+   },
+   {
+    "id": "title_ox",
+    "type": "text",
+    "text": "Left Heart (Oxygen-rich)",
+    "role": "title"
+   },
+   {
+    "id": "vc",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Vena Cava"
+   },
+   {
+    "id": "ra",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Right Atrium"
+   },
+   {
+    "id": "rv",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Right Ventricle"
+   },
+   {
+    "id": "pa",
+    "tone": "info",
+    "type": "rect",
+    "size": "md",
+    "text": "Pulmonary Artery"
+   },
+   {
+    "id": "lungs",
+    "tone": "accent",
+    "type": "rect",
+    "size": "lg",
+    "text": "Lungs (Gas Exchange)"
+   },
+   {
+    "id": "pv",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Pulmonary Veins"
+   },
+   {
+    "id": "la",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Left Atrium"
+   },
+   {
+    "id": "lv",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Left Ventricle"
+   },
+   {
+    "id": "aorta",
+    "tone": "danger",
+    "type": "rect",
+    "size": "md",
+    "text": "Aorta"
+   },
+   {
+    "id": "body",
+    "tone": "warning",
+    "type": "rect",
+    "size": "lg",
+    "text": "Rest of the Body"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "row",
+    "ids": [
+     "title_deox",
+     "title_ox"
+    ],
+    "gap": "xl"
+   },
+   {
+    "rel": "place",
+    "id": "title_deox",
+    "region": "top-left"
+   },
+   {
+    "rel": "place",
+    "id": "title_ox",
+    "region": "top-right"
+   },
+   {
+    "rel": "column",
+    "ids": [
+     "vc",
+     "ra",
+     "rv",
+     "pa"
+    ],
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "vc",
+    "of": "title_deox",
+    "gap": "md"
+   },
+   {
+    "rel": "column",
+    "ids": [
+     "pv",
+     "la",
+     "lv",
+     "aorta"
+    ],
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "pv",
+    "of": "title_ox",
+    "gap": "md"
+   },
+   {
+    "rel": "place",
+    "id": "lungs",
+    "region": "bottom-left"
+   },
+   {
+    "rel": "place",
+    "id": "body",
+    "region": "bottom-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Return of deoxygenated blood",
+    "narration": "Oxygen-poor blood enters the right side of the heart through the Vena Cava into the Right Atrium and down to the Right Ventricle.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "title_deox",
+       "vc",
+       "ra",
+       "rv"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "connect",
+      "from": "vc",
+      "to": "ra",
+      "style": "arrow"
+     },
+     {
+      "do": "connect",
+      "from": "ra",
+      "to": "rv",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "vc",
+       "ra",
+       "rv"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pumping to the lungs",
+    "narration": "The Right Ventricle contracts, pumping the oxygen-poor blood through the Pulmonary Artery to the Lungs.",
+    "actions": [
+     {
+      "do": "clear",
+      "target": [
+       "vc",
+       "ra",
+       "rv"
+      ]
+     },
+     {
+      "do": "create",
+      "target": [
+       "pa",
+       "lungs"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "connect",
+      "from": "rv",
+      "to": "pa",
+      "style": "arrow"
+     },
+     {
+      "do": "connect",
+      "from": "pa",
+      "to": "lungs",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "pa",
+       "lungs"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Oxygenation and left heart entry",
+    "narration": "After releasing CO2 and picking up fresh oxygen in the lungs, oxygenated blood flows through Pulmonary Veins into the Left Atrium and Ventricle.",
+    "actions": [
+     {
+      "do": "clear",
+      "target": [
+       "pa",
+       "lungs"
+      ]
+     },
+     {
+      "do": "create",
+      "target": [
+       "title_ox",
+       "pv",
+       "la",
+       "lv"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "connect",
+      "from": "lungs",
+      "to": "pv",
+      "style": "arrow"
+     },
+     {
+      "do": "connect",
+      "from": "pv",
+      "to": "la",
+      "style": "arrow"
+     },
+     {
+      "do": "connect",
+      "from": "la",
+      "to": "lv",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "pv",
+       "la",
+       "lv"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Systemic circulation",
+    "narration": "The thick Left Ventricle pumps oxygen-rich blood through the Aorta out to fuel the entire body, completing the loop.",
+    "actions": [
+     {
+      "do": "clear",
+      "target": [
+       "pv",
+       "la",
+       "lv"
+      ]
+     },
+     {
+      "do": "create",
+      "target": [
+       "aorta",
+       "body"
+      ],
+      "effect": "fade"
+     },
+     {
+      "do": "connect",
+      "from": "lv",
+      "to": "aorta",
+      "style": "arrow"
+     },
+     {
+      "do": "connect",
+      "from": "aorta",
+      "to": "body",
+      "style": "arrow"
+     },
+     {
+      "do": "connect",
+      "from": "body",
+      "to": "vc",
+      "style": "dashed"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "lv",
+       "aorta",
+       "body"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "layout",
+   "message": "\"title_deox\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "layout",
+   "message": "\"title_ox\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "layout",
+   "message": "\"vc\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "layout",
+   "message": "\"pv\" is positioned by 2 relations; the first one wins"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 9941,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

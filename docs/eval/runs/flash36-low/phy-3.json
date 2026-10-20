@@ -1,0 +1,295 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Forces on a Block Sliding Down a Ramp",
+  "domain": "physics",
+  "summary": "Three main forces act on the block: Gravity (mg) pulling straight down, Normal Force (F_N) pushing perpendicular to the incline, and Friction (F_f) opposing the downward motion.",
+  "spaces": [
+   {
+    "id": "ramp_space",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     7
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "ramp",
+    "tone": "muted",
+    "space": "ramp_space",
+    "type": "polygon",
+    "points": [
+     [
+      1,
+      1
+     ],
+     [
+      9,
+      1
+     ],
+     [
+      9,
+      5.62
+     ]
+    ],
+    "vertexLabels": [
+     "A",
+     "B",
+     "C"
+    ],
+    "fill": true
+   },
+   {
+    "id": "angle_theta",
+    "label": "\\theta = 30^\\circ",
+    "space": "ramp_space",
+    "type": "angle",
+    "vertex": [
+     1,
+     1
+    ],
+    "from": [
+     9,
+     1
+    ],
+    "to": [
+     9,
+     5.62
+    ],
+    "showValue": true
+   },
+   {
+    "id": "block",
+    "label": "Block",
+    "tone": "primary",
+    "space": "ramp_space",
+    "type": "body",
+    "at": [
+     5,
+     3.31
+    ],
+    "size": "md"
+   },
+   {
+    "id": "fg",
+    "label": "F_g = mg",
+    "tone": "danger",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     5,
+     3.31
+    ],
+    "to": [
+     5,
+     0.31
+    ]
+   },
+   {
+    "id": "fn",
+    "label": "F_N",
+    "tone": "info",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     5,
+     3.31
+    ],
+    "to": [
+     3.7,
+     5.56
+    ]
+   },
+   {
+    "id": "ff",
+    "label": "F_f",
+    "tone": "warning",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     5,
+     3.31
+    ],
+    "to": [
+     3.7,
+     4.06
+    ]
+   },
+   {
+    "id": "fg_perp",
+    "label": "mg \\cos\\theta",
+    "tone": "danger",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     5,
+     3.31
+    ],
+    "to": [
+     6.3,
+     1.06
+    ]
+   },
+   {
+    "id": "fg_par",
+    "label": "mg \\sin\\theta",
+    "tone": "success",
+    "space": "ramp_space",
+    "type": "vector",
+    "from": [
+     5,
+     3.31
+    ],
+    "to": [
+     6.3,
+     2.56
+    ]
+   },
+   {
+    "id": "title_text",
+    "type": "text",
+    "text": "Free Body Diagram on an Incline",
+    "role": "title"
+   },
+   {
+    "id": "eq_net",
+    "type": "math",
+    "latex": "F_{\\text{net}} = mg \\sin\\theta - F_f"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "ramp_space",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "title_text",
+    "of": "ramp_space",
+    "gap": "md"
+   },
+   {
+    "rel": "place",
+    "id": "eq_net",
+    "region": "bottom-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The Block on the Incline",
+    "narration": "A block sits on a ramp inclined at angle theta. Gravity is the fundamental downward force acting on it.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "ramp",
+       "angle_theta"
+      ],
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "block",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "fg",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "The Normal Force",
+    "narration": "The ramp's surface supports the block by pushing back with a Normal Force (F_N) perpendicular to the incline.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "fn",
+      "effect": "grow"
+     },
+     {
+      "do": "annotate",
+      "target": "fn",
+      "text": "Perpendicular to surface",
+      "side": "left"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Friction Opposes Motion",
+    "narration": "As the block slides down, Friction (F_f) acts parallel to the ramp surface, pointing upward to resist the motion.",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "fn"
+     },
+     {
+      "do": "create",
+      "target": "ff",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Resolving Gravity",
+    "narration": "We split gravity into two components: mg cos(theta) balances the Normal force, while mg sin(theta) pulls the block down the ramp.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "fg_perp",
+       "fg_par"
+      ],
+      "effect": "grow"
+     },
+     {
+      "do": "highlight",
+      "target": "fg_par",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "eq_net",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities",
+   "message": "\"title_text\" is never shown"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "entities[0].vertexLabels",
+    "message": "vertex labels must be unique"
+   }
+  ]
+ ],
+ "ms": 16496,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

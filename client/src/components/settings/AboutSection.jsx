@@ -1,10 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import {
-  Zap, Shield, Activity, Globe, Cpu, Layers, Sparkles,
-  MessageCircle, FileText, Code, RefreshCw, ChevronRight,
-  Check, ShieldAlert, BookOpen
-} from 'lucide-react';
+import { Shield, Code, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import VisaiLogo from '../layout/VisaiLogo';
 import { SectionTitle, SettingsGroup, SettingsRow } from './SettingsShared';
@@ -12,63 +7,30 @@ import { SectionTitle, SettingsGroup, SettingsRow } from './SettingsShared';
 import { BASE_URL as API_URL } from '../../services/api';
 
 const APP_VERSION = '2.1.0';
-const BUILD_NUMBER = 'TB-2026-0422-REL';
 
-// ─── Status Badge ─────────────────────────────────────────────────────────────
+// ─── Status ───────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
-  online: { color: '#10b981', label: 'Online' },
-  offline: { color: '#ef4444', label: 'Offline' },
-  checking: { color: '#fbbf24', label: 'Checking' },
+  online: { tone: 'text-emerald-600 dark:text-emerald-400', label: 'Online' },
+  offline: { tone: 'text-red-500', label: 'Offline' },
+  checking: { tone: 'text-[var(--text-tertiary)]', label: 'Checking' },
 };
 
 function StatusDot({ status }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.checking;
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '5px',
-      padding: '3px 8px', borderRadius: '6px',
-      background: `${cfg.color}12`,
-    }}>
-      <motion.div
-        animate={status === 'checking' ? { opacity: [1, 0.3, 1] } : {}}
-        transition={{ repeat: Infinity, duration: 1.2 }}
-        style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.color, flexShrink: 0 }}
-      />
-      <span style={{ fontSize: '10px', fontWeight: 500, color: cfg.color }}>
-        {cfg.label}
-      </span>
-    </div>
+    <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${cfg.tone}`}>
+      <span className={`h-1.5 w-1.5 rounded-full bg-current ${status === 'checking' ? 'animate-pulse' : ''}`} />
+      {cfg.label}
+    </span>
   );
 }
 
-// ─── System Health Banner ─────────────────────────────────────────────────
-
-function SystemHealthBanner({ statuses }) {
+function overall(statuses) {
   const values = Object.values(statuses);
-  const anyOffline = values.some(s => s === 'offline');
-  const checking = values.some(s => s === 'checking');
-
-  const state = checking ? 'checking' : anyOffline ? 'degraded' : 'healthy';
-  const map = {
-    healthy: { icon: Check, color: '#10b981', bg: 'rgba(16,185,129,0.05)', text: 'All systems operational' },
-    degraded: { icon: ShieldAlert, color: '#f59e0b', bg: 'rgba(245,158,11,0.05)', text: 'Some services degraded' },
-    checking: { icon: RefreshCw, color: 'var(--text-tertiary)', bg: 'var(--bg-secondary)', text: 'Checking status...' },
-  };
-  const cfg = map[state];
-  const Icon = cfg.icon;
-
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '8px',
-      padding: '8px 12px', borderRadius: '10px',
-      background: cfg.bg, border: '1px solid var(--border-color)',
-      marginBottom: '16px',
-    }}>
-      <Icon size={12} strokeWidth={2.5} style={{ color: cfg.color }} className={state === 'checking' ? 'animate-spin' : ''} />
-      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 400 }}>{cfg.text}</span>
-    </div>
-  );
+  if (values.some((s) => s === 'checking')) return { text: 'Checking status', tone: 'bg-[var(--text-tertiary)]' };
+  if (values.some((s) => s === 'offline')) return { text: 'Some services degraded', tone: 'bg-amber-500' };
+  return { text: 'All systems operational', tone: 'bg-emerald-500' };
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -78,7 +40,6 @@ export default function AboutSection() {
   const [systemStatus, setSystemStatus] = useState({
     api: 'checking',
     database: 'checking',
-    ai: 'online',
   });
   const [lastChecked, setLastChecked] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -87,28 +48,23 @@ export default function AboutSection() {
     setRefreshing(true);
     setSystemStatus(prev => ({ ...prev, api: 'checking', database: 'checking' }));
     try {
-      // Use public health endpoint instead of protected test route
       const res = await fetch(`${API_URL}/health`);
       
       if (res.ok) {
-        setSystemStatus(prev => ({
-          ...prev,
+        setSystemStatus({
           api: 'online',
           database: 'online',
-        }));
+        });
       } else {
-        // If server is reachable but returns error (like 503 DB offline)
         const isDbOffline = res.status === 503;
-        setSystemStatus(prev => ({
-          ...prev,
+        setSystemStatus({
           api: 'online',
           database: isDbOffline ? 'offline' : 'online',
-        }));
+        });
       }
       setLastChecked(new Date());
-    } catch (err) {
-      // Network error / Server down
-      setSystemStatus(prev => ({ ...prev, api: 'offline', database: 'offline' }));
+    } catch {
+      setSystemStatus({ api: 'offline', database: 'offline' });
     } finally {
       setTimeout(() => setRefreshing(false), 600);
     }
@@ -122,151 +78,53 @@ export default function AboutSection() {
     ? `${Math.round((Date.now() - lastChecked) / 1000)}s ago`
     : null;
 
+  const health = overall(systemStatus);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-      {/* App Header */}
-      <div style={{ textAlign: 'center', padding: '24px 0 20px' }}>
-        <div style={{
-          width: '48px', height: '48px', borderRadius: '14px',
-          background: 'var(--text-primary)',
-          margin: '0 auto 12px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <VisaiLogo size="sm" className="text-[var(--bg-primary)]" />
+    <div className="flex flex-col gap-8">
+      {/* Product card */}
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] p-5">
+        <div
+          aria-hidden="true"
+          className="mk-dots pointer-events-none absolute inset-0 opacity-60"
+          style={{ maskImage: 'radial-gradient(ellipse 60% 90% at 100% 0%, #000, transparent 70%)', WebkitMaskImage: 'radial-gradient(ellipse 60% 90% at 100% 0%, #000, transparent 70%)' }}
+        />
+        <div className="relative flex items-center gap-4">
+          <VisaiLogo size={48} className="text-[var(--text-primary)]" />
+          <div className="min-w-0">
+            <h3 className="text-[19px] font-medium leading-none tracking-[-0.03em]">TutorBoard</h3>
+            <p className="mt-1.5 text-[12.5px] text-[var(--text-tertiary)]">The tutor that draws. Version {APP_VERSION}</p>
+          </div>
         </div>
-
-        <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
-          TutorBoard AI
-        </h1>
-        <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0, fontWeight: 400 }}>
-          Version {APP_VERSION}
-        </p>
-      </div>
-
-      {/* System Health Banner */}
-      <SystemHealthBanner statuses={systemStatus} />
-
-      {/* System Status */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-          <SectionTitle style={{ margin: 0 }}>Infrastructure</SectionTitle>
-          <button
-            onClick={checkStatus}
-            disabled={refreshing}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              fontSize: '10px', color: 'var(--text-tertiary)',
-              fontWeight: 500,
-              background: 'none', border: 'none', 
-              cursor: 'pointer', padding: '4px 8px', borderRadius: '6px',
-              transition: 'all 0.12s',
-              opacity: refreshing ? 0.5 : 0.7,
-            }}
-          >
-            <motion.div animate={refreshing ? { rotate: 360 } : {}} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-              <RefreshCw size={10} strokeWidth={2} />
-            </motion.div>
-            {refreshing ? 'Checking' : timeAgo ? `Checked ${timeAgo}` : 'Check'}
-          </button>
+        <div className="relative mt-5 flex items-center gap-2 border-t border-[var(--st-line)] pt-4 text-[12.5px] text-[var(--text-secondary)]">
+          <span className={`h-1.5 w-1.5 rounded-full ${health.tone}`} />
+          {health.text}
         </div>
+      </div>
 
+      <section>
+        <SectionTitle
+          action={
+            <button
+              type="button"
+              onClick={checkStatus}
+              disabled={refreshing}
+              className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] disabled:cursor-default"
+            >
+              <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Checking' : timeAgo ? `Checked ${timeAgo}` : 'Check now'}
+            </button>
+          }
+        >
+          System status
+        </SectionTitle>
         <SettingsGroup>
-          <SettingsRow
-            icon={Code}
-            label="API"
-            description="Edge endpoints"
-            rightElement={<StatusDot status={systemStatus.api} />}
-          />
-          <SettingsRow
-            icon={Shield}
-            label="Database"
-            description="Encrypted storage"
-            rightElement={<StatusDot status={systemStatus.database} />}
-          />
-          <SettingsRow
-            icon={Sparkles}
-            label="AI Engine"
-            description="Inference pipeline"
-            rightElement={<StatusDot status={systemStatus.ai} />}
-            borderBottom={false}
-          />
+          <SettingsRow icon={Code} label="Server" rightElement={<StatusDot status={systemStatus.api} />} />
+          <SettingsRow icon={Shield} label="Saved data" rightElement={<StatusDot status={systemStatus.database} />} />
         </SettingsGroup>
-      </div>
+      </section>
 
-      {/* Core Technologies */}
-      <div>
-        <SectionTitle>Platform</SectionTitle>
-        <SettingsGroup>
-          <SettingsRow
-            icon={Cpu}
-            label="Pedagogical AI"
-            description="Multi-agent pipeline that adapts to your style"
-          />
-          <SettingsRow
-            icon={Layers}
-            label="Interactive Canvas"
-            description="Hardware-accelerated visual workspace"
-          />
-          <SettingsRow
-            icon={BookOpen}
-            label="Domain Intelligence"
-            description="Specialized reasoning for 24+ subjects"
-          />
-          <SettingsRow
-            icon={Globe}
-            label="Cloud Sync"
-            description="Cross-device persistence"
-            borderBottom={false}
-          />
-        </SettingsGroup>
-      </div>
-
-      {/* Version Info */}
-      <div>
-        <SectionTitle>Build</SectionTitle>
-        <SettingsGroup>
-          <SettingsRow
-            icon={Activity}
-            label="Version"
-            rightElement={<span style={{ color: 'var(--text-primary)', fontSize: '12px', fontWeight: 600, fontFamily: '"Geist Mono", monospace' }}>{APP_VERSION}</span>}
-          />
-          <SettingsRow
-            icon={Zap}
-            label="Build"
-            rightElement={<span style={{ color: 'var(--text-tertiary)', fontSize: '11px', fontWeight: 400, fontFamily: '"Geist Mono", monospace' }}>{BUILD_NUMBER}</span>}
-            borderBottom={false}
-          />
-        </SettingsGroup>
-      </div>
-
-      {/* Resources */}
-      <div>
-        <SectionTitle>Resources</SectionTitle>
-        <SettingsGroup>
-          <SettingsRow
-            icon={FileText}
-            label="Documentation"
-            onClick={() => window.open('https://docs.tutorboard.ai', '_blank')}
-            rightElement={<ChevronRight size={14} style={{ color: 'var(--text-tertiary)', opacity: 0.3 }} />}
-          />
-          <SettingsRow
-            icon={MessageCircle}
-            label="Community"
-            onClick={() => window.open('https://discord.gg/tutorboard', '_blank')}
-            rightElement={<ChevronRight size={14} style={{ color: 'var(--text-tertiary)', opacity: 0.3 }} />}
-            borderBottom={false}
-          />
-        </SettingsGroup>
-      </div>
-
-      {/* Footer */}
-      <div style={{ textAlign: 'center', paddingTop: '8px', opacity: 0.4 }}>
-        <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 400, letterSpacing: '0.03em' }}>
-          2026 TutorBoard AI
-        </p>
-      </div>
-
+      <p className="text-center text-[11.5px] font-normal text-[var(--text-tertiary)]">© 2026 TutorBoard</p>
     </div>
   );
 }

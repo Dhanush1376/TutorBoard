@@ -1,140 +1,44 @@
 import React from 'react';
-const ParticleWaves = React.lazy(() => import('../canvas/ParticleWaves'));
+import { motion, useReducedMotion } from 'framer-motion';
+import BrandDraw from './BrandDraw';
+
+const EASE = [0.22, 1, 0.36, 1];
 
 /**
- * IntroAnimation Component
- * Renders a full-screen cinematic SVG animation as the first point of entry.
- * Leverages animations and theme-aware colors defined in index.css.
+ * First-visit intro (about 2 s, unmounted by App): the Stroke Tile draws itself,
+ * then the name settles in beside it, in the same lockup used across the app.
  */
 const IntroAnimation = () => {
+  const reduce = useReducedMotion();
   return (
-    <div 
-      className="fixed inset-0 z-[2000] flex items-center justify-center overflow-hidden select-none loader-fade"
-      style={{ backgroundColor: 'transparent' }}
+    <motion.div
+      role="status"
+      aria-label="Loading TutorBoard"
+      className="fixed inset-0 z-[2000] grid select-none place-items-center overflow-hidden bg-[var(--bg-primary)] font-sans text-[var(--text-primary)]"
+      initial={{ opacity: 1 }}
+      animate={{ opacity: reduce ? 1 : [1, 1, 0] }}
+      transition={{ duration: 2, times: [0, 0.82, 1], ease: 'easeInOut' }}
     >
-      {/* Base Background Layer */}
-      <div 
-        className="absolute inset-0 bg-[var(--bg-primary)]" 
-        style={{ zIndex: -1 }}
+      <div
+        aria-hidden="true"
+        className="mk-dots absolute inset-0 opacity-60"
+        style={{
+          maskImage: 'radial-gradient(ellipse 40% 35% at 50% 50%, #000 0%, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 40% 35% at 50% 50%, #000 0%, transparent 75%)',
+        }}
       />
-      
-      {/* Particle Waves Animation (Lazy Loaded) */}
-      <React.Suspense fallback={null}>
-        <ParticleWaves opacity={0.6} />
-      </React.Suspense>
-
-      <div className="w-[min(480px,90vw)]" style={{ position: 'relative', zIndex: 1 }}>
-        <svg 
-          width="100%" 
-          viewBox="0 0 680 530" 
-          xmlns="http://www.w3.org/2000/svg" 
-          className="loader-svg"
-          style={{ overflow: 'visible' }}
+      <div className="relative flex items-center gap-4 sm:gap-5">
+        <BrandDraw size={56} delay={0.05} />
+        <motion.span
+          className="text-[clamp(1.6rem,3.6vw,2.3rem)] font-medium leading-none tracking-[-0.03em]"
+          initial={reduce ? false : { opacity: 0, x: -10, clipPath: 'inset(0 100% 0 0)' }}
+          animate={{ opacity: 1, x: 0, clipPath: 'inset(0 0% 0 0)' }}
+          transition={{ duration: 0.7, ease: EASE, delay: 0.75 }}
         >
-          {/* PHASE 1: WIREFRAME lines draw (0–1s) */}
-          <polyline 
-            className="wire"
-            style={{ '--len': 680, '--d': '0s' }}
-            points="340,90 427,140 427,240 340,290 253,240 253,140 340,90"
-            fill="none" 
-            strokeWidth="0.8"
-            strokeDasharray="680" 
-            opacity="0.0"
-          />
-
-          <line className="wire" style={{ '--len': 105, '--d': '0.07s' }}
-            x1="340" y1="90" x2="340" y2="190"
-            strokeWidth="0.6"
-            strokeDasharray="105" opacity="0.0"
-          />
-
-          <line className="wire" style={{ '--len': 96, '--d': '0.15s' }}
-            x1="253" y1="140" x2="340" y2="190"
-            strokeWidth="0.6"
-            strokeDasharray="96" opacity="0.0"
-          />
-
-          <line className="wire" style={{ '--len': 96, '--d': '0.22s' }}
-            x1="427" y1="140" x2="340" y2="190"
-            strokeWidth="0.6"
-            strokeDasharray="96" opacity="0.0"
-          />
-
-          <line className="wire" style={{ '--len': 105, '--d': '0.3s' }}
-            x1="340" y1="190" x2="340" y2="290"
-            strokeWidth="0.6"
-            strokeDasharray="105" opacity="0.0"
-          />
-
-          {/* PHASE 2: PLATES ASSEMBLE (1.0s – 2.1s) */}
-          <polygon 
-            className="plate-top"
-            points="340,90 427,140 340,190 253,140"
-            opacity="0"
-          />
-
-          <polygon 
-            className="plate-left"
-            points="253,140 340,190 340,290 253,240"
-            opacity="0"
-          />
-
-          <polygon 
-            className="plate-right"
-            points="340,190 427,140 427,240 340,290"
-            opacity="0"
-          />
-
-          {/* PHASE 3: INNER CUBE assembles (2.1s – 2.9s) */}
-          <polygon 
-            className="ic-top"
-            points="340,158 376,179 340,200 304,179"
-            opacity="0"
-          />
-          <polygon 
-            className="ic-left"
-            points="304,179 340,200 340,242 304,221"
-            opacity="0"
-          />
-          <polygon 
-            className="ic-right"
-            points="340,200 376,179 376,221 340,242"
-            opacity="0"
-          />
-
-          {/* PHASE 5: TEXT (3.0s – 4s) */}
-          <text 
-            className="wordmark"
-            x="340" y="358" textAnchor="middle"
-            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-            opacity="0"
-          >
-            TUTORBOARD
-          </text>
-
-          <circle className="dot-sep" cx="340" cy="380" r="2.2" opacity="0" />
-
-          <text 
-            className="tagline"
-            x="340" y="406" textAnchor="middle"
-            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-            opacity="0"
-          >
-            VISUALIZE · UNDERSTAND · LEARN
-          </text>
-
-          <text 
-            className="sublabel"
-            x="340" y="458" textAnchor="middle"
-            fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-            opacity="0"
-          >
-            Interactive AI Visualization System
-          </text>
-
-        </svg>
+          TutorBoard
+        </motion.span>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

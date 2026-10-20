@@ -1,0 +1,271 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How Transverse Waves Move",
+  "domain": "physics",
+  "summary": "A transverse wave travels horizontally while the medium’s particles oscillate up and down.",
+  "spaces": [
+   {
+    "id": "field",
+    "kind": "cartesian",
+    "x": [
+     0,
+     12
+    ],
+    "y": [
+     -2,
+     2
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x (m)",
+    "yLabel": "y (m)",
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "wave",
+    "tone": "info",
+    "space": "field",
+    "type": "plot",
+    "expr": "sin(x)",
+    "domain": [
+     0,
+     12
+    ]
+   },
+   {
+    "id": "pt1",
+    "space": "field",
+    "type": "point",
+    "at": [
+     2,
+     0.91
+    ]
+   },
+   {
+    "id": "pt2",
+    "space": "field",
+    "type": "point",
+    "at": [
+     4,
+     -0.76
+    ]
+   },
+   {
+    "id": "pt3",
+    "space": "field",
+    "type": "point",
+    "at": [
+     6,
+     -0.28
+    ]
+   },
+   {
+    "id": "v1",
+    "label": "↑",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     2,
+     0.91
+    ],
+    "to": [
+     2,
+     1.41
+    ],
+    "angleDeg": 90,
+    "magnitude": 0.5
+   },
+   {
+    "id": "v2",
+    "label": "↑",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     4,
+     -0.76
+    ],
+    "to": [
+     4,
+     -0.26
+    ],
+    "angleDeg": 90,
+    "magnitude": 0.5
+   },
+   {
+    "id": "v3",
+    "label": "↑",
+    "tone": "primary",
+    "space": "field",
+    "type": "vector",
+    "from": [
+     6,
+     -0.28
+    ],
+    "to": [
+     6,
+     0.22
+    ],
+    "angleDeg": 90,
+    "magnitude": 0.5
+   },
+   {
+    "id": "dot",
+    "label": "traveler",
+    "space": "field",
+    "type": "body",
+    "at": [
+     0,
+     0
+    ],
+    "size": "sm"
+   },
+   {
+    "id": "title",
+    "type": "text",
+    "text": "Transverse Wave",
+    "role": "title"
+   },
+   {
+    "id": "recap",
+    "type": "text",
+    "text": "Particles move perpendicular to wave direction",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "field",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "title",
+    "of": "field",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "recap",
+    "of": "field",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Wave snapshot",
+    "narration": "A sine curve shows the shape of a transverse wave moving to the right.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "title",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "wave",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Particle oscillation",
+    "narration": "At several points the medium particles move up and down, shown by vertical arrows.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "pt1",
+       "pt2",
+       "pt3"
+      ],
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": [
+       "v1",
+       "v2",
+       "v3"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Wave propagation",
+    "narration": "The wave travels rightward; the traveling dot follows the curve while each particle continues its up‑down motion.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "dot",
+      "effect": "pop"
+     },
+     {
+      "do": "trace",
+      "target": "dot",
+      "along": "wave",
+      "duration": "normal"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Key takeaway",
+    "narration": "Transverse waves transfer energy horizontally, but the medium’s particles only move vertically.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "v1",
+       "v2",
+       "v3"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "recap",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[2]",
+   "message": "auto-fixed: removed a beat with no actions"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "layout[1].rel",
+    "message": "Invalid discriminator value. Expected 'place' | 'row' | 'column' | 'grid' | 'above' | 'below' | 'left-of' | 'right-of' | 'inside'"
+   },
+   {
+    "path": "layout[2].rel",
+    "message": "Invalid discriminator value. Expected 'place' | 'row' | 'column' | 'grid' | 'above' | 'below' | 'left-of' | 'right-of' | 'inside'"
+   }
+  ]
+ ],
+ "ms": 100580,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [
+  "{\"version\":\"1\",\"title\":\"How Transverse Waves Move\",\"domain\":\"physics\",\"summary\":\"A transverse wave travels horizontally while the medium’s particles oscillate up and down.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[0,12],\"y\":[-2,2],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\"}],\"entities\":[{\"id\":\"wave\",\"type\":\"plot\",\"space\":\"field\",\"expr\":\"sin(x)\",\"domain\":[0,12],\"tone\":\"info\"},{\"id\":\"pt1\",\"type\":\"point\",\"space\":\"field\",\"at\":[2,0.91]},{\"id\":\"pt2\",\"type\":\"point\",\"space\":\"field\",\"at\":[4,-0.76]},{\"id\":\"pt3\",\"type\":\"point\",\"space\":\"field\",\"at\":[6,-0.28]},{\"id\":\"v1\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,0.91],\"angleDeg\":90,\"magnitude\":0.5,\"label\":\"↑\",\"tone\":\"primary\"},{\"id\":\"v2\",\"type\":\"vector\",\"space\":\"field\",\"from\":[4,-0.76],\"angleDeg\":90,\"magnitude\":0.5,\"label\":\"↑\",\"tone\":\"primary\"},{\"id\":\"v3\",\"type\":\"vector\",\"space\":\"field\",\"from\":[6,-0.28],\"angleDeg\":90,\"magnitude\":0.5,\"label\":\"↑\",\"tone\":\"primary\"},{\"id\":\"dot\",\"type\":\"body\",\"space\":\"field\",\"at\":[0,0],\"label\":\"traveler\"},{\"id\":\"title\",\"type\":\"text\",\"text\":\"Transverse Wave\",\"role\":\"title\"},{\"id\":\"recap\",\"type\":\"text\",\"text\":\"Particles move perpendicular to wave direction\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"top\",\"id\":\"title\",\"of\":\"field\"},{\"rel\":\"bottom\",\"id\":\"recap\",\"of\":\"field\"}],\"beats\":[{\"title\":\"Wave snapshot\",\"narration\":\"A sine curve shows the shape of a transverse wave moving to the right.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"title\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"wave\",\"effect\":\"draw\"}]},{\"title\":\"Particle oscillation\",\"narration\":\"At several points the medium particles move up and down, shown by vertical arrows.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"pt1\",\"pt2\",\"pt3\"],\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"v1\",\"v2\",\"v3\"],\"effect\":\"draw\"}]},{\"title\":\"Direction check\",\"narration\":\"Which way do the particles move compared to the wave’s travel direction?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"Particle motion direction?\",\"choices\":[\"Up and down\",\"Left and right\",\"Along the wave\"],\"answer\":0,\"explain\":\"Particles oscillate perpendicular (up/down) while the wave travels horizontally.\"}},{\"title\":\"Wave propagation\",\"narration\":\"The wave travels rightward; the traveling dot follows the curve while each particle continues its up‑down motion.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"dot\",\"effect\":\"pop\"},{\"do\":\"trace\",\"target\":\"dot\",\"along\":\"wave\",\"duration\":\"normal\"}]},{\"title\":\"Key takeaway\",\"narration\":\"Transverse waves transfer energy horizontally, but the medium’s particles only move vertically.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"v1\",\"v2\",\"v3\"],\"state\":\"active\"},{\"do\":\"create\",\"target\":\"recap\",\"effect\":\"fade\"}]}]}"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"How Transverse Waves Move\",\"domain\":\"physics\",\"summary\":\"A transverse wave travels horizontally while the medium’s particles oscillate up and down.\",\"spaces\":[{\"id\":\"field\",\"kind\":\"cartesian\",\"x\":[0,12],\"y\":[-2,2],\"axes\":true,\"grid\":true,\"xLabel\":\"x (m)\",\"yLabel\":\"y (m)\"}],\"entities\":[{\"id\":\"wave\",\"type\":\"plot\",\"space\":\"field\",\"expr\":\"sin(x)\",\"domain\":[0,12],\"tone\":\"info\"},{\"id\":\"pt1\",\"type\":\"point\",\"space\":\"field\",\"at\":[2,0.91]},{\"id\":\"pt2\",\"type\":\"point\",\"space\":\"field\",\"at\":[4,-0.76]},{\"id\":\"pt3\",\"type\":\"point\",\"space\":\"field\",\"at\":[6,-0.28]},{\"id\":\"v1\",\"type\":\"vector\",\"space\":\"field\",\"from\":[2,0.91],\"angleDeg\":90,\"magnitude\":0.5,\"label\":\"↑\",\"tone\":\"primary\"},{\"id\":\"v2\",\"type\":\"vector\",\"space\":\"field\",\"from\":[4,-0.76],\"angleDeg\":90,\"magnitude\":0.5,\"label\":\"↑\",\"tone\":\"primary\"},{\"id\":\"v3\",\"type\":\"vector\",\"space\":\"field\",\"from\":[6,-0.28],\"angleDeg\":90,\"magnitude\":0.5,\"label\":\"↑\",\"tone\":\"primary\"},{\"id\":\"dot\",\"type\":\"body\",\"space\":\"field\",\"at\":[0,0],\"label\":\"traveler\"},{\"id\":\"title\",\"type\":\"text\",\"text\":\"Transverse Wave\",\"role\":\"title\"},{\"id\":\"recap\",\"type\":\"text\",\"text\":\"Particles move perpendicular to wave direction\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"field\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"title\",\"of\":\"field\"},{\"rel\":\"below\",\"id\":\"recap\",\"of\":\"field\"}],\"beats\":[{\"title\":\"Wave snapshot\",\"narration\":\"A sine curve shows the shape of a transverse wave moving to the right.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"title\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"wave\",\"effect\":\"draw\"}]},{\"title\":\"Particle oscillation\",\"narration\":\"At several points the medium particles move up and down, shown by vertical arrows.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"pt1\",\"pt2\",\"pt3\"],\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"v1\",\"v2\",\"v3\"],\"effect\":\"draw\"}]},{\"title\":\"Direction check\",\"narration\":\"Which way do the particles move compared to the wave’s travel direction?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"Particle motion direction?\",\"choices\":[\"Up and down\",\"Left and right\",\"Along the wave\"],\"answer\":0,\"explain\":\"Particles oscillate perpendicular (up/down) while the wave travels horizontally.\"}},{\"title\":\"Wave propagation\",\"narration\":\"The wave travels rightward; the traveling dot follows the curve while each particle continues its up‑down motion.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"dot\",\"effect\":\"pop\"},{\"do\":\"trace\",\"target\":\"dot\",\"along\":\"wave\",\"duration\":\"normal\"}]},{\"title\":\"Key takeaway\",\"narration\":\"Transverse waves transfer energy horizontally, but the medium’s particles only move vertically.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"v1\",\"v2\",\"v3\"],\"state\":\"active\"},{\"do\":\"create\",\"target\":\"recap\",\"effect\":\"fade\"}]}]}"
+}

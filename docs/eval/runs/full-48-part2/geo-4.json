@@ -1,0 +1,257 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Sum of interior angles of a hexagon",
+  "domain": "geometry",
+  "summary": "A regular hexagon’s six interior angles each measure 120°, so their sum is 720°.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     10
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "A",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     8,
+     5
+    ]
+   },
+   {
+    "id": "B",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     6.5,
+     7.598
+    ]
+   },
+   {
+    "id": "C",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     3.5,
+     7.598
+    ]
+   },
+   {
+    "id": "D",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     2,
+     5
+    ]
+   },
+   {
+    "id": "E",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     3.5,
+     2.402
+    ]
+   },
+   {
+    "id": "F",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     6.5,
+     2.402
+    ]
+   },
+   {
+    "id": "hex",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      8,
+      5
+     ],
+     [
+      6.5,
+      7.598
+     ],
+     [
+      3.5,
+      7.598
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      3.5,
+      2.402
+     ],
+     [
+      6.5,
+      2.402
+     ]
+    ],
+    "vertexLabels": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F"
+    ],
+    "fill": true
+   },
+   {
+    "id": "sumFormula",
+    "type": "math",
+    "latex": "(n-2)\\times180^{\\circ}=720^{\\circ}"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "sumFormula",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Draw a hexagon",
+    "narration": "A regular hexagon is drawn with its six vertices labeled.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "A",
+       "B",
+       "C",
+       "D",
+       "E",
+       "F"
+      ],
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "hex",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Mark each interior angle",
+    "narration": "Each interior angle of a regular hexagon measures 120 degrees.",
+    "actions": [
+     {
+      "do": "annotate",
+      "target": "A",
+      "text": "120°",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "B",
+      "text": "120°",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "C",
+      "text": "120°",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "D",
+      "text": "120°",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "E",
+      "text": "120°",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "F",
+      "text": "120°",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Show the calculation",
+    "narration": "Using (n‑2)·180°, with n=6 gives a sum of 720 degrees.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "sumFormula",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "All six interior angles add up to 720°, no matter the hexagon’s shape.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "hex",
+      "state": "insight",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "sumFormula",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[7].latex",
+   "message": "auto-fixed: restored LaTeX backslashes eaten by JSON escapes"
+  },
+  {
+   "path": "beats[2]",
+   "message": "auto-fixed: removed a beat with no actions"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 33493,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Sum of interior angles of a hexagon\",\"domain\":\"geometry\",\"summary\":\"A regular hexagon’s six interior angles each measure 120°, so their sum is 720°.\",\"spaces\":[{\"id\":\"plane\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,10],\"axes\":false,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"A\",\"type\":\"point\",\"space\":\"plane\",\"at\":{\"from\":[5,5],\"angleDeg\":0,\"length\":3}},{\"id\":\"B\",\"type\":\"point\",\"space\":\"plane\",\"at\":{\"from\":[5,5],\"angleDeg\":60,\"length\":3}},{\"id\":\"C\",\"type\":\"point\",\"space\":\"plane\",\"at\":{\"from\":[5,5],\"angleDeg\":120,\"length\":3}},{\"id\":\"D\",\"type\":\"point\",\"space\":\"plane\",\"at\":{\"from\":[5,5],\"angleDeg\":180,\"length\":3}},{\"id\":\"E\",\"type\":\"point\",\"space\":\"plane\",\"at\":{\"from\":[5,5],\"angleDeg\":240,\"length\":3}},{\"id\":\"F\",\"type\":\"point\",\"space\":\"plane\",\"at\":{\"from\":[5,5],\"angleDeg\":300,\"length\":3}},{\"id\":\"hex\",\"type\":\"polygon\",\"space\":\"plane\",\"points\":[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\"],\"vertexLabels\":[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\"]},{\"id\":\"sumFormula\",\"type\":\"math\",\"latex\":\"(n-2)\\\\\\\\times180^{\\\\\\\\circ}=720^{\\\\\\\\circ}\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"plane\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"sumFormula\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Draw a hexagon\",\"narration\":\"A regular hexagon is drawn with its six vertices labeled.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\"],\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"hex\",\"effect\":\"draw\",\"with\":\"previous\"}]},{\"title\":\"Mark each interior angle\",\"narration\":\"Each interior angle of a regular hexagon measures 120 degrees.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"annotate\",\"target\":\"A\",\"text\":\"120°\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"B\",\"text\":\"120°\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"C\",\"text\":\"120°\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"D\",\"text\":\"120°\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"E\",\"text\":\"120°\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"F\",\"text\":\"120°\",\"side\":\"above\"}]},{\"title\":\"Predict the sum\",\"narration\":\"What is the total of the six interior angles?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"What is the sum of the interior angles of a hexagon?\",\"choices\":[\"720°\",\"540°\",\"360°\"],\"answer\":0,\"explain\":\"(6‑2)·180° = 720°\"}},{\"title\":\"Show the calculation\",\"narration\":\"Using (n‑2)·180°, with n=6 gives a sum of 720 degrees.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"sumFormula\",\"effect\":\"type\"}]},{\"title\":\"Recap\",\"narration\":\"All six interior angles add up to 720°, no matter the hexagon’s shape.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"hex\",\"state\":\"insight\"},{\"do\":\"highlight\",\"target\":\"sumFormula\",\"state\":\"insight\"}]}]}"
+}

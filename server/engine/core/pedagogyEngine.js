@@ -334,7 +334,11 @@ export async function generateTimeline(sessionId, topic, onProgress = () => { },
   };
 
   // Phase 4: Retrieve Session History and Fingerprint
-  if (userConfig?.userId) {
+  // Only registered users have a persisted profile. Guests carry a synthetic
+  // id (`guest_<ip>`) that is not an ObjectId and made these queries throw,
+  // failing every guest lesson.
+  const isRegisteredUser = /^[0-9a-fA-F]{24}$/.test(String(userConfig?.userId || ''));
+  if (isRegisteredUser) {
     const history = await VectorStoreService.getLatestMemories(userConfig.userId, 'session', 10);
     if (history && history.length > 0) {
       learnerProfile.history = history.map(h => ({

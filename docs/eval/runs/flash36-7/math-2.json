@@ -1,0 +1,235 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Finding the roots of x² − 4x + 3",
+  "domain": "math",
+  "summary": "The roots of a quadratic function are its x-intercepts, found by setting f(x) = 0 and factoring.",
+  "spaces": [
+   {
+    "id": "grid",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     5
+    ],
+    "y": [
+     -2,
+     6
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "y",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "curve",
+    "tone": "primary",
+    "space": "grid",
+    "type": "plot",
+    "expr": "x^2 - 4*x + 3"
+   },
+   {
+    "id": "eq_func",
+    "type": "math",
+    "latex": "f(x) = x^2 - 4x + 3"
+   },
+   {
+    "id": "eq_zero",
+    "type": "math",
+    "latex": "x^2 - 4x + 3 = 0"
+   },
+   {
+    "id": "eq_factored",
+    "type": "math",
+    "latex": "(x - 1)(x - 3) = 0"
+   },
+   {
+    "id": "eq_ans",
+    "type": "math",
+    "latex": "x = 1 \\quad \\text{and} \\quad x = 3"
+   },
+   {
+    "id": "root1",
+    "label": "(1, 0)",
+    "tone": "success",
+    "space": "grid",
+    "type": "point",
+    "at": [
+     1,
+     0
+    ]
+   },
+   {
+    "id": "root2",
+    "label": "(3, 0)",
+    "tone": "success",
+    "space": "grid",
+    "type": "point",
+    "at": [
+     3,
+     0
+    ]
+   },
+   {
+    "id": "vertex",
+    "label": "Vertex (2, -1)",
+    "tone": "warning",
+    "space": "grid",
+    "type": "point",
+    "at": [
+     2,
+     -1
+    ]
+   },
+   {
+    "id": "sym_axis",
+    "tone": "muted",
+    "space": "grid",
+    "type": "line",
+    "from": [
+     2,
+     -2
+    ],
+    "to": [
+     2,
+     6
+    ],
+    "dashed": true
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "grid",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq_func",
+    "region": "top-right"
+   },
+   {
+    "rel": "below",
+    "id": "eq_zero",
+    "of": "eq_func",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq_factored",
+    "of": "eq_zero",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq_ans",
+    "of": "eq_factored",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Plotting the parabola",
+    "narration": "The roots of x² − 4x + 3 are the values of x where the graph intersects the x-axis, meaning f(x) = 0.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq_func",
+      "effect": "type"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "curve",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Factoring the equation",
+    "narration": "To solve x² − 4x + 3 = 0, find two numbers that multiply to 3 and add up to -4: -1 and -3.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq_zero",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "eq_factored",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Locating the roots",
+    "narration": "Setting each factor to zero gives x = 1 and x = 3. These points are the x-intercepts of the graph.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq_ans",
+      "effect": "type"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "root1",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "root2",
+      "effect": "pop"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "root1",
+       "root2"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Symmetry of the parabola",
+    "narration": "Notice that the vertex at (2, -1) lies on the axis of symmetry x = 2, exactly halfway between the two roots.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "sym_axis",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "vertex",
+      "effect": "pop"
+     },
+     {
+      "do": "highlight",
+      "target": "vertex",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 14443,
+ "model": "gemini-3.6-flash",
+ "domain": "general"
+}

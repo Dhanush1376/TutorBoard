@@ -1,0 +1,216 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Constructing a Perpendicular Bisector",
+  "domain": "geometry",
+  "summary": "Build the perpendicular bisector of a segment using its midpoint.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     -1,
+     11
+    ],
+    "axes": true,
+    "grid": true,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "A",
+    "label": "A",
+    "tone": "primary",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     2,
+     3
+    ]
+   },
+   {
+    "id": "B",
+    "label": "B",
+    "tone": "primary",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     8,
+     7
+    ]
+   },
+   {
+    "id": "segAB",
+    "label": "AB",
+    "tone": "primary",
+    "space": "plane",
+    "type": "line",
+    "from": "A",
+    "to": "B",
+    "dashed": false
+   },
+   {
+    "id": "M",
+    "label": "M",
+    "tone": "accent",
+    "space": "plane",
+    "type": "point",
+    "at": [
+     5,
+     5
+    ]
+   },
+   {
+    "id": "perp",
+    "label": "perp",
+    "tone": "accent",
+    "space": "plane",
+    "type": "line",
+    "from": "M",
+    "to": [
+     1.645,
+     9.974
+    ],
+    "dashed": false
+   },
+   {
+    "id": "note",
+    "tone": "info",
+    "type": "text",
+    "text": "Perpendicular bisector",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "note",
+    "of": "plane",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Draw segment AB",
+    "narration": "We start with segment AB and its endpoints A and B.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "A",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "B",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "segAB",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Find midpoint M",
+    "narration": "The midpoint M is exactly halfway between A and B.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "M",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "Which line should be drawn through M to bisect AB?",
+     "choices": [
+      "Parallel to AB",
+      "Perpendicular to AB",
+      "Through A"
+     ],
+     "answer": 1,
+     "explain": "The perpendicular line through the midpoint bisects the segment."
+    }
+   },
+   {
+    "title": "Draw perpendicular bisector",
+    "narration": "Through M we draw a line perpendicular to AB; this is the perpendicular bisector.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "perp",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "perp",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Result",
+    "narration": "The line through M is the perpendicular bisector, giving equal distances to A and B for any point on it.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "perp",
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "note",
+      "with": "previous"
+     },
+     {
+      "do": "set",
+      "target": "note",
+      "text": "Perpendicular bisector"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[0].space",
+   "message": "auto-fixed: placed in the only space, \"plane\""
+  },
+  {
+   "path": "entities[1].space",
+   "message": "auto-fixed: placed in the only space, \"plane\""
+  },
+  {
+   "path": "entities[3].space",
+   "message": "auto-fixed: placed in the only space, \"plane\""
+  },
+  {
+   "path": "beats[3].actions[1].target",
+   "message": "\"note\" was used before being created — added a create"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 48741,
+ "model": "gemini-3.6-flash",
+ "domain": "geometry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Constructing a Perpendicular Bisector\",\"domain\":\"geometry\",\"summary\":\"Build the perpendicular bisector of a segment using its midpoint.\",\"spaces\":[{\"id\":\"plane\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[-1,11],\"axes\":true,\"grid\":true,\"equalAspect\":true}],\"entities\":[{\"id\":\"A\",\"type\":\"point\",\"at\":[2,3],\"label\":\"A\",\"tone\":\"primary\"},{\"id\":\"B\",\"type\":\"point\",\"at\":[8,7],\"label\":\"B\",\"tone\":\"primary\"},{\"id\":\"segAB\",\"type\":\"line\",\"space\":\"plane\",\"from\":\"A\",\"to\":\"B\",\"label\":\"AB\",\"tone\":\"primary\"},{\"id\":\"M\",\"type\":\"point\",\"at\":[5,5],\"label\":\"M\",\"tone\":\"accent\"},{\"id\":\"perp\",\"type\":\"line\",\"space\":\"plane\",\"from\":\"M\",\"angleDeg\":124,\"length\":6,\"label\":\"perp\",\"tone\":\"accent\"},{\"id\":\"note\",\"type\":\"text\",\"text\":\"Perpendicular bisector\",\"role\":\"caption\",\"tone\":\"info\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"plane\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"note\",\"of\":\"plane\"}],\"beats\":[{\"title\":\"Draw segment AB\",\"narration\":\"We start with segment AB and its endpoints A and B.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"A\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"B\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"segAB\",\"effect\":\"draw\"}]},{\"title\":\"Find midpoint M\",\"narration\":\"The midpoint M is exactly halfway between A and B.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"M\",\"effect\":\"draw\"}],\"check\":{\"question\":\"Which line should be drawn through M to bisect AB?\",\"choices\":[\"Parallel to AB\",\"Perpendicular to AB\",\"Through A\"],\"answer\":1,\"explain\":\"The perpendicular line through the midpoint bisects the segment.\"}},{\"title\":\"Draw perpendicular bisector\",\"narration\":\"Through M we draw a line perpendicular to AB; this is the perpendicular bisector.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"perp\",\"effect\":\"draw\"},{\"do\":\"highlight\",\"target\":\"perp\",\"state\":\"found\"}]},{\"title\":\"Result\",\"narration\":\"The line through M is the perpendicular bisector, giving equal distances to A and B for any point on it.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"perp\",\"state\":\"sorted\"},{\"do\":\"set\",\"target\":\"note\",\"text\":\"Perpendicular bisector\"}]}]}"
+}

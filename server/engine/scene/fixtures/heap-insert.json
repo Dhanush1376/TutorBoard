@@ -1,0 +1,204 @@
+{
+ "version": "1",
+ "title": "Inserting 3 into a min-heap",
+ "domain": "data-structures",
+ "summary": "A new value goes into the next free spot, then swaps upward while it is smaller than its parent.",
+ "entities": [
+  {
+   "id": "heap",
+   "type": "tree",
+   "label": "min-heap",
+   "nodes": [
+    {
+     "id": "n0",
+     "value": 5
+    },
+    {
+     "id": "n1",
+     "value": 9,
+     "parent": "n0"
+    },
+    {
+     "id": "n2",
+     "value": 7,
+     "parent": "n0"
+    },
+    {
+     "id": "n3",
+     "value": 12,
+     "parent": "n1"
+    },
+    {
+     "id": "n4",
+     "value": 10,
+     "parent": "n1"
+    },
+    {
+     "id": "n5",
+     "value": 3,
+     "parent": "n2"
+    }
+   ]
+  },
+  {
+   "id": "arr",
+   "type": "array",
+   "values": [
+    5,
+    9,
+    7,
+    12,
+    10
+   ],
+   "label": "array view"
+  },
+  {
+   "id": "rule",
+   "type": "text",
+   "text": "parent ≤ children",
+   "role": "caption"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "heap",
+   "region": "center"
+  },
+  {
+   "rel": "below",
+   "id": "arr",
+   "of": "heap"
+  },
+  {
+   "rel": "above",
+   "id": "rule",
+   "of": "heap"
+  }
+ ],
+ "beats": [
+  {
+   "title": "A valid min-heap",
+   "narration": "Every parent is smaller than its children, so the minimum, 5, sits at the root.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "rule"
+    },
+    {
+     "do": "create",
+     "target": "heap",
+     "with": "previous"
+    },
+    {
+     "do": "create",
+     "target": "arr"
+    }
+   ]
+  },
+  {
+   "title": "Add 3 at the next free spot",
+   "narration": "A new value always goes in the next free position — under 7, at index 5.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "heap.n5"
+    },
+    {
+     "do": "push",
+     "target": "arr",
+     "value": 3,
+     "with": "previous"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "heap.n5",
+      "arr[5]"
+     ],
+     "state": "active"
+    }
+   ],
+   "check": {
+    "question": "3 sits under 7. What must happen next?",
+    "choices": [
+     "3 swaps with 7",
+     "3 swaps with 9",
+     "Nothing — the heap is fine"
+    ],
+    "answer": 0,
+    "explain": "A parent must be smaller than its child; 7 > 3, so 3 moves up into 7's place."
+   }
+  },
+  {
+   "title": "3 < 7: swap up",
+   "narration": "3 is smaller than its parent 7, which breaks the rule, so they trade places.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "heap.n5",
+      "heap.n2"
+     ],
+     "state": "comparing"
+    },
+    {
+     "do": "exchange",
+     "a": "heap.n5",
+     "b": "heap.n2"
+    },
+    {
+     "do": "exchange",
+     "a": "arr[5]",
+     "b": "arr[2]",
+     "with": "previous"
+    },
+    {
+     "do": "clear"
+    }
+   ]
+  },
+  {
+   "title": "3 < 5: swap with the root",
+   "narration": "3 is still smaller than its new parent 5, so it rises once more and becomes the root.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "heap.n2",
+      "heap.n0"
+     ],
+     "state": "comparing"
+    },
+    {
+     "do": "exchange",
+     "a": "heap.n2",
+     "b": "heap.n0"
+    },
+    {
+     "do": "exchange",
+     "a": "arr[2]",
+     "b": "arr[0]",
+     "with": "previous"
+    },
+    {
+     "do": "clear"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "heap.n0",
+      "arr[0]"
+     ],
+     "state": "found"
+    },
+    {
+     "do": "annotate",
+     "target": "heap.n0",
+     "text": "new minimum",
+     "side": "right"
+    }
+   ]
+  }
+ ]
+}

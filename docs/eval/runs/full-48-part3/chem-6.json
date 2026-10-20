@@ -1,0 +1,203 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Catalyst Lowers Activation Energy",
+  "domain": "chemistry",
+  "summary": "A catalyst provides an alternative pathway that lowers the activation energy of a reaction.",
+  "spaces": [
+   {
+    "id": "rxn",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     12
+    ],
+    "axes": true,
+    "grid": false,
+    "xLabel": "Reaction coordinate",
+    "yLabel": "Energy (kJ/mol)",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "react",
+    "label": "Reactants",
+    "space": "rxn",
+    "type": "point",
+    "at": [
+     0,
+     2
+    ]
+   },
+   {
+    "id": "prod",
+    "label": "Products",
+    "space": "rxn",
+    "type": "point",
+    "at": [
+     10,
+     2
+    ]
+   },
+   {
+    "id": "noCat",
+    "tone": "danger",
+    "space": "rxn",
+    "type": "plot",
+    "expr": "-0.28*(x-5)^2+9",
+    "domain": [
+     0,
+     10
+    ]
+   },
+   {
+    "id": "line_no",
+    "tone": "danger",
+    "space": "rxn",
+    "type": "line",
+    "from": [
+     5,
+     2
+    ],
+    "to": [
+     5,
+     9
+    ],
+    "dashed": false
+   },
+   {
+    "id": "cat",
+    "tone": "success",
+    "space": "rxn",
+    "type": "plot",
+    "expr": "-0.12*(x-5)^2+5",
+    "domain": [
+     0,
+     10
+    ]
+   },
+   {
+    "id": "line_cat",
+    "tone": "success",
+    "space": "rxn",
+    "type": "line",
+    "from": [
+     5,
+     2
+    ],
+    "to": [
+     5,
+     5
+    ],
+    "dashed": false
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "rxn",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "No catalyst barrier",
+    "narration": "The energy profile without a catalyst shows a high peak, the activation energy.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "react",
+       "prod"
+      ],
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "noCat",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "line_no",
+      "effect": "draw"
+     },
+     {
+      "do": "annotate",
+      "target": "line_no",
+      "text": "E_a",
+      "side": "right"
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "How does a catalyst affect the activation energy?",
+     "choices": [
+      "Lowers it",
+      "Raises it",
+      "No change"
+     ],
+     "answer": 0,
+     "explain": "A catalyst provides a lower‑energy pathway, reducing the activation barrier."
+    }
+   },
+   {
+    "title": "Catalyst lowers barrier",
+    "narration": "Adding a catalyst creates a lower‑energy pathway, reducing the activation energy peak.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "cat",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "line_cat",
+      "effect": "draw"
+     },
+     {
+      "do": "annotate",
+      "target": "line_cat",
+      "text": "E_a'",
+      "side": "right"
+     },
+     {
+      "do": "highlight",
+      "target": "line_cat",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "auto-fixed: removed a space id (spaces appear with their entities)"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "beats[1].check",
+    "message": "a check asks the learner to predict the NEXT beat — move it to an earlier beat"
+   }
+  ]
+ ],
+ "ms": 95042,
+ "model": "gemini-3.6-flash",
+ "domain": "physics",
+ "drafts": [
+  "{\"version\":\"1\",\"title\":\"Catalyst Lowers Activation Energy\",\"domain\":\"chemistry\",\"summary\":\"A catalyst provides an alternative pathway that lowers the activation energy of a reaction.\",\"spaces\":[{\"id\":\"rxn\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,12],\"axes\":true,\"grid\":false,\"xLabel\":\"Reaction coordinate\",\"yLabel\":\"Energy (kJ/mol)\"}],\"entities\":[{\"id\":\"react\",\"type\":\"point\",\"space\":\"rxn\",\"at\":[0,2],\"label\":\"Reactants\"},{\"id\":\"prod\",\"type\":\"point\",\"space\":\"rxn\",\"at\":[10,2],\"label\":\"Products\"},{\"id\":\"noCat\",\"type\":\"plot\",\"space\":\"rxn\",\"expr\":\"-0.28*(x-5)^2+9\",\"domain\":[0,10],\"tone\":\"danger\"},{\"id\":\"line_no\",\"type\":\"line\",\"space\":\"rxn\",\"from\":[5,2],\"to\":[5,9],\"tone\":\"danger\"},{\"id\":\"cat\",\"type\":\"plot\",\"space\":\"rxn\",\"expr\":\"-0.12*(x-5)^2+5\",\"domain\":[0,10],\"tone\":\"success\"},{\"id\":\"line_cat\",\"type\":\"line\",\"space\":\"rxn\",\"from\":[5,2],\"to\":[5,5],\"tone\":\"success\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"rxn\",\"region\":\"center\"}],\"beats\":[{\"title\":\"No catalyst barrier\",\"narration\":\"The energy profile without a catalyst shows a high peak, the activation energy.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"rxn\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"react\",\"prod\"],\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"noCat\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"line_no\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"line_no\",\"text\":\"E_a\",\"side\":\"right\"}]},{\"title\":\"Predict catalyst effect\",\"narration\":\"What will happen to the activation energy if a catalyst is added?\",\"pace\":\"slow\",\"actions\":[{\"do\":\"highlight\",\"target\":\"line_no\",\"state\":\"active\"}],\"check\":{\"question\":\"How does a catalyst affect the activation energy?\",\"choices\":[\"Lowers it\",\"Raises it\",\"No change\"],\"answer\":0,\"explain\":\"A catalyst provides a lower‑energy pathway, reducing the activation barrier.\"}}]}"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"Catalyst Lowers Activation Energy\",\"domain\":\"chemistry\",\"summary\":\"A catalyst provides an alternative pathway that lowers the activation energy of a reaction.\",\"spaces\":[{\"id\":\"rxn\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,12],\"axes\":true,\"grid\":false,\"xLabel\":\"Reaction coordinate\",\"yLabel\":\"Energy (kJ/mol)\"}],\"entities\":[{\"id\":\"react\",\"type\":\"point\",\"space\":\"rxn\",\"at\":[0,2],\"label\":\"Reactants\"},{\"id\":\"prod\",\"type\":\"point\",\"space\":\"rxn\",\"at\":[10,2],\"label\":\"Products\"},{\"id\":\"noCat\",\"type\":\"plot\",\"space\":\"rxn\",\"expr\":\"-0.28*(x-5)^2+9\",\"domain\":[0,10],\"tone\":\"danger\"},{\"id\":\"line_no\",\"type\":\"line\",\"space\":\"rxn\",\"from\":[5,2],\"to\":[5,9],\"tone\":\"danger\"},{\"id\":\"cat\",\"type\":\"plot\",\"space\":\"rxn\",\"expr\":\"-0.12*(x-5)^2+5\",\"domain\":[0,10],\"tone\":\"success\"},{\"id\":\"line_cat\",\"type\":\"line\",\"space\":\"rxn\",\"from\":[5,2],\"to\":[5,5],\"tone\":\"success\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"rxn\",\"region\":\"center\"}],\"beats\":[{\"title\":\"No catalyst barrier\",\"narration\":\"The energy profile without a catalyst shows a high peak, the activation energy.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"rxn\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":[\"react\",\"prod\"],\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"noCat\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"line_no\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"line_no\",\"text\":\"E_a\",\"side\":\"right\"}],\"check\":{\"question\":\"How does a catalyst affect the activation energy?\",\"choices\":[\"Lowers it\",\"Raises it\",\"No change\"],\"answer\":0,\"explain\":\"A catalyst provides a lower‑energy pathway, reducing the activation barrier.\"}},{\"title\":\"Catalyst lowers barrier\",\"narration\":\"Adding a catalyst creates a lower‑energy pathway, reducing the activation energy peak.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"cat\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"line_cat\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"line_cat\",\"text\":\"E_a'\",\"side\":\"right\"},{\"do\":\"highlight\",\"target\":\"line_cat\",\"state\":\"active\"}]}]}"
+}

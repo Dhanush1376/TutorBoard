@@ -51,7 +51,7 @@ const FloatingSidebar = () => {
             <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
               <div className="flex items-center gap-2">
                 <List size={15} style={{ color: 'var(--text-tertiary)' }} />
-                <span className="text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Session</span>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>Session</span>
               </div>
               <button onClick={closeFloatingSidebar}
                 className="w-7 h-7 flex items-center justify-center rounded-lg transition-all active:scale-90 hover:bg-red-500/10 hover:text-red-400"
@@ -63,12 +63,12 @@ const FloatingSidebar = () => {
             {/* Topic */}
             {topic && (
               <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <span className="text-[9px] font-medium uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Topic</span>
+                <span className="text-[11px] font-medium" style={{ color: 'var(--text-tertiary)' }}>Topic</span>
                 <p className="text-[14px] font-medium mt-1 leading-snug" style={{ color: 'var(--text-primary)' }}>
                   {formatTopicTitle(timeline?.title || topic)}
                 </p>
                 {timeline?.domain && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider mt-2"
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium mt-2"
                     style={{ color: ds.text, background: `${ds.bg}15`, border: `1px solid ${ds.border}30` }}>
                     {icon} {timeline.domain}
                   </span>
@@ -80,7 +80,7 @@ const FloatingSidebar = () => {
             <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--border-color) transparent' }}>
               {canvasSteps.length > 0 && (
                 <div className="p-4">
-                  <span className="text-[9px] font-medium uppercase tracking-widest mb-2 block"
+                  <span className="text-[11px] font-medium mb-2 block"
                     style={{ color: 'var(--text-tertiary)' }}>
                     Steps ({currentStepIndex + 1}/{totalSteps})
                   </span>
@@ -118,13 +118,13 @@ const FloatingSidebar = () => {
             <div className="flex gap-2 p-3" style={{ borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
               <button onClick={() => goToStep(0)}
                 disabled={canvasSteps.length === 0}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                 <RotateCcw size={12} /> Replay
               </button>
               <button onClick={() => play()}
                 disabled={canvasSteps.length === 0}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
                 <Play size={12} fill="currentColor" /> Resume
               </button>

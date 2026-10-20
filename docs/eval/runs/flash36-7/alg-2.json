@@ -1,0 +1,236 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Binary Search for 23",
+  "domain": "algorithms",
+  "summary": "Binary search repeatedly divides the search range in half to locate target value 23 in logarithmic time.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "target_label",
+    "tone": "primary",
+    "type": "text",
+    "text": "Target: 23",
+    "role": "title"
+   },
+   {
+    "id": "arr",
+    "type": "array",
+    "values": [
+     2,
+     5,
+     8,
+     12,
+     16,
+     23,
+     38,
+     56,
+     72,
+     91
+    ],
+    "indices": true
+   },
+   {
+    "id": "calc",
+    "type": "math",
+    "latex": "\\text{mid} = \\lfloor\\frac{\\text{low} + \\text{high}}{2}\\rfloor"
+   },
+   {
+    "id": "status",
+    "type": "text",
+    "text": "Low = 0, High = 9",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "arr",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "target_label",
+    "of": "arr",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "calc",
+    "of": "arr",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "status",
+    "of": "calc",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Binary search setup",
+    "narration": "Binary search finds elements in a sorted array by comparing the middle element to the target and eliminating half of the search space.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "arr",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "target_label",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "calc",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "status",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First split: mid = 4",
+    "narration": "With low at 0 and high at 9, mid is 4 (value 16). Since 16 is less than 23, eliminate the left half.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[4]",
+       "arr[5]",
+       "arr[6]",
+       "arr[7]",
+       "arr[8]",
+       "arr[9]"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "arr[4]",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "low = 0, high = 9 → mid = 4 (16 < 23)"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[4]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Second split: mid = 7",
+    "narration": "Now searching indices 5 to 9. Mid is 7 (value 56). Since 56 is greater than 23, eliminate the right half.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "arr[6]",
+       "arr[7]",
+       "arr[8]",
+       "arr[9]"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "arr[7]",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "low = 5, high = 9 → mid = 7 (56 > 23)"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[7]",
+       "arr[8]",
+       "arr[9]"
+      ],
+      "state": "eliminated",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Target found at index 5",
+    "narration": "Search space narrowed to indices 5 to 6. Mid is 5 (value 23), matching our target!",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "arr[6]"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "arr[5]",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "low = 5, high = 6 → mid = 5 (23 == 23)"
+     },
+     {
+      "do": "highlight",
+      "target": "arr[5]",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "arr[5]",
+      "text": "Found at index 5!",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 15102,
+ "model": "gemini-3.6-flash",
+ "domain": "algorithms"
+}

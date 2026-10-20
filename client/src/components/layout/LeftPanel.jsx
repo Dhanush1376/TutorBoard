@@ -9,14 +9,24 @@ import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
   ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, LayoutDashboard,
-  FileText, Download, Sparkles
+  FileText, Download, Sparkles, ArrowUpRight
 } from 'lucide-react';
 import Loader from './Loader';
-import VisaiLogo from './VisaiLogo';
+import BrandLockup from './BrandLockup';
 import useWindowSize from '../../hooks/useWindowSize';
 import { useAuth } from '../../hooks/useAuth';
 import ErrorBoundary from '../common/ErrorBoundary';
 
+
+const STARTERS = [
+  { subject: 'Earth science', q: 'Why do we have seasons?' },
+  { subject: 'Biology', q: 'How does photosynthesis work?' },
+  { subject: 'History', q: 'What caused the French Revolution?' },
+  { subject: 'Economics', q: 'Why do prices rise when supply drops?' },
+];
+
+const iconBtn =
+  'grid h-9 w-9 place-items-center rounded-full text-[var(--text-tertiary)] transition-colors hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)] active:scale-95';
 
 const LeftPanel = ({
   // routing
@@ -118,31 +128,21 @@ const LeftPanel = ({
     if (activeView === 'chat') {
       return (
         <div className="flex flex-col gap-2 relative h-full">
-          {/* Compact Back Button for Sidebar Chat */}
-          {/* Sticky Header with Back Button - Fixed overlap */}
-          <div className="sticky top-0 z-[15] pt-4 pb-2.5 -mx-1 px-2 bg-[var(--bg-primary)] flex items-center justify-between border-b border-[var(--border-color)]/20 mb-3">
+          <div className="sticky top-0 z-[15] -mx-1 mb-2 flex items-center justify-between border-b border-[var(--st-line)] bg-[var(--bg-primary)] px-1 pb-2.5 pt-2">
             <button
               onClick={() => { setActiveView('history'); }}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-[9.5px] font-bold uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all group border border-[var(--border-color)]/50 rounded-xl hover:bg-[var(--bg-tertiary)]/50 shadow-sm"
+              className="group inline-flex h-8 cursor-pointer items-center gap-1 rounded-full pl-1.5 pr-3 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]"
             >
-              <ChevronLeft size={12} strokeWidth={2.5} className="text-[var(--text-tertiary)] group-hover:-translate-x-0.5 transition-transform" />
-              <p className="px-0.5 tracking-[0.1em]">All Sessions</p>
+              <ChevronLeft size={16} strokeWidth={1.8} className="transition-transform group-hover:-translate-x-0.5" />
+              Sessions
             </button>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => onExport?.('pdf')}
-                className="p-2 rounded-xl bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]/50 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all hover:bg-[var(--bg-tertiary)]/60 shadow-sm"
-                title="Export as PDF"
-              >
-                <FileText size={13} strokeWidth={2.5} />
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => onExport?.('pdf')} className={`${iconBtn} h-8 w-8`} title="Export as PDF" aria-label="Export as PDF">
+                <FileText size={15} strokeWidth={1.8} />
               </button>
-              <button
-                onClick={() => onExport?.('docx')}
-                className="p-2 rounded-xl bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]/50 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all hover:bg-[var(--bg-tertiary)]/60 shadow-sm"
-                title="Export as Word (DOCX)"
-              >
-                <Download size={13} strokeWidth={2.5} />
+              <button onClick={() => onExport?.('docx')} className={`${iconBtn} h-8 w-8`} title="Export as Word" aria-label="Export as Word">
+                <Download size={15} strokeWidth={1.8} />
               </button>
             </div>
           </div>
@@ -171,13 +171,7 @@ const LeftPanel = ({
 
     return (
       <div className="flex flex-col gap-0 w-full relative h-full">
-        {/* Sticky Header for Recents - Show for guests if they have history */}
-        {(!isGuest || chatHistory.length > 0) && (
-          <div className="sticky top-0 z-[15] pt-3 pb-2 -mx-1 px-1 bg-[var(--bg-primary)] border-b border-[var(--border-color)]/10 mb-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] px-2 py-1 text-[var(--text-tertiary)]">Recents</p>
-          </div>
-        )}
-        <div className="flex flex-col w-full pt-1">
+        <div className="flex flex-col w-full pt-3">
           {isLoadingHistory ? (
             <div className="space-y-3 px-1 py-2">
               <div className="h-10 bg-[var(--bg-tertiary)] rounded-xl animate-pulse opacity-40" />
@@ -225,73 +219,30 @@ const LeftPanel = ({
     if (isLoadingHistory || chatHistory.length > 0 || activeView !== 'history') return null;
 
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-0.5 select-none animate-fade-in py-8">
-        {/* 1. Empty State Illustration */}
-        <div className="relative mb-4">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-center opacity-40 shadow-inner">
-            <BookOpen size={28} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
-          </div>
-        </div>
+      <div className="flex flex-1 select-none flex-col justify-end px-1 pb-3 pt-2">
+        <div className="px-2 text-[12.5px] text-[var(--text-tertiary)]">Try asking</div>
 
-        <div className="text-center px-4 mb-8">
-          <h3 className="text-[14px] font-semibold text-[var(--text-primary)] opacity-80 mb-1">
-            Workspace Clear
-          </h3>
-          <p className="text-[11px] text-[var(--text-tertiary)] font-normal opacity-60">
-            Start a new session to begin your creative flow.
-          </p>
-        </div>
-
-        <div className="w-full">
-          <div className="flex items-center gap-3 mb-6 px-2">
-            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-[var(--border-color)]" />
-            <span className="text-[9px] font-medium uppercase tracking-[0.3em] text-[var(--text-tertiary)] opacity-50 whitespace-nowrap">
-              AI Command
-            </span>
-            <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-[var(--border-color)]" />
-          </div>
-
-          {/* Scrollable Suggestions — Now available for all users */}
-          <div className="w-full px-4">
-            <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-2 px-1 scroll-smooth snap-x">
-              {[
-                "Explain prefix sum in detail",
-                "How does linear search work?",
-                "Visualize bubble sort algorithm",
-                "Explain sliding window technique",
-                "The process of photosynthesis",
-                "Core concepts of DSA",
-                "Exploring the Solar system",
-                "Step-by-step Binary search",
-                "Quantum computing basics",
-                "What is a Neural Network?",
-                "How do Black Holes form?",
-                "The Nitrogen cycle explained",
-                "Introduction to React hooks"
-              ].map((text, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setPrompt(text);
-                    setTimeout(() => onSubmit(text), 10);
-                  }}
-                  className="snap-start flex-shrink-0 px-5 py-2.5 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-[1.03] active:scale-[0.97] hover:border-[var(--text-tertiary)]/30 shadow-sm"
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
-
-            {/* Subtle scroll indicator hint */}
-            <div className="flex justify-center mt-2 opacity-30">
-              <div className="flex gap-1">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]" />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ul className="mt-1.5 flex flex-col">
+          {STARTERS.map((s, i) => (
+            <motion.li
+              key={s.q}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.05 + i * 0.05 }}
+            >
+              <button
+                onClick={() => {
+                  setPrompt(s.q);
+                  setTimeout(() => onSubmit(s.q), 10);
+                }}
+                className="group flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-[var(--st-fill)]"
+              >
+                <span className="min-w-0 flex-1 truncate text-[14px] tracking-[-0.01em] text-[var(--text-secondary)] transition-colors group-hover:text-[var(--text-primary)]">{s.q}</span>
+                <ArrowUpRight size={15} strokeWidth={1.8} className="shrink-0 text-[var(--text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            </motion.li>
+          ))}
+        </ul>
       </div>
     );
   };
@@ -303,94 +254,56 @@ const LeftPanel = ({
       {/* ─── 1. FIXED TOP SECTION ─── */}
       <div className="flex-shrink-0 relative z-20">
         {/* Top Controls (Fixed Header) */}
-        <div className={`${isMobile ? 'px-4 pt-4 pb-1' : 'px-5 pt-5 pb-1'} flex items-center justify-between`}>
-          <div className="flex items-center gap-2">
-            <VisaiLogo size={isMobile ? "xs" : "xs"} className="text-[var(--text-primary)]" />
-            <span
-              className={`${isMobile ? 'text-[14px]' : 'text-[13px]'} font-normal uppercase tracking-[0.22em] text-[var(--text-primary)]`}
-              style={{ letterSpacing: '0.22em', opacity: 0.9 }}
-            >
-              TutorBoard
-            </span>
-          </div>
+        <div className={`${isMobile ? 'px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)]' : 'px-5 pb-4 pt-5'} flex items-center justify-between`}>
+          <BrandLockup />
 
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setOverlay('settings')}
-              className={`${isMobile ? 'p-2' : 'p-2'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
-              title="Open Settings"
-            >
-              <Settings size={isMobile ? 22 : 20} strokeWidth={1.8} className="group-hover:rotate-45 transition-transform" />
+          <div className="-mr-1.5 flex items-center gap-0.5">
+            <button onClick={() => setOverlay('settings')} className={iconBtn} title="Settings" aria-label="Open settings">
+              <Settings size={18} strokeWidth={1.7} />
             </button>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className={`${isMobile ? 'p-2' : 'p-2'} rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all active:scale-90 group`}
-              title="Close Workspace"
-            >
-              {isMobile ? <X size={24} strokeWidth={2} /> : <PanelLeftClose size={20} strokeWidth={1.8} className="group-hover:scale-110 transition-transform" />}
+            <button onClick={() => setSidebarOpen(false)} className={iconBtn} title="Close workspace" aria-label="Close workspace">
+              <PanelLeftClose size={18} strokeWidth={1.7} />
             </button>
           </div>
         </div>
 
         {/* Top block visible only on landing/history */}
-        <div className={`${isMobile ? 'px-3 mb-1' : 'px-4 mb-1.5'}`}>
-          <div className="flex flex-col gap-3">
+        <div className={`${isMobile ? 'px-4 mb-2' : 'px-5 mb-3'}`}>
+          <div className="flex flex-col gap-2">
 
             {activeView !== 'chat' && (
               <>
-                {/* 1. New Chat (Primary Hero Action) */}
                 <button
                   onClick={() => {
                     onNewChat();
                     setActiveView('chat');
                   }}
-                  className={`relative group w-full flex items-center justify-between gap-3 ${isMobile ? 'px-3.5 py-2.5 rounded-xl' : 'px-4 py-3 rounded-2xl'} bg-gradient-to-br from-[var(--text-primary)] to-[var(--text-primary)]/90 text-[var(--bg-primary)] shadow-lg shadow-[var(--text-primary)]/10 hover:shadow-[var(--text-primary)]/20 active:scale-[0.98] transition-all duration-300 overflow-hidden`}
+                  className="group flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl bg-[var(--text-primary)] px-3 text-[var(--bg-primary)] transition-opacity hover:opacity-90 active:scale-[0.99]"
                 >
-                  {/* Subtle Inner Glow */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-
-                  <div className="flex items-center gap-3">
-                    <div className={`${isMobile ? 'w-7 h-7' : 'w-6 h-6'} rounded-lg bg-[var(--bg-primary)]/15 border border-white/10 flex items-center justify-center group-hover:rotate-90 transition-transform duration-500`}>
-                      <Plus size={isMobile ? 16 : 14} strokeWidth={3} />
-                    </div>
-                    <span className={`${isMobile ? 'text-[13px]' : 'text-[13px]'} font-medium tracking-tight`}>New session</span>
-                  </div>
-
-                  {!isMobile && (
-                    <div className="text-[10px] font-medium opacity-40 px-1.5 py-0.5 rounded-md border border-white/20 uppercase tracking-[0.1em] bg-white/5 group-hover:opacity-100 transition-opacity">
-                      Alt N
-                    </div>
-                  )}
+                  <Plus size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:rotate-90" />
+                  <span className="flex-1 text-left text-[13.5px] font-medium tracking-[-0.01em]">New session</span>
+                  {!isMobile && <kbd className="font-mono text-[10px] tracking-[0.06em] opacity-50">Alt N</kbd>}
                 </button>
 
-                {/* 2. Search (Integrated Command-style Search) */}
-                <div className="relative group">
-                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors pointer-events-none">
-                    <Search size={14} strokeWidth={2.5} className="group-focus-within:scale-110 transition-transform" />
-                  </div>
+                <div className="relative">
+                  <Search size={15} strokeWidth={1.8} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
                   <input
                     ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search sessions..."
-                    className={`w-full bg-[var(--bg-secondary)] focus:bg-[var(--bg-secondary)] border-none focus:ring-0 focus:outline-none shadow-none focus:shadow-none ${isMobile ? 'rounded-xl pl-10 pr-9 py-2.5' : 'rounded-2xl pl-10 pr-10 py-2.5'} text-[13px] outline-none placeholder:text-[var(--text-tertiary)]/60 placeholder:font-normal`}
+                    placeholder="Search sessions"
+                    aria-label="Search sessions"
+                    className="h-10 w-full rounded-xl border border-[var(--st-line-strong)] bg-transparent pl-9 pr-9 text-[13.5px] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-secondary)] focus:shadow-[0_0_0_3px_var(--st-line)]"
                   />
-
-                  {/* Clear search or Keyboard Hint */}
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
                     {searchQuery ? (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="p-1 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
-                      >
-                        <X size={12} strokeWidth={3} />
+                      <button onClick={() => setSearchQuery('')} aria-label="Clear search" className="grid h-6 w-6 place-items-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]">
+                        <X size={13} strokeWidth={2} />
                       </button>
                     ) : !isMobile && (
-                      <div className="text-[9px] font-medium text-[var(--text-tertiary)]/50 border border-[var(--border-color)] rounded-md px-1.5 py-0.5 uppercase tracking-tighter bg-[var(--bg-tertiary)]/30 group-focus-within:opacity-0 transition-opacity">
-                        /
-                      </div>
+                      <kbd className="grid h-5 min-w-5 place-items-center rounded-md border border-[var(--st-line-strong)] px-1 font-mono text-[10px] text-[var(--text-tertiary)]">/</kbd>
                     )}
                   </div>
                 </div>
@@ -401,7 +314,7 @@ const LeftPanel = ({
       </div>
 
       {/* ─── 2. SCROLLABLE MIDDLE SECTION ─── */}
-      <div className={`flex-1 flex flex-col min-h-0 ${activeView === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} thin-scrollbar ${isMobile ? 'pl-3 pr-1 mr-1' : 'pl-4 pr-1 mr-1.5'} pt-0 pb-2 relative`}>
+      <div className={`flex-1 flex flex-col min-h-0 ${activeView === 'chat' || (activeView === 'history' && chatHistory.length === 0) ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} thin-scrollbar ${isMobile ? 'px-4' : 'px-5'} pt-0 pb-2 relative`}>
 
 
         {/* List content (Messages OR History + Suggestions) */}

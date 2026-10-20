@@ -10,12 +10,12 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
       <div className={`flex flex-col gap-3.5 ${isSmall ? 'p-3' : 'p-4'}`}>
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2 shrink-0">
-            <List size={11} className="opacity-30" />
-            <span className="text-[9px] font-bold uppercase tracking-[0.15em] opacity-40">Array · {data.length}</span>
+            <List size={11} className="opacity-40" />
+            <span className="text-[11px] font-medium opacity-60">Array · {data.length}</span>
           </div>
           <button 
             onClick={() => onLaunchImmersive?.(type, data)}
-            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-30 hover:opacity-100 transition-all hover:translate-x-0.5"
+            className="flex items-center gap-1.5 text-xs font-medium opacity-60 hover:opacity-100 transition-all hover:translate-x-0.5"
           >
             <Sparkles size={11} /> 
             <span>Visualize</span>
@@ -31,7 +31,7 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
             </div>
             <button 
               onClick={() => onLaunchImmersive?.(type, data)}
-              className="mt-1 px-5 py-2 rounded-xl bg-[var(--info)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-lg"
+              className="mt-1 px-4 py-2 rounded-xl bg-[var(--info)] text-[var(--bg-primary)] text-xs font-medium hover:brightness-110 transition-all shadow-lg"
             >
               Launch Visualizer
             </button>
@@ -40,7 +40,7 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
           <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1 pt-1 px-1">
             {data.slice(0, 15).map((item, idx) => (
               <div key={idx} className="flex flex-col items-center gap-2 group/node shrink-0">
-                <span className="text-[8px] font-bold opacity-20 uppercase tracking-widest">{idx}</span>
+                <span className="text-[10px] font-medium opacity-40">{idx}</span>
                 <div 
                   className="w-11 h-11 rounded-full border flex items-center justify-center transition-all group-hover/node:border-[var(--theme-color)]/50 group-hover/node:scale-110 shadow-sm"
                   style={{ 
@@ -69,14 +69,14 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[var(--text-primary)]/5 border border-[var(--text-primary)]/10 shrink-0">
             <Layers size={11} className="opacity-40" />
-            <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Object · {Object.keys(data).length}</span>
+            <span className="text-[11px] font-medium opacity-70">Object · {Object.keys(data).length}</span>
           </div>
           <button 
             onClick={() => onLaunchImmersive?.(type, data)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--info)]/10 text-[var(--info)] hover:bg-[var(--info)]/20 transition-all hover:scale-105 active:scale-95"
           >
             <Sparkles size={11} /> 
-            <span className="text-[10px] font-bold uppercase tracking-widest">Visualize</span>
+            <span className="text-xs font-medium">Visualize</span>
           </button>
         </div>
 
@@ -89,7 +89,7 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
             </div>
             <button 
               onClick={() => onLaunchImmersive?.(type, data)}
-              className="mt-1 px-5 py-2 rounded-xl bg-[var(--info)] text-[var(--bg-primary)] text-[10px] font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-lg"
+              className="mt-1 px-4 py-2 rounded-xl bg-[var(--info)] text-[var(--bg-primary)] text-xs font-medium hover:brightness-110 transition-all shadow-lg"
             >
               Launch Visualizer
             </button>
@@ -99,7 +99,7 @@ const DataVisualizer = ({ type, data, onLaunchImmersive }) => {
             {Object.entries(data).map(([key, val], idx) => (
               <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl border bg-white/[0.02] hover:border-[var(--info)]/50 transition-all group/item" style={{ borderColor: 'var(--border-color)' }}>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-[9px] font-bold opacity-40 uppercase tracking-widest">{key}</span>
+                  <span className="text-[11px] font-medium opacity-60">{key}</span>
                   <span className="text-[13px] font-mono font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{String(val)}</span>
                 </div>
                 <CornerDownRight size={12} className="opacity-10 group-hover/item:opacity-30 transition-opacity" />

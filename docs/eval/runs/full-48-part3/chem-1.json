@@ -1,0 +1,217 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Why water is bent",
+  "domain": "chemistry",
+  "summary": "Two lone pairs on oxygen repel the H‑O bonds, compressing the H‑O‑H angle to 104.5° and giving water its bent shape.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "title",
+    "type": "text",
+    "text": "Why water is bent",
+    "role": "title"
+   },
+   {
+    "id": "formula",
+    "type": "text",
+    "text": "H₂O",
+    "role": "title"
+   },
+   {
+    "id": "h2o",
+    "type": "molecule",
+    "atoms": [
+     {
+      "id": "O",
+      "el": "O"
+     },
+     {
+      "id": "H1",
+      "el": "H"
+     },
+     {
+      "id": "H2",
+      "el": "H"
+     }
+    ],
+    "bonds": [
+     [
+      0,
+      1,
+      1
+     ],
+     [
+      0,
+      2,
+      1
+     ]
+    ],
+    "lonePairs": [
+     {
+      "atom": 0,
+      "count": 2
+     }
+    ]
+   },
+   {
+    "id": "angleHOH",
+    "label": "104.5°",
+    "tone": "warning",
+    "type": "angle",
+    "vertex": "h2o.O",
+    "from": "h2o.H1",
+    "to": "h2o.H2",
+    "showValue": true
+   },
+   {
+    "id": "recap",
+    "type": "text",
+    "text": "104.5° angle → bent shape",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "title",
+    "region": "top-left"
+   },
+   {
+    "rel": "place",
+    "id": "formula",
+    "region": "top-right"
+   },
+   {
+    "rel": "place",
+    "id": "h2o",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "recap",
+    "of": "h2o",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Water molecule appears",
+    "narration": "The H₂O molecule is shown with two hydrogens bonded to oxygen.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "title",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "formula",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "h2o",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Lone pairs on oxygen",
+    "narration": "Oxygen holds two lone pairs that are drawn as a label above it.",
+    "actions": [
+     {
+      "do": "annotate",
+      "target": "h2o.O",
+      "text": "2 lone pairs",
+      "side": "above"
+     },
+     {
+      "do": "highlight",
+      "target": "h2o.O",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Predict the bond angle",
+    "narration": "Why is the H‑O‑H angle smaller than the tetrahedral 109.5°?",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "h2o.H1",
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "h2o.H2",
+      "state": "comparing",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "What causes the reduced angle?",
+     "choices": [
+      "Lone‑pair repulsion",
+      "Hydrogen‑hydrogen repulsion",
+      "Oxygen’s size"
+     ],
+     "answer": 0,
+     "explain": "Lone‑pair‑lone‑pair repulsion pushes the bonds closer together."
+    }
+   },
+   {
+    "title": "Angle shown",
+    "narration": "The H‑O‑H angle is drawn as 104.5°, illustrating the bend caused by the lone pairs.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "angleHOH",
+      "effect": "grow"
+     },
+     {
+      "do": "highlight",
+      "target": "angleHOH",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Takeaway",
+    "narration": "The two lone pairs compress the bond angle to 104.5°, so water has a bent molecular shape.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "recap",
+      "effect": "fade"
+     },
+     {
+      "do": "highlight",
+      "target": "recap",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 20295,
+ "model": "gemini-3.6-flash",
+ "domain": "chemistry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Why water is bent\",\"domain\":\"chemistry\",\"summary\":\"Two lone pairs on oxygen repel the H‑O bonds, compressing the H‑O‑H angle to 104.5° and giving water its bent shape.\",\"spaces\":[],\"entities\":[{\"id\":\"title\",\"type\":\"text\",\"text\":\"Why water is bent\",\"role\":\"title\"},{\"id\":\"formula\",\"type\":\"text\",\"text\":\"H₂O\",\"role\":\"title\"},{\"id\":\"h2o\",\"type\":\"molecule\",\"atoms\":[{\"id\":\"O\",\"el\":\"O\"},{\"id\":\"H1\",\"el\":\"H\"},{\"id\":\"H2\",\"el\":\"H\"}],\"bonds\":[[0,1,1],[0,2,1]],\"lonePairs\":[{\"atom\":0,\"count\":2}]},{\"id\":\"angleHOH\",\"type\":\"angle\",\"vertex\":\"h2o.O\",\"from\":\"h2o.H1\",\"to\":\"h2o.H2\",\"label\":\"104.5°\",\"tone\":\"warning\"},{\"id\":\"recap\",\"type\":\"text\",\"text\":\"104.5° angle → bent shape\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"title\",\"region\":\"top-left\"},{\"rel\":\"place\",\"id\":\"formula\",\"region\":\"top-right\"},{\"rel\":\"place\",\"id\":\"h2o\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"recap\",\"of\":\"h2o\"}],\"beats\":[{\"title\":\"Water molecule appears\",\"narration\":\"The H₂O molecule is shown with two hydrogens bonded to oxygen.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"title\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"formula\",\"effect\":\"fade\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"h2o\",\"effect\":\"pop\",\"with\":\"previous\"}]},{\"title\":\"Lone pairs on oxygen\",\"narration\":\"Oxygen holds two lone pairs that are drawn as a label above it.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"annotate\",\"target\":\"h2o.O\",\"text\":\"2 lone pairs\",\"side\":\"above\"},{\"do\":\"highlight\",\"target\":\"h2o.O\",\"state\":\"insight\"}]},{\"title\":\"Predict the bond angle\",\"narration\":\"Why is the H‑O‑H angle smaller than the tetrahedral 109.5°?\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"h2o.H1\",\"state\":\"comparing\"},{\"do\":\"highlight\",\"target\":\"h2o.H2\",\"state\":\"comparing\"}],\"check\":{\"question\":\"What causes the reduced angle?\",\"choices\":[\"Lone‑pair repulsion\",\"Hydrogen‑hydrogen repulsion\",\"Oxygen’s size\"],\"answer\":0,\"explain\":\"Lone‑pair‑lone‑pair repulsion pushes the bonds closer together.\"}},{\"title\":\"Angle shown\",\"narration\":\"The H‑O‑H angle is drawn as 104.5°, illustrating the bend caused by the lone pairs.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"angleHOH\",\"effect\":\"grow\"},{\"do\":\"highlight\",\"target\":\"angleHOH\",\"state\":\"insight\"}]},{\"title\":\"Takeaway\",\"narration\":\"The two lone pairs compress the bond angle to 104.5°, so water has a bent molecular shape.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"recap\",\"effect\":\"fade\"},{\"do\":\"highlight\",\"target\":\"recap\",\"state\":\"insight\"}]}]}"
+}

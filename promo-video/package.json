@@ -1,0 +1,32 @@
+{
+  "name": "tutorboard-launch-film",
+  "private": true,
+  "version": "1.0.0",
+  "description": "TutorBoard launch film \u2014 Remotion project (isolated from the app)",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "capture": "node capture/film-capture.mjs",
+    "audio": "python -I audio/build_score.py",
+    "plan:v3": "node scripts/build-plan-v3.mjs",
+    "vo": ".venv-vo/Scripts/python.exe -I audio/voiceover.py",
+    "audio:v3": "python -I audio/build_score_v3.py",
+    "render": "remotion render src/index.ts TutorBoardLaunch out/TutorBoard-Launch-Film.mp4",
+    "render:v3": "remotion render src/index.ts TutorBoardFilm out/TutorBoard-Film-v3.mp4",
+    "render:v3:novo": "remotion render src/index.ts TutorBoardFilmNoVO out/TutorBoard-Film-v3-music-only.mp4",
+    "still": "remotion still src/index.ts TutorBoardLaunch out/still.png",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.534",
+    "@remotion/google-fonts": "4.0.534",
+    "@remotion/media-utils": "4.0.534",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "remotion": "4.0.534"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "typescript": "5.9.3"
+  }
+}

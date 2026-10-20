@@ -12,15 +12,15 @@ import { PROVIDERS, ALL_DEFAULT_MODELS, detectProvider } from './ProviderRegistr
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
 const labelStyle = {
-  fontSize: '10px', fontWeight: 500, textTransform: 'uppercase',
-  letterSpacing: '0.06em', color: 'var(--text-tertiary)',
-  marginBottom: '4px', display: 'block',
+  fontSize: '10px', fontWeight: 400, textTransform: 'uppercase', fontFamily: '"JetBrains Mono", monospace',
+  letterSpacing: '0.14em', color: 'var(--text-tertiary)',
+  marginBottom: '6px', display: 'block',
 };
 
 const inputBase = {
-  width: '100%', padding: '8px 10px', borderRadius: '8px',
-  border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)', fontSize: '12px', outline: 'none',
+  width: '100%', height: '36px', padding: '0 12px', borderRadius: '10px',
+  border: '1px solid var(--st-line-strong)', background: 'var(--bg-primary)',
+  color: 'var(--text-primary)', fontSize: '13px', outline: 'none',
   boxSizing: 'border-box', transition: 'border-color 0.12s',
 };
 
@@ -40,7 +40,7 @@ function ProviderGrid({ selected, onSelect }) {
             onClick={() => onSelect(isSelected ? null : p)}
             style={{
               padding: '8px 6px', borderRadius: '8px',
-              border: `1px solid ${isSelected ? p.color : 'var(--border-color)'}`,
+              border: `1px solid ${isSelected ? p.color : 'var(--st-line-strong)'}`,
               background: isSelected ? `${p.color}0c` : 'transparent',
               cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
@@ -75,8 +75,8 @@ function SavedKeyCard({ entry, onRemove }) {
       style={{
         display: 'flex', alignItems: 'center', gap: '10px',
         padding: '10px 12px', borderRadius: '10px',
-        border: '1px solid var(--border-color)',
-        background: 'var(--bg-secondary)',
+        border: '1px solid var(--st-line-strong)',
+        background: 'var(--st-surface)',
         marginBottom: '8px',
       }}
     >
@@ -88,7 +88,7 @@ function SavedKeyCard({ entry, onRemove }) {
             {entry.provider?.name}
           </span>
         </div>
-        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '2px', fontFamily: '"Geist Mono", monospace', fontWeight: 400 }}>
+        <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '2px', fontFamily: '"JetBrains Mono", monospace', fontWeight: 400 }}>
           {entry.maskedKey} · {entry.model}
         </div>
       </div>
@@ -229,16 +229,16 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
       </AnimatePresence>
 
       <div style={{
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border-color)',
-        borderRadius: '12px',
+        background: 'var(--st-surface)',
+        border: '1px solid var(--st-line-strong)',
+        borderRadius: '16px',
         padding: '14px', 
         display: 'flex', flexDirection: 'column', gap: '12px',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'var(--st-fill-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}>
               <Globe size={13} strokeWidth={2} />
             </div>
             <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>New API Key</span>
@@ -270,8 +270,8 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
               spellCheck={false}
               style={{
                 ...inputBase, paddingRight: '32px',
-                fontFamily: apiKey ? '"Geist Mono", monospace' : 'inherit',
-                borderColor: apiKey && provider ? `${provider.color}60` : 'var(--border-color)',
+                fontFamily: apiKey ? '"JetBrains Mono", monospace' : 'inherit',
+                borderColor: apiKey && provider ? `${provider.color}60` : 'var(--st-line-strong)',
               }}
             />
             <button
@@ -282,7 +282,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
             </button>
           </div>
           {provider && (
-            <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '4px', fontFamily: '"Geist Mono", monospace', fontWeight: 400 }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '4px', fontFamily: '"JetBrains Mono", monospace', fontWeight: 400 }}>
               <span style={{ color: provider.color }}>{provider.name}</span> detected — {provider.hint}
             </div>
           )}
@@ -304,8 +304,8 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '8px 10px', borderRadius: '8px', marginTop: '4px',
-            border: '1px solid var(--border-color)',
-            background: provider ? `${provider.color}06` : 'var(--bg-tertiary)',
+            border: '1px solid var(--st-line-strong)',
+            background: provider ? `${provider.color}06` : 'var(--st-fill-strong)',
           }}>
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: provider?.color || 'var(--text-tertiary)' }} />
             <span style={{ fontSize: '12px', fontWeight: 400, color: provider?.color || 'var(--text-tertiary)', flex: 1 }}>
@@ -339,7 +339,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           <div>
             <label style={labelStyle}>Model</label>
-            <input type="text" value={model} onChange={e => setModel(e.target.value)} placeholder={provider?.defaultModel || 'gpt-4o'} style={{ ...inputBase, fontFamily: '"Geist Mono", monospace' }} />
+            <input type="text" value={model} onChange={e => setModel(e.target.value)} placeholder={provider?.defaultModel || 'gpt-4o'} style={{ ...inputBase, fontFamily: '"JetBrains Mono", monospace' }} />
           </div>
           <div>
             <label style={labelStyle}>Label</label>
@@ -353,7 +353,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
               <div>
                 <label style={labelStyle}>Base URL</label>
-                <input type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="https://your-proxy.com/v1" style={{ ...inputBase, fontFamily: '"Geist Mono", monospace' }} />
+                <input type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="https://your-proxy.com/v1" style={{ ...inputBase, fontFamily: '"JetBrains Mono", monospace' }} />
               </div>
             </motion.div>
           )}
@@ -416,8 +416,8 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
             disabled={!canValidate}
             style={{
               padding: '10px 14px', borderRadius: '10px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--st-line-strong)',
+              background: 'var(--st-fill-strong)',
               color: canValidate ? 'var(--text-primary)' : 'var(--text-tertiary)',
               fontSize: '12px', fontWeight: 600,
               cursor: canValidate ? 'pointer' : 'default',
@@ -436,7 +436,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
             disabled={!canSave}
             style={{
               padding: '10px 14px', borderRadius: '10px', border: 'none',
-              background: canSave ? 'var(--text-primary)' : 'var(--bg-tertiary)',
+              background: canSave ? 'var(--text-primary)' : 'var(--st-fill-strong)',
               color: canSave ? 'var(--bg-primary)' : 'var(--text-tertiary)',
               fontSize: '12px', fontWeight: 600,
               cursor: canSave ? 'pointer' : 'default',

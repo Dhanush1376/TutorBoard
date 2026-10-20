@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useLayoutEffect, useMemo } from 'react';
 import { themes } from '../lib/themes';
 import useTutorStore from '../store/tutorStore';
 import { ThemeContext } from './ThemeContext';
@@ -27,7 +27,7 @@ export const ThemeProvider = ({ children }) => {
   const glassIntensity = useTutorStore(state => state.glassIntensity);
   const canvasTone = useTutorStore(state => state.canvasTone);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     const tokens = currentTheme.colors[mode] || currentTheme.colors['light'] || currentTheme.colors['dark'] || {};
     
@@ -61,6 +61,17 @@ export const ThemeProvider = ({ children }) => {
       '--user-bubble-text': tokens.userBubbleText,
       '--ai-bubble-bg': tokens.aiBubble,
       '--ai-bubble-text': tokens.aiBubbleText,
+
+      // Theme-specific text selection
+      '--selection-bg': mode === 'light'
+        ? `rgba(${hexToRgb(tokens.text)}, 0.15)`
+        : `rgba(${hexToRgb(tokens.text)}, 0.22)`,
+      '--selection-text': tokens.text,
+      
+      // Session / Stage theme surfaces
+      '--st-surface': tokens.surface,
+      '--st-line': mode === 'light' ? 'rgba(15, 15, 14, 0.08)' : 'rgba(249, 246, 229, 0.07)',
+      '--st-line-strong': tokens.border || (mode === 'light' ? 'rgba(15, 15, 14, 0.14)' : 'rgba(249, 246, 229, 0.13)'),
       
       // Dynamic Appearance
       '--global-font': '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',

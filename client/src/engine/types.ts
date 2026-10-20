@@ -16,6 +16,7 @@ export interface Command {
     | 'result'
     | 'node' | 'orb' | 'badge' | 'block' | 'data_block' | 'callout' | 'group' | 'step'
     | 'edge'
+    | 'content'
     | 'circumscribe' | 'flash';
   id?: string;
   id1?: string;

@@ -1,135 +1,79 @@
 import React, { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import {
-  Sun, Moon, Check, TableProperties,
-  Grid3X3, PanelLeft, PanelRight, Eye,
-  Zap, Palette
-} from 'lucide-react';
+import { Sun, Moon, Check, PanelLeft, PanelRight, Magnet } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { useTheme } from '../../context/useTheme';
-import {
-  SectionTitle, SettingsGroup, SettingsRow,
-  AppleToggle, RightInlineSelect
-} from './SettingsShared';
+import { SectionTitle, SettingsGroup, SettingsRow, AppleToggle } from './SettingsShared';
 
-// ─── Theme Preview Card ──────────────────────────────────────────────────────
+// ─── Theme preview card ──────────────────────────────────────────────────────
 
 const ThemePreviewCard = ({ theme, mode, isSelected, onClick }) => {
-  const t = theme.colors[mode] || theme.colors['light'];
+  const t = theme.colors[mode] || theme.colors.light;
   return (
-    <button
-      onClick={onClick}
-      style={{
-        width: '100%', display: 'flex', flexDirection: 'column', gap: '8px',
-        background: 'none', border: 'none', padding: '4px',
-        cursor: 'pointer', textAlign: 'left', borderRadius: '14px',
-      }}
-    >
-      {/* Miniature UI Preview */}
-      <div style={{
-        position: 'relative', width: '100%', aspectRatio: '16/10',
-        borderRadius: '12px', overflow: 'hidden', background: t.bg,
-        border: `1.5px solid ${isSelected ? 'var(--text-primary)' : 'var(--border-color)'}`,
-        transition: 'all 0.15s ease',
-      }}>
-        {/* Sidebar */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, width: '28%', height: '100%',
-          background: t.surface, borderRight: `1px solid ${t.border}`,
-          padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: '4px',
-          boxSizing: 'border-box',
-        }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '3px', background: t.text, opacity: 0.4, marginBottom: '4px' }} />
+    <button type="button" onClick={onClick} aria-pressed={isSelected} className="group flex w-full cursor-pointer flex-col gap-2.5 text-left">
+      <div
+        className={`relative aspect-[16/10] w-full overflow-hidden rounded-xl transition-shadow duration-200 ${
+          isSelected
+            ? 'shadow-[0_0_0_2px_var(--text-primary)]'
+            : 'shadow-[0_0_0_1px_var(--st-line-strong)] group-hover:shadow-[0_0_0_1px_var(--text-tertiary)]'
+        }`}
+        style={{ background: t.bg }}
+      >
+        <div className="absolute inset-y-0 left-0 flex w-[28%] flex-col gap-1 p-2" style={{ background: t.surface, borderRight: `1px solid ${t.border}` }}>
+          <div className="mb-1 h-2 w-2 rounded-[3px]" style={{ background: t.text, opacity: 0.5 }} />
           {[0.6, 0.4, 0.3].map((op, i) => (
-            <div key={i} style={{ width: '100%', height: '3px', borderRadius: '2px', background: t.textMuted, opacity: op * 0.3 }} />
+            <div key={i} className="h-[3px] w-full rounded-sm" style={{ background: t.textMuted, opacity: op * 0.35 }} />
           ))}
         </div>
-
-        {/* Canvas Area */}
-        <div style={{
-          position: 'absolute', top: 0, left: '28%', right: 0, bottom: 0, padding: '8px',
-          backgroundImage: `radial-gradient(${t.textMuted}22 0.6px, transparent 0.6px)`,
-          backgroundSize: '6px 6px',
-        }}>
-          {/* AI bubble */}
-          <div style={{
-            width: '60%', padding: '5px 7px', borderRadius: '6px 6px 6px 2px',
-            background: t.aiBubble, marginBottom: '5px',
-          }}>
-            <div style={{ width: '100%', height: '2px', borderRadius: '1px', background: t.textMuted, opacity: 0.3, marginBottom: '3px' }} />
-            <div style={{ width: '70%', height: '2px', borderRadius: '1px', background: t.textMuted, opacity: 0.2 }} />
+        <div
+          className="absolute inset-y-0 left-[28%] right-0 p-2"
+          style={{ backgroundImage: `radial-gradient(${t.textMuted}22 0.6px, transparent 0.6px)`, backgroundSize: '6px 6px' }}
+        >
+          <div className="mb-1.5 w-[60%] rounded-[6px_6px_6px_2px] px-[7px] py-[5px]" style={{ background: t.aiBubble }}>
+            <div className="mb-[3px] h-[2px] w-full rounded-sm" style={{ background: t.textMuted, opacity: 0.3 }} />
+            <div className="h-[2px] w-[70%] rounded-sm" style={{ background: t.textMuted, opacity: 0.2 }} />
           </div>
-          {/* User bubble */}
-          <div style={{
-            width: '45%', padding: '5px 7px', borderRadius: '6px 6px 2px 6px',
-            background: t.userBubble, marginLeft: 'auto',
-          }}>
-            <div style={{ width: '100%', height: '2px', borderRadius: '1px', background: t.userBubbleText, opacity: 0.4 }} />
+          <div className="ml-auto w-[45%] rounded-[6px_6px_2px_6px] px-[7px] py-[5px]" style={{ background: t.userBubble }}>
+            <div className="h-[2px] w-full rounded-sm" style={{ background: t.userBubbleText, opacity: 0.4 }} />
           </div>
         </div>
-      </div>
-
-      {/* Label */}
-      <div style={{ padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{
-          fontSize: '12px', fontWeight: isSelected ? 500 : 400,
-          color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
-          transition: 'color 0.12s',
-          letterSpacing: '-0.01em',
-        }}>
-          {theme.name}
-        </span>
         {isSelected && (
-          <div style={{
-            width: '14px', height: '14px', borderRadius: '50%',
-            background: 'var(--text-primary)', color: 'var(--bg-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Check size={8} strokeWidth={4} />
-          </div>
+          <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)]">
+            <Check size={11} strokeWidth={3} />
+          </span>
         )}
       </div>
+      <span className={`px-0.5 text-[13px] tracking-[-0.01em] ${isSelected ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+        {theme.name}
+      </span>
     </button>
   );
 };
 
-// ─── Layout Option Button ────────────────────────────────────────────────────
+// ─── Visual option tile ──────────────────────────────────────────────────────
 
-const LayoutOption = ({ id, label, icon: Icon, isActive, onClick, children }) => (
+const OptionTile = ({ id, label, icon: Icon, isActive, onClick, children }) => (
   <button
+    type="button"
+    aria-pressed={isActive}
     onClick={() => onClick(id)}
-    style={{
-      flex: 1, display: 'flex', flexDirection: 'column', gap: '6px',
-      padding: '8px', borderRadius: '10px',
-      border: `1px solid ${isActive ? 'var(--text-primary)' : 'var(--border-color)'}`,
-      background: isActive ? 'var(--bg-secondary)' : 'transparent',
-      cursor: 'pointer', transition: 'all 0.12s ease',
-    }}
+    className={`flex flex-1 cursor-pointer flex-col gap-2.5 rounded-2xl border p-2.5 text-left transition-[border-color,background-color,box-shadow] ${
+      isActive
+        ? 'border-transparent bg-[var(--st-surface)] shadow-[0_0_0_2px_var(--text-primary)]'
+        : 'border-[var(--st-line-strong)] hover:bg-[var(--st-fill)]'
+    }`}
   >
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>
-        <Icon size={13} strokeWidth={2} />
-        <span style={{ fontSize: '12px', fontWeight: isActive ? 500 : 400 }}>{label}</span>
-      </div>
-      {isActive && <Check size={11} strokeWidth={3} style={{ color: 'var(--text-primary)' }} />}
+    <div className="h-14 w-full overflow-hidden rounded-[10px] border border-[var(--st-line)] bg-[var(--bg-primary)]">{children}</div>
+    <div className="flex items-center justify-between px-0.5">
+      <span className={`flex items-center gap-2 text-[12.5px] ${isActive ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+        <Icon size={13} strokeWidth={1.9} />
+        {label}
+      </span>
+      {isActive && <span className="h-1.5 w-1.5 rounded-full bg-[var(--mk-accent)]" />}
     </div>
-    {children && (
-      <div style={{
-        height: '28px', width: '100%', borderRadius: '6px',
-        background: 'var(--bg-primary)', border: '1px solid var(--border-color)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        opacity: isActive ? 1 : 0.5, transition: 'opacity 0.12s',
-        overflow: 'hidden',
-      }}>
-        {children}
-      </div>
-    )}
   </button>
 );
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+// ─── Main component ──────────────────────────────────────────────────────────
 
 export default function AppearanceSection({ syncSettings }) {
   const store = useTutorStore();
@@ -142,61 +86,47 @@ export default function AppearanceSection({ syncSettings }) {
         appearance: {
           theme: mode, // Map 'mode' to 'theme' for DB
           themeId: currentThemeId,
-          showMinimap: store.showMinimap,
           showGrid: store.showGrid,
           layoutView: store.layoutView,
-          motionMode: store.motionMode,
-          glassIntensity: store.glassIntensity,
         },
-        canvas: {
-          gridType: store.gridType,
-        }
       });
     }, 300);
     return () => clearTimeout(timeout);
-  }, [currentThemeId, mode, store.showMinimap, store.showGrid, store.layoutView, store.gridType, store.motionMode, store.glassIntensity]);
+  }, [currentThemeId, mode, store.showGrid, store.layoutView]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="flex flex-col gap-8">
+      {/* ── Mode + theme ─────────────────────────────────────────── */}
+      <section>
+        <SectionTitle
+          action={
+            <div role="radiogroup" aria-label="Colour mode" className="flex rounded-full border border-[var(--st-line-strong)] p-0.5">
+              {[
+                { id: 'light', icon: Sun, label: 'Light' },
+                { id: 'dark', icon: Moon, label: 'Dark' },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m.id}
+                  onClick={() => mode !== m.id && toggleMode()}
+                  className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12px] transition-colors ${
+                    mode === m.id ? 'bg-[var(--text-primary)] font-medium text-[var(--bg-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <m.icon size={12} strokeWidth={2} />
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          Theme
+        </SectionTitle>
 
-      {/* ── Interface Style ─────────────────────────────────────────── */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <SectionTitle style={{ margin: 0 }}>Theme</SectionTitle>
-
-          {/* Light / Dark toggle */}
-          <div style={{
-            display: 'flex', background: 'var(--bg-secondary)',
-            borderRadius: '8px', padding: '3px',
-            border: '1px solid var(--border-color)', gap: '2px',
-          }}>
-            {[
-              { id: 'light', icon: Sun, label: 'Light' },
-              { id: 'dark', icon: Moon, label: 'Dark' },
-            ].map(m => (
-              <button
-                key={m.id}
-                onClick={() => mode !== m.id && toggleMode()}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '4px',
-                  padding: '4px 10px', borderRadius: '6px', border: 'none',
-                  cursor: 'pointer',
-                  background: mode === m.id ? 'var(--bg-primary)' : 'transparent',
-                  color: mode === m.id ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                  fontSize: '11px', fontWeight: mode === m.id ? 500 : 400,
-                  transition: 'all 0.12s ease',
-                }}
-              >
-                <m.icon size={11} strokeWidth={2} />
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Theme Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-          {themes.map(theme => (
+        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4">
+          {themes.map((theme) => (
             <ThemePreviewCard
               key={theme.id}
               theme={theme}
@@ -206,143 +136,36 @@ export default function AppearanceSection({ syncSettings }) {
             />
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* ── Typography & Effects ───────────────────────────────────────── */}
-      <div>
-        <SectionTitle>Typography & Effects</SectionTitle>
-        <SettingsGroup>
-          <SettingsRow
-            icon={Zap}
-            label="Global Font"
-            description="Interface and canvas typography"
-            rightElement={
-              <RightInlineSelect
-                value={store.globalFont || 'geist'}
-                onChange={store.setGlobalFont}
-                options={[
-                  { value: 'geist', label: 'Geist Sans' },
-                  { value: 'inter', label: 'Inter' },
-                  { value: 'outfit', label: 'Outfit' },
-                  { value: 'serif', label: 'Classic Serif' },
-                ]}
-              />
-            }
-          />
-          <SettingsRow
-            icon={Palette}
-            label="Glass Intensity"
-            description="Frosted glass effect strength"
-            borderBottom={false}
-            rightElement={
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '160px' }}>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="100" 
-                  step="5"
-                  value={store.glassIntensity || 80}
-                  onChange={(e) => store.setGlassIntensity(parseInt(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', width: '32px', textAlign: 'right' }}>
-                  {store.glassIntensity}%
-                </span>
-              </div>
-            }
-          />
-        </SettingsGroup>
-      </div>
-
-      {/* ── Canvas Workspace ─────────────────────────────────────────── */}
-      <div>
-        <SectionTitle>Canvas</SectionTitle>
-
-        {/* Grid type */}
-        <div style={{ marginBottom: '12px' }}>
-          <p style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-tertiary)', marginBottom: '6px', opacity: 0.6, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Background
-          </p>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <LayoutOption id="dots" label="Dots" icon={TableProperties} isActive={store.gridType === 'dots'} onClick={store.setGridType}>
-              <div style={{
-                width: '100%', height: '100%',
-                backgroundImage: 'radial-gradient(var(--text-tertiary) 1px, transparent 1px)',
-                backgroundSize: '8px 8px', opacity: 0.25,
-              }} />
-            </LayoutOption>
-            <LayoutOption id="lines" label="Lines" icon={Grid3X3} isActive={store.gridType === 'lines'} onClick={store.setGridType}>
-              <div style={{
-                width: '100%', height: '100%',
-                backgroundImage: 'linear-gradient(var(--text-tertiary) 0.5px, transparent 0.5px), linear-gradient(90deg, var(--text-tertiary) 0.5px, transparent 0.5px)',
-                backgroundSize: '10px 10px', opacity: 0.12,
-              }} />
-            </LayoutOption>
-            <LayoutOption id="none" label="None" icon={Eye} isActive={store.gridType === 'none'} onClick={store.setGridType}>
-              <div style={{ width: '100%', height: '100%', background: 'var(--bg-primary)' }} />
-            </LayoutOption>
-          </div>
+      {/* ── Panel position ────────────────────────────────────────── */}
+      <section>
+        <SectionTitle>Panel position</SectionTitle>
+        <div className="flex gap-2.5">
+          <OptionTile id="left" label="Left" icon={PanelLeft} isActive={store.layoutView === 'left'} onClick={store.setLayoutView}>
+            <div className="flex h-full w-full">
+              <div className="h-full w-[30%] border-r border-[var(--st-line)] bg-[var(--st-fill-strong)]" />
+            </div>
+          </OptionTile>
+          <OptionTile id="right" label="Right" icon={PanelRight} isActive={store.layoutView === 'right'} onClick={store.setLayoutView}>
+            <div className="flex h-full w-full justify-end">
+              <div className="h-full w-[30%] border-l border-[var(--st-line)] bg-[var(--st-fill-strong)]" />
+            </div>
+          </OptionTile>
         </div>
+      </section>
 
-        {/* Panel side */}
-        <div style={{ marginBottom: '16px' }}>
-          <p style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-tertiary)', marginBottom: '6px', opacity: 0.6, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Panel Position
-          </p>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <LayoutOption id="left" label="Left" icon={PanelLeft} isActive={store.layoutView === 'left'} onClick={store.setLayoutView}>
-              <div style={{ width: '100%', height: '100%', display: 'flex' }}>
-                <div style={{ width: '30%', height: '100%', background: 'var(--bg-tertiary)', borderRight: '1px solid var(--border-color)' }} />
-                <div style={{ flex: 1 }} />
-              </div>
-            </LayoutOption>
-            <LayoutOption id="right" label="Right" icon={PanelRight} isActive={store.layoutView === 'right'} onClick={store.setLayoutView}>
-              <div style={{ width: '100%', height: '100%', display: 'flex' }}>
-                <div style={{ flex: 1 }} />
-                <div style={{ width: '30%', height: '100%', background: 'var(--bg-tertiary)', borderLeft: '1px solid var(--border-color)' }} />
-              </div>
-            </LayoutOption>
-          </div>
-        </div>
-
-        {/* Workspace Controls */}
+      {/* ── Workspace ─────────────────────────────────────────────── */}
+      <section>
+        <SectionTitle>Workspace</SectionTitle>
         <SettingsGroup>
           <SettingsRow
-            icon={Eye}
-            label="Mini-Map"
-            description="Canvas overview in corner"
-            rightElement={<AppleToggle value={store.showMinimap} onChange={store.setShowMinimap} />}
-          />
-          <SettingsRow
-            icon={Grid3X3}
-            label="Snap to Grid"
-            description="Align elements precisely"
-            borderBottom={false}
-            rightElement={<AppleToggle value={store.isSnapToGrid} onChange={store.setSnapToGrid} />}
+            icon={Magnet}
+            label="Snap to grid"
+            rightElement={<AppleToggle label="Snap to grid" value={store.isSnapToGrid} onChange={store.setSnapToGrid} />}
           />
         </SettingsGroup>
-
-        <SettingsGroup>
-          <SettingsRow
-            icon={Zap}
-            label="Motion"
-            description="Animation speed preference"
-            borderBottom={false}
-            rightElement={
-              <RightInlineSelect
-                value={store.motionMode}
-                onChange={store.setMotionMode}
-                options={[
-                  { value: 'fluid', label: 'Fluid' },
-                  { value: 'snappy', label: 'Snappy' },
-                  { value: 'minimal', label: 'Reduced' },
-                ]}
-              />
-            }
-          />
-        </SettingsGroup>
-      </div>
-
+      </section>
     </div>
   );
 }

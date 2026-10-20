@@ -1,0 +1,329 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Visual Proof of the Pythagorean Theorem",
+  "domain": "geometry",
+  "summary": "By arranging four copies of a right triangle inside a square of side (a + b), the remaining central area proves that a² + b² = c².",
+  "spaces": [
+   {
+    "id": "geo",
+    "kind": "cartesian",
+    "x": [
+     -0.5,
+     7.5
+    ],
+    "y": [
+     -0.5,
+     7.5
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "outer",
+    "label": "Side (a + b)",
+    "tone": "muted",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      7,
+      0
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      0,
+      7
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t1",
+    "label": "Legs a, b",
+    "tone": "primary",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      4,
+      0
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t2",
+    "tone": "primary",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      4,
+      0
+     ],
+     [
+      7,
+      0
+     ],
+     [
+      7,
+      4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t3",
+    "tone": "primary",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      7,
+      4
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      3,
+      7
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "t4",
+    "tone": "primary",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      3,
+      7
+     ],
+     [
+      0,
+      7
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "inner",
+    "label": "Area = c²",
+    "tone": "accent",
+    "space": "geo",
+    "type": "polygon",
+    "points": [
+     [
+      4,
+      0
+     ],
+     [
+      7,
+      4
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "header",
+    "type": "text",
+    "text": "Square Area Method",
+    "role": "title"
+   },
+   {
+    "id": "eq1",
+    "type": "math",
+    "latex": "\\text{Total Area} = 4\\left(\\frac{1}{2}ab\\right) + c^2"
+   },
+   {
+    "id": "eq2",
+    "type": "math",
+    "latex": "a^2 + 2ab + b^2 = 2ab + c^2"
+   },
+   {
+    "id": "eq3",
+    "tone": "success",
+    "type": "math",
+    "latex": "a^2 + b^2 = c^2"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "geo",
+    "region": "left"
+   },
+   {
+    "rel": "place",
+    "id": "header",
+    "region": "top-right"
+   },
+   {
+    "rel": "below",
+    "id": "eq1",
+    "of": "header",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq2",
+    "of": "eq1",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq3",
+    "of": "eq2",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "A right triangle",
+    "narration": "Start with a right-angled triangle having perpendicular legs a and b and hypotenuse c.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "t1",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "header",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Four identical triangles",
+    "narration": "Fit four identical copies of this triangle into the corners of a square with side length (a + b).",
+    "actions": [
+     {
+      "do": "create",
+      "target": "outer",
+      "effect": "draw"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": [
+       "t2",
+       "t3",
+       "t4"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "The inner square c²",
+    "narration": "The four hypotenuses enclose an inner square of side length c, giving it an area of c².",
+    "actions": [
+     {
+      "do": "create",
+      "target": "inner",
+      "effect": "grow"
+     },
+     {
+      "do": "highlight",
+      "target": "inner",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Equating the total area",
+    "narration": "The large square's area is the sum of the four triangles plus the inner square: 2ab + c².",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq1",
+      "effect": "type"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "t1",
+       "t2",
+       "t3",
+       "t4"
+      ],
+      "state": "active",
+      "hold": false
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Expand and cancel",
+    "narration": "Expanding the total area (a + b)² gives a² + 2ab + b². Subtract 2ab from both sides to arrive at a² + b² = c².",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq2",
+      "effect": "type"
+     },
+     {
+      "do": "create",
+      "target": "eq3",
+      "effect": "pop"
+     },
+     {
+      "do": "highlight",
+      "target": "eq3",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 29707,
+ "model": "gemini-3.7-flash",
+ "domain": "general"
+}

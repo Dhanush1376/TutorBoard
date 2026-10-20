@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../../../hooks/useAuth';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
-  AppleToggle, RightInlineSelect
+  AppleToggle, RightInlineSelect, Button
 } from '../SettingsShared';
 import API, { BASE_URL as API_URL } from '../../../services/api';
 import { MODEL_LABELS, PROVIDERS } from './ProviderRegistry';
@@ -30,9 +30,9 @@ const UsageCard = ({ usage }) => {
 
   return (
     <div style={{
-      background: 'var(--bg-secondary)',
-      border: '1px solid var(--border-color)',
-      borderRadius: '12px',
+      background: 'var(--st-surface)',
+      border: '1px solid var(--st-line-strong)',
+      borderRadius: '16px',
       padding: '14px',
       marginBottom: '16px',
     }}>
@@ -48,11 +48,11 @@ const UsageCard = ({ usage }) => {
       <div style={{ marginBottom: '4px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '4px', fontWeight: 400 }}>
           <span style={{ color: 'var(--text-tertiary)' }}>Monthly usage</span>
-          <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-secondary)', fontFamily: '"Geist Mono", monospace', fontWeight: 500 }}>
+          <span style={{ color: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : 'var(--text-secondary)', fontFamily: '"JetBrains Mono", monospace', fontWeight: 500 }}>
             {usage.requests} / {usage.limit}
           </span>
         </div>
-        <div style={{ height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
+        <div style={{ height: '4px', background: 'var(--st-fill-strong)', borderRadius: '2px', overflow: 'hidden' }}>
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.min(100, usage.percent)}%` }}
@@ -70,7 +70,7 @@ const UsageCard = ({ usage }) => {
       {usage.breakdown && usage.breakdown.length > 0 && (
         <div style={{
           paddingTop: '10px', marginTop: '10px',
-          borderTop: '1px solid var(--border-color)',
+          borderTop: '1px solid var(--st-line-strong)',
           display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
           {usage.breakdown.map((m, i) => {
@@ -78,7 +78,7 @@ const UsageCard = ({ usage }) => {
             return (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
                 <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{mLabel}</span>
-                <span style={{ color: 'var(--text-tertiary)', fontFamily: '"Geist Mono", monospace', fontSize: '10px' }}>{m.requests}/{m.limit}</span>
+                <span style={{ color: 'var(--text-tertiary)', fontFamily: '"JetBrains Mono", monospace', fontSize: '10px' }}>{m.requests}/{m.limit}</span>
               </div>
             );
           })}
@@ -195,59 +195,45 @@ export default function APIConfigSection({ showToast }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-      {/* Status indicator */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '8px 12px', borderRadius: '8px',
-        background: `${statusColor}08`,
-        border: '1px solid var(--border-color)',
-      }}>
-        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
-        <span style={{ fontSize: '12px', fontWeight: 400, color: 'var(--text-secondary)' }}>{statusText}</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={() => setShowDirectory(true)}
-            style={{
-              padding: '4px 10px', borderRadius: '6px',
-              background: 'transparent', border: '1px solid var(--border-color)',
-              color: 'var(--text-tertiary)', fontSize: '10px', fontWeight: 500, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '4px'
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}
-          >
-            <Globe2 size={12} />
-            Supported Providers
-          </button>
+      {/* Status */}
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] px-4 py-3.5">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ background: statusColor }} />
+          <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: statusColor }} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13.5px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">{statusText}</div>
+          <div className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">
+            {hasActiveCustom ? 'Lessons run on your own keys.' : 'Lessons run on TutorBoard credits until you add a key.'}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" className="h-8 px-3 text-[12px]" onClick={() => setShowDirectory(true)}>
+            <Globe2 size={13} />
+            Providers
+          </Button>
           {keyAddedNotActive && (
-            <button
-              onClick={() => handleUpdatePref('useCustomApi', true)}
-              style={{
-                padding: '6px 14px', borderRadius: '8px',
-                background: '#f59e0b', color: '#fff', border: 'none',
-                fontSize: '11px', fontWeight: 600, cursor: 'pointer',
-              }}
-            >
+            <Button className="h-8 px-3.5 text-[12px]" onClick={() => handleUpdatePref('useCustomApi', true)}>
               Enable
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {/* Toggles */}
       <div>
-        <SectionTitle>Configuration</SectionTitle>
+        <SectionTitle>How keys are used</SectionTitle>
         <SettingsGroup>
-          <SettingsRow icon={Key} label="Use Custom API" rightElement={<AppleToggle value={preferences.useCustomApi} onChange={v => handleUpdatePref('useCustomApi', v)} />} />
-          <SettingsRow icon={Brain} label="Smart Routing" rightElement={<AppleToggle value={preferences.smartRouting} onChange={v => handleUpdatePref('smartRouting', v)} />} />
-          <SettingsRow icon={GitBranch} label="Adaptive Learning" rightElement={<AppleToggle value={preferences.enableAdaptive} onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
-          <SettingsRow icon={Activity} label="Parallel Racing" rightElement={<AppleToggle value={preferences.enableRacing} onChange={v => handleUpdatePref('enableRacing', v)} />} />
-          <SettingsRow icon={Globe2} label="Routing" borderBottom={false} rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
+          <SettingsRow icon={Key} label="Use my own keys" rightElement={<AppleToggle value={preferences.useCustomApi} onChange={v => handleUpdatePref('useCustomApi', v)} />} />
+          <SettingsRow icon={Brain} label="Pick the best key for me" rightElement={<AppleToggle value={preferences.smartRouting} onChange={v => handleUpdatePref('smartRouting', v)} />} />
+          <SettingsRow icon={GitBranch} label="Learn which model works best" rightElement={<AppleToggle value={preferences.enableAdaptive} onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
+          <SettingsRow icon={Activity} label="Use the fastest answer" rightElement={<AppleToggle value={preferences.enableRacing} onChange={v => handleUpdatePref('enableRacing', v)} />} />
+          <SettingsRow icon={Globe2} label="Routing mode" wide rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
         </SettingsGroup>
 
         {preferences.routingMode === 'manual' && apiKeys.length > 0 && (
           <SettingsGroup>
-            <SettingsRow icon={Brain} label="Model Override" borderBottom={false} rightElement={<RightInlineSelect value={preferences.modelOverride || ''} onChange={v => handleUpdatePref('modelOverride', v)} options={[{ value: '', label: 'None' }, ...Array.from(new Set(apiKeys.map(k => k.model))).map(m => ({ value: m, label: MODEL_LABELS[m] || m }))]} />} />
+            <SettingsRow icon={Brain} label="Model override" wide rightElement={<RightInlineSelect value={preferences.modelOverride || ''} onChange={v => handleUpdatePref('modelOverride', v)} options={[{ value: '', label: 'None' }, ...Array.from(new Set(apiKeys.map(k => k.model))).map(m => ({ value: m, label: MODEL_LABELS[m] || m }))]} />} />
           </SettingsGroup>
         )}
       </div>
@@ -256,23 +242,15 @@ export default function APIConfigSection({ showToast }) {
       <div>
         {!preferences.useCustomApi && universalUsage && <UsageCard usage={universalUsage} />}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <SectionTitle style={{ margin: 0 }}>API Keys</SectionTitle>
-          <button
-            onClick={() => setShowAddForm(s => !s)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 16px', borderRadius: '10px',
-              background: showAddForm ? 'var(--bg-tertiary)' : 'var(--text-primary)',
-              color: showAddForm ? 'var(--text-primary)' : 'var(--bg-primary)',
-              border: '1px solid var(--border-color)',
-              cursor: 'pointer', fontSize: '11px', fontWeight: 600,
-              transition: 'all 0.12s',
-            }}
-          >
-            {showAddForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> Add New Key</>}
-          </button>
-        </div>
+        <SectionTitle
+          action={
+            <Button variant={showAddForm ? 'secondary' : 'primary'} className="h-8 px-3.5 text-[12px]" onClick={() => setShowAddForm((v) => !v)}>
+              {showAddForm ? <><X size={13} /> Cancel</> : <><Plus size={13} /> Add key</>}
+            </Button>
+          }
+        >
+          Keys
+        </SectionTitle>
 
         <AnimatePresence>
           {showAddForm && (
@@ -289,29 +267,17 @@ export default function APIConfigSection({ showToast }) {
         {/* Key list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {apiKeys.length === 0 && !showAddForm && (
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              textAlign: 'center', padding: '40px 20px',
-              background: 'var(--bg-secondary)', borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-            }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-                <Key size={20} strokeWidth={2} style={{ color: 'var(--text-tertiary)', opacity: 0.6 }} />
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>No API keys</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 400, marginBottom: '14px' }}>
-                Add your own keys for independent AI access.
-              </div>
-              <button
-                onClick={() => setShowAddForm(true)}
-                style={{
-                  padding: '8px 20px', borderRadius: '8px',
-                  background: 'var(--text-primary)', color: 'var(--bg-primary)',
-                  border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 500,
-                }}
-              >
-                Add First Key
-              </button>
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-[var(--st-line-strong)] px-6 py-10 text-center">
+              <span className="grid h-11 w-11 place-items-center rounded-xl border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)]">
+                <Key size={18} strokeWidth={1.8} />
+              </span>
+              <div className="mt-4 text-[14px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">No keys yet</div>
+              <p className="mt-1 max-w-[34ch] text-[12.5px] leading-[1.55] text-[var(--text-tertiary)]">
+                Add a key from OpenAI, Anthropic, Google or another provider to run lessons on your own account.
+              </p>
+              <Button className="mt-5" onClick={() => setShowAddForm(true)}>
+                <Plus size={14} /> Add your first key
+              </Button>
             </div>
           )}
           {apiKeys.map(key => (
@@ -334,7 +300,7 @@ export default function APIConfigSection({ showToast }) {
       <div>
         <SectionTitle>Limits</SectionTitle>
         <SettingsGroup>
-          <SettingsRow icon={DollarSign} label="Monthly Limit" rightElement={
+          <SettingsRow icon={DollarSign} label="Monthly limit" rightElement={
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <span style={{ position: 'absolute', left: '8px', fontSize: '11px', color: 'var(--text-tertiary)', opacity: 0.5 }}>$</span>
               <input
@@ -344,14 +310,14 @@ export default function APIConfigSection({ showToast }) {
                 className="hide-arrows"
                 style={{
                   width: '80px', padding: '6px 8px 6px 20px', borderRadius: '8px',
-                  border: '1px solid var(--border-color)', background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--st-line-strong)', background: 'var(--st-fill-strong)',
                   color: 'var(--text-primary)', fontSize: '12px', textAlign: 'right',
-                  fontWeight: 500, fontFamily: '"Geist Mono", monospace', outline: 'none',
+                  fontWeight: 500, fontFamily: '"JetBrains Mono", monospace', outline: 'none',
                 }}
               />
             </div>
           } />
-          <SettingsRow icon={Shield} label="Hard Stop" description="Pause when limit reached" borderBottom={false} rightElement={<AppleToggle value={preferences.costControl?.hardStop !== false} onChange={v => handleUpdateCostControl('hardStop', v)} />} />
+          <SettingsRow icon={Shield} label="Stop at the limit" rightElement={<AppleToggle value={preferences.costControl?.hardStop !== false} onChange={v => handleUpdateCostControl('hardStop', v)} />} />
         </SettingsGroup>
       </div>
 
@@ -369,8 +335,8 @@ export default function APIConfigSection({ showToast }) {
               <div
                 key={i}
                 style={{
-                  background: 'var(--bg-secondary)', padding: '12px', borderRadius: '10px',
-                  border: '1px solid var(--border-color)',
+                  background: 'var(--st-surface)', padding: '12px', borderRadius: '10px',
+                  border: '1px solid var(--st-line-strong)',
                   display: 'flex', flexDirection: 'column', gap: '6px',
                 }}
               >
@@ -378,7 +344,7 @@ export default function APIConfigSection({ showToast }) {
                   <s.icon size={12} strokeWidth={2} style={{ color: statColors[i], opacity: 0.7 }} />
                   <span style={{ fontSize: '10px', fontWeight: 400, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</span>
                 </div>
-                <div style={{ fontSize: '16px', fontWeight: 600, fontFamily: '"Geist Mono", monospace', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{s.value}</div>
+                <div style={{ fontSize: '16px', fontWeight: 600, fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{s.value}</div>
               </div>
             ))}
           </div>
@@ -437,13 +403,13 @@ export default function APIConfigSection({ showToast }) {
                 background: 'var(--bg-primary)', borderRadius: '16px',
                 width: '100%', maxWidth: '480px', maxHeight: '80vh',
                 display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                border: '1px solid var(--border-color)',
+                border: '1px solid var(--st-line-strong)',
                 boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
               }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{
-                padding: '16px 20px', borderBottom: '1px solid var(--border-color)',
+                padding: '16px 20px', borderBottom: '1px solid var(--st-line-strong)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div>
@@ -468,8 +434,8 @@ export default function APIConfigSection({ showToast }) {
                       style={{
                         display: 'flex', alignItems: 'center', gap: '12px',
                         padding: '12px 14px', borderRadius: '10px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--st-line-strong)',
+                        background: 'var(--st-surface)',
                       }}
                     >
                       <ProviderDot color={p.color} />
@@ -479,18 +445,18 @@ export default function APIConfigSection({ showToast }) {
                           {p.price === 0 ? (
                             <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: '#10b98110', color: '#10b981', fontWeight: 500 }}>Free</span>
                           ) : (
-                            <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500 }}>Paid</span>
+                            <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'var(--st-fill-strong)', color: 'var(--text-tertiary)', fontWeight: 500 }}>Paid</span>
                           )}
-                          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: '"Geist Mono", monospace', fontWeight: 400 }}>{p.hint}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: '"JetBrains Mono", monospace', fontWeight: 400 }}>{p.hint}</span>
                         </div>
                       </div>
                       {p.link && (
                         <a
                           href={p.link} target="_blank" rel="noopener noreferrer"
                           style={{
-                            padding: '6px 12px', borderRadius: '6px', background: 'var(--bg-tertiary)',
+                            padding: '6px 12px', borderRadius: '6px', background: 'var(--st-fill-strong)',
                             color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '10px', fontWeight: 500,
-                            display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--border-color)',
+                            display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--st-line-strong)',
                           }}
                         >
                           Keys <ExternalLink size={10} />

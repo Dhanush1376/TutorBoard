@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 const AuthLanding = React.lazy(() => import('./pages/AuthLanding'));
@@ -8,10 +8,21 @@ const Home = React.lazy(() => import('./pages/Home'));
 import Loader from './components/layout/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import MarketingLayout from './components/layout/MarketingLayout';
-const HowItWorks = React.lazy(() => import('./pages/Marketing/HowItWorks'));
-const Features = React.lazy(() => import('./pages/Marketing/Features'));
-const Solutions = React.lazy(() => import('./pages/Marketing/Solutions'));
-const About = React.lazy(() => import('./pages/Marketing/About'));
+const Landing = React.lazy(() => import('./pages/Marketing/Landing'));
+
+const AUTH_RETURN_PARAMS = ['code', 'error', 'reset'];
+
+/**
+ * The home page is the marketing landing. The server still returns OAuth and
+ * password-reset results to "/?code=…" etc., so those visits go on to /login,
+ * query intact, where the auth screen finishes the hand-off.
+ */
+function HomeRoute() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  if (AUTH_RETURN_PARAMS.some((k) => params.has(k))) return <Navigate to={`/login${search}`} replace />;
+  return <Landing />;
+}
 import { useAuth } from './hooks/useAuth';
 import GlobalStatusOverlay from './components/layout/GlobalStatusOverlay';
 import ThemedPopup from './components/layout/ThemedPopup';
@@ -21,10 +32,11 @@ import GlobalOverlayManager from './components/common/GlobalOverlayManager';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import ToastContainer from './components/layout/ToastContainer';
 import TrialLimitOverlay from './components/common/TrialLimitOverlay';
+import RootErrorFallback from './components/common/RootErrorFallback';
 
 function App() {
   useKeyboardShortcuts();
-  const { loading: authLoading, apiError, connectionStatus, forceStopLoading, dbOffline } = useAuth();
+  const { loading: authLoading, apiError, connectionStatus, dbOffline } = useAuth();
   const { 
     setGlobalOverlay, hydrate, setSidebarOpen, 
     globalOverlay, activeOverlay, guestTrialStatus
@@ -72,7 +84,6 @@ function App() {
       return false;
     }
   });
-  const [showSkip, setShowSkip] = useState(false);
 
   useEffect(() => {
     if (welcomeLoading) {
@@ -88,15 +99,6 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [welcomeLoading]);
-
-  useEffect(() => {
-    if (welcomeLoading || authLoading) {
-      // UX-01: Show skip immediately to improve perceived performance
-      setShowSkip(true);
-    } else {
-      setShowSkip(false);
-    }
-  }, [welcomeLoading, authLoading]);
 
   // SEC-36: Use a ref to track globalOverlay type to avoid re-triggering effect on every overlay change
   const globalOverlayRef = useRef(globalOverlay);
@@ -130,29 +132,25 @@ function App() {
 
   if (apiError === 'VITE_API_BASE_URL_MISSING') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[var(--bg-primary)] p-8 text-center text-[var(--text-primary)]">
-        <h1 className="text-2xl font-normal mb-4 tracking-tight">Configuration Required</h1>
-        <p className="max-w-md mb-8 text-[var(--text-tertiary)]">The VITE_API_BASE_URL environment variable is missing.</p>
-        <button onClick={() => window.location.reload()} className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full font-normal shadow-lg">Check Again</button>
-      </div>
+      <RootErrorFallback 
+        error={{
+          name: 'Configuration Error',
+          message: 'The VITE_API_BASE_URL environment variable is missing from your environment configuration.',
+          stack: 'VITE_API_BASE_URL is undefined.\nPlease configure your client/.env file with VITE_API_BASE_URL=http://localhost:5000'
+        }} 
+      />
     );
   }
 
   if (dbOffline) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[var(--bg-primary)] p-8 text-center text-[var(--text-primary)]">
-        <div className="mb-6 text-6xl">📡</div>
-        <h1 className="text-2xl font-normal mb-2 tracking-tight">Database Offline</h1>
-        <p className="max-w-md mb-8 text-[var(--text-tertiary)] text-sm leading-relaxed">
-          The TutorBoard server is currently in <span className="text-[var(--text-primary)]">Degraded Mode</span>.
-          Please ensure your IP is whitelisted in MongoDB Atlas or check your connection string.
-        </p>
-        <div className="flex gap-4">
-          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-[var(--text-primary)] text-[var(--bg-primary)] rounded-full text-sm font-medium transition-transform hover:scale-105 active:scale-95 shadow-xl">
-            Retry Connection
-          </button>
-        </div>
-      </div>
+      <RootErrorFallback 
+        error={{
+          name: 'Database Offline',
+          message: 'The TutorBoard server is currently operating in Degraded Mode because MongoDB is unreachable.',
+          stack: 'MongoNetworkError: failed to connect to server\nPlease ensure your local IP address is whitelisted in MongoDB Atlas Network Access rules.'
+        }} 
+      />
     );
   }
 
@@ -186,20 +184,10 @@ function App() {
                 <p className="text-white/60 text-sm font-light tracking-wide animate-pulse">
                   Warming up the engine...
                 </p>
-                <p className="text-white/30 text-[10px] uppercase tracking-[0.2em]">
+                <p className="text-white/40 text-xs font-medium">
                   Render.com cold start in progress
                 </p>
               </motion.div>
-            )}
-            {showSkip && (
-              <div className="fixed bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-[10000]">
-                <button
-                  onClick={() => forceStopLoading()}
-                  className="px-6 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 rounded-full text-white/50 text-sm font-normal transition-all shadow-2xl"
-                >
-                  Enter Dashboard Anyway →
-                </button>
-              </div>
             )}
           </motion.div>
         )}
@@ -217,18 +205,30 @@ function App() {
       >
         <React.Suspense fallback={<Loader fullScreen={true} glass={true} />}>
           <Routes>
-            <Route path="/" element={<AuthLanding />} />
             <Route path="/login" element={<AuthLanding />} />
-            <Route path="/auth" element={<Navigate to="/" replace />} />
+            <Route path="/auth" element={<Navigate to="/login" replace />} />
 
             <Route element={<MarketingLayout />}>
-              <Route path="/how-it-works" element={<HowItWorks />} />
-              <Route path="/features" element={<Features />} />
-              <Route path="/solutions" element={<Solutions />} />
-              <Route path="/about" element={<About />} />
+              {/* One landing page; each path opens it at that section. */}
+              <Route path="/" element={<HomeRoute />} />
+              {['/how-it-works', '/features', '/solutions', '/about'].map((path) => (
+                <Route key={path} path={path} element={<Landing />} />
+              ))}
             </Route>
 
             <Route path="/session" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route 
+              path="/error" 
+              element={
+                <RootErrorFallback 
+                  error={{
+                    name: 'ReferenceError',
+                    message: 'sparkRef is not defined',
+                    stack: 'ReferenceError: sparkRef is not defined\n    at BorderGlow (d:/PROJECTS/TUTORBOARD/client/src/components/ui/BorderGlow.jsx:215:11)\n    at renderWithHooks (react-dom.development.js:15486:18)\n    at mountIndeterminateComponent (react-dom.development.js:20180:13)\n    at beginWork (react-dom.development.js:21607:16)'
+                  }} 
+                />
+              } 
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </React.Suspense>

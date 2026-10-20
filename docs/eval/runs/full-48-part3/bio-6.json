@@ -1,0 +1,219 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Natural Selection Shifts Trait Frequencies",
+  "domain": "biology",
+  "summary": "Selection favors advantageous traits, changing their frequencies in the population over generations.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "pie0",
+    "type": "pie",
+    "slices": 10,
+    "shaded": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "size": "lg"
+   },
+   {
+    "id": "pie1",
+    "type": "pie",
+    "slices": 10,
+    "shaded": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "size": "lg"
+   },
+   {
+    "id": "txt0",
+    "type": "text",
+    "text": "Initial population: Trait A 60%, Trait B 40%",
+    "role": "caption"
+   },
+   {
+    "id": "txtSel",
+    "type": "text",
+    "text": "Predator targets Trait B",
+    "role": "caption"
+   },
+   {
+    "id": "txtResult",
+    "type": "text",
+    "text": "After selection: Trait A 80%, Trait B 20%",
+    "role": "caption"
+   },
+   {
+    "id": "recA",
+    "type": "text",
+    "text": "Trait A ↑ to 80%",
+    "role": "caption"
+   },
+   {
+    "id": "recB",
+    "type": "text",
+    "text": "Trait B ↓ to 20%",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "pie0",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "txt0",
+    "of": "pie0",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "txtSel",
+    "of": "pie0",
+    "gap": "md"
+   },
+   {
+    "rel": "right-of",
+    "id": "pie1",
+    "of": "pie0",
+    "gap": "md"
+   },
+   {
+    "rel": "above",
+    "id": "txtResult",
+    "of": "pie1",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "recA",
+    "of": "pie1",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "recB",
+    "of": "pie1",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Variation in the population",
+    "narration": "The population contains two traits: A (60%) and B (40%).",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "txt0",
+       "pie0"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Selection pressure appears",
+    "narration": "A predator preferentially eats individuals with Trait B, reducing their survival chance.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "txtSel",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "What will happen to the proportion of Trait B after one generation?",
+     "choices": [
+      "Increase",
+      "Decrease",
+      "Stay the same"
+     ],
+     "answer": 1,
+     "explain": "Trait B is selected against, so its frequency will drop."
+    }
+   },
+   {
+    "title": "Shift in trait frequencies",
+    "narration": "After one generation, Trait B becomes less common while Trait A becomes more common.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "pie1",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "remove",
+      "target": "pie0",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": [
+       "txtResult",
+       "recA",
+       "recB"
+      ],
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Result of natural selection",
+    "narration": "Natural selection has increased the frequency of the advantageous trait A and decreased trait B.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "pie1",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "Natural selection changes a population by favoring traits that improve survival, altering trait frequencies over generations.",
+    "actions": [
+     {
+      "do": "focus",
+      "target": "pie1",
+      "zoom": "medium"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[4]",
+   "message": "this beat changes nothing on the board — add an action the learner can see"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 33346,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Natural Selection Shifts Trait Frequencies\",\"domain\":\"biology\",\"summary\":\"Selection favors advantageous traits, changing their frequencies in the population over generations.\",\"spaces\":[],\"entities\":[{\"id\":\"pie0\",\"type\":\"pie\",\"slices\":10,\"shaded\":[0,1,2,3,4,5],\"size\":\"lg\"},{\"id\":\"pie1\",\"type\":\"pie\",\"slices\":10,\"shaded\":[0,1,2,3,4,5,6,7],\"size\":\"lg\"},{\"id\":\"txt0\",\"type\":\"text\",\"text\":\"Initial population: Trait A 60%, Trait B 40%\",\"role\":\"caption\"},{\"id\":\"txtSel\",\"type\":\"text\",\"text\":\"Predator targets Trait B\",\"role\":\"caption\"},{\"id\":\"txtResult\",\"type\":\"text\",\"text\":\"After selection: Trait A 80%, Trait B 20%\",\"role\":\"caption\"},{\"id\":\"recA\",\"type\":\"text\",\"text\":\"Trait A ↑ to 80%\",\"role\":\"caption\"},{\"id\":\"recB\",\"type\":\"text\",\"text\":\"Trait B ↓ to 20%\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"pie0\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"txt0\",\"of\":\"pie0\"},{\"rel\":\"below\",\"id\":\"txtSel\",\"of\":\"pie0\"},{\"rel\":\"right-of\",\"id\":\"pie1\",\"of\":\"pie0\"},{\"rel\":\"above\",\"id\":\"txtResult\",\"of\":\"pie1\"},{\"rel\":\"below\",\"id\":\"recA\",\"of\":\"pie1\"},{\"rel\":\"below\",\"id\":\"recB\",\"of\":\"pie1\"}],\"beats\":[{\"title\":\"Variation in the population\",\"narration\":\"The population contains two traits: A (60%) and B (40%).\",\"actions\":[{\"do\":\"create\",\"target\":[\"txt0\",\"pie0\"],\"effect\":\"pop\"}]},{\"title\":\"Selection pressure appears\",\"narration\":\"A predator preferentially eats individuals with Trait B, reducing their survival chance.\",\"actions\":[{\"do\":\"create\",\"target\":\"txtSel\",\"effect\":\"fade\"}],\"check\":{\"question\":\"What will happen to the proportion of Trait B after one generation?\",\"choices\":[\"Increase\",\"Decrease\",\"Stay the same\"],\"answer\":1,\"explain\":\"Trait B is selected against, so its frequency will drop.\"}},{\"title\":\"Shift in trait frequencies\",\"narration\":\"After one generation, Trait B becomes less common while Trait A becomes more common.\",\"actions\":[{\"do\":\"create\",\"target\":\"pie1\",\"effect\":\"pop\"},{\"do\":\"remove\",\"target\":\"pie0\",\"effect\":\"fade\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":[\"txtResult\",\"recA\",\"recB\"],\"effect\":\"fade\"}]},{\"title\":\"Result of natural selection\",\"narration\":\"Natural selection has increased the frequency of the advantageous trait A and decreased trait B.\",\"actions\":[{\"do\":\"highlight\",\"target\":\"pie1\",\"state\":\"insight\"}]},{\"title\":\"Recap\",\"narration\":\"Natural selection changes a population by favoring traits that improve survival, altering trait frequencies over generations.\",\"actions\":[{\"do\":\"focus\",\"target\":\"pie1\",\"zoom\":\"medium\"}]}]}"
+}

@@ -7,7 +7,7 @@
  * the executor can schedule commands without overlap.
  */
 
-import { CanvasEngine, ArrayPlugin, PointerPlugin, TreePlugin, NodePlugin, AuxPlugin } from '../engine/canvas';
+import { CanvasEngine, ArrayPlugin, PointerPlugin, TreePlugin, NodePlugin, AuxPlugin, ContentPlugin } from '../engine/canvas';
 import { AnimContext } from '../engine/canvas/types';
 
 export class D3Renderer {
@@ -17,6 +17,7 @@ export class D3Renderer {
   private treePlugin: TreePlugin;
   private nodePlugin: NodePlugin;
   private auxPlugin: AuxPlugin;
+  private contentPlugin: ContentPlugin;
 
   public onInteraction: ((id: string, type: string) => void) | null = null;
 
@@ -28,12 +29,14 @@ export class D3Renderer {
     this.treePlugin = new TreePlugin();
     this.nodePlugin = new NodePlugin();
     this.auxPlugin = new AuxPlugin();
+    this.contentPlugin = new ContentPlugin();
 
     this.engine.registerPlugin(this.arrayPlugin);
     this.engine.registerPlugin(this.pointerPlugin);
     this.engine.registerPlugin(this.treePlugin);
     this.engine.registerPlugin(this.nodePlugin);
     this.engine.registerPlugin(this.auxPlugin);
+    this.engine.registerPlugin(this.contentPlugin);
   }
 
   // ─── View controls ────────────────────────────────────────────────────────
@@ -65,6 +68,11 @@ export class D3Renderer {
     return this.nodePlugin.createNode(id, cmd, ctx);
   }
 
+  /** Text, equations and shapes for non-DSA lessons (see ContentPlugin). */
+  public createContent(id: string, cmd: any, ctx?: AnimContext): number {
+    return this.contentPlugin.createContent(id, cmd, ctx);
+  }
+
   public createEdge(id: string, cmd: any, ctx?: AnimContext): number {
     return this.nodePlugin.createEdge(id, cmd, ctx);
   }
@@ -83,6 +91,11 @@ export class D3Renderer {
 
   public drawBoundary(atIndex: number, label: string, targetArrayId?: string, endIndex?: number, ctx?: AnimContext): number {
     return this.arrayPlugin.drawBoundary(atIndex, label, targetArrayId, endIndex, ctx);
+  }
+
+  /** Geometry + values of a drawn array, so the next step can morph from it. */
+  public snapshotArray(id: string) {
+    return this.arrayPlugin.snapshot(id);
   }
 
   public highlightCell(id: string, color: string, duration: number, ctx?: AnimContext): number {

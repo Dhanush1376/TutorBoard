@@ -1,0 +1,59 @@
+{
+  "version": "1",
+  "title": "Projectile motion at 45°",
+  "domain": "physics",
+  "summary": "Launch at 20 m/s and 45°: horizontal speed stays constant while gravity curves the path into a parabola.",
+  "spaces": [
+    { "id": "field", "kind": "cartesian", "x": [0, 45], "y": [0, 14], "axes": true, "xLabel": "x (m)", "yLabel": "y (m)" }
+  ],
+  "entities": [
+    { "id": "ball", "type": "body", "space": "field", "at": [0, 0] },
+    { "id": "v0", "type": "vector", "space": "field", "from": [0, 0], "angleDeg": 45, "magnitude": 8, "label": "v₀ = 20 m/s" },
+    { "id": "vx", "type": "vector", "space": "field", "from": [0, 0], "to": [5.66, 0], "label": "vₓ", "tone": "success" },
+    { "id": "vy", "type": "vector", "space": "field", "from": [0, 0], "to": [0, 5.66], "label": "v_y", "tone": "primary" },
+    { "id": "traj", "type": "plot", "space": "field", "expr": "x - 0.0245*x^2", "domain": [0, 40.8], "tone": "info" },
+    { "id": "apex", "type": "point", "space": "field", "at": [20.4, 10.2], "label": "max height 10.2 m", "tone": "warning" },
+    { "id": "land", "type": "point", "space": "field", "at": [40.8, 0], "label": "range 40.8 m", "tone": "warning" },
+    { "id": "eq", "type": "math", "latex": "R = \\frac{v_0^2 \\sin 2\\theta}{g} \\approx 40.8\\,\\mathrm{m}" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "field", "region": "center" },
+    { "rel": "place", "id": "eq", "region": "top-right" }
+  ],
+  "beats": [
+    {
+      "title": "Split the launch velocity",
+      "narration": "At 45° the launch speed splits into equal horizontal and vertical parts.",
+      "actions": [
+        { "do": "create", "target": "ball", "effect": "pop" },
+        { "do": "create", "target": "v0", "effect": "grow" },
+        { "do": "create", "target": ["vx", "vy"], "effect": "grow" }
+      ]
+    },
+    {
+      "title": "Gravity bends the path",
+      "narration": "The horizontal speed never changes, but gravity pulls the vertical speed down by 9.8 m/s every second.",
+      "actions": [
+        { "do": "remove", "target": ["v0", "vx", "vy"], "effect": "fade" },
+        { "do": "create", "target": "traj", "effect": "draw" },
+        { "do": "trace", "target": "ball", "along": "traj", "duration": "long", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Maximum height",
+      "narration": "At the top the vertical speed is zero — only the horizontal part remains.",
+      "actions": [
+        { "do": "create", "target": "apex", "effect": "pop" },
+        { "do": "annotate", "target": "apex", "text": "v_y = 0", "side": "above" }
+      ]
+    },
+    {
+      "title": "Landing and range",
+      "narration": "It lands 40.8 m away. On flat ground, 45° gives the longest range.",
+      "actions": [
+        { "do": "create", "target": "land", "effect": "pop" },
+        { "do": "create", "target": "eq", "effect": "type" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "2×2 Matrix Multiplication",
+  "domain": "math",
+  "summary": "Multiply two 2×2 matrices step by step, showing each entry’s calculation and the final product.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "A",
+    "label": "A",
+    "type": "table",
+    "rows": [
+     [
+      1,
+      2
+     ],
+     [
+      3,
+      4
+     ]
+    ]
+   },
+   {
+    "id": "B",
+    "label": "B",
+    "type": "table",
+    "rows": [
+     [
+      5,
+      6
+     ],
+     [
+      7,
+      8
+     ]
+    ]
+   },
+   {
+    "id": "C",
+    "label": "C",
+    "type": "table",
+    "rows": [
+     [
+      0,
+      0
+     ],
+     [
+      0,
+      0
+     ]
+    ]
+   },
+   {
+    "id": "txtA",
+    "type": "text",
+    "text": "Matrix A",
+    "role": "label"
+   },
+   {
+    "id": "txtB",
+    "type": "text",
+    "text": "Matrix B",
+    "role": "label"
+   },
+   {
+    "id": "txtC",
+    "type": "text",
+    "text": "Result C = A·B",
+    "role": "label"
+   },
+   {
+    "id": "calc",
+    "type": "text",
+    "text": "",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "A",
+    "region": "left"
+   },
+   {
+    "rel": "place",
+    "id": "B",
+    "region": "right"
+   },
+   {
+    "rel": "above",
+    "id": "txtA",
+    "of": "A",
+    "gap": "md"
+   },
+   {
+    "rel": "above",
+    "id": "txtB",
+    "of": "B",
+    "gap": "md"
+   },
+   {
+    "rel": "place",
+    "id": "calc",
+    "region": "bottom"
+   },
+   {
+    "rel": "place",
+    "id": "C",
+    "region": "bottom"
+   },
+   {
+    "rel": "above",
+    "id": "txtC",
+    "of": "C",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Matrices",
+    "narration": "Here are the two 2×2 matrices to multiply.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "A",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "B",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "txtA",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "txtB",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Top‑left entry",
+    "narration": "Compute C₁₁ = 1·5 + 2·7 = 19.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "calc",
+      "effect": "type"
+     },
+     {
+      "do": "set",
+      "target": "calc",
+      "text": "C₁₁ = 1·5 + 2·7 = 19"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Top‑right entry",
+    "narration": "Compute C₁₂ = 1·6 + 2·8 = 22.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "calc",
+      "text": "C₁₂ = 1·6 + 2·8 = 22"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Bottom‑left entry",
+    "narration": "Compute C₂₁ = 3·5 + 4·7 = 43.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "calc",
+      "text": "C₂₁ = 3·5 + 4·7 = 43"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Bottom‑right entry",
+    "narration": "Compute C₂₂ = 3·6 + 4·8 = 50.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "calc",
+      "text": "C₂₂ = 3·6 + 4·8 = 50"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Result matrix",
+    "narration": "The product matrix is shown below.",
+    "actions": [
+     {
+      "do": "remove",
+      "target": "calc",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "txtC",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[5].actions[1]",
+   "message": "auto-fixed: dropped a \"set\" with nothing to set"
+  },
+  {
+   "path": "entities",
+   "message": "\"C\" is never shown"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "beats[5].actions[1].values[0]",
+    "message": "Invalid input"
+   },
+   {
+    "path": "beats[5].actions[1].values[1]",
+    "message": "Invalid input"
+   }
+  ]
+ ],
+ "ms": 93610,
+ "model": "gemini-3.6-flash",
+ "domain": "math",
+ "drafts": [
+  "{\"version\":\"1\",\"title\":\"2×2 Matrix Multiplication\",\"domain\":\"math\",\"summary\":\"Multiply two 2×2 matrices step by step, showing each entry’s calculation and the final product.\",\"spaces\":[],\"entities\":[{\"id\":\"A\",\"type\":\"table\",\"rows\":[[1,2],[3,4]],\"label\":\"A\"},{\"id\":\"B\",\"type\":\"table\",\"rows\":[[5,6],[7,8]],\"label\":\"B\"},{\"id\":\"C\",\"type\":\"table\",\"rows\":[[0,0],[0,0]],\"label\":\"C\"},{\"id\":\"txtA\",\"type\":\"text\",\"text\":\"Matrix A\",\"role\":\"label\"},{\"id\":\"txtB\",\"type\":\"text\",\"text\":\"Matrix B\",\"role\":\"label\"},{\"id\":\"txtC\",\"type\":\"text\",\"text\":\"Result C = A·B\",\"role\":\"label\"},{\"id\":\"calc\",\"type\":\"text\",\"text\":\"\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"A\",\"region\":\"left\"},{\"rel\":\"place\",\"id\":\"B\",\"region\":\"right\"},{\"rel\":\"above\",\"id\":\"txtA\",\"of\":\"A\"},{\"rel\":\"above\",\"id\":\"txtB\",\"of\":\"B\"},{\"rel\":\"place\",\"id\":\"calc\",\"region\":\"bottom\"},{\"rel\":\"place\",\"id\":\"C\",\"region\":\"bottom\"},{\"rel\":\"above\",\"id\":\"txtC\",\"of\":\"C\"}],\"beats\":[{\"title\":\"Matrices\",\"narration\":\"Here are the two 2×2 matrices to multiply.\",\"actions\":[{\"do\":\"create\",\"target\":\"A\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"B\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"txtA\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"txtB\",\"effect\":\"fade\"}]},{\"title\":\"Top‑left entry\",\"narration\":\"Compute C₁₁ = 1·5 + 2·7 = 19.\",\"actions\":[{\"do\":\"create\",\"target\":\"calc\",\"effect\":\"type\"},{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₁₁ = 1·5 + 2·7 = 19\"}]},{\"title\":\"Top‑right entry\",\"narration\":\"Compute C₁₂ = 1·6 + 2·8 = 22.\",\"actions\":[{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₁₂ = 1·6 + 2·8 = 22\"}]},{\"title\":\"Bottom‑left entry\",\"narration\":\"Compute C₂₁ = 3·5 + 4·7 = 43.\",\"actions\":[{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₂₁ = 3·5 + 4·7 = 43\"}]},{\"title\":\"Bottom‑right entry\",\"narration\":\"Compute C₂₂ = 3·6 + 4·8 = 50.\",\"actions\":[{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₂₂ = 3·6 + 4·8 = 50\"}]},{\"title\":\"Result matrix\",\"narration\":\"The product matrix is shown below.\",\"actions\":[{\"do\":\"remove\",\"target\":\"calc\",\"effect\":\"fade\"},{\"do\":\"morph\",\"target\":\"C\",\"values\":[[19,22],[43,50]]},{\"do\":\"create\",\"target\":\"txtC\",\"effect\":\"fade\"}]}]}"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"2×2 Matrix Multiplication\",\"domain\":\"math\",\"summary\":\"Multiply two 2×2 matrices step by step, showing each entry’s calculation and the final product.\",\"spaces\":[],\"entities\":[{\"id\":\"A\",\"type\":\"table\",\"rows\":[[1,2],[3,4]],\"label\":\"A\"},{\"id\":\"B\",\"type\":\"table\",\"rows\":[[5,6],[7,8]],\"label\":\"B\"},{\"id\":\"C\",\"type\":\"table\",\"rows\":[[0,0],[0,0]],\"label\":\"C\"},{\"id\":\"txtA\",\"type\":\"text\",\"text\":\"Matrix A\",\"role\":\"label\"},{\"id\":\"txtB\",\"type\":\"text\",\"text\":\"Matrix B\",\"role\":\"label\"},{\"id\":\"txtC\",\"type\":\"text\",\"text\":\"Result C = A·B\",\"role\":\"label\"},{\"id\":\"calc\",\"type\":\"text\",\"text\":\"\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"A\",\"region\":\"left\"},{\"rel\":\"place\",\"id\":\"B\",\"region\":\"right\"},{\"rel\":\"above\",\"id\":\"txtA\",\"of\":\"A\"},{\"rel\":\"above\",\"id\":\"txtB\",\"of\":\"B\"},{\"rel\":\"place\",\"id\":\"calc\",\"region\":\"bottom\"},{\"rel\":\"place\",\"id\":\"C\",\"region\":\"bottom\"},{\"rel\":\"above\",\"id\":\"txtC\",\"of\":\"C\"}],\"beats\":[{\"title\":\"Matrices\",\"narration\":\"Here are the two 2×2 matrices to multiply.\",\"actions\":[{\"do\":\"create\",\"target\":\"A\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"B\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"txtA\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"txtB\",\"effect\":\"fade\"}]},{\"title\":\"Top‑left entry\",\"narration\":\"Compute C₁₁ = 1·5 + 2·7 = 19.\",\"actions\":[{\"do\":\"create\",\"target\":\"calc\",\"effect\":\"type\"},{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₁₁ = 1·5 + 2·7 = 19\"}]},{\"title\":\"Top‑right entry\",\"narration\":\"Compute C₁₂ = 1·6 + 2·8 = 22.\",\"actions\":[{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₁₂ = 1·6 + 2·8 = 22\"}]},{\"title\":\"Bottom‑left entry\",\"narration\":\"Compute C₂₁ = 3·5 + 4·7 = 43.\",\"actions\":[{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₂₁ = 3·5 + 4·7 = 43\"}]},{\"title\":\"Bottom‑right entry\",\"narration\":\"Compute C₂₂ = 3·6 + 4·8 = 50.\",\"actions\":[{\"do\":\"set\",\"target\":\"calc\",\"text\":\"C₂₂ = 3·6 + 4·8 = 50\"}]},{\"title\":\"Result matrix\",\"narration\":\"The product matrix is shown below.\",\"actions\":[{\"do\":\"remove\",\"target\":\"calc\",\"effect\":\"fade\"},{\"do\":\"set\",\"target\":\"C\",\"rows\":[[19,22],[43,50]]},{\"do\":\"create\",\"target\":\"txtC\",\"effect\":\"fade\"}]}]}"
+}

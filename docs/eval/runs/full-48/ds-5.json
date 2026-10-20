@@ -1,0 +1,229 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Insert 3 into a min‑heap",
+  "domain": "data-structures",
+  "summary": "A new value is placed at the next free spot then swapped upward while it is smaller than its parent.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "heap",
+    "label": "min‑heap",
+    "type": "tree",
+    "nodes": [
+     {
+      "id": "n0",
+      "value": 5
+     },
+     {
+      "id": "n1",
+      "value": 9,
+      "parent": "n0"
+     },
+     {
+      "id": "n2",
+      "value": 7,
+      "parent": "n0"
+     },
+     {
+      "id": "n3",
+      "value": 12,
+      "parent": "n1"
+     },
+     {
+      "id": "n4",
+      "value": 10,
+      "parent": "n1"
+     },
+     {
+      "id": "n5",
+      "value": 3,
+      "parent": "n2"
+     }
+    ]
+   },
+   {
+    "id": "arr",
+    "label": "array view",
+    "type": "array",
+    "values": [
+     5,
+     9,
+     7,
+     12,
+     10
+    ],
+    "indices": true
+   },
+   {
+    "id": "rule",
+    "type": "text",
+    "text": "parent ≤ children",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "heap",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "arr",
+    "of": "heap",
+    "gap": "md"
+   },
+   {
+    "rel": "above",
+    "id": "rule",
+    "of": "heap",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Current min‑heap",
+    "narration": "The heap satisfies parent ≤ children, so 5 is the minimum at the root.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "rule"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "heap"
+     },
+     {
+      "do": "create",
+      "target": "arr"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert 3",
+    "narration": "Insert 3 at the next free position, as the left child of 7.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "heap.n5"
+     },
+     {
+      "with": "previous",
+      "do": "push",
+      "target": "arr",
+      "value": 3
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "arr[5]"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First swap up",
+    "narration": "3 is smaller than its parent 7, so they swap.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "heap.n2"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "exchange",
+      "a": "heap.n5",
+      "b": "heap.n2"
+     },
+     {
+      "with": "previous",
+      "do": "exchange",
+      "a": "arr[5]",
+      "b": "arr[2]"
+     },
+     {
+      "do": "clear",
+      "target": [
+       "heap.n5",
+       "heap.n2",
+       "arr[5]",
+       "arr[2]"
+      ]
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Second swap up",
+    "narration": "Now 3 is smaller than its new parent 5, so they swap, making 3 the new root.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n2",
+       "heap.n0"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "exchange",
+      "a": "heap.n2",
+      "b": "heap.n0"
+     },
+     {
+      "with": "previous",
+      "do": "exchange",
+      "a": "arr[2]",
+      "b": "arr[0]"
+     },
+     {
+      "do": "clear",
+      "target": [
+       "heap.n2",
+       "heap.n0",
+       "arr[2]",
+       "arr[0]"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n0",
+       "arr[0]"
+      ],
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "heap.n0",
+      "text": "new minimum",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 10286,
+ "model": "gemini-3.6-flash",
+ "domain": "data-structures",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Insert 3 into a min‑heap\",\"domain\":\"data-structures\",\"summary\":\"A new value is placed at the next free spot then swapped upward while it is smaller than its parent.\",\"spaces\":[],\"entities\":[{\"id\":\"heap\",\"type\":\"tree\",\"label\":\"min‑heap\",\"nodes\":[{\"id\":\"n0\",\"value\":5},{\"id\":\"n1\",\"value\":9,\"parent\":\"n0\"},{\"id\":\"n2\",\"value\":7,\"parent\":\"n0\"},{\"id\":\"n3\",\"value\":12,\"parent\":\"n1\"},{\"id\":\"n4\",\"value\":10,\"parent\":\"n1\"},{\"id\":\"n5\",\"value\":3,\"parent\":\"n2\"}]},{\"id\":\"arr\",\"type\":\"array\",\"values\":[5,9,7,12,10],\"label\":\"array view\"},{\"id\":\"rule\",\"type\":\"text\",\"text\":\"parent ≤ children\",\"role\":\"caption\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"heap\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"arr\",\"of\":\"heap\"},{\"rel\":\"above\",\"id\":\"rule\",\"of\":\"heap\"}],\"beats\":[{\"title\":\"Current min‑heap\",\"narration\":\"The heap satisfies parent ≤ children, so 5 is the minimum at the root.\",\"actions\":[{\"do\":\"create\",\"target\":\"rule\"},{\"do\":\"create\",\"target\":\"heap\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"arr\"}]},{\"title\":\"Insert 3\",\"narration\":\"Insert 3 at the next free position, as the left child of 7.\",\"actions\":[{\"do\":\"create\",\"target\":\"heap.n5\"},{\"do\":\"push\",\"target\":\"arr\",\"value\":3,\"with\":\"previous\"},{\"do\":\"highlight\",\"target\":[\"heap.n5\",\"arr[5]\"],\"state\":\"active\"}]},{\"title\":\"First swap up\",\"narration\":\"3 is smaller than its parent 7, so they swap.\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"heap.n5\",\"heap.n2\"],\"state\":\"comparing\"},{\"do\":\"exchange\",\"a\":\"heap.n5\",\"b\":\"heap.n2\"},{\"do\":\"exchange\",\"a\":\"arr[5]\",\"b\":\"arr[2]\",\"with\":\"previous\"},{\"do\":\"clear\",\"target\":[\"heap.n5\",\"heap.n2\",\"arr[5]\",\"arr[2]\"]}]},{\"title\":\"Second swap up\",\"narration\":\"Now 3 is smaller than its new parent 5, so they swap, making 3 the new root.\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"heap.n2\",\"heap.n0\"],\"state\":\"comparing\"},{\"do\":\"exchange\",\"a\":\"heap.n2\",\"b\":\"heap.n0\"},{\"do\":\"exchange\",\"a\":\"arr[2]\",\"b\":\"arr[0]\",\"with\":\"previous\"},{\"do\":\"clear\",\"target\":[\"heap.n2\",\"heap.n0\",\"arr[2]\",\"arr[0]\"]},{\"do\":\"highlight\",\"target\":[\"heap.n0\",\"arr[0]\"],\"state\":\"found\"},{\"do\":\"annotate\",\"target\":\"heap.n0\",\"text\":\"new minimum\",\"side\":\"right\"}]}]}"
+}

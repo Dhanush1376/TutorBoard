@@ -46,6 +46,8 @@ export const createUiSlice = (set, get) => ({
 
   codeEditorCode:      '',
   codeEditorLang:      'javascript',
+  // Where the code came from ({ sessionId, messageId }) and whether to start the step-through at once.
+  codeEditorContext:   null,
 
   drawColor:           'var(--text-primary)',
   drawWidth:           3,
@@ -80,6 +82,8 @@ export const createUiSlice = (set, get) => ({
   motionMode:          'fluid',
   alertPrefs:          {},
   chatInputText:       '',
+  // a question to send as if typed in the chat box (e.g. clicking an element on the board)
+  queuedQuestion:      null,
   selectedTextContext: null,
   isVoiceEnabled:      true,
   isHydrated:          false,
@@ -154,6 +158,7 @@ export const createUiSlice = (set, get) => ({
   toggleSidebar:    ()      => set(s => { s.isSidebarOpen = !s.isSidebarOpen; }),
 
   setChatInputText: (text)  => set({ chatInputText: text }),
+  queueQuestion: (text)     => set({ queuedQuestion: text }),
 
   // ✅ FIX: mutate draft
   toggleSidebarPosition: () => set(s => {
@@ -213,9 +218,10 @@ export const createUiSlice = (set, get) => ({
   setSettingsMinimized: (min) => set({ isSettingsMinimized: min }),
 
 
-  setCodeEditorData: (code, lang) => set({
+  setCodeEditorData: (code, lang, context = null) => set({
     codeEditorCode: code,
     codeEditorLang: lang || 'javascript',
+    codeEditorContext: context ? { ...context, nonce: Date.now() } : null,
     activeOverlay: 'code-editor'
   }),
 

@@ -42,7 +42,7 @@ const ShortcutsHUD = () => {
             className="sf-glass shadow-premium rounded-2xl p-5 min-w-[240px]"
           >
             <div className="flex items-center justify-between mb-5 px-1">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] opacity-80">System Shortcuts</span>
+              <span className="text-xs font-semibold text-[var(--text-tertiary)]">System Shortcuts</span>
               <button onClick={() => setIsOpen(false)} className="text-[var(--text-tertiary)] hover:text-red-400 transition-colors">
                 <X size={14} />
               </button>

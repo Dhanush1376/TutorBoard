@@ -1,0 +1,235 @@
+{
+ "version": "1",
+ "title": "Why water is bent",
+ "domain": "chemistry",
+ "summary": "Two lone pairs on oxygen squeeze the H–O–H angle to 104.5°, making water bent and polar.",
+ "spaces": [],
+ "entities": [
+  {
+   "id": "formula",
+   "type": "text",
+   "text": "H₂O",
+   "role": "title"
+  },
+  {
+   "id": "h2o",
+   "type": "molecule",
+   "atoms": [
+    {
+     "id": "O",
+     "el": "O"
+    },
+    {
+     "id": "H1",
+     "el": "H"
+    },
+    {
+     "id": "H2",
+     "el": "H"
+    }
+   ],
+   "bonds": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     2,
+     1
+    ]
+   ],
+   "lonePairs": [
+    {
+     "atom": 0,
+     "count": 2
+    }
+   ]
+  },
+  {
+   "id": "bond",
+   "label": "104.5°",
+   "tone": "warning",
+   "type": "angle",
+   "vertex": "h2o.O",
+   "from": "h2o.H1",
+   "to": "h2o.H2",
+   "showValue": true
+  },
+  {
+   "id": "lp1",
+   "tone": "info",
+   "type": "text",
+   "text": "LP",
+   "role": "label"
+  },
+  {
+   "id": "lp2",
+   "tone": "info",
+   "type": "text",
+   "text": "LP",
+   "role": "label"
+  },
+  {
+   "id": "angle",
+   "label": "104.5°",
+   "tone": "warning",
+   "type": "angle",
+   "vertex": "h2o.O",
+   "from": "h2o.H1",
+   "to": "h2o.H2",
+   "showValue": true
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "h2o",
+   "region": "center"
+  },
+  {
+   "rel": "place",
+   "id": "formula",
+   "region": "top-left"
+  },
+  {
+   "rel": "place",
+   "id": "lp1",
+   "region": "top-left"
+  },
+  {
+   "rel": "place",
+   "id": "lp2",
+   "region": "bottom-left"
+  },
+  {
+   "rel": "place",
+   "id": "angle",
+   "region": "center"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Oxygen bonds two hydrogens",
+   "narration": "Oxygen shares one electron pair with each hydrogen.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "formula",
+     "effect": "fade"
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "h2o",
+     "effect": "pop"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Two lone pairs push back",
+   "narration": "Oxygen also keeps two lone pairs. They repel the bonding pairs more strongly than the bonds repel each other.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "h2o.O",
+     "state": "insight",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "annotate",
+     "target": "h2o.O",
+     "text": "2 lone pairs",
+     "side": "above"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Show lone pairs",
+   "narration": "The oxygen atom carries two lone pairs that sit opposite the H atoms.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "h2o.O",
+     "state": "insight",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "annotate",
+     "target": "h2o.O",
+     "text": "2 LP",
+     "side": "above"
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "lp1",
+     "effect": "pop"
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "lp2",
+     "effect": "pop"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Lone pairs push bonds",
+   "narration": "These lone pairs repel the bonding pairs, forcing the H–O–H angle to shrink.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "h2o.H1",
+     "state": "active",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "highlight",
+     "target": "h2o.H2",
+     "state": "active",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "angle",
+     "effect": "grow"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Resulting bent shape",
+   "narration": "The repulsion yields a bent geometry of about 104.5°, not a straight line.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "angle",
+     "state": "found",
+     "hold": false
+    },
+    {
+     "do": "clear",
+     "target": "lp1"
+    },
+    {
+     "do": "clear",
+     "target": "lp2"
+    },
+    {
+     "do": "unannotate",
+     "target": "h2o.O"
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

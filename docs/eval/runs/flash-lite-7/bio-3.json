@@ -1,0 +1,558 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How blood flows through the heart",
+  "domain": "biology",
+  "summary": "Deoxygenated blood enters the right side and goes to the lungs; oxygenated blood enters the left side and goes to the body.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "body_in",
+    "tone": "muted",
+    "type": "rect",
+    "size": "sm",
+    "text": "Body (Deoxygenated)"
+   },
+   {
+    "id": "ra",
+    "tone": "primary",
+    "type": "rect",
+    "size": "sm",
+    "text": "Right Atrium"
+   },
+   {
+    "id": "rv",
+    "tone": "primary",
+    "type": "rect",
+    "size": "sm",
+    "text": "Right Ventricle"
+   },
+   {
+    "id": "lungs",
+    "tone": "info",
+    "type": "rect",
+    "size": "sm",
+    "text": "Lungs (Oxygen pick-up)"
+   },
+   {
+    "id": "la",
+    "tone": "danger",
+    "type": "rect",
+    "size": "sm",
+    "text": "Left Atrium"
+   },
+   {
+    "id": "lv",
+    "tone": "danger",
+    "type": "rect",
+    "size": "sm",
+    "text": "Left Ventricle"
+   },
+   {
+    "id": "body_out",
+    "tone": "success",
+    "type": "rect",
+    "size": "sm",
+    "text": "Body (Oxygenated)"
+   },
+   {
+    "id": "flow_lbl",
+    "type": "text",
+    "text": "Follow the blood path step by step",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "row",
+    "ids": [
+     "body_in",
+     "ra",
+     "rv",
+     "lungs"
+    ],
+    "gap": "md"
+   },
+   {
+    "rel": "row",
+    "ids": [
+     "body_out",
+     "lv",
+     "la",
+     "lungs"
+    ],
+    "gap": "md"
+   },
+   {
+    "rel": "place",
+    "id": "flow_lbl",
+    "region": "top"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Entering the Right Atrium",
+    "narration": "Deoxygenated blood returns from the body and enters the right atrium.",
+    "actions": [
+     {
+      "do": "remove",
+      "target": [
+       "body_in",
+       "ra",
+       "rv",
+       "lungs",
+       "la",
+       "lv",
+       "body_out",
+       "flow_lbl"
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "body_in",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "ra",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "flow_lbl",
+      "effect": "fade"
+     },
+     {
+      "do": "connect",
+      "from": "body_in",
+      "to": "ra",
+      "label": "Vena Cava",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "ra",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Into the Right Ventricle",
+    "narration": "Blood passes through the tricuspid valve into the right ventricle.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "rv",
+      "effect": "pop"
+     },
+     {
+      "do": "connect",
+      "from": "ra",
+      "to": "rv",
+      "label": "Tricuspid Valve",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "ra",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "rv",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Off to the Lungs",
+    "narration": "The right ventricle pumps blood through the pulmonary artery to the lungs to pick up oxygen.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "lungs",
+      "effect": "pop"
+     },
+     {
+      "do": "connect",
+      "from": "rv",
+      "to": "lungs",
+      "label": "Pulmonary Artery",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "rv",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "lungs",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Entering the Left Side",
+    "narration": "Oxygen-rich blood returns from the lungs into the left atrium.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "la",
+      "effect": "pop"
+     },
+     {
+      "do": "connect",
+      "from": "lungs",
+      "to": "la",
+      "label": "Pulmonary Veins",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "lungs",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "la",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Into the Left Ventricle",
+    "narration": "Blood flows through the mitral valve into the thick-walled left ventricle, ready to pump to the whole body.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "lv",
+      "effect": "pop"
+     },
+     {
+      "do": "connect",
+      "from": "la",
+      "to": "lv",
+      "label": "Mitral Valve",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "la",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "lv",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pumped to the Body",
+    "narration": "The left ventricle pumps oxygenated blood through the aorta out to the rest of the body.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "body_out",
+      "effect": "pop"
+     },
+     {
+      "do": "connect",
+      "from": "lv",
+      "to": "body_out",
+      "label": "Aorta",
+      "style": "arrow"
+     },
+     {
+      "do": "highlight",
+      "target": "lv",
+      "state": "visited",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": "body_out",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "layout",
+   "message": "\"lungs\" is positioned by 2 relations; the first one wins"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"body_in\" is removed before it was shown"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"ra\" is removed before it was shown"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"rv\" is removed before it was shown"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"lungs\" is removed before it was shown"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"la\" is removed before it was shown"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"lv\" is removed before it was shown"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"body_out\" is removed before it was shown"
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"flow_lbl\" is removed before it was shown"
+  }
+ ],
+ "attempts": 3,
+ "repairs": [
+  [
+   {
+    "path": "beats[0].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[4].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[5].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   }
+  ],
+  [
+   {
+    "path": "beats[0].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[4].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[0].actions[5].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[1].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[2].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[3].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[4].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[0].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[1].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[2].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   },
+   {
+    "path": "beats[5].actions[3].do",
+    "message": "Invalid discriminator value. Expected 'create' | 'remove' | 'move' | 'swap' | 'push' | 'enqueue' | 'pop' | 'dequeue' | 'insert' | 'delete' | 'set' | 'morph' | 'highlight' | 'clear' | 'annotate' | 'unannotate' | 'connect' | 'trace' | 'tween' | 'focus' | 'wait'"
+   }
+  ]
+ ],
+ "ms": 13228,
+ "model": "gemini-3.5-flash-lite",
+ "domain": "general"
+}

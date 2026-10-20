@@ -5,3 +5,4 @@ export * from './PointerPlugin';
 export * from './TreePlugin';
 export * from './NodePlugin';
 export * from './AuxPlugin';
+export * from './ContentPlugin';

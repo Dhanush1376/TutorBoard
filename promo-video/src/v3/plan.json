@@ -1,0 +1,900 @@
+{
+ "fps": 30,
+ "bpm": 120,
+ "totalFrames": 1800,
+ "scenes": {
+  "hook": [
+   0,
+   150
+  ],
+  "hero": [
+   150,
+   540
+  ],
+  "doubt": [
+   540,
+   780
+  ],
+  "finish": [
+   780,
+   900
+  ],
+  "montage": [
+   900,
+   1530
+  ],
+  "brand": [
+   1530,
+   1800
+  ]
+ },
+ "hook": {
+  "line1": [
+   {
+    "w": "What",
+    "f": 8
+   },
+   {
+    "w": "if",
+    "f": 11
+   },
+   {
+    "w": "AI",
+    "f": 15
+   },
+   {
+    "w": "didn't",
+    "f": 24
+   },
+   {
+    "w": "just",
+    "f": 33
+   },
+   {
+    "w": "answer",
+    "f": 42
+   },
+   {
+    "w": "your",
+    "f": 50
+   },
+   {
+    "w": "questions?",
+    "f": 53
+   }
+  ],
+  "line2": [
+   {
+    "w": "What",
+    "f": 83
+   },
+   {
+    "w": "if",
+    "f": 86
+   },
+   {
+    "w": "it",
+    "f": 89
+   },
+   {
+    "w": "could",
+    "f": 91
+   }
+  ],
+  "show": 95,
+  "tail": [
+   {
+    "w": "you",
+    "f": 102
+   },
+   {
+    "w": "the",
+    "f": 106
+   },
+   {
+    "w": "answer?",
+    "f": 109
+   }
+  ],
+  "line1Out": 77,
+  "split": [
+   122,
+   150
+  ]
+ },
+ "hero": {
+  "lead": 28,
+  "push": [
+   0,
+   24
+  ],
+  "typing": [
+   27,
+   29,
+   29,
+   31,
+   33,
+   34,
+   35,
+   36,
+   38,
+   39,
+   40,
+   41,
+   42,
+   43,
+   45,
+   46,
+   47,
+   49,
+   50,
+   51,
+   53,
+   54,
+   55,
+   57,
+   58,
+   59,
+   61,
+   62,
+   63,
+   64,
+   65,
+   66,
+   68,
+   70,
+   71,
+   72,
+   73,
+   74,
+   76,
+   78,
+   79,
+   81,
+   82,
+   83,
+   84
+  ],
+  "clickSend": 102,
+  "think": [
+   104,
+   140
+  ],
+  "reveal": [
+   140,
+   176
+  ],
+  "handoff": [
+   174,
+   182
+  ],
+  "controls": [
+   182,
+   232
+  ],
+  "clickPlay": 212,
+  "toBoard": [
+   228,
+   252
+  ],
+  "pass1": [
+   244,
+   376
+  ]
+ },
+ "doubt": {
+  "toBar": [
+   0,
+   18
+  ],
+  "clickPause": 14,
+  "clickDoubt": 32,
+  "open": [
+   33,
+   45
+  ],
+  "typing": [
+   49,
+   51,
+   52,
+   53,
+   54,
+   56,
+   57,
+   58,
+   60,
+   61,
+   63,
+   64,
+   65,
+   66,
+   68,
+   69,
+   70,
+   72,
+   72,
+   74,
+   75,
+   76,
+   78,
+   79,
+   80,
+   82,
+   83,
+   84,
+   85,
+   87,
+   88,
+   90,
+   91,
+   92,
+   93,
+   94
+  ],
+  "enter": 98,
+  "toPanel": [
+   100,
+   128
+  ],
+  "highlight": 134,
+  "callout": 142,
+  "answer": [
+   142,
+   196
+  ],
+  "followUp": 200
+ },
+ "finish": {
+  "clickResume": 8,
+  "pass2": [
+   16,
+   86
+  ],
+  "sorted": 88,
+  "out": [
+   104,
+   120
+  ]
+ },
+ "montage": {
+  "subjects": [
+   {
+    "key": "stackqueue",
+    "vo": "Explore algorithms.",
+    "title": "Stack vs Queue",
+    "question": "What is the difference between a stack and a queue?",
+    "kind": "ALGORITHM SESSION",
+    "guide": "ALGORITHM GUIDE",
+    "steps": [
+     "Push onto the stack",
+     "Enqueue at the rear",
+     "Pop from the top (LIFO)",
+     "Dequeue from the front (FIFO)"
+    ],
+    "explain": [
+     "A stack only ever touches its top: each push lands on the last one.",
+     "A queue adds at the rear and serves from the front, like a line at a counter.",
+     "pop() removes the most recent push — Last In, First Out.",
+     "dequeue() serves the oldest item first — First In, First Out."
+    ],
+    "start": 15,
+    "end": 120
+   },
+   {
+    "key": "geometry",
+    "vo": "Build geometry.",
+    "title": "Triangle Angle Sum",
+    "question": "Why do the angles of a triangle add up to 180°?",
+    "kind": "CONCEPT SESSION",
+    "guide": "CONCEPT GUIDE",
+    "steps": [
+     "Construct triangle ABC",
+     "Mark the three angles",
+     "Draw a parallel through C",
+     "They form a straight line"
+    ],
+    "explain": [
+     "Start with any triangle ABC.",
+     "Call its angles α, β and γ.",
+     "Draw the line through C parallel to AB. Alternate angles copy α and β up to C.",
+     "α, γ and β now sit side by side on a straight line — so they add to 180°."
+    ],
+    "start": 120,
+    "end": 225
+   },
+   {
+    "key": "physics",
+    "vo": "Understand physics.",
+    "title": "Projectile Motion at 45°",
+    "question": "How does a ball kicked at 45° actually travel?",
+    "kind": "CONCEPT SESSION",
+    "guide": "CONCEPT GUIDE",
+    "steps": [
+     "Split the launch velocity",
+     "Gravity bends the path",
+     "Maximum height",
+     "Landing and range"
+    ],
+    "explain": [
+     "At 45° the launch speed splits into equal horizontal and vertical parts.",
+     "Horizontal speed stays constant; gravity pulls the vertical speed down 9.8 m/s every second.",
+     "At the top the vertical speed is zero — only vₓ remains.",
+     "The path is a parabola; 45° gives the longest range on flat ground."
+    ],
+    "start": 225,
+    "end": 330
+   },
+   {
+    "key": "chem",
+    "vo": "Visualize chemistry.",
+    "title": "Why Water Is Bent",
+    "question": "Why is a water molecule bent instead of straight?",
+    "kind": "CONCEPT SESSION",
+    "guide": "CONCEPT GUIDE",
+    "steps": [
+     "Oxygen bonds two hydrogens",
+     "Two lone pairs push back",
+     "The 104.5° bond angle"
+    ],
+    "explain": [
+     "Oxygen shares one electron pair with each hydrogen.",
+     "Oxygen also keeps two lone pairs. They repel the bonding pairs more strongly.",
+     "The bonds are squeezed from 109.5° to 104.5° — so water is bent, and polar."
+    ],
+    "start": 330,
+    "end": 435
+   },
+   {
+    "key": "ml",
+    "vo": "Discover how machines learn.",
+    "title": "How a Network Spots a Cat",
+    "question": "How does a neural network recognise a cat?",
+    "kind": "CONCEPT SESSION",
+    "guide": "CONCEPT GUIDE",
+    "steps": [
+     "Pixels in",
+     "Features light up",
+     "Signal flows through the layers",
+     "Prediction"
+    ],
+    "explain": [
+     "The image enters as a grid of pixel values.",
+     "Early layers respond to edges; later ones to ears, eyes and whiskers.",
+     "Each layer weighs the evidence from the one before it.",
+     "The output with the most evidence wins: cat, 94%."
+    ],
+    "start": 435,
+    "end": 540
+   }
+  ],
+  "wall": [
+   540,
+   630
+  ]
+ },
+ "brand": {
+  "cube": 0,
+  "wordmark": 31,
+  "taglineA": 60,
+  "taglineB": 105,
+  "cta": 168,
+  "fadeOut": [
+   246,
+   270
+  ]
+ },
+ "sort": {
+  "pass1": [
+   {
+    "i": 0,
+    "swap": true,
+    "at": 244,
+    "dur": 33
+   },
+   {
+    "i": 1,
+    "swap": true,
+    "at": 277,
+    "dur": 33
+   },
+   {
+    "i": 2,
+    "swap": true,
+    "at": 310,
+    "dur": 33
+   },
+   {
+    "i": 3,
+    "swap": false,
+    "at": 343,
+    "dur": 33
+   }
+  ],
+  "pass2": [
+   {
+    "i": 0,
+    "swap": false,
+    "at": 16,
+    "dur": 14
+   },
+   {
+    "i": 1,
+    "swap": true,
+    "at": 30,
+    "dur": 14
+   },
+   {
+    "i": 2,
+    "swap": false,
+    "at": 44,
+    "dur": 14
+   },
+   {
+    "i": 0,
+    "swap": false,
+    "at": 58,
+    "dur": 14
+   },
+   {
+    "i": 1,
+    "swap": false,
+    "at": 72,
+    "dur": 14
+   }
+  ]
+ },
+ "vo": [
+  {
+   "f": 4,
+   "text": "What if AI didn't just answer your questions?"
+  },
+  {
+   "f": 80,
+   "text": "What if it could show you the answer?"
+  },
+  {
+   "f": 174,
+   "text": "Ask anything."
+  },
+  {
+   "f": 386,
+   "text": "Watch the answer come to life."
+  },
+  {
+   "f": 544,
+   "text": "And when you have a doubt? Just ask."
+  },
+  {
+   "f": 680,
+   "text": "It answers right on the board."
+  },
+  {
+   "f": 939,
+   "text": "Explore algorithms."
+  },
+  {
+   "f": 1044,
+   "text": "Build geometry."
+  },
+  {
+   "f": 1149,
+   "text": "Understand physics."
+  },
+  {
+   "f": 1254,
+   "text": "Visualize chemistry."
+  },
+  {
+   "f": 1359,
+   "text": "Discover how machines learn."
+  },
+  {
+   "f": 1558,
+   "text": "TutorBoard. Don't just get the answer. See how it works."
+  }
+ ],
+ "music": {
+  "hookEnd": 122,
+  "drop": 150,
+  "doubt": [
+   540,
+   788
+  ],
+  "montage": [
+   900,
+   1530
+  ],
+  "wall": 1440,
+  "brand": 1530
+ },
+ "cues": {
+  "keys": [
+   177,
+   179,
+   183,
+   185,
+   188,
+   190,
+   192,
+   195,
+   197,
+   200,
+   203,
+   205,
+   208,
+   211,
+   213,
+   215,
+   218,
+   221,
+   223,
+   226,
+   229,
+   232,
+   234,
+   589,
+   592,
+   594,
+   597,
+   600,
+   603,
+   605,
+   608,
+   610,
+   612,
+   615,
+   618,
+   620,
+   623,
+   625,
+   628,
+   631,
+   633,
+   917,
+   919,
+   921,
+   923,
+   925,
+   927,
+   929,
+   931,
+   1022,
+   1024,
+   1026,
+   1028,
+   1030,
+   1032,
+   1034,
+   1036,
+   1127,
+   1129,
+   1131,
+   1133,
+   1135,
+   1137,
+   1139,
+   1141,
+   1232,
+   1234,
+   1236,
+   1238,
+   1240,
+   1242,
+   1244,
+   1246,
+   1337,
+   1339,
+   1341,
+   1343,
+   1345,
+   1347,
+   1349,
+   1351
+  ],
+  "clicks": [
+   362,
+   554,
+   572,
+   788
+  ],
+  "sends": [
+   252,
+   638,
+   934,
+   1039,
+   1144,
+   1249,
+   1354
+  ],
+  "slams": [
+   {
+    "f": 8,
+    "gain": 0.22
+   },
+   {
+    "f": 11,
+    "gain": 0.24
+   },
+   {
+    "f": 15,
+    "gain": 0.26
+   },
+   {
+    "f": 24,
+    "gain": 0.28
+   },
+   {
+    "f": 33,
+    "gain": 0.3
+   },
+   {
+    "f": 42,
+    "gain": 0.32
+   },
+   {
+    "f": 50,
+    "gain": 0.33999999999999997
+   },
+   {
+    "f": 53,
+    "gain": 0.34
+   },
+   {
+    "f": 83,
+    "gain": 0.16
+   },
+   {
+    "f": 86,
+    "gain": 0.16
+   },
+   {
+    "f": 89,
+    "gain": 0.16
+   },
+   {
+    "f": 91,
+    "gain": 0.16
+   },
+   {
+    "f": 102,
+    "gain": 0.2
+   },
+   {
+    "f": 106,
+    "gain": 0.2
+   },
+   {
+    "f": 109,
+    "gain": 0.2
+   }
+  ],
+  "impacts": [
+   {
+    "f": 95,
+    "gain": 0.85,
+    "shimmer": true
+   },
+   {
+    "f": 150,
+    "gain": 0.5,
+    "shimmer": true
+   },
+   {
+    "f": 290,
+    "gain": 0.32,
+    "shimmer": false
+   },
+   {
+    "f": 941,
+    "gain": 0.3,
+    "shimmer": false
+   },
+   {
+    "f": 1046,
+    "gain": 0.3,
+    "shimmer": false
+   },
+   {
+    "f": 1151,
+    "gain": 0.3,
+    "shimmer": false
+   },
+   {
+    "f": 1256,
+    "gain": 0.3,
+    "shimmer": false
+   },
+   {
+    "f": 1361,
+    "gain": 0.3,
+    "shimmer": false
+   },
+   {
+    "f": 1440,
+    "gain": 0.42,
+    "shimmer": true
+   },
+   {
+    "f": 1561,
+    "gain": 0.55,
+    "shimmer": true
+   }
+  ],
+  "whooshes": [
+   {
+    "f": 120,
+    "dur": 30,
+    "gain": 0.24
+   },
+   {
+    "f": 284,
+    "dur": 22,
+    "gain": 0.1
+   },
+   {
+    "f": 378,
+    "dur": 20,
+    "gain": 0.08
+   },
+   {
+    "f": 640,
+    "dur": 24,
+    "gain": 0.07
+   },
+   {
+    "f": 911,
+    "dur": 14,
+    "gain": 0.12
+   },
+   {
+    "f": 935,
+    "dur": 12,
+    "gain": 0.1
+   },
+   {
+    "f": 1016,
+    "dur": 14,
+    "gain": 0.12
+   },
+   {
+    "f": 1040,
+    "dur": 12,
+    "gain": 0.1
+   },
+   {
+    "f": 1121,
+    "dur": 14,
+    "gain": 0.12
+   },
+   {
+    "f": 1145,
+    "dur": 12,
+    "gain": 0.1
+   },
+   {
+    "f": 1226,
+    "dur": 14,
+    "gain": 0.12
+   },
+   {
+    "f": 1250,
+    "dur": 12,
+    "gain": 0.1
+   },
+   {
+    "f": 1331,
+    "dur": 14,
+    "gain": 0.12
+   },
+   {
+    "f": 1355,
+    "dur": 12,
+    "gain": 0.1
+   },
+   {
+    "f": 1434,
+    "dur": 24,
+    "gain": 0.12
+   },
+   {
+    "f": 1522,
+    "dur": 30,
+    "gain": 0.12,
+    "up": false
+   }
+  ],
+  "risers": [
+   {
+    "f": 73,
+    "dur": 22,
+    "gain": 0.1
+   },
+   {
+    "f": 112,
+    "dur": 38,
+    "gain": 0.12
+   },
+   {
+    "f": 1486,
+    "dur": 44,
+    "gain": 0.1
+   }
+  ],
+  "swaps": [
+   {
+    "f": 405,
+    "swap": true,
+    "cmp": 394
+   },
+   {
+    "f": 438,
+    "swap": true,
+    "cmp": 427
+   },
+   {
+    "f": 471,
+    "swap": true,
+    "cmp": 460
+   },
+   {
+    "f": 504,
+    "swap": false,
+    "cmp": 493
+   },
+   {
+    "f": 801,
+    "swap": false,
+    "cmp": 796
+   },
+   {
+    "f": 815,
+    "swap": true,
+    "cmp": 810
+   },
+   {
+    "f": 829,
+    "swap": false,
+    "cmp": 824
+   },
+   {
+    "f": 843,
+    "swap": false,
+    "cmp": 838
+   },
+   {
+    "f": 857,
+    "swap": false,
+    "cmp": 852
+   }
+  ],
+  "bells": [
+   {
+    "f": 674,
+    "note": "A5",
+    "gain": 0.17,
+    "pan": -0.15
+   },
+   {
+    "f": 681,
+    "note": "E6",
+    "gain": 0.13,
+    "pan": 0.15
+   },
+   {
+    "f": 868,
+    "note": "D6",
+    "gain": 0.1
+   },
+   {
+    "f": 874,
+    "note": "A6",
+    "gain": 0.07
+   },
+   {
+    "f": 1635,
+    "note": "A5",
+    "gain": 0.07
+   }
+  ]
+ }
+}

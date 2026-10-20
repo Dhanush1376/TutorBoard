@@ -1,0 +1,245 @@
+{
+ "version": "1",
+ "title": "Projectile motion at 45°",
+ "domain": "physics",
+ "summary": "Launch at 20 m/s and 45°: horizontal speed stays constant while gravity curves the path into a parabola.",
+ "spaces": [
+  {
+   "id": "field",
+   "kind": "cartesian",
+   "x": [
+    0,
+    45
+   ],
+   "y": [
+    0,
+    14
+   ],
+   "axes": true,
+   "grid": false,
+   "xLabel": "x (m)",
+   "yLabel": "y (m)",
+   "equalAspect": false
+  }
+ ],
+ "entities": [
+  {
+   "id": "ball",
+   "space": "field",
+   "type": "body",
+   "at": [
+    0,
+    0
+   ],
+   "size": "sm"
+  },
+  {
+   "id": "v0",
+   "label": "v₀ = 20 m/s",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    0,
+    0
+   ],
+   "angleDeg": 45,
+   "magnitude": 8
+  },
+  {
+   "id": "vx",
+   "label": "vₓ",
+   "tone": "success",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    0,
+    0
+   ],
+   "to": [
+    5.66,
+    0
+   ]
+  },
+  {
+   "id": "vy",
+   "label": "v_y",
+   "tone": "primary",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    0,
+    0
+   ],
+   "to": [
+    0,
+    5.66
+   ]
+  },
+  {
+   "id": "traj",
+   "tone": "info",
+   "space": "field",
+   "type": "plot",
+   "expr": "x - 0.0245*x^2",
+   "domain": [
+    0,
+    40.8
+   ]
+  },
+  {
+   "id": "apex",
+   "label": "max height 10.2 m",
+   "tone": "warning",
+   "space": "field",
+   "type": "point",
+   "at": [
+    20.4,
+    10.2
+   ]
+  },
+  {
+   "id": "land",
+   "label": "range 40.8 m",
+   "tone": "warning",
+   "space": "field",
+   "type": "point",
+   "at": [
+    40.8,
+    0
+   ]
+  },
+  {
+   "id": "eq",
+   "type": "math",
+   "latex": "R = \\frac{v_0^2 \\sin 2\\theta}{g} \\approx 40.8\\,\\mathrm{m}"
+  },
+  {
+   "id": "grav_arrow",
+   "label": "gravity",
+   "tone": "danger",
+   "space": "field",
+   "type": "vector",
+   "from": [
+    10,
+    7.5
+   ],
+   "to": [
+    10,
+    4.5
+   ]
+  },
+  {
+   "id": "expl_note",
+   "type": "math",
+   "latex": "y = x \\tan\\theta - \\frac{g x^2}{2 v_0^2 \\cos^2\\theta}"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "field",
+   "region": "center"
+  },
+  {
+   "rel": "place",
+   "id": "eq",
+   "region": "top-right"
+  },
+  {
+   "rel": "place",
+   "id": "expl_note",
+   "region": "top-right"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Split the launch velocity",
+   "narration": "At 45° the launch speed splits into equal horizontal and vertical parts.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "ball",
+     "effect": "pop"
+    },
+    {
+     "do": "create",
+     "target": "v0",
+     "effect": "grow"
+    },
+    {
+     "do": "create",
+     "target": [
+      "vx",
+      "vy"
+     ],
+     "effect": "grow"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Gravity bends the path",
+   "narration": "The horizontal speed never changes, but gravity pulls the vertical speed down by 9.8 m/s every second.",
+   "actions": [
+    {
+     "do": "remove",
+     "target": [
+      "v0",
+      "vx",
+      "vy"
+     ],
+     "effect": "fade"
+    },
+    {
+     "do": "create",
+     "target": "traj",
+     "effect": "draw"
+    },
+    {
+     "with": "previous",
+     "do": "trace",
+     "target": "ball",
+     "along": "traj",
+     "duration": "long"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Constant forward speed",
+   "narration": "Without gravity, the ball would keep going straight along the launch angle.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "ball",
+     "state": "active",
+     "hold": true
+    },
+    {
+     "do": "create",
+     "target": "expl_note",
+     "effect": "fade"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Constant downward pull",
+   "narration": "Instead, gravity constantly accelerates it downward, turning the trajectory into a curve.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "grav_arrow",
+     "effect": "pop"
+    },
+    {
+     "do": "highlight",
+     "target": "traj",
+     "state": "insight",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

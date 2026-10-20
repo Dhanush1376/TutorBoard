@@ -106,5 +106,13 @@ export function registerNavigationHandlers(socket, machine, sessionId) {
         total: s.steps.length,
       });
     }
+
+    // After a doubt, RESUME lands in RESUMING, which only exits on PLAY /
+    // STEP_COMPLETE — and the client auto-advances only in TEACHING, so the
+    // lesson never continued on its own. The step has been re-sent; resume.
+    if (machine.state === STATES.RESUMING) {
+      machine.send(EVENTS.PLAY);
+      await sessionStore.update(sessionId, { state: machine.state });
+    }
   });
 }

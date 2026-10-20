@@ -1,0 +1,186 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Insert 3 into a Min-Heap",
+  "domain": "algorithms",
+  "summary": "Show how inserting 3 into the min‑heap [5,9,7,12,10] triggers sift‑up swaps until the heap property is restored.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "heap",
+    "label": "Min‑Heap",
+    "type": "array",
+    "values": [
+     5,
+     9,
+     7,
+     12,
+     10
+    ],
+    "indices": true
+   },
+   {
+    "id": "msg",
+    "type": "text",
+    "text": "",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "heap",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "msg",
+    "of": "heap",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Initial heap",
+    "narration": "The heap is stored as an array where each parent is smaller than its children.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "heap",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "msg",
+      "with": "previous"
+     },
+     {
+      "do": "set",
+      "target": "msg",
+      "text": "[5, 9, 7, 12, 10]"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Insert 3",
+    "narration": "Append 3 at the end of the array, then start sifting it up.",
+    "actions": [
+     {
+      "do": "push",
+      "target": "heap",
+      "value": 3
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "msg",
+      "text": "[5, 9, 7, 12, 10, 3]"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Swap with parent 7",
+    "narration": "3 is larger than its parent 7? No, 3 < 7, so they swap.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "heap[5]",
+       "heap[2]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "swap",
+      "target": "heap",
+      "i": 5,
+      "j": 2
+     },
+     {
+      "do": "clear",
+      "target": [
+       "heap[5]",
+       "heap[2]"
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "msg",
+      "text": "[5, 9, 3, 12, 10, 7]"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Swap with parent 5",
+    "narration": "Now 3 is at index 2; its parent is 5 at index 0. Since 3 < 5 they swap, restoring the heap property.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "heap[2]",
+       "heap[0]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "swap",
+      "target": "heap",
+      "i": 2,
+      "j": 0
+     },
+     {
+      "do": "clear",
+      "target": [
+       "heap[2]",
+       "heap[0]"
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "set",
+      "target": "msg",
+      "text": "[3, 9, 5, 12, 10, 7]"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Final heap",
+    "narration": "The array now satisfies the min‑heap condition; 3 is the new root.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "heap[0]",
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "heap[0]",
+      "text": "root",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[0].actions[1].target",
+   "message": "\"msg\" was used before being created — added a create"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 7061,
+ "model": "gemini-3.6-flash",
+ "domain": "data-structures"
+}

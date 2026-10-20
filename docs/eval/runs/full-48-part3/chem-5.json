@@ -1,0 +1,242 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Electron shells of carbon",
+  "domain": "chemistry",
+  "summary": "Carbon (Z=6) has two electron shells: 2 electrons in the first shell and 4 in the second.",
+  "spaces": [
+   {
+    "id": "chemSpace",
+    "kind": "cartesian",
+    "x": [
+     -3,
+     3
+    ],
+    "y": [
+     -3,
+     3
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "nucleus",
+    "type": "circle",
+    "size": "sm",
+    "text": "C"
+   },
+   {
+    "id": "shell1",
+    "type": "circle",
+    "size": "md"
+   },
+   {
+    "id": "shell2",
+    "type": "circle",
+    "size": "lg"
+   },
+   {
+    "id": "e1",
+    "space": "chemSpace",
+    "type": "body",
+    "at": [
+     1,
+     0
+    ],
+    "size": "xs"
+   },
+   {
+    "id": "e2",
+    "space": "chemSpace",
+    "type": "body",
+    "at": [
+     -1,
+     0
+    ],
+    "size": "xs"
+   },
+   {
+    "id": "e3",
+    "space": "chemSpace",
+    "type": "body",
+    "at": [
+     2,
+     0
+    ],
+    "size": "xs"
+   },
+   {
+    "id": "e4",
+    "space": "chemSpace",
+    "type": "body",
+    "at": [
+     0,
+     2
+    ],
+    "size": "xs"
+   },
+   {
+    "id": "e5",
+    "space": "chemSpace",
+    "type": "body",
+    "at": [
+     -2,
+     0
+    ],
+    "size": "xs"
+   },
+   {
+    "id": "e6",
+    "space": "chemSpace",
+    "type": "body",
+    "at": [
+     0,
+     -2
+    ],
+    "size": "xs"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "chemSpace",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Carbon atom outline",
+    "narration": "We start with a carbon nucleus and its two concentric electron shells, empty for now.",
+    "actions": [
+     {
+      "with": "previous",
+      "do": "create",
+      "target": [
+       "nucleus",
+       "shell1",
+       "shell2"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First shell filled",
+    "narration": "The innermost shell (n=1) holds exactly two electrons.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "e1",
+       "e2"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Second shell filled",
+    "narration": "The outer shell (n=2) contains the remaining four electrons.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "e3",
+       "e4",
+       "e5",
+       "e6"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Answer revealed",
+    "narration": "The second shell indeed holds the most electrons, completing carbon’s 2‑4 configuration.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "shell2",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "Carbon’s electron configuration is 1s² 2s² 2p²: 2 electrons in shell 1, 4 in shell 2.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "e1",
+       "e2",
+       "e3",
+       "e4",
+       "e5",
+       "e6"
+      ],
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "shell2",
+      "text": "4 e⁻",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[3].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  },
+  {
+   "path": "entities[4].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  },
+  {
+   "path": "entities[5].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  },
+  {
+   "path": "entities[6].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  },
+  {
+   "path": "entities[7].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  },
+  {
+   "path": "entities[8].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  },
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "auto-fixed: removed a space id (spaces appear with their entities)"
+  },
+  {
+   "path": "beats[3]",
+   "message": "auto-fixed: removed a beat with no actions"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 43328,
+ "model": "gemini-3.6-flash",
+ "domain": "chemistry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Electron shells of carbon\",\"domain\":\"chemistry\",\"summary\":\"Carbon (Z=6) has two electron shells: 2 electrons in the first shell and 4 in the second.\",\"spaces\":[{\"id\":\"chemSpace\",\"kind\":\"cartesian\",\"x\":[-3,3],\"y\":[-3,3],\"axes\":false,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"nucleus\",\"type\":\"circle\",\"size\":\"sm\",\"text\":\"C\"},{\"id\":\"shell1\",\"type\":\"circle\",\"size\":\"md\"},{\"id\":\"shell2\",\"type\":\"circle\",\"size\":\"lg\"},{\"id\":\"e1\",\"type\":\"body\",\"size\":\"xs\",\"at\":{\"from\":[0,0],\"angleDeg\":0,\"length\":1}},{\"id\":\"e2\",\"type\":\"body\",\"size\":\"xs\",\"at\":{\"from\":[0,0],\"angleDeg\":180,\"length\":1}},{\"id\":\"e3\",\"type\":\"body\",\"size\":\"xs\",\"at\":{\"from\":[0,0],\"angleDeg\":0,\"length\":2}},{\"id\":\"e4\",\"type\":\"body\",\"size\":\"xs\",\"at\":{\"from\":[0,0],\"angleDeg\":90,\"length\":2}},{\"id\":\"e5\",\"type\":\"body\",\"size\":\"xs\",\"at\":{\"from\":[0,0],\"angleDeg\":180,\"length\":2}},{\"id\":\"e6\",\"type\":\"body\",\"size\":\"xs\",\"at\":{\"from\":[0,0],\"angleDeg\":270,\"length\":2}}],\"layout\":[{\"rel\":\"place\",\"id\":\"chemSpace\",\"region\":\"center\"}],\"beats\":[{\"title\":\"Carbon atom outline\",\"narration\":\"We start with a carbon nucleus and its two concentric electron shells, empty for now.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"chemSpace\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":[\"nucleus\",\"shell1\",\"shell2\"],\"effect\":\"pop\",\"with\":\"previous\"}]},{\"title\":\"First shell filled\",\"narration\":\"The innermost shell (n=1) holds exactly two electrons.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"e1\",\"e2\"],\"effect\":\"pop\"}]},{\"title\":\"Second shell filled\",\"narration\":\"The outer shell (n=2) contains the remaining four electrons.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"e3\",\"e4\",\"e5\",\"e6\"],\"effect\":\"pop\"}]},{\"title\":\"Predict the fuller shell\",\"narration\":\"Which shell contains more electrons?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"Which shell holds the most electrons?\",\"choices\":[\"First shell\",\"Second shell\",\"Both equally\"],\"answer\":1,\"explain\":\"The second shell has four electrons, more than the first.\"}},{\"title\":\"Answer revealed\",\"narration\":\"The second shell indeed holds the most electrons, completing carbon’s 2‑4 configuration.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"shell2\",\"state\":\"insight\"}]},{\"title\":\"Recap\",\"narration\":\"Carbon’s electron configuration is 1s² 2s² 2p²: 2 electrons in shell 1, 4 in shell 2.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"e1\",\"e2\",\"e3\",\"e4\",\"e5\",\"e6\"],\"state\":\"sorted\"},{\"do\":\"annotate\",\"target\":\"shell2\",\"text\":\"4 e⁻\",\"side\":\"right\"}]}]}"
+}

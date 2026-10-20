@@ -1,0 +1,258 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Gradient Descent on a Simple Curve",
+  "domain": "math",
+  "summary": "A point follows the negative gradient of f(x)=(x-2)^2, stepping toward the minimum at x=2.",
+  "spaces": [
+   {
+    "id": "s1",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     5
+    ],
+    "y": [
+     0,
+     9
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "f(x)",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "func",
+    "space": "s1",
+    "type": "plot",
+    "expr": "(x-2)^2"
+   },
+   {
+    "id": "pt",
+    "label": "x₀",
+    "space": "s1",
+    "type": "point",
+    "at": [
+     0,
+     4
+    ]
+   },
+   {
+    "id": "grad",
+    "label": "-∇f",
+    "space": "s1",
+    "type": "vector",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     0,
+     0
+    ]
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "s1",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "The function",
+    "narration": "We plot f(x) = (x‑2)², a parabola with its lowest point at x = 2.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "func",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Start point",
+    "narration": "A point starts at x = 0, high on the curve.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "pt",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Compute gradient",
+    "narration": "The gradient at x = 0 is -4; moving opposite gives a step rightward and downward.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "grad",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First step",
+    "narration": "The point moves a small step along the negative gradient.",
+    "actions": [
+     {
+      "do": "move",
+      "target": "pt",
+      "to": [
+       0.5,
+       3.75
+      ]
+     },
+     {
+      "do": "remove",
+      "target": "grad",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Iterate",
+    "narration": "Repeating the gradient step moves the point closer to x = 2, the minimum.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "grad",
+      "effect": "draw"
+     },
+     {
+      "do": "move",
+      "target": "pt",
+      "to": [
+       1,
+       3
+      ]
+     },
+     {
+      "do": "remove",
+      "target": "grad",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "grad",
+      "effect": "draw"
+     },
+     {
+      "do": "move",
+      "target": "pt",
+      "to": [
+       1.5,
+       2.5
+      ]
+     },
+     {
+      "do": "remove",
+      "target": "grad",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "grad",
+      "effect": "draw"
+     },
+     {
+      "do": "move",
+      "target": "pt",
+      "to": [
+       2,
+       2
+      ]
+     },
+     {
+      "do": "remove",
+      "target": "grad",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Result",
+    "narration": "The point has arrived at the minimum of the function at x = 2.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "pt",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 3,
+ "repairs": [
+  [
+   {
+    "path": "beats[2].actions[1]",
+    "message": "set needs \"value\", \"text\" or \"latex\""
+   },
+   {
+    "path": "beats[4].actions[1]",
+    "message": "set needs \"value\", \"text\" or \"latex\""
+   },
+   {
+    "path": "beats[4].actions[5]",
+    "message": "set needs \"value\", \"text\" or \"latex\""
+   },
+   {
+    "path": "beats[4].actions[9]",
+    "message": "set needs \"value\", \"text\" or \"latex\""
+   }
+  ],
+  [
+   {
+    "path": "beats[2].actions[0].target",
+    "message": "\"grad1\" is not an entity in this scene"
+   },
+   {
+    "path": "beats[3].actions[1].target",
+    "message": "\"grad1\" is not an entity in this scene"
+   },
+   {
+    "path": "beats[4].actions[0].target",
+    "message": "\"grad2\" is not an entity in this scene"
+   },
+   {
+    "path": "beats[4].actions[2].target",
+    "message": "\"grad2\" is not an entity in this scene"
+   },
+   {
+    "path": "beats[4].actions[3].target",
+    "message": "\"grad3\" is not an entity in this scene"
+   },
+   {
+    "path": "beats[4].actions[5].target",
+    "message": "\"grad3\" is not an entity in this scene"
+   },
+   {
+    "path": "beats[4].actions[6].target",
+    "message": "\"grad4\" is not an entity in this scene"
+   },
+   {
+    "path": "beats[4].actions[8].target",
+    "message": "\"grad4\" is not an entity in this scene"
+   }
+  ]
+ ],
+ "ms": 70874,
+ "model": "gemini-3.6-flash",
+ "domain": "ml"
+}

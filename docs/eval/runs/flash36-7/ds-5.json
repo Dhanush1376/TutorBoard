@@ -1,0 +1,279 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Inserting 3 into a Min-Heap",
+  "domain": "data-structures",
+  "summary": "When inserting into a min-heap, append the element at the end and bubble it up until parent ≤ child.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "t",
+    "label": "Min-Heap Tree",
+    "type": "tree",
+    "nodes": [
+     {
+      "id": "n0",
+      "value": "5"
+     },
+     {
+      "id": "n1",
+      "value": "9",
+      "parent": "n0"
+     },
+     {
+      "id": "n2",
+      "value": "7",
+      "parent": "n0"
+     },
+     {
+      "id": "n3",
+      "value": "12",
+      "parent": "n1"
+     },
+     {
+      "id": "n4",
+      "value": "10",
+      "parent": "n1"
+     },
+     {
+      "id": "n5",
+      "value": "",
+      "parent": "n2"
+     }
+    ]
+   },
+   {
+    "id": "arr",
+    "label": "Array Representation",
+    "type": "array",
+    "values": [
+     5,
+     9,
+     7,
+     12,
+     10
+    ],
+    "indices": true
+   }
+  ],
+  "layout": [
+   {
+    "rel": "column",
+    "ids": [
+     "t",
+     "arr"
+    ],
+    "gap": "lg"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Initial min-heap",
+    "narration": "In a min-heap, every parent is smaller than its children. The array stores the tree level by level.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "t",
+       "arr"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "t.n0"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Append 3 at the end",
+    "narration": "To insert 3, we append it at the end of the array and place it in the next available tree slot as 7's child.",
+    "actions": [
+     {
+      "do": "clear"
+     },
+     {
+      "do": "push",
+      "target": "arr",
+      "value": 3
+     },
+     {
+      "do": "set",
+      "target": "t.n5",
+      "value": "3"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "t.n5"
+      ],
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "t.n5",
+      "text": "Inserted 3",
+      "side": "below"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Compare 3 with parent 7",
+    "narration": "Compare 3 with its parent 7 at index 2. Since 3 is smaller than 7, the min-heap order is broken.",
+    "actions": [
+     {
+      "do": "clear"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[5]",
+       "arr[2]",
+       "t.n5",
+       "t.n2"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "t.n5",
+      "text": "3 < 7 (swap needed)",
+      "side": "below"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Bubble up: swap 3 and 7",
+    "narration": "Swap 3 with 7 to move the smaller value up the tree.",
+    "actions": [
+     {
+      "do": "clear"
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 5,
+      "j": 2
+     },
+     {
+      "do": "set",
+      "target": "t.n5",
+      "value": "7"
+     },
+     {
+      "do": "set",
+      "target": "t.n2",
+      "value": "3"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[2]",
+       "t.n2"
+      ],
+      "state": "swapping",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Compare 3 with root 5",
+    "narration": "Now compare 3 with its new parent, 5 at the root. Since 3 is smaller than 5, it must bubble up again.",
+    "actions": [
+     {
+      "do": "clear"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[2]",
+       "arr[0]",
+       "t.n2",
+       "t.n0"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "t.n2",
+      "text": "3 < 5 (swap needed)",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Swap 3 and 5 to restore heap",
+    "narration": "Swap 3 with 5. Reaching the root, 3 settles in place, restoring the valid min-heap state [3, 9, 5, 12, 10, 7].",
+    "actions": [
+     {
+      "do": "clear"
+     },
+     {
+      "do": "swap",
+      "target": "arr",
+      "i": 2,
+      "j": 0
+     },
+     {
+      "do": "set",
+      "target": "t.n2",
+      "value": "5"
+     },
+     {
+      "do": "set",
+      "target": "t.n0",
+      "value": "3"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "arr[0]",
+       "arr[1]",
+       "arr[2]",
+       "arr[3]",
+       "arr[4]",
+       "arr[5]"
+      ],
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "with": "previous",
+      "do": "highlight",
+      "target": [
+       "t.n0",
+       "t.n1",
+       "t.n2",
+       "t.n3",
+       "t.n4",
+       "t.n5"
+      ],
+      "state": "sorted",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 30550,
+ "model": "gemini-3.6-flash",
+ "domain": "data-structures"
+}

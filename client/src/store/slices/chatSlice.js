@@ -4,6 +4,7 @@ export const createChatSlice = (set, get) => ({
   doubtHistory:      [],
   deltaHistory:      [],
   activeDoubtId:     null,
+  pendingDoubt:      null, // question text while the doubt is being answered
   isDoubtProcessing: false,
   isDeltaRunning:    false,
   doubtResponse:     null,
@@ -14,6 +15,7 @@ export const createChatSlice = (set, get) => ({
 
 
   setDoubtProcessing: (processing) => set({ isDoubtProcessing: processing }),
+  setPendingDoubt:   (question) => set({ pendingDoubt: question }),
   setDoubtResponse:  (response) => set({ doubtResponse: response }),
   setActiveDoubt:    (id)       => set({ activeDoubtId: id }),
   toggleDoubtThread: () => set(s => ({ showDoubtThread: !s.showDoubtThread })),
@@ -32,6 +34,7 @@ export const createChatSlice = (set, get) => ({
       hasVisuals,
       visualUpdate,
       snapshotId,
+      stepIndex:   get().currentStepIndex,
       timestamp:   Date.now(),
     };
 
@@ -48,6 +51,7 @@ export const createChatSlice = (set, get) => ({
       doubtHistory:      [...state.doubtHistory, doubtNode],
       doubtResponse:     { answer, followUp, hasVisuals, visualUpdate, _question: question },
       isDoubtProcessing: false,
+      pendingDoubt:      null,
       activeDoubtId:     doubtNode.id,
     }));
 

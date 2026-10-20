@@ -1,155 +1,111 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronRight, Check, Zap, Lock, 
-  User, Shield, Palette, Key, Eye, Info 
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, Info } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import API from '../../services/api';
 
 export { SECTIONS, API_URL } from './SettingsConstants';
 
-// SECTIONS moved to SettingsConstants.js
+/*
+ * Settings UI kit. Same language as the marketing site: Geist, hairline
+ * borders, mono eyebrows, ink for primary actions and amber only for the
+ * live/selected state.
+ */
 
-export const SectionTitle = ({ children, style = {} }) => (
-  <h2 style={{
-    fontSize: '10px', fontWeight: 600, letterSpacing: '0.08em',
-    color: 'var(--text-tertiary)', textTransform: 'uppercase',
-    marginBottom: '6px', marginLeft: '2px',
-    fontFamily: '"Inter", sans-serif',
-    opacity: 0.6,
-    ...style
-  }}>{children}</h2>
+const EASE = [0.22, 1, 0.36, 1];
+
+export const SectionTitle = ({ children, style = {}, action }) => (
+  <div className="mb-2.5 flex items-center justify-between gap-3 px-0.5" style={style}>
+    <h3 className="text-[12px] font-medium text-[var(--text-tertiary)]">{children}</h3>
+    {action}
+  </div>
 );
 
 export const SettingsGroup = ({ children, className = '', style = {} }) => (
-  <div 
-    className={`settings-group ${className}`} 
-    style={{
-      background: 'var(--bg-secondary)',
-      borderRadius: '12px',
-      marginBottom: '16px',
-      border: '1px solid var(--border-color)',
-      padding: '1px 0',
-      position: 'relative',
-      ...style
-    }}
+  <div
+    className={`overflow-visible rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] [&>*+*]:border-t [&>*+*]:border-[var(--st-line)] ${className}`}
+    style={style}
   >
-    <style>{`
-      .settings-group > *:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
-      .settings-group > *:last-child { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; border-bottom: none !important; }
-    `}</style>
     {children}
   </div>
 );
 
-export const SettingsRow = ({ icon: Icon, label, description, rightElement, borderBottom = true, danger, onClick }) => {
-  const isClickable = !!onClick;
+export const RowIcon = ({ icon: Icon, danger }) => (
+  <span
+    className={`grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border ${
+      danger
+        ? 'border-red-500/15 bg-red-500/[0.06] text-red-500'
+        : 'border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)]'
+    }`}
+  >
+    <Icon size={15} strokeWidth={1.8} />
+  </span>
+);
+
+/** `wide` rows hold a text field or select: on phones the control drops onto its own line. */
+export const SettingsRow = ({ icon, label, description, rightElement, danger, onClick, children, wide }) => {
+  const clickable = !!onClick;
+  const Tag = clickable ? 'button' : 'div';
   return (
-    <div
+    <Tag
+      type={clickable ? 'button' : undefined}
       onClick={onClick || undefined}
-      className="relative group/row"
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 12px',
-        borderBottom: borderBottom ? '1px solid var(--border-color)' : 'none',
-        background: 'transparent',
-        cursor: isClickable ? 'pointer' : 'default',
-        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}
+      className={`flex w-full items-center gap-3.5 px-4 py-3.5 text-left first:rounded-t-2xl last:rounded-b-2xl ${wide ? 'max-sm:flex-wrap max-sm:gap-y-3' : ''} ${
+        clickable ? 'cursor-pointer transition-colors hover:bg-[var(--st-fill)]' : ''
+      }`}
     >
-      {isClickable && (
-        <div 
-          className="absolute inset-x-1.5 inset-y-1 rounded-xl opacity-0 group-hover/row:opacity-100 transition-opacity duration-300 pointer-events-none"
-          style={{ background: 'var(--bg-tertiary)66', zIndex: 0 }}
-        />
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, position: 'relative', zIndex: 10 }}>
-        {Icon && (
-          <div style={{
-            width: '24px', height: '24px', borderRadius: '6px',
-            background: danger ? 'rgba(239,68,68,0.08)' : 'var(--text-primary)',
-            color: danger ? '#ef4444' : 'var(--bg-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <Icon size={12} strokeWidth={2.5} />
-          </div>
-        )}
-        <div style={{ flex: 1 }}>
-          <div style={{
-            fontSize: '13px', fontWeight: 500,
-            color: danger ? '#ef4444' : 'var(--text-primary)',
-            fontFamily: '"Inter", sans-serif',
-            letterSpacing: '-0.01em',
-          }}>{label}</div>
-          {description && (
-            <div style={{
-              fontSize: '11px', color: 'var(--text-tertiary)',
-              marginTop: '1px', lineHeight: 1.4,
-              fontFamily: '"Inter", sans-serif',
-              fontWeight: 400,
-            }}>{description}</div>
-          )}
-        </div>
+      {icon && <RowIcon icon={icon} danger={danger} />}
+      <div className="min-w-0 flex-1">
+        <div className={`text-[15.5px] font-normal sm:text-[14px] sm:font-medium leading-snug tracking-[-0.01em] ${danger ? 'text-red-500' : 'text-[var(--text-primary)]'}`}>{label}</div>
+        {description && <div className="mt-0.5 text-[12px] leading-[1.45] text-[var(--text-tertiary)]">{description}</div>}
+        {children}
       </div>
-      {(rightElement || (isClickable && !rightElement)) && (
-        <div style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {(rightElement || clickable) && (
+        <div className={`ml-2 flex shrink-0 items-center gap-2 ${wide ? 'max-sm:ml-0 max-sm:basis-full max-sm:pl-[46px] max-sm:[&>*]:w-full' : ''}`}>
           {rightElement}
-          {isClickable && !rightElement && <ChevronRight size={18} style={{ color: 'var(--text-tertiary)', opacity: 0.5 }} />}
+          {clickable && !rightElement && <ChevronRight size={16} className="text-[var(--text-tertiary)]" />}
         </div>
       )}
-    </div>
+    </Tag>
   );
 };
 
-export const AppleToggle = ({ value, onChange }) => (
+export const AppleToggle = ({ value, onChange, label }) => (
   <button
-    onClick={() => onChange(!value)}
-    style={{
-      width: '42px', height: '24px', borderRadius: '12px',
-      background: value ? '#10b981' : 'var(--bg-tertiary)',
-      border: `none`,
-      position: 'relative', cursor: 'pointer',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      flexShrink: 0,
-      display: 'flex',
-      alignItems: 'center',
-      padding: '0 2px',
-      boxSizing: 'border-box',
-      boxShadow: value ? '0 2px 8px rgba(16,185,129,0.25)' : 'inset 0 1px 2px rgba(0,0,0,0.05)',
+    type="button"
+    role="switch"
+    aria-checked={!!value}
+    aria-label={label}
+    onClick={(e) => {
+      e.stopPropagation();
+      onChange(!value);
     }}
+    className={`relative inline-flex h-[22px] w-[38px] shrink-0 cursor-pointer items-center rounded-full p-[2px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mk-accent)]/50 ${
+      value ? 'bg-[var(--text-primary)]' : 'bg-[var(--st-fill-strong)] ring-1 ring-inset ring-[var(--st-line-strong)]'
+    }`}
   >
-    <motion.div
+    <motion.span
       initial={false}
-      animate={{ x: value ? 18 : 0 }}
-      transition={{ type: 'spring', stiffness: 600, damping: 35 }}
-      style={{
-        width: '20px', height: '20px', borderRadius: '50%',
-        background: '#fff',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1
-      }}
+      animate={{ x: value ? 16 : 0 }}
+      transition={{ type: 'spring', stiffness: 700, damping: 40 }}
+      className={`block h-[18px] w-[18px] rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.25)] ${value ? 'bg-[var(--bg-primary)]' : 'bg-white'}`}
     />
   </button>
 );
 
+export const fieldClass =
+  'h-9 w-full rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)] px-3.5 text-[13px] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-tertiary)] focus:shadow-[0_0_0_3px_var(--mk-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50';
+
 export const RightInlineInput = ({ value, onChange, placeholder, type = 'text', width = '220px', disabled = false }) => (
   <input
-    type={type} value={value} onChange={onChange}
-    placeholder={placeholder} disabled={disabled}
-    style={{
-      width, padding: '6px 10px', background: 'var(--bg-tertiary)33', border: 'none',
-      borderRadius: '6px',
-      color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-      fontSize: '13px', fontWeight: 500, fontFamily: '"Inter", sans-serif',
-      outline: 'none', textAlign: 'right', cursor: disabled ? 'not-allowed' : 'text',
-      transition: 'all 0.2s',
-    }}
-    onFocus={e => (e.target.style.background = 'var(--bg-tertiary)66', e.target.style.color = 'var(--accent-primary)')}
-    onBlur={e => (e.target.style.background = 'var(--bg-tertiary)33', e.target.style.color = disabled ? 'var(--text-tertiary)' : 'var(--text-primary)')}
+    type={type}
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    disabled={disabled}
+    onClick={(e) => e.stopPropagation()}
+    className={`${fieldClass} max-sm:!w-full`}
+    style={{ width }}
   />
 );
 
@@ -158,70 +114,70 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
   const wrapperRef = useRef(null);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
+    const close = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setIsOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const esc = (e) => e.key === 'Escape' && setIsOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', esc);
+    };
   }, []);
 
-  const selectedOption = options.find(o => o.value === value) || options[0];
-  const basePadding = styleContext === 'form' ? '14px 18px' : '8px 14px';
-  const baseBg = styleContext === 'form' ? 'var(--bg-secondary)' : 'var(--bg-tertiary)33';
-  const hoverBg = styleContext === 'form' ? 'var(--bg-tertiary)' : 'var(--bg-tertiary)66';
-  const borderCol = styleContext === 'form' ? 'var(--border-color)' : 'transparent';
+  const selected = options.find((o) => o.value === value) || options[0];
+  const form = styleContext === 'form';
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', display: 'inline-block', width: styleContext === 'form' ? '100%' : 'auto' }}>
+    <div ref={wrapperRef} className={`relative ${form ? 'w-full' : 'inline-block'}`}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
-          padding: basePadding, backgroundColor: isOpen ? hoverBg : baseBg,
-          border: `1.2px solid ${isOpen ? 'var(--accent-primary)' : borderCol}`,
-          borderRadius: styleContext === 'form' ? '12px' : '8px',
-          color: styleContext === 'form' ? 'var(--text-primary)' : 'var(--text-primary)',
-          fontSize: '13px', fontWeight: 500, cursor: 'pointer', outline: 'none',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', minWidth: '130px',
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((o) => !o);
         }}
-        onMouseEnter={e => e.currentTarget.style.backgroundColor = hoverBg}
-        onMouseLeave={e => e.currentTarget.style.backgroundColor = isOpen ? hoverBg : baseBg}
+        className={`${fieldClass} flex cursor-pointer items-center justify-between gap-2 text-left ${form ? '' : 'min-w-[150px]'} ${
+          isOpen ? 'border-[var(--text-tertiary)] shadow-[0_0_0_3px_var(--mk-accent-soft)]' : ''
+        }`}
       >
-        <span style={{ opacity: 0.9 }}>{selectedOption?.label}</span>
-        <ChevronRight size={14} strokeWidth={2.5} style={{ opacity: 0.5, transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+        <span className={`truncate ${selected?.value === '' ? 'text-[var(--text-tertiary)]' : ''}`}>{selected?.label}</span>
+        <ChevronDown size={14} className={`shrink-0 text-[var(--text-tertiary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.95 }} 
-            animate={{ opacity: 1, y: 6, scale: 1 }} 
-            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            style={{
-              position: 'absolute', top: '100%', left: align === 'left' ? 0 : 'auto', right: align === 'right' ? 0 : 'auto',
-              zIndex: 100, minWidth: '100%', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-              borderRadius: '16px', padding: '8px', boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
-              display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '280px', overflowY: 'auto'
-            }}
+            role="listbox"
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.16, ease: EASE }}
+            className={`absolute top-[calc(100%+6px)] z-[100] max-h-[280px] min-w-full overflow-y-auto rounded-[14px] border border-[var(--st-line-strong)] bg-[var(--bg-primary)] p-1.5 shadow-[0_18px_44px_-12px_rgba(0,0,0,0.35)] ${
+              align === 'left' ? 'left-0' : 'right-0'
+            }`}
           >
             {options.map((opt, idx) => {
-              const isSelected = value === opt.value;
+              const on = value === opt.value;
               return (
                 <button
+                  type="button"
+                  role="option"
+                  aria-selected={on}
                   key={`${opt.value}-${idx}`}
-                  onClick={() => { onChange(opt.value); setIsOpen(false); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px',
-                    backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'transparent',
-                    border: 'none', borderRadius: '12px', color: isSelected ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                    fontSize: '14px', fontWeight: isSelected ? 600 : 400, cursor: 'pointer', textAlign: 'left', width: '100%',
-                    transition: 'all 0.2s'
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(opt.value);
+                    setIsOpen(false);
                   }}
-                  onMouseEnter={e => !isSelected && (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)33')}
-                  onMouseLeave={e => !isSelected && (e.currentTarget.style.backgroundColor = 'transparent')}
+                  className={`flex w-full cursor-pointer items-center justify-between gap-6 whitespace-nowrap rounded-[9px] px-3 py-2 text-left text-[13px] transition-colors ${
+                    on ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'
+                  }`}
                 >
                   <span>{opt.label}</span>
-                  {isSelected && <Check size={16} strokeWidth={3} />}
+                  {on && <Check size={14} strokeWidth={2.4} className="text-[var(--mk-accent)]" />}
                 </button>
               );
             })}
@@ -232,14 +188,25 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
   );
 };
 
-export const RightInlineSelect = (props) => (
-  <PremiumDropdown {...props} align="right" styleContext="inline" />
-);
+export const RightInlineSelect = (props) => <PremiumDropdown {...props} align="right" styleContext="inline" />;
+
+const pill = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium';
 
 export const StatusBadge = ({ isValid, isActive }) => {
-  if (!isActive) return <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-tertiary)', padding: '4px 10px', background: 'var(--bg-tertiary)', borderRadius: '20px', letterSpacing: '0.04em' }}>INACTIVE</span>;
-  if (!isValid)  return <span style={{ fontSize: '10px', fontWeight: 700, color: '#f59e0b', padding: '4px 10px', background: 'rgba(245,158,11,0.1)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '5px', letterSpacing: '0.04em' }}><Info size={11} strokeWidth={3} /> INVALID</span>;
-  return <span style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', padding: '4px 10px', background: 'rgba(16,185,129,0.1)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '5px', letterSpacing: '0.04em' }}><Check size={11} strokeWidth={3} /> ACTIVE</span>;
+  if (!isActive) return <span className={`${pill} bg-[var(--st-fill-strong)] text-[var(--text-tertiary)]`}>Off</span>;
+  if (!isValid)
+    return (
+      <span className={`${pill} bg-amber-500/10 text-amber-600 dark:text-amber-400`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+        Invalid
+      </span>
+    );
+  return (
+    <span className={`${pill} bg-emerald-500/10 text-emerald-600 dark:text-emerald-400`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      Active
+    </span>
+  );
 };
 
 export const ValidationError = ({ message }) => {
@@ -247,96 +214,124 @@ export const ValidationError = ({ message }) => {
   const lines = message.split('\n');
   return (
     <motion.div
-      initial={{ opacity: 0, y: -10, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      style={{ padding: '16px 20px', borderRadius: '18px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', color: '#ef4444', fontSize: '13px', lineHeight: '1.6' }}
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-red-500/15 bg-red-500/[0.05] px-4 py-3 text-[12.5px] leading-[1.6] text-red-500"
     >
-      <div style={{ fontWeight: 700, marginBottom: lines.length > 1 ? '10px' : 0, display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        <Info size={14} strokeWidth={3} /> Validation Failure
+      <div className={`flex items-center gap-2 font-medium ${lines.length > 1 ? 'mb-1.5' : ''}`}>
+        <Info size={14} strokeWidth={2.2} /> {lines[0]}
       </div>
-      {lines.map((l, i) => <div key={i} style={{ paddingLeft: '22px', opacity: i === 0 ? 1 : 0.8, fontWeight: 500 }}>{l}</div>)}
+      {lines.slice(1).map((l, i) => (
+        <div key={i} className="pl-[22px] opacity-80">
+          {l}
+        </div>
+      ))}
     </motion.div>
   );
 };
 
-export const ContextButton = ({ children, onClick, danger, icon: Icon, borderBottom = true }) => (
+export const ContextButton = ({ children, onClick, danger, icon: Icon }) => (
   <button
+    type="button"
     onClick={onClick}
-    style={{
-      padding: '14px 20px', width: '100%', background: 'transparent',
-      border: 'none', borderBottom: borderBottom ? '1px solid var(--border-color)' : 'none',
-      color: danger ? '#ef4444' : 'var(--accent-primary)', fontSize: '13.5px', fontWeight: 500,
-      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-      letterSpacing: '-0.01em',
-    }}
-    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    className={`flex w-full cursor-pointer items-center gap-3.5 px-4 py-3.5 text-left text-[15.5px] sm:text-[14px] font-medium tracking-[-0.01em] transition-colors first:rounded-t-2xl last:rounded-b-2xl ${
+      danger ? 'text-red-500 hover:bg-red-500/[0.05]' : 'text-[var(--text-primary)] hover:bg-[var(--st-fill)]'
+    }`}
   >
-    {Icon && <Icon size={16} strokeWidth={2.5} />}
-    {children}
+    {Icon && <RowIcon icon={Icon} danger={danger} />}
+    <span className="flex-1">{children}</span>
+    <ChevronRight size={16} className={danger ? 'text-red-500/60' : 'text-[var(--text-tertiary)]'} />
   </button>
 );
 
+export const Button = ({ children, variant = 'primary', className = '', ...rest }) => {
+  const styles = {
+    primary: 'bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90',
+    secondary: 'border border-[var(--st-line-strong)] text-[var(--text-primary)] hover:bg-[var(--st-fill)]',
+    danger: 'bg-red-500 text-white hover:bg-red-600',
+    ghost: 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]',
+  };
+  return (
+    <button
+      type="button"
+      className={`inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-[opacity,background-color,color] disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+};
 
 export const DialogModal = ({ title, description, children, primaryAction, primaryLabel, primaryDanger, loading, onClose }) => (
-  <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', isolation: 'isolate' }}>
-    <motion.div 
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-      style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }} 
-      onClick={!loading ? onClose : undefined} 
+  <div className="fixed inset-0 z-[100010] flex items-center justify-center p-5 font-sans" style={{ isolation: 'isolate' }}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 bg-black/50 backdrop-blur-md"
+      onClick={!loading ? onClose : undefined}
     />
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-      animate={{ opacity: 1, scale: 1, y: 0 }} 
-      exit={{ opacity: 0, scale: 0.95, y: 20 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      style={{
-        background: 'var(--bg-primary)', 
-        borderRadius: '32px', 
-        width: '100%', 
-        maxWidth: '440px', 
-        padding: '40px', 
-        boxShadow: '0 30px 100px rgba(0,0,0,0.5)', 
-        border: '1px solid var(--border-color)',
-        position: 'relative',
-        zIndex: 1,
-        transform: 'translateZ(0)',
-      }}
+    <motion.div
+      role="dialog"
+      aria-modal="true"
+      initial={{ opacity: 0, scale: 0.97, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97, y: 12 }}
+      transition={{ duration: 0.25, ease: EASE }}
+      className="relative w-full max-w-[420px] rounded-[22px] border border-[var(--st-line-strong)] bg-[var(--bg-primary)] p-7 text-[var(--text-primary)] shadow-[0_40px_100px_-30px_rgba(0,0,0,0.6)]"
     >
-      <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px', letterSpacing: '-0.03em' }}>{title}</h2>
-      {description && <p style={{ fontSize: '15px', color: 'var(--text-tertiary)', marginBottom: '32px', lineHeight: 1.6, fontWeight: 500 }}>{description}</p>}
-      {children && <div style={{ marginBottom: '32px' }}>{children}</div>}
-      <div style={{ display: 'flex', gap: '10px' }}>
-        <button onClick={onClose} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'var(--bg-tertiary)', border: 'none', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>Cancel</button>
-        <button onClick={primaryAction} disabled={loading} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: primaryDanger ? '#ef4444' : 'var(--text-primary)', color: primaryDanger ? '#fff' : 'var(--bg-primary)', fontSize: '13px', fontWeight: 500, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>{loading ? 'Processing...' : primaryLabel}</button>
+      <h2 className="text-[20px] font-medium tracking-[-0.03em]">{title}</h2>
+      {description && <p className="mt-2 text-[13.5px] leading-[1.6] text-[var(--text-secondary)]">{description}</p>}
+      {children && <div className="mt-5">{children}</div>}
+      <div className="mt-6 flex gap-2">
+        <Button variant="secondary" onClick={onClose} disabled={loading} className="flex-1">
+          Cancel
+        </Button>
+        <Button variant={primaryDanger ? 'danger' : 'primary'} onClick={primaryAction} disabled={loading} className="flex-1">
+          {loading ? 'Working…' : primaryLabel}
+        </Button>
       </div>
     </motion.div>
   </div>
 );
 
 export const useSettingsSync = () => {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const timeoutRef = useRef(null);
 
   const syncSettings = (categoryOrObject, newValues, topLevel = {}) => {
     if (!user) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    
+
     timeoutRef.current = setTimeout(async () => {
       try {
-        let payload = { ...topLevel };
-        
-        if (typeof categoryOrObject === 'string') {
-          payload.settings = { [categoryOrObject]: newValues };
-        } else {
-          payload.settings = categoryOrObject;
-        }
-
+        const payload = { ...topLevel };
+        if (typeof categoryOrObject === 'string') payload.settings = { [categoryOrObject]: newValues };
+        else payload.settings = categoryOrObject;
         await API.put('/api/user/settings', payload);
-      } catch (err) { console.error('Settings sync failed:', err); }
+      } catch (err) {
+        console.error('Settings sync failed:', err);
+      }
     }, 400);
   };
 
   return syncSettings;
 };
+
+export function Avatar({ user, size = 40, className = '' }) {
+  const [imgError, setImgError] = useState(false);
+  const name = user?.name || '';
+  const initials = name ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : '?';
+  return (
+    <span
+      className={`grid shrink-0 select-none place-items-center overflow-hidden bg-[var(--text-primary)] font-medium tracking-[-0.02em] text-[var(--bg-primary)] ${className}`}
+      style={{ width: size, height: size, borderRadius: size * 0.32, fontSize: size * 0.38 }}
+    >
+      {user?.avatar && !user.isGuest && !imgError ? (
+        <img src={user.avatar} alt="" className="h-full w-full object-cover" onError={() => setImgError(true)} />
+      ) : (
+        initials
+      )}
+    </span>
+  );
+}

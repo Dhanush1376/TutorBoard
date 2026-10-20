@@ -1,0 +1,332 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Min-Heap Insertion: Inserting 3",
+  "domain": "data-structures",
+  "summary": "Inserting an element into a min-heap places it at the end of the complete binary tree and sifts it up until the heap property is restored.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "heap",
+    "label": "Min-Heap Tree",
+    "type": "tree",
+    "nodes": [
+     {
+      "id": "n0",
+      "value": 5
+     },
+     {
+      "id": "n1",
+      "value": 9,
+      "parent": "n0"
+     },
+     {
+      "id": "n2",
+      "value": 7,
+      "parent": "n0"
+     },
+     {
+      "id": "n3",
+      "value": 12,
+      "parent": "n1"
+     },
+     {
+      "id": "n4",
+      "value": 10,
+      "parent": "n1"
+     },
+     {
+      "id": "n5",
+      "value": 3,
+      "parent": "n2"
+     }
+    ]
+   },
+   {
+    "id": "arr",
+    "label": "Array View",
+    "type": "array",
+    "values": [
+     5,
+     9,
+     7,
+     12,
+     10
+    ],
+    "indices": true
+   },
+   {
+    "id": "msg",
+    "type": "text",
+    "text": "Initial min-heap satisfies parent ≤ children.",
+    "role": "caption"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "heap",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "arr",
+    "of": "heap",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "msg",
+    "of": "arr",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Initial Min-Heap State",
+    "narration": "In a min-heap, every parent node is smaller than or equal to its children. The array holds the tree level by level.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "heap"
+     },
+     {
+      "do": "create",
+      "target": [
+       "heap.n0",
+       "heap.n1",
+       "heap.n2",
+       "heap.n3",
+       "heap.n4",
+       "arr",
+       "msg"
+      ],
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 1: Append 3 to the end",
+    "narration": "Insert 3 into the next open position at the bottom of the tree (index 5) as the left child of 7.",
+    "actions": [
+     {
+      "do": "push",
+      "target": "arr",
+      "value": 3
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "heap.n5",
+      "effect": "drop"
+     },
+     {
+      "do": "set",
+      "target": "msg",
+      "text": "Appended 3 at index 5 (child of 7)."
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "arr[5]"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Step 2: Sift-up — Compare 3 with parent 7",
+    "narration": "Compare 3 with its parent 7. Since 3 < 7, the min-heap property is violated, so swap 3 and 7.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "heap.n2",
+       "arr[5]",
+       "arr[2]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "msg",
+      "text": "3 < 7 → Swap with parent"
+     },
+     {
+      "with": "previous",
+      "do": "exchange",
+      "a": "heap.n5",
+      "b": "heap.n2"
+     },
+     {
+      "with": "previous",
+      "do": "swap",
+      "target": "arr",
+      "i": 2,
+      "j": 5
+     },
+     {
+      "do": "clear",
+      "target": [
+       "heap.n2",
+       "arr[2]"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "arr[5]"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "slow"
+   },
+   {
+    "title": "Step 3: Sift-up — Compare 3 with parent 5",
+    "narration": "Now compare 3 with its new parent, 5 at the root. Since 3 < 5, swap 3 and 5.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "heap.n0",
+       "arr[2]",
+       "arr[0]"
+      ],
+      "state": "comparing",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "msg",
+      "text": "3 < 5 → Swap with root"
+     },
+     {
+      "with": "previous",
+      "do": "exchange",
+      "a": "heap.n5",
+      "b": "heap.n0"
+     },
+     {
+      "with": "previous",
+      "do": "swap",
+      "target": "arr",
+      "i": 0,
+      "j": 2
+     },
+     {
+      "do": "clear",
+      "target": [
+       "heap.n0",
+       "arr[0]"
+      ]
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "arr[2]"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "slow"
+   },
+   {
+    "title": "Insertion Complete",
+    "narration": "3 reaches the root with no parents remaining. The min-heap property is restored across the entire tree.",
+    "actions": [
+     {
+      "do": "clear"
+     },
+     {
+      "do": "set",
+      "target": "msg",
+      "text": "Min-heap property restored!"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "heap.n5",
+       "arr[0]"
+      ],
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "do": "annotate",
+      "target": "heap.n5",
+      "text": "New Minimum",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "\"heap\" was used before being created — added a create"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "beats[1].actions[1].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[1].actions[3].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[2].actions[0].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[2].actions[2].a",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[2].actions[5].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[3].actions[0].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[3].actions[2].a",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[3].actions[5].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[4].actions[2].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   },
+   {
+    "path": "beats[4].actions[3].target",
+    "message": "\"heap\" has no part \"n5\" (available: \"n0\", \"n1\", \"n2\", \"n3\", \"n4\")"
+   }
+  ]
+ ],
+ "ms": 16313,
+ "model": "gemini-3.6-flash",
+ "domain": "data-structures"
+}

@@ -1,281 +1,141 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import VisaiLogo from '../layout/VisaiLogo';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import BrandDraw from '../layout/BrandDraw';
 
+const EASE = [0.22, 1, 0.36, 1];
+const HOLD = 3000; // ms on screen before leaving
+const LEAVE = 450; // ms exit
+
+/**
+ * Shown once, right after sign-in or sign-up, while the workspace loads.
+ * Two text groups sit on a diagonal (greeting top-left, progress bottom-right)
+ * with the TutorBoard mark drawing itself between them.
+ */
 const CinematicTransition = ({ userName, isLogin, onComplete }) => {
-  const [phase, setPhase] = useState('focus'); // focus -> welcome -> ascension
-  const displayName = userName || 'Explorer';
-  const greeting = isLogin ? `Welcome back, ${displayName}` : `Welcome, ${displayName}`;
+  const reduce = useReducedMotion();
+  const [leaving, setLeaving] = useState(false);
+  const [pct, setPct] = useState(0);
+  const done = useRef(false);
 
-  const particles = React.useMemo(() => {
-    return Array.from({ length: 15 }).map(() => ({
-      x: Math.random() * 100 + '%',
-      y: Math.random() * 100 + '%',
-      duration: Math.random() * 5 + 5,
-      delay: Math.random() * 5
-    }));
-  }, []);
+  // First name only; email-style names ("alex.morgan42") become "Alex".
+  const first = String(userName || '').trim().split(/[\s._\-+@]+/)[0].replace(/\d+$/, '') || 'Explorer';
+  const name = first.charAt(0).toUpperCase() + first.slice(1);
+
+  const finish = useCallback(() => {
+    if (done.current) return;
+    done.current = true;
+    setLeaving(true);
+    setTimeout(() => onComplete?.(), LEAVE);
+  }, [onComplete]);
 
   useEffect(() => {
-    // Phase 1: Focus (Logo & Background Initialization)
-    const t1 = setTimeout(() => setPhase('welcome'), 1200);
-    // Phase 2: Welcome (Typewriter & Greeting)
-    const t2 = setTimeout(() => setPhase('ascension'), 3800);
-    // Phase 3: Ascension (Final Fade & Callback)
-    const t3 = setTimeout(() => {
-      if (onComplete) onComplete();
-    }, 4800);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / HOLD);
+      setPct(Math.round((1 - Math.pow(1 - t, 2.2)) * 100));
+      if (t < 1) raf = requestAnimationFrame(tick);
     };
-  }, []); // Empty dependency array to prevent timer reset on parent re-renders
+    raf = requestAnimationFrame(tick);
+    const timer = setTimeout(finish, HOLD);
+    const onKey = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') finish();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [finish]);
+
+  const rise = (delay) => ({
+    initial: reduce ? false : { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.8, ease: EASE, delay },
+  });
 
   return (
-    <div 
-      className="fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center font-sans transition-colors duration-700 select-none"
-      style={{ background: 'var(--bg-primary)' }}
+    <motion.div
+      role="status"
+      aria-live="polite"
+      className="fixed inset-0 z-[99999] select-none overflow-hidden bg-[var(--bg-primary)] font-sans text-[var(--text-primary)]"
+      initial={{ opacity: 0 }}
+      animate={leaving ? { opacity: 0, scale: 1.015 } : { opacity: 1, scale: 1 }}
+      transition={{ duration: leaving ? LEAVE / 1000 : 0.5, ease: EASE }}
     >
-      {/* CINEMATIC OVERLAYS */}
-      <div className="absolute inset-0 z-[10] pointer-events-none opacity-[0.03] mix-blend-overlay">
-        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-          <filter id="noiseFilter">
-            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
-          </filter>
-          <rect width="100%" height="100%" filter="url(#noiseFilter)" />
-        </svg>
-      </div>
+      {/* Canvas: a dot grid that fades out toward the edges. */}
+      <div
+        aria-hidden="true"
+        className="mk-dots absolute inset-0 opacity-70"
+        style={{
+          maskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, #000 0%, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, #000 0%, transparent 75%)',
+        }}
+      />
 
-      {/* Skip Button */}
-      <motion.button
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 0.6, y: 0 }}
-        whileHover={{ opacity: 1, scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => onComplete?.()}
-        className="absolute top-10 right-10 z-[100] px-6 py-2.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-xl text-[10px] font-normal uppercase tracking-[0.2em] text-white transition-all shadow-lg flex items-center gap-2 group"
-      >
-        <span>Skip Introduction</span>
-        <motion.div animate={{ x: [0, 4, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </motion.div>
-      </motion.button>
-      
-      {/* STEP 1: LIVING BACKGROUND (Branded Atmosphere) */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            x: [0, 80, 0],
-            y: [0, -50, 0],
-            rotate: [0, 45, 0]
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-1/4 -left-1/4 w-[120vw] h-[120vw] rounded-full"
-          style={{
-            background: 'radial-gradient(circle, var(--text-tertiary) 0%, transparent 60%)',
-            filter: 'blur(160px)',
-            opacity: 0.15
-          }}
-        />
-        <motion.div
-          animate={{
-            scale: [1, 1.3, 1],
-            x: [0, -100, 0],
-            y: [0, 80, 0],
-            rotate: [0, -30, 0]
-          }}
-          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-          className="absolute -bottom-1/4 -right-1/4 w-[110vw] h-[110vw] rounded-full"
-          style={{
-            background: 'radial-gradient(circle, var(--text-primary) 0%, transparent 60%)',
-            filter: 'blur(180px)',
-            opacity: 0.1
-          }}
-        />
-        
-        {/* Particle Overlay */}
-        <div className="absolute inset-0 z-0 overflow-hidden">
-          {particles.map((p, i) => (
-            <motion.div
-              key={i}
-              initial={{ 
-                x: p.x, 
-                y: p.y,
-                opacity: 0 
-              }}
-              animate={{ 
-                y: [null, '-=10%'],
-                opacity: [0, 0.4, 0]
-              }}
-              transition={{ 
-                duration: p.duration, 
-                repeat: Infinity, 
-                delay: p.delay 
-              }}
-              className="absolute w-1 h-1 bg-white rounded-full blur-[1px]"
+      {/* The mark, drawing itself, with one ripple when the amber point lands. */}
+      <div className="absolute inset-0 grid place-items-center">
+        <div className="relative grid place-items-center">
+          {!reduce && (
+            <motion.span
+              aria-hidden="true"
+              className="absolute rounded-[34%] border border-[var(--mk-line-strong)]"
+              style={{ width: 'clamp(112px, 15vw, 172px)', height: 'clamp(112px, 15vw, 172px)' }}
+              initial={{ opacity: 0, scale: 1 }}
+              animate={{ opacity: [0, 0.9, 0], scale: [1, 1.9, 2.4] }}
+              transition={{ duration: 1.6, ease: 'easeOut', delay: 1.2 }}
             />
-          ))}
+          )}
+          <motion.div
+            animate={leaving ? { scale: 0.92, opacity: 0 } : { scale: 1, opacity: 1 }}
+            transition={{ duration: LEAVE / 1000, ease: EASE }}
+            className="[&_svg]:h-[clamp(112px,15vw,172px)] [&_svg]:w-[clamp(112px,15vw,172px)]"
+          >
+            <BrandDraw size={172} delay={0.15} />
+          </motion.div>
         </div>
-
-        <div className="absolute inset-0 bg-[var(--bg-primary)]/50 backdrop-blur-[40px]" />
       </div>
 
-      {/* STEP 2: LOGO & CORE LIGHT */}
-      <AnimatePresence mode="wait">
-        {phase === 'focus' && (
-          <motion.div
-            key="logo-phase"
-            initial={{ opacity: 0, scale: 0.8, filter: 'blur(30px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, scale: 1.2, filter: 'blur(40px)' }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 flex flex-col items-center gap-12"
-          >
-            <div className="relative">
-               <motion.div 
-                 animate={{ 
-                   scale: [1, 1.5, 1], 
-                   opacity: [0.1, 0.25, 0.1],
-                   rotate: 360
-                 }}
-                 transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                 className="absolute inset-[-60px] bg-gradient-to-tr from-[var(--text-primary)] to-transparent blur-[100px] rounded-full"
-               />
-               <VisaiLogo size="xl" className="relative z-10 text-[var(--text-primary)]" />
-            </div>
-            <div className="flex flex-col items-center gap-4">
-              <motion.p 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 0.5, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="text-[10px] font-normal uppercase tracking-[0.8em] text-[var(--text-primary)] translate-x-[0.4em]"
-              >
-                TutorBoard
-              </motion.p>
-              <div className="h-[1px] w-8 bg-[var(--text-primary)] opacity-20" />
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.3 }}
-                transition={{ delay: 0.8 }}
-                className="text-[9px] font-normal uppercase tracking-[0.3em] text-[var(--text-secondary)] italic"
-              >
-                Orchestrating Knowledge
-              </motion.p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* STEP 3: WELCOME SEQUENCE */}
-        {(phase === 'welcome' || phase === 'ascension') && (
-          <motion.div
-            key="welcome-phase"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.98, filter: 'blur(30px)' }}
-            className="relative z-20 text-center px-12"
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="mb-6 flex justify-center"
-            >
-              <div className="px-4 py-1 rounded-full border border-white/5 bg-white/5 backdrop-blur-sm text-[9px] font-normal uppercase tracking-[0.4em] text-[var(--text-tertiary)] opacity-60">
-                Connection Established
-              </div>
-            </motion.div>
-
-            <motion.h1
-              className="text-[42px] md:text-[72px] font-serif text-[var(--text-primary)] tracking-tight mb-10 leading-[1.1] italic font-light"
-              initial={{ opacity: 0, y: 40, filter: 'blur(20px)', scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)', scale: 1 }}
-              transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1] }}
-            >
-              {greeting}
-            </motion.h1>
-            
-            <div className="relative h-[2px] w-64 mx-auto mb-10">
-              <motion.div
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 3, delay: 0.5, ease: "circOut" }}
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-[var(--text-primary)] to-transparent opacity-30"
-              />
-              <motion.div
-                animate={{ 
-                  left: ['-10%', '110%'],
-                  opacity: [0, 1, 0]
-                }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-0 w-12 h-full bg-white blur-sm"
-              />
-            </div>
-            
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.5, duration: 1.2 }}
-              className="flex flex-col items-center gap-6"
-            >
-              <div className="flex items-center gap-3">
-                 <motion.div 
-                   animate={{ rotate: 360 }}
-                   transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                   className="w-1.5 h-1.5 rounded-full border border-[var(--text-primary)] border-t-transparent"
-                 />
-                 <p className="text-[11px] font-normal uppercase tracking-[0.6em] text-[var(--text-secondary)] opacity-50">
-                   Preparing your personal canvas
-                 </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* STEP 4: FINAL ASCENSION FLASH */}
-      <AnimatePresence>
-        {phase === 'ascension' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1, ease: "easeInOut" }}
-            className="absolute inset-0 z-[1000] pointer-events-none backdrop-blur-3xl"
-            style={{ background: 'var(--bg-primary)' }}
-          >
-            <motion.div 
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1.5, opacity: 1 }}
-              transition={{ duration: 0.8 }}
-              className="absolute inset-0 bg-[var(--text-primary)] opacity-5 rounded-full blur-[100px]"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="absolute bottom-12 left-0 right-0 text-center pointer-events-none">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.2 }}
-          transition={{ delay: 1 }}
-          className="flex flex-col items-center gap-2"
-        >
-          <span className="text-[9px] font-normal uppercase tracking-[1em] text-[var(--text-primary)] translate-x-[0.5em]">
-            TutorBoard Engine v4.2
-          </span>
-          <div className="flex gap-4 items-center">
-            <div className="w-1 h-1 rounded-full bg-[var(--text-primary)] opacity-30" />
-            <div className="w-1 h-1 rounded-full bg-[var(--text-primary)] opacity-30" />
-            <div className="w-1 h-1 rounded-full bg-[var(--text-primary)] opacity-30" />
-          </div>
+      {/* Top-left: who and where. */}
+      <div className="absolute left-6 right-6 top-[max(env(safe-area-inset-top),28px)] sm:left-12 sm:top-12 lg:left-16 lg:top-16">
+        <motion.div {...rise(0.55)} className="flex items-center gap-2 text-[12px] font-medium text-[var(--text-tertiary)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--mk-accent)]" />
+          {isLogin ? 'Signed in' : 'Account created'}
         </motion.div>
+        <motion.h1
+          {...rise(0.7)}
+          className="mt-4 max-w-[14ch] text-[clamp(2.1rem,5vw,4.2rem)] font-[450] leading-[1.02] tracking-[-0.045em]"
+        >
+          {isLogin ? 'Welcome back,' : 'Welcome,'}
+          <span className="block truncate text-[var(--text-tertiary)]">{name}.</span>
+        </motion.h1>
       </div>
 
-    </div>
+      {/* Bottom-right: what is happening, and a way out. */}
+      <motion.div
+        {...rise(0.9)}
+        className="absolute bottom-[max(env(safe-area-inset-bottom),28px)] right-6 w-[min(300px,calc(100vw-48px))] sm:bottom-12 sm:right-12 lg:bottom-16 lg:right-16"
+      >
+        <div className="flex items-baseline justify-between text-[12px] font-medium text-[var(--text-tertiary)]">
+          <span>Preparing your canvas</span>
+          <span className="tabular-nums text-[var(--text-primary)]">{String(pct).padStart(2, '0')}%</span>
+        </div>
+        <div className="mt-3 h-px w-full overflow-hidden bg-[var(--mk-line-strong)]">
+          <div className="h-full origin-left bg-[var(--mk-accent)]" style={{ transform: `scaleX(${pct / 100})` }} />
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={finish}
+            className="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-[var(--mk-line-strong)] px-4 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--mk-ink-soft)] hover:text-[var(--text-primary)]"
+          >
+            Skip
+            <kbd className="hidden font-mono sm:inline text-[10px] text-[var(--text-tertiary)]">Esc</kbd>
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 };
 

@@ -1,0 +1,347 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Visual Proof of the Pythagorean Theorem",
+  "domain": "geometry",
+  "summary": "A right triangle with squares on each side shows that the hypotenuse square area equals the sum of the leg squares.",
+  "spaces": [
+   {
+    "id": "geom",
+    "kind": "cartesian",
+    "x": [
+     -5,
+     10
+    ],
+    "y": [
+     -5,
+     10
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "A",
+    "label": "A",
+    "space": "geom",
+    "type": "point",
+    "at": [
+     0,
+     0
+    ]
+   },
+   {
+    "id": "B",
+    "label": "B",
+    "space": "geom",
+    "type": "point",
+    "at": [
+     4,
+     0
+    ]
+   },
+   {
+    "id": "C",
+    "label": "C",
+    "space": "geom",
+    "type": "point",
+    "at": [
+     0,
+     3
+    ]
+   },
+   {
+    "id": "tri",
+    "label": "Right triangle",
+    "space": "geom",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      4,
+      0
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "vertexLabels": [
+     "A",
+     "B",
+     "C"
+    ],
+    "fill": true
+   },
+   {
+    "id": "right",
+    "space": "geom",
+    "type": "angle",
+    "vertex": "A",
+    "from": "B",
+    "to": "C",
+    "showValue": true,
+    "degrees": 90
+   },
+   {
+    "id": "sqAB",
+    "label": "Square on a",
+    "space": "geom",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      4,
+      0
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      0,
+      4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sqAC",
+    "label": "Square on b",
+    "space": "geom",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      3,
+      0
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "sqBC",
+    "label": "Square on c",
+    "space": "geom",
+    "type": "polygon",
+    "points": [
+     [
+      4,
+      0
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      -3,
+      -1
+     ],
+     [
+      1,
+      -4
+     ]
+    ],
+    "fill": true
+   },
+   {
+    "id": "eq",
+    "tone": "info",
+    "type": "math",
+    "latex": "a^{2}+b^{2}=c^{2}"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "geom",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "eq",
+    "region": "top-right"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Draw triangle and squares",
+    "narration": "We draw a 3‑4‑5 right triangle and construct a square on each side.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "A",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "B",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "C",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "tri",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "right",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "sqAB",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "sqAC",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "sqBC",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Label the areas",
+    "narration": "The squares have areas a², b² and c² respectively.",
+    "actions": [
+     {
+      "do": "annotate",
+      "target": "sqAB",
+      "text": "a²",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "sqAC",
+      "text": "b²",
+      "side": "above"
+     },
+     {
+      "do": "annotate",
+      "target": "sqBC",
+      "text": "c²",
+      "side": "above"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Predict the relationship",
+    "narration": "What relationship do you expect between the three areas?",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "sqAB",
+       "sqAC",
+       "sqBC"
+      ],
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "What is the relationship between the areas of the three squares?",
+     "choices": [
+      "c² = a² + b²",
+      "c² > a² + b²",
+      "c² < a² + b²"
+     ],
+     "answer": 0,
+     "explain": "The Pythagorean theorem states exactly that the hypotenuse square equals the sum of the leg squares."
+    }
+   },
+   {
+    "title": "Show the equality",
+    "narration": "Indeed, the area of the hypotenuse square equals the sum of the other two squares.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     },
+     {
+      "do": "highlight",
+      "target": "eq",
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "sqAB",
+       "sqAC",
+       "sqBC"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "Thus a² + b² = c², proved visually by the three squares on a right triangle.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "eq",
+      "state": "sorted",
+      "hold": true
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "sqAB",
+       "sqAC",
+       "sqBC"
+      ],
+      "state": "sorted",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 11659,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Visual Proof of the Pythagorean Theorem\",\"domain\":\"geometry\",\"summary\":\"A right triangle with squares on each side shows that the hypotenuse square area equals the sum of the leg squares.\",\"spaces\":[{\"id\":\"geom\",\"kind\":\"cartesian\",\"x\":[-5,10],\"y\":[-5,10],\"axes\":false,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"A\",\"type\":\"point\",\"space\":\"geom\",\"at\":[0,0],\"label\":\"A\"},{\"id\":\"B\",\"type\":\"point\",\"space\":\"geom\",\"at\":[4,0],\"label\":\"B\"},{\"id\":\"C\",\"type\":\"point\",\"space\":\"geom\",\"at\":[0,3],\"label\":\"C\"},{\"id\":\"tri\",\"type\":\"polygon\",\"space\":\"geom\",\"points\":[\"A\",\"B\",\"C\"],\"vertexLabels\":[\"A\",\"B\",\"C\"],\"label\":\"Right triangle\"},{\"id\":\"right\",\"type\":\"angle\",\"space\":\"geom\",\"vertex\":\"A\",\"from\":\"B\",\"to\":\"C\",\"degrees\":90},{\"id\":\"sqAB\",\"type\":\"polygon\",\"space\":\"geom\",\"points\":[[0,0],[4,0],[4,4],[0,4]],\"label\":\"Square on a\"},{\"id\":\"sqAC\",\"type\":\"polygon\",\"space\":\"geom\",\"points\":[[0,0],[0,3],[3,3],[3,0]],\"label\":\"Square on b\"},{\"id\":\"sqBC\",\"type\":\"polygon\",\"space\":\"geom\",\"points\":[[4,0],[0,3],[-3,-1],[1,-4]],\"label\":\"Square on c\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"a^{2}+b^{2}=c^{2}\",\"tone\":\"info\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"geom\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"eq\",\"region\":\"top-right\"}],\"beats\":[{\"title\":\"Draw triangle and squares\",\"narration\":\"We draw a 3‑4‑5 right triangle and construct a square on each side.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"A\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"B\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"C\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"tri\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"right\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"sqAB\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"sqAC\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"sqBC\",\"effect\":\"draw\"}]},{\"title\":\"Label the areas\",\"narration\":\"The squares have areas a², b² and c² respectively.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"annotate\",\"target\":\"sqAB\",\"text\":\"a²\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"sqAC\",\"text\":\"b²\",\"side\":\"above\"},{\"do\":\"annotate\",\"target\":\"sqBC\",\"text\":\"c²\",\"side\":\"above\"}]},{\"title\":\"Predict the relationship\",\"narration\":\"What relationship do you expect between the three areas?\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"sqAB\",\"sqAC\",\"sqBC\"],\"state\":\"insight\"}],\"check\":{\"question\":\"What is the relationship between the areas of the three squares?\",\"choices\":[\"c² = a² + b²\",\"c² > a² + b²\",\"c² < a² + b²\"],\"answer\":0,\"explain\":\"The Pythagorean theorem states exactly that the hypotenuse square equals the sum of the leg squares.\"}},{\"title\":\"Show the equality\",\"narration\":\"Indeed, the area of the hypotenuse square equals the sum of the other two squares.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"type\"},{\"do\":\"highlight\",\"target\":\"eq\",\"state\":\"found\"},{\"do\":\"highlight\",\"target\":[\"sqAB\",\"sqAC\",\"sqBC\"],\"state\":\"found\"}]},{\"title\":\"Recap\",\"narration\":\"Thus a² + b² = c², proved visually by the three squares on a right triangle.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"eq\",\"state\":\"sorted\"},{\"do\":\"highlight\",\"target\":[\"sqAB\",\"sqAC\",\"sqBC\"],\"state\":\"sorted\"}]}]}"
+}

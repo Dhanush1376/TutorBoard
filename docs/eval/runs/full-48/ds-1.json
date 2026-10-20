@@ -1,0 +1,163 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Stack vs Queue",
+  "domain": "data-structures",
+  "summary": "A stack removes the newest item (LIFO) while a queue removes the oldest (FIFO).",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "st",
+    "label": "Stack (LIFO)",
+    "type": "stack",
+    "values": []
+   },
+   {
+    "id": "qu",
+    "label": "Queue (FIFO)",
+    "type": "queue",
+    "values": []
+   }
+  ],
+  "layout": [
+   {
+    "rel": "row",
+    "ids": [
+     "st",
+     "qu"
+    ],
+    "gap": "xl"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Stack and Queue",
+    "narration": "A stack adds and removes at the same end (LIFO); a queue adds at the rear and removes from the front (FIFO).",
+    "actions": [
+     {
+      "do": "create",
+      "target": "st",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "qu",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Push onto Stack",
+    "narration": "Push items A, B, C onto the stack; the newest item sits on top.",
+    "actions": [
+     {
+      "do": "push",
+      "target": "st",
+      "value": "A"
+     },
+     {
+      "do": "push",
+      "target": "st",
+      "value": "B"
+     },
+     {
+      "do": "push",
+      "target": "st",
+      "value": "C"
+     },
+     {
+      "do": "highlight",
+      "target": "st[2]",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Enqueue into Queue",
+    "narration": "Enqueue the same items; they line up with the first item at the front.",
+    "actions": [
+     {
+      "do": "enqueue",
+      "target": "qu",
+      "value": "A"
+     },
+     {
+      "do": "enqueue",
+      "target": "qu",
+      "value": "B"
+     },
+     {
+      "do": "enqueue",
+      "target": "qu",
+      "value": "C"
+     },
+     {
+      "do": "highlight",
+      "target": "qu[0]",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Pop from Stack",
+    "narration": "Pop removes the most recent item, C, from the top of the stack.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "st[2]",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "pop",
+      "target": "st"
+     },
+     {
+      "do": "annotate",
+      "target": "st",
+      "text": "pop → C",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Dequeue from Queue",
+    "narration": "Dequeue removes the oldest item, A, from the front of the queue.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": "qu[0]",
+      "state": "active",
+      "hold": true
+     },
+     {
+      "do": "dequeue",
+      "target": "qu"
+     },
+     {
+      "do": "annotate",
+      "target": "qu",
+      "text": "dequeue → A",
+      "side": "left"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 50226,
+ "model": "gemini-3.6-flash",
+ "domain": "data-structures",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Stack vs Queue\",\"domain\":\"data-structures\",\"summary\":\"A stack removes the newest item (LIFO) while a queue removes the oldest (FIFO).\",\"spaces\":[],\"entities\":[{\"id\":\"st\",\"type\":\"stack\",\"values\":[],\"label\":\"Stack (LIFO)\"},{\"id\":\"qu\",\"type\":\"queue\",\"values\":[],\"label\":\"Queue (FIFO)\"}],\"layout\":[{\"rel\":\"row\",\"ids\":[\"st\",\"qu\"],\"gap\":\"xl\"}],\"beats\":[{\"title\":\"Stack and Queue\",\"narration\":\"A stack adds and removes at the same end (LIFO); a queue adds at the rear and removes from the front (FIFO).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"st\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"qu\",\"effect\":\"draw\"}]},{\"title\":\"Push onto Stack\",\"narration\":\"Push items A, B, C onto the stack; the newest item sits on top.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"push\",\"target\":\"st\",\"value\":\"A\"},{\"do\":\"push\",\"target\":\"st\",\"value\":\"B\"},{\"do\":\"push\",\"target\":\"st\",\"value\":\"C\"},{\"do\":\"highlight\",\"target\":\"st[2]\",\"state\":\"active\"}]},{\"title\":\"Enqueue into Queue\",\"narration\":\"Enqueue the same items; they line up with the first item at the front.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"enqueue\",\"target\":\"qu\",\"value\":\"A\"},{\"do\":\"enqueue\",\"target\":\"qu\",\"value\":\"B\"},{\"do\":\"enqueue\",\"target\":\"qu\",\"value\":\"C\"},{\"do\":\"highlight\",\"target\":\"qu[0]\",\"state\":\"active\"}]},{\"title\":\"Pop from Stack\",\"narration\":\"Pop removes the most recent item, C, from the top of the stack.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"st[2]\",\"state\":\"active\"},{\"do\":\"pop\",\"target\":\"st\"},{\"do\":\"annotate\",\"target\":\"st\",\"text\":\"pop → C\",\"side\":\"right\"}]},{\"title\":\"Dequeue from Queue\",\"narration\":\"Dequeue removes the oldest item, A, from the front of the queue.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"highlight\",\"target\":\"qu[0]\",\"state\":\"active\"},{\"do\":\"dequeue\",\"target\":\"qu\"},{\"do\":\"annotate\",\"target\":\"qu\",\"text\":\"dequeue → A\",\"side\":\"left\"}]}]}"
+}

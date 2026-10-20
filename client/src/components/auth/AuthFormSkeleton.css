@@ -1,0 +1,42 @@
+/* ─── Ultra-Detailed Auth Form Skeleton Shimmer ─── */
+@keyframes auth-skeleton-wave {
+  0% {
+    transform: translateX(-150%);
+  }
+  100% {
+    transform: translateX(150%);
+  }
+}
+
+.auth-skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-150%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.12) 40%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.12) 60%,
+    transparent 100%
+  );
+  animation: auth-skeleton-wave 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+:not(.dark) .auth-skeleton-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.035) 40%,
+    rgba(0, 0, 0, 0.075) 50%,
+    rgba(0, 0, 0, 0.035) 60%,
+    transparent 100%
+  );
+}

@@ -1,0 +1,263 @@
+{
+ "version": "1",
+ "title": "How Bubble Sort works on [5, 1, 4, 2, 8]",
+ "domain": "algorithms",
+ "summary": "Neighbours are compared and swapped until the largest values bubble to the end.",
+ "entities": [
+  {
+   "id": "arr",
+   "type": "array",
+   "values": [
+    5,
+    1,
+    4,
+    2,
+    8
+   ],
+   "label": "input"
+  },
+  {
+   "id": "cmp",
+   "type": "text",
+   "text": "",
+   "role": "caption"
+  },
+  {
+   "id": "pass",
+   "type": "text",
+   "text": "Pass 1",
+   "role": "label"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "arr",
+   "region": "center"
+  },
+  {
+   "rel": "above",
+   "id": "cmp",
+   "of": "arr"
+  },
+  {
+   "rel": "below",
+   "id": "pass",
+   "of": "arr"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Initial array",
+   "narration": "Bubble Sort walks through the list, comparing neighbours and swapping them when they are in the wrong order.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "arr",
+     "effect": "pop"
+    },
+    {
+     "do": "create",
+     "target": "pass",
+     "effect": "fade",
+     "with": "previous"
+    }
+   ]
+  },
+  {
+   "title": "Pass 1: compare 5 and 1",
+   "narration": "5 is bigger than 1, so the two swap places.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "cmp"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[0]",
+      "arr[1]"
+     ],
+     "state": "comparing",
+     "with": "previous"
+    },
+    {
+     "do": "set",
+     "target": "cmp",
+     "text": "5 > 1",
+     "with": "previous"
+    },
+    {
+     "do": "swap",
+     "target": "arr",
+     "i": 0,
+     "j": 1
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[0]",
+      "arr[1]"
+     ]
+    }
+   ],
+   "check": {
+    "question": "5 has swapped with 1. What does 5 do next?",
+    "choices": [
+     "Keeps moving right while its neighbour is smaller",
+     "Moves back to the left",
+     "Stays where it is"
+    ],
+    "answer": 0,
+    "explain": "Each pass swaps 5 with a smaller right-hand neighbour, so it bubbles right until it meets 8."
+   }
+  },
+  {
+   "title": "Pass 1: 5 bubbles to the right",
+   "narration": "5 beats 4 and then 2, swapping each time. 5 is smaller than 8, so it stops — and 8 is now in its final place.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "arr[1]",
+      "arr[2]"
+     ],
+     "state": "comparing"
+    },
+    {
+     "do": "set",
+     "target": "cmp",
+     "text": "5 > 4",
+     "with": "previous"
+    },
+    {
+     "do": "swap",
+     "target": "arr",
+     "i": 1,
+     "j": 2
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[1]",
+      "arr[2]"
+     ]
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[2]",
+      "arr[3]"
+     ],
+     "state": "comparing"
+    },
+    {
+     "do": "set",
+     "target": "cmp",
+     "text": "5 > 2",
+     "with": "previous"
+    },
+    {
+     "do": "swap",
+     "target": "arr",
+     "i": 2,
+     "j": 3
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[2]",
+      "arr[3]"
+     ]
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[3]",
+      "arr[4]"
+     ],
+     "state": "comparing"
+    },
+    {
+     "do": "set",
+     "target": "cmp",
+     "text": "5 < 8",
+     "with": "previous"
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[3]",
+      "arr[4]"
+     ]
+    },
+    {
+     "do": "highlight",
+     "target": "arr[4]",
+     "state": "sorted"
+    }
+   ]
+  },
+  {
+   "title": "Passes 2 and 3",
+   "narration": "Pass 2 swaps 4 and 2. Pass 3 finds nothing out of order, so the array is sorted.",
+   "actions": [
+    {
+     "do": "set",
+     "target": "pass",
+     "text": "Pass 2"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[1]",
+      "arr[2]"
+     ],
+     "state": "comparing",
+     "with": "previous"
+    },
+    {
+     "do": "set",
+     "target": "cmp",
+     "text": "4 > 2",
+     "with": "previous"
+    },
+    {
+     "do": "swap",
+     "target": "arr",
+     "i": 1,
+     "j": 2
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[1]",
+      "arr[2]"
+     ]
+    },
+    {
+     "do": "set",
+     "target": "pass",
+     "text": "Pass 3 — no swaps"
+    },
+    {
+     "do": "remove",
+     "target": "cmp",
+     "effect": "fade",
+     "with": "previous"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[0]",
+      "arr[1]",
+      "arr[2]",
+      "arr[3]",
+      "arr[4]"
+     ],
+     "state": "sorted"
+    }
+   ]
+  }
+ ]
+}

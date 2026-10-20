@@ -53,7 +53,7 @@ const InteractiveControlPanel = ({ data }) => {
           <Sliders size={14} style={{ color: 'var(--text-tertiary)' }} />
           <div>
             <h3 className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>Try it yourself</h3>
-            <p className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Interactive</p>
+            <p className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>Interactive</p>
           </div>
         </div>
         <button onClick={handleReset} className="p-1.5 rounded-lg transition-all hover:bg-[var(--bg-tertiary)] active:scale-90"
@@ -70,7 +70,7 @@ const InteractiveControlPanel = ({ data }) => {
           return (
             <div key={ctrl.id} className="flex flex-col gap-2">
               <div className="flex justify-between items-center">
-                <label className="text-[10px] font-medium uppercase tracking-wider"
+                <label className="text-[11px] font-medium"
                   style={{ color: 'var(--text-tertiary)' }}>{ctrl.label}</label>
                 <span className="text-xs font-mono px-1.5 py-0.5 rounded"
                   style={{ color: 'var(--text-primary)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
@@ -90,7 +90,7 @@ const InteractiveControlPanel = ({ data }) => {
       {formula && (
         <div className="px-4 py-4 flex flex-col gap-3"
           style={{ borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
-          <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-widest"
+          <div className="flex items-center gap-1.5 text-[11px] font-medium"
             style={{ color: 'var(--text-tertiary)' }}>
             <Zap size={11} /> Result
           </div>

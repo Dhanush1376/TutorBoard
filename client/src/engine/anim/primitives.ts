@@ -20,6 +20,12 @@ const clean = (t: Target): Element[] => {
   return Array.isArray(t) ? t.filter(Boolean) : [t];
 };
 
+// An element's own translate as GSAP parses it. Entrance offsets are relative
+// to it: tweening to an absolute `y: 0` wiped the placement of SVG groups
+// positioned with translate() (callouts, banners) and snapped them to y = 0.
+const ownY = (_i: number, el: Element) => Number(gsap.getProperty(el, 'y')) || 0;
+const ownX = (_i: number, el: Element) => Number(gsap.getProperty(el, 'x')) || 0;
+
 // ── Entrances ───────────────────────────────────────────────────────────────
 
 /** FadeIn — gentle opacity + rise. */
@@ -27,7 +33,8 @@ export function fadeIn(tl: TL, target: Target, at: number, opts: { duration?: nu
   const els = clean(target);
   if (!els.length) return 0;
   const d = opts.duration ?? 0.4;
-  tl.fromTo(els, { autoAlpha: 0, y: opts.y ?? 8 }, { autoAlpha: 1, y: 0, duration: d, ease: 'power2.out' }, at);
+  const rise = opts.y ?? 8;
+  tl.fromTo(els, { autoAlpha: 0, y: (i, el) => ownY(i, el) + rise }, { autoAlpha: 1, y: ownY, duration: d, ease: 'power2.out' }, at);
   return d;
 }
 
@@ -61,8 +68,8 @@ export function popIn(tl: TL, target: Target, at: number, opts: { duration?: num
   const d = opts.duration ?? 0.4;
   tl.fromTo(
     els,
-    { autoAlpha: 0, scale: opts.from ?? 0.6, y: 14, transformOrigin: 'center center' },
-    { autoAlpha: 1, scale: 1, y: 0, duration: d, ease: 'back.out(1.6)' },
+    { autoAlpha: 0, scale: opts.from ?? 0.6, y: (i, el) => ownY(i, el) + 14, transformOrigin: 'center center' },
+    { autoAlpha: 1, scale: 1, y: ownY, duration: d, ease: 'back.out(1.6)' },
     at
   );
   return d;
@@ -81,8 +88,8 @@ export function staggerIn(
   const stagger = opts.stagger ?? 0.05;
   tl.fromTo(
     els,
-    { autoAlpha: 0, scale: 0.5, y: opts.y ?? 18, transformOrigin: 'center center' },
-    { autoAlpha: 1, scale: 1, y: 0, duration: d, stagger, ease: 'back.out(1.7)' },
+    { autoAlpha: 0, scale: 0.5, y: (i, el) => ownY(i, el) + (opts.y ?? 18), transformOrigin: 'center center' },
+    { autoAlpha: 1, scale: 1, y: ownY, duration: d, stagger, ease: 'back.out(1.7)' },
     at
   );
   return d + stagger * Math.max(0, els.length - 1);
@@ -95,8 +102,8 @@ export function writeLines(tl: TL, lines: Element[], at: number, opts: { perLine
   const per = opts.perLine ?? 0.28;
   tl.fromTo(
     els,
-    { autoAlpha: 0, x: -6 },
-    { autoAlpha: 1, x: 0, duration: per, stagger: per * 0.8, ease: 'power2.out' },
+    { autoAlpha: 0, x: (i, el) => ownX(i, el) - 6 },
+    { autoAlpha: 1, x: ownX, duration: per, stagger: per * 0.8, ease: 'power2.out' },
     at
   );
   return per + per * 0.8 * Math.max(0, els.length - 1);

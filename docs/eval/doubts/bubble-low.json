@@ -1,0 +1,295 @@
+{
+ "version": "1",
+ "title": "How Bubble Sort works on [5, 1, 4, 2, 8]",
+ "domain": "algorithms",
+ "summary": "Neighbours are compared and swapped until the largest values bubble to the end.",
+ "spaces": [],
+ "entities": [
+  {
+   "id": "arr",
+   "label": "input",
+   "type": "array",
+   "values": [
+    5,
+    1,
+    4,
+    2,
+    8
+   ],
+   "indices": true
+  },
+  {
+   "id": "cmp",
+   "type": "text",
+   "text": "",
+   "role": "caption"
+  },
+  {
+   "id": "pass",
+   "type": "text",
+   "text": "Pass 1",
+   "role": "label"
+  },
+  {
+   "id": "note",
+   "type": "text",
+   "text": "5 > neighbor",
+   "role": "caption"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "arr",
+   "region": "center"
+  },
+  {
+   "rel": "above",
+   "id": "cmp",
+   "of": "arr",
+   "gap": "md"
+  },
+  {
+   "rel": "below",
+   "id": "pass",
+   "of": "arr",
+   "gap": "md"
+  },
+  {
+   "rel": "place",
+   "id": "note",
+   "region": "right"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Initial array",
+   "narration": "Bubble Sort walks through the list, comparing neighbours and swapping them when they are in the wrong order.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "arr",
+     "effect": "pop"
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "pass",
+     "effect": "fade"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Pass 1: compare 5 and 1",
+   "narration": "5 is bigger than 1, so the two swap places.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "cmp"
+    },
+    {
+     "with": "previous",
+     "do": "highlight",
+     "target": [
+      "arr[0]",
+      "arr[1]"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "set",
+     "target": "cmp",
+     "text": "5 > 1"
+    },
+    {
+     "do": "swap",
+     "target": "arr",
+     "i": 0,
+     "j": 1
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[0]",
+      "arr[1]"
+     ]
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Pass 1: 5 bubbles to the right",
+   "narration": "5 beats 4 and then 2, swapping each time. 5 is smaller than 8, so it stops — and 8 is now in its final place.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "arr[1]",
+      "arr[2]"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "set",
+     "target": "cmp",
+     "text": "5 > 4"
+    },
+    {
+     "do": "swap",
+     "target": "arr",
+     "i": 1,
+     "j": 2
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[1]",
+      "arr[2]"
+     ]
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[2]",
+      "arr[3]"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "set",
+     "target": "cmp",
+     "text": "5 > 2"
+    },
+    {
+     "do": "swap",
+     "target": "arr",
+     "i": 2,
+     "j": 3
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[2]",
+      "arr[3]"
+     ]
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[3]",
+      "arr[4]"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "set",
+     "target": "cmp",
+     "text": "5 < 8"
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[3]",
+      "arr[4]"
+     ]
+    },
+    {
+     "do": "highlight",
+     "target": "arr[4]",
+     "state": "sorted",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Highlight comparisons",
+   "narration": "Look at the comparisons: 5 > 4 and then 5 > 2, so each time we highlight the two elements and see 5 is larger.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "arr[1]",
+      "arr[2]"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "do": "annotate",
+     "target": "arr[1]",
+     "text": "5 > 4",
+     "side": "above"
+    },
+    {
+     "do": "highlight",
+     "target": [
+      "arr[2]",
+      "arr[3]"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "do": "annotate",
+     "target": "arr[2]",
+     "text": "5 > 2",
+     "side": "above"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Stop condition",
+   "narration": "When 5 reaches the element 8, the comparison 5 < 8 means no swap, so 5 stops moving.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": [
+      "arr[3]",
+      "arr[4]"
+     ],
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "do": "annotate",
+     "target": "arr[3]",
+     "text": "5 < 8",
+     "side": "above"
+    },
+    {
+     "do": "clear",
+     "target": [
+      "arr[1]",
+      "arr[2]",
+      "arr[3]",
+      "arr[4]"
+     ]
+    },
+    {
+     "do": "unannotate",
+     "target": "arr[1]"
+    },
+    {
+     "do": "unannotate",
+     "target": "arr[2]"
+    },
+    {
+     "do": "unannotate",
+     "target": "arr[3]"
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

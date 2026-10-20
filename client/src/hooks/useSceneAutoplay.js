@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import useTutorStore, { STATES } from '../store/tutorStore';
-import { estimateReadingMs, smartPauseMs, stepDeadlineMs } from '../engine/narrationTiming';
+import { smartPauseMs, stepDeadlineMs } from '../engine/narrationTiming';
+import { awaitingCheck } from '../lib/teaching';
 
 /**
  * useSceneAutoplay — completion-gated playback for SSE-rendered scenes.
@@ -9,10 +10,12 @@ import { estimateReadingMs, smartPauseMs, stepDeadlineMs } from '../engine/narra
  * A step advances only when BOTH of its completion signals arrive:
  *   - animDone : the step's master timeline finished (AgentCanvasRenderer
  *                marks it via the orchestrator's onComplete)
- *   - voiceDone: the narration finished. With no TTS on this path, a
- *                reading-time estimate proportional to the narration length
- *                stands in, so long explanations get long steps and short
- *                ones move quickly — narration and animation never overlap.
+ *   - voiceDone: the narration finished. TeachingSession narrates every step
+ *                (useVoiceNarrator.narrateStep): spoken, the step lasts as long
+ *                as the voice; muted, a reading-time estimate stands in. This
+ *                hook used to arm its own reading timer too, which released
+ *                steps mid-sentence when the voice was on (speech runs ~1.6×
+ *                longer than reading).
  *
  * A smart pause (longer after equations/results) separates steps, and a
  * safety deadline guarantees playback can never stall on a lost signal.
@@ -58,24 +61,23 @@ export default function useSceneAutoplay() {
 
     // Reached the end — stop cleanly so the control bar shows "paused".
     if (currentStepIndex >= total - 1 && stepPlayback.animDone && stepPlayback.voiceDone) {
+      // A streaming Engine v2 lesson has more beats coming: wait at this one.
+      if (activeScene?.streaming) return undefined;
       clearTimers();
       useTutorStore.getState().pause?.();
       return;
     }
 
     const step = steps[currentStepIndex] || {};
+    // a "predict the next step" check: the learner moves on, not a timer
+    if (awaitingCheck(activeScene, currentStepIndex, useTutorStore.getState().checkAnswers)) { clearTimers(); return; }
     const speed = Math.max(0.25, playbackSpeed || 1);
     const t = timersRef.current;
 
-    // New step → arm the reading-time voice signal and the safety deadline.
+    // New step → arm the safety deadline (the narration signal comes from TeachingSession).
     if (t.index !== currentStepIndex) {
       clearTimers();
       timersRef.current.index = currentStepIndex;
-
-      const narration = step.narration || step.explanation || step.pedagogicalNarration || '';
-      timersRef.current.read = setTimeout(() => {
-        useTutorStore.getState().markStepVoiceDone?.(currentStepIndex);
-      }, estimateReadingMs(narration, speed));
 
       timersRef.current.deadline = setTimeout(() => {
         const s = useTutorStore.getState();

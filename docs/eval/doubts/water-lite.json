@@ -1,0 +1,196 @@
+{
+ "version": "1",
+ "title": "Why water is bent",
+ "domain": "chemistry",
+ "summary": "Two lone pairs on oxygen squeeze the H–O–H angle to 104.5°, making water bent and polar.",
+ "spaces": [],
+ "entities": [
+  {
+   "id": "formula",
+   "type": "text",
+   "text": "H₂O",
+   "role": "title"
+  },
+  {
+   "id": "h2o",
+   "type": "molecule",
+   "atoms": [
+    {
+     "id": "O",
+     "el": "O"
+    },
+    {
+     "id": "H1",
+     "el": "H"
+    },
+    {
+     "id": "H2",
+     "el": "H"
+    }
+   ],
+   "bonds": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     2,
+     1
+    ]
+   ],
+   "lonePairs": [
+    {
+     "atom": 0,
+     "count": 2
+    }
+   ]
+  },
+  {
+   "id": "bond",
+   "label": "104.5°",
+   "tone": "warning",
+   "type": "angle",
+   "vertex": "h2o.O",
+   "from": "h2o.H1",
+   "to": "h2o.H2",
+   "showValue": true
+  },
+  {
+   "id": "linear_note",
+   "tone": "danger",
+   "type": "text",
+   "text": "Linear 180° = High Repulsion",
+   "role": "caption"
+  },
+  {
+   "id": "bent_note",
+   "tone": "success",
+   "type": "text",
+   "text": "Bent 104.5° = Minimized Repulsion",
+   "role": "caption"
+  }
+ ],
+ "layout": [
+  {
+   "rel": "place",
+   "id": "h2o",
+   "region": "center"
+  },
+  {
+   "rel": "place",
+   "id": "formula",
+   "region": "top-left"
+  },
+  {
+   "rel": "below",
+   "id": "linear_note",
+   "of": "h2o",
+   "gap": "md"
+  },
+  {
+   "rel": "below",
+   "id": "bent_note",
+   "of": "linear_note",
+   "gap": "md"
+  }
+ ],
+ "beats": [
+  {
+   "title": "Oxygen bonds two hydrogens",
+   "narration": "Oxygen shares one electron pair with each hydrogen.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "formula",
+     "effect": "fade"
+    },
+    {
+     "with": "previous",
+     "do": "create",
+     "target": "h2o",
+     "effect": "pop"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Two lone pairs push back",
+   "narration": "Oxygen also keeps two lone pairs. They repel the bonding pairs more strongly than the bonds repel each other.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "h2o.O",
+     "state": "insight",
+     "hold": true
+    },
+    {
+     "with": "previous",
+     "do": "annotate",
+     "target": "h2o.O",
+     "text": "2 lone pairs",
+     "side": "above"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "VSEPR electron repulsion",
+   "narration": "Look at oxygen's four electron pairs: two lone pairs and two bonds. All four repel each other like negatively charged clouds.",
+   "actions": [
+    {
+     "do": "highlight",
+     "target": "h2o.O",
+     "state": "comparing",
+     "hold": true
+    },
+    {
+     "do": "create",
+     "target": "linear_note",
+     "effect": "fade"
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Why 104.5 degrees wins",
+   "narration": "A straight 180-degree line places electron pairs too close together. Bending to 104.5 degrees gives the lone pairs more elbow room, achieving the most stable geometry.",
+   "actions": [
+    {
+     "do": "create",
+     "target": "bent_note",
+     "effect": "fade"
+    },
+    {
+     "do": "highlight",
+     "target": "h2o.O",
+     "state": "insight",
+     "hold": true
+    }
+   ],
+   "pace": "normal"
+  },
+  {
+   "title": "Return to lesson",
+   "narration": "This strong lone-pair repulsion is precisely why water is permanently bent.",
+   "actions": [
+    {
+     "do": "remove",
+     "target": "linear_note",
+     "effect": "fade"
+    },
+    {
+     "do": "remove",
+     "target": "bent_note",
+     "effect": "fade"
+    },
+    {
+     "do": "clear",
+     "target": "h2o.O"
+    }
+   ],
+   "pace": "normal"
+  }
+ ]
+}

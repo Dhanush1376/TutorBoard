@@ -19,7 +19,7 @@ function exportDocx(title, messages) {
         <style>
           body { font-family: 'Segoe UI', Arial, sans-serif; }
           .msg { margin-bottom: 20pt; }
-          .role { font-weight: bold; font-size: 10pt; color: #555; text-transform: uppercase; }
+          .role { font-weight: 600; font-size: 10pt; color: #555; }
           .content { font-size: 11pt; }
           pre { background: #f4f4f4; padding: 10pt; font-family: 'Courier New', monospace; }
         </style>
@@ -58,7 +58,7 @@ function exportPdf(title, messages) {
           <head>
             <title>${title}</title>
             <style>
-              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap');
+              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
               body {
                 font-family: 'Inter', sans-serif;
                 padding: 40px;
@@ -75,9 +75,7 @@ function exportPdf(title, messages) {
               .role {
                 display: inline-block;
                 font-weight: 600;
-                font-size: 10px;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
+                font-size: 11px;
                 color: #666;
                 margin-bottom: 8px;
               }

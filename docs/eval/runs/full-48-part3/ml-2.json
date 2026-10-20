@@ -1,0 +1,170 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Gradient Descent Walkthrough",
+  "domain": "ml",
+  "summary": "A point moves down the slope of a quadratic function by following the negative gradient until it reaches the minimum.",
+  "spaces": [
+   {
+    "id": "s1",
+    "kind": "cartesian",
+    "x": [
+     -1,
+     5
+    ],
+    "y": [
+     0,
+     5
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "x",
+    "yLabel": "f(x)",
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "func",
+    "space": "s1",
+    "type": "plot",
+    "expr": "(x-2)^2"
+   },
+   {
+    "id": "pt",
+    "space": "s1",
+    "type": "point",
+    "at": [
+     4,
+     4
+    ]
+   },
+   {
+    "id": "grad",
+    "space": "s1",
+    "type": "vector",
+    "from": [
+     4,
+     4
+    ],
+    "to": [
+     3,
+     4
+    ],
+    "angleDeg": 180,
+    "magnitude": 1
+   },
+   {
+    "id": "funcLabel",
+    "type": "text",
+    "text": "f(x) = (x-2)^2",
+    "role": "title"
+   },
+   {
+    "id": "recap",
+    "tone": "success",
+    "type": "text",
+    "text": "Minimum reached at x = 2",
+    "role": "title"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "s1",
+    "region": "center"
+   },
+   {
+    "rel": "above",
+    "id": "funcLabel",
+    "of": "s1",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Plot and start point",
+    "narration": "We plot the quadratic f(x) = (x-2)^2 and place a point at x = 4 (f=4).",
+    "actions": [
+     {
+      "do": "create",
+      "target": "func",
+      "effect": "draw"
+     },
+     {
+      "do": "create",
+      "target": "pt",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "funcLabel",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Show gradient",
+    "narration": "At x = 4 the slope is 4, so the steepest descent points left.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "grad",
+      "effect": "draw"
+     },
+     {
+      "do": "annotate",
+      "target": "grad",
+      "text": "-∇f",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "First step",
+    "narration": "Moving opposite the gradient takes the point to x = 3 (f=1).",
+    "actions": [
+     {
+      "do": "move",
+      "target": "pt",
+      "to": [
+       3,
+       1
+      ]
+     },
+     {
+      "do": "remove",
+      "target": "grad",
+      "effect": "fade"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities",
+   "message": "\"recap\" is never shown"
+  }
+ ],
+ "attempts": 2,
+ "repairs": [
+  [
+   {
+    "path": "(root)",
+    "message": "response was not a JSON object"
+   }
+  ]
+ ],
+ "ms": 57548,
+ "model": "gemini-3.6-flash",
+ "domain": "ml",
+ "drafts": [
+  "[\n{\"version\":\"1\",\"title\":\"Gradient Descent Walkthrough\",\"domain\":\"ml\",\"summary\":\"A point moves down the slope of a quadratic function by following the negative gradient until it reaches the minimum.\",\"spaces\":[{\"id\":\"s1\",\"kind\":\"cartesian\",\"x\":[-1,5],\"y\":[0,5],\"axes\":true,\"grid\":true,\"xLabel\":\"x\",\"yLabel\":\"f(x)\"}],\"entities\":[{\"id\":\"func\",\"type\":\"plot\",\"expr\":\"(x-2)^2\",\"space\":\"s1\"},{\"id\":\"pt\",\"type\":\"point\",\"at\":[4,4],\"space\":\"s1\"},{\"id\":\"grad\",\"type\":\"vector\",\"from\":\"pt\",\"magnitude\":1,\"angleDeg\":180,\"space\":\"s1\"},{\"id\":\"funcLabel\",\"type\":\"text\",\"text\":\"f(x) = (x-2)^2\",\"role\":\"title\"},{\"id\":\"recap\",\"type\":\"text\",\"text\":\"Minimum reached at x = 2\",\"role\":\"title\",\"tone\":\"success\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"s1\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"funcLabel\",\"of\":\"s1\"}],\"beats\":[{\"title\":\"Plot and start point\",\"narration\":\"We plot the quadratic f(x) = (x-2)^2 and place a point at x = 4 (f=4).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"func\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"pt\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"funcLabel\",\"effect\":\"fade\"}]},{\"title\":\"Show gradient\",\"narration\":\"At x = 4 the slope is 4, so the steepest descent points left.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"grad\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"grad\",\"text\":\"-∇f\",\"side\":\"right\"}]},{\"title\":\"First step\",\"narration\":\"Moving opposite the gradient takes the point to x = 3 (f=1).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"move\",\"target\":\"pt\",\"to\":[3,1]},{\"do\":\"remove\",\"target\":\"grad\",\"effect\":\"fade\"}]},{\"title\":\"Predict next move\",\"narration\":\"Where will the point go after reaching x = 3?\",\"pace\":\"normal\",\"actions\":[],\"check\":{\"question\":\"After moving to x=3, where will the point go next?\",\"choices\":[\"x=2\",\"x=1\",\"x=4\"],\"answer\":0,\"explain\":\"The gradient still points left, so the next step moves toward the minimum at x = 2.\"}}]},{\"title\":\"Second step to minimum\",\"narration\":\"Another step left lands the point at the minimum x = 2 where f(x)=0.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"move\",\"target\":\"pt\",\"to\":[2,0]},{\"do\":\"highlight\",\"target\":\"pt\",\"state\":\"found\"}]},{\"title\":\"Recap\",\"narration\":\"The point has arrived at the function’s minimum, illustrating how gradient descent converges.\",\"pace\":\"slow\",\"actions\":[{\"do\":\"create\",\"target\":\"recap\",\"effect\":\"pop\"},{\"do\":\"highlight\",\"target\":\"pt\",\"state\":\"sorted\"}]}\n]"
+ ],
+ "accepted": "{\"version\":\"1\",\"title\":\"Gradient Descent Walkthrough\",\"domain\":\"ml\",\"summary\":\"A point moves down the slope of a quadratic function by following the negative gradient until it reaches the minimum.\",\"spaces\":[{\"id\":\"s1\",\"kind\":\"cartesian\",\"x\":[-1,5],\"y\":[0,5],\"axes\":true,\"grid\":true,\"xLabel\":\"x\",\"yLabel\":\"f(x)\"}],\"entities\":[{\"id\":\"func\",\"type\":\"plot\",\"expr\":\"(x-2)^2\",\"space\":\"s1\"},{\"id\":\"pt\",\"type\":\"point\",\"at\":[4,4],\"space\":\"s1\"},{\"id\":\"grad\",\"type\":\"vector\",\"from\":\"pt\",\"magnitude\":1,\"angleDeg\":180,\"space\":\"s1\"},{\"id\":\"funcLabel\",\"type\":\"text\",\"text\":\"f(x) = (x-2)^2\",\"role\":\"title\"},{\"id\":\"recap\",\"type\":\"text\",\"text\":\"Minimum reached at x = 2\",\"role\":\"title\",\"tone\":\"success\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"s1\",\"region\":\"center\"},{\"rel\":\"above\",\"id\":\"funcLabel\",\"of\":\"s1\"}],\"beats\":[{\"title\":\"Plot and start point\",\"narration\":\"We plot the quadratic f(x) = (x-2)^2 and place a point at x = 4 (f=4).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"func\",\"effect\":\"draw\"},{\"do\":\"create\",\"target\":\"pt\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"funcLabel\",\"effect\":\"fade\"}]},{\"title\":\"Show gradient\",\"narration\":\"At x = 4 the slope is 4, so the steepest descent points left.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"grad\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"grad\",\"text\":\"-∇f\",\"side\":\"right\"}]},{\"title\":\"First step\",\"narration\":\"Moving opposite the gradient takes the point to x = 3 (f=1).\",\"pace\":\"normal\",\"actions\":[{\"do\":\"move\",\"target\":\"pt\",\"to\":[3,1]},{\"do\":\"remove\",\"target\":\"grad\",\"effect\":\"fade\"}]}]}"
+}

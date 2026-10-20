@@ -1,134 +1,208 @@
-import React, { useState } from 'react';
-import { Edit2, Share, Trash2, Check, X, MessageSquare, MoreVertical } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
+
+const EASE = [0.22, 1, 0.36, 1];
+
+function stamp(chat) {
+  const t = chat.updatedAt || chat.createdAt || 0;
+  return typeof t === 'number' ? t : new Date(t).getTime() || 0;
+}
+
+/** "Today", "Yesterday", "This week", "Earlier" */
+function groupOf(ts) {
+  if (!ts) return 'Earlier';
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (ts >= start) return 'Today';
+  if (ts >= start - 86400000) return 'Yesterday';
+  if (ts >= start - 6 * 86400000) return 'This week';
+  return 'Earlier';
+}
+
+function shortTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const g = groupOf(ts);
+  if (g === 'Today') return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (g === 'Yesterday') return 'Yesterday';
+  if (g === 'This week') return d.toLocaleDateString([], { weekday: 'short' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function RowMenu({ onRename, onCopy, onDelete, onClose }) {
+  const ref = useRef(null);
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    const away = (e) => ref.current && !ref.current.contains(e.target) && onClose();
+    const esc = (e) => e.key === 'Escape' && onClose();
+    document.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [onClose]);
+
+  const item = 'flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[13.5px] transition-colors';
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+      transition={{ duration: 0.15, ease: EASE }}
+      className="absolute right-1 top-[calc(100%+4px)] z-50 w-48 rounded-2xl border border-[var(--st-line-strong)] bg-[var(--bg-primary)] p-1.5 shadow-[0_18px_44px_-12px_rgba(0,0,0,0.45)]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button type="button" onClick={onRename} className={`${item} text-[var(--text-primary)] hover:bg-[var(--st-fill)]`}>
+        <Pencil size={15} strokeWidth={1.8} className="text-[var(--text-secondary)]" /> Rename
+      </button>
+      <button type="button" onClick={onCopy} className={`${item} text-[var(--text-primary)] hover:bg-[var(--st-fill)]`}>
+        <Copy size={15} strokeWidth={1.8} className="text-[var(--text-secondary)]" /> Copy as text
+      </button>
+      <div className="my-1 h-px bg-[var(--st-line)]" />
+      <button
+        type="button"
+        onClick={() => (confirming ? onDelete() : setConfirming(true))}
+        className={`${item} ${confirming ? 'bg-red-500/10 text-red-500' : 'text-red-500 hover:bg-red-500/[0.07]'}`}
+      >
+        <Trash2 size={15} strokeWidth={1.8} /> {confirming ? 'Tap again to delete' : 'Delete'}
+      </button>
+    </motion.div>
+  );
+}
 
 const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, onRenameChat }) => {
   const { unreadSessions } = useTutorStore();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const [menuId, setMenuId] = useState(null);
   const { isMobile } = useWindowSize();
 
-  const handleStartEdit = (chat) => {
-    setEditingId(chat.id);
-    setEditTitle(chat.title || 'Untitled Session');
-  };
+  const groups = useMemo(() => {
+    const out = [];
+    chatHistory.forEach((chat) => {
+      const label = groupOf(stamp(chat));
+      let g = out.find((x) => x.label === label);
+      if (!g) out.push((g = { label, items: [] }));
+      g.items.push(chat);
+    });
+    return out;
+  }, [chatHistory]);
 
-  const handleConfirmEdit = () => {
-    if (editTitle.trim() && onRenameChat) {
-      onRenameChat(editingId, editTitle.trim());
-    }
+  const startEdit = (chat) => {
+    setMenuId(null);
+    setEditingId(chat.id);
+    setEditTitle(chat.title || 'Untitled');
+  };
+  const confirmEdit = () => {
+    if (editTitle.trim() && onRenameChat) onRenameChat(editingId, editTitle.trim());
     setEditingId(null);
   };
 
-  const handleShare = (chat) => {
-    const cleanContent = (text) => (text || '')
-      .replace(/<thought>[\s\S]*?<\/thought>/g, '')
-      .replace(/\s+/g, ' ') // SEC-39: Whitespace normalization
-      .trim();
-      
-    const summary = `TutorBoard Session: ${chat.title || 'Untitled'}\n\nMessages:\n${
-      (chat.messages || []).map(m => `[${m.role}]: ${cleanContent(m.content)}`).join('\n\n')
-    }`;
-    navigator.clipboard.writeText(summary).then(() => {
-      useTutorStore.getState().showToast({ message: 'Copied to clipboard', type: 'success', duration: 2000 });
-    }).catch(() => {
-      useTutorStore.getState().showToast({ message: 'Failed to copy', type: 'error', duration: 2000 });
-    });
+  const copyChat = (chat) => {
+    setMenuId(null);
+    const clean = (t) => (t || '').replace(/<thought>[\s\S]*?<\/thought>/g, '').replace(/\s+/g, ' ').trim();
+    const text = `${chat.title || 'Untitled'}\n\n${(chat.messages || []).map((m) => `${m.role === 'user' ? 'You' : 'TutorBoard'}: ${clean(m.content)}`).join('\n\n')}`;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => useTutorStore.getState().showToast({ message: 'Copied to clipboard', type: 'success', duration: 2000 }))
+      .catch(() => useTutorStore.getState().showToast({ message: 'Could not copy', type: 'error', duration: 2000 }));
   };
 
   return (
-    <div className="space-y-1 pb-2">
-      <AnimatePresence initial={false}>
-        {chatHistory.map((chat, index) => {
-          const sessionKey = `sn-${chat.id || chat._id || 'g'}-${index}`;
-          return (
-            <motion.div 
-              key={sessionKey} 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            className="relative group/item px-0.5"
-          >
-            {editingId === chat.id ? (
-              <div className={`flex items-center gap-2 ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-lg ring-2 ring-[var(--text-primary)]/10`}>
-                <input 
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleConfirmEdit()}
-                  onBlur={handleConfirmEdit}
-                  autoFocus
-                  className="flex-1 bg-transparent text-[var(--text-primary)] text-[13px] font-normal outline-none"
-                />
-                <div className="flex items-center gap-1">
-                  <button onClick={handleConfirmEdit} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"><Check size={isMobile ? 18 : 14} /></button>
-                  <button onClick={() => setEditingId(null)} className="p-1 text-red-600 hover:bg-red-50 rounded-md transition-colors"><X size={isMobile ? 18 : 14} /></button>
-                </div>
-              </div>
-            ) : (
-              <div className="relative">
-                <button
-                  onClick={() => onSelectChat(chat.id)}
-                  className={`w-full text-left ${isMobile ? 'px-4 py-3.5' : 'px-3 py-2.5'} rounded-xl flex items-center transition-all duration-200 relative overflow-hidden group/btn ${
-                    activeChatId === chat.id 
-                      ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' 
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  <MessageSquare 
-                    size={isMobile ? 18 : 15} 
-                    className={`mr-3 transition-colors ${activeChatId === chat.id ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] group-hover/btn:text-[var(--text-secondary)]'}`} 
-                  />
-                  
-                  <span className={`truncate ${isMobile ? 'text-[13px]' : 'text-[12px]'} flex-1 font-normal tracking-tight transition-colors`}>
-                    {chat.title || "Untitled Session"}
-                  </span>
-
-                  {unreadSessions.includes(chat.id) && activeChatId !== chat.id && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse" />
-                  )}
-                  
-                  {activeChatId === chat.id && (
-                    <motion.div 
-                      layoutId="activeIndicator" 
-                      className="absolute left-0 top-2 bottom-2 w-[3px] bg-[var(--text-primary)] rounded-full opacity-60" 
-                    />
-                  )}
-                </button>
-
-                {/* Actions Menu (revealed on hover) */}
-                <div className={`absolute ${isMobile ? 'right-2' : 'right-1.5'} top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-all duration-200 bg-gradient-to-l from-[var(--bg-tertiary)] via-[var(--bg-tertiary)] to-transparent pl-8 rounded-r-xl py-1`}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleStartEdit(chat); }} 
-                    className={`${isMobile ? 'p-2' : 'p-1.5'} text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50 rounded-lg transition-all`} 
-                    title="Rename"
+    <div className="flex flex-col gap-4 pb-3">
+      {groups.map((g) => (
+        <section key={g.label}>
+          <h4 className="px-2.5 pb-1 text-[12px] font-medium text-[var(--text-tertiary)]">{g.label}</h4>
+          <ul className="flex flex-col">
+            <AnimatePresence initial={false}>
+              {g.items.map((chat, i) => {
+                const active = activeChatId === chat.id;
+                const unread = unreadSessions.includes(chat.id) && !active;
+                const open = menuId === chat.id;
+                return (
+                  <motion.li
+                    key={`sn-${chat.id || chat._id || 'g'}-${i}`}
+                    layout="position"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="group/item relative"
                   >
-                    <Edit2 size={isMobile ? 15 : 13} />
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleShare(chat); }} 
-                    className={`${isMobile ? 'p-2' : 'p-1.5'} text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)]/50 rounded-lg transition-all`} 
-                    title="Share"
-                  >
-                    <Share size={isMobile ? 15 : 13} />
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onDeleteChat && onDeleteChat(chat.id); }} 
-                    className={`${isMobile ? 'p-2' : 'p-1.5'} text-[var(--text-tertiary)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all`} 
-                    title="Delete"
-                  >
-                    <Trash2 size={isMobile ? 15 : 13} />
-                  </button>
-                </div>
-              </div>
-            )}
-            </motion.div>
-            );
-          })}
-        </AnimatePresence>
+                    {editingId === chat.id ? (
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') confirmEdit();
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        onBlur={confirmEdit}
+                        autoFocus
+                        aria-label="Session name"
+                        className="h-10 w-full rounded-xl border border-[var(--text-tertiary)] bg-[var(--bg-primary)] px-2.5 text-[14px] text-[var(--text-primary)] outline-none shadow-[0_0_0_3px_var(--st-fill-strong)]"
+                      />
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onSelectChat(chat.id)}
+                          className={`flex h-10 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-left transition-colors ${
+                            active ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--mk-accent)]" aria-label="New" />}
+                          <span className={`min-w-0 flex-1 truncate text-[13.5px] tracking-[-0.01em] ${active ? 'font-medium' : ''}`}>
+                            {chat.title || 'Untitled'}
+                          </span>
+                          {/* Time shown on hover */}
+                          <span className={`shrink-0 pr-7 text-[10.5px] tracking-tight tabular-nums text-[var(--text-tertiary)] transition-opacity opacity-0 group-hover/item:opacity-100 ${open ? '!opacity-0' : ''}`}>
+                            {shortTime(stamp(chat))}
+                          </span>
+                        </button>
+                        {/* 3-dots menu button visible by default */}
+                        <button
+                          type="button"
+                          aria-label="Session options"
+                          aria-expanded={open}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuId(open ? null : chat.id);
+                          }}
+                          className={`absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-[var(--text-tertiary)] transition-colors hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)] ${
+                            open ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)] opacity-100' : 'opacity-70 group-hover/item:opacity-100'
+                          }`}
+                        >
+                          <MoreHorizontal size={15} strokeWidth={1.8} />
+                        </button>
+                        <AnimatePresence>
+                          {open && (
+                            <RowMenu
+                              onClose={() => setMenuId(null)}
+                              onRename={() => startEdit(chat)}
+                              onCopy={() => copyChat(chat)}
+                              onDelete={() => {
+                                setMenuId(null);
+                                onDeleteChat?.(chat.id);
+                              }}
+                            />
+                          )}
+                        </AnimatePresence>
+                      </>
+                    )}
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
+          </ul>
+        </section>
+      ))}
     </div>
   );
 };

@@ -1,0 +1,210 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "How Gradient Descent Finds a Minimum",
+  "domain": "ml",
+  "summary": "A ball rolls down a cost function's slope by following the negative gradient until it reaches the bottom.",
+  "spaces": [
+   {
+    "id": "space",
+    "kind": "cartesian",
+    "x": [
+     -4,
+     4
+    ],
+    "y": [
+     -2,
+     10
+    ],
+    "axes": true,
+    "grid": true,
+    "xLabel": "w",
+    "yLabel": "Cost",
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "curve",
+    "tone": "primary",
+    "space": "space",
+    "type": "plot",
+    "expr": "x^2 - 1",
+    "domain": [
+     -3.1,
+     3.1
+    ]
+   },
+   {
+    "id": "ball",
+    "tone": "warning",
+    "space": "space",
+    "type": "body",
+    "at": [
+     3,
+     8
+    ],
+    "size": "md"
+   },
+   {
+    "id": "vec",
+    "tone": "danger",
+    "space": "space",
+    "type": "vector",
+    "from": [
+     3,
+     8
+    ],
+    "to": [
+     1,
+     2
+    ]
+   },
+   {
+    "id": "eq",
+    "type": "math",
+    "latex": "w_{new} = w - \\alpha \\frac{\\partial C}{\\partial w}"
+   },
+   {
+    "id": "status",
+    "type": "text",
+    "text": "Initial position: high cost",
+    "role": "label"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "space",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "eq",
+    "of": "space",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "status",
+    "of": "eq",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Starting on the slope",
+    "narration": "Gradient descent begins with a random parameter value, sitting high up on the cost curve.",
+    "actions": [
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "curve"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "ball"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "status"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Calculating the gradient",
+    "narration": "The derivative tells us the slope and direction of the steepest ascent. We want to go the opposite way.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "vec"
+     },
+     {
+      "with": "previous",
+      "do": "annotate",
+      "target": "ball",
+      "text": "Steep slope",
+      "side": "right"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Taking a step downhill",
+    "narration": "We update our parameter by taking a step proportional to the negative gradient (learning rate).",
+    "actions": [
+     {
+      "do": "unannotate",
+      "target": "ball"
+     },
+     {
+      "do": "move",
+      "target": "ball",
+      "to": [
+       1,
+       0
+      ]
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Stepping downhill..."
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Reaching the minimum",
+    "narration": "Repeating this process, the steps shrink as the slope flattens, eventually settling at the minimum.",
+    "actions": [
+     {
+      "do": "move",
+      "target": "ball",
+      "to": [
+       0,
+       -1
+      ]
+     },
+     {
+      "with": "previous",
+      "do": "remove",
+      "target": "vec",
+      "effect": "fade"
+     },
+     {
+      "do": "set",
+      "target": "status",
+      "text": "Minimum reached! Cost is minimized."
+     },
+     {
+      "do": "highlight",
+      "target": "ball",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "beats[0].actions[0].target",
+   "message": "auto-fixed: removed a space id (spaces appear with their entities)"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 2462,
+ "model": "gemini-3.5-flash-lite",
+ "domain": "ml"
+}

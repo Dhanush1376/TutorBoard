@@ -36,7 +36,7 @@ export class GSAPExecutor {
    * Compile and play a command script. Returns the total duration in seconds.
    * `onComplete` fires exactly once when the whole timeline finishes.
    */
-  public play(script: Command[], renderers: RendererSystem, onComplete?: () => void): number {
+  public play(script: Command[], renderers: RendererSystem, onComplete?: () => void, opts: { ignorePause?: boolean } = {}): number {
     this.kill();
 
     if (!script || script.length === 0) {
@@ -112,6 +112,11 @@ export class GSAPExecutor {
           dur = d3r?.createEdge?.(cmd.id!, cmd, ctxAt(at)) ?? 0;
           break;
 
+        case 'content':
+          dur = d3r?.createContent?.(cmd.id!, cmd, ctxAt(at)) ?? 0;
+          if (cmd.id) createdIds.push(cmd.id);
+          break;
+
         // ── Annotations & results ───────────────────────────────────────
         case 'compare':
           dur = d3r?.createComparator?.(cmd.left, cmd.right, cmd.op || '==', ctxAt(at)) ?? 0;
@@ -130,6 +135,17 @@ export class GSAPExecutor {
           if (el) {
             dur = fadeOut(tl, el, at, { duration: (cmd.duration || 300) / 1000 });
             tl.call(() => d3r?.removeElement?.(cmd.id || cmd.target!), [], at + dur);
+          }
+          break;
+        }
+
+        case 'remove_annotation': {
+          // annotate() renders its callout as `annotate_<target>`.
+          const annotationId = `annotate_${cmd.id || cmd.target}`;
+          const el = this._getElement(annotationId);
+          if (el) {
+            dur = fadeOut(tl, el, at, { duration: (cmd.duration || 300) / 1000 });
+            tl.call(() => d3r?.removeElement?.(annotationId), [], at + dur);
           }
           break;
         }
@@ -293,7 +309,7 @@ export class GSAPExecutor {
     }
 
     tl.timeScale(this.speed);
-    if (this.userPaused) {
+    if (this.userPaused && !opts.ignorePause) {
       // Playback is paused (e.g. the user clicked a specific step): render
       // the step's final state instantly. onComplete still fires so the
       // completion gating stays accurate.

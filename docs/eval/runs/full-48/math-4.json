@@ -1,0 +1,214 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Area under y = x from 0 to 2",
+  "domain": "math",
+  "summary": "The integral of y = x from 0 to 2 equals the area of a right triangle with base and height 2, giving 2.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     3
+    ],
+    "y": [
+     0,
+     3
+    ],
+    "axes": true,
+    "grid": true,
+    "equalAspect": false
+   }
+  ],
+  "entities": [
+   {
+    "id": "line",
+    "space": "plane",
+    "type": "plot",
+    "expr": "x",
+    "domain": [
+     0,
+     3
+    ]
+   },
+   {
+    "id": "v0",
+    "space": "plane",
+    "type": "line",
+    "from": [
+     0,
+     0
+    ],
+    "to": [
+     0,
+     2
+    ],
+    "dashed": false
+   },
+   {
+    "id": "v2",
+    "space": "plane",
+    "type": "line",
+    "from": [
+     2,
+     0
+    ],
+    "to": [
+     2,
+     2
+    ],
+    "dashed": false
+   },
+   {
+    "id": "tri",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      2,
+      2
+     ]
+    ],
+    "vertexLabels": [
+     "O",
+     "B",
+     "C"
+    ],
+    "fill": true
+   },
+   {
+    "id": "baseLbl",
+    "type": "text",
+    "text": "base = 2",
+    "role": "caption"
+   },
+   {
+    "id": "heightLbl",
+    "type": "text",
+    "text": "height = 2",
+    "role": "caption"
+   },
+   {
+    "id": "eq",
+    "type": "math",
+    "latex": "\\int_{0}^{2} x\\\\,dx = \\frac{x^{2}}{2}\\bigg|_{0}^{2}=2"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "baseLbl",
+    "of": "plane",
+    "gap": "md"
+   },
+   {
+    "rel": "left-of",
+    "id": "heightLbl",
+    "of": "plane",
+    "gap": "md"
+   },
+   {
+    "rel": "below",
+    "id": "eq",
+    "of": "plane",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Plot the line",
+    "narration": "We draw the line y = x on the coordinate grid.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "line",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Mark the interval",
+    "narration": "Vertical lines at x = 0 and x = 2 bound the region of interest.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "v0",
+       "v2"
+      ],
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Shade the area",
+    "narration": "The area under the line between 0 and 2 forms a right triangle.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "tri",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Label base and height",
+    "narration": "The triangle’s base and height are both 2 units long.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "baseLbl",
+       "heightLbl"
+      ],
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Compute the area",
+    "narration": "Area = ½·base·height = ½·2·2 = 2, matching the integral result.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[6].latex",
+   "message": "auto-fixed: restored LaTeX backslashes eaten by JSON escapes"
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 47538,
+ "model": "gemini-3.6-flash",
+ "domain": "geometry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Area under y = x from 0 to 2\",\"domain\":\"math\",\"summary\":\"The integral of y = x from 0 to 2 equals the area of a right triangle with base and height 2, giving 2.\",\"spaces\":[{\"id\":\"plane\",\"kind\":\"cartesian\",\"x\":[0,3],\"y\":[0,3],\"axes\":true,\"grid\":true}],\"entities\":[{\"id\":\"line\",\"type\":\"plot\",\"space\":\"plane\",\"expr\":\"x\",\"domain\":[0,3]},{\"id\":\"v0\",\"type\":\"line\",\"space\":\"plane\",\"from\":[0,0],\"to\":[0,2]},{\"id\":\"v2\",\"type\":\"line\",\"space\":\"plane\",\"from\":[2,0],\"to\":[2,2]},{\"id\":\"tri\",\"type\":\"polygon\",\"space\":\"plane\",\"points\":[[0,0],[2,0],[2,2]],\"vertexLabels\":[\"O\",\"B\",\"C\"]},{\"id\":\"baseLbl\",\"type\":\"text\",\"text\":\"base = 2\",\"role\":\"caption\"},{\"id\":\"heightLbl\",\"type\":\"text\",\"text\":\"height = 2\",\"role\":\"caption\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\\\\\int_{0}^{2} x\\\\\\\\,dx = \\\\\\\\frac{x^{2}}{2}\\\\\\\\bigg|_{0}^{2}=2\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"plane\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"baseLbl\",\"of\":\"plane\"},{\"rel\":\"left-of\",\"id\":\"heightLbl\",\"of\":\"plane\"},{\"rel\":\"below\",\"id\":\"eq\",\"of\":\"plane\"}],\"beats\":[{\"title\":\"Plot the line\",\"narration\":\"We draw the line y = x on the coordinate grid.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"line\",\"effect\":\"draw\"}]},{\"title\":\"Mark the interval\",\"narration\":\"Vertical lines at x = 0 and x = 2 bound the region of interest.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"v0\",\"v2\"],\"effect\":\"draw\"}]},{\"title\":\"Shade the area\",\"narration\":\"The area under the line between 0 and 2 forms a right triangle.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"tri\",\"effect\":\"draw\"}]},{\"title\":\"Label base and height\",\"narration\":\"The triangle’s base and height are both 2 units long.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":[\"baseLbl\",\"heightLbl\"],\"effect\":\"type\"}]},{\"title\":\"Compute the area\",\"narration\":\"Area = ½·base·height = ½·2·2 = 2, matching the integral result.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"type\"}]}]}"
+}

@@ -1,0 +1,199 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Why Methane Is Tetrahedral",
+  "domain": "chemistry",
+  "summary": "Carbon’s four bonding pairs repel equally, giving a tetrahedral shape with 109.5° H‑C‑H angles.",
+  "spaces": [],
+  "entities": [
+   {
+    "id": "meth",
+    "type": "molecule",
+    "atoms": [
+     {
+      "id": "C",
+      "el": "C"
+     },
+     {
+      "id": "H1",
+      "el": "H"
+     },
+     {
+      "id": "H2",
+      "el": "H"
+     },
+     {
+      "id": "H3",
+      "el": "H"
+     },
+     {
+      "id": "H4",
+      "el": "H"
+     }
+    ],
+    "bonds": [
+     [
+      0,
+      1,
+      1
+     ],
+     [
+      0,
+      2,
+      1
+     ],
+     [
+      0,
+      3,
+      1
+     ],
+     [
+      0,
+      4,
+      1
+     ]
+    ]
+   },
+   {
+    "id": "title",
+    "type": "text",
+    "text": "Methane (CH₄)",
+    "role": "title"
+   },
+   {
+    "id": "vsep",
+    "type": "text",
+    "text": "Carbon has 4 bonding pairs → tetrahedral",
+    "role": "body"
+   },
+   {
+    "id": "ang",
+    "type": "angle",
+    "vertex": "meth.C",
+    "from": "meth.H1",
+    "to": "meth.H2",
+    "showValue": true,
+    "degrees": 109.5
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "title",
+    "region": "top"
+   },
+   {
+    "rel": "place",
+    "id": "vsep",
+    "region": "top-left"
+   },
+   {
+    "rel": "place",
+    "id": "meth",
+    "region": "center"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Methane molecule",
+    "narration": "Here is a methane molecule: a carbon atom bonded to four hydrogens.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "title",
+      "effect": "pop"
+     },
+     {
+      "do": "create",
+      "target": "meth",
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "VSEPR predicts tetrahedral",
+    "narration": "Carbon has four bonding pairs, so VSEPR predicts a tetrahedral arrangement.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "vsep",
+      "effect": "fade"
+     },
+     {
+      "do": "highlight",
+      "target": "meth",
+      "state": "insight",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "What is the H–C–H bond angle in a perfect tetrahedron?",
+     "choices": [
+      "90°",
+      "109.5°",
+      "120°",
+      "180°"
+     ],
+     "answer": 1,
+     "explain": "A tetrahedron gives 109.5° between any two bonds."
+    }
+   },
+   {
+    "title": "Show the angle",
+    "narration": "The H–C–H angle is 109.5°, matching the tetrahedral geometry.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "ang",
+      "effect": "draw"
+     },
+     {
+      "do": "annotate",
+      "target": "ang",
+      "text": "109.5°",
+      "side": "above"
+     },
+     {
+      "do": "highlight",
+      "target": "ang",
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "Methane is tetrahedral because four electron pairs repel equally, producing 109.5° bond angles.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "meth",
+       "ang"
+      ],
+      "state": "insight",
+      "hold": true
+     },
+     {
+      "do": "set",
+      "target": "vsep",
+      "text": "Result: tetrahedral, 109.5° angles"
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 30264,
+ "model": "gemini-3.6-flash",
+ "domain": "general",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Why Methane Is Tetrahedral\",\"domain\":\"chemistry\",\"summary\":\"Carbon’s four bonding pairs repel equally, giving a tetrahedral shape with 109.5° H‑C‑H angles.\",\"spaces\":[],\"entities\":[{\"id\":\"meth\",\"type\":\"molecule\",\"atoms\":[{\"id\":\"C\",\"el\":\"C\"},{\"id\":\"H1\",\"el\":\"H\"},{\"id\":\"H2\",\"el\":\"H\"},{\"id\":\"H3\",\"el\":\"H\"},{\"id\":\"H4\",\"el\":\"H\"}],\"bonds\":[[0,1,1],[0,2,1],[0,3,1],[0,4,1]]},{\"id\":\"title\",\"type\":\"text\",\"text\":\"Methane (CH₄)\",\"role\":\"title\"},{\"id\":\"vsep\",\"type\":\"text\",\"text\":\"Carbon has 4 bonding pairs → tetrahedral\",\"role\":\"body\"},{\"id\":\"ang\",\"type\":\"angle\",\"vertex\":\"meth.C\",\"from\":\"meth.H1\",\"to\":\"meth.H2\",\"degrees\":109.5}],\"layout\":[{\"rel\":\"place\",\"id\":\"title\",\"region\":\"top\"},{\"rel\":\"place\",\"id\":\"vsep\",\"region\":\"top-left\"},{\"rel\":\"place\",\"id\":\"meth\",\"region\":\"center\"}],\"beats\":[{\"title\":\"Methane molecule\",\"narration\":\"Here is a methane molecule: a carbon atom bonded to four hydrogens.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"title\",\"effect\":\"pop\"},{\"do\":\"create\",\"target\":\"meth\",\"effect\":\"grow\"}]},{\"title\":\"VSEPR predicts tetrahedral\",\"narration\":\"Carbon has four bonding pairs, so VSEPR predicts a tetrahedral arrangement.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"vsep\",\"effect\":\"fade\"},{\"do\":\"highlight\",\"target\":\"meth\",\"state\":\"insight\"}],\"check\":{\"question\":\"What is the H–C–H bond angle in a perfect tetrahedron?\",\"choices\":[\"90°\",\"109.5°\",\"120°\",\"180°\"],\"answer\":1,\"explain\":\"A tetrahedron gives 109.5° between any two bonds.\"}},{\"title\":\"Show the angle\",\"narration\":\"The H–C–H angle is 109.5°, matching the tetrahedral geometry.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"ang\",\"effect\":\"draw\"},{\"do\":\"annotate\",\"target\":\"ang\",\"text\":\"109.5°\",\"side\":\"above\"},{\"do\":\"highlight\",\"target\":\"ang\",\"state\":\"found\"}]},{\"title\":\"Recap\",\"narration\":\"Methane is tetrahedral because four electron pairs repel equally, producing 109.5° bond angles.\",\"pace\":\"slow\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"meth\",\"ang\"],\"state\":\"insight\"},{\"do\":\"set\",\"target\":\"vsep\",\"text\":\"Result: tetrahedral, 109.5° angles\"}]}]}"
+}

@@ -92,7 +92,7 @@ const KaTeXRenderer = forwardRef((props: KaTeXRendererProps, ref) => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
-                    className="text-sm text-blue-300/90 font-mono mt-4 text-center tracking-widest uppercase drop-shadow-[0_0_8px_rgba(147,197,253,0.5)]"
+                    className="text-sm text-blue-300/90 font-medium mt-4 text-center drop-shadow-[0_0_8px_rgba(147,197,253,0.5)]"
                   >
                     // {el.annotation}
                   </motion.p>
@@ -114,7 +114,7 @@ const KaTeXRenderer = forwardRef((props: KaTeXRendererProps, ref) => {
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50" />
         <div className="flex items-center space-y-1 mb-4">
           <div className="w-1.5 h-5 bg-blue-500 rounded-full mr-4 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
-          <h3 className="text-xs font-bold text-blue-400 uppercase tracking-[0.25em]">Step {currentStepIndex + 1}: Derivation Logic</h3>
+          <h3 className="text-xs font-semibold text-blue-400">Step {currentStepIndex + 1}: Derivation Logic</h3>
         </div>
         <p className="text-xl text-white/95 leading-relaxed font-light tracking-wide">
           {currentStep.narration || currentStep.explanation || "Analyzing mathematical relationships..."}

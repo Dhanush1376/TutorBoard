@@ -11,7 +11,7 @@ const VARIANTS = {
   success: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
   warning: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   danger:  'bg-red-500/10 text-red-500 border-red-500/20',
-  info:    'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  info:    'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
   brand:   'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent',
 };
 
@@ -34,7 +34,7 @@ const Badge = ({
   return (
     <span
       className={`
-        inline-flex items-center font-bold uppercase tracking-[0.05em]
+        inline-flex items-center font-medium
         rounded-full border select-none leading-none
         ${v} ${sizeClass} ${className}
       `.trim()}

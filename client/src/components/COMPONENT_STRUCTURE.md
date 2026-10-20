@@ -17,7 +17,7 @@ This document defines the component directory conventions for the TutorBoard cli
 ### `/chat/`
 **Purpose**: Messaging, AI orchestration feedback, and conversation-based interaction.
 - **Ownership**: Message displays, chat history panels, and inline AI chat interfaces.
-- **Examples**: `ChatWindow.jsx`, `Message.jsx`, `ChatHistory.jsx`, `InlineChat.jsx`.
+- **Examples**: `ChatWindow.jsx`, `Message.jsx`, `ChatHistory.jsx`, `InputBar.jsx`.
 
 ### `/layout/`
 **Purpose**: Global application shell, structural navigation, and shared branding/UI.

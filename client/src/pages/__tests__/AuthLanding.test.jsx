@@ -7,12 +7,21 @@ import AuthLanding from '../AuthLanding';
 import { useAuth } from '../../hooks/useAuth';
 
 // Mock Framer Motion to skip animations
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }) => <div {...props}>{children}</div>,
-  },
-  AnimatePresence: ({ children }) => <>{children}</>,
-}));
+vi.mock('framer-motion', () => {
+  const MOTION_PROPS = ['initial', 'animate', 'exit', 'transition', 'layout', 'whileHover', 'whileTap', 'whileInView', 'variants', 'viewport'];
+  // Any motion.<tag> renders as the plain element, minus the animation props.
+  const motion = new Proxy(
+    {},
+    {
+      get: (_, Tag) =>
+        function MotionStub({ children, ...props }) {
+          MOTION_PROPS.forEach((k) => delete props[k]);
+          return <Tag {...props}>{children}</Tag>;
+        },
+    },
+  );
+  return { motion, AnimatePresence: ({ children }) => <>{children}</> };
+});
 
 // Mock routing
 const mockNavigate = vi.fn();
@@ -64,7 +73,7 @@ describe('AuthLanding', () => {
     // Should NOT redirect
     expect(mockNavigate).not.toHaveBeenCalled();
     // The form should be visible
-    expect(screen.getByPlaceholderText('name@company.com')).toBeInTheDocument();
+    expect(document.querySelector('input[type="email"]')).toBeInTheDocument();
   });
 
   it('Case 3: Keeps auth UI accessible for guest user visiting conversion/login route', () => {
@@ -75,7 +84,7 @@ describe('AuthLanding', () => {
       </MemoryRouter>
     );
     expect(mockNavigate).not.toHaveBeenCalled();
-    expect(screen.getByPlaceholderText('name@company.com')).toBeInTheDocument();
+    expect(document.querySelector('input[type="email"]')).toBeInTheDocument();
   });
 
   it('Case 4: Redirects guest who successfully becomes registered', () => {

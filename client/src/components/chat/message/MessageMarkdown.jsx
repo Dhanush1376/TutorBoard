@@ -1,125 +1,137 @@
 import React from 'react';
 import CodeBlock from './CodeBlock';
 
+/**
+ * Markdown renderers for assistant answers.
+ *
+ * Reading comfort first: one body size (15px / 1.7), quiet headings, tables and
+ * display math that scroll inside the answer instead of widening the chat, and
+ * long URLs that wrap. Colours come from the theme tokens so light and dark both work.
+ *
+ * react-markdown v10 no longer tells the `code` renderer whether it is inline,
+ * so fenced blocks are taken from `pre` (always a block) and `code` alone is inline.
+ */
+
+const text = 'var(--text-primary)';
+const muted = 'var(--text-secondary)';
+const line = 'var(--st-line-strong, var(--border-color))';
+const fill = 'var(--st-fill, var(--bg-secondary))';
+
+const safeHref = (href) => {
+  try {
+    const parsed = new URL(href, window.location.origin);
+    if (['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return parsed.toString();
+  } catch { /* not a URL */ }
+  return null;
+};
+
 export const buildMarkdownComponents = (onOpenArtifact) => ({
   p: ({ children }) => (
-    <p style={{ marginBottom: 12, lineHeight: 1.7, fontSize: 14.5, color: 'var(--text-primary)', opacity: 0.95, wordBreak: 'break-word' }}>
+    <p style={{ margin: '0 0 0.85em', lineHeight: 1.7, fontSize: 15, color: text, overflowWrap: 'anywhere' }}>
       {children}
     </p>
   ),
-  strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{children}</strong>,
-  em: ({ children }) => <em style={{ fontStyle: 'italic', opacity: 0.85 }}>{children}</em>,
+  strong: ({ children }) => <strong style={{ fontWeight: 600, color: text }}>{children}</strong>,
+  em: ({ children }) => <em style={{ fontStyle: 'italic', color: text }}>{children}</em>,
   h1: ({ children }) => (
-    <h1 style={{ 
-      fontSize: 20, fontWeight: 800, marginBottom: 16, marginTop: 28, 
-      letterSpacing: '-0.02em', color: 'var(--text-primary)', 
-      borderBottom: '2px solid var(--border-color)', paddingBottom: 12 
-    }}>
+    <h1 style={{ fontSize: 19, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.35, margin: '1.4em 0 0.5em', color: text }}>
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 style={{ 
-      fontSize: 18, fontWeight: 700, marginBottom: 14, marginTop: 24, 
-      letterSpacing: '-0.01em', color: 'var(--text-primary)' 
-    }}>
+    <h2 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.4, margin: '1.3em 0 0.45em', color: text }}>
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 style={{ 
-      fontSize: 16, fontWeight: 700, marginBottom: 12, marginTop: 20, 
-      color: 'var(--text-primary)', letterSpacing: '-0.01em' 
-    }}>
+    <h3 style={{ fontSize: 15.5, fontWeight: 600, lineHeight: 1.45, margin: '1.2em 0 0.4em', color: text }}>
       {children}
     </h3>
   ),
-  ul: ({ children }) => <ul style={{ paddingLeft: 24, marginBottom: 12, listStyleType: 'disc' }}>{children}</ul>,
-  ol: ({ children }) => <ol style={{ paddingLeft: 24, marginBottom: 12, listStyleType: 'decimal' }}>{children}</ol>,
+  h4: ({ children }) => (
+    <h4 style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.5, margin: '1.1em 0 0.35em', color: text }}>
+      {children}
+    </h4>
+  ),
+  ul: ({ children }) => <ul style={{ paddingLeft: '1.3em', margin: '0 0 0.85em', listStyleType: 'disc' }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ paddingLeft: '1.45em', margin: '0 0 0.85em', listStyleType: 'decimal' }}>{children}</ol>,
   li: ({ children }) => (
-    <li style={{ marginBottom: 8, lineHeight: 1.8, fontSize: 14.5, color: 'var(--text-primary)', opacity: 0.9 }}>
+    <li style={{ margin: '0 0 0.3em', paddingLeft: '0.2em', lineHeight: 1.7, fontSize: 15, color: text }}>
       {children}
     </li>
   ),
   blockquote: ({ children }) => (
-    <blockquote style={{ 
-      borderLeft: '4px solid var(--text-tertiary)', 
-      paddingLeft: 20, marginLeft: 0, marginTop: 18, marginBottom: 18, 
-      opacity: 0.95, fontStyle: 'italic', 
-      background: 'rgba(var(--bg-secondary-rgb), 0.5)',
-      paddingTop: 8, paddingBottom: 8, borderRadius: '0 8px 8px 0'
-    }}>
+    <blockquote style={{ borderLeft: `2px solid ${line}`, margin: '0 0 0.85em', padding: '0.1em 0 0.1em 1em', color: muted, fontStyle: 'normal' }}>
       {children}
     </blockquote>
   ),
-  pre: ({ children }) => <>{children}</>,
-  code: ({ className, children, inline }) => {
-    if (inline) {
-      return (
-        <code style={{
-          fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600,
-          background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
-          borderRadius: 6, padding: '1px 5px', color: 'var(--text-primary)',
-        }}>
-          {children}
-        </code>
-      );
-    }
-    return <CodeBlock className={className} onOpenArtifact={onOpenArtifact}>{children}</CodeBlock>;
+  // Fenced code: the single <code> child carries the language class and the text.
+  pre: ({ children }) => {
+    const child = React.Children.toArray(children)[0];
+    const props = React.isValidElement(child) ? child.props : {};
+    return (
+      <CodeBlock className={props.className} onOpenArtifact={onOpenArtifact}>
+        {props.children ?? ''}
+      </CodeBlock>
+    );
   },
+  // Only inline code reaches here (blocks are handled by `pre`).
+  code: ({ children }) => (
+    <code style={{
+      fontFamily: 'var(--font-mono)', fontSize: '0.86em', fontWeight: 500,
+      background: 'var(--st-fill-strong, var(--bg-tertiary))', borderRadius: 5,
+      padding: '0.12em 0.38em', color: text, overflowWrap: 'anywhere', border: 'none',
+    }}>
+      {children}
+    </code>
+  ),
   table: ({ children }) => (
-    <div style={{ overflowX: 'auto', marginBottom: 20, borderRadius: 12, border: '1px solid var(--border-color)' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>{children}</table>
+    <div
+      role="region"
+      aria-label="Table"
+      tabIndex={0}
+      style={{ overflowX: 'auto', margin: '0.25em 0 1em', borderRadius: 10, border: `1px solid ${line}`, maxWidth: '100%' }}
+    >
+      <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse', fontSize: 14, fontVariantNumeric: 'tabular-nums', margin: 0, border: 'none' }}>
+        {children}
+      </table>
     </div>
   ),
-  th: ({ children }) => (
-    <th style={{ 
-      textAlign: 'left', 
-      padding: '12px 14px', 
-      background: 'var(--bg-secondary)', 
-      borderBottom: '2px solid var(--border-color)', 
-      fontWeight: 700, 
-      fontSize: 11, 
-      color: 'var(--text-primary)', 
-      textTransform: 'uppercase', 
-      letterSpacing: '0.08em',
-      whiteSpace: 'nowrap'
+  th: ({ children, style }) => (
+    <th style={{
+      textAlign: style?.textAlign || 'left', padding: '8px 12px', background: fill,
+      borderBottom: `1px solid ${line}`, fontWeight: 600, fontSize: 13, color: text, whiteSpace: 'nowrap',
     }}>
       {children}
     </th>
   ),
-  td: ({ children }) => (
-    <td style={{ 
-      padding: '12px 14px', 
-      borderBottom: '1px solid var(--border-color)', 
-      color: 'var(--text-primary)', 
-      opacity: 0.9,
-      minWidth: '120px'
+  td: ({ children, style }) => (
+    <td style={{
+      textAlign: style?.textAlign || 'left', padding: '8px 12px', borderBottom: `1px solid ${line}`,
+      // columns take their natural width (the wrapper scrolls); only long prose wraps
+      color: text, verticalAlign: 'top', maxWidth: 280,
     }}>
       {children}
     </td>
   ),
   a: ({ children, href }) => {
-    let safeHref = '#';
-    try {
-      const parsed = new URL(href, window.location.origin);
-      if (parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'mailto:') {
-        safeHref = parsed.toString();
-      }
-    } catch {
-      safeHref = '#';
-    }
-    const isMailto = safeHref.startsWith('mailto:');
+    const url = safeHref(href);
+    if (!url) return <span>{children}</span>;
+    const isMailto = url.startsWith('mailto:');
     return (
-      <a 
-        href={safeHref} 
-        target={isMailto ? undefined : "_blank"} 
-        rel={isMailto ? undefined : "noopener noreferrer"} 
-        style={{ color: 'var(--info)', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: 'var(--info)', opacity: 0.9 }}
+      <a
+        href={url}
+        target={isMailto ? undefined : '_blank'}
+        rel={isMailto ? undefined : 'noopener noreferrer'}
+        style={{
+          color: text, textDecoration: 'underline', textUnderlineOffset: 3,
+          textDecorationColor: 'var(--mk-accent, currentColor)', textDecorationThickness: 1,
+          overflowWrap: 'anywhere',
+        }}
       >
         {children}
       </a>
     );
   },
-  hr: () => <hr style={{ border: 'none', borderTop: '1px solid rgba(var(--text-primary-rgb), 0.06)', margin: '24px 0' }} />,
+  hr: () => <hr style={{ border: 'none', borderTop: `1px solid ${line}`, margin: '1.4em 0' }} />,
 });

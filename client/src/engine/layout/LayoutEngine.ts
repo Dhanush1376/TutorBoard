@@ -81,13 +81,25 @@ export class LayoutEngine {
   }
 
   release(id: string): void {
-    this.claims.delete(id);
+    if (this.claims.delete(id)) this.rewindRows();
   }
 
   releaseByPrefix(prefix: string): void {
+    let released = false;
     for (const key of [...this.claims.keys()]) {
-      if (key.startsWith(prefix)) this.claims.delete(key);
+      if (key.startsWith(prefix)) released = this.claims.delete(key) || released;
     }
+    if (released) this.rewindRows();
+  }
+
+  /**
+   * After a removal, let the next row search from the top again —
+   * allocateRow's collision scan finds the first free slot. Without this the
+   * cursor only moved down, so a lesson that replaces its array each step
+   * pushed every new array a row lower and the camera had to chase it.
+   */
+  private rewindRows(): void {
+    this.rowCursorY = HEADER_BAND + SAFE_MARGIN;
   }
 
   reset(): void {

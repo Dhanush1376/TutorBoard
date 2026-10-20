@@ -1,0 +1,263 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Why Triangle Angles Add to 180°",
+  "domain": "geometry",
+  "summary": "By drawing a line parallel to one side through the opposite vertex, alternate interior angles show that the three angles form a straight line of 180°.",
+  "spaces": [
+   {
+    "id": "plane",
+    "kind": "cartesian",
+    "x": [
+     0,
+     10
+    ],
+    "y": [
+     0,
+     8
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "tri",
+    "tone": "primary",
+    "space": "plane",
+    "type": "polygon",
+    "points": [
+     [
+      1,
+      2
+     ],
+     [
+      9,
+      2
+     ],
+     [
+      4,
+      7
+     ]
+    ],
+    "vertexLabels": [
+     "A",
+     "B",
+     "C"
+    ],
+    "fill": true
+   },
+   {
+    "id": "aA",
+    "label": "\\alpha",
+    "tone": "warning",
+    "space": "plane",
+    "type": "angle",
+    "vertex": "tri.A",
+    "from": "tri.B",
+    "to": "tri.C",
+    "showValue": true
+   },
+   {
+    "id": "aB",
+    "label": "\\beta",
+    "tone": "success",
+    "space": "plane",
+    "type": "angle",
+    "vertex": "tri.B",
+    "from": "tri.C",
+    "to": "tri.A",
+    "showValue": true
+   },
+   {
+    "id": "aC",
+    "label": "\\gamma",
+    "tone": "accent",
+    "space": "plane",
+    "type": "angle",
+    "vertex": "tri.C",
+    "from": "tri.A",
+    "to": "tri.B",
+    "showValue": true
+   },
+   {
+    "id": "par",
+    "label": "∥ AB",
+    "space": "plane",
+    "type": "line",
+    "from": [
+     0,
+     7
+    ],
+    "to": [
+     10,
+     7
+    ],
+    "dashed": true
+   },
+   {
+    "id": "aA_alt",
+    "label": "\\alpha",
+    "tone": "warning",
+    "space": "plane",
+    "type": "angle",
+    "vertex": "tri.C",
+    "from": [
+     0,
+     7
+    ],
+    "to": "tri.A",
+    "showValue": true
+   },
+   {
+    "id": "aB_alt",
+    "label": "\\beta",
+    "tone": "success",
+    "space": "plane",
+    "type": "angle",
+    "vertex": "tri.C",
+    "from": "tri.B",
+    "to": [
+     10,
+     7
+    ],
+    "showValue": true
+   },
+   {
+    "id": "eq",
+    "type": "math",
+    "latex": "\\alpha + \\beta + \\gamma = 180^\\circ"
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "plane",
+    "region": "center"
+   },
+   {
+    "rel": "below",
+    "id": "eq",
+    "of": "plane",
+    "gap": "md"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Start with any triangle",
+    "narration": "Consider triangle ABC with three interior angles at its vertices.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "tri",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Label the three angles",
+    "narration": "Let the interior angles at vertices A, B, and C be α, β, and γ.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "aA",
+       "aB",
+       "aC"
+      ],
+      "effect": "grow"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Draw a parallel line",
+    "narration": "Draw a straight line through vertex C that is parallel to the base AB.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "par",
+      "effect": "draw"
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "When a line crosses two parallel lines, what is true about alternate interior angles?",
+     "choices": [
+      "They are equal",
+      "They add up to 90°",
+      "They are perpendicular"
+     ],
+     "answer": 0,
+     "explain": "Alternate interior angles formed by a transversal across parallel lines are always equal."
+    }
+   },
+   {
+    "title": "Identify alternate interior angles",
+    "narration": "Because the line is parallel to AB, alternate interior angles reveal α and β at vertex C.",
+    "actions": [
+     {
+      "do": "create",
+      "target": [
+       "aA_alt",
+       "aB_alt"
+      ],
+      "effect": "grow"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "aA",
+       "aA_alt"
+      ],
+      "state": "insight",
+      "hold": false
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "aB",
+       "aB_alt"
+      ],
+      "state": "insight",
+      "hold": false
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Angles form a straight line",
+    "narration": "Angles α, γ, and β sit side by side along a straight line, proving their sum is 180°.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "aA_alt",
+       "aC",
+       "aB_alt"
+      ],
+      "state": "found",
+      "hold": true
+     },
+     {
+      "do": "create",
+      "target": "eq",
+      "effect": "type"
+     }
+    ],
+    "pace": "normal"
+   }
+  ]
+ },
+ "warnings": [],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 12239,
+ "model": "gemini-3.6-flash",
+ "domain": "geometry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Why Triangle Angles Add to 180°\",\"domain\":\"geometry\",\"summary\":\"By drawing a line parallel to one side through the opposite vertex, alternate interior angles show that the three angles form a straight line of 180°.\",\"spaces\":[{\"id\":\"plane\",\"kind\":\"cartesian\",\"x\":[0,10],\"y\":[0,8],\"axes\":false,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"tri\",\"type\":\"polygon\",\"space\":\"plane\",\"points\":[[1,2],[9,2],[4,7]],\"vertexLabels\":[\"A\",\"B\",\"C\"],\"tone\":\"primary\"},{\"id\":\"aA\",\"type\":\"angle\",\"space\":\"plane\",\"vertex\":\"tri.A\",\"from\":\"tri.B\",\"to\":\"tri.C\",\"label\":\"\\\\alpha\",\"tone\":\"warning\"},{\"id\":\"aB\",\"type\":\"angle\",\"space\":\"plane\",\"vertex\":\"tri.B\",\"from\":\"tri.C\",\"to\":\"tri.A\",\"label\":\"\\\\beta\",\"tone\":\"success\"},{\"id\":\"aC\",\"type\":\"angle\",\"space\":\"plane\",\"vertex\":\"tri.C\",\"from\":\"tri.A\",\"to\":\"tri.B\",\"label\":\"\\\\gamma\",\"tone\":\"accent\"},{\"id\":\"par\",\"type\":\"line\",\"space\":\"plane\",\"from\":[0,7],\"to\":[10,7],\"dashed\":true,\"label\":\"∥ AB\"},{\"id\":\"aA_alt\",\"type\":\"angle\",\"space\":\"plane\",\"vertex\":\"tri.C\",\"from\":[0,7],\"to\":\"tri.A\",\"label\":\"\\\\alpha\",\"tone\":\"warning\"},{\"id\":\"aB_alt\",\"type\":\"angle\",\"space\":\"plane\",\"vertex\":\"tri.C\",\"from\":\"tri.B\",\"to\":[10,7],\"label\":\"\\\\beta\",\"tone\":\"success\"},{\"id\":\"eq\",\"type\":\"math\",\"latex\":\"\\\\alpha + \\\\beta + \\\\gamma = 180^\\\\circ\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"plane\",\"region\":\"center\"},{\"rel\":\"below\",\"id\":\"eq\",\"of\":\"plane\"}],\"beats\":[{\"title\":\"Start with any triangle\",\"narration\":\"Consider triangle ABC with three interior angles at its vertices.\",\"actions\":[{\"do\":\"create\",\"target\":\"tri\",\"effect\":\"draw\"}]},{\"title\":\"Label the three angles\",\"narration\":\"Let the interior angles at vertices A, B, and C be α, β, and γ.\",\"actions\":[{\"do\":\"create\",\"target\":[\"aA\",\"aB\",\"aC\"],\"effect\":\"grow\"}]},{\"title\":\"Draw a parallel line\",\"narration\":\"Draw a straight line through vertex C that is parallel to the base AB.\",\"actions\":[{\"do\":\"create\",\"target\":\"par\",\"effect\":\"draw\"}],\"check\":{\"question\":\"When a line crosses two parallel lines, what is true about alternate interior angles?\",\"choices\":[\"They are equal\",\"They add up to 90°\",\"They are perpendicular\"],\"answer\":0,\"explain\":\"Alternate interior angles formed by a transversal across parallel lines are always equal.\"}},{\"title\":\"Identify alternate interior angles\",\"narration\":\"Because the line is parallel to AB, alternate interior angles reveal α and β at vertex C.\",\"actions\":[{\"do\":\"create\",\"target\":[\"aA_alt\",\"aB_alt\"],\"effect\":\"grow\"},{\"do\":\"highlight\",\"target\":[\"aA\",\"aA_alt\"],\"state\":\"insight\",\"hold\":false},{\"do\":\"highlight\",\"target\":[\"aB\",\"aB_alt\"],\"state\":\"insight\",\"hold\":false}]},{\"title\":\"Angles form a straight line\",\"narration\":\"Angles α, γ, and β sit side by side along a straight line, proving their sum is 180°.\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"aA_alt\",\"aC\",\"aB_alt\"],\"state\":\"found\",\"hold\":true},{\"do\":\"create\",\"target\":\"eq\",\"effect\":\"type\"}]}]}"
+}

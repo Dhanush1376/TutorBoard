@@ -1,0 +1,258 @@
+{
+ "ok": true,
+ "scene": {
+  "version": "1",
+  "title": "Ionic Bond in NaCl",
+  "domain": "chemistry",
+  "summary": "Sodium donates an electron to chlorine, forming Na⁺ and Cl⁻ which attract each other to create an ionic bond.",
+  "spaces": [
+   {
+    "id": "chemSpace",
+    "kind": "cartesian",
+    "x": [
+     -5,
+     5
+    ],
+    "y": [
+     -5,
+     5
+    ],
+    "axes": false,
+    "grid": false,
+    "equalAspect": true
+   }
+  ],
+  "entities": [
+   {
+    "id": "title",
+    "type": "text",
+    "text": "Ionic Bond in NaCl",
+    "role": "title"
+   },
+   {
+    "id": "caption",
+    "type": "text",
+    "text": "Na gives an electron to Cl",
+    "role": "caption"
+   },
+   {
+    "id": "pNa",
+    "space": "chemSpace",
+    "type": "point",
+    "at": [
+     -2,
+     0
+    ]
+   },
+   {
+    "id": "pCl",
+    "space": "chemSpace",
+    "type": "point",
+    "at": [
+     2,
+     0
+    ]
+   },
+   {
+    "id": "Na",
+    "type": "circle",
+    "size": "lg",
+    "text": "Na"
+   },
+   {
+    "id": "Cl",
+    "type": "circle",
+    "size": "lg",
+    "text": "Cl"
+   },
+   {
+    "id": "eArrow",
+    "label": "e⁻",
+    "type": "arrow",
+    "from": "pNa",
+    "to": "pCl",
+    "dashed": false
+   },
+   {
+    "id": "bond",
+    "label": "ionic",
+    "type": "line",
+    "from": "pNa",
+    "to": "pCl",
+    "dashed": false
+   }
+  ],
+  "layout": [
+   {
+    "rel": "place",
+    "id": "chemSpace",
+    "region": "center"
+   },
+   {
+    "rel": "place",
+    "id": "title",
+    "region": "top"
+   },
+   {
+    "rel": "below",
+    "id": "caption",
+    "of": "title",
+    "gap": "md"
+   },
+   {
+    "rel": "inside",
+    "id": "Na",
+    "of": "pNa"
+   },
+   {
+    "rel": "inside",
+    "id": "Cl",
+    "of": "pCl"
+   },
+   {
+    "rel": "inside",
+    "id": "eArrow",
+    "of": "chemSpace"
+   },
+   {
+    "rel": "inside",
+    "id": "bond",
+    "of": "chemSpace"
+   }
+  ],
+  "beats": [
+   {
+    "title": "Separate atoms",
+    "narration": "Sodium (Na) and chlorine (Cl) atoms are shown apart, each neutral.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "title",
+      "effect": "fade"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "caption",
+      "effect": "fade"
+     },
+     {
+      "do": "create",
+      "target": "pNa"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "pCl"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "Na",
+      "effect": "pop"
+     },
+     {
+      "with": "previous",
+      "do": "create",
+      "target": "Cl",
+      "effect": "pop"
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Electron transfer",
+    "narration": "Sodium donates its outer electron to chlorine, illustrated by an arrow.",
+    "actions": [
+     {
+      "do": "create",
+      "target": "eArrow",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": [
+       "Na",
+       "Cl"
+      ],
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal",
+    "check": {
+     "question": "After the electron moves, what happens between Na and Cl?",
+     "choices": [
+      "They repel each other",
+      "They attract forming a bond",
+      "They stay unchanged"
+     ],
+     "answer": 1,
+     "explain": "Opposite charges attract, creating an ionic bond."
+    }
+   },
+   {
+    "title": "Forming ions",
+    "narration": "Na becomes Na⁺, Cl becomes Cl⁻, and they attract each other.",
+    "actions": [
+     {
+      "do": "set",
+      "target": "Na",
+      "text": "Na⁺"
+     },
+     {
+      "do": "set",
+      "target": "Cl",
+      "text": "Cl⁻"
+     },
+     {
+      "do": "create",
+      "target": "bond",
+      "effect": "draw"
+     },
+     {
+      "do": "highlight",
+      "target": "bond",
+      "state": "active",
+      "hold": true
+     }
+    ],
+    "pace": "normal"
+   },
+   {
+    "title": "Recap",
+    "narration": "The ionic bond in NaCl is the electrostatic attraction between Na⁺ and Cl⁻.",
+    "actions": [
+     {
+      "do": "highlight",
+      "target": [
+       "Na",
+       "Cl",
+       "bond"
+      ],
+      "state": "found",
+      "hold": true
+     }
+    ],
+    "pace": "slow"
+   }
+  ]
+ },
+ "warnings": [
+  {
+   "path": "entities[2].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  },
+  {
+   "path": "entities[3].space",
+   "message": "auto-fixed: placed in the only space, \"chemSpace\""
+  }
+ ],
+ "attempts": 1,
+ "repairs": [],
+ "ms": 61710,
+ "model": "gemini-3.6-flash",
+ "domain": "chemistry",
+ "drafts": [],
+ "accepted": "{\"version\":\"1\",\"title\":\"Ionic Bond in NaCl\",\"domain\":\"chemistry\",\"summary\":\"Sodium donates an electron to chlorine, forming Na⁺ and Cl⁻ which attract each other to create an ionic bond.\",\"spaces\":[{\"id\":\"chemSpace\",\"type\":\"space\",\"kind\":\"cartesian\",\"x\":[-5,5],\"y\":[-5,5],\"axes\":false,\"grid\":false,\"equalAspect\":true}],\"entities\":[{\"id\":\"title\",\"type\":\"text\",\"text\":\"Ionic Bond in NaCl\",\"role\":\"title\"},{\"id\":\"caption\",\"type\":\"text\",\"text\":\"Na gives an electron to Cl\",\"role\":\"caption\"},{\"id\":\"pNa\",\"type\":\"point\",\"at\":[-2,0]},{\"id\":\"pCl\",\"type\":\"point\",\"at\":[2,0]},{\"id\":\"Na\",\"type\":\"circle\",\"size\":\"lg\",\"text\":\"Na\"},{\"id\":\"Cl\",\"type\":\"circle\",\"size\":\"lg\",\"text\":\"Cl\"},{\"id\":\"eArrow\",\"type\":\"arrow\",\"from\":\"pNa\",\"to\":\"pCl\",\"label\":\"e⁻\"},{\"id\":\"bond\",\"type\":\"line\",\"from\":\"pNa\",\"to\":\"pCl\",\"label\":\"ionic\"}],\"layout\":[{\"rel\":\"place\",\"id\":\"chemSpace\",\"region\":\"center\"},{\"rel\":\"place\",\"id\":\"title\",\"region\":\"top\"},{\"rel\":\"below\",\"id\":\"caption\",\"of\":\"title\"},{\"rel\":\"inside\",\"id\":\"Na\",\"of\":\"pNa\"},{\"rel\":\"inside\",\"id\":\"Cl\",\"of\":\"pCl\"},{\"rel\":\"inside\",\"id\":\"eArrow\",\"of\":\"chemSpace\"},{\"rel\":\"inside\",\"id\":\"bond\",\"of\":\"chemSpace\"}],\"beats\":[{\"title\":\"Separate atoms\",\"narration\":\"Sodium (Na) and chlorine (Cl) atoms are shown apart, each neutral.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"title\",\"effect\":\"fade\"},{\"do\":\"create\",\"target\":\"caption\",\"effect\":\"fade\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"pNa\"},{\"do\":\"create\",\"target\":\"pCl\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"Na\",\"effect\":\"pop\",\"with\":\"previous\"},{\"do\":\"create\",\"target\":\"Cl\",\"effect\":\"pop\",\"with\":\"previous\"}]},{\"title\":\"Electron transfer\",\"narration\":\"Sodium donates its outer electron to chlorine, illustrated by an arrow.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"create\",\"target\":\"eArrow\",\"effect\":\"draw\"},{\"do\":\"highlight\",\"target\":[\"Na\",\"Cl\"],\"state\":\"active\"}],\"check\":{\"question\":\"After the electron moves, what happens between Na and Cl?\",\"choices\":[\"They repel each other\",\"They attract forming a bond\",\"They stay unchanged\"],\"answer\":1,\"explain\":\"Opposite charges attract, creating an ionic bond.\"}},{\"title\":\"Forming ions\",\"narration\":\"Na becomes Na⁺, Cl becomes Cl⁻, and they attract each other.\",\"pace\":\"normal\",\"actions\":[{\"do\":\"set\",\"target\":\"Na\",\"text\":\"Na⁺\"},{\"do\":\"set\",\"target\":\"Cl\",\"text\":\"Cl⁻\"},{\"do\":\"create\",\"target\":\"bond\",\"effect\":\"draw\"},{\"do\":\"highlight\",\"target\":\"bond\",\"state\":\"active\"}]},{\"title\":\"Recap\",\"narration\":\"The ionic bond in NaCl is the electrostatic attraction between Na⁺ and Cl⁻.\",\"pace\":\"slow\",\"actions\":[{\"do\":\"highlight\",\"target\":[\"Na\",\"Cl\",\"bond\"],\"state\":\"found\"}]}]}"
+}
