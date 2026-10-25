@@ -10,8 +10,11 @@ import { useTheme } from '../../context/useTheme';
 import useWindowSize from '../../hooks/useWindowSize';
 import WindowControls from '../common/WindowControls';
 import { executeCode } from '../../utils/codeRunner';
-import { traceCode, findWalkthrough, saveWalkthrough } from '../../visualizer/runTrace';
+import { traceCode, findWalkthrough, saveWalkthrough, rememberStep } from '../../visualizer/runTrace';
+import { nextStepOnLine } from '../../visualizer/analysis';
+import useWalkthroughSuggestions from '../../visualizer/useWalkthroughSuggestions';
 import TracePlayer from '../../visualizer/ui/TracePlayer';
+import '../../visualizer/ui/visualizer.css';
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -104,6 +107,8 @@ const CodeVisualizerModal = () => {
   } = useTutorStore();
   const { mode } = useTheme();
   const { isMobile } = useWindowSize();
+  // This modal is always mounted, so it watches finished answers for code worth stepping through.
+  useWalkthroughSuggestions();
 
   const isOpen = activeOverlay === 'code-editor';
   const close = () => {
@@ -134,6 +139,14 @@ const CodeVisualizerModal = () => {
   const editorRef = useRef(null);
   const decoRef = useRef(null);
   const contextRef = useRef(null);
+  // Bumped each time an editor mounts: a fast trace (JavaScript) can be ready before the
+  // editor has loaded, and its line marks have to be drawn once the editor is there.
+  const [editorEpoch, setEditorEpoch] = useState(0);
+  // The editor's click handler is registered once; it reads the walkthrough through these.
+  const walkRef = useRef(null);
+  const stepRef = useRef(0);
+  walkRef.current = walk;
+  stepRef.current = stepIndex;
 
   useEffect(() => {
     if (isOpen && codeEditorCode) {
@@ -166,8 +179,10 @@ const CodeVisualizerModal = () => {
         // A walkthrough worth keeping has steps; errors before the first step are just shown.
         if (trace.steps.length) id = await saveWalkthrough(where, trace, `${LANGUAGES[language].name} walkthrough`);
       }
-      setWalk({ trace, id, followUps: saved?.followUps || [] });
-      setStepIndex(0);
+      setWalk({ trace, id, followUps: saved?.followUps || [], where, nonce: Date.now() });
+      // Reopening lands where the learner left off.
+      setStepIndex(Math.max(0, Math.min(saved?.lastStep || 0, trace.steps.length - 1)));
+      setShowInput(false);
     } catch (e) {
       showToast?.({ message: e?.message || 'The step-through could not start.', type: 'error', duration: 4000 });
     } finally {
@@ -186,6 +201,16 @@ const CodeVisualizerModal = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, codeEditorContext?.nonce]);
 
+  // Remember the step (debounced): reopening the walkthrough lands here.
+  useEffect(() => {
+    if (!walk || !walk.trace.steps.length) return undefined;
+    const t = setTimeout(() => rememberStep(walk, stepIndex), 800);
+    return () => clearTimeout(t);
+  }, [walk, stepIndex]);
+
+  // Lines that ran at least once (they can be clicked) and lines that never ran.
+  const ranLines = React.useMemo(() => new Set(walk?.trace.steps.map((s) => s.line) || []), [walk]);
+
   // The line about to run, and the one that just ran, marked in the editor.
   useEffect(() => {
     const editor = editorRef.current;
@@ -198,6 +223,13 @@ const CodeVisualizerModal = () => {
     }
     const prev = stepIndex > 0 ? walk.trace.steps[stepIndex - 1] : null;
     const marks = [];
+    const model = editor.getModel();
+    const lineCount = model?.getLineCount() || 0;
+    for (let ln = 1; ln <= lineCount; ln++) {
+      if (ln === step.line) continue;
+      if (ranLines.has(ln)) marks.push({ range: { startLineNumber: ln, startColumn: 1, endLineNumber: ln, endColumn: 1 }, options: { glyphMarginClassName: 'tb-trace-ran', className: 'tb-trace-ran-line', glyphMarginHoverMessage: { value: 'Ran — click to jump to it' } } });
+      else if (model.getLineContent(ln).trim()) marks.push({ range: { startLineNumber: ln, startColumn: 1, endLineNumber: ln, endColumn: model.getLineMaxColumn(ln) }, options: { inlineClassName: 'tb-trace-unrun' } });
+    }
     if (prev && prev.line !== step.line) marks.push({ range: { startLineNumber: prev.line, startColumn: 1, endLineNumber: prev.line, endColumn: 1 }, options: { isWholeLine: true, className: 'tb-trace-prev' } });
     marks.push({
       range: { startLineNumber: step.line, startColumn: 1, endLineNumber: step.line, endColumn: 1 },
@@ -205,7 +237,7 @@ const CodeVisualizerModal = () => {
     });
     decoRef.current.set(marks);
     editor.revealLineInCenterIfOutsideViewport(step.line);
-  }, [walk, stepIndex]);
+  }, [walk, stepIndex, ranLines, editorEpoch]);
 
   const changeLang = (id) => {
     // Keep the learner's code if they've written something; only swap untouched starters.
@@ -477,7 +509,17 @@ const CodeVisualizerModal = () => {
                   onMount={(editor) => {
                     editorRef.current = editor;
                     decoRef.current = null;
+                    setEditorEpoch((n) => n + 1);
                     editor.onDidChangeCursorPosition((e) => setCursor({ line: e.position.lineNumber, col: e.position.column }));
+                    // During a walkthrough, clicking a line goes to the next time it runs.
+                    editor.onMouseDown((e) => {
+                      const w = walkRef.current;
+                      const line = e.target?.position?.lineNumber;
+                      if (!w || !line || !w.trace.steps.length) return;
+                      const at = nextStepOnLine(w.trace, line, stepRef.current);
+                      if (at >= 0) setStepIndex(at);
+                      else showToast?.({ message: `Line ${line} didn't run in this walkthrough.`, type: 'info', duration: 2500 });
+                    });
                   }}
                   loading={<div className="grid h-full place-items-center font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">Loading editor</div>}
                   options={{
@@ -510,12 +552,12 @@ const CodeVisualizerModal = () => {
               {walking && (
                 <div className={`flex min-h-0 flex-col bg-[var(--bg-primary)] ${sideBySide ? 'w-[400px] shrink-0 border-l border-[var(--st-line-strong)]' : 'flex-1 border-t border-[var(--st-line-strong)]'}`}>
                   <TracePlayer
+                    key={walk.nonce}
                     trace={walk.trace}
                     index={stepIndex}
                     onIndex={setStepIndex}
                     visualizationId={walk.id}
                     followUps={walk.followUps}
-                    compact={!sideBySide}
                   />
                 </div>
               )}
@@ -574,7 +616,7 @@ const CodeVisualizerModal = () => {
 
             {/* ── Program input (stdin) ────────────────────────────── */}
             <AnimatePresence>
-              {showInput && !walking && (
+              {showInput && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
@@ -595,63 +637,110 @@ const CodeVisualizerModal = () => {
                       placeholder="What your program reads with input(), scanf, cin or Scanner"
                       className="w-full resize-none rounded-[12px] border border-[var(--st-line-strong)] bg-[var(--st-fill)] px-3 py-2 font-mono text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-tertiary)]"
                     />
+                    {walking && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleVisualize}
+                          disabled={tracing}
+                          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[var(--text-primary)] px-3 text-[12.5px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-60"
+                        >
+                          {tracing ? <Loader2 size={13} className="animate-spin" /> : <Footprints size={13} />}
+                          Run again with this input
+                        </button>
+                        <span className="text-[11.5px] text-[var(--text-tertiary)]">A new walkthrough is recorded for the new input.</span>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
             {/* ── Footer ───────────────────────────────────────────── */}
-            <div className={`flex shrink-0 items-center gap-2 border-t border-[var(--st-line)] px-4 ${isMobile ? 'pb-[max(env(safe-area-inset-bottom),12px)] pt-3' : 'h-[60px]'}`}>
-              <div className="flex min-w-0 flex-1 items-center gap-3 font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-                <span className="truncate">{L.name}</span>
-                <span className="h-3 w-px bg-[var(--st-line-strong)]" />
-                <span className="whitespace-nowrap normal-case tracking-normal">Ln {cursor.line}, Col {cursor.col}</span>
-                {!isMobile && (
+            <div className={`flex shrink-0 items-center justify-between gap-3 border-t border-[var(--st-line)] px-4 ${isMobile ? 'pb-[max(env(safe-area-inset-bottom),12px)] pt-3' : 'h-[60px]'}`}>
+              {/* Left: Metadata & Status metrics */}
+              <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                <span className="truncate shrink-0 max-w-[85px]">{L.name}</span>
+                <span className="h-3 w-px shrink-0 bg-[var(--st-line-strong)]" />
+                <span className="shrink-0 whitespace-nowrap normal-case tracking-normal">
+                  {walking ? <span className="max-sm:hidden">Click a line to jump to it</span> : `Ln ${cursor.line}, Col ${cursor.col}`}
+                </span>
+                {!isMobile && !isDocked && (
                   <>
-                    <span className="h-3 w-px bg-[var(--st-line-strong)]" />
-                    <button type="button" onClick={() => setShowOutput((v) => !v)} className="cursor-pointer hover:text-[var(--text-primary)]">
+                    <span className="h-3 w-px shrink-0 bg-[var(--st-line-strong)] max-md:hidden" />
+                    <button
+                      type="button"
+                      onClick={() => setShowOutput((v) => !v)}
+                      className="shrink-0 cursor-pointer whitespace-nowrap hover:text-[var(--text-primary)] max-md:hidden"
+                    >
                       {showOutput ? 'Hide console' : 'Console'}
                     </button>
                   </>
                 )}
               </div>
 
-              {walking ? (
+              {/* Right: Actions */}
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                {walking ? (
+                  <>
+                    <IconBtn
+                      label={stdin ? 'Input (set) — change it and run again' : 'Give the program input and run again'}
+                      onClick={() => setShowInput((v) => !v)}
+                      active={showInput || !!stdin}
+                    >
+                      <Keyboard size={15} strokeWidth={1.8} />
+                    </IconBtn>
+                    <button
+                      type="button"
+                      onClick={() => setWalk(null)}
+                      className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3.5 text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)]"
+                    >
+                      <PencilLine size={15} strokeWidth={1.8} />
+                      <span className="max-sm:hidden">Edit code</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Console toggle button (available as icon when docked or mobile) */}
+                    {(isDocked || isMobile) && (
+                      <IconBtn
+                        label={showOutput ? 'Hide console' : 'Show console'}
+                        onClick={() => setShowOutput((v) => !v)}
+                        active={showOutput}
+                      >
+                        <Terminal size={15} strokeWidth={1.8} />
+                      </IconBtn>
+                    )}
+                    <IconBtn
+                      label={stdin ? 'Input (set)' : 'Input for your program'}
+                      onClick={() => setShowInput((v) => !v)}
+                      active={showInput || !!stdin}
+                    >
+                      <Keyboard size={15} strokeWidth={1.8} />
+                    </IconBtn>
+                    <button
+                      type="button"
+                      onClick={handleVisualize}
+                      disabled={tracing}
+                      title="Run it one step at a time and watch the variables change"
+                      className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3 text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)] disabled:opacity-60"
+                    >
+                      {tracing ? <Loader2 size={15} className="animate-spin" /> : <Footprints size={15} strokeWidth={1.8} />}
+                      <span className={isDocked ? 'hidden' : 'max-md:hidden'}>Step through</span>
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
-                  onClick={() => setWalk(null)}
-                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3.5 text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)]"
+                  onClick={handleRun}
+                  disabled={isRunning}
+                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 sm:gap-2 rounded-full bg-[var(--text-primary)] px-3.5 text-[13px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-70"
                 >
-                  <PencilLine size={15} strokeWidth={1.8} />
-                  <span className="max-sm:hidden">Edit code</span>
+                  {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
+                  <span>{isRunning ? 'Running' : 'Run'}</span>
+                  {!isMobile && !isDocked && !isRunning && <kbd className="ml-0.5 font-mono text-[10px] opacity-55">⌘↵</kbd>}
                 </button>
-              ) : (
-                <>
-                  <IconBtn label={stdin ? 'Input (set)' : 'Input for your program'} onClick={() => setShowInput((v) => !v)} active={showInput || !!stdin}>
-                    <Keyboard size={15} strokeWidth={1.8} />
-                  </IconBtn>
-                  <button
-                    type="button"
-                    onClick={handleVisualize}
-                    disabled={tracing}
-                    title="Run it one step at a time and watch the variables change"
-                    className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3.5 text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)] disabled:opacity-60"
-                  >
-                    {tracing ? <Loader2 size={15} className="animate-spin" /> : <Footprints size={15} strokeWidth={1.8} />}
-                    <span className="max-sm:hidden">Step through</span>
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={handleRun}
-                disabled={isRunning}
-                className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full bg-[var(--text-primary)] pl-3.5 pr-3 text-[13px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-70"
-              >
-                {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
-                {isRunning ? 'Running' : 'Run'}
-                {!isMobile && !isRunning && <kbd className="ml-0.5 font-mono text-[10px] opacity-55">⌘↵</kbd>}
-              </button>
+              </div>
             </div>
           </motion.div>
         </div>

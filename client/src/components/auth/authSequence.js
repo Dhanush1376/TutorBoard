@@ -40,9 +40,9 @@ export const AUTH_SUBJECTS = [
   { name: 'Astronomy', shape: saturn, concept: 'Rotating Kerr black hole with gravitationally lensed accretion disk', hold: 3.5, morph: 1.8, style: 'drift' },
   { name: 'Geography', shape: terrain, concept: 'Alpine stratovolcano mountain massif with carved ravines and lava flows', hold: 3.6, morph: 1.8, style: 'drift' },
   { name: 'History', shape: colosseum, concept: 'Roman Colosseum with subterranean hypogeum and 3 tiers of arches', hold: 3.4, morph: 1.7, style: 'drift' },
-  { name: 'Economics', shape: market, concept: 'Market equilibrium intersecting supply and demand curves', hold: 3.3, morph: 1.7, style: 'drift' },
+  { name: 'Economics', shape: market, concept: 'Global trade network with financial capital arcs between market hubs', hold: 3.5, morph: 1.8, style: 'drift' },
   { name: 'Engineering', shape: gears, concept: 'Three mechanical spur gears interlocking with synchronous teeth', hold: 3.5, morph: 1.8, style: 'drift' },
-  { name: 'Mathematics', shape: lorenz, concept: 'Golden ratio logarithmic spiral and geometric stellated icosahedron', hold: 3.5, morph: 1.8, style: 'drift' },
+  { name: 'Mathematics', shape: lorenz, concept: 'Geometric drafting compass and straightedge ruler drawing a circle', hold: 3.5, morph: 1.8, style: 'drift' },
   { name: 'Literature', shape: book, concept: 'Open manuscript with rows of text and curling turned pages', hold: 3.5, morph: 1.8, style: 'drift' },
   { name: 'Computer science', shape: network, concept: 'Deep neural network with forward-propagating signal pulses', hold: 3.5, morph: 1.8, style: 'drift' },
 ];

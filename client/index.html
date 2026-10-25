@@ -6,8 +6,7 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#fdfaf3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0f0f0e" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#050505" />
 
     <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -41,15 +40,8 @@
     <meta property="twitter:description" content="An AI-powered visual learning canvas. Watch complex algorithms, science, and math come to life step-by-step on an interactive whiteboard." />
     <meta property="twitter:image" content="https://tutor-board.vercel.app/og-image.png" />
     <style>
-      /* Critical Loader CSS — Prevents "black / white flash" before index.css loads */
-      :root {
-        --bg-primary: #fdfaf3;
-        --text-primary: #0f0f0e;
-        --accent: #1c1711;
-      }
-
-      /* Dark mode critical overrides */
-      html.dark {
+      /* Critical Loader CSS — Dark Theme */
+      :root, html, html.dark {
         --bg-primary: #050505;
         --text-primary: #fdfaf3;
         --accent: #fdfaf3;
@@ -67,16 +59,11 @@
       }
     </style>
 
-    <!-- Synchronous theme initialization to prevent flicker -->
+    <!-- Synchronous theme initialization: permanent dark theme -->
     <script>
       (function() {
-        const mode = localStorage.getItem('tb-mode');
-        const root = document.documentElement;
-        if (mode === 'dark' || (!mode && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          root.classList.add('dark');
-        } else {
-          root.classList.remove('dark');
-        }
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('tb-mode', 'dark');
       })();
     </script>
   </head>

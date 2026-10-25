@@ -29,10 +29,11 @@ class SessionRepository extends BaseRepository<any> {
    *                       request creates the session, every retry or follow-up
    *                       with the same key resolves to that same session
    */
-  async findOrCreate(userId: string | null, sessionId: string, defaults: Record<string, unknown> = {}, includeMessages: boolean = true) {
+  async findOrCreate(userId: string | null, sessionId: string, defaults: Record<string, unknown> = {}, includeMessages: boolean = true, guestId?: string | null) {
     if (!sessionId) {
       const session = await this.model.create({
         userId,
+        guestId: userId ? null : (guestId || null),
         title: 'New Session',
         ...defaults
       });
@@ -42,7 +43,9 @@ class SessionRepository extends BaseRepository<any> {
     }
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
-    const owner = userId ? { userId } : { userId: null };
+    const owner = userId 
+      ? { userId } 
+      : (guestId ? { guestId, userId: null } : { userId: null });
 
     if (isMongoId) {
       const session = await this.model.findOne({ _id: sessionId, ...owner, isDeleted: { $ne: true } })
@@ -60,6 +63,7 @@ class SessionRepository extends BaseRepository<any> {
     const setFields: Record<string, unknown> = { lastUpdated: new Date() };
     const insertFields: Record<string, unknown> = {
       userId,
+      guestId: userId ? null : (guestId || null),
       title: 'New Session',
       ...defaults
     };
@@ -88,12 +92,15 @@ class SessionRepository extends BaseRepository<any> {
     return session;
   }
 
-  async getByIdOrEngineId(id?: string, userId?: string, projection?: any) {
+  async getByIdOrEngineId(id?: string, userId?: string, projection?: any, guestId?: string) {
     if (!id) return null;
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(id);
+    const owner = userId 
+      ? { userId } 
+      : (guestId ? { guestId, userId: null } : { userId: null });
     const query = isMongoId 
-      ? (userId ? { _id: id, userId } : { _id: id, userId: null })
-      : (userId ? { engineSessionId: id, userId } : { engineSessionId: id, userId: null });
+      ? { _id: id, ...owner }
+      : { engineSessionId: id, ...owner };
     
     const queryBuilder = this.model.findOne(query);
     if (projection) queryBuilder.select(projection);
@@ -273,9 +280,12 @@ class SessionRepository extends BaseRepository<any> {
   /**
    * Soft delete session
    */
-  async softDelete(sessionId: string, userId: string) {
+  async softDelete(sessionId: string, userId?: string, guestId?: string) {
+    const owner = userId 
+      ? { userId } 
+      : (guestId ? { guestId, userId: null } : { userId: null });
     return this.updateOne(
-      { _id: sessionId, userId },
+      { _id: sessionId, ...owner },
       { isDeleted: true, deletedAt: new Date() }
     );
   }

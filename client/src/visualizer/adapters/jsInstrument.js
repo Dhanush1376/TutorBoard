@@ -44,7 +44,7 @@ export function instrumentJavaScript(source) {
   const edits = []; // { pos, text, seq } — applied back to front
   let seq = 0;
   const insert = (pos, text) => edits.push({ pos, text, seq: seq++ });
-  const usesAsync = /\b(async|await|yield)\b/.test(source);
+  const usesAsync = /\b(async|await|yield|setTimeout|setInterval|queueMicrotask|Promise)\b/.test(source);
 
   /* ── Scopes ──────────────────────────────────────────────────────────── */
 
@@ -148,7 +148,7 @@ export function instrumentJavaScript(source) {
     node.params.forEach((p) => visit(p, inner));
     const fnSnap = snapOf(inner);
     const head = `const __f=__tb.enter(${JSON.stringify(name)},${lineOf(node)},${fnSnap});try{`;
-    const tail = (endLine) => `__tb.end(${endLine},${fnSnap});}catch(__e){__tb.exc(__e);throw __e}finally{__tb.exit(__f)}`;
+    const tail = (endLine) => `__tb.end(${endLine},${fnSnap});}catch(__e){__tb.exc(__e,__f);throw __e}finally{__tb.exit(__f)}`;
 
     if (node.body.type === 'BlockStatement') {
       const body = node.body.body;
@@ -280,6 +280,17 @@ export function instrumentJavaScript(source) {
         } else {
           insert(node.start + 'return'.length, ` __tb.r(${line},${snapOf(scopes)},undefined)`);
         }
+        return;
+      }
+      case 'AwaitExpression': {
+        // The function pauses here and leaves the call stack until the awaited value is ready:
+        // `await x` → `__tb.back(__f, await __tb.away(__f, line, x))` (no __f at the top level).
+        const frame = 'typeof __f!=="undefined"?__f:null';
+        insert(node.start, `__tb.back(${frame},`);
+        insert(node.argument.start, `__tb.away(${frame},${lineOf(node)},`);
+        visit(node.argument, scopes);
+        insert(node.argument.end, ')');
+        insert(node.end, ')');
         return;
       }
       case 'MethodDefinition':

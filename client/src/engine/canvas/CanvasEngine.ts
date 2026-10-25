@@ -162,14 +162,13 @@ export class CanvasEngine implements ICanvasEngine {
     glass.append('stop').attr('offset', '0%').attr('stop-color', 'rgba(255, 255, 255, 0.1)');
     glass.append('stop').attr('offset', '100%').attr('stop-color', 'rgba(255, 255, 255, 0.02)');
 
-    // Neon Glow Filter
+    // Clean Filter (No blur glow)
     const glow = defs.append('filter')
       .attr('id', 'neon-glow')
       .attr('x', '-20%').attr('y', '-20%')
       .attr('width', '140%').attr('height', '140%');
-    glow.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'blur');
+    glow.append('feGaussianBlur').attr('stdDeviation', '0').attr('result', 'blur');
     const merge = glow.append('feMerge');
-    merge.append('feMergeNode').attr('in', 'blur');
     merge.append('feMergeNode').attr('in', 'SourceGraphic');
 
     // Arrowhead marker for edges

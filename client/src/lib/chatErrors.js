@@ -33,6 +33,7 @@ const COPY = {
   INVALID_REQUEST: { title: 'Message not sent', desc: 'The message could not be sent.', tone: 'red' },
   FETCH_ERROR: { title: 'History not loaded', desc: 'Some messages could not be loaded.', tone: 'blue' },
   RESTORE_ERROR: { title: 'History not loaded', desc: 'Some messages could not be loaded.', tone: 'blue' },
+  DB_OFFLINE: { title: 'Database reconnecting', desc: 'The database is temporarily reconnecting. Please wait a moment and try again.', tone: 'amber' },
   INTERNAL: { title: 'Something went wrong', desc: 'The answer could not be generated.', tone: 'red' },
 };
 

@@ -4,7 +4,6 @@ import { useAuth } from '../../hooks/useAuth';
 import VisaiLogo from '../layout/VisaiLogo';
 import useTutorStore from '../../store/tutorStore';
 import { useShallow } from 'zustand/react/shallow';
-import ParticleWaves from './ParticleWavesLazy';
 import { CanvasContext } from './CanvasContext';
 
 /**
@@ -150,11 +149,6 @@ const CinematicStage = ({
         transition: 'opacity 0.6s ease-in-out',
       }}
     >
-      {/* ── Ambient Particle Waves ── */}
-      {!activeScene && !isGenerating && (
-        <ParticleWaves opacity={0.8} />
-      )}
-
       {/* ── Ambient Glow Layer (Removed for neutral canvas) ── */}
       <div style={{ position: 'absolute', inset: 0, background: 'transparent' }} />
 
@@ -275,7 +269,6 @@ const CinematicStage = ({
                 className="absolute inset-0 bg-[var(--bg-primary)]"
                 style={{ zIndex: -2 }}
               />
-              <ParticleWaves opacity={0.5} />
               
               <div className="flex flex-col items-center gap-6">
                 <div className="flex flex-col items-center gap-2">

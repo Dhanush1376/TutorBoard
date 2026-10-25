@@ -16,6 +16,11 @@ const artifactSchema = new mongoose.Schema({
     required: false,
     index: true,
   },
+  guestId: {
+    type: String,
+    required: false,
+    index: true,
+  },
   sessionId: {
     type: String,
     required: true,
@@ -84,10 +89,17 @@ const artifactSchema = new mongoose.Schema({
       '{PATH} exceeds the limit of 50 versions'
     ],
   },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
 }, { timestamps: true });
 
-// Compound index for efficient session queries
+// Compound index for efficient session and owner queries
 artifactSchema.index({ sessionId: 1, createdAt: -1 });
+artifactSchema.index({ userId: 1, createdAt: -1 });
+artifactSchema.index({ guestId: 1, createdAt: -1 });
 
 // Pre-save: auto-push current state to version history on updates
 artifactSchema.pre('save', function () {
@@ -101,9 +113,9 @@ artifactSchema.pre('save', function () {
       version: 1,
       createdAt: new Date(),
     }];
-  } else if (this.isModified('content') || this.isModified('sceneGraph')) {
-    // Update — push new version
-    const newVersionNumber = (this.version || 1) + 1;
+  } else if (!this.isModified('versions') && (this.isModified('content') || this.isModified('sceneGraph'))) {
+    const latestVersion = this.versions[this.versions.length - 1]?.version || 0;
+    const newVersionNumber = latestVersion + 1;
     this.version = newVersionNumber;
     this.versions.push({
       content: this.content,

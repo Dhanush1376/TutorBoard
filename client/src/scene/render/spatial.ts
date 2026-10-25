@@ -140,19 +140,17 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
   switch (e.type) {
     case 'point': {
       const p = map!.toPx(e.at);
-      const glow = el('circle', { cx: p.x, cy: p.y, r: 11, fill: color, filter: glowFilter, opacity: 0.7 }, fx);
       const dot = el('circle', { cx: p.x, cy: p.y, r: 7, fill: color }, fx);
       if (e.label) {
         mathText(fx, e.label, { x: p.x + 12, y: p.y - 16, size: 14, weight: 650, anchor: 'start' });
         (ctx.labels ??= []).push({ x: p.x + 12, y: p.y - 26, w: textWidth(plain(e.label), 14, 650), h: 20 });
       }
-      return { entity: e, root, fx, box: { x: p.x - 12, y: p.y - 12, w: 24, h: 24 }, paint: { fill: dot, glow, base: { fill: color, glow: color } } };
+      return { entity: e, root, fx, box: { x: p.x - 12, y: p.y - 12, w: 24, h: 24 }, paint: { fill: dot, base: { fill: color, glow: 'none' } } };
     }
     case 'polygon': {
       const pts = (e.points as [number, number][]).map((q) => map!.toPx(q));
       const d = `${pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} Z`;
-      const fill = el('path', { d, fill: color, 'fill-opacity': e.fill ? 0.09 : 0, stroke: 'none' }, fx);
-      const glow = el('path', { d, fill: 'none', stroke: color, 'stroke-width': 6, filter: glowFilter, opacity: 0 }, fx);
+      const fill = el('path', { d, fill: color, 'fill-opacity': e.fill ? 0.22 : 0, stroke: 'none' }, fx);
       const stroke = el('path', { d, fill: 'none', stroke: color, 'stroke-width': 3, 'stroke-linejoin': 'round' }, fx);
       const c = { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length };
       const parts = new Map<string, PartRef>();
@@ -164,7 +162,7 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
         const t = text(fx, name, { x: p.x + Math.cos(away) * 24, y: p.y + Math.sin(away) * 24, size: 18, weight: 700 });
         parts.set(name, { paints: [{ fill: dot, text: t, base: { fill: INK, text: INK } }], at: p, box: { x: p.x - 8, y: p.y - 8, w: 16, h: 16 } });
       });
-      return { entity: e, root, fx, box: bounds(pts, 24), draws: [stroke], paint: { glow, stroke, base: { stroke: color, glow: color } }, part: (n) => parts.get(n) ?? null, extra: { fill } };
+      return { entity: e, root, fx, box: bounds(pts, 24), draws: [stroke], paint: { stroke, base: { stroke: color, glow: 'none' } }, part: (n) => parts.get(n) ?? null, extra: { fill } };
     }
     case 'line':
     case 'arrow': {
@@ -189,7 +187,6 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       if (!v || !a || !b) return null;
       const angColor = toneColor(e.tone, TONES.warning);
       const w = wedgePath(v, Math.atan2(a.y - v.y, a.x - v.x), Math.atan2(b.y - v.y, b.x - v.x), 48);
-      const glow = el('path', { d: w.d, fill: angColor, filter: glowFilter, opacity: 0 }, fx);
       const wedge = el('path', { d: w.d, fill: angColor, 'fill-opacity': 0.2, stroke: angColor, 'stroke-width': 2.2 }, fx);
       const value = `${fmt(w.deg)}°`;
       const label = e.label ? (/[\d°]/.test(e.label) ? e.label : e.showValue ? `${e.label} = ${value}` : e.label) : value;
@@ -197,7 +194,7 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       const t = mathText(fx, label, { x: lp.x, y: lp.y, size: 15, weight: 650, fill: angColor === TONES.warning ? '#FBBF24' : angColor });
       const lw = textWidth(plain(label), 15, 650);
       (ctx.labels ??= []).push({ x: lp.x - lw / 2, y: lp.y - 11, w: lw, h: 22 });
-      return { entity: e, root, fx, box: bounds([v, lp], 30), paint: { stroke: wedge, glow, text: t, base: { stroke: angColor, glow: angColor, text: t.getAttribute('fill')! } }, extra: { degrees: w.deg } };
+      return { entity: e, root, fx, box: bounds([v, lp], 30), paint: { stroke: wedge, text: t, base: { stroke: angColor, glow: 'none', text: t.getAttribute('fill')! } }, extra: { degrees: w.deg } };
     }
     case 'plot': {
       const f = compileExpr(e.expr);
@@ -241,13 +238,12 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       const r = BODY_R[e.size] ?? 11;
       const g = el('g', {}, fx);
       gsap.set(g, { x: p.x, y: p.y });
-      const glow = el('circle', { r: r + 6, fill: INK, filter: glowFilter, opacity: 0.6 }, g);
       el('circle', { r, fill: INK }, g);
       if (e.label) {
         mathText(g, e.label, { x: r + 8, y: -r - 8, size: 14, weight: 650, anchor: 'start' });
         (ctx.labels ??= []).push({ x: p.x + r + 8, y: p.y - r - 18, w: textWidth(plain(e.label), 14, 650), h: 20 });
       }
-      return { entity: e, root, fx, box: { x: p.x - r, y: p.y - r, w: 2 * r, h: 2 * r }, paint: { glow, base: { glow: INK } }, extra: { mover: g, map } };
+      return { entity: e, root, fx, box: { x: p.x - r, y: p.y - r, w: 2 * r, h: 2 * r }, paint: { base: { glow: 'none' } }, extra: { mover: g, map } };
     }
     case 'scatter': {
       const palette = [TONES.primary, TONES.warning, TONES.success, TONES.accent, TONES.info];

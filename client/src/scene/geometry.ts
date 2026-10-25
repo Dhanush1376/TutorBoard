@@ -26,7 +26,7 @@ export function textWidth(text: string, size: number, weight = 500, family = 'Ge
 }
 
 // ── Spaces ──────────────────────────────────────────────────────────────────
-export const SPACE_BASE = { w: 780, h: 440 };
+export const SPACE_BASE = { w: 820, h: 480 };
 
 export function spaceSize(space: Space): { w: number; h: number } {
   if (!space.equalAspect) return { ...SPACE_BASE };

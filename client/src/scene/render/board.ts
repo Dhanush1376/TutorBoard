@@ -5,7 +5,7 @@
  */
 import katex from 'katex';
 import { estimateLatexSize, LIST, NET, QUEUE, STACK, TEXT_ROLE } from '../measure';
-import { CELL, CPK, FONT_MONO, INK, INK_DIM, SIZE_PX, STATES, TONES, toneColor } from '../tokens';
+import { CELL, CPK, FONT_MONO, INK, INK_DIM, SIZE_PX, STATES, TONES, toneColor, badgeStyle, ARRAY_PALETTE } from '../tokens';
 import type { EntityOf, Pt } from '../types';
 import { arrowMarker, el, text, translate } from './svg';
 import type { BuildCtx, Built, ItemHandle, Paint, PartRef } from './types';
@@ -26,15 +26,17 @@ function entityLabel(fx: SVGGElement, label: string | undefined, w: number) {
   t.setAttribute('letter-spacing', '2.4');
 }
 
-/** A rounded cell in the app's array style, with a glow and a state overlay. */
-function cell(parent: SVGGElement, uid: string, w: number, h: number, value: string, opts: { r?: number; font?: number; mono?: boolean; tone?: string } = {}): { g: SVGGElement; paint: Paint; label: SVGTextElement } {
+/** A rounded cell in the app's clean card style: solid opaque fill, crisp border, zero glow. */
+function cell(parent: SVGGElement, uid: string, w: number, h: number, value: string, opts: { r?: number; font?: number; mono?: boolean; tone?: string; fill?: string; stroke?: string } = {}): { g: SVGGElement; paint: Paint; label: SVGTextElement } {
   const g = el('g', {}, parent);
   const r = opts.r ?? CELL.radius;
-  const glow = el('rect', { x: -4, y: -4, width: w + 8, height: h + 8, rx: r + 4, fill: STATES.default.glow, filter: `url(#${uid}-glow)`, opacity: 0 }, g);
-  const bg = el('rect', { width: w, height: h, rx: r, fill: `url(#${uid}-cell)`, stroke: opts.tone ? toneColor(opts.tone) : DEFAULT_STROKE, 'stroke-width': 1.6, filter: `url(#${uid}-shadow)` }, g);
-  const overlay = el('rect', { width: w, height: h, rx: r, fill: STATES.default.fill }, g);
-  const label = text(g, value, { x: w / 2, y: h / 2 + 1, size: opts.font ?? CELL.font, weight: 400, mono: opts.mono ?? true });
-  return { g, label, paint: { fill: overlay, stroke: bg, text: label, glow, base: { fill: STATES.default.fill, stroke: opts.tone ? toneColor(opts.tone) : DEFAULT_STROKE, text: INK, glow: STATES.default.glow } } };
+  const fillCol = opts.fill ?? STATES.default.fill;
+  const strokeCol = opts.stroke ?? (opts.tone ? toneColor(opts.tone) : DEFAULT_STROKE);
+  // Solid opaque card background
+  const bg = el('rect', { width: w, height: h, rx: r, fill: fillCol, stroke: strokeCol, 'stroke-width': 1.6 }, g);
+  const overlay = el('rect', { width: w, height: h, rx: r, fill: fillCol, stroke: strokeCol, 'stroke-width': 1.6 }, g);
+  const label = text(g, value, { x: w / 2, y: h / 2 + 1, size: opts.font ?? CELL.font, weight: 500, mono: opts.mono ?? true });
+  return { g, label, paint: { fill: overlay, stroke: bg, text: label, base: { fill: fillCol, stroke: strokeCol, text: INK, glow: 'none' } } };
 }
 
 const itemsFor = (ctx: BuildCtx, id: string) => ctx.sim.items.get(id) ?? [];
@@ -50,48 +52,85 @@ export function buildBoard(ctx: BuildCtx, e: EntityOf<any>): Built | null {
   switch (e.type) {
     case 'text': {
       const role = TEXT_ROLE[e.role] ?? TEXT_ROLE.body;
-      const color = toneColor(e.tone, e.role === 'body' ? INK_DIM : INK);
-      const t = el('text', { x: m.w / 2, y: top, 'font-family': role.mono ? FONT_MONO : 'Geist, Inter, system-ui, sans-serif', 'font-size': role.size, 'font-weight': role.weight, fill: color, 'text-anchor': 'middle' }, fx);
+      const badge = badgeStyle({ role: e.role, tone: e.tone, text: e.text });
+      const boxH = Math.max(34, m.h - top);
+      const r = boxH / 2; // Exact full pill capsule border radius
+
+      // Solid opaque pill card background
+      const frame = el('rect', {
+        x: 0,
+        y: top,
+        width: m.w,
+        height: boxH,
+        rx: r,
+        ry: r,
+        fill: badge.fill,
+        stroke: badge.stroke,
+        'stroke-width': 1.5,
+      }, fx);
+
+      // Centered readable text inside pill
+      const t = el('text', {
+        x: m.w / 2,
+        y: top + boxH / 2 + 1,
+        'font-family': role.mono ? FONT_MONO : 'Geist, Inter, system-ui, sans-serif',
+        'font-size': role.size,
+        'font-weight': role.weight,
+        fill: badge.text,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'central',
+      }, fx);
+
       // texts the lesson changes later stay on one line so text tweens can swap them cleanly
       const dynamic = ctx.scene.beats.some((bt) => bt.actions.some((ac) => ac.do === 'set' && ac.target === e.id));
       (dynamic ? [e.text] : m.lines ?? [e.text]).forEach((line, i) => {
-        const span = el('tspan', { x: m.w / 2, dy: i === 0 ? role.size * 0.95 : role.size * 1.32 }, t);
+        const span = el('tspan', { x: m.w / 2, dy: i === 0 ? 0 : role.size * 1.32 }, t);
         span.textContent = line;
       });
-      return { ...base, textEl: t, paint: { text: t, base: { text: color } } };
+      return { ...base, textEl: t, paint: { stroke: frame, text: t, base: { stroke: badge.stroke, fill: badge.fill, text: badge.text } } };
     }
     case 'math': {
       const latex = new Map<string, SVGForeignObjectElement>();
       const variants = [e.latex];
       for (const b of ctx.scene.beats) for (const a of b.actions) if (a.do === 'set' && a.target === e.id && a.latex) variants.push(a.latex);
+      const boxH = Math.max(56, m.h - top);
+      const r = boxH / 2; // Pill capsule layout
       [...new Set(variants)].forEach((tex, i) => {
-        const fo = el('foreignObject', { x: 0, y: top, width: m.w, height: m.h - top, opacity: i === 0 ? 1 : 0 }, fx);
+        const fo = el('foreignObject', { x: 0, y: top, width: m.w, height: boxH, opacity: i === 0 ? 1 : 0 }, fx);
         const div = document.createElement('div');
-        div.style.cssText = `width:100%;height:100%;display:flex;align-items:center;justify-content:center;white-space:nowrap;color:${toneColor(e.tone)};font-size:30px;`;
+        div.style.cssText = `width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:0 32px;box-sizing:border-box;white-space:nowrap;color:#FFFFFF;font-size:28px;`;
         div.innerHTML = katex.renderToString(tex, { throwOnError: false, displayMode: false, output: 'html' });
         fo.appendChild(div);
         latex.set(tex, fo);
       });
-      const frame = el('rect', { x: 0, y: top, width: m.w, height: m.h - top, rx: 14, fill: 'rgba(255,255,255,0.035)', stroke: 'rgba(255,255,255,0.10)' }, fx);
+      const frame = el('rect', { 
+        x: 0, 
+        y: top, 
+        width: m.w, 
+        height: boxH, 
+        rx: r, 
+        ry: r, 
+        fill: '#0F1012', 
+        stroke: '#22252A',
+        'stroke-width': 1.5
+      }, fx);
       fx.insertBefore(frame, fx.firstChild);
-      return { ...base, latex, paint: { stroke: frame, base: { stroke: 'rgba(255,255,255,0.10)' } } };
+      return { ...base, latex, paint: { stroke: frame, base: { stroke: '#22252A', fill: '#0F1012' } } };
     }
     case 'rect':
     case 'circle': {
       const s = SIZE_PX[e.size] ?? 110;
-      const color = toneColor(e.tone, '#6366F1');
+      const color = toneColor(e.tone, '#3B82F6');
       const w = e.type === 'circle' ? m.w : m.w;
       const h = m.h - top;
       const shape = e.type === 'circle'
         ? el('circle', { cx: w / 2, cy: top + h / 2, r: h / 2, fill: color, 'fill-opacity': 0.12, stroke: color, 'stroke-width': 2.4 }, fx)
         : el('rect', { x: 0, y: top, width: w, height: h, rx: Math.min(18, s / 5), fill: color, 'fill-opacity': 0.12, stroke: color, 'stroke-width': 2.4 }, fx);
-      const glow = el(e.type === 'circle' ? 'circle' : 'rect', e.type === 'circle' ? { cx: w / 2, cy: top + h / 2, r: h / 2 + 4, fill: 'rgba(0,0,0,0)', filter: `url(#${ctx.uid}-glow)`, opacity: 0 } : { x: -4, y: top - 4, width: w + 8, height: h + 8, rx: 20, fill: 'rgba(0,0,0,0)', filter: `url(#${ctx.uid}-glow)`, opacity: 0 }, fx);
-      fx.insertBefore(glow, shape);
       const t = e.text ? text(fx, e.text, { x: w / 2, y: top + h / 2, size: 20, weight: 600 }) : undefined;
-      return { ...base, textEl: t, draws: [shape as SVGGeometryElement], paint: { stroke: shape, text: t, glow, base: { stroke: color, text: INK, glow: 'rgba(0,0,0,0)' } } };
+      return { ...base, textEl: t, draws: [shape as SVGGeometryElement], paint: { stroke: shape, text: t, base: { stroke: color, text: INK, glow: 'none' } } };
     }
     case 'pie': {
-      const color = toneColor(e.tone, '#818CF8');
+      const color = toneColor(e.tone, '#38BDF8');
       const r = (m.h - top) / 2 - 3;
       const c = { x: m.w / 2, y: top + (m.h - top) / 2 };
       const n = e.slices as number;
@@ -148,11 +187,13 @@ export function buildBoard(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       const n = Math.max(1, ctx.sim.maxLen.get(e.id) ?? 1);
       const decor: SVGElement[] = [];
       if (e.indices) for (let i = 0; i < n; i++) decor.push(text(fx, String(i), { x: slotAt(i).x + CELL.size / 2, y: top + CELL.size + 18, size: 15, weight: 400, fill: '#8F8F8F', opacity: 0 }));
-      for (const it of itemsFor(ctx, e.id)) {
-        const c = cell(fx, ctx.uid, CELL.size, CELL.size, String(it.value));
+      const allItems = itemsFor(ctx, e.id);
+      allItems.forEach((it, idx) => {
+        const pal = ARRAY_PALETTE[idx % ARRAY_PALETTE.length];
+        const c = cell(fx, ctx.uid, CELL.size, CELL.size, String(it.value), { fill: pal.fill, stroke: pal.stroke });
         c.g.setAttribute('opacity', '0');
         items.set(it.key, { key: it.key, ...c });
-      }
+      });
       return {
         ...base, items, slotAt, slotDecor: decor,
         entryFrom: (i) => ({ x: slotAt(i).x, y: top - CELL.size * 1.2 }),
@@ -284,15 +325,14 @@ export function buildBoard(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       for (const n of e.nodes as { id: string; value?: string | number }[]) {
         const p = P(n.id);
         const g = el('g', { opacity: deferred.has(n.id) ? 0 : undefined }, fx);
-        const glow = el('circle', { cx: p.x, cy: p.y, r: geo.r + 4, fill: 'rgba(0,0,0,0)', filter: `url(#${ctx.uid}-glow)`, opacity: 0 }, g);
-        const c = el('circle', { cx: p.x, cy: p.y, r: geo.r, fill: '#1C1B19', stroke: DEFAULT_STROKE, 'stroke-width': 2 }, g);
+        const c = el('circle', { cx: p.x, cy: p.y, r: geo.r, fill: '#16171b', stroke: DEFAULT_STROKE, 'stroke-width': 2 }, g);
         const ov = el('circle', { cx: p.x, cy: p.y, r: geo.r, fill: STATES.default.fill }, g);
         const t = text(g, String(n.value ?? n.id), { x: p.x, y: p.y + 1, size: 18, mono: true, weight: 500 });
         nodeGroups.set(n.id, g);
         labels.set(n.id, t);
         nodePos.set(n.id, p);
         parts.set(n.id, {
-          paints: [{ fill: ov, stroke: c, text: t, glow, base: { fill: STATES.default.fill, stroke: DEFAULT_STROKE, text: INK, glow: 'rgba(0,0,0,0)' } }],
+          paints: [{ fill: ov, stroke: c, text: t, base: { fill: STATES.default.fill, stroke: DEFAULT_STROKE, text: INK, glow: 'none' } }],
           at: { x: box.x + p.x, y: box.y + p.y },
           box: { x: box.x + p.x - geo.r, y: box.y + p.y - geo.r, w: geo.r * 2, h: geo.r * 2 },
         });
@@ -326,13 +366,12 @@ export function buildBoard(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       (e.atoms as { id?: string; el: string }[]).forEach((atom, i) => {
         const p = P(i);
         const r = geo.radius[i];
-        const color = CPK[atom.el] ?? '#8B5CF6';
-        const glow = el('circle', { cx: p.x, cy: p.y, r: r + 6, fill: color, filter: `url(#${ctx.uid}-glow)`, opacity: 0.55 }, fx);
+        const color = CPK[atom.el] ?? '#3B82F6';
         const c = el('circle', { cx: p.x, cy: p.y, r, fill: color, stroke: 'rgba(255,255,255,0)', 'stroke-width': 3 }, fx);
         el('circle', { cx: p.x, cy: p.y, r, fill: `url(#${ctx.uid}-atom)` }, fx);
         const t = text(fx, atom.el, { x: p.x, y: p.y + 1, size: atom.el === 'H' ? 17 : 22, weight: 700, fill: atom.el === 'H' ? '#111' : '#fff' });
         if (atom.id) parts.set(atom.id, {
-          paints: [{ stroke: c, glow, text: t, base: { stroke: 'rgba(255,255,255,0)', glow: color, text: atom.el === 'H' ? '#111' : '#fff' } }],
+          paints: [{ stroke: c, text: t, base: { stroke: 'rgba(255,255,255,0)', glow: 'none', text: atom.el === 'H' ? '#111' : '#fff' } }],
           at: { x: box.x + p.x, y: box.y + p.y },
           box: { x: box.x + p.x - r, y: box.y + p.y - r, w: 2 * r, h: 2 * r },
         });
@@ -355,9 +394,8 @@ export function buildBoard(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       }
       const nodes: { paint: Paint; at: Pt }[][] = L.map((n, l) => Array.from({ length: n }, (_, i) => {
         const p = P(l, i);
-        const glow = el('circle', { cx: p.x, cy: p.y, r: NET.r + 5, fill: 'rgba(0,0,0,0)', filter: `url(#${ctx.uid}-glow)`, opacity: 0 }, fx);
         const c = el('circle', { cx: p.x, cy: p.y, r: NET.r, fill: '#111318', stroke: '#60A5FA', 'stroke-width': 2.5 }, fx);
-        return { paint: { fill: c, glow, base: { fill: '#111318', glow: 'rgba(0,0,0,0)' } }, at: { x: box.x + p.x, y: box.y + p.y } };
+        return { paint: { fill: c, base: { fill: '#111318', glow: 'none' } }, at: { x: box.x + p.x, y: box.y + p.y } };
       }));
       (e.inputLabels ?? []).forEach((t: string, i: number) => { if (i < L[0]) text(fx, t, { x: left - 10, y: P(0, i).y, size: 13, mono: true, fill: INK_DIM, anchor: 'end' }); });
       (e.outputLabels ?? []).forEach((t: string, i: number) => { if (i < L[L.length - 1]) text(fx, t, { x: P(L.length - 1, i).x + NET.r + 12, y: P(L.length - 1, i).y, size: 15, weight: 600, anchor: 'start' }); });

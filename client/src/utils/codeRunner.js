@@ -1,10 +1,15 @@
 import { BASE_URL as API_BASE, getAuthHeaders, getCookie, fetchCsrfToken } from '../services/api';
+import { runSandboxed, LOCK_NETWORK } from '../visualizer/sandbox/sandbox';
 
 /**
  * TutorBoard code runner. Five languages, each with a path that really runs:
- *   JavaScript  → a Web Worker in the browser (5 s limit, async/await allowed)
- *   Python      → Pyodide in a Web Worker (CPython compiled to WebAssembly)
+ *   JavaScript  → a Web Worker in the browser sandbox (5 s limit, async/await allowed, no network)
+ *   Python      → Pyodide in a Web Worker in the browser sandbox (CPython compiled to WebAssembly)
  *   Java, C++, C → the TutorBoard server, which compiles and runs them (Judge0)
+ *
+ * The browser sandbox (visualizer/sandbox) is an origin-less iframe with a
+ * no-network Content-Security-Policy: code from a chat answer can't reach
+ * TutorBoard's API with the learner's cookies, or anything else.
  *
  * Every runner reports output through onLog({ type, text }) and resolves to
  * { success, error? }. A runaway program is stopped, never left to freeze the page.
@@ -17,7 +22,8 @@ const PY_LIMIT_MS = 10000;
 
 /* ── JavaScript ─────────────────────────────────────────────────────────── */
 
-const JS_WORKER = `
+const JS_WORKER = `${LOCK_NETWORK}
+__lockNetwork();
 const fmt = (a) => {
   if (a === null) return 'null';
   if (a === undefined) return 'undefined';
@@ -45,71 +51,46 @@ onmessage = async (e) => {
   }
 };`;
 
-function runInWorker(source, message, onLog, limitMs, { onStatus, keep, onData } = {}) {
-  return new Promise((resolve) => {
-    const worker = keep?.worker || new Worker(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })));
-    if (keep) keep.worker = worker;
-    let timer = null;
-    let finished = false;
-    const finish = (result) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      worker.onmessage = null;
-      if (!keep) worker.terminate();
-      resolve(result);
-    };
-    const arm = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        worker.terminate();
-        if (keep) keep.worker = null; // a fresh one next time
-        onLog?.({ type: 'error', text: `Stopped after ${limitMs / 1000}s. Is there an endless loop?` });
-        finish({ success: false, error: 'Time limit reached' });
-      }, limitMs);
-    };
-    worker.onmessage = (e) => {
-      const m = e.data || {};
-      if (m.type === 'status') {
-        onStatus?.(m.text);
-        return;
-      }
-      if (m.type === 'ready') {
-        arm(); // the clock starts once the language has loaded
-        return;
-      }
-      if (m.type === 'trace') {
-        onData?.(m);
-        return;
-      }
+/**
+ * Run one program in the browser sandbox. The clock starts at once, or — when the
+ * language has to download first (onStatus given) — once the worker says 'ready',
+ * after up to a minute of loading. A program past its limit has its worker killed.
+ */
+function runInWorker(kind, source, message, onLog, limitMs, { onStatus, onData, fresh = false } = {}) {
+  return runSandboxed(kind, source, message, {
+    limitMs,
+    fresh,
+    waitForClock: !!onStatus,
+    onMessage: (raw, finish, startClock) => {
+      const m = raw || {};
+      if (m.type === 'status') return onStatus?.(m.text);
+      if (m.type === 'ready') return startClock();
+      if (m.type === 'trace') return onData?.(m);
       if (m.type === 'done') return finish(m.ok ? { success: true } : { success: false, error: m.error || 'Your program stopped with an error.' });
-      onLog?.({ type: m.type, text: m.text });
-    };
-    worker.onerror = (e) => {
-      onLog?.({ type: 'error', text: e.message || 'The program could not start.' });
-      finish({ success: false, error: e.message });
-    };
-    if (!onStatus) arm();
-    else {
-      // The language itself has to download first; give it a minute, then give up clearly.
-      timer = setTimeout(() => {
-        worker.terminate();
-        if (keep) keep.worker = null;
+      return onLog?.({ type: m.type, text: m.text });
+    },
+    onError: (message) => {
+      onLog?.({ type: 'error', text: message || 'The program could not start.' });
+      return { success: false, error: message };
+    },
+    onTimeout: (why) => {
+      if (why === 'load') {
         onLog?.({ type: 'error', text: 'Python could not load. Check your connection and try again.' });
-        finish({ success: false, error: 'Python could not load' });
-      }, 60000);
-    }
-    worker.postMessage(message);
+        return { success: false, error: 'Python could not load' };
+      }
+      onLog?.({ type: 'error', text: `Stopped after ${limitMs / 1000}s. Is there an endless loop?` });
+      return { success: false, error: 'Time limit reached' };
+    },
   });
 }
 
 export function executeJavaScript(code, onLog) {
-  return runInWorker(JS_WORKER, code, onLog, JS_LIMIT_MS);
+  return runInWorker('js', JS_WORKER, code, onLog, JS_LIMIT_MS, { fresh: true });
 }
 
 /* ── Python (Pyodide in a worker) ───────────────────────────────────────── */
 
-const PY_WORKER = `
+const PY_WORKER = `${LOCK_NETWORK}
 let py = null;
 onmessage = async (e) => {
   try {
@@ -117,6 +98,7 @@ onmessage = async (e) => {
       postMessage({ type: 'status', text: 'Loading Python…' });
       importScripts('https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js');
       py = await loadPyodide();
+      __lockNetwork(); // Python is loaded; from here on the program gets no network
     }
     py.setStdout({ batched: (t) => postMessage({ type: 'log', text: t }) });
     py.setStderr({ batched: (t) => postMessage({ type: 'error', text: t }) });
@@ -148,12 +130,10 @@ onmessage = async (e) => {
   }
 };`;
 
-const pyKeep = { worker: null };
-
 export function executePython(code, onLog) {
   let announced = false;
-  return runInWorker(PY_WORKER, code, onLog, PY_LIMIT_MS, {
-    keep: pyKeep,
+  // The sandbox keeps the Python worker warm between runs: loading Pyodide takes seconds.
+  return runInWorker('python', PY_WORKER, code, onLog, PY_LIMIT_MS, {
     onStatus: (text) => {
       if (!announced) {
         announced = true;
@@ -171,11 +151,12 @@ export function tracePython(source, tracer, { maxSteps, stdin, onStatus } = {}) 
   let json = null;
   const problems = [];
   return runInWorker(
+    'python',
     PY_WORKER,
     { source, tracer, maxSteps, stdin },
     (log) => log.type === 'error' && problems.push(log.text),
     PY_LIMIT_MS,
-    { keep: pyKeep, onStatus: (t) => onStatus?.(t), onData: (m) => (json = m.json) },
+    { onStatus: (t) => onStatus?.(t), onData: (m) => (json = m.json) },
   ).then((r) => {
     if (json) return JSON.parse(json);
     const timedOut = /Time limit/.test(r.error || '');

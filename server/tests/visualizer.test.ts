@@ -175,11 +175,11 @@ const TRACE = {
 describe('saved walkthroughs', () => {
   let tokenA: string;
   let tokenB: string;
-  const secret = process.env.JWT_SECRET || 'test-secret';
 
   beforeEach(async () => {
     const a = await User.create({ email: `viz-a-${Date.now()}@example.com`, password: 'password123', name: 'Ana' });
     const b = await User.create({ email: `viz-b-${Date.now()}@example.com`, password: 'password123', name: 'Ben' });
+    const secret = process.env.JWT_SECRET || 'test-secret';
     tokenA = jwt.sign({ id: a._id.toString(), jti: 'viz-a' }, secret);
     tokenB = jwt.sign({ id: b._id.toString(), jti: 'viz-b' }, secret);
   });

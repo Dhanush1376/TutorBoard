@@ -31,6 +31,8 @@ export type EngineOptions = {
   onBeat?: (index: number, beat: BeatTiming) => void;
   /** called when a beat's animation and reading time have finished */
   onBeatEnd?: (index: number) => void;
+  /** called when user pan/zoom navigation updates */
+  onNavChange?: (t: { x: number; y: number; scale: number }) => void;
 };
 
 let uidCounter = 0;
@@ -39,6 +41,12 @@ export class SceneEngine {
   readonly host: HTMLElement;
   private opts: EngineOptions;
   private svg?: SVGSVGElement;
+  private navGroup?: SVGGElement;
+  private camera?: SVGGElement;
+  private fitWorld?: Box;
+  public navTransform = { x: 0, y: 0, scale: 1 };
+  private currentNav = { x: 0, y: 0, scale: 1 };
+  private navTween?: gsap.core.Tween;
   private tl?: gsap.core.Timeline;
   private scene?: Scene;
   private uid = `tb${++uidCounter}`;
@@ -100,7 +108,10 @@ export class SceneEngine {
     this.host.appendChild(svg);
     this.svg = svg;
     installDefs(svg, this.uid);
-    const camera = el('g', { class: 'camera' }, svg);
+    const navGroup = el('g', { class: 'scene-nav' }, svg);
+    this.navGroup = navGroup;
+    this.applyNavTransform(false);
+    const camera = el('g', { class: 'camera' }, navGroup);
     const spaceLayer = el('g', { class: 'spaces' }, camera);
     const entityLayer = el('g', { class: 'entities' }, camera);
     const attachedLayer = el('g', { class: 'attached' }, camera);
@@ -139,15 +150,18 @@ export class SceneEngine {
     const world = this.worldBox(layout.world);
     const { tl, beats } = compileScene({ scene, sim, builts: this.builts, spaceBuilts, svg, uid: this.uid, overlay, camera, view, world });
     // callouts and connectors exist now — make sure the opening frame has room for them
+    let fitWorld = world;
     try {
       const ob = overlay.getBBox();
       if (ob.width > 0) {
         const x0 = Math.min(world.x, ob.x), y0 = Math.min(world.y, ob.y);
-        const all = { x: x0, y: y0, w: Math.max(world.x + world.w, ob.x + ob.width) - x0, h: Math.max(world.y + world.h, ob.y + ob.height) - y0 };
-        const f = fitTransform(all, view, 1.4);
+        fitWorld = { x: x0, y: y0, w: Math.max(world.x + world.w, ob.x + ob.width) - x0, h: Math.max(world.y + world.h, ob.y + ob.height) - y0 };
+        const f = fitTransform(fitWorld, view, 1.6, 18, 1.18);
         gsap.set(camera, { x: f.x, y: f.y, scale: f.scale });
       }
     } catch { /* getBBox unavailable (non-rendered host) — keep the layout fit */ }
+    this.camera = camera;
+    this.fitWorld = fitWorld;
     this.tl = tl;
     this.beats = beats;
     tl.eventCallback('onUpdate', () => this.tick());
@@ -199,10 +213,25 @@ export class SceneEngine {
     if (this.tl && this.stopAt !== null) this.tl.play();
   }
 
-  /** New room for the scene (host resized, side panel opened): re-fit in place. */
+  /** New room for the scene (host resized, side panel opened): smoothly glide camera into new room. */
   async setInsets(insets: Partial<Insets>) {
     this.opts = { ...this.opts, insets: { ...this.opts.insets, ...insets } };
-    await this.refit();
+    if (!this.camera || !this.fitWorld) {
+      await this.refit();
+      return;
+    }
+    const W = this.host.clientWidth || 1200;
+    const H = this.host.clientHeight || 720;
+    const ins = { top: 24, right: 24, bottom: 24, left: 24, ...this.opts.insets };
+    const view: Box = { x: ins.left, y: ins.top, w: Math.max(200, W - ins.left - ins.right), h: Math.max(160, H - ins.top - ins.bottom) };
+    const f = fitTransform(this.fitWorld, view, 1.6, 18, 1.18);
+    gsap.to(this.camera, {
+      x: f.x,
+      y: f.y,
+      scale: f.scale,
+      duration: 0.45,
+      ease: 'power3.out',
+    });
   }
 
   /** Rebuild for the host's current size, keeping time, beat and play state. */
@@ -225,13 +254,73 @@ export class SceneEngine {
   replay() { this.playBeat(Math.max(0, this.current)); }
   setSpeed(x: number) { this.tl?.timeScale(x); }
 
+  public setNavTransform(t: { x: number; y: number; scale: number }, animated = false, duration = 0.5) {
+    this.navTransform = t;
+    this.opts.onNavChange?.(t);
+    if (!this.navGroup) return;
+
+    if (this.navTween) {
+      this.navTween.kill();
+      this.navTween = undefined;
+    }
+
+    if (animated) {
+      this.navTween = gsap.to(this.currentNav, {
+        x: t.x,
+        y: t.y,
+        scale: t.scale,
+        duration,
+        ease: 'power3.out',
+        onUpdate: () => {
+          this.navGroup?.setAttribute(
+            'transform',
+            `translate(${this.currentNav.x}, ${this.currentNav.y}) scale(${this.currentNav.scale})`
+          );
+        },
+        onComplete: () => {
+          this.navTween = undefined;
+        },
+      });
+    } else {
+      this.currentNav = { ...t };
+      this.navGroup.setAttribute('transform', `translate(${t.x}, ${t.y}) scale(${t.scale})`);
+    }
+  }
+
+  public applyNavTransform(animated = false) {
+    this.setNavTransform(this.navTransform, animated);
+  }
+
+  public resetNav(animated = true) {
+    this.setNavTransform({ x: 0, y: 0, scale: 1 }, animated, 0.55);
+  }
+
+  public zoomBy(factor: number, cx?: number, cy?: number, animated = true) {
+    const prev = this.navTransform;
+    const nextScale = Math.min(4.0, Math.max(0.4, Number((prev.scale * factor).toFixed(3))));
+    if (Math.abs(nextScale - prev.scale) < 1e-4) return;
+    const W = this.host.clientWidth || 800;
+    const H = this.host.clientHeight || 600;
+    const centerX = cx ?? W / 2;
+    const centerY = cy ?? H / 2;
+    const ratio = nextScale / prev.scale;
+    const nextX = centerX - (centerX - prev.x) * ratio;
+    const nextY = centerY - (centerY - prev.y) * ratio;
+    this.setNavTransform({ x: nextX, y: nextY, scale: nextScale }, animated, 0.4);
+  }
+
   destroy() { this.teardown(); }
 
   private teardown() {
+    this.navTween?.kill();
+    this.navTween = undefined;
+    this.camera = undefined;
+    this.fitWorld = undefined;
     this.tl?.kill();
     this.tl = undefined;
     this.svg?.remove();
     this.svg = undefined;
+    this.navGroup = undefined;
     this.builts.clear();
     this.beats = [];
   }

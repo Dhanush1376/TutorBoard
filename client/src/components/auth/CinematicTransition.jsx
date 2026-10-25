@@ -64,16 +64,6 @@ const CinematicTransition = ({ userName, isLogin, onComplete }) => {
       animate={leaving ? { opacity: 0, scale: 1.015 } : { opacity: 1, scale: 1 }}
       transition={{ duration: leaving ? LEAVE / 1000 : 0.5, ease: EASE }}
     >
-      {/* Canvas: a dot grid that fades out toward the edges. */}
-      <div
-        aria-hidden="true"
-        className="mk-dots absolute inset-0 opacity-70"
-        style={{
-          maskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, #000 0%, transparent 75%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 55% 50% at 50% 50%, #000 0%, transparent 75%)',
-        }}
-      />
-
       {/* The mark, drawing itself, with one ripple when the amber point lands. */}
       <div className="absolute inset-0 grid place-items-center">
         <div className="relative grid place-items-center">

@@ -5,12 +5,12 @@ export const PRESET_COLORS = [
   { id: 'default',  value: 'var(--text-primary)', display: '#71717a', label: 'Default' },
   { id: 'black',    value: '#000000', label: 'Black' },
   { id: 'white',    value: '#ffffff', label: 'White' },
-  { id: 'indigo',   value: '#6366f1', label: 'Indigo' },
+  { id: 'blue',     value: '#3b82f6', label: 'Blue' },
   { id: 'emerald',  value: '#10b981', label: 'Emerald' },
   { id: 'rose',     value: '#f43f5e', label: 'Rose' },
   { id: 'amber',    value: '#f59e0b', label: 'Amber' },
   { id: 'sky',      value: '#38bdf8', label: 'Sky' },
-  { id: 'violet',   value: '#a78bfa', label: 'Violet' },
+  { id: 'cyan',     value: '#06b6d4', label: 'Cyan' },
   { id: 'lime',     value: '#a3e635', label: 'Lime' },
 ];
 

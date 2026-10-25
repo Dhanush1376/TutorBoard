@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, MotionConfig, useScroll, useSpring } from 'framer-motion';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import Lenis from 'lenis';
+import 'lenis/dist/lenis.css';
 import { useAuth } from '../../hooks/useAuth';
 import BrandLockup from './BrandLockup';
 import LoginNavbar from './LoginNavbar';
@@ -197,13 +199,65 @@ function Footer() {
 const MarketingLayout = () => {
   const location = useLocation();
   const scrollRef = useRef(null);
+  const contentRef = useRef(null);
+  const lenisRef = useRef(null);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState(null);
   const firstVisit = useRef(true);
   const { scrollYProgress } = useScroll({ container: scrollRef });
   const progress = useSpring(scrollYProgress, { stiffness: 220, damping: 40, restDelta: 0.001 });
 
+  // Initialize Lenis smooth momentum scrolling with weighted physics inertia
+  useEffect(() => {
+    const sc = scrollRef.current;
+    const content = contentRef.current;
+    if (!sc || !content) return;
+
+    const lenis = new Lenis({
+      wrapper: sc,
+      content: content,
+      eventsTarget: sc,
+      smoothWheel: true,
+      syncTouch: false,
+      lerp: 0.105, // A little freer and more responsive while preserving silky momentum
+      duration: 1.15,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      touchMultiplier: 1.25,
+      wheelMultiplier: 1.05,
+      autoRaf: true,
+      autoResize: true,
+      respectReducedMotion: true,
+    });
+
+    lenisRef.current = lenis;
+    sc.__lenis = lenis;
+
+    const onScroll = (e) => {
+      setScrolled(e.scroll > 12);
+    };
+
+    lenis.on('scroll', onScroll);
+
+    return () => {
+      lenis.destroy();
+      lenisRef.current = null;
+      delete sc.__lenis;
+    };
+  }, []);
+
   const scrollToSection = useCallback((id, smooth = true) => {
+    if (lenisRef.current) {
+      if (!id) {
+        lenisRef.current.scrollTo(0, { immediate: !smooth, duration: 1.25 });
+        return true;
+      }
+      const el = document.getElementById(id);
+      if (!el) return false;
+      lenisRef.current.scrollTo(el, { immediate: !smooth, duration: 1.25, offset: -24 });
+      return true;
+    }
     const sc = scrollRef.current;
     if (!sc) return false;
     const behavior = smooth ? 'smooth' : 'auto';
@@ -242,6 +296,7 @@ const MarketingLayout = () => {
           <div
             ref={scrollRef}
             onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 12)}
+            style={{ scrollBehavior: 'auto' }}
             className="relative h-screen w-full overflow-y-auto overflow-x-hidden bg-[var(--bg-primary)] font-sans text-[var(--text-primary)] selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)]"
           >
             <motion.div
@@ -263,11 +318,10 @@ const MarketingLayout = () => {
 
             <DesktopNav />
 
-            <div className="relative">
+            <div ref={contentRef} className="relative w-full">
               <Outlet />
+              <Footer />
             </div>
-
-            <Footer />
           </div>
         </MotionConfig>
       </SectionContext.Provider>

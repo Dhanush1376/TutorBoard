@@ -3,51 +3,91 @@
  * owned by the engine so every scene gets them regardless of what the AI wrote.
  */
 
-export const INK = '#F2F0EA';
-export const INK_DIM = '#B9B6AE';
-export const INK_FAINT = 'rgba(242,240,234,0.45)';
-export const AXIS = 'rgba(255,255,255,0.28)';
+export const INK = '#F5F5F0';
+export const INK_DIM = '#B9BDB7';
+export const INK_FAINT = '#929991';
+export const AXIS = '#383E38';
 export const FONT_SANS = 'Geist, Inter, system-ui, sans-serif';
 export const FONT_MONO = '"JetBrains Mono", ui-monospace, monospace';
 
 /** Semantic tones → colour. */
 export const TONES: Record<string, string> = {
   default: INK,
-  primary: '#6366F1',
-  accent: '#EC4899',
-  success: '#22C55E',
-  warning: '#F59E0B',
-  danger: '#EF4444',
-  info: '#60A5FA',
-  muted: '#8F8F8F',
+  primary: '#F4C95D', // Warm amber
+  accent: '#FF925C',  // Coral comparison
+  success: '#35C98A', // Emerald found / correct
+  warning: '#F4C95D', // Warm amber
+  danger: '#FF6B6B',  // Error / invalid
+  info: '#38BDF8',    // Cyan pointer
+  muted: '#929991',   // Muted label
 };
 export const toneColor = (tone?: string, fallback = INK) => (tone ? TONES[tone] ?? fallback : fallback);
 
-/** Highlight states — the app's ALGO_COLORS plus "insight" (the film's amber). */
+/** Distinct semantic badge style for text entities: opaque solid fill, crisp border, high-contrast readable text. Matches the sleek dark pill styling. */
+export function badgeStyle(e: { role?: string; tone?: string; text?: string }): { fill: string; stroke: string; text: string } {
+  const txt = (e.text || '').toLowerCase();
+  // Target / Goal / Found -> Emerald
+  if (txt.includes('target') || txt.includes('found') || e.tone === 'success') {
+    return { fill: '#101713', stroke: '#22543D', text: '#68D391' };
+  }
+  // Mid / Active / Pivot / Calculating -> Amber
+  if (txt.includes('mid') || e.tone === 'warning' || e.tone === 'primary') {
+    return { fill: '#17150F', stroke: '#744210', text: '#F6E05E' };
+  }
+  // Dual pointer tracking like "low = ... high = ..." or search window -> Cool slate cyan
+  if ((txt.includes('low') || txt.includes('lo')) && (txt.includes('high') || txt.includes('hi'))) {
+    return { fill: '#0E171E', stroke: '#1A365D', text: '#63B3ED' };
+  }
+  // Low / Start / Left / Info -> Cyan
+  if (txt.includes('low') || txt.includes('left') || txt.includes('start') || e.tone === 'info') {
+    return { fill: '#0E171E', stroke: '#1A365D', text: '#63B3ED' };
+  }
+  // High / End / Right / Accent -> Coral
+  if (txt.includes('high') || txt.includes('right') || txt.includes('end') || e.tone === 'accent' || e.tone === 'danger') {
+    return { fill: '#19110F', stroke: '#652B19', text: '#FBD38D' };
+  }
+  // Default dark pill capsule matching screenshot: #0F1012 fill, #22252A border, crisp pure white text
+  return { fill: '#0F1012', stroke: '#22252A', text: '#FFFFFF' };
+}
+
+
+/** Highlight states — fully opaque solid card colors without glow halos or low-contrast washed out fills. */
+/** Rich, diverse fully opaque solid card colors for array boxes (no translucent glow, completely filled) */
+export const ARRAY_PALETTE: { fill: string; stroke: string; text: string }[] = [
+  { fill: '#1E293B', stroke: '#334155', text: '#F8FAFC' }, // Deep solid slate
+  { fill: '#142E2B', stroke: '#1D4D47', text: '#E6FFFA' }, // Solid teal forest
+  { fill: '#2A1F1D', stroke: '#4A3430', text: '#FFEDD5' }, // Solid warm terracotta
+  { fill: '#1E2438', stroke: '#313C5E', text: '#EEF2FF' }, // Solid navy indigo
+  { fill: '#1C2E20', stroke: '#2B4A33', text: '#F0FDF4' }, // Solid sage emerald
+  { fill: '#2B2416', stroke: '#4D3F22', text: '#FEFCE8' }, // Solid amber bronze
+  { fill: '#261F2E', stroke: '#423352', text: '#FAF5FF' }, // Solid plum wine
+  { fill: '#2D281E', stroke: '#4D4330', text: '#FFFBEB' }, // Solid ochre gold
+];
+
 export const STATES: Record<string, { fill: string; stroke: string; text: string; glow: string }> = {
-  default: { fill: 'rgba(255,255,255,0)', stroke: 'rgba(255,255,255,0.13)', text: INK, glow: 'rgba(0,0,0,0)' },
-  active: { fill: 'rgba(139,92,246,0.18)', stroke: '#8b5cf6', text: '#e9d5ff', glow: 'rgba(139,92,246,0.35)' },
-  comparing: { fill: 'rgba(245,158,11,0.18)', stroke: '#f59e0b', text: '#fef3c7', glow: 'rgba(245,158,11,0.3)' },
-  swapping: { fill: 'rgba(251,191,36,0.2)', stroke: '#fbbf24', text: '#fef9c3', glow: 'rgba(251,191,36,0.3)' },
-  sorted: { fill: 'rgba(34,197,94,0.15)', stroke: '#22c55e', text: '#bbf7d0', glow: 'rgba(34,197,94,0.25)' },
-  found: { fill: 'rgba(59,130,246,0.2)', stroke: '#3b82f6', text: '#bfdbfe', glow: 'rgba(59,130,246,0.35)' },
-  visited: { fill: 'rgba(99,102,241,0.12)', stroke: '#6366f1', text: '#c7d2fe', glow: 'rgba(99,102,241,0.15)' },
-  eliminated: { fill: 'rgba(100,116,139,0.04)', stroke: 'rgba(100,116,139,0.18)', text: '#71717a', glow: 'rgba(0,0,0,0)' },
-  pivot: { fill: 'rgba(236,72,153,0.18)', stroke: '#ec4899', text: '#fbcfe8', glow: 'rgba(236,72,153,0.3)' },
-  error: { fill: 'rgba(239,68,68,0.18)', stroke: '#ef4444', text: '#fecaca', glow: 'rgba(239,68,68,0.3)' },
-  insight: { fill: 'rgba(249,115,22,0.16)', stroke: '#f97316', text: '#ffedd5', glow: 'rgba(249,115,22,0.45)' },
+  default: { fill: '#1E293B', stroke: '#334155', text: '#FFFFFF', glow: 'none' }, // Solid opaque slate card
+  active: { fill: '#2A2210', stroke: '#F4C95D', text: '#FDF2D0', glow: 'none' }, // Warm amber
+  comparing: { fill: '#2D1B13', stroke: '#FF925C', text: '#FFE7DC', glow: 'none' }, // Coral
+  swapping: { fill: '#2D1B13', stroke: '#FF925C', text: '#FFE7DC', glow: 'none' },
+  sorted: { fill: '#13281E', stroke: '#35C98A', text: '#D1FAE5', glow: 'none' }, // Emerald
+  found: { fill: '#13281E', stroke: '#35C98A', text: '#D1FAE5', glow: 'none' },
+  visited: { fill: '#252B33', stroke: '#475363', text: '#D0D6E0', glow: 'none' },
+  eliminated: { fill: '#121417', stroke: '#262B33', text: '#64748B', glow: 'none' },
+  pivot: { fill: '#2E1515', stroke: '#FF6B6B', text: '#FFE4E4', glow: 'none' },
+  error: { fill: '#2E1515', stroke: '#FF6B6B', text: '#FFE4E4', glow: 'none' },
+  insight: { fill: '#2A2210', stroke: '#F4C95D', text: '#FDF2D0', glow: 'none' },
 };
 
 /** CPK-ish atom colours (ContentPlugin's palette). */
 export const CPK: Record<string, string> = {
   H: '#E5E7EB', C: '#6B7280', N: '#3B82F6', O: '#EF4444', F: '#22C55E', Cl: '#22C55E', Br: '#B45309',
-  S: '#EAB308', P: '#F97316', Na: '#A855F7', K: '#A855F7', Mg: '#16A34A', Ca: '#16A34A', Fe: '#B45309',
+  S: '#EAB308', P: '#F97316', Na: '#0EA5E9', K: '#0EA5E9', Mg: '#16A34A', Ca: '#16A34A', Fe: '#B45309',
 };
 
-export const SIZE_PX: Record<string, number> = { xs: 48, sm: 72, md: 110, lg: 160, xl: 220 };
-export const GAP_PX: Record<string, number> = { none: 0, sm: 16, md: 32, lg: 56, xl: 96 };
+export const SIZE_PX: Record<string, number> = { xs: 44, sm: 60, md: 96, lg: 140, xl: 190 };
+export const GAP_PX: Record<string, number> = { none: 0, sm: 12, md: 24, lg: 44, xl: 72 };
 
-export const CELL = { size: 72, gap: 12, radius: 16, font: 26 };
+export const CELL = { size: 44, gap: 8, radius: 10, font: 15 };
 
 // ── Motion ──────────────────────────────────────────────────────────────────
 export const EASE = {

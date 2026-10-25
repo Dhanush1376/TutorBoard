@@ -121,7 +121,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
   const prefsOverLimit = prefsLeft < 0;
 
   return (
-    <div className="flex flex-col gap-8 pt-6">
+    <div className="flex flex-col gap-5 sm:gap-8 pt-1 sm:pt-6">
 
       {/* Profile details; a small tick confirms each save */}
       <section className="relative">
@@ -131,7 +131,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`absolute -top-7 right-1 inline-flex items-center gap-1.5 text-[12px] font-medium ${
+              className={`absolute -top-6 sm:-top-7 right-1 inline-flex items-center gap-1.5 text-[11.5px] sm:text-[12px] font-medium ${
                 saveStatus === 'saved' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-tertiary)]'
               }`}
             >
@@ -143,17 +143,20 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         <SettingsGroup>
           <SettingsRow
             icon={User}
-            label="Name" wide
+            iconTone="blue"
+            label="Name"
             rightElement={<RightInlineInput value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your full name" />}
           />
           <SettingsRow
             icon={AtSign}
-            label="Call me" wide
+            iconTone="purple"
+            label="Call me"
             rightElement={<RightInlineInput value={nickname} onChange={e => setNickname(e.target.value)} placeholder="e.g. Alex" />}
           />
           <SettingsRow
             icon={GraduationCap}
-            label="I am a" wide
+            iconTone="amber"
+            label="I am a"
             rightElement={<RightInlineSelect value={role} onChange={setRole} options={ROLE_OPTIONS} />}
           />
         </SettingsGroup>
@@ -170,7 +173,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         >
           Custom instructions
         </SectionTitle>
-        <div className="rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] p-4">
+        <div className="rounded-xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] p-3.5 sm:p-4">
           <label htmlFor="tb-prefs" className="text-[13.5px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">
             How should the tutor teach you?
           </label>
@@ -179,12 +182,12 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
             value={preferences}
             onChange={e => setPreferences(e.target.value.slice(0, MAX_PREFS + 20))}
             placeholder='e.g. "Explain with analogies first. Keep answers short, then go deeper if I ask."'
-            className={`mt-3 block min-h-[112px] w-full resize-y rounded-xl border bg-[var(--bg-primary)] px-3.5 py-3 text-[13.5px] leading-[1.6] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus:shadow-[0_0_0_3px_var(--mk-accent-soft)] ${
-              prefsOverLimit ? 'border-red-500/40' : 'border-[var(--st-line-strong)] focus:border-[var(--text-tertiary)]'
+            className={`mt-2.5 block min-h-[88px] sm:min-h-[110px] w-full resize-y rounded-xl border bg-black/20 dark:bg-black/35 px-3.5 py-2.5 text-[13px] sm:text-[13.5px] leading-[1.6] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[var(--text-tertiary)]/70 focus:bg-[var(--bg-primary)] focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(245,158,11,0.15)] ${
+              prefsOverLimit ? 'border-red-500/50' : 'border-[var(--st-line-strong)]'
             }`}
-            style={{ maxHeight: 240 }}
+            style={{ maxHeight: 220 }}
           />
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar sm:flex-wrap pb-0.5">
             {[
               { label: 'Concepts first', text: 'Prioritize conceptual understanding over direct answers.' },
               { label: 'Show the working', text: 'Show each step and the reasoning behind it.' },
@@ -197,9 +200,9 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
                   const next = preferences ? `${preferences} ${chip.text}` : chip.text;
                   if (next.length <= MAX_PREFS) setPreferences(next);
                 }}
-                className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] px-3 text-[12px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]"
+                className="inline-flex h-7 sm:h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-[var(--st-line-strong)] bg-[var(--st-fill)]/70 hover:bg-[var(--st-fill-strong)] px-3 text-[11.5px] sm:text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 whitespace-nowrap shadow-xs"
               >
-                <Plus size={12} strokeWidth={2} />
+                <Plus size={11} strokeWidth={2.4} className="text-amber-500/90 dark:text-amber-400 shrink-0" />
                 {chip.label}
               </button>
             ))}
@@ -213,6 +216,7 @@ export default function GeneralSection({ user, syncSettings, showToast }) {
         <SettingsGroup>
           <SettingsRow
             icon={notifCompletion ? Bell : BellOff}
+            iconTone="emerald"
             label="Tell me when a lesson is ready"
             rightElement={<AppleToggle label="Lesson ready alerts" value={notifCompletion} onChange={handleNotifToggle} />}
           />

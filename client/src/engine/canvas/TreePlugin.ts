@@ -47,9 +47,8 @@ export class TreePlugin implements ICanvasPlugin {
       .enter().append('path')
       .attr('class', 'link')
       .attr('fill', 'none')
-      .attr('stroke', 'var(--accent-primary, #3b82f6)')
+      .attr('stroke', '#383E38')
       .attr('stroke-width', 2)
-      .style('filter', 'url(#neon-glow)')
       .attr('d', (d: any) =>
         `M${d.x},${d.y}C${d.x},${(d.y + d.parent.y) / 2} ${d.parent.x},${(d.y + d.parent.y) / 2} ${d.parent.x},${d.parent.y}`
       );
@@ -68,17 +67,17 @@ export class TreePlugin implements ICanvasPlugin {
         const w = layout.measureText(labelOf(d), 12, 700).width;
         return Math.max(20, Math.min(30, w / 2 + 8));
       })
-      .attr('fill', 'var(--bg-secondary, #18181b)')
-      .attr('stroke', 'var(--border-strong, #3f3f46)')
-      .attr('stroke-width', 2)
-      .style('filter', 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))');
+      .attr('fill', '#171A18')
+      .attr('stroke', '#383E38')
+      .attr('stroke-width', 2);
 
     nodeSel.append('text')
       .attr('dy', '.35em')
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('font-weight', 'bold')
-      .attr('fill', 'var(--text-primary, #ffffff)')
+      .attr('font-weight', 600)
+      .attr('font-family', 'var(--font-sans)')
+      .attr('fill', '#F5F5F0')
       .text((d: any) => {
         const label = labelOf(d);
         return label.length > 8 ? label.slice(0, 7) + '…' : label;

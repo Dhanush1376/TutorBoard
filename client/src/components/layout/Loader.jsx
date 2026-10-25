@@ -30,7 +30,7 @@ const Loader = ({ fullScreen = true, glass = true, size = 56, autoFade, label = 
           <defs>
             <mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
               <rect width="64" height="64" fill="white" />
-              <path className="tb-loader-line" d={STROKE_PATH} pathLength="1" fill="none" stroke="black" strokeWidth="5.2" strokeLinecap="round" />
+              <path className="tb-loader-line" d={STROKE_PATH} pathLength="1" fill="none" stroke="black" strokeWidth="5.2" />
             </mask>
           </defs>
           <rect x="5" y="5" width="54" height="54" rx="16" fill="currentColor" mask={`url(#${id})`} />

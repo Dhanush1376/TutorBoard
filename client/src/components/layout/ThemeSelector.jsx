@@ -8,22 +8,11 @@ const ThemeSelector = () => {
   return (
     <div className="w-full space-y-6">
       
-      {/* 1. Mode Toggle (Separate from Theme) */}
+      {/* Theme Header */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-normal text-[var(--text-secondary)] uppercase tracking-wider">
-          Appearance
+          Theme
         </span>
-        <button
-          onClick={toggleMode}
-          className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-full hover:bg-[var(--bg-secondary)] transition-all"
-        >
-          <div className={`p-1 rounded-full transition-all ${mode === 'light' ? 'bg-[#D4D4D4] text-[#0f0f0f]' : 'text-[var(--text-tertiary)]'}`}>
-            <Sun size={12} />
-          </div>
-          <div className={`p-1 rounded-full transition-all ${mode === 'dark' ? 'bg-[#D4D4D4] text-[#0f0f0f]' : 'text-[var(--text-tertiary)]'}`}>
-            <Moon size={12} />
-          </div>
-        </button>
       </div>
 
       {/* 2. 4-Column Theme Row */}

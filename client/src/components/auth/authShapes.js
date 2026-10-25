@@ -254,8 +254,10 @@ export const prism = {
       // Spectrum rays: amber/accent particles highlight the separated spectral beams
       P[o] = 5;
       P[o + 1] = Math.floor(R() * RAYS);
+      // Static randomized base distance along the ray so the end fades naturally without a cut edge
       P[o + 2] = R();
-      P[o + 3] = gaussR(R) * 0.02;
+      // Jitter & maximum ray span variation (gives natural organic beam termination)
+      P[o + 3] = gaussR(R) * 0.018;
       return;
     }
     const b = R();
@@ -297,23 +299,33 @@ export const prism = {
       return;
     }
     if (kind === 3 || kind === 4) {
+      // Flow along the incoming and internal beams seamlessly from edge to edge
       const s = (P[o + 1] + t * 0.35) % 1;
       const [a, b] = kind === 3 ? [BEAM_FROM, P_IN] : [P_IN, P_OUT];
       emit(out, k, a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s + P[o + 2], P[o + 3], M_PRISM);
       return;
     }
-    // The spectrum: 7 distinct rays fanning out smoothly to the right
-    const s = (P[o + 2] + t * 0.35) % 1;
+    // The spectrum: 7 distinct rays fanning out smoothly to the right.
+    // Rays start exactly at the prism surface (len starts at 0.0) without any gap.
+    // Particles move along the beam with varied static max bounds so ends dissolve/taper
+    // instead of creating an artificial circular cutting edge.
+    const baseDist = P[o + 2];
+    const s = (baseDist + t * 0.35) % 1;
     const rayIdx = P[o + 1];
     const [dx, dy] = rayDir(rayIdx);
-    const len = 0.15 + 2.3 * s;
+    
+    // Smooth tapering length: spans from 0.0 (right on the surface of the prism)
+    // up to 2.45 with subtle per-particle feathering so the tail ends softly and naturally
+    const maxReach = 2.45 + P[o + 3] * 6.0;
+    const len = s * maxReach;
     const spread = (rayIdx - 3) * 0.035;
+    
     emit(
       out,
       k,
       P_OUT[0] + dx * len,
-      P_OUT[1] + dy * len + P[o + 3] * (1 + s * 1.5),
-      spread * (1 + s * 1.2) + P[o + 3] * 0.5,
+      P_OUT[1] + dy * len + P[o + 3] * (0.8 + s * 1.4),
+      spread * (0.8 + s * 1.2) + P[o + 3] * 0.4,
       M_PRISM,
     );
   },
@@ -321,88 +333,89 @@ export const prism = {
 
 /* ── Astronomy: Gargantua (Interstellar Kerr Black Hole & Lensed Accretion Disk) ── */
 
-// 16° inclination angle matching Interstellar's cinematic perspective
-const M_BLACKHOLE = mat(['x', 0.28], ['y', 0.08]);
-const RS = 0.52; // Schwarzschild radius (Event horizon shadow)
-const R_PHOTON = 0.82; // Relativistic photon sphere (~1.5 Rs)
-const R_ISCO = 1.05; // Innermost Stable Circular Orbit
-const R_DISK_MAX = 4.2; // Vast, expansive accretion disk spanning the width of the canvas
+// ── Interstellar Gargantua: Thorne General Relativity Model ──
+// Accretion disk inclined at ~17° to line of sight.
+// In Thorne & Double Negative's Interstellar renderer (DNGR):
+// 1. Primary image: The flat horizontal disk (y = 0, z > 0 in front; z < 0 behind) sweeps across.
+// 2. Gravitational Lensing (Upper & Lower images): Light from the disk BEHIND the black hole
+//    is bent by spacetime curvature over the top (upper arch) and under the bottom (lower arch).
+// 3. Spacetime coordinates: The lensed arches naturally meet the primary disk at the left and right flanks.
+// 4. Relativistic Doppler Beaming: Approaching matter (left flank) is blue-shifted/brighter,
+//    receding matter (right flank) is red-shifted/dimmer.
+const M_BLACKHOLE = mat(['x', 0.30], ['y', 0.08]);
+const RS = 0.68;        // Event horizon shadow radius (clean central circular void)
+const R_ISCO = 0.96;    // Innermost stable circular orbit (bright photon ring)
+const R_DISK_MAX = 4.2; // Outer accretion disk radius
 
 export const blackhole = {
   init(i, key, R, P, o) {
     if (key) {
-      // Golden/amber relativistic photon sphere & Doppler-boosted inner accretion hotspot
+      // Relativistic amber hotspots: concentrated on the inner ISCO photon ring
+      // and Doppler-boosted approaching flank
       const roll = R();
-      if (roll < 0.45) {
-        // Photon sphere: razor-sharp ring of trapped light wrapping the shadow
-        P[o] = 3;
-        P[o + 1] = R_PHOTON + (R() - 0.5) * 0.03;
+      if (roll < 0.65) {
+        // Glowing inner ISCO photon ring
+        P[o] = 0;
+        P[o + 1] = R_ISCO + Math.pow(R(), 2.8) * 0.35;
         P[o + 2] = R() * TAU;
         P[o + 3] = (R() - 0.5) * 0.015;
       } else {
-        // High-velocity relativistic inner accretion stream
-        P[o] = 4;
-        const r = R_ISCO + Math.pow(R(), 2.0) * 1.2;
-        P[o + 1] = r;
+        // Lensed upper/lower halo ring highlights
+        P[o] = 1;
+        P[o + 1] = R_ISCO + Math.pow(R(), 1.8) * 0.95;
         P[o + 2] = R() * TAU;
-        P[o + 3] = (R() - 0.5) * 0.03;
+        P[o + 3] = R() < 0.5 ? 1 : -1;
       }
       return;
     }
 
     const b = R();
-    if (b < 0.62) {
-      // 1. Vast horizontal accretion disk:
-      // Spans wide across the viewport with infinite-feeling gradient falloff
+    if (b < 0.60) {
+      // 1. Broad horizontal accretion disk
       const u = R();
-      // Power curve gives dense glowing core near ISCO and vast sprawling cosmic disk reaching outwards
-      const r = R_ISCO + Math.pow(u, 1.2) * (R_DISK_MAX - R_ISCO);
+      const r = R_ISCO + Math.pow(u, 1.35) * (R_DISK_MAX - R_ISCO);
       const theta = R() * TAU;
-      // Disk flare expands naturally with radius
-      const flare = 0.01 + 0.035 * (r - R_ISCO);
+      const flare = 0.005 + 0.022 * (r - R_ISCO);
       P[o] = 0;
       P[o + 1] = r;
       P[o + 2] = theta;
       P[o + 3] = gaussR(R) * flare;
-    } else if (b < 0.90) {
-      // 2. Gravitational Lensing Halo (The Interstellar vertical halo circle):
-      // The rear accretion disk bent over and under the black hole by extreme curvature
+    } else if (b < 0.92) {
+      // 2. Gravitational lensing halo (the rear accretion disk lensed around the event horizon)
       const u = R();
-      const r = R_ISCO + Math.pow(u, 1.3) * (R_DISK_MAX * 0.85 - R_ISCO);
-      const angle = R() * TAU;
+      const r = R_ISCO + Math.pow(u, 1.45) * (R_DISK_MAX * 0.85 - R_ISCO);
+      const theta = R() * TAU;
       const side = R() < 0.5 ? 1 : -1;
       P[o] = 1;
       P[o + 1] = r;
-      P[o + 2] = angle;
+      P[o + 2] = theta;
       P[o + 3] = side;
     } else {
-      // 3. Frame-dragging infalling plasma spirals near the event horizon (no white core inside horizon)
-      P[o] = 5;
-      P[o + 1] = RS * 1.05 + R() * (R_ISCO - RS * 1.05);
+      // 3. Relativistic infalling plasma spiral crossing the photon sphere into the event horizon
+      P[o] = 2;
+      P[o + 1] = RS * 1.02 + R() * (R_ISCO - RS * 1.02);
       P[o + 2] = R() * TAU;
-      P[o + 3] = (R() - 0.5) * 0.04;
+      P[o + 3] = (R() - 0.5) * 0.012;
     }
   },
   pos(P, o, t, out, k) {
     const kind = P[o];
 
     if (kind === 0) {
-      // Vast horizontal accretion disk with Keplerian differential rotation
+      // Primary horizontal accretion disk with differential Keplerian rotation
       const r = P[o + 1];
-      const omega = 1.6 / Math.pow(r, 1.25);
+      const omega = 1.85 / Math.pow(r, 1.25);
       const angle = P[o + 2] + t * omega;
       const x = Math.cos(angle) * r;
       const z = Math.sin(angle) * r;
       const y = P[o + 3];
 
-      // Iconic Interstellar cross:
-      // The front half of the horizontal disk (z > -0.05) crosses directly in front of the
-      // black hole shadow as an uninterrupted bright beam.
-      // Only the rear half of the disk behind the horizon (z <= -0.05) is occluded by the shadow.
-      if (z <= -0.05 && Math.hypot(x, y) < RS * 1.05) {
-        // Rear disk light is gravitationally lensed over the top and bottom into the halo
-        const side = y >= 0 ? 1 : -1;
-        emit(out, k, x, side * (RS * 1.08 + Math.abs(y)), z, M_BLACKHOLE);
+      // Behind the black hole (z < 0), rays that hit the event horizon are absorbed.
+      // Rays outside the horizon (r > RS) continue cleanly.
+      // If behind the event horizon shadow sphere, smoothly conceal it:
+      if (z < -0.05 && (x * x + y * y) < (RS * 1.02) ** 2) {
+        // Drop within event horizon shadow void (absorbed by singularity)
+        emit(out, k, 0, 0, 0, M_BLACKHOLE);
         return;
       }
 
@@ -411,51 +424,39 @@ export const blackhole = {
     }
 
     if (kind === 1) {
-      // Gravitational lensing halo (Interstellar vertical arch above and below the event horizon)
+      // Gravitationally Lensed Images (the iconic Interstellar upper and lower arches)
+      // Light emitted from the accretion disk behind the black hole (z < 0)
+      // travels along curved geodesics around the sphere toward the observer.
       const r = P[o + 1];
-      const omega = 1.6 / Math.pow(r, 1.25);
-      const theta = P[o + 2] + t * omega;
-
-      // Relativistic impact parameter deflection
-      const lensedR = Math.sqrt(r * r * 0.38 + R_PHOTON * R_PHOTON * 1.8);
-      const side = P[o + 3];
-      const archPhi = theta;
-      const lx = Math.cos(archPhi) * lensedR;
-      const ly = Math.abs(Math.sin(archPhi)) * lensedR * 0.98 * side;
-      const lz = -0.15 - Math.abs(Math.sin(archPhi)) * 0.28;
-      emit(out, k, lx, ly, lz, M_BLACKHOLE);
-      return;
-    }
-
-    if (kind === 3) {
-      // Photon sphere: circular ring of trapped light at 1.5 Rs
-      const r = P[o + 1];
-      const omega = 2.8;
+      const omega = 1.85 / Math.pow(r, 1.25);
       const angle = P[o + 2] + t * omega;
-      const x = Math.cos(angle) * r;
-      const y = Math.sin(angle) * r * 0.98;
-      const z = P[o + 3];
+      const side = P[o + 3]; // +1 = upper arch (deflected up), -1 = lower arch (deflected down)
+
+      // Angle phi sweeps along the visible semi-circle arch
+      const phi = angle;
+      const cosP = Math.cos(phi);
+      const sinP = Math.sin(phi);
+
+      // In Einstein's deflection, the lensed image of radius r appears at apparent radius:
+      // haloR = RS + (r - RS) * deflection_compression
+      const haloR = RS * 1.14 + (r - R_ISCO) * 0.52;
+
+      // Symmetrical circular arch surrounding the event horizon:
+      const x = cosP * haloR;
+      // Arch rises over the top (or under bottom) and cleanly connects to the horizontal disk at the flanks (|cosP| ~ 1)
+      const y = Math.abs(sinP) * haloR * side;
+      // Positioned in the plane of the black hole
+      const z = -0.15;
+
       emit(out, k, x, y, z, M_BLACKHOLE);
       return;
     }
 
-    if (kind === 4) {
-      // Ultra-relativistic inner accretion rim
-      const r = P[o + 1];
-      const omega = 2.1 / Math.sqrt(r);
-      const angle = P[o + 2] + t * omega;
-      const x = Math.cos(angle) * r;
-      const z = Math.sin(angle) * r;
-      const y = P[o + 3];
-      emit(out, k, x, y, z, M_BLACKHOLE);
-      return;
-    }
-
-    // Infalling spiral plasma plunging towards the horizon
+    // Infalling plasma spiral (kind === 2)
     const baseR = P[o + 1];
-    const plunge = (P[o + 2] + t * 0.8) % 1;
-    const r = Math.max(RS * 1.02, baseR - plunge * 0.28);
-    const omega = 3.8 / Math.pow(r, 1.15);
+    const plunge = (P[o + 2] + t * 0.85) % 1;
+    const r = Math.max(RS * 1.01, baseR - plunge * 0.22);
+    const omega = 3.6 / Math.pow(r, 1.15);
     const angle = P[o + 2] + t * omega;
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;
@@ -583,13 +584,16 @@ export const terrain = {
         P[o + 2] = Math.sin(ang) * rad;
         P[o + 3] = R();
       } else {
-        // Fiery volcanic eruption spatter / incandescent ejecta fountain
+        // Volcanic eruption: incandescent ballistic bombs, billowing ash fountain, and expanding umbrella cloud
         const ang = R() * TAU;
-        const speed = 0.2 + R() * 0.55;
+        // Directional ejection velocity with angular dispersion (fountain fan)
+        const speed = 0.35 + R() * 0.75;
+        // Radial spread and vertical loft capability
+        const loft = 0.7 + R() * 0.9;
         P[o] = 4;
-        P[o + 1] = Math.cos(ang) * speed * 0.35;
-        P[o + 2] = Math.sin(ang) * speed * 0.35;
-        P[o + 3] = R();
+        P[o + 1] = Math.cos(ang) * speed;
+        P[o + 2] = Math.sin(ang) * speed;
+        P[o + 3] = loft;
       }
       return;
     }
@@ -644,12 +648,24 @@ export const terrain = {
       z = P[o + 2];
       y = mountainH(x, z) + 0.03 + 0.02 * Math.sin(t * 3.5 + P[o + 3] * 6);
     } else if (kind === 4) {
-      // Airborne eruption lava fountain leaping from summit crater
-      const phase = (P[o + 3] + t * 0.55) % 1;
-      const h = Math.sin(phase * Math.PI) * 0.65;
-      x = P[o + 1] * (0.5 + phase * 0.8);
-      z = P[o + 2] * (0.5 + phase * 0.8);
-      y = mountainH(0, 0) + 0.12 + h;
+      // Powerful, grounded volcanic eruption:
+      // High-velocity vertical magma thrust from the crater vent, forming a dense,
+      // coherent volcanic column that decelerates and fountains naturally back down onto the cone.
+      // Zero floating sprinkles or artificial wind drift.
+      const phase = (Math.abs(P[o + 1]) * 1.8 + t * 0.45) % 1;
+      const loft = P[o + 3];
+
+      // Vertical trajectory: rapid explosive upward surge from vent, smooth apex, gravity return
+      const vy = Math.sin(phase * Math.PI);
+      const yEjecta = mountainH(0, 0) + 0.05 + vy * (0.62 * loft);
+
+      // Radial column expansion: tight compact core at the vent, expanding only at apex
+      const radial = (0.04 + 0.18 * Math.pow(phase, 1.8)) * (0.8 + 0.4 * loft);
+      const ang = Math.atan2(P[o + 2], P[o + 1]);
+
+      x = Math.cos(ang) * radial;
+      z = Math.sin(ang) * radial;
+      y = yEjecta;
     } else {
       [x, y, z] = [P[o + 1], P[o + 2], P[o + 3]];
     }
@@ -754,6 +770,12 @@ export const colosseum = {
       x *= COL_A;
       z *= COL_B;
     }
+    // History Colosseum scaled big (1.45x) for grand, imposing presence
+    const zoom = 1.45;
+    x *= zoom;
+    y = (y - 0.08) * zoom;
+    z *= zoom;
+
     // Gentle panoramic view pan
     const a = 0.08 * Math.sin(t * 0.18);
     const c = Math.cos(a);
@@ -995,127 +1017,209 @@ export const heart = {
   },
 };
 
-/* ── Economics: supply and demand, the market finding its price ──────── */
+/* ── Economics: 3D Global Trade Network & Flowing Capital Arcs ───────── */
 
-const ECO_O = [-2.1, -1.35];
-const QMAX = 4.2;
-const PMAX = 3.0;
-// Dynamic demand shifts oscillating back and forth as market conditions adjust
-const demandShift = (t) => 0.65 * Math.sin(t * 1.2);
-const demandP = (q, d) => 2.85 - 0.65 * (q - d);
-const supplyP = (q) => 0.35 + 0.58 * q;
-const equilibrium = (t) => {
-  const d = demandShift(t);
-  const q = (2.85 + 0.65 * d - 0.35) / 1.23;
-  return [q, supplyP(q)];
+const GLOBE_R = 1.62; // Zoomed in (~1.20x) for enhanced clarity and presence
+// Key global financial centres [latitude, longitude in radians]
+// New York (40.7°N, -74.0°W), London (51.5°N, -0.1°W), Tokyo (35.7°N, 139.7°E),
+// Singapore (1.3°N, 103.8°E), Frankfurt (50.1°N, 8.7°E), Hong Kong (22.3°N, 114.2°E),
+// Sydney (-33.8°S, 151.2°E), São Paulo (-23.5°S, -46.6°W)
+const HUBS = [
+  { name: 'NYC', lat: 40.7 * (Math.PI / 180), lon: -74.0 * (Math.PI / 180) },
+  { name: 'LON', lat: 51.5 * (Math.PI / 180), lon: -0.1 * (Math.PI / 180) },
+  { name: 'TYO', lat: 35.7 * (Math.PI / 180), lon: 139.7 * (Math.PI / 180) },
+  { name: 'SGP', lat: 1.3 * (Math.PI / 180), lon: 103.8 * (Math.PI / 180) },
+  { name: 'FRA', lat: 50.1 * (Math.PI / 180), lon: 8.7 * (Math.PI / 180) },
+  { name: 'HKG', lat: 22.3 * (Math.PI / 180), lon: 114.2 * (Math.PI / 180) },
+  { name: 'SYD', lat: -33.8 * (Math.PI / 180), lon: 151.2 * (Math.PI / 180) },
+  { name: 'SAO', lat: -23.5 * (Math.PI / 180), lon: -46.6 * (Math.PI / 180) },
+];
+
+// Major global financial capital trade corridors:
+const TRADE_ROUTES = [
+  [0, 1], // NYC <-> London
+  [1, 4], // London <-> Frankfurt
+  [4, 5], // Frankfurt <-> Hong Kong
+  [0, 2], // NYC <-> Tokyo
+  [1, 3], // London <-> Singapore
+  [2, 5], // Tokyo <-> Hong Kong
+  [3, 6], // Singapore <-> Sydney
+  [0, 7], // NYC <-> São Paulo
+  [5, 3], // Hong Kong <-> Singapore
+];
+
+const latLonToSphere = (lat, lon, r = GLOBE_R) => {
+  const cosLat = Math.cos(lat);
+  return [r * cosLat * Math.sin(lon), r * Math.sin(lat), r * cosLat * Math.cos(lon)];
 };
-// Direct face-on flat XY coordinate plane: instantly reads as standard economic chart
-const M_ECO = mat();
-const chart = (q, p) => [ECO_O[0] + q, ECO_O[1] + p];
+
+// Hub 3D positions on the sphere surface:
+const HUB_POS = HUBS.map(h => latLonToSphere(h.lat, h.lon, GLOBE_R));
+
+// Precalculate great circle geodesics with high arch for each route:
+const ROUTES_DATA = TRADE_ROUTES.map(([aIdx, bIdx]) => {
+  const A = HUB_POS[aIdx];
+  const B = HUB_POS[bIdx];
+  const dot = (A[0] * B[0] + A[1] * B[1] + A[2] * B[2]) / (GLOBE_R * GLOBE_R);
+  const ang = Math.acos(Math.max(-1, Math.min(1, dot)));
+  return { aIdx, bIdx, A, B, ang };
+});
+
+// Earth's natural cross-axis tilt: ~23.4° (0.41 rad) on Z combined with gentle forward tilt on X
+const M_ECO = mat(['z', -0.38], ['x', 0.28], ['y', 0.12]);
 
 export const market = {
   init(i, key, R, P, o) {
     if (key) {
-      // Golden amber highlight: equilibrium point, pulsating intersection rings, and market clearance signals
-      const b = R();
-      if (b < 0.45) {
-        // Glowing equilibrium point (Q*, P*)
-        P[o] = 5;
-        P[o + 1] = R();
-        P[o + 2] = R();
-        P[o + 3] = R();
-      } else if (b < 0.75) {
-        // Active trade transactions: energetic pulses flowing towards the equilibrium
-        P[o] = 6;
-        P[o + 1] = R() < 0.5 ? 1 : 2; // on demand curve or supply curve
-        P[o + 2] = R(); // phase along curve
-        P[o + 3] = 0.5 + R() * 0.5; // speed
+      // Golden financial capital stream:
+      // High-frequency financial transactions streaming dynamically along global trade corridors
+      // and pulsing at major exchange hubs
+      const roll = R();
+      if (roll < 0.65) {
+        // High-speed transaction packets traveling along trade corridor arcs
+        P[o] = 3;
+        P[o + 1] = Math.floor(R() * ROUTES_DATA.length); // route index
+        P[o + 2] = R(); // progress along arc
+        P[o + 3] = (R() - 0.5) * 0.025; // slight lateral jitter
       } else {
-        // Dynamic dashed equilibrium projection lines to axes
-        P[o] = 7;
-        P[o + 1] = R();
-        P[o + 2] = R();
-        P[o + 3] = R();
+        // Pulsing glowing financial capital at trade exchange hubs
+        P[o] = 4;
+        P[o + 1] = Math.floor(R() * HUBS.length); // hub index
+        P[o + 2] = R() * TAU; // angle
+        P[o + 3] = Math.pow(R(), 0.5); // radius spread
       }
       return;
     }
+
     const b = R();
-    P[o + 1] = R();
-    P[o + 2] = R();
-    P[o + 3] = (R() - 0.5) * 0.02;
-    if (b < 0.22) P[o] = 0; // axes, ticks, arrowheads
-    else if (b < 0.52) P[o] = 1; // demand curve (D)
-    else if (b < 0.82) P[o] = 2; // supply curve (S)
-    else P[o] = 3; // consumer & producer surplus fills
+    if (b < 0.48) {
+      // 1. Globe latitude and longitude coordinate grid (graticule):
+      // Equator, parallels (±20°, ±40°, ±60°), and meridians
+      P[o] = 0;
+      if (R() < 0.5) {
+        // Parallels (latitude rings)
+        const lats = [-60, -40, -20, 0, 20, 40, 60].map(deg => deg * (Math.PI / 180));
+        const lat = lats[Math.floor(R() * lats.length)];
+        const lon = R() * TAU;
+        P[o + 1] = lat;
+        P[o + 2] = lon;
+        P[o + 3] = (R() - 0.5) * 0.015;
+      } else {
+        // Meridians (longitude rings)
+        const lon = (Math.floor(R() * 12) / 12) * TAU;
+        const lat = (R() * 2 - 1) * (Math.PI * 0.42);
+        P[o + 1] = lat;
+        P[o + 2] = lon;
+        P[o + 3] = (R() - 0.5) * 0.015;
+      }
+    } else if (b < 0.78) {
+      // 2. Continental clusters / economic landmass point cloud
+      // Seeded near global hubs with slight regional dispersion
+      P[o] = 1;
+      const hubIdx = Math.floor(R() * HUBS.length);
+      const h = HUBS[hubIdx];
+      const dLat = (R() - 0.5) * 0.45;
+      const dLon = (R() - 0.5) * 0.65;
+      P[o + 1] = Math.max(-Math.PI * 0.45, Math.min(Math.PI * 0.45, h.lat + dLat));
+      P[o + 2] = h.lon + dLon;
+      P[o + 3] = (R() - 0.5) * 0.02;
+    } else {
+      // 3. Trade route arch bridges (parabolic arches rising above the globe)
+      P[o] = 2;
+      P[o + 1] = Math.floor(R() * ROUTES_DATA.length);
+      P[o + 2] = R(); // static position along corridor arc
+      P[o + 3] = (R() - 0.5) * 0.02;
+    }
   },
   pos(P, o, t, out, k) {
     const kind = P[o];
-    const u = P[o + 1];
-    const v = P[o + 2];
-    const d = demandShift(t);
-    const [qe, pe] = equilibrium(t);
-    let q;
-    let p;
-    let z = P[o + 3];
+    // Globe rotates smoothly around its polar axis
+    const rot = t * 0.22;
 
-    if (kind === 0) {
-      // Coordinate axes and ticks
-      const part = Math.floor(v * 10);
-      if (part < 4) [q, p] = [u * QMAX, 0]; // Quantity axis
-      else if (part < 8) [q, p] = [0, u * PMAX]; // Price axis
-      else if (part === 8) {
-        // Axis tick marks
-        const tick = Math.floor(u * 8);
-        [q, p] = (u * 16) % 2 < 1 ? [(tick + 1) * 0.5, -0.06 * ((u * 50) % 1)] : [-0.06 * ((u * 50) % 1), (tick + 1) * 0.38];
-      } else {
-        // Axis arrowheads
-        const s = u * 0.18;
-        [q, p] = v < 0.95 ? [QMAX - s, (v < 0.925 ? 1 : -1) * s * 0.6] : [(v < 0.975 ? 1 : -1) * s * 0.6, PMAX - s];
-      }
-    } else if (kind === 1 || kind === 2) {
-      // Curves with gentle wave shimmer
-      // Flow along curve to give constant lively vitality
-      const flow = (u + t * 0.08) % 1;
-      q = 0.2 + flow * 3.8;
-      p = kind === 1 ? demandP(q, d) : supplyP(q);
-      if (p < 0.05 || p > PMAX) [q, p] = [qe, pe];
-    } else if (kind === 3) {
-      // Surplus shading
-      q = u * qe;
-      if (v < 0.5) {
-        const top = demandP(q, d);
-        p = pe + (v / 0.5) * Math.max(0, top - pe);
-      } else {
-        const bottom = supplyP(q);
-        p = bottom + ((v - 0.5) / 0.5) * Math.max(0, pe - bottom);
-      }
-      z -= 0.05;
-    } else if (kind === 5) {
-      // Pulsating amber equilibrium point (Q*, P*) expanding and contracting with market shifts
-      const pulse = 0.14 + 0.05 * Math.sin(t * 4);
-      const [x, y, zz] = onSphereFrom(u, v, P[o + 3], pulse);
-      const [cx, cy] = chart(qe, pe);
-      emit(out, k, cx + x, cy + y, zz, M_ECO);
+    if (kind === 0 || kind === 1) {
+      // Latitude / Longitude lines & Continental Hub mass on the globe
+      const lat = P[o + 1];
+      const lon = P[o + 2] + rot;
+      const r = GLOBE_R + P[o + 3];
+      const cosLat = Math.cos(lat);
+      const x = r * cosLat * Math.sin(lon);
+      const y = r * Math.sin(lat);
+      const z = r * cosLat * Math.cos(lon);
+      emit(out, k, x, y, z, M_ECO);
       return;
-    } else if (kind === 6) {
-      // Active transactions streaming down the curves towards equilibrium
-      const curveType = P[o + 1];
-      const speed = P[o + 3];
-      const prog = (P[o + 2] + t * 0.45 * speed) % 1;
-      q = 0.2 + prog * 3.8;
-      p = curveType === 1 ? demandP(q, d) : supplyP(q);
-      if (p < 0.05 || p > PMAX) [q, p] = [qe, pe];
-      const [cx, cy] = chart(q, p);
-      emit(out, k, cx, cy, 0.08, M_ECO);
-      return;
-    } else {
-      // Dashed guide lines projecting to Price and Quantity axes
-      const s = (Math.floor(u * 11) + v * 0.6) / 11;
-      [q, p] = P[o + 3] < 0.5 ? [s * qe, pe] : [qe, s * pe];
-      z = 0;
     }
-    const [x, y] = chart(q, p);
-    emit(out, k, x, y, z, M_ECO);
+
+    if (kind === 2) {
+      // Trade corridor structural arch
+      const route = ROUTES_DATA[P[o + 1]];
+      const s = P[o + 2];
+      // Great circle slerp interpolation between Hub A and Hub B
+      const sinTotal = Math.sin(route.ang);
+      const wA = Math.sin((1 - s) * route.ang) / (sinTotal || 1);
+      const wB = Math.sin(s * route.ang) / (sinTotal || 1);
+      
+      // Parabolic altitude arch: peaks at s = 0.5, rising cleanly above globe surface
+      const archAlt = Math.sin(s * Math.PI) * 0.32;
+      const unitR = GLOBE_R + archAlt;
+
+      let px = route.A[0] * wA + route.B[0] * wB;
+      let py = route.A[1] * wA + route.B[1] * wB;
+      let pz = route.A[2] * wA + route.B[2] * wB;
+      const len = Math.hypot(px, py, pz) || 1;
+      px = (px / len) * unitR;
+      py = (py / len) * unitR;
+      pz = (pz / len) * unitR;
+
+      // Apply polar rotation
+      const cosR = Math.cos(rot);
+      const sinR = Math.sin(rot);
+      const rx = px * cosR + pz * sinR;
+      const rz = -px * sinR + pz * cosR;
+
+      emit(out, k, rx, py + P[o + 3], rz, M_ECO);
+      return;
+    }
+
+    if (kind === 3) {
+      // Golden financial transaction packets actively streaming along the trade arches
+      const route = ROUTES_DATA[P[o + 1]];
+      const s = (P[o + 2] + t * 0.45) % 1;
+      
+      const sinTotal = Math.sin(route.ang);
+      const wA = Math.sin((1 - s) * route.ang) / (sinTotal || 1);
+      const wB = Math.sin(s * route.ang) / (sinTotal || 1);
+      
+      const archAlt = Math.sin(s * Math.PI) * 0.34;
+      const unitR = GLOBE_R + archAlt;
+
+      let px = route.A[0] * wA + route.B[0] * wB;
+      let py = route.A[1] * wA + route.B[1] * wB;
+      let pz = route.A[2] * wA + route.B[2] * wB;
+      const len = Math.hypot(px, py, pz) || 1;
+      px = (px / len) * unitR;
+      py = (py / len) * unitR;
+      pz = (pz / len) * unitR;
+
+      const cosR = Math.cos(rot);
+      const sinR = Math.sin(rot);
+      const rx = px * cosR + pz * sinR;
+      const rz = -px * sinR + pz * cosR;
+
+      emit(out, k, rx, py, rz, M_ECO);
+      return;
+    }
+
+    // Kind 4: Financial Exchange Hub pulse (New York, London, Tokyo, Singapore)
+    const hub = HUBS[P[o + 1]];
+    const lon = hub.lon + rot;
+    const base = latLonToSphere(hub.lat, lon, GLOBE_R);
+    
+    // Pulsing radial beacon of market activity
+    const pulse = 0.05 + 0.03 * Math.sin(t * 3.5 + P[o + 1]);
+    const ang = P[o + 2];
+    const rSpread = P[o + 3] * pulse;
+    
+    emit(out, k, base[0] + Math.cos(ang) * rSpread, base[1] + Math.sin(ang) * rSpread, base[2], M_ECO);
   },
 };
 function onSphereFrom(u, v, w, r) {
@@ -1126,136 +1230,191 @@ function onSphereFrom(u, v, w, r) {
   return [s * Math.cos(a) * rr, y * rr, s * Math.sin(a) * rr];
 }
 
-/* ── Mathematics: The Klein Bottle & Möbius Topology ────────────────────── */
+/* ── Mathematics: Geometric Drafting Compass & Ruler Drawing a Circle ── */
 
-/* ── Mathematics: Golden Ratio (Phi) Spiral & Stellated Icosahedron ─────── */
+const COMPASS_RADIUS = 1.35; // Radius of the circle being drawn
+const COMPASS_CENTER = [0.0, -0.30]; // Center point of the circle
+const COMPASS_LEG_LEN = 2.45; // Length of the compass legs
+const RULER_LEN = 4.2; // Length of the drafting straightedge/ruler
+const RULER_H = 0.55; // Width of the ruler
 
-const PHI = (1 + Math.sqrt(5)) / 2; // ~1.6180339887
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // ~137.5° in radians
-
-// 12 vertices of an icosahedron based on golden rectangles
-const ICOSA_VERTS = [
-  [-1,  PHI, 0], [ 1,  PHI, 0], [-1, -PHI, 0], [ 1, -PHI, 0],
-  [0, -1,  PHI], [0,  1,  PHI], [0, -1, -PHI], [0,  1, -PHI],
-  [ PHI, 0, -1], [ PHI, 0,  1], [-PHI, 0, -1], [-PHI, 0,  1],
-].map(v => {
-  const len = Math.hypot(...v);
-  return [v[0] / len * 1.5, v[1] / len * 1.5, v[2] / len * 1.5];
-});
-
-// 30 edges of the golden icosahedron
-const ICOSA_EDGES = (() => {
-  const edges = [];
-  for (let i = 0; i < 12; i += 1) {
-    for (let j = i + 1; j < 12; j += 1) {
-      const d = Math.hypot(
-        ICOSA_VERTS[i][0] - ICOSA_VERTS[j][0],
-        ICOSA_VERTS[i][1] - ICOSA_VERTS[j][1],
-        ICOSA_VERTS[i][2] - ICOSA_VERTS[j][2]
-      );
-      // In normalized golden icosahedron, edges have distance ~1.05
-      if (Math.abs(d - 1.57) < 0.15) {
-        edges.push([i, j]);
-      }
-    }
-  }
-  return edges;
-})();
-
-const M_MATH_PHI = mat(['x', 0.38], ['y', 0.25], ['z', -0.1]);
+// Gentle 3D perspective angle so the compass stands upright above the drawing plane
+const M_COMPASS = mat(['x', 0.42], ['y', 0.12]);
 
 export const lorenz = {
   init(i, key, R, P, o) {
     if (key) {
-      // Golden spiral logarithmic stream tracing the 3D Fibonacci spiral outward
-      P[o] = 2;
-      P[o + 1] = Math.pow(R(), 0.7); // parameter along the spiral [0, 1]
-      P[o + 2] = R() < 0.5 ? 1 : -1; // upper or lower spiral arm
-      P[o + 3] = (R() - 0.5) * 0.02;
+      // Golden Amber Accent Particles:
+      // The sharp pencil lead drawing tip, active drawn circumference trail,
+      // and ruler millimeter tick markings
+      const roll = R();
+      if (roll < 0.55) {
+        // Glowing pencil tip & recently drawn arc trail
+        P[o] = 4;
+        P[o + 1] = R(); // progress along the currently drawn arc
+        P[o + 2] = (R() - 0.5) * 0.02; // radial jitter
+        P[o + 3] = (R() - 0.5) * 0.015;
+      } else {
+        // Golden ruler measurement graduation ticks
+        P[o] = 5;
+        const tickIdx = Math.floor(R() * 21);
+        P[o + 1] = -RULER_LEN / 2 + (tickIdx / 20) * RULER_LEN; // x along ruler
+        P[o + 2] = R(); // fraction along tick height
+        P[o + 3] = tickIdx % 5 === 0 ? 0.16 : 0.09; // major vs minor tick length
+      }
       return;
     }
 
     const b = R();
-    if (b < 0.55) {
-      // 1. Logarithmic 3D Fermat/Fibonacci Phyllotaxis disk (sunflower seed geometry)
-      const n = i;
-      const r = Math.sqrt(R()) * 2.1;
-      const theta = R() * TAU;
+    if (b < 0.28) {
+      // 1. Compass Legs (Left needle pivot leg and Right pencil leg)
       P[o] = 0;
-      P[o + 1] = r;
-      P[o + 2] = theta;
-      P[o + 3] = (R() - 0.5) * 0.04;
-    } else if (b < 0.85) {
-      // 2. Golden Icosahedron wireframe cage surrounding the spiral
+      P[o + 1] = R() < 0.5 ? 0 : 1; // 0: needle leg, 1: pencil leg
+      P[o + 2] = R(); // position along leg [0 = hinge/apex, 1 = tip]
+      P[o + 3] = (R() - 0.5) * 0.025; // leg thickness
+    } else if (b < 0.38) {
+      // 2. Compass Top Hinge Knurled Wheel & Spindle
       P[o] = 1;
-      P[o + 1] = Math.floor(R() * ICOSA_EDGES.length);
-      P[o + 2] = R(); // along edge
-      P[o + 3] = (R() - 0.5) * 0.03;
+      const part = R();
+      if (part < 0.4) {
+        // Top knurled handle grip
+        P[o + 1] = 0;
+        P[o + 2] = R(); // height along handle
+        P[o + 3] = R() * TAU; // cylinder angle
+      } else {
+        // Central pivot circular joint
+        P[o + 1] = 1;
+        P[o + 2] = R() * 0.12; // radius
+        P[o + 3] = R() * TAU; // angle
+      }
+    } else if (b < 0.68) {
+      // 3. The Geometric Circle being drawn on the paper
+      P[o] = 2;
+      P[o + 1] = R() * TAU; // angle around the circle
+      P[o + 2] = (R() - 0.5) * 0.02; // line thickness
+      P[o + 3] = (R() - 0.5) * 0.01;
     } else {
-      // 3. Central golden node core
+      // 4. Wooden / Brass Drafting Straightedge (Ruler) underneath
       P[o] = 3;
-      const [sx, sy, sz] = onSphere(R, 0.28 * Math.cbrt(R()));
-      P[o + 1] = sx;
-      P[o + 2] = sy;
-      P[o + 3] = sz;
+      const edge = R();
+      if (edge < 0.65) {
+        // Top and bottom bevel edges of ruler
+        P[o + 1] = (R() - 0.5) * RULER_LEN;
+        P[o + 2] = edge < 0.325 ? -RULER_H / 2 : RULER_H / 2;
+        P[o + 3] = (R() - 0.5) * 0.015;
+      } else {
+        // Inner body surface shimmer of the ruler
+        P[o + 1] = (R() - 0.5) * (RULER_LEN - 0.1);
+        P[o + 2] = (R() - 0.5) * (RULER_H - 0.08);
+        P[o + 3] = (R() - 0.5) * 0.015;
+      }
     }
   },
   pos(P, o, t, out, k) {
     const kind = P[o];
 
-    if (kind === 2) {
-      // Dynamic golden spiral arm expanding outward at logarithmic rate
-      const cycle = (P[o + 1] + t * 0.25) % 1;
-      const theta = cycle * Math.PI * 4.0;
-      const r = 0.25 + Math.pow(cycle, 1.3) * 1.85;
-      const sign = P[o + 2];
-      const x = r * Math.cos(theta);
-      const z = r * Math.sin(theta);
-      const y = Math.sin(cycle * Math.PI) * 0.35 * sign + P[o + 3];
-      emit(out, k, x, y, z, M_MATH_PHI);
-      return;
-    }
+    // Compass rotates continuously drawing the circle:
+    // Angle theta sweeps around the circle from 0 to 2*PI
+    const drawSpeed = 0.55;
+    const theta = (t * drawSpeed) % TAU;
+
+    // Needle pivot point stays anchored at circle center on the drawing plane
+    const pivot = [COMPASS_CENTER[0], COMPASS_CENTER[1], 0.0];
+
+    // Pencil tip rotates on the perimeter at radius COMPASS_RADIUS
+    const pencilTip = [
+      COMPASS_CENTER[0] + Math.cos(theta) * COMPASS_RADIUS,
+      COMPASS_CENTER[1] + Math.sin(theta) * COMPASS_RADIUS,
+      0.0,
+    ];
+
+    // Compass apex hinge point above the center between the needle and pencil
+    // By Pythagorean theorem: legLen^2 = halfSpan^2 + hingeHeight^2
+    const halfSpan = COMPASS_RADIUS / 2;
+    const hingeHeight = Math.sqrt(Math.max(0.4, COMPASS_LEG_LEN ** 2 - halfSpan ** 2));
+    const hinge = [
+      (pivot[0] + pencilTip[0]) / 2,
+      (pivot[1] + pencilTip[1]) / 2,
+      hingeHeight,
+    ];
 
     if (kind === 0) {
-      // Phyllotaxis golden spiral disk rotating with harmonic precession
-      const r = P[o + 1];
-      const spin = t * (0.35 / (0.6 + r * 0.5));
-      const theta = P[o + 2] + spin;
-      // Dome/curvature of the phyllotaxis spiral: gentle bell curve
-      const y = Math.exp(-r * r * 0.8) * 0.45 - 0.25 + P[o + 3];
-      const x = r * Math.cos(theta);
-      const z = r * Math.sin(theta);
-      emit(out, k, x, y, z, M_MATH_PHI);
+      // Compass Legs (0: Needle leg from hinge to pivot, 1: Pencil leg from hinge to pencilTip)
+      const isPencil = P[o + 1] === 1;
+      const s = P[o + 2]; // 0 at hinge, 1 at tip
+      const start = hinge;
+      const end = isPencil ? pencilTip : pivot;
+      const thick = P[o + 3];
+
+      const x = start[0] + (end[0] - start[0]) * s + thick;
+      const y = start[1] + (end[1] - start[1]) * s;
+      const z = start[2] + (end[2] - start[2]) * s + thick;
+      emit(out, k, x, y, z, M_COMPASS);
       return;
     }
 
     if (kind === 1) {
-      // 30 edges of the golden icosahedron
-      const edge = ICOSA_EDGES[P[o + 1] % ICOSA_EDGES.length] || [0, 1];
-      const frac = P[o + 2];
-      const v0 = ICOSA_VERTS[edge[0]];
-      const v1 = ICOSA_VERTS[edge[1]];
-      const x = v0[0] + (v1[0] - v0[0]) * frac;
-      const y = v0[1] + (v1[1] - v0[1]) * frac;
-      const z = v0[2] + (v1[2] - v0[2]) * frac;
-
-      // Slow 3D counter-rotation of the icosahedron cage
-      const rot = t * 0.18;
-      const c = Math.cos(rot);
-      const s = Math.sin(rot);
-      const rx = x * c - z * s;
-      const rz = x * s + z * c;
-      emit(out, k, rx, y, rz, M_MATH_PHI);
+      // Compass Hinge Joint & Top Knurled Turning Handle
+      const part = P[o + 1];
+      if (part === 0) {
+        // Vertical handle on top of hinge
+        const hFrac = P[o + 2];
+        const ang = P[o + 3];
+        const handleR = 0.045;
+        const x = hinge[0] + Math.cos(ang) * handleR;
+        const y = hinge[1] + Math.sin(ang) * handleR;
+        const z = hinge[2] + 0.06 + hFrac * 0.45;
+        emit(out, k, x, y, z, M_COMPASS);
+        return;
+      }
+      // Circular joint ring
+      const r = P[o + 2];
+      const ang = P[o + 3];
+      const x = hinge[0] + Math.cos(ang) * r;
+      const y = hinge[1] + Math.sin(ang) * r;
+      const z = hinge[2];
+      emit(out, k, x, y, z, M_COMPASS);
       return;
     }
 
-    // Kind 3: Central core
-    const rot = t * 0.3;
-    const c = Math.cos(rot);
-    const s = Math.sin(rot);
-    const x = P[o + 1] * c - P[o + 3] * s;
-    const z = P[o + 1] * s + P[o + 3] * c;
-    emit(out, k, x, P[o + 2], z, M_MATH_PHI);
+    if (kind === 2) {
+      // The Circle drawn on the page (full perimeter)
+      const ang = P[o + 1];
+      const r = COMPASS_RADIUS + P[o + 2];
+      const x = COMPASS_CENTER[0] + Math.cos(ang) * r;
+      const y = COMPASS_CENTER[1] + Math.sin(ang) * r;
+      emit(out, k, x, y, 0.005, M_COMPASS);
+      return;
+    }
+
+    if (kind === 3) {
+      // Drafting Straightedge / Ruler positioned below the circle
+      const rx = P[o + 1];
+      const ry = -1.55 + P[o + 2]; // Resting at bottom of drawing
+      emit(out, k, rx, ry, -0.015, M_COMPASS);
+      return;
+    }
+
+    if (kind === 4) {
+      // Golden Amber: Pencil drawing arc trailing immediately behind the pencil tip
+      const trailSpan = 1.4; // Trail angle in radians
+      const s = P[o + 1];
+      const trailAngle = theta - s * trailSpan;
+      const r = COMPASS_RADIUS + P[o + 2];
+      const x = COMPASS_CENTER[0] + Math.cos(trailAngle) * r;
+      const y = COMPASS_CENTER[1] + Math.sin(trailAngle) * r;
+      const z = 0.02 + s * 0.01;
+      emit(out, k, x, y, z, M_COMPASS);
+      return;
+    }
+
+    // Kind 5: Golden Ruler Millimeter Ticks
+    const tickX = P[o + 1];
+    const s = P[o + 2];
+    const tickLen = P[o + 3];
+    const rulerTopY = -1.55 + RULER_H / 2;
+    const tickY = rulerTopY - s * tickLen;
+    emit(out, k, tickX, tickY, 0.01, M_COMPASS);
   },
 };
 
@@ -1395,31 +1554,30 @@ export const book = {
       emit(out, k, P[o + 1], P[o + 2] - 0.1, P[o + 3], M_BOOK);
       return;
     }
-    // Turn right to left, then back left to right smoothly
+    // Normal page turning: The page turns smoothly from right to left around the spine.
+    // The page maintains its exact width and height — no distortion, expansion, or shrinking.
     const cycle = t * 0.22;
     const n = Math.floor(cycle);
     const c = cycle - n;
-    // Smooth cosine flip with hold at the edges
-    const f = c < 0.12 ? 0 : c > 0.88 ? 1 : 0.5 - 0.5 * Math.cos(((c - 0.12) / 0.76) * Math.PI);
+    // Smooth cosine turn with pause when resting on either side
+    const f = c < 0.14 ? 0 : c > 0.86 ? 1 : 0.5 - 0.5 * Math.cos(((c - 0.14) / 0.72) * Math.PI);
     const turned = n % 2 === 0 ? f : 1 - f;
     const u = P[o + 1]; // distance from spine [0 to 1]
     const z = P[o + 2]; // position along page height
 
-    // Arch angle: the page arcs upward as it turns
-    const theta = turned * Math.PI;
-    // Aerodynamic page curl: outer edge bends and lifts with parabolic curl
-    const midTurn = Math.sin(theta);
-    const curl = midTurn * 0.45 * Math.sin(u * Math.PI * 0.85);
-    const archY = midTurn * 0.75 * Math.sin(u * Math.PI * 0.5);
-    const pageAngle = theta - midTurn * 0.4 * (1 - u);
+    // Normal hinge angle turning around the spine from 0 (flat on right) to PI (flat on left)
+    const angle = turned * Math.PI;
+    const r = u * PAGE_W; // Exact constant page width
 
-    const r = u * PAGE_W;
-    const px = Math.cos(pageAngle) * r;
-    const py = pageY(px) + Math.sin(pageAngle) * r * 0.88 + archY + curl;
-    // Gentle page corner curl flutter along Z
-    const pz = z + midTurn * 0.18 * (u ** 2) * Math.sin(z * 1.5 + t * 2.5);
+    // Clean, natural turning arc:
+    // px sweeps from +r to -r
+    const px = Math.cos(angle) * r;
+    // py lifts smoothly in a semicircle during the turn, and sits flush on the book surface at the rest positions
+    const midTurn = Math.sin(angle);
+    const restY = pageY(px);
+    const py = restY + midTurn * (Math.sin(angle) * r * 0.75);
 
-    emit(out, k, px, py - 0.1, pz, M_BOOK);
+    emit(out, k, px, py - 0.1, z, M_BOOK);
   },
 };
 

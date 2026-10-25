@@ -14,9 +14,7 @@ const react = reactPlugin.default || reactPlugin;
  * 3. Graceful fallback/error handling preventing ECONNREFUSED crash loops.
  * 4. Optimized WebSocket (ws: true) proxying with long timeout thresholds.
  */
-// Backend the dev proxy talks to. Default 127.0.0.1:5000; TB_BACKEND=127.0.0.1:5055 targets the
-// Engine v2 dev backend (server/scripts/scene-lab-backend.mjs) — see client/scripts/dev-v2.mjs.
-const BACKEND = process.env.TB_BACKEND || '127.0.0.1:5000';
+const BACKEND = process.env.TB_BACKEND || '127.0.0.1:5001';
 
 export default defineConfig({
   plugins: [

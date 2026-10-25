@@ -174,10 +174,11 @@ export function solveLayout(sizes: Map<string, Measured>, relations: Relation[],
 }
 
 /** Uniform fit of a world box into a viewport, never upscaling past `maxScale`. */
-export function fitTransform(world: Box, view: Box, maxScale = 1.3, pad = 24) {
+export function fitTransform(world: Box, view: Box, maxScale = 1.3, pad = 24, boost = 1.0) {
   const w = Math.max(1, world.w + pad * 2);
   const h = Math.max(1, world.h + pad * 2);
-  const scale = Math.min(maxScale, view.w / w, view.h / h);
+  const baseScale = Math.min(view.w / w, view.h / h);
+  const scale = Math.min(maxScale, baseScale * boost);
   return {
     scale,
     x: view.x + view.w / 2 - (world.x + world.w / 2) * scale,

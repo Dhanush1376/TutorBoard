@@ -54,11 +54,29 @@ export class PointerPlugin implements ICanvasPlugin {
     return { x, y };
   }
 
+  private resolveColor(color?: string, label?: string): { bg: string; border: string; text: string } {
+    const l = (label || '').toLowerCase();
+    const c = (color || '').toLowerCase();
+    if (l === 'mid' || c.includes('f4c95d') || c.includes('orange') || c.includes('amber')) {
+      return { bg: '#262014', border: '#F4C95D', text: '#FDF2D0' }; // Warm amber for mid
+    }
+    if (l === 'low' || l === 'lo' || l === 'l' || c.includes('teal') || c.includes('blue') || c.includes('cyan')) {
+      return { bg: '#15242E', border: '#38BDF8', text: '#E0F2FE' }; // Sky cyan for low
+    }
+    if (l === 'high' || l === 'hi' || l === 'h' || c.includes('red') || c.includes('coral')) {
+      return { bg: '#291B14', border: '#FF925C', text: '#FFE7DC' }; // Coral for high
+    }
+    if (c.includes('green') || c.includes('35c98a')) {
+      return { bg: '#13261C', border: '#35C98A', text: '#D1FAE5' };
+    }
+    return { bg: '#202521', border: '#383E38', text: '#F5F5F0' };
+  }
+
   createPointer(
     id: string,
     atIndex: number,
     label: string,
-    color: string = '#ef4444',
+    color: string = '#F4C95D',
     targetArrayId?: string,
     ctx?: AnimContext
   ): number {
@@ -70,23 +88,48 @@ export class PointerPlugin implements ICanvasPlugin {
     const meta = (arrayGroup.node() as any)._meta || { offsetX: 0, cellWidth: 54, cellGap: 10, y: 160, cellHeight: 54 };
     const lane = this.assignLane(id, arrayKey);
     const { x, y } = this.position(meta, atIndex, lane);
+    const palette = this.resolveColor(color, label);
 
     const group = this.engine.mainLayer.append('g')
       .attr('id', id)
       .attr('class', 'canvas-pointer')
       .attr('transform', `translate(${x}, ${y})`);
 
+    // Physical vertical stem connector linking array cell bottom to pointer badge
+    const stemLength = FIRST_LANE_OFFSET + lane * LANE_HEIGHT - 6;
+    group.append('line')
+      .attr('x1', 0)
+      .attr('y1', -stemLength)
+      .attr('x2', 0)
+      .attr('y2', -4)
+      .attr('stroke', palette.border)
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', lane > 0 ? '3,2' : 'none');
+
+    // Pointer indicator tip (chevron pointing up toward the array cell)
     group.append('path')
-      .attr('d', 'M -8 12 L 0 0 L 8 12 Z')
-      .attr('fill', color)
-      .style('filter', 'url(#neon-glow)');
+      .attr('d', 'M -6 4 L 0 -4 L 6 4 Z')
+      .attr('fill', palette.border);
+
+    // Pill badge for the pointer label
+    const textWidth = Math.max(34, label.length * 9 + 14);
+    group.append('rect')
+      .attr('x', -textWidth / 2)
+      .attr('y', 4)
+      .attr('width', textWidth)
+      .attr('height', 20)
+      .attr('rx', 6)
+      .attr('fill', palette.bg)
+      .attr('stroke', palette.border)
+      .attr('stroke-width', 1.4);
 
     group.append('text')
-      .attr('y', 27)
+      .attr('y', 18)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '13px')
-      .attr('font-weight', 'bold')
-      .attr('fill', color)
+      .attr('font-size', '11px')
+      .attr('font-weight', 700)
+      .attr('font-family', 'var(--font-mono)')
+      .attr('fill', palette.text)
       .text(label);
 
     if (ctx) {

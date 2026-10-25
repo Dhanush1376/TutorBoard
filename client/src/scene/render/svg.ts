@@ -136,7 +136,7 @@ export const translate = (g: Element, x: number, y: number) => g.setAttribute('t
 export function installDefs(svg: SVGSVGElement, uid: string) {
   const defs = el('defs', {}, svg);
   const glow = el('filter', { id: `${uid}-glow`, x: '-50%', y: '-50%', width: '200%', height: '200%' }, defs);
-  el('feGaussianBlur', { stdDeviation: 9 }, glow);
+  el('feGaussianBlur', { stdDeviation: 0 }, glow);
   const soft = el('filter', { id: `${uid}-shadow`, x: '-30%', y: '-30%', width: '160%', height: '180%' }, defs);
   el('feDropShadow', { dx: 0, dy: 8, stdDeviation: 9, 'flood-color': '#000', 'flood-opacity': 0.5 }, soft);
   const shade = el('radialGradient', { id: `${uid}-atom`, cx: '35%', cy: '30%', r: '75%' }, defs);

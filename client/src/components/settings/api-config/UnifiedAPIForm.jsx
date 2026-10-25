@@ -8,6 +8,7 @@ import {
 import { ValidationError, API_URL } from '../SettingsShared';
 import API from '../../../services/api';
 import { PROVIDERS, ALL_DEFAULT_MODELS, detectProvider } from './ProviderRegistry';
+import ProviderBrandLogo, { BrandLogoBadge } from './ProviderBrandLogo';
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
@@ -41,13 +42,13 @@ function ProviderGrid({ selected, onSelect }) {
             style={{
               padding: '8px 6px', borderRadius: '8px',
               border: `1px solid ${isSelected ? p.color : 'var(--st-line-strong)'}`,
-              background: isSelected ? `${p.color}0c` : 'transparent',
+              background: isSelected ? 'var(--st-surface)' : 'transparent',
               cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
               transition: 'all 0.12s',
             }}
           >
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: p.color }} />
+            <BrandLogoBadge id={p.id} color={p.color} name={p.name} size={14} tileSize={26} />
             <span style={{
               fontSize: '9px',
               color: isSelected ? p.color : 'var(--text-tertiary)',
@@ -66,7 +67,7 @@ function ProviderGrid({ selected, onSelect }) {
 // ─── Saved Key Card ───────────────────────────────────────────────────────────
 
 function SavedKeyCard({ entry, onRemove }) {
-  const pColor = entry.provider?.color || '#8b5cf6';
+  const pColor = entry.provider?.color || '#3b82f6';
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -80,7 +81,7 @@ function SavedKeyCard({ entry, onRemove }) {
         marginBottom: '8px',
       }}
     >
-      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: pColor, flexShrink: 0 }} />
+      <BrandLogoBadge id={entry.provider?.id} color={pColor} name={entry.provider?.name} size={15} tileSize={28} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
           {entry.label}
@@ -238,7 +239,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'var(--st-fill-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'var(--st-fill-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
               <Globe size={13} strokeWidth={2} />
             </div>
             <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>New API Key</span>
@@ -246,7 +247,7 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
           <button 
             onClick={openDirectory}
             style={{ 
-              background: 'none', border: 'none', color: '#8b5cf6', 
+              background: 'none', border: 'none', color: '#3b82f6', 
               fontSize: '10px', fontWeight: 500, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8
             }}
@@ -305,9 +306,13 @@ export default function UnifiedAPIForm({ onSave, onCancel, token, showToast, ope
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '8px 10px', borderRadius: '8px', marginTop: '4px',
             border: '1px solid var(--st-line-strong)',
-            background: provider ? `${provider.color}06` : 'var(--st-fill-strong)',
+            background: 'var(--st-surface)',
           }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: provider?.color || 'var(--text-tertiary)' }} />
+            {provider ? (
+              <BrandLogoBadge id={provider.id} color={provider.color} name={provider.name} size={13} tileSize={22} />
+            ) : (
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-tertiary)' }} />
+            )}
             <span style={{ fontSize: '12px', fontWeight: 400, color: provider?.color || 'var(--text-tertiary)', flex: 1 }}>
               {provider ? provider.name : (apiKey ? 'Unknown' : 'Awaiting key...')}
             </span>

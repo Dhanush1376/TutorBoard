@@ -48,7 +48,7 @@ export default function AuthShowcase() {
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--bg-primary)]">
-      <div className="mk-dots absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_70%)]" />
+      <div className="mk-dots hidden dark:block absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_70%)]" />
       {!film && (
         <div className="absolute inset-0">
           <ErrorBoundary fallback={null}>

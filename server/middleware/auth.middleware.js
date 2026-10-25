@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import tokenStore from '../utils/auth/tokenStore.js';
 import { container } from '../core/container.js';
+import { extractGuestToken, verifyGuestToken, issueGuestIdentity } from '../utils/auth/guestToken.js';
 
 /**
  * getCachedUser: Optimized user lookup with Redis fallback
@@ -127,6 +128,8 @@ export const protect = async (req, res, next) => {
     // Normalize by adding `id` as a string representation of `_id`.
     user.id = user._id.toString();
     req.user = user;
+    req.isGuest = false;
+    req.guestId = null;
     req.tokenJti = decoded.jti; // Store JTI for potential revocation
     req.tokenExp = decoded.exp; // Store expiration for TTL management
     next();
@@ -162,7 +165,25 @@ export const optionalProtect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
     }
 
-    if (!token) return next(); // Continue as guest
+    if (!token) {
+      // Check for guest token (cookie or header)
+      const guestToken = extractGuestToken(req);
+      if (guestToken) {
+        const guestId = await verifyGuestToken(guestToken);
+        if (!guestId) {
+          return res.status(401).json({
+            error: 'Not authorized — invalid or expired guest identity',
+            code: 'INVALID_GUEST_TOKEN'
+          });
+        }
+        req.guestId = guestId;
+        req.isGuest = true;
+      } else {
+        req.guestId = null;
+        req.isGuest = true;
+      }
+      return next();
+    }
 
     // If a token was provided, we MUST validate it. 
     // Failure to validate (missing secret, invalid token, revoked token) must be a 401, not a fall-through.
@@ -202,6 +223,8 @@ export const optionalProtect = async (req, res, next) => {
     // Normalize id for lean objects (same fix as protect middleware)
     if (user._id && !user.id) user.id = user._id.toString();
     req.user = user;
+    req.isGuest = false;
+    req.guestId = null;
     req.tokenJti = decoded.jti;
     req.tokenExp = decoded.exp;
     next();
@@ -213,6 +236,42 @@ export const optionalProtect = async (req, res, next) => {
       code: 'INVALID_TOKEN'
     });
   }
+};
+
+/**
+ * Middleware ensuring the caller has EITHER a valid authenticated user OR a valid verified guest identity.
+ * Rejects requests with neither (prevents anonymous access to individual sessions/artifacts).
+ */
+export const requireIdentity = (req, res, next) => {
+  if (req.user?._id || req.user?.id) {
+    return next();
+  }
+  if (req.guestId) {
+    return next();
+  }
+  return res.status(401).json({
+    error: 'Authentication or valid guest identity required',
+    code: 'IDENTITY_REQUIRED'
+  });
+};
+
+/**
+ * Middleware that guarantees a valid identity (user or guest).
+ * If no user and no guest token, it proactively issues a verified guest token and attaches cookie + req.guestId.
+ * Used for session listing, session creation, and chat initiation where a new guest should be seamlessly onboarded.
+ */
+export const ensureSessionIdentity = (req, res, next) => {
+  if (req.user?._id || req.user?.id) {
+    return next();
+  }
+  if (req.guestId) {
+    return next();
+  }
+  // Auto-mint guest identity
+  const { guestId } = issueGuestIdentity(res);
+  req.guestId = guestId;
+  req.isGuest = true;
+  next();
 };
 
 /**

@@ -36,7 +36,7 @@ type Cam = { x: number; y: number; scale: number };
 
 export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: BeatTiming[]; fit: Cam } {
   const tl = gsap.timeline({ paused: true });
-  const fit = fitTransform(c.world, c.view, 1.4);
+  const fit = fitTransform(c.world, c.view, 1.6, 18, 1.18);
   gsap.set(c.camera, { x: fit.x, y: fit.y, scale: fit.scale, svgOrigin: '0 0' });
 
   const order = new Map<string, string[]>();
@@ -97,9 +97,7 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
   const paint = (p: Paint, state: string, at: number, dur: number) => {
     const s = STATES[state] ?? STATES.default;
     const isDefault = state === 'default';
-    // translucent overlays take the state's tint; solid shapes take its colour
-    const isOverlay = p.base.fill === STATES.default.fill;
-    if (p.fill) tl.to(p.fill, { attr: { fill: isDefault ? p.base.fill ?? s.fill : isOverlay ? s.fill : s.stroke }, duration: dur, ease: EASE.enter }, at);
+    if (p.fill) tl.to(p.fill, { attr: { fill: isDefault ? p.base.fill ?? s.fill : s.fill }, duration: dur, ease: EASE.enter }, at);
     if (p.stroke) {
       const stroke = isDefault ? p.base.stroke ?? s.stroke : s.stroke;
       tl.to(p.stroke, { attr: { stroke }, duration: dur, ease: EASE.enter }, at);
@@ -108,8 +106,7 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
     }
     if (p.text) tl.to(p.text, { attr: { fill: isDefault ? p.base.text ?? INK : s.text }, duration: dur, ease: EASE.enter }, at);
     if (p.glow) {
-      const glowOn = !isDefault;
-      tl.to(p.glow, { attr: { fill: glowOn ? s.stroke : p.base.glow ?? 'rgba(0,0,0,0)' }, opacity: glowOn ? 0.75 : p.base.glow && p.base.glow !== 'rgba(0,0,0,0)' && p.base.glow !== STATES.default.glow ? 0.55 : 0, duration: dur, ease: EASE.enter }, at);
+      tl.set(p.glow, { opacity: 0 }, at);
     }
     if (isDefault) painted.delete(p); else painted.set(p, state);
   };
@@ -327,8 +324,8 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
     const ay = s === 'above' ? box.y - 4 : s === 'below' ? box.y + box.h + 4 : cy;
     const bx = s === 'left' ? r.x + w : s === 'right' ? r.x : r.x + w / 2;
     const by = s === 'above' ? r.y + h : s === 'below' ? r.y : r.y + h / 2;
-    el('line', { x1: ax, y1: ay, x2: bx, y2: by, stroke: '#6366F1', 'stroke-width': 2, 'stroke-dasharray': '6 5' }, g);
-    el('rect', { x: r.x, y: r.y, width: w, height: h, rx: 10, fill: '#191733', stroke: '#6E6BF2', 'stroke-width': 2 }, g);
+    el('line', { x1: ax, y1: ay, x2: bx, y2: by, stroke: '#3b82f6', 'stroke-width': 2, 'stroke-dasharray': '6 5' }, g);
+    el('rect', { x: r.x, y: r.y, width: w, height: h, rx: 10, fill: '#161922', stroke: '#3b82f6', 'stroke-width': 2 }, g);
     // an equation-like note ("v_y = 0", "x^2 ≥ 0") reads as maths; "max_heap" stays as written
     const asMath = /\\[a-zA-Z]/.test(note) || (/[_^]/.test(note) && /[=<>≤≥≠≈±]/.test(note));
     (asMath ? mathText : text)(g, note, { x: r.x + w / 2, y: r.y + h / 2 + 1, size: 15, weight: 700, fill: '#F4F4F4' });
@@ -497,10 +494,7 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
         travel(pb, pa, vb, 1);
         tl.set(la, { text: vb, opacity: 1 }, at + d);
         tl.set(lb, { text: va, opacity: 1 }, at + d);
-        for (const part of [ra.part, rb.part]) {
-          const glow = built.part?.(part)?.paints[0]?.glow;
-          if (glow) tl.fromTo(glow, { opacity: 0 }, { opacity: 0.75, attr: { fill: STATES.swapping.stroke }, duration: d / 2, yoyo: true, repeat: 1, immediateRender: false }, at);
-        }
+        // exchange values without glow
         ex.values.set(ra.part, vb);
         ex.values.set(rb.part, va);
         return d;
@@ -533,7 +527,7 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
         const prev = order.get(a.target)!;
         rec.order.forEach((key, i) => { if (key !== rec.key && prev.indexOf(key) !== i) placeItem(built, key, i, at, d * 0.8); });
         tl.fromTo(it.g, { opacity: 0, x: from.x, y: from.y }, { opacity: 1, x: to.x, y: to.y, duration: d, ease: built.entity.type === 'queue' ? EASE.move : EASE.pop, immediateRender: false }, at);
-        tl.fromTo(it.paint.glow!, { opacity: 0 }, { opacity: 0.6, attr: { fill: STATES.active.stroke }, duration: d * 0.4, yoyo: true, repeat: 1, immediateRender: false }, at + d * 0.5);
+        if (it.paint.glow) tl.set(it.paint.glow, { opacity: 0 });
         order.set(a.target, [...rec.order]);
         syncDecor(built, rec.order.length, at);
         syncPointers(built, at + d * 0.6, d * 0.5);
@@ -593,8 +587,6 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
           const label = nx.labels.get(nodePart);
           if (!label) return 0;
           tl.to(label, { text: String(a.value), duration: d, ease: 'none' }, at);
-          const glow = built.part?.(nodePart)?.paints[0]?.glow;
-          if (glow) tl.fromTo(glow, { opacity: 0 }, { opacity: 0.7, attr: { fill: STATES.insight.stroke }, duration: d, yoyo: true, repeat: 1, immediateRender: false }, at);
           nx.values.set(nodePart, String(a.value));
           return d * 2;
         }
@@ -603,7 +595,6 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
           const it = key ? built.items?.get(key) : undefined;
           if (!it) return 0;
           tl.to(it.label, { text: String(a.value), duration: d, ease: 'none' }, at);
-          tl.fromTo(it.paint.glow!, { opacity: 0 }, { opacity: 0.7, attr: { fill: STATES.insight.stroke }, duration: d, yoyo: true, repeat: 1, immediateRender: false }, at);
           return d * 2;
         }
         if (a.latex !== undefined && built.latex) {

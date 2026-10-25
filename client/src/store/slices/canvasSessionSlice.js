@@ -91,125 +91,158 @@ export const createCanvasSessionSlice = (set, get) => ({
     });
 
     // CRITICAL: Actually load the artifact's data into the canvas scene
-    if (content && (type === 'visual' || ['d3', 'physics', 'math', 'desmos', 'cinematic'].includes(rendererType))) {
-      try {
-        const parsedTimeline = typeof content === 'string' ? JSON.parse(content) : content;
-        
-        let adaptedTimeline;
-        const stableId = parsedTimeline.id || id || `scene_${Date.now()}`;
-        
-        // Case 1: Visualizer Agent output format ({ renderer, scene, script: [...] })
-        if (parsedTimeline.script && !parsedTimeline.steps && !parsedTimeline.timeline) {
-          const commands = parsedTimeline.script;
-          const objects = [];
-          const connections = [];
+    try {
+      let parsedTimeline = content;
+      if (typeof content === 'string') {
+        try {
+          parsedTimeline = JSON.parse(content);
+        } catch (_) {
+          parsedTimeline = artifact;
+        }
+      }
 
-          for (const cmd of commands) {
-            if (!cmd || typeof cmd !== 'object') continue;
-            const command = cmd.cmd || cmd.command || cmd.action;
-            if (!command) continue;
+      const resolvedSceneV2 = sceneV2 ||
+        parsedTimeline?.sceneV2 ||
+        sceneGraph?.sceneV2 ||
+        metadata?.sceneV2 ||
+        canvasSnapshot?.sceneV2;
 
-            if (command === 'edge') {
-              connections.push({
-                id: cmd.id || `edge_${connections.length}`,
-                from: cmd.from,
-                to: cmd.to,
-                label: cmd.label,
-                type: cmd.type || 'arrow',
-                color: cmd.color,
-                animated: cmd.animated ?? false,
-              });
-            } else if ([
-              'array', 'pointer', 'tree', 'chart', 'timeline', 'physics_body',
-              'equation', 'result', 'draw_boundary', 'annotate',
-              'interactive_controls', 'code', 'block', 'orb', 'badge',
-              'data_block', 'list', 'comparator', 'codeline',
-              'node', 'callout', 'group'
-            ].includes(command)) {
-              objects.push({
-                id: cmd.id || `${command}_${objects.length}`,
-                type: command,
-                label: cmd.label || cmd.text || cmd.title || cmd.id || command,
-                ...cmd
-              });
+      const effectiveRenderer = (rendererType || metadata?.rendererType || parsedTimeline?.renderer || parsedTimeline?.rendererType || (resolvedSceneV2 ? 'scene-v2' : 'cinematic')).toLowerCase();
+
+      let adaptedTimeline;
+      const stableId = parsedTimeline?.id || id || `scene_${Date.now()}`;
+
+      // Case 0: Engine v2 (Scene Language) Lesson or Doubt Branch
+      if (effectiveRenderer === 'scene-v2' || resolvedSceneV2) {
+        const v2Title = title || parsedTimeline?.title || resolvedSceneV2?.title || 'Visual Lesson';
+        const v2Domain = parsedTimeline?.domain || resolvedSceneV2?.domain || 'general';
+        const v2Steps = parsedTimeline?.steps || parsedTimeline?.timeline || parsedTimeline?.canvasSteps || resolvedSceneV2?.beats || [{}];
+
+        adaptedTimeline = {
+          id: stableId,
+          title: v2Title,
+          domain: v2Domain,
+          renderer: 'scene-v2',
+          sceneV2: resolvedSceneV2 || parsedTimeline,
+          steps: v2Steps,
+          timeline: v2Steps,
+          objects: [],
+          elements: [],
+          connections: []
+        };
+      }
+      // Case 1: Visualizer Agent output format ({ renderer, scene, script: [...] })
+      else if (parsedTimeline?.script && !parsedTimeline?.steps && !parsedTimeline?.timeline) {
+        const commands = parsedTimeline.script;
+        const objects = [];
+        const connections = [];
+
+        for (const cmd of commands) {
+          if (!cmd || typeof cmd !== 'object') continue;
+          const command = cmd.cmd || cmd.command || cmd.action;
+          if (!command) continue;
+
+          if (command === 'edge') {
+            connections.push({
+              id: cmd.id || `edge_${connections.length}`,
+              from: cmd.from,
+              to: cmd.to,
+              label: cmd.label,
+              type: cmd.type || 'arrow',
+              color: cmd.color,
+              animated: cmd.animated ?? false,
+            });
+          } else if ([
+            'array', 'pointer', 'tree', 'chart', 'timeline', 'physics_body',
+            'equation', 'result', 'draw_boundary', 'annotate',
+            'interactive_controls', 'code', 'block', 'orb', 'badge',
+            'data_block', 'list', 'comparator', 'codeline',
+            'node', 'callout', 'group'
+          ].includes(command)) {
+            objects.push({
+              id: cmd.id || `${command}_${objects.length}`,
+              type: command,
+              label: cmd.label || cmd.text || cmd.title || cmd.id || command,
+              ...cmd
+            });
+          }
+        }
+
+        adaptedTimeline = {
+          id: stableId,
+          title: parsedTimeline.title || title || parsedTimeline.scene || 'Interactive Visualization',
+          renderer: parsedTimeline.renderer || rendererType || 'd3',
+          steps: [{ commands: commands }],
+          timeline: [{ commands: commands }],
+          objects: objects,
+          elements: objects,
+          connections: connections
+        };
+      } 
+      // Case 2: Array of steps or nodes
+      else if (Array.isArray(parsedTimeline)) {
+        adaptedTimeline = {
+          id: stableId,
+          title: title || 'Interactive Visualization',
+          renderer: rendererType || 'd3',
+          steps: parsedTimeline,
+          timeline: parsedTimeline,
+          objects: []
+        };
+      } 
+      // Case 3: Standard SceneDefinition or Artifact with sceneGraph
+      else if (parsedTimeline && typeof parsedTimeline === 'object') {
+        const resolvedSteps = parsedTimeline.visual_steps || parsedTimeline.animation_steps || parsedTimeline.narrations || parsedTimeline.steps || parsedTimeline.timeline || [];
+        
+        let resolvedObjects = parsedTimeline.objects || parsedTimeline.elements || parsedTimeline.nodes || sceneGraph?.elements || [];
+        let resolvedConnections = parsedTimeline.connections || parsedTimeline.edges || sceneGraph?.connections || [];
+        
+        if (resolvedObjects.length === 0 && parsedTimeline.visual_steps) {
+          const allElements = [];
+          parsedTimeline.visual_steps.forEach(st => {
+            if (st?.elements && Array.isArray(st.elements)) {
+              allElements.push(...st.elements);
             }
-          }
-
-          adaptedTimeline = {
-            id: stableId,
-            title: parsedTimeline.title || title || parsedTimeline.scene || 'Interactive Visualization',
-            renderer: parsedTimeline.renderer || rendererType || 'd3',
-            steps: [{ commands: commands }],
-            timeline: [{ commands: commands }],
-            objects: objects,
-            elements: objects,
-            connections: connections
-          };
-        } 
-        // Case 2: Array of steps or nodes
-        else if (Array.isArray(parsedTimeline)) {
-          adaptedTimeline = {
-            id: stableId,
-            title: title || 'Interactive Visualization',
-            renderer: rendererType || 'd3',
-            steps: parsedTimeline,
-            timeline: parsedTimeline,
-            objects: []
-          };
-        } 
-        // Case 3: Standard SceneDefinition object
-        else {
-          const resolvedSteps = parsedTimeline.visual_steps || parsedTimeline.animation_steps || parsedTimeline.narrations || parsedTimeline.steps || parsedTimeline.timeline || [];
-          
-          // Extract elements from nested visual_steps if top-level objects/elements are missing
-          let resolvedObjects = parsedTimeline.objects || parsedTimeline.elements || parsedTimeline.nodes || [];
-          let resolvedConnections = parsedTimeline.connections || parsedTimeline.edges || [];
-          
-          if (resolvedObjects.length === 0 && parsedTimeline.visual_steps) {
-            const allElements = [];
-            parsedTimeline.visual_steps.forEach(st => {
-              if (st?.elements && Array.isArray(st.elements)) {
-                allElements.push(...st.elements);
-              }
-            });
-            const seen = new Set();
-            resolvedObjects = allElements.filter(el => {
-              if (!el?.id || seen.has(el.id)) return false;
-              seen.add(el.id);
-              return true;
-            });
-          }
-          
-          // Ensure all objects and connections have an ID (SVGCanvasRenderer requires IDs)
-          resolvedObjects.forEach((obj, i) => {
-            if (!obj.id) obj.id = `node_${i}_${Date.now()}`;
           });
-          resolvedConnections.forEach((conn, i) => {
-            if (!conn.id) conn.id = `edge_${i}_${Date.now()}`;
+          const seen = new Set();
+          resolvedObjects = allElements.filter(el => {
+            if (!el?.id || seen.has(el.id)) return false;
+            seen.add(el.id);
+            return true;
           });
-
-          adaptedTimeline = {
-            id: stableId,
-            title: parsedTimeline.meta?.topic || parsedTimeline.title || title || 'Interactive Visualization',
-            renderer: parsedTimeline.meta?.renderer || parsedTimeline.renderer || rendererType || 'd3',
-            steps: resolvedSteps,
-            timeline: resolvedSteps,
-            objects: resolvedObjects,
-            connections: resolvedConnections,
-            ...parsedTimeline
-          };
         }
         
+        // Ensure all objects and connections have an ID (SVGCanvasRenderer requires IDs)
+        resolvedObjects.forEach((obj, i) => {
+          if (!obj.id) obj.id = `node_${i}_${Date.now()}`;
+        });
+        resolvedConnections.forEach((conn, i) => {
+          if (!conn.id) conn.id = `edge_${i}_${Date.now()}`;
+        });
+
+        adaptedTimeline = {
+          id: stableId,
+          title: parsedTimeline.meta?.topic || parsedTimeline.title || title || 'Interactive Visualization',
+          renderer: parsedTimeline.meta?.renderer || parsedTimeline.renderer || rendererType || 'd3',
+          steps: resolvedSteps.length > 0 ? resolvedSteps : [{}],
+          timeline: resolvedSteps.length > 0 ? resolvedSteps : [{}],
+          objects: resolvedObjects,
+          connections: resolvedConnections,
+          ...parsedTimeline
+        };
+      }
+
+      if (adaptedTimeline) {
         // Make sure it has at least one step so the canvas doesn't show "Initializing Canvas..."
         if (!adaptedTimeline.steps || adaptedTimeline.steps.length === 0) {
-           adaptedTimeline.steps = [{}];
-           adaptedTimeline.timeline = [{}];
+          adaptedTimeline.steps = [{}];
+          adaptedTimeline.timeline = [{}];
         }
 
         get().setTimeline(adaptedTimeline);
-      } catch (e) {
-        console.warn('[canvasSessionSlice] Failed to parse artifact content for canvas:', e);
       }
+    } catch (e) {
+      console.warn('[canvasSessionSlice] Failed to parse artifact content for canvas:', e);
     }
   },
 

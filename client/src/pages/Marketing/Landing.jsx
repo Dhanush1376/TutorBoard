@@ -91,7 +91,12 @@ function Hero() {
     const el = ref.current;
     if (!sc || !el) return;
     const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
-    sc.scrollTo({ top: top + heroProgressFor(k, HERO_SUBJECTS.length) * (el.offsetHeight - sc.clientHeight), behavior: 'smooth' });
+    const targetY = top + heroProgressFor(k, HERO_SUBJECTS.length) * (el.offsetHeight - sc.clientHeight);
+    if (sc.__lenis) {
+      sc.__lenis.scrollTo(targetY, { duration: 1.15 });
+    } else {
+      sc.scrollTo({ top: targetY, behavior: 'smooth' });
+    }
   };
 
   return (

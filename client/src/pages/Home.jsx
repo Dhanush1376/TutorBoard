@@ -34,11 +34,12 @@ import ArtifactPanel from '../components/chat/ArtifactPanel';
 import { useArtifactSocket } from '../hooks/useArtifactSocket';
 import { processSSEStream } from '../utils/sseStreamParser';
 import { ChatRequestError, fromServerError } from '../lib/chatErrors';
+import { createStreamPacer } from '../lib/streamPacer';
 
 import { 
   Minimize2, Maximize2, Menu, 
   MessageCircleQuestion, Play, Pause, SkipBack, SkipForward, 
-  Check, Wifi, WifiOff, Key, RotateCcw, X, CornerDownLeft, FileCode, Bot, User, ArrowRight
+  Check, Wifi, WifiOff, Key, RotateCcw, X, CornerDownLeft, FileCode, Bot, User, ArrowRight, Undo2
 } from 'lucide-react';
 
 const ChatColumnWrapper = React.memo((props) => {
@@ -136,6 +137,7 @@ const Home = ({ isDark }) => {
     setSelectedElements,
     setHasTextSelection,
     showToast,
+    isExplainMinimized,
   } = useTutorStore(useShallow(s => ({
     canvasMode: s.canvasMode, playbackSpeed: s.playbackSpeed,
     setCanvasMode: s.setCanvasMode,
@@ -183,6 +185,7 @@ const Home = ({ isDark }) => {
     setSelectedElements: s.setSelectedElements,
     setHasTextSelection: s.setHasTextSelection,
     showToast: s.showToast,
+    isExplainMinimized: s.isExplainMinimized,
   })));
 
   // ─── COMPONENT STATE ───
@@ -221,27 +224,7 @@ const Home = ({ isDark }) => {
     }
   }, [user?.email, isGuest]);
 
-  // ── Guest Draft Mode: Native browser warning on refresh/tab close ──
-  useEffect(() => {
-    if (!isGuest) return;
-
-    const handleBeforeUnload = (e) => {
-      const store = useTutorStore.getState();
-      const hasUnsavedDraftWork =
-        (store.conversationMessages && store.conversationMessages.length > 0) ||
-        (store.chatHistory && store.chatHistory.length > 0) ||
-        (store.canvasObjects && store.canvasObjects.length > 0);
-
-      if (hasUnsavedDraftWork) {
-        e.preventDefault();
-        e.returnValue = 'You are in Guest Draft Mode. Refreshing or leaving this page will lose your local session data.';
-        return e.returnValue;
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isGuest]);
+  // Guest Mode: Cloud session persistence is active; no data loss on refresh.
   
   // Use global prefs but map to local variable for easier refactor
   const activeApiPrefs = globalApiPrefs;
@@ -292,7 +275,38 @@ const Home = ({ isDark }) => {
   
 
 
-  // ─── Leave Chat / Close Snapshot Logic ───
+  // ─── Leave Chat / Close Canvas Logic ───
+  // Whenever the user leaves the chat (navigating back to sessions history),
+  // automatically close the canvas overlay, pause/end active teaching, and clean canvas state.
+  useEffect(() => {
+    if (activeView === 'history') {
+      import.meta.env.DEV && console.log('[Home] User in sessions list - closing canvas overlay.');
+      // 1. Reset teaching state machine so isTeachingActive becomes false
+      endSession();
+      // 2. Reset canvas layout and artifact state in the store
+      const store = useTutorStore.getState();
+      store.setCanvasLayout('inline');
+      store.closeCanvasLayout();
+      store.setActiveSnapshotId(null);
+      store.clearArtifacts();
+      store.setTimeline(null);
+      store.setCanvasSnapshot({
+        canvasObjects: [],
+        canvasSteps: [],
+        totalSteps: 0,
+        currentStepIndex: 0
+      });
+      // Clear session-level annotations and canvas selections
+      useAnnotationStore.getState().clear();
+      if (typeof setSelectedElements === 'function') {
+        setSelectedElements([]);
+      } else {
+        useTutorStore.getState().clearSelection?.();
+      }
+      setHasTextSelection?.(false);
+    }
+  }, [activeView, endSession, setSelectedElements, setHasTextSelection]);
+
   useEffect(() => {
     // If sidebar is closed and we were viewing a snapshot, return to main lesson
     if (!isSidebarOpen && activeSnapshotId) {
@@ -319,12 +333,12 @@ const Home = ({ isDark }) => {
   // Session persistence hardening: Remove local history mirror
   // We now rely strictly on cloud fetch and sync.
 
-  // Persist active chat ID
+  // Persist active chat ID for both authenticated users and guests
   useEffect(() => {
-    if (activeChatId && isAuthenticated && !user?.isGuest) {
+    if (activeChatId) {
       localStorage.setItem('tutorboard-active-chat', activeChatId);
     }
-  }, [activeChatId, isAuthenticated, user]);
+  }, [activeChatId]);
 
 
   // Safety: If stuck in isWaitingForAI for more than 30s without a stream, force reset.
@@ -375,28 +389,49 @@ const Home = ({ isDark }) => {
   const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
 
-  // ── Smart Title Summarization Helper ──
+  // ── Smart Title Summarization Helper (Strict 2–3 words, single-line fit, no ellipses) ──
   const generateCleanTitle = useCallback((text) => {
-    if (!text) return 'Untitled Session';
-    let clean = text;
-    // Strip Context block if it exists (handles context prepended in handleSubmit)
-    const contextMatch = text.match(/Context: ".*?"\n\nQuestion: (.*)/is);
+    if (!text) return 'New Chat';
+    let clean = String(text);
+    // Strip Context block if it exists
+    const contextMatch = clean.match(/Context: ".*?"\n\nQuestion: (.*)/is);
     if (contextMatch && contextMatch[1]) {
       clean = contextMatch[1];
     }
-    // Strip "Question: " prefix if standalone (legacy)
-    clean = clean.replace(/^Question: /i, '');
+    // Strip leading question/imperative prompts
+    clean = clean.replace(/^(can you please |could you please |please |can you |could you |explain |what is |what are |how does |how do |tell me about |give me |draw |show me |help me with |solve |calculate |write |create |plot )/i, '');
+    clean = clean.replace(/^Question:\s*/i, '');
+    clean = clean.replace(/^(the |a |an )/i, '');
+
+    // Strip punctuation, quotes, code brackets, markdown artifacts
+    clean = clean.replace(/[`*#_~[\]{}()$"']/g, ' ');
+    clean = clean.replace(/[?.,!;:/\\]+/g, ' ');
+    clean = clean.replace(/\s+/g, ' ').trim();
+
+    if (!clean) return 'New Chat';
+
+    // Comprehensive list of filler/stop words to extract key content words
+    const stopWords = new Set([
+      'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'in', 'at', 'of', 'on', 'and', 'or', 'a', 'an', 'to', 'for', 'with', 
+      'from', 'by', 'about', 'as', 'into', 'like', 'through', 'after', 'over', 'between', 
+      'out', 'against', 'during', 'without', 'before', 'under', 'around', 'among', 'that', 
+      'this', 'these', 'those', 'it', 'its', 'my', 'your', 'our', 'their', 'we', 'you', 'me', 'i',
+      'can', 'could', 'should', 'would', 'will', 'just', 'please', 'do', 'does', 'did'
+    ]);
+
+    const allWords = clean.split(' ').filter(w => w && w.length > 0);
+    const contentWords = allWords.filter(w => !stopWords.has(w.toLowerCase()));
+
+    // Select exactly 2 to 3 words
+    const chosenWords = (contentWords.length >= 2 ? contentWords : allWords).slice(0, 3);
     
-    // Take first 50 chars or first sentence
-    const firstSentence = clean.split(/[.!?\n]/)[0].trim();
-    if (firstSentence.length > 50) {
-      clean = firstSentence.substring(0, 47) + '...';
-    } else {
-      clean = firstSentence;
-    }
-    
-    if (!clean) return 'Untitled Session';
-    return clean.charAt(0).toUpperCase() + clean.slice(1);
+    // Format into Title Case
+    const title = chosenWords
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ')
+      .trim();
+
+    return title || 'New Chat';
   }, []);
 
   const activeSession = chatHistory.find(c => c.id === activeChatId) || null;
@@ -405,7 +440,7 @@ const Home = ({ isDark }) => {
   // If the user draws on the canvas without starting a chat, we create a "Canvas Session"
   // so that toolbar drawings are always persisted.
   useEffect(() => {
-    if (!isAuthenticated || user?.isGuest || !historyFetched) return; 
+    if ((!isAuthenticated && !user?.isGuest) || !historyFetched) return; 
     if (canvasObjects?.length === 0) return;
     if (activeChatId) return; // Already in a session
     if (canvasSessionCreatedRef.current) return; // Already created one
@@ -455,15 +490,30 @@ const Home = ({ isDark }) => {
     return () => clearTimeout(timer);
   }, [lastSubmittedPrompt]);
 
-  const executeConfirmedUndo = useCallback(() => {
-    if (!undoConfirmModal) return;
-    const { messageId, content } = undoConfirmModal;
-    const sid = activeChatId || useTutorStore.getState().getSid();
+  /** Ask the server to stop the answer this controller's request is generating (fire and forget). */
+  const stopServerGeneration = (controller, sessionKey) => {
+    if (!controller?.requestId) return;
+    fetch(`${API_URL}/api/chat/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      credentials: 'include',
+      keepalive: true,
+      body: JSON.stringify({ requestId: controller.requestId, ...(sessionKey ? { sessionId: sessionKey } : {}) }),
+    }).catch(() => { /* best effort: the answer then finishes and is saved */ });
+  };
 
-    import.meta.env.DEV && console.log('[Home] ✅ Executing confirmed multi-message undo starting from ID:', messageId);
+  const executeConfirmedUndo = useCallback(async () => {
+    if (!undoConfirmModal) return;
+    const { messageId, content, doUndo } = undoConfirmModal;
+    if (typeof doUndo === 'function') {
+      doUndo();
+      return;
+    }
+    const sid = activeChatId || useTutorStore.getState().getSid();
 
     // 1. Abort any active streaming loops
     if (abortControllersRef.current.has(sid)) {
+      stopServerGeneration(abortControllersRef.current.get(sid), sid);
       abortControllersRef.current.get(sid).abort();
     }
     useTutorStore.getState().abortStreaming(sid);
@@ -471,11 +521,33 @@ const Home = ({ isDark }) => {
     // 2. Execute slice pruning starting from targeted checkpoint ID
     if (messageId) {
       useTutorStore.getState().deleteMessagesStartingFromId(messageId);
+
+      // Sync deletion with MongoDB database
+      const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
+      const isMongoMsgId = /^[0-9a-fA-F]{24}$/.test(messageId || '');
+      if (isMongoId && isMongoMsgId) {
+        API.delete('/api/chat/message', { data: { sessionId: dbSessionId, messageId, startingFrom: true } })
+          .catch(err => console.error('[Home] Restore delete sync failed:', err));
+      }
+
+      // Update sidebar history
+      const updatedMessages = useTutorStore.getState().conversationMessages;
+      syncChatHistory(prev => prev.map(s => 
+        (s.id === dbSessionId || s._id === dbSessionId || s.id === sid) ? { ...s, messages: updatedMessages } : s
+      ));
     }
 
-    // 3. Restore the targeted user prompt text right back into the InputBar
+    // 3. Restore the targeted user prompt text directly back into the InputBar
     if (content) {
       setPrompt(content);
+      setTimeout(() => {
+        const el = document.querySelector('textarea[placeholder*="Ask anything"]') || document.querySelector('textarea');
+        if (el) {
+          el.focus();
+          el.setSelectionRange(el.value.length, el.value.length);
+        }
+      }, 60);
     }
 
     // 4. Close both the modal and floating banner
@@ -483,11 +555,11 @@ const Home = ({ isDark }) => {
     setLastSubmittedPrompt(null);
 
     useTutorStore.getState().showToast({
-      message: 'Messages successfully rolled back. Prompt restored.',
+      message: 'Message restored to chat box',
       type: 'info',
-      duration: 3500
+      duration: 3000
     });
-  }, [undoConfirmModal, activeChatId]);
+  }, [undoConfirmModal, activeChatId, syncChatHistory]);
 
   const handleUndoMessage = useCallback((targetMsgId = null, targetContent = null) => {
     // Resolve from parameters or lastSubmittedPrompt state
@@ -503,33 +575,18 @@ const Home = ({ isDark }) => {
     }
 
     if (idx === -1 && !msgId) {
-      import.meta.env.DEV && console.warn('[Home] Undo ignored: target message not found in sequence');
       return;
     }
 
     // Determine affected sub-array starting from target index to the end
     const affectedMessages = idx !== -1 ? msgs.slice(idx) : (lastSubmittedPrompt ? [{ role: 'user', content: textToRestore }] : []);
-    
-    // Map beautifully styled item list matching user's reference screenshot structure
-    const items = affectedMessages.map((m, i) => {
-      const isU = m.role === 'user';
-      const fallbackSnippet = m.content ? m.content.slice(0, 24) + (m.content.length > 24 ? '...' : '') : 'Visual Stream Output';
-      return {
-        role: m.role || 'user',
-        label: isU ? `User Prompt #${i+1}` : `AI Response #${i+1}`,
-        snippet: m.text || fallbackSnippet,
-        added: 0,
-        removed: 1
-      };
-    });
+    const sid = activeChatId || useTutorStore.getState().getSid();
 
-    import.meta.env.DEV && console.log('[Home] ↩️ Triggering confirmation modal for multi-message undo starting from:', msgId);
-
+    // Open clean restore confirmation on the left panel
     setUndoConfirmModal({
       messageId: msgId,
       content: textToRestore,
       affectedCount: affectedMessages.length,
-      items
     });
   }, [lastSubmittedPrompt]);
 
@@ -550,6 +607,7 @@ const Home = ({ isDark }) => {
     // FIX: Also reset sessionId in the store so addUserMessage doesn't key to the old session
     useTutorStore.getState().setSessionId(null);
     clearConversation();
+    useTutorStore.getState().clearArtifacts();
     setActiveChatId(null);
     setPrompt(''); 
     endSession(); 
@@ -560,6 +618,9 @@ const Home = ({ isDark }) => {
     setActiveChatId(id);
     setActiveView('chat');
     markSessionRead(id);
+    
+    // Switch active artifacts to the selected session
+    useTutorStore.getState().switchSessionArtifacts(id);
     
     // 1. Immediate local restore (minimal snapshot)
     const localSession = chatHistory.find(s => s.id === id);
@@ -593,11 +654,18 @@ const Home = ({ isDark }) => {
       if (localSession.chatSessionId) {
         useTutorStore.getState().setChatSessionId(localSession.chatSessionId);
       }
+      if (localSession.annotations) {
+        useAnnotationStore.getState().setSessionAnnotations(id, localSession.annotations);
+      } else {
+        useAnnotationStore.getState().setSession(id);
+      }
+    } else {
+      useAnnotationStore.getState().setSession(id);
     }
 
-    // GUESTS work in local Draft Mode only — never fetch from cloud database
+    // Both authenticated users and guests restore full state from cloud
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(id || '');
-    if (id && isMongoId && !id.startsWith('session-') && !isGuest) {
+    if (id && isMongoId && !id.startsWith('session-')) {
       // Latest selection wins: cancel the previous chat's load instead of
       // skipping this one (skipping left the wrong chat's history on screen).
       if (selectFetchAbortControllerRef.current) {
@@ -619,27 +687,105 @@ const Home = ({ isDark }) => {
         if (response.status === 200) {
           const fullData = response.data;
           if (fullData) {
-            const steps = fullData.canvasSteps || fullData.steps || [];
+            let steps = fullData.canvasSteps || fullData.steps || [];
+            
+            // Check for latest assistant message with visual artifact / canvas snapshot if direct steps are empty
+            let latestVisualMsg = null;
+            if (Array.isArray(fullData.messages)) {
+              for (let i = fullData.messages.length - 1; i >= 0; i--) {
+                const m = fullData.messages[i];
+                if (m.role === 'assistant' && (m.canvasSnapshot || m.metadata?.visuals || m.hasCanvas)) {
+                  latestVisualMsg = m;
+                  break;
+                }
+              }
+            }
+
+            const visualSnapshot = fullData.canvasSnapshot || latestVisualMsg?.canvasSnapshot || latestVisualMsg?.metadata?.visuals;
+            if (steps.length === 0 && visualSnapshot) {
+              steps = visualSnapshot.canvasSteps || visualSnapshot.steps || [];
+            }
+
             import.meta.env.DEV && console.log(`[Home] ✅ Full state fetched. Restoring timeline (${steps.length} steps)...`);
             
-            // Restore actual pedagogical timeline
-            if (steps.length > 0) {
+            // Restore actual pedagogical timeline or direct canvas drawings
+            if (visualSnapshot?.sceneV2 || visualSnapshot?.renderer === 'scene-v2' || visualSnapshot?.rendererType === 'scene-v2') {
               useTutorStore.getState().setTimeline({
                 ...fullData,
-                title: fullData.title || localSession?.title || 'Saved Session',
-                timeline: steps,
-                objects: fullData.canvasState
+                title: visualSnapshot.title || fullData.title || localSession?.title || 'Saved Session',
+                domain: visualSnapshot.domain || 'general',
+                renderer: 'scene-v2',
+                sceneV2: visualSnapshot.sceneV2,
+                steps: steps.length > 0 ? steps : [{}],
+                timeline: steps.length > 0 ? steps : [{}],
+                objects: fullData.canvasState || []
               });
+              if (latestVisualMsg?.id) {
+                useTutorStore.getState().setActiveSnapshotId(latestVisualMsg.id);
+              }
+            } else if (steps.length > 0) {
+              useTutorStore.getState().setTimeline({
+                ...fullData,
+                title: visualSnapshot?.title || fullData.title || localSession?.title || 'Saved Session',
+                timeline: steps,
+                objects: fullData.canvasState || []
+              });
+              if (latestVisualMsg?.id) {
+                useTutorStore.getState().setActiveSnapshotId(latestVisualMsg.id);
+              }
+            } else if (fullData.canvasState && Array.isArray(fullData.canvasState) && fullData.canvasState.length > 0) {
+              useTutorStore.getState().setCanvasSnapshot({
+                canvasObjects: fullData.canvasState,
+                canvasSteps: [],
+                totalSteps: 0,
+                title: fullData.title || localSession?.title || 'Saved Session'
+              });
+            }
+
+            if (fullData.pinnedNotes && Array.isArray(fullData.pinnedNotes)) {
+              useTutorStore.setState({ pinnedNotes: fullData.pinnedNotes });
+            }
+
+            if (fullData.preferences && typeof fullData.preferences === 'object') {
+              const p = fullData.preferences;
+              useTutorStore.setState(state => ({
+                drawColor: p.drawColor || state.drawColor,
+                drawWidth: p.drawWidth || state.drawWidth,
+                layoutView: p.layoutView || state.layoutView,
+                gridType: p.gridType || state.gridType,
+                gridSize: p.gridSize || state.gridSize,
+                showGrid: typeof p.showGrid === 'boolean' ? p.showGrid : state.showGrid
+              }));
             }
 
             // Restore complete chat history
             if (fullData.messages) {
               setConversationMessages(fullData.messages, id);
+              // still being answered on the server (left mid-answer): follow it
+              if (fullData.pendingRequest) useTutorStore.getState().followPendingGeneration(id);
+            }
+
+            // Restore artifacts associated with session
+            if (fullData.artifacts && Array.isArray(fullData.artifacts)) {
+              useTutorStore.getState().loadSessionArtifacts(fullData.artifacts, id);
+            } else {
+              API.get(`/api/artifact/session/${id}`, { signal: controller.signal })
+                .then(artRes => {
+                  if (activeChatIdRef.current === id && artRes.data) {
+                    useTutorStore.getState().loadSessionArtifacts(artRes.data, id);
+                  }
+                })
+                .catch(() => {});
             }
 
             // ── Bug A Fix: Restore actual doubts if they exist ──
             if (fullData.doubtHistory) {
               useTutorStore.setState({ doubtHistory: fullData.doubtHistory });
+            }
+
+            // Restore annotations (strokes, notes, highlights) from cloud
+            if (fullData.annotations) {
+              useAnnotationStore.getState().setSessionAnnotations(id, fullData.annotations);
             }
 
             // Sync with local history so the sidebar/main preview is also updated
@@ -650,6 +796,7 @@ const Home = ({ isDark }) => {
               canvasState: fullData.canvasState,
               canvasSteps: fullData.canvasSteps || fullData.steps || [],
               chatSessionId: fullData._id,
+              annotations: fullData.annotations || s.annotations,
               updatedAt: new Date(fullData.updatedAt || fullData.lastUpdated || Date.now()).getTime()
             } : s));
             
@@ -669,7 +816,22 @@ const Home = ({ isDark }) => {
         if (err.name === 'AbortError' || err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
         if (activeChatIdRef.current !== id) return;
         console.error('[Home] Failed to fetch full session details:', err);
-        useTutorStore.setState({ lastAIError: { message: 'Some messages in this conversation could not be loaded.', code: 'FETCH_ERROR', sessionId: id } });
+        // If session was not found on the remote server (e.g. guest or local-only session), don't alarm with a harsh error if local messages exist
+        const hasLocalMessages = localSession?.messages && localSession.messages.length > 0;
+        if (err.response?.status === 404 && hasLocalMessages) {
+          // Local session exists and is fine; silently keep local messages
+          useTutorStore.setState({ lastAIError: null });
+        } else {
+          useTutorStore.setState({
+            lastAIError: {
+              message: err.response?.status === 404
+                ? 'Conversation not found on the server. Continuing with local copy.'
+                : 'Some messages in this conversation could not be loaded.',
+              code: err.response?.status === 404 ? 'SESSION_NOT_FOUND' : 'FETCH_ERROR',
+              sessionId: id,
+            }
+          });
+        }
       } finally {
         selectFetchLockRef.current = false;
         if (selectFetchAbortControllerRef.current === controller) {
@@ -718,7 +880,7 @@ const Home = ({ isDark }) => {
         if (isUndone) return;
         
         const dbId = sessionToRestore.chatSessionId || id;
-        if (isAuthenticated && !isGuest && dbId && !dbId.startsWith('session-') && !dbId.startsWith('msg-')) {
+        if ((isAuthenticated || isGuest) && dbId && !dbId.startsWith('session-') && !dbId.startsWith('msg-')) {
           try {
             const res = await API.delete(`/api/sessions/${dbId}`);
             if (res.status === 200) {
@@ -769,7 +931,7 @@ const Home = ({ isDark }) => {
     syncChatHistory(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
     
     // Persistent cloud update
-    if (isAuthenticated && !isGuest && id && !id.startsWith('msg-')) {
+    if ((isAuthenticated || isGuest) && id && !id.startsWith('msg-')) {
       try {
         await API.post('/api/sessions', { sessionId: id, title: newTitle });
         import.meta.env.DEV && console.log(`[Home] ✅ Session ${id} renamed to "${newTitle}" in cloud.`);
@@ -788,6 +950,10 @@ const Home = ({ isDark }) => {
       const msg = session.messages?.find(m => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
       if (msg?.canvasSnapshot) {
         snapshot = msg.canvasSnapshot;
+      } else if (msg?.metadata?.visuals) {
+        snapshot = msg.metadata.visuals;
+      } else if (msg?.metadata?.artifactData) {
+        snapshot = msg.metadata.artifactData;
       }
     }
 
@@ -796,10 +962,22 @@ const Home = ({ isDark }) => {
       const storeMsg = useTutorStore.getState().conversationMessages.find(m => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
       if (storeMsg?.canvasSnapshot) {
         snapshot = storeMsg.canvasSnapshot;
+      } else if (storeMsg?.metadata?.visuals) {
+        snapshot = storeMsg.metadata.visuals;
+      } else if (storeMsg?.metadata?.artifactData) {
+        snapshot = storeMsg.metadata.artifactData;
       }
     }
 
-    // 3. Final fallback: Use the current live canvas state from the store
+    // 3. Fallback: Try artifacts list from the store
+    if (!snapshot) {
+      const art = useTutorStore.getState().artifacts?.find(a => a.id === messageId || a.dbId === messageId || a.messageId === messageId);
+      if (art) {
+        snapshot = art.sceneV2 ? { ...art, renderer: 'scene-v2' } : (art.sceneGraph || art);
+      }
+    }
+
+    // 4. Final fallback: Use the current live canvas state from the store
     if (!snapshot) {
       const store = useTutorStore.getState();
       if (store.canvasObjects?.length > 0 || store.canvasSteps?.length > 0) {
@@ -827,10 +1005,20 @@ const Home = ({ isDark }) => {
         import.meta.env.DEV && console.log('[Home] Canvas closed for message:', messageId);
       } else {
         // OPEN / SWITCH: Show canvas and set snapshot
-        setCanvasSnapshot({
-          ...snapshot,
-          currentStepIndex: snapshot.currentStepIndex || 0,
-        });
+        if (snapshot.sceneV2 || snapshot.renderer === 'scene-v2' || snapshot.rendererType === 'scene-v2') {
+          store.setTimeline({
+            ...snapshot,
+            renderer: 'scene-v2',
+            sceneV2: snapshot.sceneV2,
+            steps: snapshot.steps || snapshot.canvasSteps || [{}],
+            timeline: snapshot.steps || snapshot.canvasSteps || [{}]
+          });
+        } else {
+          setCanvasSnapshot({
+            ...snapshot,
+            currentStepIndex: snapshot.currentStepIndex || 0,
+          });
+        }
         store.setActiveSnapshotId(messageId);
         store.setCanvasLayout('split');
         import.meta.env.DEV && console.log('[Home] Canvas snapshot opened for message:', messageId);
@@ -968,14 +1156,13 @@ const Home = ({ isDark }) => {
     // addUserMessage reads chatSessionId||sessionId from the store to key messages.
     // If these are null it falls back to 'temp', meaning stream chunks go to 'temp' 
     // but startStreaming is called with workingSessionId — they never match and no response appears.
-    const generatedTitle = userPrompt ? generateCleanTitle(userPrompt) : 'New Chat';
     if (!activeChatId) {
       setActiveChatId(workingSessionId);
       // Also sync the store's session IDs so addUserMessage and useSessionSync pick them up immediately.
       // We set BOTH to ensure the background sync hook doesn't generate a separate local ID.
       useTutorStore.getState().setSessionId(workingSessionId);
       useTutorStore.getState().setChatSessionId(workingSessionId);
-      useTutorStore.getState().setTopic(generatedTitle);
+      useTutorStore.getState().setTopic('New Chat');
     }
 
     // Every key this submission is known by (temp key, then the server id) so the
@@ -990,6 +1177,7 @@ const Home = ({ isDark }) => {
     setActiveView('chat');
 
     let activityMonitor;
+    let pacer = null;           // paces streamed answer text (created once the stream opens)
     let assistantMsgId = null;
     let clientRequestIdRef = null;   // set once the request is built (for retry)
     let localUserMessageIdRef = null;
@@ -1005,7 +1193,7 @@ const Home = ({ isDark }) => {
         userId = retry.userMessageId;
         useTutorStore.getState().prepareRetry?.(retry.requestId, workingSessionId);
       } else if (!isRegeneration && !editMessageId) {
-        const result = addUserMessage(userPrompt);
+        const result = addUserMessage(userPrompt, workingSessionId);
         userId = result.messageId || result.userId;
 
         setLastSubmittedPrompt({
@@ -1015,10 +1203,10 @@ const Home = ({ isDark }) => {
           timestamp: Date.now()
         });
 
-        // ── Smart Title Generation: Only if session is currently generic ──
-        const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
+        // ── Provisional Title: Keep as 'New Chat' until the assistant's first response completes ──
+        const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session' || t === 'New Chat';
         const currentTitle = activeSession?.title;
-        sessionTitle = isGeneric(currentTitle) ? generateCleanTitle(userPrompt) : currentTitle;
+        sessionTitle = isGeneric(currentTitle) ? 'New Chat' : currentTitle;
         
         // Update local chat history for sidebar display
         syncChatHistory(prev => {
@@ -1083,7 +1271,7 @@ const Home = ({ isDark }) => {
           // the server hasn't confirmed yet. The server resolves the same key to the
           // same conversation, so a first message (or its retry) can't fork a second one.
           sessionId: workingSessionId,
-          title: sessionTitle || generatedTitle,
+          title: sessionTitle || 'New Chat',
           requestId: clientRequestId,
           userMessage: userPrompt,
           mode: modeOverride || activeMode || 'quick',
@@ -1109,9 +1297,11 @@ const Home = ({ isDark }) => {
       isArtifactExpectedRef.current = false;
       // ── 2. Handle Abort Signals ──
       if (abortControllersRef.current.has(workingSessionId)) {
+        stopServerGeneration(abortControllersRef.current.get(workingSessionId), workingSessionId);
         abortControllersRef.current.get(workingSessionId).abort();
       }
       const controller = new AbortController();
+      controller.requestId = clientRequestId; // lets Stop name this answer to the server
       abortControllersRef.current.set(workingSessionId, controller);
       const { signal } = controller;
       fetchOptions.signal = signal;
@@ -1128,6 +1318,12 @@ const Home = ({ isDark }) => {
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw fromServerError(errData, res.status);
+      }
+
+      // Capture guest token issued by backend into localStorage as fallback
+      const guestTokenHeader = res.headers.get('x-guest-token');
+      if (guestTokenHeader) {
+        try { localStorage.setItem('tb-guest-token', guestTokenHeader); } catch(e) {}
       }
 
       // ── 4. Real SSE Streaming ──
@@ -1149,26 +1345,12 @@ const Home = ({ isDark }) => {
       let lastArtifactLocalId = null;
       let lastEventType = 'message';
 
-      // ── STREAM THROTTLING ──
-      // Throttle UI updates to 10Hz (every 100ms) to prevent React render-flooding
-      let chunkBuffer = '';
-      let thoughtBuffer = '';
-      let lastUpdateTs = Date.now();
-
-      const flushBuffers = () => {
-        const now = Date.now();
-        const currentSessionId = workingSessionId; // the stream's own conversation, not the one on screen
-        
-        if (chunkBuffer) {
-          appendStreamChunk(chunkBuffer, currentSessionId, streamToken);
-          chunkBuffer = '';
-        }
-        if (thoughtBuffer) {
-          appendStreamThought(thoughtBuffer, currentSessionId, streamToken);
-          thoughtBuffer = '';
-        }
-        lastUpdateTs = now;
-      };
+      // ── STREAM PACING ──
+      // Answer text is revealed a little every frame (see lib/streamPacer) so
+      // provider-sized bursts read as a steady flow; it always goes to this
+      // stream's own conversation, not whichever one is on screen.
+      pacer = createStreamPacer((text) => appendStreamChunk(text, workingSessionId, streamToken));
+      const flushBuffers = () => pacer.flush();
 
       let lastActivityTime = Date.now();
       activityMonitor = setInterval(() => {
@@ -1183,8 +1365,7 @@ const Home = ({ isDark }) => {
             // Not JSON data, could be raw string
             if (eventType === 'message' && !dataStr.startsWith('{')) {
               fullContent += dataStr;
-              chunkBuffer += dataStr;
-              if (Date.now() - lastUpdateTs > 100) flushBuffers();
+              pacer.push(dataStr);
               if (workingSessionId !== activeChatIdRef.current) addUnreadSession(workingSessionId);
             }
             return;
@@ -1254,8 +1435,7 @@ const Home = ({ isDark }) => {
                 flushBuffers();
                 appendStreamChunk(text, workingSessionId, streamToken);
               } else {
-                chunkBuffer += text;
-                if (Date.now() - lastUpdateTs > 100) flushBuffers();
+                pacer.push(text);
               }
               if (workingSessionId !== activeChatIdRef.current) addUnreadSession(workingSessionId);
             }
@@ -1263,8 +1443,7 @@ const Home = ({ isDark }) => {
             const thought = eventData.thought || eventData.message || eventData.content || '';
             const thoughtStr = thought + (eventType === 'status' ? '\n' : '');
             thoughtContent += thoughtStr;
-            thoughtBuffer += thoughtStr;
-            if (Date.now() - lastUpdateTs > 100) flushBuffers();
+            appendStreamThought(thoughtStr, workingSessionId, streamToken);
           } else if (eventType === 'sources') {
             setSources(eventData.sources || [], workingSessionId);
           } else if (eventType === 'message_ids') {
@@ -1327,12 +1506,12 @@ const Home = ({ isDark }) => {
                 content: art.content,
                 language: art.language,
                 metadata: art.metadata || {},
-              });
+              }, workingSessionId);
               
-              finalizeStreamingArtifact();
+              finalizeStreamingArtifact(null, workingSessionId);
 
-              // Only open the panel for the FIRST artifact in a multi-artifact response
-              if (!lastArtifactLocalId) {
+              // Only open the panel for the FIRST artifact in a multi-artifact response, and only if user is actively viewing this session
+              if (!lastArtifactLocalId && activeChatIdRef.current === workingSessionId) {
                 setActiveArtifact(localId);
                 
                 // Do not open the side panel for visual/canvas artifacts
@@ -1366,23 +1545,63 @@ const Home = ({ isDark }) => {
           } else if (eventType === 'artifact_saved') {
             // Link the local artifact to its DB ID
             const savedLocalId = eventData.localId || lastArtifactLocalId;
-            if (savedLocalId && eventData.artifactId) {
-              setArtifactDbId(savedLocalId, eventData.artifactId);
+            if (eventData.artifactId) {
+              lastArtifactIdRef.current = eventData.artifactId;
+              if (savedLocalId) {
+                setArtifactDbId(savedLocalId, eventData.artifactId, workingSessionId);
+              }
               
               // Update message metadata to reflect the real ID
               syncChatHistory(prev => prev.map(s => {
                 if (s.id === (receivedSessionId || workingSessionId)) {
-                  const msgs = s.messages.map(m => {
-                    if (m.metadata?.artifactId === savedLocalId) {
-                      return { ...m, metadata: { ...m.metadata, artifactId: eventData.artifactId } };
-                    }
-                    return m;
-                  });
+                  const msgs = [...s.messages];
+                  if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
+                    msgs[msgs.length - 1] = {
+                      ...msgs[msgs.length - 1],
+                      hasCanvas: true,
+                      canvasType: eventData.rendererType || msgs[msgs.length - 1].canvasType,
+                      metadata: {
+                        ...msgs[msgs.length - 1].metadata,
+                        artifactId: eventData.artifactId,
+                        hasVisualArtifact: true,
+                        rendererType: eventData.rendererType || msgs[msgs.length - 1].metadata?.rendererType
+                      }
+                    };
+                  }
                   return { ...s, messages: msgs };
                 }
                 return s;
               }));
             }
+          } else if (eventType === 'metadata') {
+            const meta = eventData.data || eventData;
+            const artifactId = meta.artifactId || meta.metadata?.artifactId || lastArtifactIdRef.current;
+            if (artifactId) {
+              lastArtifactIdRef.current = artifactId;
+            }
+            const visuals = meta.visuals || meta.metadata?.visuals;
+            const rendererType = meta.rendererType || meta.metadata?.rendererType;
+            
+            syncChatHistory(prev => prev.map(s => {
+              if (s.id === (receivedSessionId || workingSessionId)) {
+                const msgs = [...s.messages];
+                if (msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant') {
+                  msgs[msgs.length - 1] = {
+                    ...msgs[msgs.length - 1],
+                    hasCanvas: !!(visuals || rendererType || msgs[msgs.length - 1].hasCanvas),
+                    canvasType: rendererType || msgs[msgs.length - 1].canvasType,
+                    metadata: {
+                      ...msgs[msgs.length - 1].metadata,
+                      ...(artifactId ? { artifactId } : {}),
+                      ...(visuals ? { visuals, hasVisualArtifact: true } : {}),
+                      ...(rendererType ? { rendererType } : {})
+                    }
+                  };
+                }
+                return { ...s, messages: msgs };
+              }
+              return s;
+            }));
           } else if (eventType === 'chat_override') {
             const currentSessionId = workingSessionId; // the stream's own conversation, not the one on screen
             if (currentSessionId === activeChatIdRef.current) {
@@ -1424,31 +1643,48 @@ const Home = ({ isDark }) => {
       lastArtifactIdRef.current = null; // Reset for next turn
       currentCanvasTypeRef.current = null;
 
+      // ── Smart Title Finalization: Generate after first agent response ──
+      const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session' || t === 'New Chat';
+      const existingSession = chatHistory.find(s => s.id === finalSessionId || s.id === receivedSessionId || s.chatSessionId === finalSessionId);
+      let finalizedTitle = existingSession?.title;
+      if (isGeneric(finalizedTitle) || !finalizedTitle) {
+        finalizedTitle = generateCleanTitle(userPrompt);
+      }
+      useTutorStore.getState().setTopic(finalizedTitle);
+
       // ── 6. Sidebar copy of THIS conversation ──
       if (isOnScreen) {
         const finalMessages = useTutorStore.getState().conversationMessages;
         syncChatHistory(prev => prev.map(s =>
-          s.id === finalSessionId ? { ...s, id: finalSessionId, chatSessionId: receivedSessionId || s.chatSessionId, messages: finalMessages, updatedAt: Date.now() } : s
+          (s.id === finalSessionId || s.id === receivedSessionId || s.chatSessionId === finalSessionId) 
+            ? { ...s, id: finalSessionId, title: finalizedTitle, chatSessionId: receivedSessionId || s.chatSessionId || finalSessionId, messages: finalMessages, updatedAt: Date.now() } 
+            : s
         ));
         // Title / canvas / guest local history (messages are already saved server side)
-        saveCurrentSession(finalMessages, finalSessionId, sessionTitle)
+        saveCurrentSession(finalMessages, finalSessionId, finalizedTitle)
           .catch(err => console.error('[Home] Background persistence failed:', err));
       } else if (!isRegeneration && !editMessageId) {
         // Answered in the background: append to that conversation only.
         const answer = { id: serverAssistantId || assistantMsgId, role: 'assistant', content: fullContent, timestamp: new Date().toISOString(), metadata: { sources: lastStreamSources || [] } };
         syncChatHistory(prev => prev.map(s =>
-          s.id === finalSessionId ? { ...s, messages: [...(s.messages || []).filter(m => m.id !== answer.id), answer], updatedAt: Date.now() } : s
+          (s.id === finalSessionId || s.id === receivedSessionId || s.chatSessionId === finalSessionId) 
+            ? { ...s, title: finalizedTitle, messages: [...(s.messages || []).filter(m => m.id !== answer.id), answer], updatedAt: Date.now() } 
+            : s
         ));
+        saveCurrentSession(null, finalSessionId, finalizedTitle)
+          .catch(err => console.error('[Home] Background persistence failed:', err));
       }
     } catch (err) {
       const failedSessionId = workingSessionId;
       if (err.name === 'AbortError' || err.message?.includes('aborted')) {
         // Stop was pressed: handleStopGeneration already kept the partial answer
         // (marked as stopped). Nothing else to undo — the canvas stays as it is.
+        pacer?.cancel();
         import.meta.env.DEV && console.log('[Home] AI request aborted by user.');
         useTutorStore.getState().setWaitingForAI(false, failedSessionId);
         return;
       }
+      pacer?.flush();
       console.error('[Home] handleSubmit failed:', err);
       // A TypeError from fetch/reader is the network: before the stream opened it
       // is "connection lost", after it the answer was cut off mid-way.
@@ -1560,6 +1796,7 @@ const Home = ({ isDark }) => {
     const clientRequestId = `regen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const streamToken = clientRequestId;
     prepareRegeneration(finalTargetId, clientRequestId);
+    let regenPacer = null;
     
     try {
       if (isMongoId) {
@@ -1610,6 +1847,7 @@ const Home = ({ isDark }) => {
         };
 
         const controller = new AbortController();
+        controller.requestId = clientRequestId;
         abortControllersRef.current.set(dbSessionId, controller);
         fetchOptions.signal = controller.signal;
 
@@ -1648,6 +1886,7 @@ const Home = ({ isDark }) => {
 
         // Start UI streaming state
         storeStartStreaming(finalTargetId, dbSessionId, streamToken);
+        regenPacer = createStreamPacer((t) => appendStreamChunk(t, dbSessionId, streamToken));
 
         let lastStreamSources = [];
         let streamEnded = false;
@@ -1676,7 +1915,7 @@ const Home = ({ isDark }) => {
               const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
               if (text) {
                 fullContent += text;
-                appendStreamChunk(text, dbSessionId, streamToken);
+                regenPacer.push(text);
               }
             } else if (eventType === 'thought' || eventType === 'status') {
               const thought = eventData.thought || eventData.message || eventData.content || '';
@@ -1722,6 +1961,7 @@ const Home = ({ isDark }) => {
         } finally {
           clearInterval(activityMonitor);
         }
+        regenPacer.flush();
         if (!streamEnded) throw new ChatRequestError('STREAM_INTERRUPTED', undefined, { retryable: true });
 
         import.meta.env.DEV && console.log('[Home:Regen] Finalizing stream, length:', fullContent.length);
@@ -1740,7 +1980,8 @@ const Home = ({ isDark }) => {
         useTutorStore.getState().setWaitingForAI(false, dbSessionId);
       }
     } catch (err) {
-      if (err.name === 'AbortError' || err.message?.includes('aborted')) return;
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) { regenPacer?.cancel(); return; }
+      regenPacer?.flush();
       console.error('[Home] Regenerate failed:', err);
       const chatErr = err instanceof ChatRequestError ? err : new ChatRequestError('INTERNAL', undefined, { retryable: true });
 
@@ -1830,9 +2071,11 @@ const Home = ({ isDark }) => {
   const handleStopGeneration = (sessionId) => {
     const targetId = sessionId || useTutorStore.getState().chatSessionId || activeChatId;
     
-    // 1. Abort HTTP streaming requests
+    // 1. Stop the answer on the server (closing the stream alone no longer
+    //    cancels it — a refresh must not lose an answer), then end the stream.
     const controller = abortControllersRef.current.get(targetId);
     if (controller) {
+      stopServerGeneration(controller, targetId);
       controller.abort();
       abortControllersRef.current.delete(targetId);
     }
@@ -1909,13 +2152,16 @@ const Home = ({ isDark }) => {
       activeMode={activeMode} setActiveMode={setActiveMode}
       selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent}
       isDark={isDark}
-      isLoadingHistory={isAuthenticated && !isGuest && pagination.loading && chatHistory.length === 0}
+      isLoadingHistory={pagination.loading && chatHistory.length === 0}
       hasMore={pagination.hasMore}
       isLoadingMore={pagination.loading && chatHistory.length > 0}
       onLoadMore={() => fetchCloudSessions(pagination.page + 1)}
       onQuickAsk={() => setIsQuickAskOpen(true)}
       isSplitView={isSplitView}
       onUndoMessage={handleUndoMessage}
+      undoConfirmModal={undoConfirmModal}
+      setUndoConfirmModal={setUndoConfirmModal}
+      executeConfirmedUndo={executeConfirmedUndo}
     />
     </ErrorBoundary>
   );
@@ -1929,6 +2175,7 @@ const Home = ({ isDark }) => {
         sidebar={leftPanel}
         isSplitView={isSplitView}
         forceCollapse={isFullscreen}
+        isCanvasOpen={isCanvasVisible}
       >
         {/* 2. Main Background Canvas */}
         {!isTeachingActive && (
@@ -1993,16 +2240,6 @@ const Home = ({ isDark }) => {
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--mk-accent)]" />
                       Ask a question, and your lesson is drawn here.
                     </div>
-                    {!isSidebarOpen && (
-                      <button
-                        type="button"
-                        onClick={() => setSidebarOpen(true)}
-                        className="group pointer-events-auto inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-[var(--text-primary)] px-4 text-[13px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
-                      >
-                        Ask a question
-                        <ArrowRight size={14} strokeWidth={1.9} className="transition-transform duration-300 group-hover:translate-x-0.5" />
-                      </button>
-                    )}
                   </motion.div>
                   )}
                   </AnimatePresence>
@@ -2070,10 +2307,21 @@ const Home = ({ isDark }) => {
           {isTeachingActive && (
             <motion.div 
               key="teaching-overlay"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="absolute inset-0 z-[100] bg-[var(--bg-primary)] border-l border-[var(--border-color)] shadow-2xl"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ 
+                opacity: isExplainMinimized ? 0 : 1, 
+                scale: isExplainMinimized ? 0.98 : 1,
+              }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+              className={`absolute inset-0 z-[100] ${isExplainMinimized ? 'pointer-events-none' : 'bg-[var(--bg-primary)] shadow-2xl overflow-hidden'}`}
+              style={{
+                borderTopLeftRadius: 32,
+                borderBottomLeftRadius: 32,
+                borderLeft: '1px solid var(--border-color)',
+                marginTop: -1,
+                height: 'calc(100% + 2px)',
+              }}
             >
               <React.Suspense fallback={
                 <div className="flex items-center justify-center w-full h-full bg-[var(--bg-primary)]">
@@ -2082,8 +2330,9 @@ const Home = ({ isDark }) => {
               }>
                 <TeachingSession 
                   deselectAll={() => {
-                    setSelectedElements([]);
-                    setHasTextSelection(false);
+                    if (typeof setSelectedElements === 'function') setSelectedElements([]);
+                    else useTutorStore.getState().clearSelection?.();
+                    setHasTextSelection?.(false);
                   }} 
                 />
               </React.Suspense>
@@ -2121,107 +2370,6 @@ const Home = ({ isDark }) => {
         <AnnotationLayer sessionKey={activeChatId} />
         <SelectionPopover />
         <ArtifactPanel />
-
-        {/* ── HIGH FIDELITY CONFIRM UNDO MODAL OVERLAY ── */}
-        <AnimatePresence>
-          {undoConfirmModal && (
-            <motion.div
-              key="undo-modal"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto select-none"
-              onClick={() => setUndoConfirmModal(null)}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-[420px] rounded-xl border p-5 shadow-2xl relative flex flex-col"
-                style={{
-                  background: 'var(--bg-secondary)',
-                  borderColor: 'var(--border-color)',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-[16px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-                    Confirm Undo
-                  </h3>
-                  <button
-                    onClick={() => setUndoConfirmModal(null)}
-                    className="p-1 transition-colors rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
-                    style={{ color: 'var(--text-tertiary)' }}
-                    aria-label="Close"
-                  >
-                    <X size={15} strokeWidth={2.5} />
-                  </button>
-                </div>
-
-                {/* Subtitle description */}
-                <p className="text-[12px] leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>
-                  Confirming this undo action will make the following changes:
-                </p>
-
-                {/* List of affected items */}
-                <div className="flex flex-col gap-2 max-h-[240px] overflow-y-auto pr-1">
-                  {undoConfirmModal.items?.map((item, idx) => (
-                    <div 
-                      key={idx}
-                      className="flex items-center justify-between py-2 px-3 rounded-xl border transition-all"
-                      style={{
-                        background: 'var(--bg-primary)',
-                        borderColor: 'var(--border-color)'
-                      }}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {item.role === 'user' ? (
-                          <User size={13} className="text-[#38bdf8] shrink-0" strokeWidth={2.5} />
-                        ) : (
-                          <Bot size={13} className="text-[#a855f7] shrink-0" strokeWidth={2.5} />
-                        )}
-                        <span className="text-[12px] font-medium truncate max-w-[180px]" style={{ color: 'var(--text-primary)' }}>
-                          {item.label}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0 select-none">
-                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-mono text-[11px] font-bold tracking-tight">+0</span>
-                        <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500 font-mono text-[11px] font-bold tracking-tight">-1</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Footer Controls */}
-                <div className="flex items-center justify-end gap-3 mt-6 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                  <button
-                    onClick={() => setUndoConfirmModal(null)}
-                    className="px-3 py-1.5 text-[12px] font-medium transition-colors hover:underline"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={executeConfirmedUndo}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-[12px] tracking-wide shadow-md transition-all active:scale-95 hover:opacity-90"
-                    style={{
-                      background: 'var(--text-primary)',
-                      color: 'var(--bg-primary)'
-                    }}
-                  >
-                    <span>Confirm</span>
-                    <CornerDownLeft size={12} strokeWidth={2.5} />
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
 
       </Layout>

@@ -15,55 +15,67 @@ export { SECTIONS, API_URL } from './SettingsConstants';
 const EASE = [0.22, 1, 0.36, 1];
 
 export const SectionTitle = ({ children, style = {}, action }) => (
-  <div className="mb-2.5 flex items-center justify-between gap-3 px-0.5" style={style}>
-    <h3 className="text-[12px] font-medium text-[var(--text-tertiary)]">{children}</h3>
+  <div className="mb-2 flex items-center justify-between gap-3 px-0.5" style={style}>
+    <h3 className="text-[11.5px] font-medium text-[var(--text-tertiary)]">{children}</h3>
     {action}
   </div>
 );
 
 export const SettingsGroup = ({ children, className = '', style = {} }) => (
   <div
-    className={`overflow-visible rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] [&>*+*]:border-t [&>*+*]:border-[var(--st-line)] ${className}`}
+    className={`overflow-visible rounded-xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] [&>*+*]:border-t [&>*+*]:border-[var(--st-line)] ${className}`}
     style={style}
   >
     {children}
   </div>
 );
 
-export const RowIcon = ({ icon: Icon, danger }) => (
-  <span
-    className={`grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border ${
-      danger
-        ? 'border-red-500/15 bg-red-500/[0.06] text-red-500'
-        : 'border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)]'
-    }`}
-  >
-    <Icon size={15} strokeWidth={1.8} />
-  </span>
-);
+const TONES = {
+  blue: 'bg-blue-500/12 border-blue-500/25 text-blue-500 dark:text-blue-400',
+  purple: 'bg-sky-500/12 border-sky-500/25 text-sky-500 dark:text-sky-400',
+  amber: 'bg-amber-500/12 border-amber-500/25 text-amber-500 dark:text-amber-400',
+  emerald: 'bg-emerald-500/12 border-emerald-500/25 text-emerald-500 dark:text-emerald-400',
+  rose: 'bg-rose-500/12 border-rose-500/25 text-rose-500 dark:text-rose-400',
+  danger: 'bg-red-500/15 border-red-500/25 text-red-500',
+  neutral: 'border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)]',
+};
 
-/** `wide` rows hold a text field or select: on phones the control drops onto its own line. */
-export const SettingsRow = ({ icon, label, description, rightElement, danger, onClick, children, wide }) => {
+export const RowIcon = ({ icon: Icon, danger, tone }) => {
+  const chosenTone = danger ? 'danger' : tone || 'neutral';
+  const toneClasses = TONES[chosenTone] || TONES.neutral;
+  return (
+    <span
+      className={`grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border shadow-xs transition-colors ${toneClasses}`}
+    >
+      <Icon size={14} strokeWidth={2} />
+    </span>
+  );
+};
+
+/** Settings row: on mobile and desktop keeps a balanced single-line layout like iOS grouped settings */
+export const SettingsRow = ({ icon, iconTone, label, description, rightElement, danger, onClick, children }) => {
   const clickable = !!onClick;
   const Tag = clickable ? 'button' : 'div';
   return (
     <Tag
       type={clickable ? 'button' : undefined}
       onClick={onClick || undefined}
-      className={`flex w-full items-center gap-3.5 px-4 py-3.5 text-left first:rounded-t-2xl last:rounded-b-2xl ${wide ? 'max-sm:flex-wrap max-sm:gap-y-3' : ''} ${
-        clickable ? 'cursor-pointer transition-colors hover:bg-[var(--st-fill)]' : ''
+      className={`flex w-full items-center justify-between gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 text-left first:rounded-t-xl last:rounded-b-xl transition-colors ${
+        clickable ? 'cursor-pointer hover:bg-[var(--st-fill)]' : ''
       }`}
     >
-      {icon && <RowIcon icon={icon} danger={danger} />}
-      <div className="min-w-0 flex-1">
-        <div className={`text-[15.5px] font-normal sm:text-[14px] sm:font-medium leading-snug tracking-[-0.01em] ${danger ? 'text-red-500' : 'text-[var(--text-primary)]'}`}>{label}</div>
-        {description && <div className="mt-0.5 text-[12px] leading-[1.45] text-[var(--text-tertiary)]">{description}</div>}
-        {children}
+      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3 shrink-0 sm:shrink">
+        {icon && <RowIcon icon={icon} danger={danger} tone={iconTone} />}
+        <div className="min-w-0">
+          <div className={`text-[13px] font-medium leading-snug tracking-[-0.01em] ${danger ? 'text-red-500' : 'text-[var(--text-primary)]'}`}>{label}</div>
+          {description && <div className="mt-0.5 text-[11px] leading-[1.4] text-[var(--text-tertiary)]">{description}</div>}
+          {children}
+        </div>
       </div>
       {(rightElement || clickable) && (
-        <div className={`ml-2 flex shrink-0 items-center gap-2 ${wide ? 'max-sm:ml-0 max-sm:basis-full max-sm:pl-[46px] max-sm:[&>*]:w-full' : ''}`}>
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-2 shrink">
           {rightElement}
-          {clickable && !rightElement && <ChevronRight size={16} className="text-[var(--text-tertiary)]" />}
+          {clickable && !rightElement && <ChevronRight size={15} className="text-[var(--text-tertiary)] shrink-0" />}
         </div>
       )}
     </Tag>
@@ -80,23 +92,23 @@ export const AppleToggle = ({ value, onChange, label }) => (
       e.stopPropagation();
       onChange(!value);
     }}
-    className={`relative inline-flex h-[22px] w-[38px] shrink-0 cursor-pointer items-center rounded-full p-[2px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mk-accent)]/50 ${
-      value ? 'bg-[var(--text-primary)]' : 'bg-[var(--st-fill-strong)] ring-1 ring-inset ring-[var(--st-line-strong)]'
+    className={`relative inline-flex h-[22px] w-[38px] shrink-0 cursor-pointer items-center rounded-full p-[2px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+      value ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.35)]' : 'bg-[var(--st-fill-strong)] ring-1 ring-inset ring-[var(--st-line-strong)]'
     }`}
   >
     <motion.span
       initial={false}
       animate={{ x: value ? 16 : 0 }}
       transition={{ type: 'spring', stiffness: 700, damping: 40 }}
-      className={`block h-[18px] w-[18px] rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.25)] ${value ? 'bg-[var(--bg-primary)]' : 'bg-white'}`}
+      className={`block h-[18px] w-[18px] rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] ${value ? 'bg-white' : 'bg-zinc-200 dark:bg-zinc-300'}`}
     />
   </button>
 );
 
 export const fieldClass =
-  'h-9 w-full rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)] px-3.5 text-[13px] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-tertiary)] focus:shadow-[0_0_0_3px_var(--mk-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50';
+  'h-8 w-full rounded-xl sm:rounded-full border border-[var(--st-line-strong)] bg-[var(--st-fill)] hover:bg-[var(--st-fill-strong)] focus:bg-[var(--bg-primary)] px-2.5 sm:px-3 text-[12.5px] text-[var(--text-secondary)] focus:text-[var(--text-primary)] outline-none transition-[border-color,box-shadow,background-color,color] placeholder:text-[var(--text-tertiary)] focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(245,158,11,0.15)] disabled:cursor-not-allowed disabled:opacity-50';
 
-export const RightInlineInput = ({ value, onChange, placeholder, type = 'text', width = '220px', disabled = false }) => (
+export const RightInlineInput = ({ value, onChange, placeholder, type = 'text', width, disabled = false }) => (
   <input
     type={type}
     value={value}
@@ -104,8 +116,8 @@ export const RightInlineInput = ({ value, onChange, placeholder, type = 'text', 
     placeholder={placeholder}
     disabled={disabled}
     onClick={(e) => e.stopPropagation()}
-    className={`${fieldClass} max-sm:!w-full`}
-    style={{ width }}
+    className={`${fieldClass} max-w-[150px] sm:max-w-none sm:w-[220px] text-right sm:text-left`}
+    style={width ? { maxWidth: width } : undefined}
   />
 );
 
@@ -139,12 +151,14 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
           e.stopPropagation();
           setIsOpen((o) => !o);
         }}
-        className={`${fieldClass} flex cursor-pointer items-center justify-between gap-2 text-left ${form ? '' : 'min-w-[150px]'} ${
+        className={`${fieldClass} flex cursor-pointer items-center justify-between gap-1.5 sm:gap-2 text-left ${
+          form ? 'w-full' : 'w-full max-w-[150px] sm:max-w-none sm:min-w-[150px]'
+        } ${
           isOpen ? 'border-[var(--text-tertiary)] shadow-[0_0_0_3px_var(--mk-accent-soft)]' : ''
         }`}
       >
-        <span className={`truncate ${selected?.value === '' ? 'text-[var(--text-tertiary)]' : ''}`}>{selected?.label}</span>
-        <ChevronDown size={14} className={`shrink-0 text-[var(--text-tertiary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className={`truncate text-right sm:text-left flex-1 ${selected?.value === '' ? 'text-[var(--text-tertiary)]' : ''}`}>{selected?.label}</span>
+        <ChevronDown size={13} className={`shrink-0 text-amber-500/80 dark:text-amber-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>
@@ -155,7 +169,7 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.16, ease: EASE }}
-            className={`absolute top-[calc(100%+6px)] z-[100] max-h-[280px] min-w-full overflow-y-auto rounded-[14px] border border-[var(--st-line-strong)] bg-[var(--bg-primary)] p-1.5 shadow-[0_18px_44px_-12px_rgba(0,0,0,0.35)] ${
+            className={`absolute top-[calc(100%+6px)] z-[100] max-h-[280px] min-w-[190px] max-w-[calc(100vw-32px)] sm:max-w-none sm:min-w-full overflow-y-auto rounded-[14px] border border-[var(--st-line-strong)] bg-[var(--bg-primary)] p-1.5 shadow-[0_18px_44px_-12px_rgba(0,0,0,0.35)] ${
               align === 'left' ? 'left-0' : 'right-0'
             }`}
           >
@@ -172,12 +186,12 @@ export const PremiumDropdown = ({ value, onChange, options, align = 'right', sty
                     onChange(opt.value);
                     setIsOpen(false);
                   }}
-                  className={`flex w-full cursor-pointer items-center justify-between gap-6 whitespace-nowrap rounded-[9px] px-3 py-2 text-left text-[13px] transition-colors ${
+                  className={`flex w-full cursor-pointer items-center justify-between gap-4 whitespace-nowrap rounded-[9px] px-3 py-2 text-left text-[13px] transition-colors ${
                     on ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  <span>{opt.label}</span>
-                  {on && <Check size={14} strokeWidth={2.4} className="text-[var(--mk-accent)]" />}
+                  <span className="truncate">{opt.label}</span>
+                  {on && <Check size={14} strokeWidth={2.4} className="text-[var(--mk-accent)] shrink-0" />}
                 </button>
               );
             })}
@@ -234,13 +248,13 @@ export const ContextButton = ({ children, onClick, danger, icon: Icon }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`flex w-full cursor-pointer items-center gap-3.5 px-4 py-3.5 text-left text-[15.5px] sm:text-[14px] font-medium tracking-[-0.01em] transition-colors first:rounded-t-2xl last:rounded-b-2xl ${
+    className={`flex w-full cursor-pointer items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 text-left text-[13px] font-medium tracking-[-0.01em] transition-colors first:rounded-t-xl last:rounded-b-xl ${
       danger ? 'text-red-500 hover:bg-red-500/[0.05]' : 'text-[var(--text-primary)] hover:bg-[var(--st-fill)]'
     }`}
   >
     {Icon && <RowIcon icon={Icon} danger={danger} />}
     <span className="flex-1">{children}</span>
-    <ChevronRight size={16} className={danger ? 'text-red-500/60' : 'text-[var(--text-tertiary)]'} />
+    <ChevronRight size={15} className={danger ? 'text-red-500/60' : 'text-[var(--text-tertiary)]'} />
   </button>
 );
 
@@ -254,7 +268,7 @@ export const Button = ({ children, variant = 'primary', className = '', ...rest 
   return (
     <button
       type="button"
-      className={`inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full px-4 text-[13px] font-medium transition-[opacity,background-color,color] disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
+      className={`inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[13px] font-medium transition-[opacity,background-color,color] disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
       {...rest}
     >
       {children}

@@ -44,6 +44,29 @@ playwright-report/
 test-results/
 **/test-results/
 
+# Python caches & virtual environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv*/
+venv/
+**/venv/
+**/.venv*/
+
+# Ad-hoc evaluation logs, test outputs & dumps
+docs/eval/runs/*.log
+server/*.log
+server/server_logs.txt
+server/startup-smoke.*.log
+server/engine/results.txt
+codebase_tree.txt
+
+# Promo video build output & captures
+promo-video/out/
+promo-video/capture/out/
+promo-video/public/
+promo-video/.venv*/
+
 # Ad-hoc test/debug scripts (server root)
 server/check_db.js
 server/test-req.cjs

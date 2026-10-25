@@ -29,6 +29,22 @@ export interface Judge0Result {
   exitCode: number | null;
 }
 
+/**
+ * What one run may use in the sandbox, sent with every submission rather than
+ * left to the instance's defaults (all within Judge0 CE's allowed maximums).
+ */
+export const RUN_LIMITS = {
+  cpu_time_limit: 5, // seconds of CPU
+  cpu_extra_time: 0.5,
+  wall_time_limit: 10, // seconds on the clock (a program waiting on nothing still stops)
+  memory_limit: 128_000, // KB; the JVM gets more below
+  stack_limit: 64_000, // KB
+  max_processes_and_or_threads: 60,
+  max_file_size: 1_024, // KB a program may write
+  enable_network: false,
+} as const;
+const JAVA_MEMORY_KB = 256_000;
+
 export class Judge0Unavailable extends Error {
   status: number;
   code: string;
@@ -72,6 +88,8 @@ export async function runOnJudge0(language: string, sourceCode: string, stdin = 
         language_id: langId,
         source_code: Buffer.from(sourceCode, 'utf8').toString('base64'),
         stdin: Buffer.from(stdin || '', 'utf8').toString('base64'),
+        ...RUN_LIMITS,
+        ...(langId === JUDGE0_LANG_MAP.java ? { memory_limit: JAVA_MEMORY_KB } : {}),
       }, {
         timeout: 25000, // Increased timeout for public instance
         headers

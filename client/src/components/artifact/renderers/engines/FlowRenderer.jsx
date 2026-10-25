@@ -53,7 +53,7 @@ function FlowRendererInner({ sceneGraph }) {
       target: conn.to || conn.target,
       label: conn.label,
       animated: conn.animated !== false,
-      style: { stroke: conn.color || '#6366F1', strokeWidth: 2 }
+      style: { stroke: conn.color || '#3B82F6', strokeWidth: 2 }
     }));
 
     return { nodes: flowNodes, edges: flowEdges };

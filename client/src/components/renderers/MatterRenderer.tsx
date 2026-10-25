@@ -368,7 +368,7 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
       {/* Interactive Control Panel */}
       <div className="absolute top-6 left-6 p-5 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/10 z-50 min-w-[220px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] pointer-events-auto transition-transform hover:scale-[1.02]">
         <div className="flex items-center space-x-2 mb-4">
-          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
           <div className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Environment</div>
         </div>
         
@@ -383,9 +383,9 @@ const MatterRenderer = forwardRef((props: MatterRendererProps, ref) => {
         <div>
           <div className="flex justify-between text-xs font-medium text-white/90 mb-2">
             <span>Bounciness</span>
-            <span className="text-purple-400 font-mono">{restitutionMult.toFixed(1)}x</span>
+            <span className="text-emerald-400 font-mono">{restitutionMult.toFixed(1)}x</span>
           </div>
-          <input type="range" min="0" max="2" step="0.1" value={restitutionMult} onChange={e => setRestitutionMult(parseFloat(e.target.value))} className="w-full accent-purple-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer" />
+          <input type="range" min="0" max="2" step="0.1" value={restitutionMult} onChange={e => setRestitutionMult(parseFloat(e.target.value))} className="w-full accent-emerald-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer" />
         </div>
       </div>
 

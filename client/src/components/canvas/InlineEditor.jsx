@@ -11,9 +11,9 @@ import useClickOutside from '../../hooks/useClickOutside.js';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants/canvas';
 
 
-export default function InlineEditor({ elements, editingObjectId, Z, tx, ty }) {
+export default function InlineEditor({ elements = [], editingObjectId, Z, tx, ty }) {
   const { updateCanvasObjectSilently, commitHistory, setEditingObjectId, setHasTextSelection } = useTutorStore();
-  const obj = elements.find(e => e.id === editingObjectId);
+  const obj = (elements || []).find(e => e.id === editingObjectId);
   
   const [localContent, setLocalContent] = useState('');
   const editorRef = useRef(null);

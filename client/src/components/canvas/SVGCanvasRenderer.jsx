@@ -405,7 +405,7 @@ export default function SVGCanvasRenderer({
                 const y1 = (fromEl.y ?? 0.5) * CANVAS_HEIGHT;
                 const x2 = (toEl.x ?? 0.5) * CANVAS_WIDTH;
                 const y2 = (toEl.y ?? 0.5) * CANVAS_HEIGHT;
-                const edgeColor = conn.color || '#6366F180';
+                const edgeColor = conn.color || '#3B82F680';
                 const isAnimated = conn.animated !== false;
                 const revealDelay = conn.revealDelay || 0;
 

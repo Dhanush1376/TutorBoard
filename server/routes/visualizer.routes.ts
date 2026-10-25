@@ -8,6 +8,7 @@ import {
   listSessionVisualizations,
   getVisualization,
   deleteVisualization,
+  updateVisualizationState,
   explainStep,
 } from '../controllers/visualizer.controller.js';
 
@@ -28,6 +29,7 @@ router.post('/save', protect, express.json({ limit: '3mb' }), saveVisualization)
 router.get('/lookup', protect, lookupVisualization);
 router.get('/session/:sessionId', protect, listSessionVisualizations);
 router.get('/:id', protect, getVisualization);
+router.patch('/:id/state', protect, updateVisualizationState);
 router.delete('/:id', protect, deleteVisualization);
 
 export default router;

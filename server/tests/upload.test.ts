@@ -19,7 +19,6 @@ vi.mock('../utils/core/s3.js', () => ({
 
 describe('File Upload Security (P0)', () => {
   let userToken: string;
-  const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 
   beforeEach(async () => {
     const user = await User.create({
@@ -27,7 +26,7 @@ describe('File Upload Security (P0)', () => {
       password: 'password123',
       name: 'Uploader',
     });
-    userToken = jwt.sign({ id: user._id.toString(), jti: 'test-jti-upload' }, JWT_SECRET);
+    userToken = jwt.sign({ id: user._id.toString(), jti: 'test-jti-upload' }, process.env.JWT_SECRET || 'test-secret');
   });
 
   async function getCsrf() {

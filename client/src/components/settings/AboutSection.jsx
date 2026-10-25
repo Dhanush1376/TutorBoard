@@ -81,22 +81,22 @@ export default function AboutSection() {
   const health = overall(systemStatus);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5 sm:gap-8 pt-1 sm:pt-4">
       {/* Product card */}
-      <div className="relative overflow-hidden rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] p-5">
+      <div className="relative overflow-hidden rounded-xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] p-4 sm:p-5">
         <div
           aria-hidden="true"
           className="mk-dots pointer-events-none absolute inset-0 opacity-60"
           style={{ maskImage: 'radial-gradient(ellipse 60% 90% at 100% 0%, #000, transparent 70%)', WebkitMaskImage: 'radial-gradient(ellipse 60% 90% at 100% 0%, #000, transparent 70%)' }}
         />
-        <div className="relative flex items-center gap-4">
-          <VisaiLogo size={48} className="text-[var(--text-primary)]" />
+        <div className="relative flex items-center gap-3.5 sm:gap-4">
+          <VisaiLogo size={42} className="text-[var(--text-primary)] shrink-0" />
           <div className="min-w-0">
-            <h3 className="text-[19px] font-medium leading-none tracking-[-0.03em]">TutorBoard</h3>
-            <p className="mt-1.5 text-[12.5px] text-[var(--text-tertiary)]">The tutor that draws. Version {APP_VERSION}</p>
+            <h3 className="text-[18px] sm:text-[19px] font-semibold leading-none tracking-[-0.03em]">TutorBoard</h3>
+            <p className="mt-1.5 text-[12px] sm:text-[12.5px] text-[var(--text-tertiary)]">The tutor that draws. Version {APP_VERSION}</p>
           </div>
         </div>
-        <div className="relative mt-5 flex items-center gap-2 border-t border-[var(--st-line)] pt-4 text-[12.5px] text-[var(--text-secondary)]">
+        <div className="relative mt-4 sm:mt-5 flex items-center gap-2 border-t border-[var(--st-line)] pt-3.5 sm:pt-4 text-[12px] sm:text-[12.5px] text-[var(--text-secondary)]">
           <span className={`h-1.5 w-1.5 rounded-full ${health.tone}`} />
           {health.text}
         </div>

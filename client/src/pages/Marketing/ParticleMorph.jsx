@@ -45,7 +45,7 @@ const vertexShader = /* glsl */ `
 
   void main() {
     float e = smoothstep(0.0, 1.0, clamp((uMix - aRnd * 0.3) / 0.7, 0.0, 1.0));
-    vec3 p = mix(position, aTo, e) + aScatter * sin(e * 3.14159265) * 0.9;
+    vec3 p = mix(position, aTo, e) + aScatter * sin(e * 3.14159265) * 1.25;
     float intro = smoothstep(0.0, 1.0, clamp((uIntro - aRnd * 0.4) / 0.6, 0.0, 1.0));
     p = mix(aScatter * 3.6, p, intro);
     float open = smoothstep(0.0, 1.0, clamp(uOpen * 1.4 - aRnd * 0.4, 0.0, 1.0));
@@ -53,24 +53,25 @@ const vertexShader = /* glsl */ `
 
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
-    float galScale = mix(0.75 + aGalSize * 0.3, 0.45 + aGalSize * 0.25, uLight);
+    float galScale = mix(0.80 + aGalSize * 0.32, 0.70 + aGalSize * 0.35, uLight);
     
     // Depth calculations for true 3D visual perception
-    // Foreground particles are closer to camera (less negative mv.z), background are further
     float zDist = -mv.z;
     float depthFactor = clamp((6.6 - zDist) / 3.0, -1.0, 1.0); // > 0 is foreground, < 0 is background
     
-    // In light mode: foreground particles are bold & punchy; background particles are refined & subdued
-    float lightScale = mix(1.0, 0.72 + 0.38 * max(0.0, depthFactor), uLight);
-    gl_PointSize = uSize * lightScale * (0.6 + aRnd * 0.8) * mix(1.0, galScale, open) / zDist;
+    // In light mode: balanced medium thickness — not too thin, not too thick
+    float accentSizeBoost = mix(1.0, 1.0 + aAccent * 0.25, uLight);
+    float lightScale = mix(1.0, (0.80 + 0.36 * max(0.0, depthFactor)) * accentSizeBoost, uLight);
+    gl_PointSize = uSize * lightScale * (0.62 + aRnd * 0.75) * mix(1.0, galScale, open) / zDist;
     
     float warm = clamp((aGalColor.r - aGalColor.b) * 2.2, 0.0, 1.0);
-    vec3 paperStar = mix(vec3(0.08, 0.08, 0.12), uInk, warm * 0.85);
+    // In light mode galaxy: luminous warm amber for stars, warm charcoal for structure
+    vec3 paperStar = mix(vec3(0.18, 0.17, 0.16), vec3(0.98, 0.58, 0.08), warm * 0.95);
     vec3 star = mix(aGalColor, paperStar, uLight);
     
-    // Colors: In light mode, deep black ink and saturated warm amber
-    vec3 lightInk = vec3(0.08, 0.08, 0.07);
-    vec3 lightAmber = vec3(0.88, 0.50, 0.03);
+    // Colors: In light mode, balanced graphite-charcoal ink and luminous warm amber-orange (not overly dark)
+    vec3 lightInk = vec3(0.18, 0.17, 0.16);
+    vec3 lightAmber = vec3(0.98, 0.56, 0.06);
     vec3 activeInk = mix(uInk, lightInk, uLight);
     vec3 activeAccent = mix(uAccent, lightAmber, uLight);
     vColor = mix(mix(activeInk, activeAccent, aAccent), star, open);
@@ -78,8 +79,9 @@ const vertexShader = /* glsl */ `
     
     float twinkle = 0.72 + 0.28 * sin(uTime * (1.5 + aRnd * 4.0) + aRnd * 60.0);
     
-    // Opacity: Background particles in light mode have lower opacity (0.28) so the foreground silhouette reads instantly
-    float lightAlpha = mix(0.28, 0.95, smoothstep(-0.8, 0.6, depthFactor));
+    // Opacity: Smooth medium visibility
+    float baseLightAlpha = mix(0.40, 0.95, smoothstep(-0.8, 0.6, depthFactor));
+    float lightAlpha = mix(baseLightAlpha, 0.96, aAccent * 0.85);
     float darkAlpha = clamp(1.3 - (zDist - 4.5) * 0.25, 0.2, 1.0);
     float depthAlpha = mix(darkAlpha, lightAlpha, uLight);
     
@@ -97,8 +99,8 @@ const fragmentShader = /* glsl */ `
     vec2 c = gl_PointCoord - 0.5;
     float d = length(c);
     if (d > 0.5) discard;
-    // Circular particles with crisp antialiased edge
-    float edge = mix(smoothstep(0.5, 0.22, d), smoothstep(0.5, 0.35, d), uLight);
+    // Balanced medium edge antialiasing
+    float edge = mix(smoothstep(0.5, 0.20, d), smoothstep(0.5, 0.28, d), uLight);
     gl_FragColor = vec4(vColor, edge * vAlpha);
   }
 `;
@@ -208,21 +210,19 @@ function Field({ progress, pointer, reduce, compact, centre = false, openX = 0, 
     const spin = reduce ? 0 : state.clock.elapsedTime * 0.08;
     g.position.x += (tx - g.position.x) * Math.min(1, dt * 6);
     g.position.y += (ty - g.position.y) * Math.min(1, dt * 6);
-    // Each subject rotates exactly 180° (Math.PI) during its hold window before transitioning to the next
+    // Fluid, continuous 3D rotation synchronized with scroll progression
     const segProgress = Math.min(Math.max((p - 0.05) / (0.985 - 0.05), 0), 1) * (HERO_SUBJECT_COUNT - 1);
     const currSeg = Math.floor(segProgress);
     const currFrac = segProgress - currSeg;
-    const holdFrac = Math.min(Math.max(currFrac / 0.72, 0), 1);
-    // Smooth ease for the 180-degree rotation
-    const rotInSeg = (holdFrac * holdFrac * (3 - 2 * holdFrac)) * Math.PI;
+    const rotInSeg = currFrac * Math.PI;
     const targetY = (spin + (currSeg * Math.PI + rotInSeg)) * ease + pointer.current.x * 0.35;
     const targetX = pointer.current.y * 0.18;
     // Take the short way round, so a fast scroll back never leaves it spinning to catch up.
     let dy = (targetY - g.rotation.y) % TAU;
     if (dy > Math.PI) dy -= TAU;
     if (dy < -Math.PI) dy += TAU;
-    g.rotation.y += dy * Math.min(1, dt * 5);
-    g.rotation.x += (targetX - g.rotation.x) * Math.min(1, dt * 4);
+    g.rotation.y += dy * Math.min(1, dt * 7);
+    g.rotation.x += (targetX - g.rotation.x) * Math.min(1, dt * 5);
     const s = compact ? 0.62 + 0.04 * ease : 0.9 + 0.06 * ease;
     g.scale.setScalar(g.scale.x + (s - g.scale.x) * Math.min(1, dt * 5));
   });

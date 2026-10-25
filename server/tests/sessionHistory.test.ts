@@ -71,6 +71,14 @@ describe('GET /api/sessions/:id', () => {
 });
 
 describe('POST /api/sessions', () => {
+  it('clips an over-long title instead of rejecting the whole save', async () => {
+    const me = new mongoose.Types.ObjectId();
+    const s = await seed(me, 'mine', 0, 1);
+    const res = await call(saveSession, { user: { _id: me }, body: { sessionId: s._id.toString(), title: 'Q '.repeat(300) } });
+    expect(res.status).toBe(200);
+    expect(((await ChatSession.findById(s._id).lean()) as any).title.length).toBeLessThanOrEqual(200);
+  });
+
   it('never writes chat messages from the client copy', async () => {
     const me = new mongoose.Types.ObjectId();
     const s = await seed(me, 'mine', 0, 2);

@@ -20,11 +20,23 @@
  *
  * Step {
  *   line: number,                    — 1-based line in `source` that is about to run
- *   event: 'line' | 'call' | 'return' | 'exception',
+ *   event: 'line' | 'call' | 'return' | 'exception'
+ *        | 'await' | 'resume',       — (JavaScript) an async function pauses at an await / runs again
  *   frames: Frame[],                 — outermost first; the last one is running
  *   out: number,                     — how many characters of stdout were printed by now
  *   ret?: Value,                     — on 'return': the value handed back
  *   exc?: string,                    — on 'exception': what went wrong
+ *   loop?: Loop,                     — (JavaScript programs that schedule work) the event loop at this step
+ * }
+ *
+ * Loop {                             — observed by jsRecorder.runInstrumented, never inferred
+ *   phase: 'script' | 'micro' | 'macro' | 'idle',   — what kind of task is running
+ *   task: string,                    — e.g. "setTimeout → tick"
+ *   now: number,                     — the simulated clock, in ms
+ *   timers: { id, label, due }[],    — macrotasks waiting, soonest first
+ *   micro: string[],                 — queueMicrotask callbacks queued, not yet run
+ *   waiting: string[],               — promise callbacks registered, not yet run
+ *   awaiting: { name, line }[],      — async functions paused at an await
  * }
  *
  * Frame { id: number, name: string, line: number, locals: Array<{ name, value: Value }> }
@@ -45,6 +57,7 @@
 
 export const TRACE_VERSION = 1;
 export const TRACE_LANGUAGES = ['python', 'javascript', 'java', 'cpp', 'c'];
+export const STEP_EVENTS = ['line', 'call', 'return', 'exception', 'await', 'resume'];
 
 export const MODE_LABEL = {
   traced: 'Real run · traced line by line',
@@ -68,7 +81,7 @@ export function assertTrace(t) {
   const lines = t.source.split('\n').length;
   t.steps.forEach((s, i) => {
     if (!Number.isInteger(s.line) || s.line < 1 || s.line > lines) fail(`step ${i} line ${s.line}`);
-    if (!['line', 'call', 'return', 'exception'].includes(s.event)) fail(`step ${i} event ${s.event}`);
+    if (!STEP_EVENTS.includes(s.event)) fail(`step ${i} event ${s.event}`);
     if (!Array.isArray(s.frames) || !s.frames.length) fail(`step ${i} has no frames`);
     if (!Number.isInteger(s.out) || s.out < 0 || s.out > (t.stdout || '').length) fail(`step ${i} out ${s.out}`);
   });
@@ -172,7 +185,16 @@ export function describeStep(trace, index) {
   else if (step.event === 'return' && step.frames.length === 1) title = 'Program finished';
   else if (step.event === 'return') title = `${fnName(top)} returns${step.ret ? ` ${valueLabel(step.ret, lang)}` : ''}`;
   else if (step.event === 'exception') title = `Error: ${step.exc || 'something went wrong'}`;
+  else if (step.event === 'await') title = `${fnName(top)} pauses at await`;
+  else if (step.event === 'resume') title = `${fnName(top)} picks up after await`;
   else title = `Runs line ${step.line}`;
+
+  // The event loop moved on to another task (JavaScript).
+  if (step.loop && (!prev?.loop || prev.loop.phase !== step.loop.phase || prev.loop.task !== step.loop.task)) {
+    if (step.loop.phase === 'macro') details.push(`Event loop runs a task: ${step.loop.task}${step.loop.now ? ` (at ${step.loop.now} ms)` : ''}`);
+    else if (step.loop.phase === 'micro') details.push(`Event loop runs a microtask: ${step.loop.task}`);
+  }
+  if (step.event === 'await' && step.frames.length > 1) details.push('It leaves the call stack until the awaited value is ready');
 
   if (prev) {
     const prevTop = prev.frames[prev.frames.length - 1];
@@ -225,6 +247,7 @@ export function timelineMarks(trace) {
     if (s.event === 'exception') return 'error';
     if (s.event === 'call') return 'call';
     if (s.event === 'return') return 'return';
+    if (s.event === 'await' || s.event === 'resume') return 'call';
     if (i > 0 && s.out > trace.steps[i - 1].out) return 'out';
     return null;
   });

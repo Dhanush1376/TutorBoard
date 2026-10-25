@@ -164,8 +164,8 @@ export function morphAt(p, count = HERO_SUBJECT_COUNT) {
   if (raw >= count - 1) return count - 1;
   const seg = Math.min(Math.floor(raw), count - 2);
   const frac = raw - seg;
-  // Hold the shape firmly for the first 72% of the segment while it rotates 180°, then morph smoothly to next
-  const morphFrac = Math.min(Math.max((frac - 0.72) / 0.28, 0), 1);
+  // Fluid continuous transition across the segment for organic, dynamic particle flow
+  const morphFrac = Math.min(Math.max((frac - 0.16) / 0.68, 0), 1);
   return seg + morphFrac * morphFrac * (3 - 2 * morphFrac);
 }
 

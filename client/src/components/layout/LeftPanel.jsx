@@ -9,7 +9,7 @@ import useTutorStore from '../../store/tutorStore';
 import {
   BookOpen, Plus, Search, PanelLeftClose, X, PanelLeft, PanelRight, Check,
   ChevronLeft, Lightbulb, HelpCircle, Activity, Layers, ChevronDown, Settings, LayoutDashboard,
-  FileText, Download, Sparkles, ArrowUpRight
+  FileText, Download, Sparkles, ArrowUpRight, Undo2
 } from 'lucide-react';
 import Loader from './Loader';
 import BrandLockup from './BrandLockup';
@@ -50,6 +50,9 @@ const LeftPanel = ({
   onExport,
   isSplitView = false,
   onUndoMessage,
+  undoConfirmModal,
+  setUndoConfirmModal,
+  executeConfirmedUndo,
 }) => {
   const { isMobile } = useWindowSize();
   const navigate = useNavigate();
@@ -128,25 +131,42 @@ const LeftPanel = ({
     if (activeView === 'chat') {
       return (
         <div className="flex flex-col gap-2 relative h-full">
-          <div className="sticky top-0 z-[15] -mx-1 mb-2 flex items-center justify-between border-b border-[var(--st-line)] bg-[var(--bg-primary)] px-1 pb-2.5 pt-2">
+          <div className="sticky top-0 z-[15] -mx-1 mb-2 flex items-center justify-between border-b border-[var(--st-line)] bg-[var(--bg-primary)] px-1 pb-2 pt-1">
             <button
-              onClick={() => { setActiveView('history'); }}
-              className="group inline-flex h-8 cursor-pointer items-center gap-1 rounded-full pl-1.5 pr-3 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]"
+              onClick={() => {
+                setActiveView('history');
+                const store = useTutorStore.getState();
+                store.setCanvasLayout('inline');
+                store.closeCanvasLayout();
+                store.setActiveSnapshotId(null);
+                store.clearArtifacts();
+              }}
+              className="group inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95"
             >
-              <ChevronLeft size={16} strokeWidth={1.8} className="transition-transform group-hover:-translate-x-0.5" />
-              Sessions
+              <ChevronLeft size={14} strokeWidth={2.2} className="transition-transform group-hover:-translate-x-0.5" />
+              <span>Sessions</span>
             </button>
 
-            <div className="flex items-center gap-0.5">
-              <button onClick={() => onExport?.('pdf')} className={`${iconBtn} h-8 w-8`} title="Export as PDF" aria-label="Export as PDF">
-                <FileText size={15} strokeWidth={1.8} />
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onExport?.('pdf')}
+                className="grid h-7 w-7 cursor-pointer place-items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill)]/50 text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill-strong)] hover:border-[var(--st-line-strong)] hover:text-[var(--text-primary)] active:scale-95"
+                title="Export as PDF"
+                aria-label="Export as PDF"
+              >
+                <FileText size={13.5} strokeWidth={1.8} />
               </button>
-              <button onClick={() => onExport?.('docx')} className={`${iconBtn} h-8 w-8`} title="Export as Word" aria-label="Export as Word">
-                <Download size={15} strokeWidth={1.8} />
+              <button
+                onClick={() => onExport?.('docx')}
+                className="grid h-7 w-7 cursor-pointer place-items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill)]/50 text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill-strong)] hover:border-[var(--st-line-strong)] hover:text-[var(--text-primary)] active:scale-95"
+                title="Export as Word (.docx)"
+                aria-label="Export as Word (.docx)"
+              >
+                <Download size={13.5} strokeWidth={1.8} />
               </button>
             </div>
           </div>
-          <div className="flex-1 flex flex-col min-h-0 pt-0">
+          <div className="flex-1 flex flex-col min-h-0 pt-0 -mx-1">
             <ErrorBoundary>
               <ChatWindow
                 messages={messages}
@@ -249,7 +269,7 @@ const LeftPanel = ({
 
 
   return (
-    <div className={`flex flex-col h-full relative text-[var(--text-primary)] bg-transparent min-w-[280px]`}>
+    <div className={`flex flex-col h-full relative text-[var(--text-primary)] bg-transparent min-w-[280px] overflow-hidden`}>
 
       {/* ─── 1. FIXED TOP SECTION ─── */}
       <div className="flex-shrink-0 relative z-20">
@@ -258,59 +278,72 @@ const LeftPanel = ({
           <BrandLockup />
 
 
-          <div className="-mr-1.5 flex items-center gap-0.5">
-            <button onClick={() => setOverlay('settings')} className={iconBtn} title="Settings" aria-label="Open settings">
-              <Settings size={18} strokeWidth={1.7} />
+          <div className="-mr-1 flex items-center gap-1">
+            <button
+              onClick={() => setOverlay('settings')}
+              className={`grid ${isMobile ? 'h-10 w-10' : 'h-9 w-9'} place-items-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95`}
+              title="Settings"
+              aria-label="Open settings"
+            >
+              <Settings size={isMobile ? 22 : 19} strokeWidth={1.9} />
             </button>
-            <button onClick={() => setSidebarOpen(false)} className={iconBtn} title="Close workspace" aria-label="Close workspace">
-              <PanelLeftClose size={18} strokeWidth={1.7} />
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className={`grid ${isMobile ? 'h-10 w-10' : 'h-9 w-9'} place-items-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95`}
+              title="Close workspace"
+              aria-label="Close workspace"
+            >
+              <PanelLeftClose size={isMobile ? 22 : 19} strokeWidth={1.9} />
             </button>
           </div>
         </div>
 
         {/* Top block visible only on landing/history */}
-        <div className={`${isMobile ? 'px-4 mb-2' : 'px-5 mb-3'}`}>
-          <div className="flex flex-col gap-2">
+        {activeView !== 'chat' && (
+          <div className={`${isMobile ? 'px-4 mb-2.5' : 'px-5 mb-3'}`}>
+            <div className={isMobile ? 'flex items-center gap-2' : 'flex flex-col gap-2'}>
+              <button
+                onClick={() => {
+                  onNewChat();
+                  setActiveView('chat');
+                }}
+                className={`group flex items-center justify-center gap-2 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] font-medium transition-all hover:opacity-90 active:scale-[0.98] cursor-pointer shadow-sm ${
+                  isMobile
+                    ? 'h-9.5 px-4 shrink-0 text-[13px]'
+                    : 'h-9.5 w-full px-4 text-[13.5px]'
+                }`}
+              >
+                <Plus size={16} strokeWidth={2.2} className="transition-transform duration-300 group-hover:rotate-90 shrink-0" />
+                <span className="tracking-[-0.01em]">New session</span>
+                {!isMobile && <kbd className="ml-auto font-mono text-[10px] tracking-[0.06em] opacity-50">Alt N</kbd>}
+              </button>
 
-            {activeView !== 'chat' && (
-              <>
-                <button
-                  onClick={() => {
-                    onNewChat();
-                    setActiveView('chat');
-                  }}
-                  className="group flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl bg-[var(--text-primary)] px-3 text-[var(--bg-primary)] transition-opacity hover:opacity-90 active:scale-[0.99]"
-                >
-                  <Plus size={16} strokeWidth={2} className="transition-transform duration-300 group-hover:rotate-90" />
-                  <span className="flex-1 text-left text-[13.5px] font-medium tracking-[-0.01em]">New session</span>
-                  {!isMobile && <kbd className="font-mono text-[10px] tracking-[0.06em] opacity-50">Alt N</kbd>}
-                </button>
-
-                <div className="relative">
-                  <Search size={15} strokeWidth={1.8} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search sessions"
-                    aria-label="Search sessions"
-                    className="h-10 w-full rounded-xl border border-[var(--st-line-strong)] bg-transparent pl-9 pr-9 text-[13.5px] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-secondary)] focus:shadow-[0_0_0_3px_var(--st-line)]"
-                  />
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                    {searchQuery ? (
-                      <button onClick={() => setSearchQuery('')} aria-label="Clear search" className="grid h-6 w-6 place-items-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]">
-                        <X size={13} strokeWidth={2} />
-                      </button>
-                    ) : !isMobile && (
-                      <kbd className="grid h-5 min-w-5 place-items-center rounded-md border border-[var(--st-line-strong)] px-1 font-mono text-[10px] text-[var(--text-tertiary)]">/</kbd>
-                    )}
-                  </div>
+              <div className={`relative ${isMobile ? 'flex-1 min-w-0' : 'w-full'}`}>
+                <Search size={15} strokeWidth={1.8} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder={isMobile ? 'Search...' : 'Search sessions'}
+                  aria-label="Search sessions"
+                  className={`w-full rounded-full border border-[var(--st-line-strong)] bg-transparent pl-9 pr-8 text-[13px] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-secondary)] focus:shadow-[0_0_0_2px_var(--st-line)] ${
+                    isMobile ? 'h-9.5' : 'h-9.5'
+                  }`}
+                />
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  {searchQuery ? (
+                    <button onClick={() => setSearchQuery('')} aria-label="Clear search" className="grid h-5 w-5 place-items-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]">
+                      <X size={13} strokeWidth={2} />
+                    </button>
+                  ) : !isMobile && (
+                    <kbd className="grid h-5 min-w-5 place-items-center rounded-md border border-[var(--st-line-strong)] px-1 font-mono text-[10px] text-[var(--text-tertiary)]">/</kbd>
+                  )}
                 </div>
-              </>
-            )}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ─── 2. SCROLLABLE MIDDLE SECTION ─── */}
@@ -338,6 +371,99 @@ const LeftPanel = ({
           onStopGeneration={onStopGeneration}
         />
       </div>
+
+      {/* ── Undo Confirmation Overlay (Contained on Left Panel) ── */}
+      <AnimatePresence>
+        {undoConfirmModal && (
+          <motion.div
+            key="undo-modal-left"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 pointer-events-auto select-none"
+            onClick={() => setUndoConfirmModal?.(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[320px] rounded-[22px] border p-4 shadow-2xl relative flex flex-col gap-2.5"
+              style={{
+                background: 'var(--bg-secondary)',
+                borderColor: 'var(--border-color)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[var(--st-fill-strong)] text-[var(--text-primary)]">
+                    <Undo2 size={13} strokeWidth={2} />
+                  </div>
+                  <h3 className="text-[14px] font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                    Restore to chat box?
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUndoConfirmModal?.(null)}
+                  className="p-1 transition-colors rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  aria-label="Close"
+                >
+                  <X size={14} strokeWidth={2} />
+                </button>
+              </div>
+
+              {/* Subtitle description */}
+              <p className="text-[11.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Restoring request might loose your response{undoConfirmModal.affectedCount > 1 ? `, and roll back ${undoConfirmModal.affectedCount - 1} subsequent message${undoConfirmModal.affectedCount - 1 > 1 ? 's' : ''}` : ''}.
+              </p>
+
+              {/* Question preview */}
+              {undoConfirmModal.content && (
+                <div
+                  className="rounded-xl px-2.5 py-1.5 text-[11.5px] leading-relaxed border italic line-clamp-2"
+                  style={{
+                    background: 'var(--st-fill, var(--bg-primary))',
+                    borderColor: 'var(--st-line, var(--border-color))',
+                    color: 'var(--text-secondary)'
+                  }}
+                >
+                  "{undoConfirmModal.content}"
+                </div>
+              )}
+
+              {/* Footer Controls */}
+              <div className="flex items-center justify-end gap-2 pt-1 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                <button
+                  type="button"
+                  onClick={() => setUndoConfirmModal?.(null)}
+                  className="rounded-full px-3 py-1 text-[11.5px] font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeConfirmedUndo}
+                  className="flex items-center gap-1.5 rounded-full px-3.5 py-1 font-semibold text-[11.5px] transition-all active:scale-95 shadow-sm hover:opacity-90"
+                  style={{
+                    background: 'var(--text-primary)',
+                    color: 'var(--bg-primary)'
+                  }}
+                >
+                  <Undo2 size={11} strokeWidth={2.4} />
+                  <span>Restore to chat box</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

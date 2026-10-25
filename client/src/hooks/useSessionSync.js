@@ -80,9 +80,12 @@ export const useSessionSync = (chatMessages) => {
 
     const effectiveToken = state.token || (typeof localStorage !== 'undefined' ? (localStorage.getItem('tb-token') || localStorage.getItem('tb-auth-token')) : null);
 
-    // ONLY sync for real users, skipping guests
-    if (!state.user || state.user.isGuest || !effectiveToken) {
-      if (isBeacon) import.meta.env.DEV && console.log('[Sync] Beacon skipped: Guest or No Token');
+    const isGuest = state.user?.isGuest;
+    const isRegistered = Boolean(state.user && !state.user.isGuest && effectiveToken);
+
+    // Sync for registered users with tokens and legitimate guests
+    if (!isGuest && !isRegistered) {
+      if (isBeacon) import.meta.env.DEV && console.log('[Sync] Beacon skipped: No active user session');
       return;
     }
 
@@ -194,7 +197,8 @@ export const useSessionSync = (chatMessages) => {
   const fingerprint = useMemo(() => getCanvasFingerprint(canvasObjects), [canvasObjects]);
 
   useEffect(() => {
-    if (!user || user.isGuest || !token) return;
+    if (!user) return;
+    if (!user.isGuest && !token) return;
 
     const hasMessages = (doubtHistory && doubtHistory.length > 0) || (chatMessages && chatMessages.length > 0);
     const hasCanvas = canvasObjects && canvasObjects.length > 0;
@@ -281,16 +285,16 @@ export const useSessionSync = (chatMessages) => {
   }, [chatSessionId]);
 
   useEffect(() => {
-    // ALLOW GUESTS to restore their active session messages
-    if (!user || messagesRestoredRef.current) return;
+    if (messagesRestoredRef.current) return;
     
-    const currentChatSessionId = useTutorStore.getState().chatSessionId;
+    const currentChatSessionId = useTutorStore.getState().chatSessionId || useTutorStore.getState().sessionId;
     const currentMessages = useTutorStore.getState().conversationMessages;
     
-    if (currentChatSessionId && (!currentMessages || currentMessages.length === 0)) {
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(currentChatSessionId || '');
+    if (isMongoId && (!currentMessages || currentMessages.length === 0)) {
       messagesRestoredRef.current = true;
       import.meta.env.DEV && console.log(`[Sync] ♻️ Restoring messages for session ${currentChatSessionId}...`);
       useTutorStore.getState().restoreSessionFromServer(currentChatSessionId);
     }
-  }, [user, chatSessionId]); // Added chatSessionId to deps
+  }, [user, chatSessionId]);
 };

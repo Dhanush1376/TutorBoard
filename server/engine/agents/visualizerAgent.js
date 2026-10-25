@@ -126,24 +126,29 @@ EXAMPLE 1 — Binary Search (D3, STEP-BY-STEP — note how each narrate ends a s
   "renderer": "d3",
   "scene": "binary_search_walkthrough",
   "script": [
-    { "cmd": "array", "id": "arr", "values": [2, 5, 8, 12, 16, 23, 38, 56, 72, 91] },
-    { "cmd": "draw_boundary", "atIndex": 0, "endIndex": 9, "label": "Search range" },
-    { "cmd": "pointer", "id": "lo", "atIndex": 0, "label": "low", "color": "violet" },
-    { "cmd": "pointer", "id": "hi", "atIndex": 9, "label": "high", "color": "teal" },
-    { "cmd": "narrate", "text": "We search a sorted array for 23. Low starts at the first index, high at the last." },
+    { "cmd": "array", "id": "arr", "values": [2, 4, 6, 8, 10, 12, 14, 16] },
+    { "cmd": "draw_boundary", "atIndex": 0, "endIndex": 7, "label": "Target: 10" },
+    { "cmd": "pointer", "id": "lo", "atIndex": 0, "label": "low", "color": "cyan" },
+    { "cmd": "pointer", "id": "hi", "atIndex": 7, "label": "high", "color": "coral" },
+    { "cmd": "narrate", "text": "We search sorted array for target 10. Low starts at index 0, high at index 7." },
 
-    { "cmd": "pointer", "id": "mid", "atIndex": 4, "label": "mid", "color": "orange" },
-    { "cmd": "highlight", "id": "arr[4]", "color": "#f59e0b" },
-    { "cmd": "narrate", "text": "The midpoint is index 4, which holds 16. We compare 16 with our target 23." },
+    { "cmd": "pointer", "id": "mid", "atIndex": 3, "label": "mid", "color": "amber" },
+    { "cmd": "highlight", "id": "arr[3]", "color": "#F4C95D" },
+    { "cmd": "narrate", "text": "Calculate mid = floor((0 + 7) / 2) = 3. arr[3] is 8. Since 8 < 10, the target must lie in the right half." },
 
-    { "cmd": "move_pointer", "id": "lo", "atIndex": 5 },
-    { "cmd": "draw_boundary", "atIndex": 5, "endIndex": 9, "label": "New range" },
-    { "cmd": "narrate", "text": "16 is less than 23, so the answer must be to the right. We move low past the midpoint." },
+    { "cmd": "move_pointer", "id": "lo", "atIndex": 4 },
+    { "cmd": "draw_boundary", "atIndex": 4, "endIndex": 7, "label": "Search: [10..16]" },
+    { "cmd": "narrate", "text": "Eliminate the left half. Low moves past mid to index 4." },
 
-    { "cmd": "move_pointer", "id": "mid", "atIndex": 7 },
-    { "cmd": "highlight", "id": "arr[7]", "color": "#22c55e" },
-    { "cmd": "result", "text": "Found 23... not yet — 56 is too big, keep narrowing." },
-    { "cmd": "narrate", "text": "The new midpoint is 56, which is larger than 23, so we'd move high left and repeat until the range holds a single element." }
+    { "cmd": "move_pointer", "id": "mid", "atIndex": 5 },
+    { "cmd": "highlight", "id": "arr[5]", "color": "#FF925C" },
+    { "cmd": "narrate", "text": "New mid = floor((4 + 7) / 2) = 5. arr[5] is 12. Since 12 > 10, target is to the left." },
+
+    { "cmd": "move_pointer", "id": "hi", "atIndex": 4 },
+    { "cmd": "move_pointer", "id": "mid", "atIndex": 4 },
+    { "cmd": "highlight", "id": "arr[4]", "color": "#35C98A" },
+    { "cmd": "result", "text": "Target 10 found at index 4" },
+    { "cmd": "narrate", "text": "Low and high meet at index 4 where arr[4] == 10. Target located in O(log n) steps." }
   ]
 }
 

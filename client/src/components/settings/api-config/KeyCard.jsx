@@ -11,6 +11,7 @@ import {
   StatusBadge, ValidationError, API_URL
 } from '../SettingsShared';
 import { PROVIDER_INFO, MODEL_LABELS } from './ProviderRegistry';
+import ProviderBrandLogo, { BrandLogoBadge } from './ProviderBrandLogo';
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
   const [editErr, setEditErr]             = useState('');
 
   const info = PROVIDER_INFO[keyData.provider];
-  const pc   = info?.color || '#8b5cf6';
+  const pc   = info?.color || '#3b82f6';
   const isCustom = keyData.provider === 'custom';
 
   const handleSave = async () => {
@@ -75,14 +76,7 @@ const KeyCard = ({ keyData, onDelete, onToggle, onTest, onUpdated, showToast, te
     >
       {/* Main row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ 
-          width: '28px', height: '28px', borderRadius: '8px', 
-          background: `${pc}12`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: pc,
-          flexShrink: 0,
-        }}>
-          <Key size={13} strokeWidth={2} />
-        </div>
+        <BrandLogoBadge id={keyData.provider} color={pc} name={keyData.label || info?.name} size={15} tileSize={28} />
         
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

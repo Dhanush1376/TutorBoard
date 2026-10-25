@@ -9,6 +9,11 @@ const chatSessionSchema = new mongoose.Schema({
     required: false,
     index: true,
   },
+  guestId: {
+    type: String,
+    required: false,
+    index: true,
+  },
   title: {
     type: String,
     default: 'Untitled Session',
@@ -46,6 +51,10 @@ const chatSessionSchema = new mongoose.Schema({
   pinnedNotes: {
     type: [mongoose.Schema.Types.Mixed],
     default: [],
+  },
+  annotations: {
+    type: mongoose.Schema.Types.Mixed,
+    default: () => ({ strokes: [], shapes: [], notes: [], highlights: [] }),
   },
   // ─── Engine State Persistence ───
   topic: {
@@ -100,7 +109,7 @@ const chatSessionSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  // ─── Soft Delete ───
+  // ─── Soft Delete & Cascade Tracking ───
   isDeleted: {
     type: Boolean,
     default: false,
@@ -109,6 +118,21 @@ const chatSessionSchema = new mongoose.Schema({
   deletedAt: {
     type: Date,
     default: null,
+  },
+  deletionState: {
+    type: String,
+    enum: ['active', 'purging', 'purge_failed'],
+    default: 'active',
+    index: true,
+  },
+  deletionError: {
+    type: String,
+    default: null,
+  },
+  legacyRecoveryToken: {
+    type: String,
+    default: null,
+    index: true,
   },
 }, { timestamps: true });
 
@@ -173,6 +197,8 @@ chatSessionSchema.post('init', function(doc) {
 });
 
 chatSessionSchema.index({ userId: 1, createdAt: -1 });
+chatSessionSchema.index({ userId: 1, isDeleted: 1, lastUpdated: -1 });
+chatSessionSchema.index({ guestId: 1, isDeleted: 1, lastUpdated: -1 });
 chatSessionSchema.index({ engineSessionId: 1 }, { unique: true, sparse: true });
 chatSessionSchema.index({ lastUpdated: 1 }, { expireAfterSeconds: 90 * 24 * 3600 });
 

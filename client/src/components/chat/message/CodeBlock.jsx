@@ -5,6 +5,7 @@ import { vscDarkPlus, prism as prismTheme } from 'react-syntax-highlighter/dist/
 import DataVisualizer from './DataVisualizer';
 import { RUNNABLE_LANGS } from './constants';
 import useTutorStore, { STATES } from '../../../store/tutorStore';
+import { codeKey } from '../../../visualizer/intent';
 
 const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
   const [copied, setCopied] = useState(false);
@@ -12,6 +13,9 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
   const code = String(children).replace(/\n$/, '');
 
   const isRunnable = RUNNABLE_LANGS.includes(lang);
+  // The learner asked to step through code and this is it (visualizer/useWalkthroughSuggestions.js).
+  const key = useMemo(() => (isRunnable ? codeKey(code) : null), [isRunnable, code]);
+  const suggested = useTutorStore((s) => !!key && s.walkthroughHint?.hash === key);
 
   const simpleData = useMemo(() => {
     if (lang && !['json', 'text', ''].includes(lang)) return null;
@@ -103,12 +107,13 @@ const CodeBlock = memo(({ children, className, onOpenArtifact }) => {
             <button
               type="button"
               onClick={() => onOpenArtifact?.(code, lang, { visualize: true })}
-              title="Run it one step at a time and watch the variables change"
-              aria-label="Step through"
-              className={actionClass}
+              title={suggested ? 'Suggested for your question: run it one step at a time' : 'Run it one step at a time and watch the variables change'}
+              aria-label={suggested ? 'Step through (suggested for your question)' : 'Step through'}
+              data-suggested={suggested || undefined}
+              className={`${actionClass} ${suggested ? 'bg-amber-500/12 text-[var(--text-primary)] ring-1 ring-amber-500/50 motion-safe:animate-[pulse_1.6s_ease-in-out_2]' : ''}`}
             >
               <Footprints size={13} className="text-amber-500" aria-hidden="true" />
-              <span className="hidden @[22rem]:inline">Step through</span>
+              <span className={suggested ? 'inline' : 'hidden @[22rem]:inline'}>{suggested ? 'Step through it' : 'Step through'}</span>
             </button>
           )}
           {isRunnable && (

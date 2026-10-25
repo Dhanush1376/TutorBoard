@@ -85,7 +85,7 @@ export default function SimulatorRenderer({ timeline, currentStepIndex }: Simula
       {!isLoaded && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0d0d14]">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             <span className="text-xs text-white/30 uppercase tracking-widest">
               Building simulation...
             </span>

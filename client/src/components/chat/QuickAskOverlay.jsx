@@ -49,7 +49,7 @@ export default function QuickAskOverlay({ isOpen, onClose }) {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
                   <Sparkles size={18} />
                 </div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 500 }}>AI Quick Assistant</h3>
@@ -78,7 +78,7 @@ export default function QuickAskOverlay({ isOpen, onClose }) {
                   style={{
                     position: 'absolute', bottom: '12px', right: '12px',
                     width: '36px', height: '36px', borderRadius: '10px',
-                    background: '#8b5cf6', color: 'white', border: 'none',
+                    background: '#3b82f6', color: 'white', border: 'none',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer', opacity: (isLoading || !query.trim()) ? 0.5 : 1
                   }}

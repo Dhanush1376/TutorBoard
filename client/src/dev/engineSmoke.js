@@ -60,7 +60,7 @@ const scene = {
       commands: [
         { cmd: 'array', id: 'arr', values: [2, 5, 8, 12, 16, 23, 38, 56, 72, 91] },
         { cmd: 'draw_boundary', atIndex: 0, endIndex: 9, label: 'Search range', targetArrayId: 'arr' },
-        { cmd: 'pointer', id: 'lo', atIndex: 0, label: 'low', color: '#8b5cf6', targetArrayId: 'arr' },
+        { cmd: 'pointer', id: 'lo', atIndex: 0, label: 'low', color: '#3b82f6', targetArrayId: 'arr' },
         { cmd: 'pointer', id: 'hi', atIndex: 9, label: 'high', color: '#14b8a6', targetArrayId: 'arr' },
         { cmd: 'pointer', id: 'mid', atIndex: 0, label: 'mid', color: '#f59e0b', targetArrayId: 'arr' },
       ],

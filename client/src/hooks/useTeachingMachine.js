@@ -173,9 +173,9 @@ export function useTeachingMachine(isAuthReady = true, isMaster = true) {
 
   // ─── Notification Helper ──────────────────────────────────────────────────
   const notifyUser = useCallback((title, body) => {
-    // Check if notifications are enabled
-    const notifCompletion = localStorage.getItem('tb-notif-completion') !== 'false';
-    const notifSound = localStorage.getItem('tb-notif-sound') !== 'false';
+    // Check if notifications are enabled (check sessionStorage first, fallback to localStorage)
+    const notifCompletion = (sessionStorage.getItem('tb-notif-completion') ?? localStorage.getItem('tb-notif-completion')) !== 'false';
+    const notifSound = (sessionStorage.getItem('tb-notif-sound') ?? localStorage.getItem('tb-notif-sound')) !== 'false';
 
     if (notifCompletion) {
       // 1. In-app Toast (Top Right)

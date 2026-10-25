@@ -13,6 +13,11 @@ const chatMessageSchema = new mongoose.Schema({
     required: false,
     index: true,
   },
+  guestId: {
+    type: String,
+    required: false,
+    index: true,
+  },
   role: {
     type: String,
     enum: ['user', 'assistant', 'system'],
@@ -85,6 +90,8 @@ const chatMessageSchema = new mongoose.Schema({
 
 // Optimize for fetching session history
 chatMessageSchema.index({ sessionId: 1, timestamp: 1 });
+chatMessageSchema.index({ sessionId: 1, timestamp: -1, _id: -1 });
+chatMessageSchema.index({ sessionId: 1, guestId: 1 });
 chatMessageSchema.index({ sessionId: 1, role: 1, timestamp: -1 });
 // One user message and one assistant message per request: a retried or
 // duplicated submission can never insert a second copy.

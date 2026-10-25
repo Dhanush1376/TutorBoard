@@ -81,36 +81,28 @@ export class NodePlugin implements ICanvasPlugin {
       .attr('class', 'node-element')
       .attr('transform', `translate(${cx}, ${cy})`);
 
-    const shadow = glow
-      ? `drop-shadow(0 0 10px ${nodeColor})`
-      : 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))';
-
     if (shape === 'triangle') {
       group.append('path')
         .attr('d', d3.symbol().type(d3.symbolTriangle).size(halfW * halfW * 2.6)())
-        .attr('fill', 'var(--bg-secondary, #18181b)')
-        .attr('stroke', nodeColor).attr('stroke-width', 3)
-        .style('filter', shadow);
+        .attr('fill', '#171A18')
+        .attr('stroke', nodeColor || '#383E38').attr('stroke-width', 2);
     } else if (shape === 'diamond') {
       group.append('path')
         .attr('d', d3.symbol().type(d3.symbolDiamond).size(halfW * halfW * 2.6)())
-        .attr('fill', 'var(--bg-secondary, #18181b)')
-        .attr('stroke', nodeColor).attr('stroke-width', 3)
-        .style('filter', shadow);
+        .attr('fill', '#171A18')
+        .attr('stroke', nodeColor || '#383E38').attr('stroke-width', 2);
     } else if (isRect) {
       group.append('rect')
         .attr('x', -halfW).attr('y', -halfH)
         .attr('width', halfW * 2).attr('height', halfH * 2)
         .attr('rx', shape === 'pill' ? halfH : 10)
-        .attr('fill', 'var(--bg-secondary, #18181b)')
-        .attr('stroke', nodeColor).attr('stroke-width', 3)
-        .style('filter', shadow);
+        .attr('fill', '#171A18')
+        .attr('stroke', nodeColor || '#383E38').attr('stroke-width', 2);
     } else {
       group.append('circle')
         .attr('r', halfW)
-        .attr('fill', 'var(--bg-secondary, #18181b)')
-        .attr('stroke', nodeColor).attr('stroke-width', 3)
-        .style('filter', shadow);
+        .attr('fill', '#171A18')
+        .attr('stroke', nodeColor || '#383E38').attr('stroke-width', 2);
     }
 
     // Content stack: icon, wrapped title lines, subtitle — vertically centered.

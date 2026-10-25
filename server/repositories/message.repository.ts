@@ -25,6 +25,16 @@ class MessageRepository extends BaseRepository<any> {
   }
 
   /**
+   * Truncate history starting from and including a certain message (useful for "Restore / Undo" feature)
+   */
+  async deleteMessagesStartingFrom(sessionId: string, timestamp: Date) {
+    return this.model.deleteMany({
+      sessionId,
+      timestamp: { $gte: timestamp }
+    });
+  }
+
+  /**
    * Truncate history after a certain message (useful for "Edit" feature)
    */
   async deleteMessagesAfter(sessionId: string, timestamp: Date) {

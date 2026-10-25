@@ -14,9 +14,10 @@ export function useElapsedTime(isPlaying, resetKey) {
 
   useEffect(() => {
     if (isPlaying) {
+      const intervalMs = 100;
       tickTimerRef.current = setInterval(() => {
-        setSeconds(s => s + 1);
-      }, 1000);
+        setSeconds(s => +(s + intervalMs / 1000).toFixed(2));
+      }, intervalMs);
     } else {
       if (tickTimerRef.current) clearInterval(tickTimerRef.current);
     }
@@ -27,8 +28,9 @@ export function useElapsedTime(isPlaying, resetKey) {
   }, [isPlaying]);
 
   const formatTime = (totalSeconds) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+    const s = Math.floor(totalSeconds);
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 

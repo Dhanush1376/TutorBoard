@@ -88,15 +88,15 @@ const TrialLimitOverlay = () => {
               width: '72px',
               height: '72px',
               borderRadius: '20px',
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.12) 0%, rgba(99,102,241,0.08) 100%)',
-              border: '1px solid rgba(139,92,246,0.15)',
+              background: 'linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(37,99,235,0.08) 100%)',
+              border: '1px solid rgba(59,130,246,0.15)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 28px',
             }}
           >
-            <BookOpen size={28} strokeWidth={1.8} style={{ color: '#8b5cf6' }} />
+            <BookOpen size={28} strokeWidth={1.8} style={{ color: '#3b82f6' }} />
           </motion.div>
 
           {/* Title */}
@@ -164,14 +164,14 @@ const TrialLimitOverlay = () => {
                     width: '28px',
                     height: '28px',
                     borderRadius: '8px',
-                    background: 'rgba(139,92,246,0.1)',
+                    background: 'rgba(59,130,246,0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                   }}
                 >
-                  <Icon size={14} strokeWidth={2.5} style={{ color: '#8b5cf6' }} />
+                  <Icon size={14} strokeWidth={2.5} style={{ color: '#3b82f6' }} />
                 </div>
                 <span
                   style={{

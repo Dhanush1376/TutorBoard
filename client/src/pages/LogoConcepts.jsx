@@ -329,13 +329,6 @@ export default function LogoConcepts() {
               Solid, crafted forms about drawing and the canvas, in ink with one amber accent. The amber is always the live part: the ink drop, the pencil tip, the point being drawn. Hover a mark to replay it.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={toggleMode}
-            className="inline-flex h-10 cursor-pointer items-center rounded-full border border-[var(--mk-line-strong)] px-4 text-[13px] hover:bg-[var(--mk-ink-soft)]"
-          >
-            View in {dark ? 'light' : 'dark'}
-          </button>
         </header>
 
         <div className="mt-12 grid gap-5 md:grid-cols-2 lg:mt-16">

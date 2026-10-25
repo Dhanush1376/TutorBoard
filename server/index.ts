@@ -17,6 +17,7 @@ import { AppError, errorHandler as appErrorHandler, ErrorCode } from './shared/e
 import { socketManager } from './services/socket/socket.manager.js';
 import { lifecycle } from './core/lifecycle.js';
 import { runtimeState } from './core/runtimeState.js';
+import { ensureDbConnected } from './core/bootstrap.js';
 
 import healthRoutes from './routes/health.js';
 import generateRoutes from './routes/generate.js';
@@ -84,15 +85,15 @@ export function createApp(): Application {
     origin: isOriginAllowed as any,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control', 'x-e2e-mock-ai'],
-    exposedHeaders: ['X-Request-ID', 'X-CSRF-Token']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control', 'x-e2e-mock-ai', 'X-Guest-Token', 'x-guest-token'],
+    exposedHeaders: ['X-Request-ID', 'X-CSRF-Token', 'X-Guest-Token', 'x-guest-token']
   }));
 
   app.options('*', cors({ 
     origin: isOriginAllowed as any, 
     credentials: true, 
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control', 'x-e2e-mock-ai'],
-    exposedHeaders: ['X-Request-ID', 'X-CSRF-Token']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'X-Request-Id', 'Cache-Control', 'x-e2e-mock-ai', 'X-Guest-Token', 'x-guest-token'],
+    exposedHeaders: ['X-Request-ID', 'X-CSRF-Token', 'X-Guest-Token', 'x-guest-token']
   }));
   // A saved code walkthrough can be larger than a normal request; its route parses its own body (3 MB).
   const jsonBody = express.json({ limit: '1mb' });
@@ -170,8 +171,12 @@ export function createApp(): Application {
 
   app.use(passport.initialize());
 
-  const dbCheck = (req: Request, res: Response, next: NextFunction) => {
-    if (mongoose.connection.readyState !== 1) {
+  const dbCheck = async (req: Request, res: Response, next: NextFunction) => {
+    if (mongoose.connection.readyState === 1) {
+      return next();
+    }
+    const isConnected = await ensureDbConnected(5000);
+    if (!isConnected) {
       return res.status(503).json({ error: 'Database not available', code: 'DB_OFFLINE' });
     }
     next();

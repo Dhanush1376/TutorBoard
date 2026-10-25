@@ -174,12 +174,13 @@ const useTutorStore = create(
       hydrateSession: async (user) => {
         const state = get();
         
-        // 1. Determine which session ID to restore
-        const savedActiveId = user?.lastActiveSessionId || localStorage.getItem('tutorboard-active-chat');
+        // 1. Determine which session ID to restore: from store state, user metadata, or localStorage
+        const savedActiveId = state.chatSessionId || state.sessionId || user?.lastActiveSessionId || (typeof localStorage !== 'undefined' ? localStorage.getItem('tutorboard-active-chat') : null);
         if (!savedActiveId) return;
 
-        // 2. If we already have an active session, skip hydration unless it's different
-        if (state.chatSessionId === savedActiveId || state.sessionId === savedActiveId) {
+        // 2. If we already have messages loaded for this active session, skip hydration
+        if ((state.chatSessionId === savedActiveId || state.sessionId === savedActiveId) &&
+            state.conversationMessages && state.conversationMessages.length > 0) {
           return;
         }
         if (state.isMessagesLoading) return;

@@ -11,7 +11,7 @@ import * as d3 from 'd3';
 import { ICanvasEngine, ICanvasPlugin, AnimContext } from './types';
 import { fadeIn, staggerIn, drawStroke } from '../anim/primitives';
 
-const PALETTE = ['#6366F1', '#22C55E', '#F59E0B', '#EC4899', '#06B6D4', '#F97316', '#8B5CF6', '#10B981'];
+const PALETTE = ['#3B82F6', '#22C55E', '#F59E0B', '#EC4899', '#06B6D4', '#F97316', '#0EA5E9', '#10B981'];
 
 export class AuxPlugin implements ICanvasPlugin {
   public readonly name = 'aux';
@@ -73,15 +73,16 @@ export class AuxPlugin implements ICanvasPlugin {
       .attr('width', boxW)
       .attr('height', boxH)
       .attr('rx', 8)
-      .attr('fill', 'rgba(99,102,241,0.15)')
-      .attr('stroke', '#6366F1')
-      .attr('stroke-width', 1);
+      .attr('fill', '#202521')
+      .attr('stroke', '#383E38')
+      .attr('stroke-width', 1.2);
 
     const textEl = g.append('text')
       .attr('text-anchor', 'middle')
       .attr('font-size', `${fontSize}px`)
       .attr('font-weight', 600)
-      .attr('fill', 'var(--text-primary, #fff)');
+      .attr('font-family', 'var(--font-sans)')
+      .attr('fill', '#F5F5F0');
     lines.forEach((line, i) => {
       textEl.append('tspan')
         .attr('x', 0)
@@ -95,8 +96,8 @@ export class AuxPlugin implements ICanvasPlugin {
     g.append('line')
       .attr('x1', 0).attr('y1', towardY)
       .attr('x2', (target.x - bx) * 0.25).attr('y2', towardY + Math.sign(towardY) * connectorLen)
-      .attr('stroke', '#6366F1')
-      .attr('stroke-width', 1)
+      .attr('stroke', '#F4C95D')
+      .attr('stroke-width', 1.2)
       .attr('stroke-dasharray', '3,3');
 
     if (ctx) {
@@ -129,17 +130,17 @@ export class AuxPlugin implements ICanvasPlugin {
       .attr('y', -boxH / 2)
       .attr('width', boxW)
       .attr('height', boxH)
-      .attr('rx', boxH / 2)
-      .attr('fill', 'rgba(34,197,94,0.15)')
-      .attr('stroke', '#22C55E')
-      .attr('stroke-width', 1.5)
-      .style('filter', 'drop-shadow(0 0 12px rgba(34,197,94,0.3))');
+      .attr('rx', Math.min(12, boxH / 2))
+      .attr('fill', '#13261C')
+      .attr('stroke', '#35C98A')
+      .attr('stroke-width', 1.6);
 
     const textEl = g.append('text')
       .attr('text-anchor', 'middle')
       .attr('font-size', `${fontSize}px`)
       .attr('font-weight', 700)
-      .attr('fill', '#bbf7d0');
+      .attr('font-family', 'var(--font-sans)')
+      .attr('fill', '#D1FAE5');
     lines.forEach((line, i) => {
       textEl.append('tspan')
         .attr('x', 0)
@@ -322,9 +323,8 @@ export class AuxPlugin implements ICanvasPlugin {
     const track = g.append('line')
       .attr('x1', 0).attr('y1', lineY)
       .attr('x2', trackW).attr('y2', lineY)
-      .attr('stroke', '#6366F1')
-      .attr('stroke-width', 3)
-      .style('filter', 'drop-shadow(0 0 6px rgba(99,102,241,0.4))');
+      .attr('stroke', '#3B82F6')
+      .attr('stroke-width', 3);
 
     const nodeEls: Element[] = [];
     items.forEach((it, i) => {

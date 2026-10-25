@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Lock, LogOut, Trash2, Download, AlertTriangle, Eye, EyeOff, Check, X, Mail, Cloud } from 'lucide-react';
+import { Lock, LogOut, Trash2, Download, AlertTriangle, Eye, EyeOff, Check, X, Mail, Cloud, Sparkles, UserPlus } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { useAuth } from '../../hooks/useAuth';
 import API from '../../services/api';
@@ -25,21 +25,18 @@ const GitHubLogo = ({ size = 16 }) => (
 );
 
 const ProviderRow = ({ logo: Logo, label, isConnected, onConnect }) => (
-  <div className="flex items-center gap-3.5 px-4 py-3.5">
-    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-primary)]">
-      <Logo />
+  <div className="flex items-center gap-3 px-4 py-3">
+    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-primary)]">
+      <Logo size={14} />
     </span>
-    <div className="min-w-0 flex-1">
-      <div className="text-[13.5px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">{label}</div>
-      <div className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{isConnected ? 'You can sign in with this account' : 'Not connected'}</div>
-    </div>
+    <div className="min-w-0 flex-1 text-[13.5px] font-medium text-[var(--text-primary)]">{label}</div>
     {isConnected ? (
       <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
         <span className="h-1.5 w-1.5 rounded-full bg-current" />
         Connected
       </span>
     ) : (
-      <Button variant="secondary" className="h-8 px-3.5 text-[12px]" onClick={onConnect}>
+      <Button variant="secondary" className="h-7 px-3 text-[11.5px]" onClick={onConnect}>
         Connect
       </Button>
     )}
@@ -48,7 +45,7 @@ const ProviderRow = ({ logo: Logo, label, isConnected, onConnect }) => (
 
 // ─── Data & sync ─────────────────────────────────────────────────────────────
 
-export const PrivacySection = ({ syncSettings, showToast }) => {
+export const PrivacySection = ({ syncSettings, showToast, isGuest }) => {
   const { showAlert } = useTutorStore();
   const [cloudSync, setCloudSync] = useState(localStorage.getItem('tb-cloud-sync') !== 'false');
   const isFirstRender = useRef(true);
@@ -67,6 +64,7 @@ export const PrivacySection = ({ syncSettings, showToast }) => {
 
   const handleExport = async () => {
     try {
+      if (isGuest) throw new Error('guest');
       const res = await API.get('/api/user/export');
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -77,11 +75,34 @@ export const PrivacySection = ({ syncSettings, showToast }) => {
       URL.revokeObjectURL(url);
       showToast?.('Export complete.', 'success');
     } catch {
-      showToast?.('Export failed. Check connection.', 'error');
+      const localData = {
+        exportedAt: new Date().toISOString(),
+        isGuest: true,
+        settings: {
+          name: localStorage.getItem('tutor-guest-name') || 'Guest',
+          role: localStorage.getItem('tutor-guest-role') || '',
+          instructions: localStorage.getItem('tutor-guest-instructions') || '',
+        },
+        chatHistory: JSON.parse(localStorage.getItem('tutorboard-history') || '[]'),
+      };
+      const blob = new Blob([JSON.stringify(localData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tutorboard-guest-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast?.('Local data exported.', 'success');
     }
   };
 
   const handleWipeData = async () => {
+    if (isGuest) {
+      localStorage.removeItem('tutorboard-history');
+      localStorage.removeItem('tutorboard-active-chat');
+      showToast?.('Local session data cleared.', 'info');
+      return;
+    }
     try {
       const res = await API.delete('/api/user/data');
       if (res.status === 200) showToast?.('Cloud data deleted.', 'info');
@@ -98,19 +119,32 @@ export const PrivacySection = ({ syncSettings, showToast }) => {
         <SettingsRow
           icon={Cloud}
           label="Cloud sync"
-          rightElement={<AppleToggle label="Cloud sync" value={cloudSync} onChange={setCloudSync} />}
+          rightElement={
+            <AppleToggle
+              label="Cloud sync"
+              value={isGuest ? false : cloudSync}
+              onChange={(v) => {
+                if (isGuest) {
+                  showToast?.('Sign up free to enable cloud sync.', 'info');
+                  return;
+                }
+                setCloudSync(v);
+              }}
+            />
+          }
         />
-        <SettingsRow icon={Download} label="Download my data" onClick={handleExport} />
+        <SettingsRow icon={Download} label="Download data" onClick={handleExport} />
         <SettingsRow
           icon={Trash2}
           danger
-          label="Delete cloud data"
-          description="This can’t be undone"
+          label={isGuest ? 'Clear local data' : 'Delete cloud data'}
           onClick={() =>
             showAlert({
-              title: 'Delete cloud data?',
-              message: 'This permanently deletes all cloud-synced sessions.',
-              confirmLabel: 'Delete data',
+              title: isGuest ? 'Clear local data?' : 'Delete cloud data?',
+              message: isGuest
+                ? 'This permanently clears your local session chats.'
+                : 'This permanently deletes all cloud-synced sessions.',
+              confirmLabel: isGuest ? 'Clear data' : 'Delete data',
               type: 'warning',
               onConfirm: handleWipeData,
             })
@@ -192,6 +226,7 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
   const user = userProp || authUser;
+  const isGuest = !!user?.isGuest;
 
   const [modalType, setModalType] = useState(null);
   const [currentPw, setCurrentPw] = useState('');
@@ -262,10 +297,10 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
   ) : null;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5 sm:gap-8 pt-1 sm:pt-4">
       <AnimatePresence>
         {modalType === 'password' && (
-          <DialogModal title="Change password" description="Use at least 8 characters with a mix of letters, numbers and symbols." primaryAction={handlePasswordSubmit} primaryLabel="Update password" loading={loading} onClose={closeModals}>
+          <DialogModal title="Change password" primaryAction={handlePasswordSubmit} primaryLabel="Update" loading={loading} onClose={closeModals}>
             <div className="flex flex-col gap-2.5">
               <PasswordInput value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Current password" showToggle={showCurrent} onToggle={() => setShowCurrent((v) => !v)} />
               <div className="my-1 h-px bg-[var(--st-line)]" />
@@ -288,8 +323,7 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
 
         {modalType === 'delete' && (
           <DialogModal
-            title="Delete your account?"
-            description="This permanently erases your workspace, sessions and all data. It cannot be undone."
+            title="Delete account?"
             primaryAction={handleDeleteSubmit}
             primaryLabel="Delete account"
             primaryDanger
@@ -302,41 +336,69 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
       </AnimatePresence>
 
       <section>
-        <SectionTitle>Sign in</SectionTitle>
+        <SectionTitle>{isGuest ? 'Session profile' : 'Sign in'}</SectionTitle>
         <SettingsGroup>
-          <SettingsRow
-            icon={Mail}
-            label={user?.email || 'No email on file'}
-            rightElement={
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                <Check size={11} strokeWidth={2.6} />
-                Verified
-              </span>
-            }
-          />
-          <SettingsRow icon={Lock} label="Change password" onClick={() => setModalType('password')} />
+          {isGuest ? (
+            <>
+              <SettingsRow
+                icon={Mail}
+                label="Guest mode"
+                rightElement={
+                  <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    Temporary
+                  </span>
+                }
+              />
+              <SettingsRow
+                icon={UserPlus}
+                label="Upgrade account"
+                onClick={() => navigate('/auth')}
+                rightElement={
+                  <Button variant="secondary" className="h-7 px-3 text-[11.5px]" onClick={() => navigate('/auth')}>
+                    Sign up
+                  </Button>
+                }
+              />
+            </>
+          ) : (
+            <>
+              <SettingsRow
+                icon={Mail}
+                label={user?.email || 'No email on file'}
+                rightElement={
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <Check size={11} strokeWidth={2.6} />
+                    Verified
+                  </span>
+                }
+              />
+              <SettingsRow icon={Lock} label="Change password" onClick={() => setModalType('password')} />
+            </>
+          )}
         </SettingsGroup>
       </section>
 
       <section>
         <SectionTitle>Connected accounts</SectionTitle>
         <SettingsGroup>
-          <ProviderRow logo={GoogleLogo} label="Google" isConnected={!!user?.googleId} onConnect={() => (window.location.href = `${API_URL}/api/auth/google`)} />
-          <ProviderRow logo={GitHubLogo} label="GitHub" isConnected={!!user?.githubId} onConnect={() => (window.location.href = `${API_URL}/api/auth/github`)} />
+          <ProviderRow logo={GoogleLogo} label="Google" isConnected={!isGuest && !!user?.googleId} onConnect={() => (window.location.href = `${API_URL}/api/auth/google`)} />
+          <ProviderRow logo={GitHubLogo} label="GitHub" isConnected={!isGuest && !!user?.githubId} onConnect={() => (window.location.href = `${API_URL}/api/auth/github`)} />
         </SettingsGroup>
       </section>
 
-      <PrivacySection syncSettings={syncSettings} showToast={showToast} />
+      <PrivacySection syncSettings={syncSettings} showToast={showToast} isGuest={isGuest} />
 
       <section>
         <SectionTitle>Session</SectionTitle>
         <SettingsGroup>
           <ContextButton icon={LogOut} onClick={() => logout()}>
-            Sign out
+            {isGuest ? 'Leave guest session' : 'Sign out'}
           </ContextButton>
-          <ContextButton icon={Trash2} danger onClick={() => setModalType('delete')}>
-            Delete account
-          </ContextButton>
+          {!isGuest && (
+            <ContextButton icon={Trash2} danger onClick={() => setModalType('delete')}>
+              Delete account
+            </ContextButton>
+          )}
         </SettingsGroup>
       </section>
     </div>

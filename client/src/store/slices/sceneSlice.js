@@ -86,6 +86,22 @@ export const createSceneSlice = (set, get) => ({
   setSceneReady: (ready) => set({ sceneReady: ready }),
 
   setTimeline: (data) => {
+    if (!data) {
+      set((state) => {
+        state.activeScene = null;
+        state.sceneBranch = null;
+        state.canvasObjects = [];
+        state.canvasConnections = [];
+        state.canvasSteps = [];
+        state.totalSteps = 0;
+        state.currentStepIndex = 0;
+        state.stepPlayback = { index: 0, animDone: false, voiceDone: false };
+        state.sceneReady = false;
+        state.isPlaying = false;
+      });
+      return;
+    }
+
     const serverObjects     = data.elements     || data.objects      || [];
     const canvasConnections = data.connections  || [];
     const rawSteps          = data.timeline     || data.steps        || [];
@@ -231,18 +247,17 @@ export const createSceneSlice = (set, get) => ({
       state.isPaused = false;
 
       // Build an activeScene from the snapshot so renderers can access it
-      if (!state.activeScene || snapshot.title) {
-        state.activeScene = {
-          title: snapshot.title || state.activeScene?.title || 'Visual Lesson',
-          domain: snapshot.domain || state.activeScene?.domain || 'general',
-          renderer: snapshot.renderer || state.activeScene?.renderer || 'cinematic',
-          timeline: canvasSteps,
-          objects: canvasObjects,
-          steps: canvasSteps,
-          // an Engine v2 lesson replays from its scene
-          ...(snapshot.sceneV2 ? { sceneV2: snapshot.sceneV2 } : {}),
-        };
-      }
+      const effectiveRenderer = snapshot.renderer || snapshot.rendererType || (snapshot.sceneV2 ? 'scene-v2' : (state.activeScene?.renderer || 'cinematic'));
+      state.activeScene = {
+        title: snapshot.title || state.activeScene?.title || 'Visual Lesson',
+        domain: snapshot.domain || state.activeScene?.domain || 'general',
+        renderer: effectiveRenderer,
+        timeline: canvasSteps,
+        objects: canvasObjects,
+        steps: canvasSteps,
+        // an Engine v2 lesson replays from its scene
+        ...(snapshot.sceneV2 ? { sceneV2: snapshot.sceneV2 } : {}),
+      };
     });
   },
 

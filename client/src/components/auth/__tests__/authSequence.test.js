@@ -4,12 +4,12 @@ import { AUTH_SUBJECTS, TIMELINE, at } from '../authSequence';
 import { build, fill } from '../../../pages/Marketing/particleShapes';
 
 describe('sign-in film', () => {
-  it('has twelve subjects, each with a pace of its own', () => {
-    expect(AUTH_SUBJECTS).toHaveLength(12);
-    expect(new Set(AUTH_SUBJECTS.map((s) => s.style))).toEqual(new Set(['drift', 'burst', 'swirl', 'snap']));
+  it('has eleven subjects, each with a pace of its own', () => {
+    expect(AUTH_SUBJECTS).toHaveLength(11);
+    expect(new Set(AUTH_SUBJECTS.map((s) => s.style))).toEqual(new Set(['drift']));
     const morphs = AUTH_SUBJECTS.map((s) => s.morph);
-    expect(Math.min(...morphs)).toBeLessThan(1); // fast cuts
-    expect(Math.max(...morphs)).toBeGreaterThan(2.2); // slow dissolves
+    expect(Math.min(...morphs)).toBeLessThan(2);
+    expect(Math.max(...morphs)).toBeGreaterThan(1.5);
   });
 
   it('opens on the galaxy, names every subject in order, and loops back', () => {

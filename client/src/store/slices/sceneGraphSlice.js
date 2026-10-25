@@ -54,6 +54,7 @@ export const createSceneGraphSlice = (set, get) => ({
 
   /** Interaction Actions */
   selectElements: (ids) => set({ selectedElementIds: Array.isArray(ids) ? ids : [ids] }),
+  setSelectedElements: (ids) => set({ selectedElementIds: Array.isArray(ids) ? ids : (ids ? [ids] : []) }),
   hoverElement: (id) => set({ hoveredElementId: id }),
   clearSelection: () => set({ selectedElementIds: [], hoveredElementId: null }),
 

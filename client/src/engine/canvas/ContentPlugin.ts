@@ -15,9 +15,9 @@ import { ICanvasEngine, ICanvasPlugin, AnimContext } from './types';
 import { fadeIn, growFromCenter, drawStroke, staggerIn } from '../anim/primitives';
 import { compileExpr } from './mathExpr';
 
-const INK = 'var(--text-primary, #F2F0EA)';
-const INK_DIM = 'var(--text-secondary, #B9B6AE)';
-const ACCENT = '#6366F1';
+const INK = '#F5F5F0';
+const INK_DIM = '#B9BDB7';
+const ACCENT = '#F4C95D';
 
 const num = (v: any, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -178,18 +178,21 @@ export class ContentPlugin implements ICanvasPlugin {
       w = latex.length * size * 0.55;
       h = size * 1.4;
     }
-    const padX = 18;
-    const padY = 12;
+    const padX = 36;
+    const padY = 14;
     const boxW = w + padX * 2;
-    const boxH = h + padY * 2;
+    const boxH = Math.max(56, h + padY * 2);
+    const r = boxH / 2; // Full pill capsule
     const at = this.place(id, cx, cy, boxW, boxH, 12);
     const g = this.group(id, at.x, at.y);
     g.append('rect')
       .attr('x', -boxW / 2).attr('y', -boxH / 2)
       .attr('width', boxW).attr('height', boxH)
-      .attr('rx', 12)
-      .attr('fill', 'rgba(255,255,255,0.035)')
-      .attr('stroke', 'rgba(255,255,255,0.10)');
+      .attr('rx', r).attr('ry', r)
+      .attr('fill', '#0F1012')
+      .attr('stroke', '#22252A')
+      .attr('stroke-width', 1.5)
+      .style('filter', 'drop-shadow(0 8px 24px rgba(0,0,0,0.6))');
     const fo = g.append('foreignObject')
       .attr('x', -boxW / 2).attr('y', -boxH / 2)
       .attr('width', boxW).attr('height', boxH);
@@ -199,8 +202,10 @@ export class ContentPlugin implements ICanvasPlugin {
       .style('display', 'flex')
       .style('align-items', 'center')
       .style('justify-content', 'center')
+      .style('padding', '0 28px')
+      .style('box-sizing', 'border-box')
       .style('font-size', `${size}px`)
-      .style('color', '#F2F0EA')
+      .style('color', '#FFFFFF')
       .style('white-space', 'nowrap')
       .html(html);
     return ctx ? fadeIn(ctx.tl, g.node() as Element, ctx.at, { duration: 0.5, y: 10 }) : 0;
@@ -589,12 +594,12 @@ export class ContentPlugin implements ICanvasPlugin {
           .attr('stroke', 'rgba(242,240,234,0.55)').attr('stroke-width', 3).attr('stroke-linecap', 'round').node() as Element);
       });
     });
-    const CPK: Record<string, string> = { H: '#E5E7EB', C: '#6B7280', N: '#3B82F6', O: '#EF4444', F: '#22C55E', Cl: '#22C55E', S: '#EAB308', P: '#F97316', Na: '#A855F7', K: '#A855F7' };
+    const CPK: Record<string, string> = { H: '#E5E7EB', C: '#6B7280', N: '#3B82F6', O: '#EF4444', F: '#22C55E', Cl: '#22C55E', S: '#EAB308', P: '#F97316', Na: '#0EA5E9', K: '#0EA5E9' };
     const atomEls = atoms.map((a, i) => {
       const r = a.el === 'H' ? 17 : 24;
-      const fill = CPK[a.el] ?? '#8B5CF6';
+      const fill = CPK[a.el] ?? '#3B82F6';
       const ag = g.append('g').attr('transform', `translate(${pos[i][0]}, ${pos[i][1]})`);
-      ag.append('circle').attr('r', r).attr('fill', fill).style('filter', `drop-shadow(0 0 10px ${fill})`);
+      ag.append('circle').attr('r', r).attr('fill', fill);
       ag.append('text').attr('text-anchor', 'middle').attr('dy', '0.35em').attr('font-size', a.el === 'H' ? '13px' : '16px')
         .attr('font-weight', 700).attr('fill', a.el === 'H' ? '#111' : '#fff').text(a.el);
       return ag.node() as Element;

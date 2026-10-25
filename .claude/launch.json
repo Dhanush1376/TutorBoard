@@ -84,6 +84,24 @@
       ],
       "port": 5197,
       "autoPort": false
+    },
+    {
+      "name": "viz-e2e-backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "e2e/support/viz-backend.mjs"
+      ],
+      "port": 5067,
+      "autoPort": false
+    },
+    {
+      "name": "viz-e2e-app",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "e2e/support/viz-app.mjs"
+      ],
+      "port": 5196,
+      "autoPort": false
     }
   ]
 }

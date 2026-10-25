@@ -4,7 +4,7 @@
 
 export const DOMAIN_STYLES = {
   dsa:                  { bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.3)',   text: '#10b981', label: 'DSA' },
-  mathematics:          { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#8b5cf6', label: 'Math' },
+  mathematics:          { bg: 'rgba(2,132,199,0.15)',   border: 'rgba(2,132,199,0.3)',   text: '#0284c7', label: 'Math' },
   physics:              { bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.3)',   text: '#3b82f6', label: 'Physics' },
   chemistry:            { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#ef4444', label: 'Chemistry' },
   biology:              { bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#22c55e', label: 'Biology' },
@@ -15,17 +15,17 @@ export const DOMAIN_STYLES = {
   law:                  { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)',  text: '#fbbf24', label: 'Law' },
   history:              { bg: 'rgba(161,98,7,0.15)',    border: 'rgba(161,98,7,0.3)',    text: '#ca8a04', label: 'History' },
   geography:            { bg: 'rgba(21,128,61,0.15)',   border: 'rgba(21,128,61,0.3)',   text: '#16a34a', label: 'Geography' },
-  psychology:           { bg: 'rgba(168,85,247,0.15)',  border: 'rgba(168,85,247,0.3)',  text: '#a855f7', label: 'Psychology' },
+  psychology:           { bg: 'rgba(13,148,136,0.15)',  border: 'rgba(13,148,136,0.3)',  text: '#0d9488', label: 'Psychology' },
   arts:                 { bg: 'rgba(244,63,94,0.15)',   border: 'rgba(244,63,94,0.3)',   text: '#f43f5e', label: 'Arts' },
   economics:            { bg: 'rgba(34,197,94,0.15)',   border: 'rgba(34,197,94,0.3)',   text: '#4ade80', label: 'Economics' },
   aviation_maritime:    { bg: 'rgba(56,189,248,0.15)',  border: 'rgba(56,189,248,0.3)',  text: '#38bdf8', label: 'Aviation' },
-  data_science:         { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.3)',  text: '#7c3aed', label: 'Data Science' },
+  data_science:         { bg: 'rgba(14,165,233,0.15)',  border: 'rgba(14,165,233,0.3)',  text: '#0ea5e9', label: 'Data Science' },
   cybersecurity:        { bg: 'rgba(30,41,59,0.25)',    border: 'rgba(71,85,105,0.3)',   text: '#94a3b8', label: 'Cybersecurity' },
-  linguistics:          { bg: 'rgba(147,51,234,0.15)',  border: 'rgba(147,51,234,0.3)',  text: '#9333ea', label: 'Linguistics' },
+  linguistics:          { bg: 'rgba(8,145,178,0.15)',   border: 'rgba(8,145,178,0.3)',   text: '#0891b2', label: 'Linguistics' },
   philosophy:           { bg: 'rgba(87,83,78,0.15)',    border: 'rgba(87,83,78,0.3)',    text: '#a8a29e', label: 'Philosophy' },
   environmental_science:{ bg: 'rgba(22,163,74,0.15)',   border: 'rgba(22,163,74,0.3)',   text: '#16a34a', label: 'Environment' },
   music:                { bg: 'rgba(220,38,38,0.15)',   border: 'rgba(220,38,38,0.3)',   text: '#dc2626', label: 'Music' },
-  space_astronomy:      { bg: 'rgba(30,27,75,0.25)',    border: 'rgba(129,140,248,0.3)', text: '#818cf8', label: 'Astronomy' },
+  space_astronomy:      { bg: 'rgba(15,23,42,0.25)',    border: 'rgba(56,189,248,0.3)',  text: '#38bdf8', label: 'Astronomy' },
   general:              { bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)', text: '#9ca3af', label: 'General' },
 };
 

@@ -67,23 +67,25 @@ const vertexShader = /* glsl */ `
 
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
-    float galScale = mix(0.75 + aGalSize * 0.3, 0.45 + aGalSize * 0.25, uLight);
+    float galScale = mix(0.80 + aGalSize * 0.32, 0.70 + aGalSize * 0.35, uLight);
     
     // Depth calculations for true 3D visual perception
     float zDist = -mv.z;
     float depthFactor = clamp((6.6 - zDist) / 3.0, -1.0, 1.0);
     
-    // In light mode: foreground particles are bold & punchy; background particles are refined & subdued
-    float lightScale = mix(1.0, 0.72 + 0.38 * max(0.0, depthFactor), uLight);
-    gl_PointSize = uSize * lightScale * (0.6 + aRnd * 0.8) * (1.0 + mid * min(uBurst, 1.5) * 0.25) * mix(1.0, galScale, open) / zDist;
+    // In light mode: balanced medium thickness — not too thin, not too thick
+    float accentSizeBoost = mix(1.0, 1.0 + aAccent * 0.25, uLight);
+    float lightScale = mix(1.0, (0.80 + 0.36 * max(0.0, depthFactor)) * accentSizeBoost, uLight);
+    gl_PointSize = uSize * lightScale * (0.62 + aRnd * 0.75) * (1.0 + mid * min(uBurst, 1.5) * 0.25) * mix(1.0, galScale, open) / zDist;
     
     float warm = clamp((aGalColor.r - aGalColor.b) * 2.2, 0.0, 1.0);
-    vec3 paperStar = mix(vec3(0.08, 0.08, 0.12), uInk, warm * 0.85);
+    // In light mode galaxy: luminous warm amber for stars, warm charcoal for structure
+    vec3 paperStar = mix(vec3(0.18, 0.17, 0.16), vec3(0.98, 0.58, 0.08), warm * 0.95);
     vec3 star = mix(aGalColor, paperStar, uLight);
     
-    // Colors: In light mode, deep black ink and saturated warm amber
-    vec3 lightInk = vec3(0.08, 0.08, 0.07);
-    vec3 lightAmber = vec3(0.88, 0.50, 0.03);
+    // Colors: In light mode, balanced graphite-charcoal ink and luminous warm amber-orange (not overly dark)
+    vec3 lightInk = vec3(0.18, 0.17, 0.16);
+    vec3 lightAmber = vec3(0.98, 0.56, 0.06);
     vec3 activeInk = mix(uInk, lightInk, uLight);
     vec3 activeAccent = mix(uAccent, lightAmber, uLight);
     vColor = mix(mix(activeInk, activeAccent, aAccent), star, open);
@@ -91,8 +93,9 @@ const vertexShader = /* glsl */ `
     
     float twinkle = 0.72 + 0.28 * sin(uTime * (1.5 + aRnd * 4.0) + aRnd * 60.0);
     
-    // Opacity: Background particles in light mode have lower opacity (0.28) so foreground silhouette reads cleanly
-    float lightAlpha = mix(0.28, 0.95, smoothstep(-0.8, 0.6, depthFactor));
+    // Opacity: Smooth medium visibility
+    float baseLightAlpha = mix(0.40, 0.95, smoothstep(-0.8, 0.6, depthFactor));
+    float lightAlpha = mix(baseLightAlpha, 0.96, aAccent * 0.85);
     float darkAlpha = clamp(1.3 - (zDist - 4.5) * 0.25, 0.2, 1.0);
     float depthAlpha = mix(darkAlpha, lightAlpha, uLight);
     
@@ -110,7 +113,8 @@ const fragmentShader = /* glsl */ `
     vec2 c = gl_PointCoord - 0.5;
     float d = length(c);
     if (d > 0.5) discard;
-    float edge = mix(smoothstep(0.5, 0.22, d), smoothstep(0.5, 0.35, d), uLight);
+    // Balanced medium edge antialiasing
+    float edge = mix(smoothstep(0.5, 0.20, d), smoothstep(0.5, 0.28, d), uLight);
     gl_FragColor = vec4(vColor, edge * vAlpha);
   }
 `;
@@ -148,7 +152,7 @@ function advance(film, state, delta, { u, g, geometry, data, reduce, pointer, on
   u.uSwirl.value = style.swirl;
   u.uStagger.value = style.stagger;
   u.uTime.value = t;
-  u.uSize.value = 19 * pixelRatio;
+  u.uSize.value = 21 * pixelRatio;
   if (!reduce) u.uIntro.value = Math.min(1, u.uIntro.value + dt / 2.2);
 
   if (now.subject !== film.subject) {
@@ -177,7 +181,7 @@ function advance(film, state, delta, { u, g, geometry, data, reduce, pointer, on
 function Field({ reduce, onSubject, pointer }) {
   const group = useRef(null);
   const material = useRef(null);
-  const n = 9000;
+  const n = 12000;
   const data = useMemo(() => build(n, SHAPES), []);
   const { gl } = useThree();
   // Where the loop is, how far the camera has turned, which subject was last named.
@@ -204,7 +208,7 @@ function Field({ reduce, onSubject, pointer }) {
       uOpen: { value: 1 },
       uTime: { value: 0 },
       uIntro: { value: reduce ? 1 : 0 },
-      uSize: { value: 19 },
+      uSize: { value: 23 },
       uLight: { value: 0 },
       uBurst: { value: 0.9 },
       uSwirl: { value: 0 },

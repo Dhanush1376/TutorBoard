@@ -1,18 +1,20 @@
 import express from 'express';
-import { getSessions, getSession, saveSession, deleteSession, beaconSave } from '../controllers/session.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
+import { getSessions, getSession, saveSession, deleteSession, beaconSave, getSessionMessages, claimLegacySession } from '../controllers/session.controller.js';
+import { optionalProtect, requireIdentity, ensureSessionIdentity } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// Beacon endpoint MUST be before the protect middleware — it handles its own auth via body token
-router.post('/beacon', beaconSave);
+// Beacon endpoint — emergency unload flush
+router.post('/beacon', optionalProtect, beaconSave);
 
-// All other session routes require authentication
-router.use(protect);
+// Session collection routes: Auto-onboard guests with verified guest identity
+router.get('/', optionalProtect, ensureSessionIdentity, getSessions);
+router.post('/', optionalProtect, ensureSessionIdentity, saveSession);
 
-router.get('/', getSessions);
-router.get('/:id', getSession);
-router.post('/', saveSession);
-router.delete('/:id', deleteSession);
+// Individual session routes: Require verified user or guest identity
+router.get('/:id', optionalProtect, requireIdentity, getSession);
+router.post('/:id/claim-legacy', optionalProtect, requireIdentity, claimLegacySession);
+router.get('/:id/messages', optionalProtect, requireIdentity, getSessionMessages);
+router.delete('/:id', optionalProtect, requireIdentity, deleteSession);
 
 export default router;

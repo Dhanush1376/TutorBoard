@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import ChatSession from '../models/ChatSession.js';
 import ChatMessage from '../models/ChatMessage.js';
 import Artifact from '../models/Artifact.js';
+import CodeVisualization from '../models/CodeVisualization.js';
 import Doubt from '../models/Doubt.js';
 import EngineSessionState from '../models/EngineSessionState.js';
 import LearnerProfile from '../models/LearnerProfile.js';
@@ -180,6 +181,7 @@ export const wipeCloudData = async (req, res) => {
       ChatSession.deleteMany({ userId }),
       ChatMessage.deleteMany({ userId }),
       Artifact.deleteMany({ userId }),
+      CodeVisualization.deleteMany({ userId }),
       Doubt.deleteMany({ user: userId }),
       LearnerProfile.deleteMany({ userId }),
       ActivityLog.deleteMany({ userId }),
@@ -211,6 +213,7 @@ export const deleteAccount = async (req, res) => {
       ChatSession.deleteMany({ userId }),
       ChatMessage.deleteMany({ userId }),
       Artifact.deleteMany({ userId }),
+      CodeVisualization.deleteMany({ userId }),
       Doubt.deleteMany({ user: userId }),
       LearnerProfile.deleteMany({ userId }),
       ActivityLog.deleteMany({ userId }),

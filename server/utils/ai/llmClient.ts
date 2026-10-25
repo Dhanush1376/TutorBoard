@@ -350,6 +350,30 @@ async function markKeyLowCredits(userId?: any, keyId?: any, provider?: string) {
   }
 }
 
+/* E2E mock only: binary search in each language the code walkthrough runs. */
+const MOCK_PROGRAMS: Record<string, [string, string]> = {
+  python: ['Python', 'def binary_search(arr, target):\n    lo, hi = 0, len(arr) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if arr[mid] == target:\n            return mid\n        if arr[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1\n\nnums = [2, 5, 8, 12, 16, 23, 38]\nprint(binary_search(nums, 23))'],
+  javascript: ['JavaScript', 'function binarySearch(arr, target) {\n  let lo = 0, hi = arr.length - 1;\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) return mid;\n    if (arr[mid] < target) lo = mid + 1;\n    else hi = mid - 1;\n  }\n  return -1;\n}\n\nconst nums = [2, 5, 8, 12, 16, 23, 38];\nconsole.log(binarySearch(nums, 23));'],
+  java: ['Java', 'public class Main {\n    static int binarySearch(int[] arr, int target) {\n        int lo = 0, hi = arr.length - 1;\n        while (lo <= hi) {\n            int mid = (lo + hi) / 2;\n            if (arr[mid] == target) return mid;\n            if (arr[mid] < target) lo = mid + 1;\n            else hi = mid - 1;\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        int[] nums = {2, 5, 8, 12, 16, 23, 38};\n        System.out.println(binarySearch(nums, 23));\n    }\n}'],
+  cpp: ['C++', '#include <iostream>\n#include <vector>\n\nint binarySearch(const std::vector<int>& arr, int target) {\n    int lo = 0, hi = (int)arr.size() - 1;\n    while (lo <= hi) {\n        int mid = (lo + hi) / 2;\n        if (arr[mid] == target) return mid;\n        if (arr[mid] < target) lo = mid + 1;\n        else hi = mid - 1;\n    }\n    return -1;\n}\n\nint main() {\n    std::vector<int> nums = {2, 5, 8, 12, 16, 23, 38};\n    std::cout << binarySearch(nums, 23) << std::endl;\n    return 0;\n}'],
+  c: ['C', '#include <stdio.h>\n\nint binary_search(int arr[], int n, int target) {\n    int lo = 0, hi = n - 1;\n    while (lo <= hi) {\n        int mid = (lo + hi) / 2;\n        if (arr[mid] == target) return mid;\n        if (arr[mid] < target) lo = mid + 1;\n        else hi = mid - 1;\n    }\n    return -1;\n}\n\nint main(void) {\n    int nums[] = {2, 5, 8, 12, 16, 23, 38};\n    printf("%d\\n", binary_search(nums, 7, 23));\n    return 0;\n}'],
+};
+
+/** E2E mock: a request for code that names one of the five languages gets a short program in it. */
+function mockCodeAnswer(messages: any[]): string | null {
+  const last = [...(messages || [])].reverse().find((m) => m?.role === 'user');
+  const text = typeof last?.content === 'string' ? last.content : '';
+  if (!/\b(write|show|code|program|implement|step through|visuali[sz]e)\b/i.test(text)) return null;
+  const lang = /\bjavascript\b/i.test(text) ? 'javascript'
+    : /\bjava\b/i.test(text) ? 'java'
+      : /c\+\+|\bcpp\b/i.test(text) ? 'cpp'
+        : /\bin c\b|\bc program\b/i.test(text) ? 'c'
+          : /\bpython\b/i.test(text) ? 'python' : null;
+  if (!lang) return null;
+  const [name, program] = MOCK_PROGRAMS[lang];
+  return `Here is binary search in ${name}:\n\n\`\`\`${lang}\n${program}\n\`\`\`\n\nEach pass halves the range that can still hold the target.`;
+}
+
 export async function requestCompletion(params: LLMParams): Promise<LLMResponse> {
   const { model, messages, userConfig, requestId, onStream, temperature, maxTokens, tools, responseSchema, responseMimeType } = params;
   const startTime = Date.now();
@@ -358,9 +382,20 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
 
   if (userConfig?.isE2EMock) {
     console.log(`[AI:Mock] Intercepting request for E2E testing (requestId: ${requestId})`);
-    
+
     let mockContent = "This is a mock response from the AI provider. Testing E2E functionality.";
-    
+    const codeAnswer = onStream ? mockCodeAnswer(messages) : null;
+    if (codeAnswer) {
+      // E2E: an answer with a program in it, streamed a line at a time (code walkthrough suite).
+      for (const line of codeAnswer.split(/(?<=\n)/)) onStream!(line);
+      return {
+        content: codeAnswer,
+        provider: 'mock',
+        finishReason: 'stop',
+        _meta: { mode: 'system', model_used: 'mock-model', provider_used: 'mock', fallback_triggered: false, cached: false },
+      };
+    }
+
     if (!onStream) {
       // For backend services (Planner, Orchestrator, Critique) that expect JSON
       mockContent = JSON.stringify({

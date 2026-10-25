@@ -12,11 +12,11 @@ import { CELL, FONT_MONO, SIZE_PX } from './tokens';
 import type { Entity, Scene } from './types';
 
 export const TEXT_ROLE: Record<string, { size: number; weight: number; mono?: boolean }> = {
-  title: { size: 34, weight: 650 },
-  body: { size: 22, weight: 400 },
-  caption: { size: 24, weight: 650 },
-  label: { size: 17, weight: 600 },
-  code: { size: 18, weight: 500, mono: true },
+  title: { size: 22, weight: 650 },
+  body: { size: 15, weight: 500 },
+  caption: { size: 16, weight: 650 },
+  label: { size: 13, weight: 600 },
+  code: { size: 14, weight: 500, mono: true },
 };
 export const LABEL_H = 30; // entity label above its body
 export const MAX_TEXT_W = 720;
@@ -83,13 +83,15 @@ export function measureEntity(e: Entity, scene: Scene, sim: Sim, latexSize = est
       const wrapped = textsFor(scene, e.id, e.text).map((t) => wrap(t, role.size, role.weight, MAX_TEXT_W, fam));
       const w = Math.max(24, ...wrapped.flat().map((l) => textWidth(l, role.size, role.weight, fam)));
       const rows = Math.max(...wrapped.map((l) => l.length));
-      return { w: w + 4, h: rows * role.size * 1.32 + top, bodyY: top, lines: wrapped[0] };
+      const padX = 22;
+      const padY = 10;
+      return { w: w + padX, h: rows * role.size * 1.32 + padY + top, bodyY: top, lines: wrapped[0] };
     }
     case 'math': {
       const sizes = latexFor(scene, e.id, e.latex).map((l) => latexSize(l));
       const w = Math.max(...sizes.map((s) => s.w));
       const h = Math.max(...sizes.map((s) => s.h));
-      return { w: w + 40, h: Math.max(62, h + 28) + top, bodyY: top };
+      return { w: w + 64, h: Math.max(54, h + 22) + top, bodyY: top };
     }
     case 'rect': {
       const s = SIZE_PX[e.size] ?? 110;

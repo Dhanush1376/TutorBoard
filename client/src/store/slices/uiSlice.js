@@ -48,6 +48,9 @@ export const createUiSlice = (set, get) => ({
   codeEditorLang:      'javascript',
   // Where the code came from ({ sessionId, messageId }) and whether to start the step-through at once.
   codeEditorContext:   null,
+  // The code block a just-finished answer would be good to step through ({ messageId, hash }):
+  // its Step through button is highlighted (visualizer/useWalkthroughSuggestions.js).
+  walkthroughHint:     null,
 
   drawColor:           'var(--text-primary)',
   drawWidth:           3,
@@ -132,14 +135,43 @@ export const createUiSlice = (set, get) => ({
     s.globalAlert.isActive = false;
   }),
 
-  showToast: (config) => {
-    const id = Date.now();
-    // ✅ CORRECT: already uses draft mutation — no return value inside set()
+  showToast: (configOrMessage, typeOrDuration, maybeDuration) => {
+    const id = Date.now() + Math.random().toString(36).slice(2, 6);
+    let toastItem = {
+      id,
+      type: 'info',
+      duration: 4000,
+      message: '',
+    };
+
+    if (typeof configOrMessage === 'string') {
+      toastItem.message = configOrMessage;
+      if (typeof typeOrDuration === 'string') {
+        toastItem.type = typeOrDuration;
+      } else if (typeof typeOrDuration === 'number') {
+        toastItem.duration = typeOrDuration;
+      }
+      if (typeof maybeDuration === 'number') {
+        toastItem.duration = maybeDuration;
+      }
+    } else if (configOrMessage && typeof configOrMessage === 'object') {
+      const msg = configOrMessage.message || configOrMessage.text || configOrMessage.title || '';
+      toastItem = {
+        ...toastItem,
+        ...configOrMessage,
+        id: configOrMessage.id || id,
+        message: msg,
+      };
+      if (typeof typeOrDuration === 'string' && !configOrMessage.type) {
+        toastItem.type = typeOrDuration;
+      }
+    }
+
     set(s => {
-      s.toasts.push({ id, type: 'info', duration: 5000, ...config });
+      s.toasts.push(toastItem);
       if (s.toasts.length > 3) s.toasts.shift();
     });
-    return id; // ✅ Safe: returned from outer function, not from inside set()
+    return id;
   },
 
   // ✅ FIX: mutate draft
@@ -217,6 +249,8 @@ export const createUiSlice = (set, get) => ({
   setVisualizerMinimized: (min) => set({ isVisualizerMinimized: min }),
   setSettingsMinimized: (min) => set({ isSettingsMinimized: min }),
 
+
+  setWalkthroughHint: (hint) => set({ walkthroughHint: hint }),
 
   setCodeEditorData: (code, lang, context = null) => set({
     codeEditorCode: code,

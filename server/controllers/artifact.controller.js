@@ -1,19 +1,76 @@
 import { z } from 'zod';
 import Artifact from '../models/Artifact.js';
+import ChatSession from '../models/ChatSession.js';
 import { requestCompletion, getTextModel, resolveModelId } from '../utils/ai/llmClient.js';
 import { classifyArtifact } from '../engine/agents/artifactClassifierAgent.js';
 import { generateSceneGraph } from '../engine/agents/sceneGraphAgent.js';
 import { generateDelta as generateSceneGraphDelta } from '../engine/agents/sceneGraphDeltaAgent.js';
 import { applyDelta, resolveReference } from '../engine/sceneGraph/sceneGraphUtils.js';
 
+// ─── Ownership Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Verify caller owns the session (either as registered user or verified guest)
+ */
+export async function verifySessionOwnership(sessionId, req) {
+  if (!sessionId) return null;
+  const isUser = Boolean(req.user?._id || req.user?.id);
+  const userId = req.user?._id || req.user?.id;
+  const guestId = req.guestId;
+
+  if (!isUser && !guestId) return null;
+
+  const isMongoId = /^[0-9a-fA-F]{24}$/.test(sessionId);
+  const ownerQuery = isUser 
+    ? { userId: userId.toString() } 
+    : { guestId, userId: null };
+
+  const query = isMongoId 
+    ? { _id: sessionId, ...ownerQuery, isDeleted: { $ne: true } }
+    : { engineSessionId: sessionId, ...ownerQuery, isDeleted: { $ne: true } };
+
+  return ChatSession.findOne(query).select('_id userId guestId').lean();
+}
+
+/**
+ * Verify caller owns the artifact
+ */
+export async function verifyArtifactOwnership(artifact, req) {
+  if (!artifact) return false;
+  const isUser = Boolean(req.user?._id || req.user?.id);
+  const userId = req.user?._id || req.user?.id;
+  const guestId = req.guestId;
+
+  if (!isUser && !guestId) return false;
+
+  // Direct artifact ownership check
+  if (artifact.userId) {
+    return isUser && String(artifact.userId) === String(userId);
+  }
+
+  if (artifact.guestId) {
+    return !isUser && Boolean(guestId) && artifact.guestId === guestId;
+  }
+
+  // Fallback: If artifact doesn't have userId or guestId set (legacy), verify ownership of its session
+  if (artifact.sessionId) {
+    const session = await verifySessionOwnership(artifact.sessionId, req);
+    return Boolean(session);
+  }
+
+  return false;
+}
+
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
 const saveArtifactSchema = z.object({
   sessionId: z.string().min(1),
   messageId: z.string().optional(),
-  type: z.enum(['code', 'ui', 'document', 'table', 'diagram']),
+  type: z.enum(['code', 'ui', 'document', 'table', 'diagram', 'visual', 'interactive']),
+  artifactClass: z.string().optional().nullable(),
   title: z.string().min(1).max(200),
   content: z.string().min(1).max(100000),
+  sceneGraph: z.any().optional().nullable(),
   language: z.string().optional().nullable(),
   metadata: z.record(z.any()).optional().default({}),
 });
@@ -31,7 +88,7 @@ const updateArtifactSchema = z.object({
 
 /**
  * POST /api/artifact/save
- * Create a new artifact (usually called after stream finalization).
+ * Create a new artifact with strict session ownership verification.
  */
 export const saveArtifact = async (req, res) => {
   try {
@@ -40,28 +97,46 @@ export const saveArtifact = async (req, res) => {
       return res.status(400).json({ error: 'Invalid request', details: validation.error.format() });
     }
 
-    const { sessionId, messageId, type, title, content, language, metadata } = validation.data;
-    const userId = req.user?._id || req.user?.id || null;
+    const { sessionId, messageId, type, artifactClass, title, content, sceneGraph, language, metadata } = validation.data;
+    const isUser = Boolean(req.user?._id || req.user?.id);
+    const userId = req.user?._id || req.user?.id;
+    const guestId = req.guestId;
+
+    if (!isUser && !guestId) {
+      return res.status(401).json({ error: 'Authentication or guest identity required', code: 'UNAUTHORIZED' });
+    }
+
+    // SEC: Verify ownership of target session
+    const session = await verifySessionOwnership(sessionId, req);
+    if (!session) {
+      return res.status(403).json({ error: 'Forbidden: Session not found or access denied' });
+    }
 
     const artifact = await Artifact.create({
-      userId,
+      userId: isUser ? userId : null,
+      guestId: isUser ? null : guestId,
       sessionId,
-      messageId,
+      messageId: messageId || null,
       type,
+      artifactClass: artifactClass || null,
       title,
       content,
+      sceneGraph: sceneGraph || null,
       language: language || null,
       metadata: metadata || {},
       version: 1,
     });
 
-    console.log(`[Artifact] ✨ Created: ${artifact._id} (${type}) "${title}"`);
+    console.log(`[Artifact] ✨ Created: ${artifact._id} (${type}) "${title}" for session ${sessionId}`);
 
     res.status(201).json({
       id: artifact._id,
+      sessionId: artifact.sessionId,
       type: artifact.type,
+      artifactClass: artifact.artifactClass,
       title: artifact.title,
       content: artifact.content,
+      sceneGraph: artifact.sceneGraph,
       language: artifact.language,
       metadata: artifact.metadata,
       version: artifact.version,
@@ -75,7 +150,7 @@ export const saveArtifact = async (req, res) => {
 
 /**
  * GET /api/artifact/:id
- * Retrieve a single artifact by its ID.
+ * Retrieve a single artifact by its ID with ownership check.
  */
 export const getArtifact = async (req, res) => {
   try {
@@ -87,7 +162,7 @@ export const getArtifact = async (req, res) => {
     }
 
     // Ownership check: Prevent reading artifacts owned by others
-    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+    if (!(await verifyArtifactOwnership(artifact, req))) {
       return res.status(403).json({ error: 'Forbidden: Private artifact' });
     }
 
@@ -96,8 +171,10 @@ export const getArtifact = async (req, res) => {
       sessionId: artifact.sessionId,
       messageId: artifact.messageId,
       type: artifact.type,
+      artifactClass: artifact.artifactClass,
       title: artifact.title,
       content: artifact.content,
+      sceneGraph: artifact.sceneGraph,
       language: artifact.language,
       metadata: artifact.metadata,
       version: artifact.version,
@@ -131,7 +208,7 @@ export const updateArtifact = async (req, res) => {
     }
 
     // Ownership check: Prevent updating artifacts owned by others
-    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+    if (!(await verifyArtifactOwnership(artifact, req))) {
       return res.status(403).json({ error: 'Forbidden: You do not own this artifact' });
     }
 
@@ -139,6 +216,7 @@ export const updateArtifact = async (req, res) => {
     const newVersion = artifact.version + 1;
     artifact.versions.push({
       content,
+      sceneGraph: artifact.sceneGraph,
       language: language !== undefined ? language : artifact.language,
       metadata: metadata || artifact.metadata,
       version: newVersion,
@@ -163,9 +241,12 @@ export const updateArtifact = async (req, res) => {
 
     res.json({
       id: artifact._id,
+      sessionId: artifact.sessionId,
       type: artifact.type,
+      artifactClass: artifact.artifactClass,
       title: artifact.title,
       content: artifact.content,
+      sceneGraph: artifact.sceneGraph,
       language: artifact.language,
       metadata: artifact.metadata,
       version: artifact.version,
@@ -178,20 +259,47 @@ export const updateArtifact = async (req, res) => {
 };
 
 /**
+ * DELETE /api/artifact/:id
+ * Delete an artifact with ownership check.
+ */
+export const deleteArtifact = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const artifact = await Artifact.findById(id);
+
+    if (!artifact) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    if (!(await verifyArtifactOwnership(artifact, req))) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this artifact' });
+    }
+
+    await Artifact.findByIdAndDelete(id);
+    console.log(`[Artifact] 🗑️ Deleted: ${id}`);
+
+    res.json({ success: true, message: 'Artifact deleted' });
+  } catch (err) {
+    console.error('[Artifact:Delete] Error:', err);
+    res.status(500).json({ error: 'Failed to delete artifact' });
+  }
+};
+
+/**
  * GET /api/artifact/history/:id
  * Retrieve the full version history of an artifact.
  */
 export const getArtifactHistory = async (req, res) => {
   try {
     const { id } = req.params;
-    const artifact = await Artifact.findById(id).select('versions title type version').lean();
+    const artifact = await Artifact.findById(id).select('userId guestId sessionId versions title type version').lean();
 
     if (!artifact) {
       return res.status(404).json({ error: 'Artifact not found' });
     }
 
     // Ownership check: Prevent reading history of artifacts owned by others
-    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+    if (!(await verifyArtifactOwnership(artifact, req))) {
       return res.status(403).json({ error: 'Forbidden: Private history' });
     }
 
@@ -211,10 +319,24 @@ export const getArtifactHistory = async (req, res) => {
 /**
  * GET /api/artifact/session/:sessionId
  * Retrieve all artifacts belonging to a given chat session.
+ * Enforces session ownership check before returning artifacts.
  */
 export const getSessionArtifacts = async (req, res) => {
   try {
     const { sessionId } = req.params;
+    const isUser = Boolean(req.user?._id || req.user?.id);
+    const guestId = req.guestId;
+
+    if (!isUser && !guestId) {
+      return res.status(401).json({ error: 'Authentication or guest identity required', code: 'UNAUTHORIZED' });
+    }
+
+    // SEC: Verify caller owns this session
+    const session = await verifySessionOwnership(sessionId, req);
+    if (!session) {
+      return res.status(403).json({ error: 'Forbidden: Session not found or access denied' });
+    }
+
     const artifacts = await Artifact.find({ sessionId })
       .select('-versions')
       .sort({ createdAt: -1 })
@@ -224,9 +346,12 @@ export const getSessionArtifacts = async (req, res) => {
       sessionId,
       artifacts: artifacts.map(a => ({
         id: a._id,
+        sessionId: a.sessionId,
         type: a.type,
+        artifactClass: a.artifactClass,
         title: a.title,
         content: a.content,
+        sceneGraph: a.sceneGraph,
         language: a.language,
         metadata: a.metadata,
         version: a.version,
@@ -249,8 +374,7 @@ const modifyArtifactSchema = z.object({
 
 /**
  * POST /api/artifact/modify
- * AI-powered artifact modification. Sends current content + user instruction to LLM,
- * saves the result as a new version.
+ * AI-powered artifact modification with ownership verification.
  */
 export const modifyArtifact = async (req, res) => {
   try {
@@ -267,11 +391,10 @@ export const modifyArtifact = async (req, res) => {
     }
 
     // Ownership check: Prevent modifying artifacts owned by others
-    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+    if (!(await verifyArtifactOwnership(artifact, req))) {
       return res.status(403).json({ error: 'Forbidden: You do not own this artifact' });
     }
 
-    // Build a focused modification prompt
     const typeLabels = {
       code: 'source code',
       ui: 'HTML/CSS/JS UI component',
@@ -310,25 +433,22 @@ ${artifact.content}`;
     }
 
     let modifiedContent = result.content.trim();
-    // Strip markdown code fences if the LLM wrapped the output
     modifiedContent = modifiedContent.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
 
-    // Push current state to version history
     const newVersion = artifact.version + 1;
     artifact.versions.push({
       content: modifiedContent,
+      sceneGraph: artifact.sceneGraph,
       language: artifact.language,
       metadata: { ...artifact.metadata, instruction },
       version: newVersion,
       createdAt: new Date(),
     });
 
-    // Cap versions at 50
     if (artifact.versions.length > 50) {
       artifact.versions = artifact.versions.slice(-50);
     }
 
-    // Update current state
     artifact.content = modifiedContent;
     artifact.version = newVersion;
 
@@ -337,6 +457,7 @@ ${artifact.content}`;
     console.log(`[Artifact] 🤖 AI Modified: ${artifact._id} → v${newVersion} ("${instruction.substring(0, 40)}...")`);
     res.json({
       id: artifact._id,
+      sessionId: artifact.sessionId,
       type: artifact.type,
       title: artifact.title,
       content: artifact.content,
@@ -354,20 +475,31 @@ ${artifact.content}`;
 
 /**
  * POST /api/artifact/generate
- * New high-fidelity visual artifact generation endpoint.
+ * High-fidelity visual artifact generation with session ownership check.
  */
 export const generateArtifact = async (req, res) => {
   try {
     const { sessionId, instruction } = req.body;
-    const userId = req.user?._id || req.user?.id || null;
+    const isUser = Boolean(req.user?._id || req.user?.id);
+    const userId = req.user?._id || req.user?.id;
+    const guestId = req.guestId;
 
     if (!instruction || !sessionId) {
       return res.status(400).json({ error: 'Session ID and Instruction are required' });
     }
 
+    if (!isUser && !guestId) {
+      return res.status(401).json({ error: 'Authentication or guest identity required', code: 'UNAUTHORIZED' });
+    }
+
+    // SEC: Verify session ownership
+    const session = await verifySessionOwnership(sessionId, req);
+    if (!session) {
+      return res.status(403).json({ error: 'Forbidden: Session not found or access denied' });
+    }
+
     console.log(`[Artifact:Generate] 🚀 Classifying intent: "${instruction.substring(0, 50)}..."`);
     
-    // 1. Classify the intent
     const classification = await classifyArtifact(instruction);
     const { artifactClass, isVisual, title } = classification;
 
@@ -375,16 +507,11 @@ export const generateArtifact = async (req, res) => {
     let content = '';
     let type = isVisual ? 'visual' : 'document';
 
-    // 2. If visual, generate scene graph
     if (isVisual) {
       console.log(`[Artifact:Generate] 🎨 Generating ${artifactClass} scene graph...`);
       sceneGraph = await generateSceneGraph(instruction, artifactClass);
       content = JSON.stringify(sceneGraph);
     } else {
-      // Legacy document generation or code
-      console.log(`[Artifact:Generate] 📄 Generating document/code...`);
-      // For now, we can use a simple prompt or delegate to legacy logic
-      // But let's follow the plan: classify first.
       type = classification.artifactClass === 'code' ? 'code' : 'document';
       const result = await requestCompletion({
         model: resolveModelId(getTextModel()),
@@ -395,9 +522,9 @@ export const generateArtifact = async (req, res) => {
       content = result.content;
     }
 
-    // 3. Create the artifact
     const artifact = await Artifact.create({
-      userId,
+      userId: isUser ? userId : null,
+      guestId: isUser ? null : guestId,
       sessionId,
       type,
       artifactClass,
@@ -411,6 +538,7 @@ export const generateArtifact = async (req, res) => {
 
     res.status(201).json({
       id: artifact._id,
+      sessionId: artifact.sessionId,
       type: artifact.type,
       artifactClass: artifact.artifactClass,
       title: artifact.title,
@@ -427,7 +555,7 @@ export const generateArtifact = async (req, res) => {
 
 /**
  * POST /api/artifact/edit
- * AI-powered delta-based modification for visual artifacts.
+ * AI-powered delta-based modification for visual artifacts with ownership check.
  */
 export const editArtifact = async (req, res) => {
   try {
@@ -443,27 +571,21 @@ export const editArtifact = async (req, res) => {
     }
 
     // Ownership check
-    if (artifact.userId && String(artifact.userId) !== String(req.user?._id || req.user?.id)) {
+    if (!(await verifyArtifactOwnership(artifact, req))) {
       return res.status(403).json({ error: 'Forbidden: You do not own this artifact' });
     }
 
-    // If it's a visual artifact with a scene graph, use delta engine
     if (artifact.sceneGraph) {
       console.log(`[Artifact:Edit] 🔧 Applying delta to visual artifact: ${artifact._id}`);
       
-      // 1. Resolve natural language references for context logging (optional but good for debugging)
       const refs = resolveReference(instruction, artifact.sceneGraph);
       if (refs.length > 0) {
         console.log(`[Artifact:Edit] Identified references: ${refs.map(r => r.label).join(', ')}`);
       }
 
-      // 2. Generate delta from LLM
       const delta = await generateSceneGraphDelta(instruction, artifact.sceneGraph);
-
-      // 3. Apply delta to current graph
       const newSceneGraph = applyDelta(artifact.sceneGraph, delta);
 
-      // 4. Update artifact
       artifact.sceneGraph = newSceneGraph;
       artifact.content = JSON.stringify(newSceneGraph);
       artifact.editHistory.push({
@@ -473,20 +595,19 @@ export const editArtifact = async (req, res) => {
         timestamp: new Date()
       });
       
-      // Pre-save hook will handle version increment and versions array push
       await artifact.save();
 
       console.log(`[Artifact:Edit] ✅ Applied delta, new version: ${artifact.version}`);
 
       return res.json({
         artifactId: artifact._id,
+        sessionId: artifact.sessionId,
         delta,
         newSceneGraph,
         version: artifact.version,
         summary: delta.summary
       });
     } else {
-      // Fallback to legacy full-regen modifyArtifact if no sceneGraph exists
       return modifyArtifact(req, res);
     }
   } catch (err) {

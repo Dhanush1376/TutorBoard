@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator, Check } from 'lucide-react';
+import { ArrowRight, ChevronDown, Sparkles, User, Lock, Mail, Code, Zap, Globe, Calculator, Check, Compass, Shield } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import VisaiLogo from '../components/layout/VisaiLogo';
 import useTutorStore from '../store/tutorStore';
@@ -20,8 +20,8 @@ const formContainerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.042,
-      delayChildren: 0.02,
+      staggerChildren: 0.055,
+      delayChildren: 0.08,
     },
   },
   exit: {
@@ -35,15 +35,15 @@ const formContainerVariants = {
 const formItemVariants = {
   hidden: { 
     opacity: 0, 
-    y: 10, 
-    filter: 'blur(3px)',
+    y: 16, 
+    filter: 'blur(4px)',
   },
   visible: { 
     opacity: 1, 
     y: 0, 
     filter: 'blur(0px)',
     transition: { 
-      duration: 0.28, 
+      duration: 0.38, 
       ease: [0.16, 1, 0.3, 1],
     },
   },
@@ -56,6 +56,11 @@ const AuthLanding = () => {
   const location = useLocation();
   // "/login?mode=signup" opens on sign-up; plain "/login" opens on sign-in.
   const [isLogin, setIsLogin] = useState(() => new URLSearchParams(location.search).get('mode') !== 'signup');
+
+  useEffect(() => {
+    const mode = new URLSearchParams(location.search).get('mode');
+    setIsLogin(mode !== 'signup');
+  }, [location.search]);
   const { showToast } = useTutorStore();
   const [formData, setFormData] = useState({
     name: '',
@@ -219,7 +224,7 @@ const AuthLanding = () => {
               </div>
 
               <div className={`w-full max-w-[295px] lg:max-w-[310px] mx-auto relative z-10 my-auto py-1 transition-all duration-300 ${isNavMenuOpen ? 'blur-sm opacity-25 scale-[0.98] pointer-events-none' : 'blur-0 opacity-100 scale-100'}`}>
-                <AnimatePresence mode="wait" initial={false}>
+                <AnimatePresence mode="wait">
                   {isFormLoading ? (
                     <motion.div
                       key="form-skeleton-view"
@@ -281,10 +286,7 @@ const AuthLanding = () => {
             )}
           </AnimatePresence>
 
-          <motion.form 
-            variants={formContainerVariants}
-            initial="hidden"
-            animate="visible"
+          <form 
             onSubmit={handleSubmit} 
             className="flex flex-col gap-3.5 pt-1.5 overflow-visible"
           >
@@ -644,7 +646,7 @@ const AuthLanding = () => {
                 </button>
               </BorderGlow>
             </motion.div>
-          </motion.form>
+          </form>
 
           <motion.div 
             layout 
@@ -717,7 +719,7 @@ const AuthLanding = () => {
             layout 
             variants={formItemVariants}
             transition={{ type: "spring", stiffness: 380, damping: 32 }}
-            className="text-center mt-2 pt-0.5"
+            className="text-center mt-2 pt-0.5 flex flex-col items-center gap-2"
           >
             <div className="relative inline-flex items-center justify-center">
               <AnimatePresence mode="wait" initial={false}>
@@ -753,6 +755,21 @@ const AuthLanding = () => {
                 </motion.button>
               </AnimatePresence>
             </div>
+
+            {/* Guest Access Option */}
+            <button
+              type="button"
+              onClick={() => {
+                loginGuest();
+                sessionStorage.setItem('tb-just-logged-in', 'true');
+                setIsSuccess(true);
+              }}
+              className="group inline-flex items-center gap-2 py-1 px-3.5 rounded-full text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]/80 border border-transparent hover:border-[var(--border-color)] transition-all duration-200 cursor-pointer active:scale-95"
+            >
+              <Compass className="w-3.5 h-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+              <span>Continue as Guest</span>
+              <ArrowRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 text-[var(--text-secondary)]" />
+            </button>
           </motion.div>
                     </motion.div>
                   )}

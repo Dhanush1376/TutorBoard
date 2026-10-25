@@ -71,17 +71,11 @@ export class ArrayPlugin implements ICanvasPlugin {
     cells.append('rect')
       .attr('width', cellW)
       .attr('height', CELL_H)
-      .attr('rx', Math.min(12, cellW / 4))
-      .attr('fill', 'rgba(255, 255, 255, 0.03)')
-      .attr('stroke', 'rgba(255, 255, 255, 0.12)')
-      .attr('class', 'shadow-premium');
-
-    cells.append('rect')
-      .attr('width', cellW)
-      .attr('height', CELL_H)
-      .attr('rx', Math.min(12, cellW / 4))
-      .attr('fill', 'url(#glass-gradient)')
-      .style('pointer-events', 'none');
+      .attr('rx', Math.min(10, cellW / 4))
+      .attr('fill', '#171A18')
+      .attr('stroke', '#383E38')
+      .attr('stroke-width', 1.6)
+      .attr('class', 'array-cell-bg');
 
     cells.append('text')
       .attr('x', cellW / 2)
@@ -89,18 +83,21 @@ export class ArrayPlugin implements ICanvasPlugin {
       .attr('dy', '0.35em')
       .attr('text-anchor', 'middle')
       .attr('font-size', `${fontSize}px`)
+      .attr('font-weight', 600)
       .attr('font-family', 'var(--font-mono)')
-      .attr('fill', 'var(--text-primary)')
+      .attr('fill', '#F5F5F0')
       .text(d => d as any);
 
-    // Index labels under the cells (small, unobtrusive)
-    if (options.showIndices !== false && cellW >= 30) {
+    // Index labels under the cells (tabular numerals, clear muted token)
+    if (options.showIndices !== false && cellW >= 28) {
       cells.append('text')
         .attr('x', cellW / 2)
-        .attr('y', CELL_H + 13)
+        .attr('y', CELL_H + 15)
         .attr('text-anchor', 'middle')
-        .attr('font-size', '9px')
-        .attr('fill', 'var(--text-tertiary, #71717a)')
+        .attr('font-size', '11px')
+        .attr('font-weight', 500)
+        .attr('font-family', 'var(--font-mono)')
+        .attr('fill', '#929991')
         .text((_d, i) => i);
     }
 
@@ -232,14 +229,22 @@ export class ArrayPlugin implements ICanvasPlugin {
 
     const rect = g.append('rect')
       .attr('x', x1).attr('y', y).attr('width', Math.max(4, x2 - x1)).attr('height', h)
-      .attr('fill', 'none').attr('stroke', '#f59e0b').attr('stroke-width', 2)
-      .attr('stroke-dasharray', '6,3').attr('rx', 6);
+      .attr('fill', '#262014')
+      .attr('fill-opacity', 0.25)
+      .attr('stroke', '#F4C95D')
+      .attr('stroke-width', 1.8)
+      .attr('stroke-dasharray', '5,4')
+      .attr('rx', 8);
 
     if (label) {
       g.append('text')
         .attr('x', (x1 + x2) / 2).attr('y', y - 8)
-        .attr('text-anchor', 'middle').attr('font-size', '12px')
-        .attr('fill', '#f59e0b').text(label);
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '12px')
+        .attr('font-weight', 600)
+        .attr('font-family', 'var(--font-sans)')
+        .attr('fill', '#F4C95D')
+        .text(label);
     }
 
     if (ctx) {

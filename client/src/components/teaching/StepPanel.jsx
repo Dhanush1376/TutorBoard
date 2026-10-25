@@ -18,8 +18,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 const NODE_CFG = {
   // ── Universal ──────────────────────────────────────────────────────────────
   hook: {
-    label: 'Hook', accent: '#8b5cf6',
-    bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.2)',
+    label: 'Hook', accent: '#06b6d4',
+    bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.2)',
     icon: '?', hint: 'A question to make you need the answer.',
   },
   prior_knowledge_bridge: {
@@ -28,8 +28,8 @@ const NODE_CFG = {
     icon: '↗', hint: null,
   },
   concept: {
-    label: 'Core Concept', accent: '#6366f1',
-    bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.2)',
+    label: 'Core Concept', accent: '#3b82f6',
+    bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.2)',
     icon: '◈', hint: null,
   },
   intuition: {

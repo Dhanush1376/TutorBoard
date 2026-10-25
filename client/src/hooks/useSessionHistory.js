@@ -11,8 +11,12 @@ export function useSessionHistory({ isAuthenticated, isGuest, token, user, authL
   const hasHydratedActive = useRef(false);
 
   const fetchCloudSessions = useCallback(async (pageNum = 1) => {
+    const isGuestUser = Boolean(isGuest || user?.isGuest);
     const effectiveToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('tb-token') : null);
-    if (!isAuthenticated || isGuest || !effectiveToken) return;
+    const hasGuestToken = typeof localStorage !== 'undefined' ? Boolean(localStorage.getItem('tb-guest-token')) : false;
+
+    // Both authenticated users and guests can fetch their saved sessions
+    if (!isAuthenticated && !isGuestUser && !effectiveToken && !hasGuestToken) return;
     
     // Prevent overlapping requests for the same page
     if (fetchLockRef.current && pageNum === 1) {
@@ -119,9 +123,9 @@ export function useSessionHistory({ isAuthenticated, isGuest, token, user, authL
     }
   }, [isAuthenticated, token, isGuest]);
 
-  // Initial load — fetch all sessions from MongoDB (for users)
+  // Initial load — fetch all sessions from MongoDB (for users and guests)
   useEffect(() => {
-    if (user && !isGuest) {
+    if (user || isGuest || (typeof localStorage !== 'undefined' && localStorage.getItem('tb-guest-token'))) {
       fetchCloudSessions(1);
     } else {
       setHistoryFetched(true);
@@ -133,17 +137,18 @@ export function useSessionHistory({ isAuthenticated, isGuest, token, user, authL
     if (authLoading) return;
     if (hasHydratedActive.current) return;
     
-    // We check the store directly for the activeChatId since we don't pass it in to avoid unnecessary re-renders.
     const activeChatId = useTutorStore.getState().sessionId || useTutorStore.getState().chatSessionId;
+    const currentMessages = useTutorStore.getState().conversationMessages;
     
-    if (activeChatId) {
+    // If active chat exists and already has messages loaded, no hydration needed
+    if (activeChatId && currentMessages && currentMessages.length > 0) {
       hasHydratedActive.current = true;
       return;
     }
 
-    useTutorStore.getState().hydrateSession(user).then(() => {
-      hasHydratedActive.current = true;
-    });
+    // Hydrate the active session (fetches messages/canvas from MongoDB if empty)
+    hasHydratedActive.current = true;
+    useTutorStore.getState().hydrateSession(user);
   }, [authLoading, user]);
 
   return {

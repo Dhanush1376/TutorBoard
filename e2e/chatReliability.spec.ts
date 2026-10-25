@@ -177,16 +177,18 @@ test('switching between conversations never mixes their messages', async ({ page
 
   const A = ['What is a binary heap?', 'And insertion?'];
   for (const target of ['A', 'B', 'A', 'B'] as const) {
-    await openConversation(page, target === 'A' ? /What is a binary heap/ : /Why is the sky blue/);
-    const shown = (await texts(page)).filter((t) => !t.startsWith('This is a mock'));
-    expect(shown).toEqual(target === 'A' ? A : ['Why is the sky blue?']);
+    // titles may be the question or a generated short title ("Binary Heap")
+    await openConversation(page, target === 'A' ? /binary heap/i : /sky blue/i);
+    // the selected conversation loads from the server: wait for it, then compare exactly
+    await expect.poll(async () => (await texts(page)).filter((t) => !t.startsWith('This is a mock')))
+      .toEqual(target === 'A' ? A : ['Why is the sky blue?']);
   }
 
   // one sidebar entry per conversation
   const back2 = page.getByRole('button', { name: /^Sessions$/ });
   if (await back2.isVisible().catch(() => false)) await back2.click();
-  await expect(page.getByRole('button', { name: /What is a binary heap/ })).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /Why is the sky blue/ })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /binary heap/i })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /sky blue/i })).toHaveCount(1);
 });
 
 test('the chat fits the screen with no horizontal overflow', async ({ page }) => {

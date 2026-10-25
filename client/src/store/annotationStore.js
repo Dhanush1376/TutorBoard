@@ -41,6 +41,9 @@ function load(id) {
   }
 }
 
+import API from '../services/api';
+
+let saveTimer = null;
 function save(id, data) {
   try {
     const empty = !data.strokes.length && !data.shapes.length && !data.notes.length && !data.highlights.length;
@@ -48,6 +51,21 @@ function save(id, data) {
     else localStorage.setItem(KEY(id), JSON.stringify(data));
   } catch {
     /* storage full or blocked: marks still work for this visit */
+  }
+
+  // Persist annotations to MongoDB if id is a valid session
+  if (id && id !== 'draft' && !id.startsWith('msg-')) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        await API.post('/api/sessions', {
+          sessionId: id,
+          annotations: data,
+        });
+      } catch (err) {
+        console.warn('[AnnotationStore] Failed to sync annotations to cloud:', err.message);
+      }
+    }, 600);
   }
 }
 
@@ -98,6 +116,20 @@ const useAnnotationStore = create((set, get) => {
         save('draft', EMPTY());
       }
       set({ sessionKey: key, data: next, past: [], focusNoteId: null });
+    },
+
+    /** Load annotations received from the database/API */
+    setSessionAnnotations: (id, cloudAnnotations) => {
+      if (!cloudAnnotations || typeof cloudAnnotations !== 'object') return;
+      const key = id || get().sessionKey;
+      const merged = {
+        strokes: Array.isArray(cloudAnnotations.strokes) ? cloudAnnotations.strokes : [],
+        shapes: Array.isArray(cloudAnnotations.shapes) ? cloudAnnotations.shapes : [],
+        notes: Array.isArray(cloudAnnotations.notes) ? cloudAnnotations.notes : [],
+        highlights: Array.isArray(cloudAnnotations.highlights) ? cloudAnnotations.highlights : [],
+      };
+      save(key, merged);
+      set({ sessionKey: key, data: merged });
     },
 
     addStroke: (stroke) => commit((d) => ({ ...d, strokes: [...d.strokes, { id: uid('s'), ...stroke }] })),

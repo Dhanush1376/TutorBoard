@@ -28,7 +28,6 @@ vi.mock('../utils/core/analytics.js', () => ({
 describe('Authentication & Security', () => {
   let userToken: string;
   let userId: string;
-  const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 
   beforeEach(async () => {
     // Create a test user
@@ -38,7 +37,7 @@ describe('Authentication & Security', () => {
       name: 'Test User',
     });
     userId = user._id.toString();
-    userToken = jwt.sign({ id: userId, jti: 'test-jti' }, JWT_SECRET);
+    userToken = jwt.sign({ id: userId, jti: 'test-jti' }, process.env.JWT_SECRET || 'test-secret');
   });
 
   async function getCsrf() {

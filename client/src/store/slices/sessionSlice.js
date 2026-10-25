@@ -227,9 +227,10 @@ export const createSessionSlice = (set, get) => ({
 
     const cappedManifest = capManifest(updatedManifest, 20, get);
 
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(newId || '');
     set({ 
       sessionId: newId, 
-      chatSessionId: loadedState.chatSessionId || null, // Restore cloud link
+      chatSessionId: loadedState.chatSessionId || (isMongoId ? newId : null), // Restore cloud link
       sessionManifest: cappedManifest,
       canvasObjects:   loadedState.canvasObjects,
       pinnedNotes:     loadedState.pinnedNotes,

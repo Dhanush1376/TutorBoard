@@ -48,8 +48,8 @@ export const DOMAIN_MIN_STEPS = {
 
 export const DOMAIN_SCENE_SCAFFOLDS = {
   dsa: [
-    { id: 'cell_0', shape: 'rect', x: 140, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: '0', appearsAtStep: 0 },
-    { id: 'cell_1', shape: 'rect', x: 210, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: '1', appearsAtStep: 0 },
-    { id: 'cell_2', shape: 'rect', x: 280, y: 300, w: 60, h: 60, color: '#3b82f6', cornerRadius: 8, label: '2', appearsAtStep: 0 },
+    { id: 'cell_0', shape: 'rect', x: 140, y: 300, w: 60, h: 60, color: '#F4C95D', cornerRadius: 8, label: '0', appearsAtStep: 0 },
+    { id: 'cell_1', shape: 'rect', x: 210, y: 300, w: 60, h: 60, color: '#F4C95D', cornerRadius: 8, label: '1', appearsAtStep: 0 },
+    { id: 'cell_2', shape: 'rect', x: 280, y: 300, w: 60, h: 60, color: '#F4C95D', cornerRadius: 8, label: '2', appearsAtStep: 0 },
   ],
 };

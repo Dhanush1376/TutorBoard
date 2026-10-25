@@ -47,6 +47,32 @@ describe('streaming one answer', () => {
   });
 });
 
+describe('first message of a new chat', () => {
+  it('is filed under the new conversation even if an old one is still marked active', () => {
+    // e.g. a lesson's socket session left as the active conversation
+    useTutorStore.setState({ activeConversationSessionId: 'stale-socket-session', chatSessionId: 'session-new', sessionId: 'session-new' });
+    S().addUserMessage('Why is the sky blue?', 'session-new');
+    S().setActiveConversationSession('session-new'); // what the view effect does next
+    expect(S().conversationMessages.map((m) => m.content)).toEqual(['Why is the sky blue?']);
+    expect(S().conversationSessions['stale-socket-session']?.orderedMessageIds?.length || 0).toBe(0);
+  });
+});
+
+describe('follow-up after the server id arrives', () => {
+  it('keeps the first exchange even if the new id was touched before the migration', () => {
+    useTutorStore.setState({ activeConversationSessionId: 'session-tmp', chatSessionId: 'session-tmp', sessionId: 'session-tmp' });
+    S().addUserMessage('What is a binary heap?', 'session-tmp');
+    S().setWaitingForAI(true, 'mongo-id');           // something touches the new id first
+    S().migrateSessionState('session-tmp', 'mongo-id');
+    useTutorStore.setState({ chatSessionId: 'mongo-id', sessionId: 'mongo-id' }); // meta: the app adopts the server id
+    S().startStreaming('a1', 'mongo-id', 't1');
+    S().finishStreaming('A heap is…', 'mongo-id', '', [], null, null, 1, 't1');
+    S().addUserMessage('And insertion?', 'mongo-id');
+    S().setActiveConversationSession('mongo-id');
+    expect(S().conversationMessages.map((m) => m.content)).toEqual(['What is a binary heap?', 'A heap is…', 'And insertion?']);
+  });
+});
+
 describe('Stop', () => {
   it('keeps the partial answer, marked stopped, and late chunks cannot revive it', () => {
     S().addUserMessage('q');

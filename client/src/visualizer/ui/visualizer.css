@@ -1,0 +1,23 @@
+/* Code walkthrough: editor marks beyond the current line (those live in index.css). */
+
+/* Lines that ran at least once: a dot in the margin, and they can be clicked to jump there. */
+.monaco-editor .tb-trace-ran::before {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin: 8px auto 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mk-accent) 55%, transparent);
+}
+.monaco-editor .tb-trace-ran-line { cursor: pointer; }
+
+/* Lines that never ran in this run. */
+.monaco-editor .tb-trace-unrun { opacity: 0.45; }
+
+/* The line a hovered variable or call came from. */
+.monaco-editor .tb-trace-focus { background: color-mix(in srgb, var(--mk-accent) 9%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tb-walkthrough * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}

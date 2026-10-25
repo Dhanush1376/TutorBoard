@@ -61,7 +61,7 @@ const SubjectVisuals = ({ type, stepIndex }: { type: string; stepIndex: number }
           <Float speed={5} rotationIntensity={2} floatIntensity={2}>
             <mesh ref={meshRef}>
               <torusKnotGeometry args={[1, 0.3, 128, 32]} />
-              <MeshWobbleMaterial color="#8b5cf6" factor={1} speed={2} />
+              <MeshWobbleMaterial color="#3b82f6" factor={1} speed={2} />
             </mesh>
           </Float>
         );

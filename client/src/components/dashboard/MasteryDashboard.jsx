@@ -384,7 +384,7 @@ export default function MasteryDashboard() {
                               title="Active Doubts"
                               value={data?.analytics?.totalDoubts || 0}
                               description="Misconceptions resolved"
-                              icon={<MessageSquare size={20} className="text-purple-500" />}
+                              icon={<MessageSquare size={20} className="text-blue-500" />}
                             />
                           </div>
 
@@ -440,7 +440,7 @@ export default function MasteryDashboard() {
                               <div className="p-8 bg-[var(--bg-secondary)]/50 rounded-[2rem] border border-[var(--border-color)] space-y-4">
                                 <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[var(--text-tertiary)]">Detected Style</p>
                                 <div className="flex items-center gap-4">
-                                  <div className="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center">
+                                  <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center">
                                     <Zap size={24} />
                                   </div>
                                   <div>
@@ -529,10 +529,10 @@ export default function MasteryDashboard() {
                         <div className="space-y-8">
                           <header className="flex items-end justify-between">
                             <div>
-                              <h2 className="text-3xl font-light tracking-tight">Review <span className="font-normal text-purple-400">Center</span></h2>
+                              <h2 className="text-3xl font-light tracking-tight">Review <span className="font-normal text-blue-400">Center</span></h2>
                               <p className="text-[var(--text-secondary)] text-sm font-mono opacity-60">Spaced-repetition reinforcement queue</p>
                             </div>
-                            <div className="px-4 py-1.5 bg-purple-500/10 rounded-full border border-purple-500/20 text-[10px] font-bold text-purple-400 uppercase tracking-widest">
+                            <div className="px-4 py-1.5 bg-blue-500/10 rounded-full border border-blue-500/20 text-[10px] font-bold text-blue-400 uppercase tracking-widest">
                               {data?.dueConcepts?.length || 0} Ready
                             </div>
                           </header>
@@ -545,18 +545,18 @@ export default function MasteryDashboard() {
                                   initial={{ opacity: 0, scale: 0.95 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   transition={{ delay: i * 0.05 }}
-                                  className="group p-6 bg-[var(--bg-secondary)]/40 rounded-[2rem] border border-[var(--border-color)] hover:border-purple-500/30 transition-all flex justify-between items-center"
+                                  className="group p-6 bg-[var(--bg-secondary)]/40 rounded-[2rem] border border-[var(--border-color)] hover:border-blue-500/30 transition-all flex justify-between items-center"
                                 >
                                   <div className="space-y-1">
                                     <h4 className="font-semibold text-sm text-[var(--text-primary)]">{concept}</h4>
                                     <div className="flex items-center gap-2">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
                                       <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold tracking-widest">Reinforcement Due</span>
                                     </div>
                                   </div>
                                   <button 
                                     onClick={() => navigate('/session', { state: { topic: concept } })}
-                                    className="px-4 py-2 bg-purple-500 text-white rounded-xl text-[10px] font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-purple-500/20"
+                                    className="px-4 py-2 bg-blue-500 text-white rounded-xl text-[10px] font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
                                   >
                                     Review Now
                                   </button>
@@ -694,7 +694,7 @@ function TopicMasteryCard({ topic, mastery, index }) {
         <div className="flex -space-x-2">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="w-5 h-5 rounded-full border-2 border-[var(--bg-secondary)] bg-[var(--bg-tertiary)] flex items-center justify-center overflow-hidden">
-              <div className="w-full h-full bg-gradient-to-br from-blue-400/20 to-purple-400/20" />
+              <div className="w-full h-full bg-gradient-to-br from-blue-400/20 to-sky-400/20" />
             </div>
           ))}
         </div>

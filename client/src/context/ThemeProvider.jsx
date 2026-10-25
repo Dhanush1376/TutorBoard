@@ -12,11 +12,9 @@ export const ThemeProvider = ({ children }) => {
     return localStorage.getItem('tb-theme') || 'bone-obsidian';
   });
   
-  const [mode, setMode] = useState(() => {
-    const saved = localStorage.getItem('tb-mode');
-    if (saved === 'light' || saved === 'dark') return saved;
-    return 'dark'; // Force dark as default for cinematic experience
-  });
+  // Entire application is permanently locked to dark theme
+  const mode = 'dark';
+  const setMode = () => {};
 
   const currentTheme = useMemo(() => 
     themes.find(t => t.id === currentThemeId) || themes[0],
@@ -29,10 +27,10 @@ export const ThemeProvider = ({ children }) => {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const tokens = currentTheme.colors[mode] || currentTheme.colors['light'] || currentTheme.colors['dark'] || {};
+    const tokens = currentTheme.colors['dark'] || {};
     
     if (!tokens.bg) {
-      console.warn('[ThemeContext] Theme tokens are malformed or missing for mode:', mode);
+      console.warn('[ThemeContext] Theme tokens are malformed or missing for dark theme');
       return; 
     }
 
@@ -58,32 +56,27 @@ export const ThemeProvider = ({ children }) => {
       '--text-secondary': tokens.textSub,
       '--text-tertiary': tokens.textMuted,
       '--border-color': tokens.border,
+      '--user-bubble-bg': tokens.userBubble,
       '--user-bubble-text': tokens.userBubbleText,
       '--ai-bubble-bg': tokens.aiBubble,
       '--ai-bubble-text': tokens.aiBubbleText,
 
       // Theme-specific text selection
-      '--selection-bg': mode === 'light'
-        ? `rgba(${hexToRgb(tokens.text)}, 0.15)`
-        : `rgba(${hexToRgb(tokens.text)}, 0.22)`,
+      '--selection-bg': `rgba(${hexToRgb(tokens.text)}, 0.22)`,
       '--selection-text': tokens.text,
       
       // Session / Stage theme surfaces
       '--st-surface': tokens.surface,
-      '--st-line': mode === 'light' ? 'rgba(15, 15, 14, 0.08)' : 'rgba(249, 246, 229, 0.07)',
-      '--st-line-strong': tokens.border || (mode === 'light' ? 'rgba(15, 15, 14, 0.14)' : 'rgba(249, 246, 229, 0.13)'),
+      '--st-line': 'rgba(249, 246, 229, 0.07)',
+      '--st-line-strong': tokens.border || 'rgba(249, 246, 229, 0.13)',
       
       // Dynamic Appearance
       '--global-font': '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       '--glass-blur': `${((glassIntensity ?? 80) / 100) * 25}px`,
       '--glass-opacity': `${((glassIntensity ?? 80) / 100) * 0.95}`,
-      '--glass-bg': mode === 'light' 
-        ? `rgba(255, 255, 255, ${((glassIntensity ?? 80) / 100) * 0.88})` 
-        : `rgba(15, 15, 14, ${((glassIntensity ?? 80) / 100) * 0.9})`,
-      '--glass-border': mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
-      '--glass-shadow': mode === 'light' 
-        ? '0 12px 48px rgba(0, 0, 0, 0.12), 0 1px 0 rgba(255, 255, 255, 0.95) inset' 
-        : '0 16px 64px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.06) inset',
+      '--glass-bg': `rgba(15, 15, 14, ${((glassIntensity ?? 80) / 100) * 0.9})`,
+      '--glass-border': 'rgba(255, 255, 255, 0.08)',
+      '--glass-shadow': '0 16px 64px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.06) inset',
       '--canvas-filter': (canvasTone || 'neutral') === 'neutral' ? 'none' : 
                          canvasTone === 'warm' ? 'sepia(0.15) saturate(1.1) brightness(1.02)' : 
                          'hue-rotate(200deg) saturate(0.2) brightness(1.05)',
@@ -97,26 +90,23 @@ export const ThemeProvider = ({ children }) => {
       console.error('[ThemeContext] Failed to apply CSS variables:', e);
     }
 
-    if (mode === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    // Always keep dark class on document element
+    root.classList.add('dark');
 
     localStorage.setItem('tb-theme', currentThemeId);
-    localStorage.setItem('tb-mode', mode);
+    localStorage.setItem('tb-mode', 'dark');
 
-  }, [currentThemeId, mode, currentTheme, glassIntensity, canvasTone]);
+  }, [currentThemeId, currentTheme, glassIntensity, canvasTone]);
 
   const value = useMemo(() => ({
     themes, 
     currentThemeId, 
     setCurrentThemeId, 
-    mode, 
+    mode: 'dark', 
     setMode, 
-    toggleMode: () => setMode(prev => prev === 'light' ? 'dark' : 'light'),
+    toggleMode: () => {},
     currentTheme
-  }), [currentThemeId, mode, currentTheme]);
+  }), [currentThemeId, currentTheme]);
 
   return (
     <ThemeContext.Provider value={value}>

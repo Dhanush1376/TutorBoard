@@ -28,7 +28,7 @@ const miniGlass = {
   boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
 };
 
-const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse = false, isSplitView = false }) => {
+const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse = false, isSplitView = false, isCanvasOpen = false }) => {
   const navigate = useNavigate();
   const isSidebarOpen = useTutorStore(state => state.isSidebarOpen);
   const setSidebarOpen = useTutorStore(state => state.setSidebarOpen);
@@ -141,10 +141,10 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
               ? {
                   // Rounded inward where it meets the sidebar; the top and bottom
                   // edges sit just off-screen so only the curved side line shows.
-                  borderTopLeftRadius: isRightHand ? 0 : 22,
-                  borderBottomLeftRadius: isRightHand ? 0 : 22,
-                  borderTopRightRadius: isRightHand ? 22 : 0,
-                  borderBottomRightRadius: isRightHand ? 22 : 0,
+                  borderTopLeftRadius: isRightHand ? 0 : 32,
+                  borderBottomLeftRadius: isRightHand ? 0 : 32,
+                  borderTopRightRadius: isRightHand ? 32 : 0,
+                  borderBottomRightRadius: isRightHand ? 32 : 0,
                   border: isDark 
                     ? '1px solid rgba(255, 255, 255, 0.28)' 
                     : '1px solid rgba(255, 255, 255, 0.65)',
@@ -236,7 +236,7 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
           {/* Workspace Toggle Pill */}
           <div className="pointer-events-auto flex-shrink-0">
             <AnimatePresence>
-              {!isSidebarOpen && !forceCollapse && (
+              {!isSidebarOpen && !forceCollapse && !isCanvasOpen && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9, y: -10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -256,7 +256,11 @@ const Layout = ({ sidebar, children, title = "TutorBoard", onBack, forceCollapse
                     aria-label={isSidebarOpen ? 'Close workspace' : 'Open workspace'}
                     className="flex items-center gap-2 rounded-xl p-2 transition-all hover:bg-[var(--bg-tertiary)]/40 md:px-3"
                   >
-                    {isSidebarOpen ? <PanelRight size={16} strokeWidth={1.8} /> : <PanelLeft size={16} strokeWidth={1.8} />}
+                    {isSidebarOpen ? (
+                      <PanelRight size={isMobile ? 20 : 16} strokeWidth={1.9} />
+                    ) : (
+                      <PanelLeft size={isMobile ? 20 : 16} strokeWidth={1.9} />
+                    )}
                     <span className="hidden text-[13px] font-medium tracking-[-0.01em] text-[var(--text-secondary)] md:block">
                       {isSidebarOpen ? 'Close' : 'Workspace'}
                     </span>

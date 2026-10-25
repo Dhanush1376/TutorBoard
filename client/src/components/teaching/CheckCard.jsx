@@ -7,7 +7,7 @@ import { Check, X, ArrowRight, Sparkles } from 'lucide-react';
  * `check`; the lesson waits here until the learner answers and continues.
  * A wrong answer can ask for the explanation on the board (a Phase 4 branch).
  */
-export default function CheckCard({ check, answered, onAnswer, onContinue, onExplain }) {
+export default function CheckCard({ check, answered, onAnswer, onContinue, onExplain, className = '' }) {
   const [picked, setPicked] = useState(answered ?? null);
   const done = picked !== null;
   // keyboard learners land on the first choice
@@ -27,7 +27,7 @@ export default function CheckCard({ check, answered, onAnswer, onContinue, onExp
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12 }}
       transition={{ type: 'spring', damping: 26, stiffness: 260 }}
-      className="w-[min(560px,92vw)] liquid-glass rounded-3xl p-5 shadow-premium pointer-events-auto"
+      className={`w-full liquid-glass rounded-2xl p-4 shadow-xl pointer-events-auto border border-white/10 ${className}`}
       role="dialog"
       aria-label="Predict the next step"
     >

@@ -121,7 +121,8 @@ class PlannerService {
     return fetcher();
   }
 
-  private getFallbackPlan(query: string): StrategicPlan {
+  /** Default strategy when the planner model fails or is too slow to wait for. */
+  getFallbackPlan(query: string): StrategicPlan {
     const q = query.toLowerCase();
     return {
       educational_intent: 'general inquiry',

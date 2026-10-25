@@ -40,11 +40,11 @@ const TYPE_LABELS = {
 
 const TYPE_COLORS = {
   code: '#3b82f6',
-  ui: '#8b5cf6',
+  ui: '#06b6d4',
   document: '#10b981',
   table: '#f59e0b',
   diagram: '#ec4899',
-  visual: '#8b5cf6',
+  visual: '#38bdf8',
   interactive: '#f59e0b',
 };
 
@@ -133,9 +133,10 @@ const ArtifactPanel = ({ isDark }) => {
       // Selection context injection
       let finalInstruction = aiEditPrompt.trim();
       const selectedIds = useTutorStore.getState().selectedElementIds;
-      if (isVisual && selectedIds.length > 0) {
+      const sceneGraphElements = activeArtifact?.sceneGraph?.elements || activeArtifact?.sceneGraph?.objects || [];
+      if (isVisual && selectedIds.length > 0 && Array.isArray(sceneGraphElements)) {
         const selectedLabels = selectedIds
-          .map(id => activeArtifact.sceneGraph.elements.find(e => e.id === id)?.label)
+          .map(id => sceneGraphElements.find(e => e && e.id === id)?.label)
           .filter(Boolean);
         if (selectedLabels.length > 0) {
           finalInstruction = `[Selected Elements: ${selectedLabels.join(', ')}] ${finalInstruction}`;

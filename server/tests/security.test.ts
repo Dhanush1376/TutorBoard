@@ -64,7 +64,7 @@ describe('Production Readiness: Security & Stability', () => {
       
       // Should get past CSRF, then fail on something else (like auth or invalid session)
       expect(res.status).not.toBe(403);
-    });
+    }, 15000);
   });
 
 

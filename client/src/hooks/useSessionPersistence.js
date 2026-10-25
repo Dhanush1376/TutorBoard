@@ -45,7 +45,7 @@ export function useSessionPersistence({
     
     if (!hasUserContent) return null;
 
-    const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session';
+    const isGeneric = (t) => !t || t === 'Untitled Session' || t === 'New Session' || t === 'Canvas Session' || t === 'Saved Session' || t === 'New Chat';
     const existingTitle = activeSession?.title || storeState.timeline?.title;
     
     const derivedTitle = isGeneric(existingTitle) 
@@ -74,7 +74,7 @@ export function useSessionPersistence({
       updatedAt: Date.now()
     };
 
-    // ── GUEST PERSISTENCE (LocalStorage fallback + MongoDB) ──
+    // ── GUEST PERSISTENCE (Optimistic local history + cloud save) ──
     if (user?.isGuest) {
       import.meta.env.DEV && console.log(`[Persistence:Guest] 🏠 Updating local history: ${targetSessionId}`);
       storeState.setChatHistory(prev => {
@@ -100,11 +100,9 @@ export function useSessionPersistence({
           return true;
         });
       });
-      // Guest Draft Mode: Never store guest sessions in the cloud database
-      return targetSessionId;
     }
 
-    if (!isAuthenticated) return null;
+    if (!isAuthenticated && !user?.isGuest) return null;
     
     import.meta.env.DEV && console.log(`[Persistence] 💾 Saving session to cloud: ${targetSessionId}`);
     

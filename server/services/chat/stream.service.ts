@@ -11,6 +11,7 @@ import { container } from '../../core/container.js';
 import { captureException } from '../../utils/core/monitoring.js';
 import { childLogger } from '../../core/logger.js';
 import { toChatClientError, classifyChatError } from './chatErrors.js';
+import { generationRegistry } from './generationRegistry.js';
 
 const log = childLogger({ subsystem: 'stream-manager' });
 
@@ -30,7 +31,7 @@ export class StreamLifecycleManager {
   private isClosed: boolean = false;
   private tokenCount: number = 0;
   private heartbeatInterval?: NodeJS.Timeout;
-  /** True once the client went away (closed tab, pressed Stop, network drop). */
+  /** True once the client went away (closed tab, refresh, network drop). */
   clientDisconnected: boolean = false;
 
   constructor(res: Response, requestId: string, sessionId?: string) {
@@ -70,6 +71,7 @@ export class StreamLifecycleManager {
   /** The conversation this stream belongs to (known once the session is resolved). */
   setSessionId(sessionId: string) {
     this.sessionId = sessionId;
+    generationRegistry.setSessionId(this.requestId, sessionId);
   }
 
   /**
@@ -188,19 +190,33 @@ export class StreamLifecycleManager {
     } catch (err) {}
   }
 
+  /**
+   * Explicit Stop (POST /api/chat/stop): cancel the generation. ChatService keeps
+   * whatever was already produced as a `cancelled` message.
+   */
+  stop() {
+    if (this.controller.signal.aborted) return;
+    log.info(`Generation ${this.requestId} stopped by the user`);
+    this.controller.abort();
+  }
+
   private cleanup() {
     if (this.isClosed) return;
-    // Product rule: a closed connection (Stop button, closed tab, dropped
-    // network) cancels the generation. ChatService keeps whatever was already
-    // streamed as a `cancelled` message so the history matches what was seen.
-    log.info(`Client disconnected for ${this.requestId}. Aborting work...`);
     this.clientDisconnected = true;
-    this.controller.abort();
     this.isClosed = true;
-
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = undefined;
+    }
+    // Product rule: a dropped connection (refresh, closed tab, network blip) does
+    // NOT cancel the answer — it finishes and is saved, so it is there when the
+    // learner comes back, as in ChatGPT/Claude. Stop is an explicit request.
+    // CHAT_CANCEL_ON_DISCONNECT=true restores the old cancel-on-close behaviour.
+    if (process.env.CHAT_CANCEL_ON_DISCONNECT === 'true') {
+      log.info(`Client disconnected for ${this.requestId}; cancelling (CHAT_CANCEL_ON_DISCONNECT)`);
+      this.controller.abort();
+    } else {
+      log.info(`Client disconnected for ${this.requestId}; the answer keeps generating and will be saved`);
     }
   }
 }

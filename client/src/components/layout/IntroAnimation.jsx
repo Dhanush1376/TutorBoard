@@ -19,14 +19,6 @@ const IntroAnimation = () => {
       animate={{ opacity: reduce ? 1 : [1, 1, 0] }}
       transition={{ duration: 2, times: [0, 0.82, 1], ease: 'easeInOut' }}
     >
-      <div
-        aria-hidden="true"
-        className="mk-dots absolute inset-0 opacity-60"
-        style={{
-          maskImage: 'radial-gradient(ellipse 40% 35% at 50% 50%, #000 0%, transparent 75%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 40% 35% at 50% 50%, #000 0%, transparent 75%)',
-        }}
-      />
       <div className="relative flex items-center gap-4 sm:gap-5">
         <BrandDraw size={56} delay={0.05} />
         <motion.span

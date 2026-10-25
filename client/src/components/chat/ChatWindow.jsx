@@ -14,11 +14,12 @@
 
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import Message from './Message';
+import ThoughtLine from './ThoughtLine';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
-  ArrowDown, AlertCircle, RotateCcw, RefreshCw, WifiOff, Zap,
-  BarChart3, FileText, Lightbulb, Pen
+  ArrowDown, AlertCircle, RotateCcw, RefreshCw, WifiOff, Zap, X,
+  Shapes, FileText, Lightbulb, Pen
 } from 'lucide-react';
 import SkeletonMessage from './SkeletonMessage';
 import { useAuth } from '../../hooks/useAuth';
@@ -26,6 +27,7 @@ import useTutorStore from '../../store/tutorStore';
 import VisaiLogo from '../layout/VisaiLogo';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { describeChatError } from '../../lib/chatErrors';
+import { formatShortAction, detectCurrentAction } from './message/MessageUtils';
 
 const MessageErrorFallback = () => (
   <div
@@ -38,51 +40,7 @@ const MessageErrorFallback = () => (
   </div>
 );
 
-/* =============================================================================
-   THINKING INDICATOR -- Orbital pulse with phase label
-   ============================================================================= */
-const ThinkingIndicator = ({ phase, progress }) => {
-  const reduceMotion = useReducedMotion();
-  const [slow, setSlow] = useState(false);
-  useEffect(() => {
-    // A long lesson can take a while: say so instead of spinning silently
-    const t = setTimeout(() => setSlow(true), 20000);
-    return () => clearTimeout(t);
-  }, []);
 
-  const label = progress || ({
-    waiting: 'Thinking',
-    searching: 'Searching the web',
-    generating: 'Writing',
-    thinking: 'Reasoning',
-  }[phase] || 'Thinking');
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      role="status"
-      aria-live="polite"
-      className="flex w-full items-center gap-2.5 py-2"
-    >
-      <div className="flex h-5 items-center gap-1" aria-hidden="true">
-        {[0, 1, 2].map((i) => (
-          <motion.span
-            key={i}
-            animate={reduceMotion ? { opacity: 0.6 } : { opacity: [0.25, 1, 0.25] }}
-            transition={reduceMotion ? undefined : { duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
-            className="h-1.5 w-1.5 rounded-full bg-[var(--text-secondary)]"
-          />
-        ))}
-      </div>
-      <span className="text-[13px] text-[var(--text-secondary)]">
-        {label}…
-        {slow && <span className="ml-1.5 text-[var(--text-tertiary)]">still working — detailed answers can take a minute.</span>}
-      </span>
-    </motion.div>
-  );
-};
 
 /* =============================================================================
    WELCOME SCREEN -- AI Workspace Landing
@@ -91,7 +49,7 @@ const ThinkingIndicator = ({ phase, progress }) => {
 // the canvas is the one mode that changes how the answer is made.
 const SUGGESTION_CHIPS = [
   { label: 'Explain something', icon: Lightbulb, prompt: 'Explain ' },
-  { label: 'Draw a diagram', icon: BarChart3, prompt: 'Draw a diagram of ', mode: 'deep' },
+  { label: 'Draw on canvas', icon: Shapes, prompt: 'Draw a diagram of ', mode: 'deep' },
   { label: 'Summarize text', icon: FileText, prompt: 'Summarize: ' },
   { label: 'Help me write', icon: Pen, prompt: 'Help me write ' },
 ];
@@ -106,7 +64,8 @@ const ChatLanding = ({ onSuggestionClick }) => {
     return 'Good evening';
   }, []);
 
-  const firstName = user?.isGuest ? '' : (user?.name?.split(' ')[0] || '');
+  const nickname = user?.settings?.general?.nickname || (typeof window !== 'undefined' ? sessionStorage.getItem('tb-nickname') : null);
+  const firstName = nickname || (user?.isGuest ? '' : (user?.name?.split(' ')[0] || ''));
 
   return (
     <motion.div
@@ -140,9 +99,9 @@ const ChatLanding = ({ onSuggestionClick }) => {
           >
             <button
               onClick={() => onSuggestionClick?.(chip.prompt, chip.mode)}
-              className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-[var(--st-fill)] active:scale-[0.99]"
+              className="group flex w-full cursor-pointer items-center gap-3 rounded-2xl px-2.5 py-2 text-left transition-colors hover:bg-[var(--st-fill)] active:scale-[0.99]"
             >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)] transition-colors group-hover:text-[var(--text-primary)]">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)] transition-colors group-hover:text-[var(--text-primary)]">
                 <chip.icon size={15} strokeWidth={1.8} />
               </span>
               <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">
@@ -161,56 +120,73 @@ const ChatLanding = ({ onSuggestionClick }) => {
    ============================================================================= */
 const ErrorCard = ({ error, onRetry, onDismiss }) => {
   const info = describeChatError(error);
-  const Icon = info.tone === 'blue' ? WifiOff : info.tone === 'amber' ? Zap : AlertCircle;
-  const accent = { red: '#ef4444', amber: '#f59e0b', blue: '#3b82f6' }[info.tone] || '#ef4444';
+  // Avoid loud blues/purples and radium colors; use tasteful, subtle warm neutral/amber/rose palette
+  const isWarning = info.tone === 'amber';
+  const isCritical = info.tone === 'red';
+
+  const Icon = info.tone === 'blue' ? WifiOff : isWarning ? Zap : AlertCircle;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 6 }}
-      transition={{ duration: 0.18 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.16, ease: 'easeOut' }}
       role="alert"
-      className="my-2 w-full rounded-xl px-3.5 py-3"
-      style={{ border: '1px solid var(--st-line-strong, var(--border-color))', background: 'var(--st-fill, var(--bg-secondary))' }}
+      className="group relative my-2.5 w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 text-[var(--text-primary)] shadow-sm"
+      style={{
+        backgroundColor: 'var(--st-fill, var(--bg-secondary))',
+        borderColor: isCritical 
+          ? 'rgba(239, 68, 68, 0.3)' 
+          : isWarning 
+            ? 'rgba(217, 119, 6, 0.28)' 
+            : 'var(--st-line-strong, var(--border-color))',
+      }}
     >
-      <div className="flex items-start gap-2.5">
-        <Icon size={16} className="mt-[2px] shrink-0" style={{ color: accent }} aria-hidden="true" />
+      {/* Absolute Top-Right Dismiss Button */}
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss error"
+          className="absolute top-2.5 right-2.5 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-color)]"
+        >
+          <X size={13} strokeWidth={2.2} />
+        </button>
+      )}
+
+      <div className="flex items-start gap-2.5 pr-6">
+        {/* Subtle, desaturated icon container */}
+        <div
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)]"
+          aria-hidden="true"
+        >
+          <Icon size={14} strokeWidth={2} />
+        </div>
+
+        {/* Content */}
         <div className="min-w-0 flex-1">
-          <p className="text-[13.5px] font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>
+          <h4 className="text-[12.5px] font-semibold text-[var(--text-primary)] tracking-tight leading-snug">
             {info.title}
-          </p>
-          <p className="mt-0.5 text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          </h4>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
             {info.desc}
           </p>
+
+          {onRetry && (
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-primary)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--text-primary)] border border-[var(--border-color)] transition-colors shadow-none"
+              >
+                <RotateCcw size={11} strokeWidth={2} aria-hidden="true" />
+                Try again
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      {(onRetry || onDismiss) && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-[26px]">
-          {onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--st-fill-strong,var(--bg-tertiary))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{ color: 'var(--text-primary)', border: '1px solid var(--st-line-strong, var(--border-color))' }}
-            >
-              <RotateCcw size={13} strokeWidth={2.3} aria-hidden="true" />
-              Try again
-            </button>
-          )}
-          {onDismiss && (
-            <button
-              type="button"
-              onClick={onDismiss}
-              aria-label="Dismiss error"
-              className="rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--st-fill-strong,var(--bg-tertiary))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              Dismiss
-            </button>
-          )}
-        </div>
-      )}
     </motion.div>
   );
 };
@@ -298,10 +274,36 @@ const ChatWindow = ({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (el) {
-      el.addEventListener('scroll', handleScroll, { passive: true });
-      return () => el.removeEventListener('scroll', handleScroll);
-    }
+    if (!el) return;
+    // Explicit intent to read back: stop following the stream right away. The
+    // scroll event alone can't tell (auto-scroll fires it every frame while an
+    // answer streams), which used to snap the learner back to the bottom.
+    const leaveBottom = () => {
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 2 && el.scrollTop === 0) return; // nothing to scroll
+      isAutoScrollingRef.current = false;
+      userScrolledRef.current = true;
+      setShowPill(true);
+    };
+    const onWheel = (e) => { if (e.deltaY < 0) leaveBottom(); };
+    let touchY = null;
+    const onTouchStart = (e) => { touchY = e.touches[0]?.clientY ?? null; };
+    const onTouchMove = (e) => {
+      const y = e.touches[0]?.clientY;
+      if (touchY != null && y != null && y - touchY > 4) leaveBottom(); // finger moves down = content scrolls up
+    };
+    const onKey = (e) => { if (['PageUp', 'ArrowUp', 'Home'].includes(e.key)) leaveBottom(); };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    el.addEventListener('wheel', onWheel, { passive: true });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    el.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('keydown', onKey);
+    };
   }, [handleScroll]);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
@@ -351,6 +353,12 @@ const ChatWindow = ({
   }, []);
 
   const lastMessageContent = (messages || []).length > 0 ? messages[messages.length - 1].content : '';
+  // Sending a message always brings the conversation back to the bottom
+  const lastMessage = (messages || []).length > 0 ? messages[messages.length - 1] : null;
+  const lastUserMessageId = lastMessage?.role === 'user' ? lastMessage.id : null;
+  useEffect(() => {
+    if (lastUserMessageId) userScrolledRef.current = false; // runs before the follow effect below
+  }, [lastUserMessageId]);
   useEffect(() => {
     if (!userScrolledRef.current) {
       scrollToBottom(isCurrentlyStreaming ? 'auto' : 'smooth');
@@ -358,7 +366,7 @@ const ChatWindow = ({
   }, [messages.length, lastMessageContent, currentStreamingContent, isCurrentlyWaiting, isCurrentlyStreaming, scrollToBottom]);
 
   // #17: List Virtualization for large histories
-  const showStreamingNew = isCurrentlyStreaming && !streamingInList && (currentStreamingContent || currentStreamingThought || currentStreamingSources?.length > 0);
+  const showStreamingNew = isCurrentlyStreaming && !streamingInList && (currentStreamingContent || currentStreamingThought || currentStreamingSources?.length > 0 || currentCanvasType);
   const virtualItemsCount = messages.length + (showStreamingNew ? 1 : 0);
   
   const rowVirtualizer = useVirtualizer({
@@ -389,6 +397,34 @@ const ChatWindow = ({
     return 'waiting';
   }, [isCurrentlyStreaming, currentStreamingContent, currentSearchPerformed]);
 
+  const thinkingLabel = useMemo(() => {
+    return detectCurrentAction({
+      displayContent: currentStreamingContent,
+      isStreaming: isCurrentlyStreaming,
+      searchPerformed: currentSearchPerformed,
+      hasVisualArtifact: false,
+      generationProgress,
+    });
+  }, [generationProgress, currentSearchPerformed, isCurrentlyStreaming, currentStreamingContent]);
+
+  const thinkingSteps = useMemo(() => {
+    const list = [
+      'Analyzing problem',
+      'Planning canvas',
+      'Solving logic',
+      'Generating visual',
+      'Animating steps',
+      'Writing response',
+      'Refining formulas',
+      'Polishing answer',
+      'Finalizing'
+    ];
+    if (currentSearchPerformed || currentStreamingSources?.length > 0) {
+      list.splice(1, 0, 'Searching web');
+    }
+    return list;
+  }, [currentSearchPerformed, currentStreamingSources]);
+
   const handleSuggestionClick = useCallback((prompt, mode) => {
     if (mode) setActiveMode(mode);
     useTutorStore.getState().setChatInputText?.(prompt);
@@ -401,7 +437,7 @@ const ChatWindow = ({
         className="chat-window flex-1 flex flex-col min-h-0 overflow-y-auto thin-scrollbar"
         role="log"
         aria-label="Chat messages"
-        style={{ paddingRight: 4 }}
+        style={{ paddingRight: 0 }}
       >
         <AnimatePresence mode="wait">
           {isMessagesLoading ? (
@@ -454,7 +490,7 @@ const ChatWindow = ({
                       key="streaming-new"
                       data-index={virtualRow.index}
                       ref={rowVirtualizer.measureElement}
-                      className="px-4"
+                      className="px-0 sm:px-0.5"
                       style={{
                         position: 'absolute',
                         top: 0,
@@ -501,7 +537,7 @@ const ChatWindow = ({
                     key={msgKey} 
                     data-index={virtualRow.index}
                     ref={rowVirtualizer.measureElement}
-                    className="px-4"
+                    className="px-0 sm:px-0.5"
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -556,14 +592,22 @@ const ChatWindow = ({
           )}
         </AnimatePresence>
 
-          <div className="mx-auto w-full max-w-[760px] shrink-0 px-4">
+          <div className="mx-auto w-full max-w-[760px] shrink-0 px-0 sm:px-0.5 mt-0.5">
           <AnimatePresence mode="wait">
-            {(isCurrentlyWaiting || (isCurrentlyStreaming && !currentStreamingContent && !currentStreamingThought)) && !streamingInList && (
-              <ThinkingIndicator
-                key="thinking"
-                phase={thinkingPhase}
-                progress={generationProgress?.label}
-              />
+            {(isCurrentlyWaiting || isCurrentlyStreaming) && !streamingInList && !showStreamingNew && (
+              <div className="py-1">
+                <ThoughtLine
+                  key="thinking"
+                  working={true}
+                  steps={thinkingSteps}
+                  label={thinkingLabel}
+                  glyph="matrix"
+                  fontSize={14}
+                  collapsible
+                  collapseOnSettle
+                  showTimer
+                />
+              </div>
             )}
           </AnimatePresence>
 

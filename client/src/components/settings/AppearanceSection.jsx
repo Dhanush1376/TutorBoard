@@ -1,74 +1,159 @@
 import React, { useEffect } from 'react';
-import { Sun, Moon, Check, PanelLeft, PanelRight, Magnet } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Sun, Moon, Check, PanelLeft, PanelRight, Magnet, Grid, Sliders, Compass, Footprints } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 import { useTheme } from '../../context/useTheme';
-import { SectionTitle, SettingsGroup, SettingsRow, AppleToggle } from './SettingsShared';
+import { SectionTitle, SettingsGroup, SettingsRow, AppleToggle, RightInlineSelect } from './SettingsShared';
+
+
 
 // ─── Theme preview card ──────────────────────────────────────────────────────
 
 const ThemePreviewCard = ({ theme, mode, isSelected, onClick }) => {
   const t = theme.colors[mode] || theme.colors.light;
+
   return (
-    <button type="button" onClick={onClick} aria-pressed={isSelected} className="group flex w-full cursor-pointer flex-col gap-2.5 text-left">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={isSelected}
+      className="group relative flex w-full cursor-pointer flex-col gap-1.5 text-left focus:outline-none"
+    >
       <div
-        className={`relative aspect-[16/10] w-full overflow-hidden rounded-xl transition-shadow duration-200 ${
+        className={`relative aspect-[16/10] w-full overflow-hidden rounded-xl border transition-all duration-150 ${
           isSelected
-            ? 'shadow-[0_0_0_2px_var(--text-primary)]'
-            : 'shadow-[0_0_0_1px_var(--st-line-strong)] group-hover:shadow-[0_0_0_1px_var(--text-tertiary)]'
+            ? 'border-transparent shadow-[0_0_0_1.5px_var(--text-primary)]'
+            : 'border-[var(--st-line-strong)] hover:border-[var(--text-tertiary)]'
         }`}
         style={{ background: t.bg }}
       >
-        <div className="absolute inset-y-0 left-0 flex w-[28%] flex-col gap-1 p-2" style={{ background: t.surface, borderRight: `1px solid ${t.border}` }}>
-          <div className="mb-1 h-2 w-2 rounded-[3px]" style={{ background: t.text, opacity: 0.5 }} />
-          {[0.6, 0.4, 0.3].map((op, i) => (
-            <div key={i} className="h-[3px] w-full rounded-sm" style={{ background: t.textMuted, opacity: op * 0.35 }} />
-          ))}
-        </div>
+        {/* Window header / mini traffic light dots */}
         <div
-          className="absolute inset-y-0 left-[28%] right-0 p-2"
-          style={{ backgroundImage: `radial-gradient(${t.textMuted}22 0.6px, transparent 0.6px)`, backgroundSize: '6px 6px' }}
+          className="absolute inset-x-0 top-0 flex h-3.5 items-center border-b px-2"
+          style={{ borderColor: t.border || 'rgba(128,128,128,0.12)', background: t.surface }}
         >
-          <div className="mb-1.5 w-[60%] rounded-[6px_6px_6px_2px] px-[7px] py-[5px]" style={{ background: t.aiBubble }}>
-            <div className="mb-[3px] h-[2px] w-full rounded-sm" style={{ background: t.textMuted, opacity: 0.3 }} />
-            <div className="h-[2px] w-[70%] rounded-sm" style={{ background: t.textMuted, opacity: 0.2 }} />
-          </div>
-          <div className="ml-auto w-[45%] rounded-[6px_6px_2px_6px] px-[7px] py-[5px]" style={{ background: t.userBubble }}>
-            <div className="h-[2px] w-full rounded-sm" style={{ background: t.userBubbleText, opacity: 0.4 }} />
+          <div className="flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: '#ef4444', opacity: 0.75 }} />
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: '#f59e0b', opacity: 0.75 }} />
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: '#10b981', opacity: 0.75 }} />
           </div>
         </div>
+
+        {/* Mini UI Layout */}
+        <div className="absolute inset-0 top-3.5 flex">
+          {/* Mini Sidebar */}
+          <div
+            className="flex h-full w-[28%] flex-col gap-1 border-r p-1.5"
+            style={{ background: t.surface, borderColor: t.border || 'rgba(128,128,128,0.12)' }}
+          >
+            <div className="mb-0.5 h-2 w-2 rounded-[3px]" style={{ background: t.userBubble }} />
+            <div className="h-[2px] w-[85%] rounded-full opacity-40" style={{ background: t.text }} />
+            <div className="h-[2px] w-[60%] rounded-full opacity-25" style={{ background: t.textMuted }} />
+            <div className="h-[2px] w-[75%] rounded-full opacity-20" style={{ background: t.textMuted }} />
+          </div>
+
+          {/* Mini Canvas */}
+          <div
+            className="relative flex h-full flex-1 flex-col justify-between p-2"
+            style={{
+              backgroundImage: `radial-gradient(${t.textMuted}25 0.5px, transparent 0.5px)`,
+              backgroundSize: '6px 6px',
+            }}
+          >
+            {/* AI Bubble */}
+            <div
+              className="w-[72%] rounded-[5px] p-1.5"
+              style={{ background: t.aiBubble, border: `1px solid ${t.border || 'rgba(128,128,128,0.1)'}` }}
+            >
+              <div className="mb-1 h-[2px] w-full rounded-full opacity-60" style={{ background: t.aiBubbleText || t.text }} />
+              <div className="h-[2px] w-[55%] rounded-full opacity-35" style={{ background: t.aiBubbleText || t.text }} />
+            </div>
+
+            {/* User Bubble */}
+            <div
+              className="mb-0.5 mt-auto self-end w-[55%] rounded-[5px] p-1.5"
+              style={{ background: t.userBubble }}
+            >
+              <div className="h-[2px] w-full rounded-full opacity-75" style={{ background: t.userBubbleText || t.bg }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Active Selection Checkmark Badge */}
         {isSelected && (
-          <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)]">
-            <Check size={11} strokeWidth={3} />
-          </span>
+          <motion.span
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            className="absolute right-1.5 top-1.5 z-10 grid h-4 w-4 place-items-center rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-xs"
+          >
+            <Check size={9} strokeWidth={2.8} />
+          </motion.span>
         )}
       </div>
-      <span className={`px-0.5 text-[13px] tracking-[-0.01em] ${isSelected ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+
+      {/* Theme Name Only - No Description */}
+      <span
+        className={`px-0.5 text-[12px] tracking-[-0.01em] ${
+          isSelected
+            ? 'font-semibold text-[var(--text-primary)]'
+            : 'font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+        }`}
+      >
         {theme.name}
       </span>
     </button>
   );
 };
 
-// ─── Visual option tile ──────────────────────────────────────────────────────
+// ─── Visual layout position card (minimal and compact) ───────────────────────
 
-const OptionTile = ({ id, label, icon: Icon, isActive, onClick, children }) => (
+const PanelPositionCard = ({ id, label, icon: Icon, isSelected, onClick }) => (
   <button
     type="button"
-    aria-pressed={isActive}
+    aria-pressed={isSelected}
     onClick={() => onClick(id)}
-    className={`flex flex-1 cursor-pointer flex-col gap-2.5 rounded-2xl border p-2.5 text-left transition-[border-color,background-color,box-shadow] ${
-      isActive
-        ? 'border-transparent bg-[var(--st-surface)] shadow-[0_0_0_2px_var(--text-primary)]'
-        : 'border-[var(--st-line-strong)] hover:bg-[var(--st-fill)]'
+    className={`group relative flex flex-1 cursor-pointer flex-col gap-1.5 rounded-xl border p-2.5 text-left transition-all duration-150 ${
+      isSelected
+        ? 'border-transparent bg-[var(--st-surface)] shadow-[0_0_0_1.5px_var(--text-primary)]'
+        : 'border-[var(--st-line-strong)] bg-[var(--st-fill)]/30 hover:border-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)]'
     }`}
   >
-    <div className="h-14 w-full overflow-hidden rounded-[10px] border border-[var(--st-line)] bg-[var(--bg-primary)]">{children}</div>
+    {/* Minimal layout wireframe glyph */}
+    <div className="relative h-8 w-full overflow-hidden rounded-lg border border-[var(--st-line)] bg-[var(--bg-primary)]">
+      {id === 'left' ? (
+        <div className="flex h-full w-full">
+          <div className="h-full w-[32%] border-r border-[var(--st-line)] bg-[var(--text-primary)]/15" />
+          <div className="flex flex-1 items-center justify-center">
+            <span className="h-[2px] w-4 rounded-full bg-[var(--text-tertiary)]/25" />
+          </div>
+        </div>
+      ) : (
+        <div className="flex h-full w-full">
+          <div className="flex flex-1 items-center justify-center">
+            <span className="h-[2px] w-4 rounded-full bg-[var(--text-tertiary)]/25" />
+          </div>
+          <div className="h-full w-[32%] border-l border-[var(--st-line)] bg-[var(--text-primary)]/15" />
+        </div>
+      )}
+    </div>
+
+    {/* Label & Active State */}
     <div className="flex items-center justify-between px-0.5">
-      <span className={`flex items-center gap-2 text-[12.5px] ${isActive ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-        <Icon size={13} strokeWidth={1.9} />
+      <span
+        className={`flex items-center gap-1.5 text-[12px] ${
+          isSelected ? 'font-semibold text-[var(--text-primary)]' : 'font-medium text-[var(--text-secondary)]'
+        }`}
+      >
+        <Icon size={12} strokeWidth={2} />
         {label}
       </span>
-      {isActive && <span className="h-1.5 w-1.5 rounded-full bg-[var(--mk-accent)]" />}
+
+      {isSelected && (
+        <span className="grid h-3.5 w-3.5 place-items-center rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)]">
+          <Check size={8} strokeWidth={3} />
+        </span>
+      )}
     </div>
   </button>
 );
@@ -92,40 +177,17 @@ export default function AppearanceSection({ syncSettings }) {
       });
     }, 300);
     return () => clearTimeout(timeout);
-  }, [currentThemeId, mode, store.showGrid, store.layoutView]);
+  }, [currentThemeId, mode, store.showGrid, store.layoutView, syncSettings]);
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* ── Mode + theme ─────────────────────────────────────────── */}
+    <div className="flex flex-col gap-7 sm:gap-9 pt-1 sm:pt-4">
+      {/* ── Theme ─────────────────────────────────────────── */}
       <section>
-        <SectionTitle
-          action={
-            <div role="radiogroup" aria-label="Colour mode" className="flex rounded-full border border-[var(--st-line-strong)] p-0.5">
-              {[
-                { id: 'light', icon: Sun, label: 'Light' },
-                { id: 'dark', icon: Moon, label: 'Dark' },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === m.id}
-                  onClick={() => mode !== m.id && toggleMode()}
-                  className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12px] transition-colors ${
-                    mode === m.id ? 'bg-[var(--text-primary)] font-medium text-[var(--bg-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  <m.icon size={12} strokeWidth={2} />
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          }
-        >
+        <SectionTitle>
           Theme
         </SectionTitle>
 
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {themes.map((theme) => (
             <ThemePreviewCard
               key={theme.id}
@@ -141,28 +203,93 @@ export default function AppearanceSection({ syncSettings }) {
       {/* ── Panel position ────────────────────────────────────────── */}
       <section>
         <SectionTitle>Panel position</SectionTitle>
-        <div className="flex gap-2.5">
-          <OptionTile id="left" label="Left" icon={PanelLeft} isActive={store.layoutView === 'left'} onClick={store.setLayoutView}>
-            <div className="flex h-full w-full">
-              <div className="h-full w-[30%] border-r border-[var(--st-line)] bg-[var(--st-fill-strong)]" />
-            </div>
-          </OptionTile>
-          <OptionTile id="right" label="Right" icon={PanelRight} isActive={store.layoutView === 'right'} onClick={store.setLayoutView}>
-            <div className="flex h-full w-full justify-end">
-              <div className="h-full w-[30%] border-l border-[var(--st-line)] bg-[var(--st-fill-strong)]" />
-            </div>
-          </OptionTile>
+        <div className="flex max-w-[320px] gap-2.5">
+          <PanelPositionCard
+            id="left"
+            label="Left"
+            icon={PanelLeft}
+            isSelected={store.layoutView === 'left'}
+            onClick={store.setLayoutView}
+          />
+          <PanelPositionCard
+            id="right"
+            label="Right"
+            icon={PanelRight}
+            isSelected={store.layoutView === 'right'}
+            onClick={store.setLayoutView}
+          />
         </div>
       </section>
 
       {/* ── Workspace ─────────────────────────────────────────────── */}
       <section>
         <SectionTitle>Workspace</SectionTitle>
-        <SettingsGroup>
+        <SettingsGroup className="rounded-2xl">
           <SettingsRow
             icon={Magnet}
+            iconTone="purple"
             label="Snap to grid"
-            rightElement={<AppleToggle label="Snap to grid" value={store.isSnapToGrid} onChange={store.setSnapToGrid} />}
+            rightElement={
+              <AppleToggle
+                label="Snap to grid"
+                value={store.isSnapToGrid}
+                onChange={store.setSnapToGrid}
+              />
+            }
+          />
+          <SettingsRow
+            icon={Grid}
+            iconTone="blue"
+            label="Canvas grid"
+            rightElement={
+              <AppleToggle
+                label="Canvas grid"
+                value={store.showGrid}
+                onChange={store.setShowGrid}
+              />
+            }
+          />
+          {store.showGrid && (
+            <SettingsRow
+              icon={Sliders}
+              iconTone="amber"
+              label="Grid pattern"
+              rightElement={
+                <RightInlineSelect
+                  value={store.gridType || 'dots'}
+                  onChange={store.setGridType}
+                  options={[
+                    { value: 'dots', label: 'Dot matrix' },
+                    { value: 'lines', label: 'Grid graph' },
+                  ]}
+                />
+              }
+            />
+          )}
+          <SettingsRow
+            icon={Compass}
+            iconTone="emerald"
+            label="Minimap overview"
+            rightElement={
+              <AppleToggle
+                label="Minimap overview"
+                value={store.showMinimap}
+                onChange={store.setShowMinimap}
+              />
+            }
+          />
+          <SettingsRow
+            icon={Footprints}
+            iconTone="amber"
+            label="Open code walkthroughs automatically"
+            description="When you ask to step through or trace code, its walkthrough opens by itself. Off: the answer's Step through button is highlighted instead."
+            rightElement={
+              <AppleToggle
+                label="Open code walkthroughs automatically"
+                value={store.alertPrefs?.codeWalkthrough === 'auto'}
+                onChange={(on) => store.setAlertPref('codeWalkthrough', on ? 'auto' : 'suggest')}
+              />
+            }
           />
         </SettingsGroup>
       </section>

@@ -12,6 +12,9 @@
  * - State machine transitions enforced for all stream status changes
  */
 
+// Conversations whose in-progress answer is being followed (one poller each)
+const followingPending = new Set();
+
 const generateId = (prefix = 'msg') =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
@@ -138,7 +141,12 @@ export const createConversationSlice = (set, get) => ({
     return s.activeConversationSessionId || s.chatSessionId || s.sessionId || (s._ephemeralSid || `local-${Date.now()}`);
   },
 
-  addUserMessage: (content) => {
+  /**
+   * Add the learner's message to `sessionId` (the conversation it is being sent
+   * to). Defaulting to getSid() filed a new chat's first question under a stale
+   * active conversation, and it vanished when the view moved to the new one.
+   */
+  addUserMessage: (content, sessionId = null) => {
     if (import.meta.env.DEV) console.log('[Store:Chat] addUserMessage:', content);
     const msgId = generateId('user');
     const msg = {
@@ -149,9 +157,12 @@ export const createConversationSlice = (set, get) => ({
         versions: [{ text: content, subsequentMessages: [] }], activeVersionIndex: 0,
       },
     };
-    const sid = get().getSid();
+    const sid = sessionId || get().getSid();
     set((state) => {
-      if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
+      // A message is always typed into the conversation on screen, so the visible
+      // list is its true history: rebuild this conversation's entry from it before
+      // appending (its entry may still be keyed by a temporary id, or be partial).
+      resyncNormalizedSession(state, sid, state.conversationMessages);
       const session = state.conversationSessions[sid];
       session.messagesById[msgId] = toUiMessage(msg);
       session.orderedMessageIds.push(msgId);
@@ -1031,8 +1042,12 @@ export const createConversationSlice = (set, get) => ({
     if (!oldId || !newId || oldId === newId) return;
     set((state) => {
       if (state.sessionStates[oldId]) state.sessionStates[newId] = { ...state.sessionStates[oldId] };
-      if (state.conversationSessions[oldId] && !state.conversationSessions[newId]) {
-        state.conversationSessions[newId] = state.conversationSessions[oldId];
+      // Keep the fuller history: the new id may already have a (partial) entry
+      // if a status update or the answer reached it before this migration.
+      const from = state.conversationSessions[oldId];
+      const to = state.conversationSessions[newId];
+      if (from && (!to || from.orderedMessageIds.length > to.orderedMessageIds.length)) {
+        state.conversationSessions[newId] = from;
       }
       if (state.activeConversationSessionId === oldId) state.activeConversationSessionId = newId;
       if (state.streamingSessionId === oldId) state.streamingSessionId = newId;
@@ -1116,6 +1131,42 @@ export const createConversationSlice = (set, get) => ({
    * PERSISTENCE FIX: Restore conversation messages from the server after page refresh.
    * Called by useSessionSync when it detects a persisted chatSessionId with empty conversationMessages.
    */
+  /**
+   * The server is still generating an answer in this conversation (e.g. the
+   * learner refreshed or came back mid-answer): show the usual "thinking" state
+   * and load the conversation again once the answer has been saved.
+   */
+  followPendingGeneration: async (sessionId) => {
+    if (!sessionId || followingPending.has(sessionId)) return;
+    followingPending.add(sessionId);
+    const onScreen = () => {
+      const { chatSessionId, sessionId: active } = get();
+      return chatSessionId === sessionId || active === sessionId;
+    };
+    get().setWaitingForAI(true, sessionId);
+    try {
+      const { default: API } = await import('../../services/api');
+      const deadline = Date.now() + 4 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000));
+        if (!onScreen()) return;
+        // a new local answer took over this conversation: it owns the indicator now
+        if (get().sessionStates[sessionId]?.isStreaming) return;
+        const { data } = await API.get(`/api/sessions/${sessionId}`);
+        if (!onScreen()) return;
+        if (!data?.pendingRequest) {
+          if (Array.isArray(data?.messages)) get().setConversationMessages(data.messages, sessionId);
+          return;
+        }
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[Store] Following in-progress answer failed:', err?.message);
+    } finally {
+      followingPending.delete(sessionId);
+      if (!get().sessionStates[sessionId]?.isStreaming) get().setWaitingForAI(false, sessionId);
+    }
+  },
+
   restoreSessionFromServer: async (sessionId) => {
     if (!sessionId) return;
 
@@ -1146,17 +1197,32 @@ export const createConversationSlice = (set, get) => ({
         const { messages, canvasState, canvasSteps, currentTopic, topic, title } = response.data;
         
         // 1. Restore Messages
-        if (messages && messages.length > 0) {
+        if (messages && Array.isArray(messages)) {
           if (import.meta.env.DEV) console.log(`[Store] Restored ${messages.length} messages from server for session ${sessionId}`);
-          
-          const currentCount = get().conversationMessages.length;
-          if (messages.length > currentCount) {
-            get().setConversationMessages(messages, sessionId);
-          }
+          get().setConversationMessages(messages, sessionId);
         }
 
+        if (response.data.pendingRequest) get().followPendingGeneration(sessionId);
+
+
         // 2. Restore Canvas State (Full Pedagogical Context)
-        if (canvasState && canvasState.length > 0) {
+        const visualMsg = Array.isArray(messages) ? messages.slice().reverse().find(m => m.role === 'assistant' && (m.canvasSnapshot || m.metadata?.visuals)) : null;
+        const resolvedSnapshot = response.data.canvasSnapshot || visualMsg?.canvasSnapshot || visualMsg?.metadata?.visuals;
+
+        if (resolvedSnapshot?.sceneV2 || resolvedSnapshot?.renderer === 'scene-v2') {
+          if (typeof get().setTimeline === 'function') {
+            get().setTimeline({
+              ...response.data,
+              title: resolvedSnapshot.title || currentTopic || topic || title || 'Saved Session',
+              domain: resolvedSnapshot.domain || 'general',
+              renderer: 'scene-v2',
+              sceneV2: resolvedSnapshot.sceneV2,
+              steps: resolvedSnapshot.steps || resolvedSnapshot.canvasSteps || canvasSteps || [{}],
+              timeline: resolvedSnapshot.steps || resolvedSnapshot.canvasSteps || canvasSteps || [{}],
+              objects: canvasState || []
+            });
+          }
+        } else if (canvasState && canvasState.length > 0) {
           if (import.meta.env.DEV) console.log(`[Store] Restored canvas state for session ${sessionId}`);
           get().setCanvasSnapshot({
             canvasObjects: canvasState,
@@ -1166,9 +1232,21 @@ export const createConversationSlice = (set, get) => ({
           });
         }
 
-        // 3. Restore Topic
+        // 3. Restore Pinned Notes
+        if (response.data.pinnedNotes && Array.isArray(response.data.pinnedNotes)) {
+          set({ pinnedNotes: response.data.pinnedNotes });
+        }
+
+        // 4. Restore Topic
         if (currentTopic || topic || title) {
           set({ conversationTopic: currentTopic || topic || title });
+        }
+
+        // 5. Restore Artifacts
+        if (response.data.artifacts && Array.isArray(response.data.artifacts)) {
+          if (typeof get().loadSessionArtifacts === 'function') {
+            get().loadSessionArtifacts(response.data.artifacts, sessionId);
+          }
         }
       }
     } catch (err) {

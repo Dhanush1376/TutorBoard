@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Brain, Key, Shield, GitBranch,
   Activity, Globe2, Sparkles, Gauge, DollarSign,
-  AlertCircle, Plus, X, Globe, ExternalLink
+  AlertCircle, Plus, X, Globe, ExternalLink, Search
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
+import useWindowSize from '../../../hooks/useWindowSize';
 import {
   SectionTitle, SettingsGroup, SettingsRow,
   AppleToggle, RightInlineSelect, Button
@@ -14,12 +16,19 @@ import API, { BASE_URL as API_URL } from '../../../services/api';
 import { MODEL_LABELS, PROVIDERS } from './ProviderRegistry';
 import UnifiedAPIForm from './UnifiedAPIForm';
 import KeyCard from './KeyCard';
+import ProviderBrandLogo, { BrandLogoBadge } from './ProviderBrandLogo';
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
-const ProviderDot = ({ color }) => (
-  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
-);
+const getProviderMonogram = (name) => {
+  if (!name) return 'AI';
+  const clean = name.replace(/\(.*?\)/g, '').replace(/[^a-zA-Z0-9 ]/g, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+};
 
 // ─── Usage Card ───────────────────────────────────────────────────────────────
 
@@ -37,7 +46,7 @@ const UsageCard = ({ usage }) => {
       marginBottom: '16px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-        <Sparkles size={13} strokeWidth={2} style={{ color: '#8b5cf6', opacity: 0.7 }} />
+        <Sparkles size={13} strokeWidth={2} style={{ color: '#3b82f6', opacity: 0.7 }} />
         <div>
           <div style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '-0.01em' }}>Platform Credits</div>
           <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 400 }}>Shared quota, auto-managed</div>
@@ -59,7 +68,7 @@ const UsageCard = ({ usage }) => {
             transition={{ duration: 0.8, ease: 'easeOut' }}
             style={{
               height: '100%',
-              background: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : '#8b5cf6',
+              background: isExceeded ? '#ef4444' : isWarning ? '#f59e0b' : '#3b82f6',
               borderRadius: '2px',
             }}
           />
@@ -91,18 +100,39 @@ const UsageCard = ({ usage }) => {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function APIConfigSection({ showToast }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isGuest = !!user?.isGuest;
+  const { isMobile } = useWindowSize();
   const [apiKeys, setApiKeys] = useState([]);
   const [preferences, setPreferences] = useState({ useCustomApi: false, smartRouting: false, enableRacing: false, enableAdaptive: false, routingMode: 'auto', modelOverride: '', costControl: { monthlyLimitCents: 0, warningThresholdPct: 80, hardStop: true } });
   const [usageStats, setUsageStats] = useState(null);
   const [universalUsage, setUniversalUsage] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showDirectory, setShowDirectory] = useState(false);
+  const [directorySearch, setDirectorySearch] = useState('');
   const [testingKeyId, setTestingKeyId] = useState(null);
   const [testResults, setTestResults] = useState({});
   const [error, setError] = useState(null);
 
+  const directoryProviders = [...PROVIDERS]
+    .filter(p => p.id !== 'custom')
+    .sort((a, b) => (a.price || 0) - (b.price || 0));
+
+  const filteredDirectoryProviders = directoryProviders.filter(p => {
+    if (directorySearch.trim()) {
+      const q = directorySearch.toLowerCase().trim();
+      const matchName = p.name?.toLowerCase().includes(q);
+      const matchHint = p.hint?.toLowerCase().includes(q);
+      const matchModel = p.defaultModel?.toLowerCase().includes(q);
+      const matchId = p.id?.toLowerCase().includes(q);
+      const matchTier = (p.price === 0 && q === 'free') || (p.price > 0 && q === 'paid');
+      return matchName || matchHint || matchModel || matchId || matchTier;
+    }
+    return true;
+  });
+
   const fetchDashboardData = async () => {
+    if (isGuest || !token) return;
     try {
       const res = await API.get('/api/apikeys/dashboard');
       const d = res.data;
@@ -123,11 +153,15 @@ export default function APIConfigSection({ showToast }) {
     }
   };
 
-  useEffect(() => { if (token) fetchDashboardData(); }, [token]);
+  useEffect(() => { if (token && !isGuest) fetchDashboardData(); }, [token, isGuest]);
 
   const handleUpdatePref = async (key, value) => {
     const updated = { ...preferences, [key]: value };
     setPreferences(updated);
+    if (isGuest) {
+      showToast?.('Sign up free to save custom routing preferences.', 'info');
+      return;
+    }
     try {
       await API.put('/api/apikeys/preferences', updated);
       fetchDashboardData();
@@ -139,6 +173,10 @@ export default function APIConfigSection({ showToast }) {
   const handleUpdateCostControl = async (field, value) => {
     const updated = { ...preferences, costControl: { ...(preferences.costControl || {}), [field]: value } };
     setPreferences(updated);
+    if (isGuest) {
+      showToast?.('Sign up free to configure cost controls.', 'info');
+      return;
+    }
     try {
       await API.put('/api/apikeys/preferences', updated);
     } catch (err) {
@@ -190,30 +228,26 @@ export default function APIConfigSection({ showToast }) {
   const statusColor = hasActiveCustom ? '#10b981' : keyAddedNotActive ? '#f59e0b' : '#3b82f6';
   const statusText = hasActiveCustom ? 'Custom API active' : keyAddedNotActive ? 'Key added — enable below' : 'Using platform credits';
 
-  const statColors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
+  const statColors = ['#0284c7', '#3b82f6', '#10b981', '#f59e0b'];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
       {/* Status */}
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] px-4 py-3.5">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ background: statusColor }} />
-          <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: statusColor }} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[13.5px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">{statusText}</div>
-          <div className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">
-            {hasActiveCustom ? 'Lessons run on your own keys.' : 'Lessons run on TutorBoard credits until you add a key.'}
-          </div>
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--st-line-strong)] bg-[var(--st-surface)] px-4 py-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ background: statusColor }} />
+            <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: statusColor }} />
+          </span>
+          <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{statusText}</div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" className="h-8 px-3 text-[12px]" onClick={() => setShowDirectory(true)}>
-            <Globe2 size={13} />
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" className="h-7 px-2.5 text-[11.5px]" onClick={() => setShowDirectory(true)}>
+            <Globe2 size={12} />
             Providers
           </Button>
           {keyAddedNotActive && (
-            <Button className="h-8 px-3.5 text-[12px]" onClick={() => handleUpdatePref('useCustomApi', true)}>
+            <Button className="h-7 px-3 text-[11.5px]" onClick={() => handleUpdatePref('useCustomApi', true)}>
               Enable
             </Button>
           )}
@@ -228,12 +262,12 @@ export default function APIConfigSection({ showToast }) {
           <SettingsRow icon={Brain} label="Pick the best key for me" rightElement={<AppleToggle value={preferences.smartRouting} onChange={v => handleUpdatePref('smartRouting', v)} />} />
           <SettingsRow icon={GitBranch} label="Learn which model works best" rightElement={<AppleToggle value={preferences.enableAdaptive} onChange={v => handleUpdatePref('enableAdaptive', v)} />} />
           <SettingsRow icon={Activity} label="Use the fastest answer" rightElement={<AppleToggle value={preferences.enableRacing} onChange={v => handleUpdatePref('enableRacing', v)} />} />
-          <SettingsRow icon={Globe2} label="Routing mode" wide rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
+          <SettingsRow icon={Globe2} label="Routing mode" rightElement={<RightInlineSelect value={preferences.routingMode || 'auto'} onChange={v => handleUpdatePref('routingMode', v)} options={[{ value: 'auto', label: 'Auto' }, { value: 'manual', label: 'Manual' }]} />} />
         </SettingsGroup>
 
         {preferences.routingMode === 'manual' && apiKeys.length > 0 && (
           <SettingsGroup>
-            <SettingsRow icon={Brain} label="Model override" wide rightElement={<RightInlineSelect value={preferences.modelOverride || ''} onChange={v => handleUpdatePref('modelOverride', v)} options={[{ value: '', label: 'None' }, ...Array.from(new Set(apiKeys.map(k => k.model))).map(m => ({ value: m, label: MODEL_LABELS[m] || m }))]} />} />
+            <SettingsRow icon={Brain} label="Model override" rightElement={<RightInlineSelect value={preferences.modelOverride || ''} onChange={v => handleUpdatePref('modelOverride', v)} options={[{ value: '', label: 'None' }, ...Array.from(new Set(apiKeys.map(k => k.model))).map(m => ({ value: m, label: MODEL_LABELS[m] || m }))]} />} />
           </SettingsGroup>
         )}
       </div>
@@ -244,7 +278,18 @@ export default function APIConfigSection({ showToast }) {
 
         <SectionTitle
           action={
-            <Button variant={showAddForm ? 'secondary' : 'primary'} className="h-8 px-3.5 text-[12px]" onClick={() => setShowAddForm((v) => !v)}>
+            <Button
+              variant={showAddForm ? 'secondary' : 'primary'}
+              className="h-8 px-3.5 text-[12px]"
+              onClick={() => {
+                if (isGuest) {
+                  showToast?.('Create a free account to securely save and encrypt your API keys.', 'info');
+                  window.location.href = '/auth';
+                  return;
+                }
+                setShowAddForm((v) => !v);
+              }}
+            >
               {showAddForm ? <><X size={13} /> Cancel</> : <><Plus size={13} /> Add key</>}
             </Button>
           }
@@ -267,16 +312,21 @@ export default function APIConfigSection({ showToast }) {
         {/* Key list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {apiKeys.length === 0 && !showAddForm && (
-            <div className="flex flex-col items-center rounded-2xl border border-dashed border-[var(--st-line-strong)] px-6 py-10 text-center">
-              <span className="grid h-11 w-11 place-items-center rounded-xl border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)]">
-                <Key size={18} strokeWidth={1.8} />
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--st-line-strong)] px-4 py-7 text-center">
+              <span className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-secondary)]">
+                <Key size={15} strokeWidth={1.8} />
               </span>
-              <div className="mt-4 text-[14px] font-medium tracking-[-0.01em] text-[var(--text-primary)]">No keys yet</div>
-              <p className="mt-1 max-w-[34ch] text-[12.5px] leading-[1.55] text-[var(--text-tertiary)]">
-                Add a key from OpenAI, Anthropic, Google or another provider to run lessons on your own account.
-              </p>
-              <Button className="mt-5" onClick={() => setShowAddForm(true)}>
-                <Plus size={14} /> Add your first key
+              <div className="mt-2.5 text-[13px] font-medium text-[var(--text-secondary)]">
+                {isGuest ? 'Custom keys require an account' : 'No keys added'}
+              </div>
+              <Button
+                className="mt-3.5 h-7 px-3.5 text-[11.5px]"
+                onClick={() => {
+                  if (isGuest) window.location.href = '/auth';
+                  else setShowAddForm(true);
+                }}
+              >
+                {isGuest ? 'Sign up free' : 'Add key'}
               </Button>
             </div>
           )}
@@ -381,94 +431,238 @@ export default function APIConfigSection({ showToast }) {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showDirectory && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: 'fixed', inset: 0, zIndex: 100005,
-              background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
-            }}
-            onClick={() => setShowDirectory(false)}
-          >
+      {/* Provider Directory Modal / Mobile App Drawer */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showDirectory && (
             <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{
-                background: 'var(--bg-primary)', borderRadius: '16px',
-                width: '100%', maxWidth: '480px', maxHeight: '80vh',
-                display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                border: '1px solid var(--st-line-strong)',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[100050] flex flex-col justify-end sm:justify-center sm:items-center sm:p-5 bg-black/65 backdrop-blur-sm"
+              onClick={() => {
+                setShowDirectory(false);
+                setDirectorySearch('');
               }}
-              onClick={e => e.stopPropagation()}
             >
-              <div style={{
-                padding: '16px 20px', borderBottom: '1px solid var(--st-line-strong)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Providers</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontWeight: 400 }}>Supported AI providers</div>
+              <motion.div
+                key="provider-drawer"
+                initial={isMobile ? { y: '100%' } : { scale: 0.96, opacity: 0, y: 8 }}
+                animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1, y: 0 }}
+                exit={isMobile ? { y: '100%' } : { scale: 0.96, opacity: 0, y: 8 }}
+                transition={
+                  isMobile
+                    ? { type: 'spring', damping: 28, stiffness: 300, mass: 0.8 }
+                    : { duration: 0.16, ease: 'easeOut' }
+                }
+                drag={isMobile ? 'y' : false}
+                dragConstraints={{ top: 0 }}
+                dragElastic={{ top: 0.04, bottom: 0.6 }}
+                onDragEnd={(e, info) => {
+                  if (info.offset.y > 100 || info.velocity.y > 400) {
+                    setShowDirectory(false);
+                    setDirectorySearch('');
+                  }
+                }}
+                className="w-full sm:max-w-[460px] h-[85vh] sm:h-auto max-h-[88vh] sm:max-h-[82vh] flex flex-col bg-[var(--bg-primary)] rounded-t-[24px] sm:rounded-2xl rounded-b-none sm:rounded-b-2xl border-t border-x sm:border border-[var(--st-line-strong)] shadow-[0_-12px_45px_rgba(0,0,0,0.5)] sm:shadow-[0_24px_70px_-15px_rgba(0,0,0,0.65)] overflow-hidden"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Mobile Drawer Grabber Pill */}
+                <div className="flex sm:hidden justify-center pt-2.5 pb-1 shrink-0 cursor-grab active:cursor-grabbing">
+                  <span className="h-1.5 w-10 rounded-full bg-[var(--text-tertiary)]/40" />
                 </div>
-                <button
-                  onClick={() => setShowDirectory(false)}
-                  style={{ background: 'none', border: 'none', padding: '6px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex' }}
-                >
-                  <X size={16} strokeWidth={2} />
-                </button>
-              </div>
 
-              <div style={{ overflowY: 'auto', padding: '12px 16px 20px', display: 'flex', flexDirection: 'column', gap: '6px' }} className="no-scrollbar">
-                {[...PROVIDERS]
-                  .filter(p => p.id !== 'custom')
-                  .sort((a, b) => (a.price || 0) - (b.price || 0))
-                  .map(p => (
-                    <div
-                      key={p.id}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '12px',
-                        padding: '12px 14px', borderRadius: '10px',
-                        border: '1px solid var(--st-line-strong)',
-                        background: 'var(--st-surface)',
-                      }}
-                    >
-                      <ProviderDot color={p.color} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{p.name}</div>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '3px', alignItems: 'center' }}>
-                          {p.price === 0 ? (
-                            <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: '#10b98110', color: '#10b981', fontWeight: 500 }}>Free</span>
-                          ) : (
-                            <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'var(--st-fill-strong)', color: 'var(--text-tertiary)', fontWeight: 500 }}>Paid</span>
-                          )}
-                          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: '"JetBrains Mono", monospace', fontWeight: 400 }}>{p.hint}</span>
-                        </div>
-                      </div>
-                      {p.link && (
-                        <a
-                          href={p.link} target="_blank" rel="noopener noreferrer"
-                          style={{
-                            padding: '6px 12px', borderRadius: '6px', background: 'var(--st-fill-strong)',
-                            color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '10px', fontWeight: 500,
-                            display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--st-line-strong)',
-                          }}
-                        >
-                          Keys <ExternalLink size={10} />
-                        </a>
-                      )}
+                {/* Header */}
+                <div className="px-4 py-3 sm:py-3.5 border-b border-[var(--st-line)] flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13.5px] font-semibold text-[var(--text-primary)] tracking-tight">
+                        Providers
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-[var(--st-fill-strong)] text-[var(--text-tertiary)] text-[10px] font-mono font-medium">
+                        {directoryProviders.length}
+                      </span>
                     </div>
-                  ))}
-              </div>
+                    <div className="text-[11px] text-[var(--text-tertiary)] mt-0.5 font-normal">
+                      Supported AI providers & API portals
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowDirectory(false);
+                      setDirectorySearch('');
+                    }}
+                    className="h-7 w-7 rounded-full grid place-items-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--st-fill)] transition-colors"
+                    aria-label="Close"
+                  >
+                    <X size={15} strokeWidth={2} />
+                  </button>
+                </div>
+
+                {/* Search */}
+                <div className="px-4 py-3 border-b border-[var(--st-line)] bg-[var(--st-surface)]">
+                  <div className="relative group">
+                    <Search size={13.5} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors pointer-events-none" />
+                    <input
+                      type="text"
+                      value={directorySearch}
+                      onChange={e => setDirectorySearch(e.target.value)}
+                      placeholder="Search providers or key formats..."
+                      className="directory-search-input w-full h-[34px] pl-8 pr-7 rounded-lg text-[12px] placeholder:text-[var(--text-tertiary)]"
+                      style={{
+                        outline: 'none',
+                        outlineOffset: '0px',
+                      }}
+                      autoFocus
+                    />
+                    {directorySearch && (
+                      <button
+                        onClick={() => setDirectorySearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--st-fill-strong)] transition-colors"
+                        aria-label="Clear search"
+                      >
+                        <X size={11} strokeWidth={2.5} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Provider List */}
+                <div className="flex-1 overflow-y-auto p-3.5 no-scrollbar overscroll-contain">
+                  {filteredDirectoryProviders.length === 0 ? (
+                    <div className="py-12 px-4 text-center">
+                      <Globe2 size={22} className="mx-auto text-[var(--text-tertiary)] opacity-40 mb-2" />
+                      <div className="text-[12.5px] font-medium text-[var(--text-secondary)]">No providers found</div>
+                      <div className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
+                        No results matching "{directorySearch}"
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] divide-y divide-[var(--st-line)] overflow-hidden">
+                      {filteredDirectoryProviders.map(p => (
+                        <div
+                          key={p.id}
+                          className="px-3.5 py-2.5 flex items-center justify-between gap-2.5 hover:bg-[#f2efe4] dark:hover:bg-[#191917] transition-colors group"
+                        >
+                          {/* Left: Brand Logo + Provider Info */}
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            {/* Authentic Brand Logo Tile (Opaque & Theme-Inverted: dark in light, light in dark) */}
+                            <BrandLogoBadge id={p.id} color={p.color} name={p.name} size={15} tileSize={28} />
+
+                            {/* Provider Name & Key Hint */}
+                            <div className="min-w-0 flex-1 pr-1.5">
+                              <div className="text-[12.5px] font-medium text-[var(--text-primary)] leading-tight truncate">
+                                {p.name}
+                              </div>
+                              <div className="text-[10px] text-[var(--text-tertiary)] font-mono truncate max-w-[180px] sm:max-w-[210px] mt-0.5">
+                                {p.hint}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Symmetrical Fixed-Width Tier Badge Column (Solid, Opaque & 50% Pill Radius) */}
+                          <div style={{ width: '54px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {p.price === 0 ? (
+                              <span
+                                className="tier-badge-free"
+                                style={{
+                                  width: '50px',
+                                  height: '24px',
+                                  borderRadius: '9999px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '9.5px',
+                                  fontWeight: 600,
+                                  letterSpacing: '0.04em',
+                                  textTransform: 'uppercase',
+                                  userSelect: 'none',
+                                }}
+                              >
+                                Free
+                              </span>
+                            ) : (
+                              <span
+                                className="tier-badge-paid"
+                                style={{
+                                  width: '50px',
+                                  height: '24px',
+                                  borderRadius: '9999px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '9.5px',
+                                  fontWeight: 600,
+                                  letterSpacing: '0.04em',
+                                  textTransform: 'uppercase',
+                                  userSelect: 'none',
+                                }}
+                              >
+                                Paid
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Symmetrical Keys Action Button Column (Equal 24px Height & 50% Pill Radius) */}
+                          <div style={{ width: '64px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {p.link ? (
+                              <a
+                                href={p.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  width: '100%',
+                                  height: '24px',
+                                  borderRadius: '9999px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                  fontSize: '10.5px',
+                                  fontWeight: 500,
+                                  color: 'var(--text-secondary)',
+                                  background: 'var(--st-surface)',
+                                  border: '1px solid var(--st-line-strong)',
+                                  textDecoration: 'none',
+                                  userSelect: 'none',
+                                }}
+                                className="provider-keys-btn hover:bg-[var(--text-primary)] hover:text-[var(--bg-primary)] transition-all"
+                              >
+                                <span>Keys</span>
+                                <ExternalLink size={10} className="opacity-70" />
+                              </a>
+                            ) : (
+                              <span style={{ width: '100%', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: '"JetBrains Mono", monospace' }}>
+                                Local
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer with mobile safe area padding */}
+                <div className="px-4 py-2.5 pb-[max(env(safe-area-inset-bottom),10px)] border-t border-[var(--st-line)] bg-[var(--st-surface)] flex items-center justify-between text-[11px] text-[var(--text-tertiary)]">
+                  <span>Showing {filteredDirectoryProviders.length} of {directoryProviders.length}</span>
+                  <button
+                    onClick={() => {
+                      setShowDirectory(false);
+                      setDirectorySearch('');
+                    }}
+                    className="px-3 py-1 rounded-full text-[11px] font-medium text-[var(--text-primary)] bg-[var(--st-fill)] hover:bg-[var(--st-fill-strong)] transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       <style>{`
         .hide-arrows::-webkit-outer-spin-button, .hide-arrows::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

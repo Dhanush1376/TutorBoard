@@ -1,37 +1,28 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Layers, Box, Activity, FlaskConical,
-  Network, Sparkles, ArrowUpRight, Loader2,
-  X, Radio, Eye, EyeOff, Terminal, Code, Layout
-} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Eye, EyeOff } from 'lucide-react';
 import useTutorStore, { CANVAS_LAYOUT } from '../../store/tutorStore';
+import { formatConciseTopic, isGenericTitle } from './message/MessageUtils';
+import VisaiLogo from '../layout/VisaiLogo';
 
 const CONFIGS = {
-  cinematic:  { icon: Layout,       label: 'Interactive UI',     desc: 'Dynamic component preview',    accent: '#6366f1', tag: 'UI'        },
-  d3:         { icon: Network,      label: 'Concept Graph',      desc: 'Interactive node map',         accent: '#0ea5e9', tag: 'GRAPH'     },
-  physics:    { icon: FlaskConical, label: 'Simulation',        desc: 'Real-time physics model',      accent: '#f59e0b', tag: 'SIM'       },
-  three:      { icon: Box,          label: '3D Space',           desc: 'Spatial 3D visualization',     accent: '#a855f7', tag: '3D'        },
-  matter:     { icon: Activity,     label: 'Dynamics',           desc: 'Physical interaction engine',   accent: '#ec4899', tag: 'PHYSICS'   },
-  algorithm:  { icon: Terminal,     label: 'Logic Flow',         desc: 'Step-through visualizer',      accent: '#10b981', tag: 'LOGIC'     },
-  code:       { icon: Code,         label: 'Source Code',        desc: 'Functional code block',        accent: '#6366f1', tag: 'CODE'      },
-  'scene-v2': { icon: Sparkles,     label: 'Visual Lesson',      desc: 'Animated step-by-step lesson', accent: '#818cf8', tag: 'LESSON'    },
-  default:    { icon: Sparkles,     label: 'Artifact',           desc: 'AI-generated intelligence',    accent: '#64748b', tag: 'AI'        },
+  cinematic:  { label: 'Interactive UI',     desc: 'Visual walkthrough', accent: '#ea580c' },
+  d3:         { label: 'Concept Graph',      desc: 'Visual walkthrough', accent: '#fb923c' },
+  physics:    { label: 'Simulation',        desc: 'Visual walkthrough', accent: '#f97316' },
+  three:      { label: '3D Space',           desc: 'Visual walkthrough', accent: '#ea580c' },
+  matter:     { label: 'Dynamics',           desc: 'Visual walkthrough', accent: '#fb923c' },
+  algorithm:  { label: 'Logic Flow',         desc: 'Visual walkthrough', accent: '#f97316' },
+  code:       { label: 'Source Code',        desc: 'Source code',        accent: '#ea580c' },
+  'scene-v2': { label: 'Visual Lesson',      desc: 'Visual walkthrough', accent: '#fb923c' },
+  default:    { label: 'Artifact',           desc: 'Visual walkthrough', accent: '#fb923c' },
 };
 
-const Spinner = ({ size = 14, color = 'currentColor' }) => (
-  <motion.div
-    animate={{ rotate: 360 }}
-    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-    style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-  >
-    <Loader2 size={size} color={color} strokeWidth={2} />
-  </motion.div>
-);
-
 /**
- * VisualArtifactCard — AI OS Artifact Portal.
- * Premium glassmorphism card for AI-generated visual components.
+ * VisualArtifactCard — TutorBoard AI OS Visual Walkthrough Card.
+ * Design matched to specification:
+ * - TutorBoard logo in soft peach tile
+ * - Bold title (e.g. Pythagoras) + clean "Visual walkthrough" subtitle (zero dots)
+ * - Solid orange circular action button with Eye / EyeOff toggle
  */
 const VisualArtifactCard = ({
   artifactId,
@@ -45,6 +36,7 @@ const VisualArtifactCard = ({
 }) => {
   const { openArtifactOnCanvas, setCanvasLayout, activeScene, canvasLayout } = useTutorStore();
   const activeSnapshotId = useTutorStore((state) => state.activeSnapshotId);
+  const conversationTopic = useTutorStore((state) => state.conversationTopic);
 
   const artifact = useTutorStore(
     (state) => state.artifacts?.find((a) => a.id === artifactId || a.dbId === artifactId)
@@ -60,10 +52,24 @@ const VisualArtifactCard = ({
 
   const cfgType  = (artifact?.metadata?.rendererType || artifact?.rendererType || rendererType || 'cinematic').toLowerCase();
   const cfg      = CONFIGS[cfgType] || CONFIGS.default;
-  const Icon     = cfg.icon;
 
-  const displayTitle = title || artifact?.title || cfg.label;
-  const stepCount    = artifact?.visual_steps?.length || artifact?.animation_steps?.length || artifact?.timeline?.length || artifact?.narrations?.length || artifact?.content?.length || artifact?.steps?.length || artifact?.script?.length || artifact?.canvasSteps?.length || artifact?.canvasObjects?.length || 0;
+  // Resolve clear, specific topic title (1-2 words max, zero dots)
+  const rawCandidate = 
+    (!isGenericTitle(title) && title) ||
+    (!isGenericTitle(artifact?.title) && artifact?.title) ||
+    (!isGenericTitle(activeScene?.title) && activeScene?.title) ||
+    (!isGenericTitle(conversationTopic) && conversationTopic) ||
+    title ||
+    artifact?.title ||
+    'Visual';
+
+  const displayTitle = (formatConciseTopic(rawCandidate) || 'Visual').replace(/\.+/g, '').trim();
+
+  // Subtitle strictly cleaned so it never ends with "..."
+  const rawDesc = isGenerating 
+    ? 'Generating walkthrough' 
+    : (cfg.desc || 'Visual walkthrough');
+  const cleanDesc = rawDesc.replace(/\.+/g, '').trim();
 
   const handleToggle = React.useCallback((e) => {
     e?.stopPropagation();
@@ -73,23 +79,33 @@ const VisualArtifactCard = ({
       setCanvasLayout(CANVAS_LAYOUT.INLINE);
       useTutorStore.getState().setActiveSnapshotId?.(null);
     } else {
+      const store = useTutorStore.getState();
+      const msg = store.conversationMessages?.find(m => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString());
+      const latestArtifact = store.artifacts?.find((a) => a.id === artifactId || a.dbId === artifactId || a.id === `art-${artifactId}` || a._id === artifactId) || artifact || msg?.canvasSnapshot || msg?.metadata?.visuals;
+
+      const rawSceneV2 = latestArtifact?.sceneV2 || latestArtifact?.visuals?.sceneV2 || latestArtifact?.metadata?.sceneV2 || latestArtifact?.sceneGraph?.sceneV2 || latestArtifact?.canvasSnapshot?.sceneV2 || msg?.canvasSnapshot?.sceneV2 || msg?.metadata?.visuals?.sceneV2;
+
+      const resolvedRenderer = (latestArtifact?.metadata?.rendererType || latestArtifact?.rendererType || msg?.metadata?.rendererType || msg?.canvasType || (rawSceneV2 ? 'scene-v2' : rendererType) || 'cinematic').toLowerCase();
+
       if (onOpenCanvas && messageId) {
         onOpenCanvas(messageId);
       }
-      // Fetch latest artifact state to avoid stale closure issues during auto-open
-      const latestArtifact = useTutorStore.getState().artifacts?.find((a) => a.id === artifactId || a.dbId === artifactId) || artifact;
       
       openArtifactOnCanvas({
         id: currentId,
-        title: title || latestArtifact?.title || cfg.label,
+        title: title || latestArtifact?.title || msg?.canvasSnapshot?.title || cfg.label,
         type: latestArtifact?.type || type,
-        content: latestArtifact?.visual_steps || latestArtifact?.animation_steps || latestArtifact?.timeline || latestArtifact?.narrations || latestArtifact?.steps || latestArtifact?.script || latestArtifact?.content || latestArtifact?.canvasSteps || latestArtifact?.canvasObjects || (latestArtifact?.script ? latestArtifact.script : (Array.isArray(latestArtifact) ? latestArtifact : [])),
-        rendererType: (latestArtifact?.metadata?.rendererType || latestArtifact?.rendererType || rendererType || 'cinematic').toLowerCase(),
+        rendererType: resolvedRenderer,
+        sceneV2: rawSceneV2,
+        sceneGraph: latestArtifact?.sceneGraph,
+        metadata: latestArtifact?.metadata || msg?.metadata,
+        canvasSnapshot: latestArtifact?.canvasSnapshot || msg?.canvasSnapshot,
+        content: latestArtifact?.content || rawSceneV2 || latestArtifact?.visual_steps || latestArtifact?.animation_steps || latestArtifact?.timeline || latestArtifact?.narrations || latestArtifact?.steps || latestArtifact?.script || latestArtifact?.canvasSteps || latestArtifact?.canvasObjects || msg?.metadata?.visuals || (latestArtifact?.script ? latestArtifact.script : (Array.isArray(latestArtifact) ? latestArtifact : [])),
       });
     }
   }, [canOpen, isActive, currentId, title, cfg.label, type, rendererType, artifactId, artifact, onOpenCanvas, messageId, openArtifactOnCanvas, setCanvasLayout]);
 
-  // #24: Artifact Hydration Guard - Auto-activate artifact when it finishes generating
+  // Auto-open visual canvas when generation completes if not already active
   const prevStatusRef = React.useRef(status);
   React.useEffect(() => {
     if (prevStatusRef.current === 'generating' && status === 'completed' && !isActive) {
@@ -100,109 +116,66 @@ const VisualArtifactCard = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98, y: 8 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="w-full mt-4 mb-3"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full my-2"
     >
       <div
         onClick={handleToggle}
-        className={`relative group cursor-pointer overflow-hidden rounded-2xl border transition-all duration-500 ${isGenerating ? 'artifact-generating' : ''}`}
-        style={{
-          background: isActive ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
-          borderColor: isActive ? 'rgba(99,102,241,0.4)' : 'var(--border-color)',
-          boxShadow: isActive ? '0 0 30px rgba(99,102,241,0.15)' : '0 2px 12px rgba(0,0,0,0.02)',
-        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle(); } }}
+        title={isActive ? 'Active on canvas — click to close' : 'Click to open visual walkthrough'}
+        className={`group relative cursor-pointer overflow-hidden rounded-[26px] transition-all duration-200 select-none bg-zinc-900 dark:bg-white ${
+          isActive 
+            ? 'border-2 border-[#ea580c] shadow-[0_3px_16px_rgba(234,88,12,0.18)] ring-1 ring-[#ea580c]/30' 
+            : 'border border-zinc-800/80 dark:border-zinc-200/90 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-zinc-700 dark:hover:border-zinc-300'
+        }`}
       >
-        <div className="p-4 flex items-center gap-4">
-          {/* Icon Section */}
-          <div className="relative shrink-0">
-            <div 
-              className="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-500"
-              style={{
-                background: isGenerating ? 'rgba(99,102,241,0.1)' : isActive ? 'rgba(99,102,241,0.2)' : 'var(--bg-tertiary)',
-                color: isGenerating || isActive ? '#818cf8' : 'var(--text-secondary)',
-                border: isActive ? 'none' : '1px solid var(--border-color)',
-              }}
-            >
-              {isGenerating ? (
-                <Spinner size={18} color="#6366f1" />
-              ) : (
-                <Icon size={20} strokeWidth={1.5} />
-              )}
-            </div>
-            
-            <AnimatePresence>
-              {isActive && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-indigo-500 border-2 border-[#0a0a0a] shadow-[0_0_10px_rgba(99,102,241,0.5)]"
-                />
-              )}
-            </AnimatePresence>
-          </div>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-4 sm:py-3">
+          {/* Left: TutorBoard Logo & Title/Subtitle */}
+          <div className="flex items-center gap-3 min-w-0">
+            <VisaiLogo size={36} className="text-white dark:text-zinc-900 shrink-0 transition-colors" />
 
-          {/* Text Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <h4 className="text-[14px] font-semibold truncate tracking-tight transition-colors duration-300" style={{ color: 'var(--text-primary)' }}>
+            {/* Middle: Title & Subtitle with neat vertical alignment */}
+            <div className="flex flex-col justify-center min-w-0">
+              <span 
+                className="text-[14.5px] font-bold tracking-tight text-white dark:text-zinc-900 !leading-tight whitespace-nowrap overflow-hidden transition-colors !m-0 !p-0 block"
+                style={{ textOverflow: 'clip' }}
+              >
                 {displayTitle}
-              </h4>
-              {!isGenerating && (
-                <span 
-                  className="text-[11px] font-medium px-2 py-0.5 rounded-md border"
-                  style={{
-                    background: isActive ? 'rgba(99,102,241,0.15)' : 'var(--bg-tertiary)',
-                    borderColor: isActive ? 'rgba(99,102,241,0.3)' : 'var(--border-color)',
-                    color: isActive ? '#6366f1' : 'var(--text-tertiary)'
-                  }}
-                >
-                  {cfg.tag}
-                </span>
-              )}
+              </span>
+              <span 
+                className={`text-[12px] font-normal !leading-tight whitespace-nowrap overflow-hidden block !m-0 !p-0 mt-0.5 ${
+                  isActive 
+                    ? 'text-[#ea580c] font-medium' 
+                    : 'text-zinc-400 dark:!text-zinc-500'
+                }`}
+                style={{ textOverflow: 'clip' }}
+              >
+                {isActive ? 'Viewing on canvas' : cleanDesc}
+              </span>
             </div>
-            
-            <p className="text-[12px] truncate font-medium" style={{ color: 'var(--text-tertiary)' }}>
-              {isGenerating ? 'Architecting visual component...' : cfg.desc}
-            </p>
           </div>
 
-          {/* Action Area */}
-          <div className="shrink-0 flex items-center gap-3">
-            {stepCount > 0 && !isGenerating && (
-              <div className="px-2 py-1 rounded-md border" style={{ background: 'var(--bg-tertiary)', borderColor: 'var(--border-color)' }}>
-                <span className="text-[11px] font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                  {stepCount} layers
-                </span>
-              </div>
-            )}
-            
+          {/* Right: Symmetrically Aligned Toggle Button */}
+          <div className="shrink-0 flex items-center">
             <div 
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isActive ? 'scale-110' : ''}`}
-              style={{
-                background: isActive ? '#6366f1' : 'var(--bg-tertiary)',
-                color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                boxShadow: isActive ? '0 0 15px rgba(99,102,241,0.4)' : 'none',
-                border: isActive ? 'none' : '1px solid var(--border-color)',
-              }}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+                isActive
+                  ? 'bg-[#ea580c] text-white shadow-[0_2px_8px_rgba(234,88,12,0.4)]'
+                  : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-[#ea580c] hover:text-white hover:border-[#ea580c] dark:bg-zinc-100 dark:text-zinc-700 dark:border-zinc-200 dark:hover:bg-[#ea580c] dark:hover:text-white dark:hover:border-[#ea580c]'
+              }`}
             >
-              {isActive ? <EyeOff size={14} strokeWidth={2.5} /> : <ArrowUpRight size={14} strokeWidth={2.5} />}
+              {isActive ? (
+                <EyeOff size={15} strokeWidth={2.2} />
+              ) : (
+                <Eye size={15} strokeWidth={2} />
+              )}
             </div>
           </div>
         </div>
-
-        {/* Shimmer overlay for loading state */}
-        {isGenerating && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <motion.div
-              animate={{ x: ['-100%', '200%'] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-              className="w-1/2 h-full bg-gradient-to-r from-transparent via-white/[0.03] to-transparent skew-x-12"
-            />
-          </div>
-        )}
       </div>
     </motion.div>
   );

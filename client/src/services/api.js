@@ -71,6 +71,10 @@ export const getAuthHeaders = () => {
     if (token && token !== 'verified' && token !== 'guest') {
       headers['Authorization'] = `Bearer ${token}`;
     }
+    const guestToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tb-guest-token') : null;
+    if (guestToken) {
+      headers['X-Guest-Token'] = guestToken;
+    }
   } catch (e) {}
   const csrf = getCookie('tb-csrf-token') || cachedCsrfToken;
   if (csrf) {
@@ -82,13 +86,20 @@ export const getAuthHeaders = () => {
 // Request Interceptor
 API.interceptors.request.use(
   async (config) => {
-    // 1. Attach Authorization header if stored token exists
+    // 1. Attach Authorization header or Guest Token if stored
     try {
       const storedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tb-token') : null;
       if (storedToken && storedToken !== 'verified' && storedToken !== 'guest') {
         config.headers = config.headers || {};
         if (!config.headers['Authorization']) {
           config.headers['Authorization'] = `Bearer ${storedToken}`;
+        }
+      }
+      const storedGuestToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tb-guest-token') : null;
+      if (storedGuestToken) {
+        config.headers = config.headers || {};
+        if (!config.headers['X-Guest-Token']) {
+          config.headers['X-Guest-Token'] = storedGuestToken;
         }
       }
     } catch (e) {}
@@ -124,7 +135,16 @@ const processQueue = (error, token = null) => {
 
 // Response Interceptor
 API.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Capture guest token issued by backend into localStorage as fallback
+    try {
+      const guestToken = response.headers?.['x-guest-token'] || response.headers?.['X-Guest-Token'];
+      if (guestToken && typeof localStorage !== 'undefined') {
+        localStorage.setItem('tb-guest-token', guestToken);
+      }
+    } catch (e) {}
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config || {};
     

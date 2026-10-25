@@ -1,26 +1,48 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import {
-  ChevronFirst, ChevronLast, StepBack, StepForward, Play, Pause, Info, Sparkles, SendHorizontal, Loader2, AlertTriangle,
+  ChevronFirst, ChevronLast, StepBack, StepForward, Play, Pause, RotateCcw, Info, Sparkles, SendHorizontal, Loader2, AlertTriangle, CornerDownRight, History,
 } from 'lucide-react';
 import { describeStep, changedNames, timelineMarks, valueLabel, indexStep, resolve, MODE_LABEL } from '../traceModel';
+import { variableHistory, nextHint } from '../analysis';
 import { explainStep } from '../runTrace';
 import DataView from './DataView';
+import CallTree from './CallTree';
+import MemoryView from './MemoryView';
+import EventLoopView from './EventLoopView';
 import { findShapes } from '../shapes';
 
 /**
- * Plays a trace back one step at a time: controls and a timeline, what happened
- * in plain words, a picture of the data, the variables in every frame, the
- * output so far, and a tutor who can explain the step.
+ * Plays a trace back one step at a time. Always in view: what this step did,
+ * what happens next, and the controls. In tabs: a picture of the data, the
+ * variables (each with its history), the calls so far, memory and references,
+ * JavaScript's event loop, the output, and a tutor who explains the step from
+ * the recorded facts.
  */
 
 const SPEEDS = [
   { label: '0.5×', ms: 1400 },
   { label: '1×', ms: 750 },
   { label: '2×', ms: 350 },
+  { label: '4×', ms: 160 },
 ];
 
-const frameLabel = (f) => (f.name === 'global' ? 'Global' : `${f.name}()`);
+const LEVELS = [
+  ['simple', 'Simple'],
+  ['standard', 'Normal'],
+  ['deep', 'Deep'],
+];
+const LEVEL_KEY = 'tb-explain-level';
+const readLevel = () => {
+  try {
+    const v = localStorage.getItem(LEVEL_KEY);
+    return LEVELS.some(([id]) => id === v) ? v : 'standard';
+  } catch {
+    return 'standard';
+  }
+};
+
+const frameLabel = (f) => (f.name === 'global' || f.name === '<module>' ? 'Global' : `${f.name}()`);
 
 function Ctl({ label, onClick, disabled, children, primary }) {
   return (
@@ -30,7 +52,7 @@ function Ctl({ label, onClick, disabled, children, primary }) {
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className={`grid shrink-0 cursor-pointer place-items-center rounded-full transition-colors disabled:cursor-default disabled:opacity-35 ${
+      className={`grid shrink-0 cursor-pointer place-items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--mk-accent)] disabled:cursor-default disabled:opacity-35 ${
         primary
           ? 'h-9 w-9 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90'
           : 'h-8 w-8 text-[var(--text-secondary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]'
@@ -38,18 +60,6 @@ function Ctl({ label, onClick, disabled, children, primary }) {
     >
       {children}
     </button>
-  );
-}
-
-function Section({ title, right, children }) {
-  return (
-    <section className="border-b border-[var(--st-line)] px-4 py-3.5 last:border-b-0">
-      <div className="mb-2.5 flex items-center gap-2">
-        <h3 className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">{title}</h3>
-        <div className="ml-auto">{right}</div>
-      </div>
-      {children}
-    </section>
   );
 }
 
@@ -64,6 +74,14 @@ function Timeline({ trace, index, onSeek }) {
     onSeek(Math.round(Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * (n - 1)));
   };
   const dragging = useRef(false);
+  const onKeyDown = (e) => {
+    const big = Math.max(1, Math.round(n / 10));
+    const go = { ArrowRight: index + 1, ArrowUp: index + 1, ArrowLeft: index - 1, ArrowDown: index - 1, PageUp: index + big, PageDown: index - big, Home: 0, End: n - 1 }[e.key];
+    if (go === undefined) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onSeek(go);
+  };
   return (
     <div
       ref={ref}
@@ -72,7 +90,9 @@ function Timeline({ trace, index, onSeek }) {
       aria-valuemin={1}
       aria-valuemax={n}
       aria-valuenow={index + 1}
+      aria-valuetext={`Step ${index + 1} of ${n}, line ${trace.steps[index]?.line}`}
       tabIndex={0}
+      onKeyDown={onKeyDown}
       onPointerDown={(e) => {
         dragging.current = true;
         try {
@@ -84,7 +104,7 @@ function Timeline({ trace, index, onSeek }) {
       }}
       onPointerMove={(e) => dragging.current && seekAt(e.clientX)}
       onPointerUp={() => (dragging.current = false)}
-      className="relative h-7 cursor-pointer touch-none select-none"
+      className="relative h-7 cursor-pointer touch-none select-none rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--mk-accent)]"
     >
       <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-[var(--st-fill-strong)]" />
       <div className="absolute left-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-[var(--mk-accent)]" style={{ width: n > 1 ? `${(index / (n - 1)) * 100}%` : '100%' }} />
@@ -106,11 +126,40 @@ function Timeline({ trace, index, onSeek }) {
   );
 }
 
-/* ── Variables and call stack ───────────────────────────────────────────── */
+/* ── Variables, call stack, and one variable's history ──────────────────── */
 
-function Frames({ trace, index }) {
+function VariableHistory({ trace, frameId, name, index, onSeek }) {
+  const history = useMemo(() => variableHistory(trace, frameId, name), [trace, frameId, name]);
+  return (
+    <div className="col-span-2 mb-1 mt-0.5 rounded-[8px] border border-[var(--st-line)] bg-[var(--bg-primary)] px-2 py-1.5">
+      <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+        <History size={11} /> {name} over time · {history.length} value{history.length === 1 ? '' : 's'}
+      </div>
+      <ol className="flex flex-col">
+        {history.map((h) => (
+          <li key={h.step}>
+            <button
+              type="button"
+              onClick={() => onSeek(h.step)}
+              aria-label={`Step ${h.step + 1}: ${valueLabel(h.value, trace.language)}, line ${trace.steps[h.step].line}`}
+              aria-current={h.step === index ? 'step' : undefined}
+              className={`flex w-full items-baseline gap-2 rounded-[6px] px-1 text-left font-mono text-[11.5px] hover:bg-[var(--st-fill-strong)] ${h.step === index ? 'text-[var(--mk-accent)]' : h.step > index ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'}`}
+            >
+              <span className="w-14 shrink-0 text-[var(--text-tertiary)]">step {h.step + 1}</span>
+              <span className="min-w-0 break-words">{valueLabel(h.value, trace.language)}</span>
+              <span className="ml-auto shrink-0 text-[10px] text-[var(--text-tertiary)]">line {trace.steps[h.step].line}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function Frames({ trace, index, onSeek }) {
   const step = trace.steps[index];
   const changed = useMemo(() => changedNames(trace, index), [trace, index]);
+  const [open, setOpen] = useState(null); // `${frameId}:${name}`
   const frames = step.frames.slice().reverse();
   // An object reachable from two variables is written out once in the trace; show it in full
   // everywhere, and say which variable holds the same object.
@@ -122,6 +171,7 @@ function Frames({ trace, index }) {
   }, [step]);
   return (
     <div className="flex flex-col gap-2">
+      <p className="font-mono text-[10.5px] text-[var(--text-tertiary)]">Click a variable to see every value it held.</p>
       {frames.map((f, i) => {
         const locals = f.locals.filter((l) => l.value?.t !== 'fn' && !(l.value?.t === 'other' && /^(class|module) /.test(l.value.v)));
         return (
@@ -137,16 +187,25 @@ function Frames({ trace, index }) {
               ) : (
                 <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 font-mono text-[12px] leading-[1.55]">
                   {locals.map((l) => {
-                    const isNew = changed.has(`${f.id}:${l.name}`);
+                    const key = `${f.id}:${l.name}`;
+                    const isNew = changed.has(key);
                     const shown = l.value?.t === 'ref' ? resolve(l.value, byId) : l.value;
                     const twin = l.value?.t === 'ref' ? firstHolder.get(l.value.id) : null;
                     return (
                       <React.Fragment key={l.name}>
-                        <span className="text-[var(--text-secondary)]">{l.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setOpen((o) => (o === key ? null : key))}
+                          aria-expanded={open === key}
+                          className="cursor-pointer rounded-[4px] text-left text-[var(--text-secondary)] underline decoration-dotted decoration-[var(--text-tertiary)] underline-offset-[3px] hover:text-[var(--text-primary)]"
+                        >
+                          {l.name}
+                        </button>
                         <span className={`break-words rounded-[4px] px-1 transition-colors ${isNew ? 'bg-[var(--mk-accent-soft)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`}>
                           {valueLabel(shown, trace.language)}
                           {twin && twin !== l.name && <span className="ml-1.5 text-[10.5px] text-[var(--text-tertiary)]">same object as {twin}</span>}
                         </span>
+                        {open === key && <VariableHistory trace={trace} frameId={f.id} name={l.name} index={index} onSeek={onSeek} />}
                       </React.Fragment>
                     );
                   })}
@@ -176,7 +235,7 @@ function Output({ trace, index }) {
   }, [upto]);
   if (!upto) return <div className="font-mono text-[11.5px] text-[var(--text-tertiary)]">Nothing printed yet.</div>;
   return (
-    <pre ref={ref} className="thin-scrollbar max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px] leading-[1.6] text-[var(--text-primary)]">
+    <pre ref={ref} className="thin-scrollbar max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono text-[12px] leading-[1.6] text-[var(--text-primary)]">
       {old}
       <span className="rounded-[3px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">{fresh}</span>
     </pre>
@@ -190,7 +249,17 @@ function Tutor({ trace, index, visualizationId, initialFollowUps }) {
   const [busy, setBusy] = useState(false);
   const [question, setQuestion] = useState('');
   const [problem, setProblem] = useState(null);
+  const [level, setLevel] = useState(readLevel);
   const here = thread.filter((t) => t.step === index);
+
+  const chooseLevel = (v) => {
+    setLevel(v);
+    try {
+      localStorage.setItem(LEVEL_KEY, v);
+    } catch {
+      /* storage blocked: kept for this walkthrough only */
+    }
+  };
 
   const ask = async (q) => {
     if (busy) return;
@@ -204,6 +273,7 @@ function Tutor({ trace, index, visualizationId, initialFollowUps }) {
       source: trace.source,
       visualizationId: visualizationId || undefined,
       question: q || undefined,
+      level,
       history: here.slice(-3).map((t) => ({ q: t.q || 'Explain this step.', a: t.a })),
       step: {
         index,
@@ -212,7 +282,7 @@ function Tutor({ trace, index, visualizationId, initialFollowUps }) {
         event: step.event,
         stack: step.frames.map(frameLabel),
         variables: top.locals.slice(0, 60).map((l) => `${l.name} = ${valueLabel(l.value, trace.language)}`.slice(0, 400)),
-        changes: details.slice(0, 10).map((d) => d.slice(0, 400)),
+        changes: [...details, nextHint(trace, index)?.text].filter(Boolean).slice(0, 10).map((d) => d.slice(0, 400)),
         output: trace.stdout.slice(Math.max(0, step.out - 2000), step.out),
         error: index === trace.steps.length - 1 && trace.error ? trace.error.message.slice(0, 2000) : undefined,
         simulated: trace.mode === 'simulated',
@@ -226,6 +296,23 @@ function Tutor({ trace, index, visualizationId, initialFollowUps }) {
 
   return (
     <div className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">Depth</span>
+        <div role="radiogroup" aria-label="How deep the explanation goes" className="flex h-7 items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill-strong)] p-0.5">
+          {LEVELS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={level === id}
+              onClick={() => chooseLevel(id)}
+              className={`h-6 cursor-pointer rounded-full px-2.5 text-[11.5px] transition-colors ${level === id ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.2)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       {here.map((t, i) => (
         <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-1.5">
           {t.q && <div className="self-end rounded-[12px] rounded-br-[4px] bg-[var(--st-fill-strong)] px-3 py-1.5 text-[12.5px] text-[var(--text-primary)]">{t.q}</div>}
@@ -256,6 +343,7 @@ function Tutor({ trace, index, visualizationId, initialFollowUps }) {
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.stopPropagation()}
           placeholder="Ask about this step…"
+          aria-label="Ask about this step"
           maxLength={1000}
           className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
         />
@@ -263,19 +351,37 @@ function Tutor({ trace, index, visualizationId, initialFollowUps }) {
           {busy && here.length ? <Loader2 size={13} className="animate-spin" /> : <SendHorizontal size={14} />}
         </button>
       </form>
+      <p className="text-[11px] leading-[1.45] text-[var(--text-tertiary)]">The tutor is given this step's recorded values and is told not to invent any.</p>
     </div>
   );
 }
 
 /* ── Player ─────────────────────────────────────────────────────────────── */
 
-export default function TracePlayer({ trace, index, onIndex, visualizationId, followUps, compact }) {
+export default function TracePlayer({ trace, index, onIndex, visualizationId, followUps }) {
   const n = trace.steps.length;
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [showNotes, setShowNotes] = useState(false);
-  const [tab, setTab] = useState('step');
   const go = useCallback((i) => onIndex(Math.max(0, Math.min(n - 1, i))), [n, onIndex]);
+
+  const hasLoop = useMemo(() => trace.steps.some((s) => s.loop), [trace]);
+  const hasPictures = useMemo(() => trace.steps.some((s, i) => findShapes(s, trace.steps[i - 1]).length > 0), [trace]);
+  const tabs = useMemo(
+    () => [
+      ['data', 'Data'],
+      ['vars', 'Variables'],
+      ['calls', 'Calls'],
+      ['memory', 'Memory'],
+      ...(hasLoop ? [['loop', 'Event loop']] : []),
+      ['out', 'Output'],
+      ['ask', 'Ask'],
+    ],
+    [hasLoop],
+  );
+  const [chosenTab, setTab] = useState(() => (hasLoop ? 'loop' : hasPictures ? 'data' : 'vars'));
+  const tab = tabs.some(([id]) => id === chosenTab) ? chosenTab : 'vars';
+  const tabRefs = useRef({});
 
   useEffect(() => {
     if (!playing || index >= n - 1) return undefined;
@@ -289,24 +395,24 @@ export default function TracePlayer({ trace, index, onIndex, visualizationId, fo
   useEffect(() => {
     const onKey = (e) => {
       const tag = e.target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.closest?.('.monaco-editor')) return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.closest?.('.monaco-editor') || e.target?.getAttribute?.('role') === 'slider') return;
       if (e.key === 'ArrowRight') { e.preventDefault(); go(index + 1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); go(index - 1); }
       else if (e.key === 'Home') { e.preventDefault(); go(0); }
       else if (e.key === 'End') { e.preventDefault(); go(n - 1); }
-      else if (e.key === ' ') { e.preventDefault(); setPlaying((p) => !p); }
+      else if (e.key === ' ' && e.target?.tagName !== 'BUTTON') { e.preventDefault(); setPlaying((p) => !p); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [go, index, n]);
 
   const { title, details } = useMemo(() => (n ? describeStep(trace, index) : { title: '', details: [] }), [trace, index, n]);
-  const hasData = useMemo(() => n > 0 && findShapes(trace.steps[index], trace.steps[index - 1]).length > 0, [trace, index, n]);
+  const hint = useMemo(() => (n ? nextHint(trace, index) : null), [trace, index, n]);
   const isLast = index === n - 1;
   const step = trace.steps[index];
 
   const errorBox = trace.error && (isLast || !n) && (
-    <div className={`flex gap-2 rounded-[12px] border px-3 py-2.5 text-[12.5px] leading-[1.5] ${trace.error.kind === 'limit' ? 'border-[var(--st-line-strong)] text-[var(--text-secondary)]' : 'border-red-500/30 bg-red-500/[0.06] text-red-600 dark:text-red-400'}`}>
+    <div role="alert" className={`flex gap-2 rounded-[12px] border px-3 py-2.5 text-[12.5px] leading-[1.5] ${trace.error.kind === 'limit' ? 'border-[var(--st-line-strong)] text-[var(--text-secondary)]' : 'border-red-500/30 bg-red-500/[0.06] text-red-600 dark:text-red-400'}`}>
       <AlertTriangle size={14} className="mt-[2px] shrink-0" />
       <div className="min-w-0">
         <div className="whitespace-pre-wrap break-words font-mono text-[12px]">{trace.error.message}</div>
@@ -323,7 +429,7 @@ export default function TracePlayer({ trace, index, onIndex, visualizationId, fo
       </span>
       {trace.notes?.length > 0 && (
         <div className="relative ml-auto">
-          <button type="button" onClick={() => setShowNotes((v) => !v)} aria-label="About this walkthrough" className="grid h-7 w-7 cursor-pointer place-items-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]">
+          <button type="button" onClick={() => setShowNotes((v) => !v)} aria-label="About this walkthrough" aria-expanded={showNotes} className="grid h-7 w-7 cursor-pointer place-items-center rounded-full text-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]">
             <Info size={14} />
           </button>
           <AnimatePresence>
@@ -345,118 +451,120 @@ export default function TracePlayer({ trace, index, onIndex, visualizationId, fo
 
   if (!n) {
     return (
-      <div className="flex h-full flex-col">
+      <div className="tb-walkthrough flex h-full flex-col">
         {header}
         <div className="flex flex-col gap-3 p-4">
           {errorBox}
           {trace.stdout && (
-            <Section title="Output">
+            <div>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">Output</h3>
               <pre className="whitespace-pre-wrap font-mono text-[12px] text-[var(--text-primary)]">{trace.stdout}</pre>
-            </Section>
+            </div>
           )}
         </div>
       </div>
     );
   }
 
-  const controls = (
-    <div className="shrink-0 border-t border-[var(--st-line)] px-4 pb-3 pt-2">
-      <Timeline trace={trace} index={index} onSeek={go} />
-      <div className="mt-1 flex items-center gap-1">
-        <Ctl label="First step" onClick={() => go(0)} disabled={index === 0}><ChevronFirst size={16} /></Ctl>
-        <Ctl label="Previous step (←)" onClick={() => go(index - 1)} disabled={index === 0}><StepBack size={15} /></Ctl>
-        <Ctl label={playing ? 'Pause (space)' : 'Play (space)'} onClick={() => (isLast ? (go(0), setPlaying(true)) : setPlaying((p) => !p))} primary>
-          {playing ? <Pause size={14} fill="currentColor" /> : <Play size={13} fill="currentColor" className="translate-x-[1px]" />}
-        </Ctl>
-        <Ctl label="Next step (→)" onClick={() => go(index + 1)} disabled={isLast}><StepForward size={15} /></Ctl>
-        <Ctl label="Last step" onClick={() => go(n - 1)} disabled={isLast}><ChevronLast size={16} /></Ctl>
-        <button
-          type="button"
-          onClick={() => setSpeed((s) => (s + 1) % SPEEDS.length)}
-          title="Playback speed"
-          className="ml-1 h-7 cursor-pointer rounded-full px-2 font-mono text-[11px] text-[var(--text-secondary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]"
-        >
-          {SPEEDS[speed].label}
-        </button>
-        <span className="ml-auto whitespace-nowrap font-mono text-[11px] text-[var(--text-tertiary)]">
-          {index + 1} / {n}
-          {trace.truncated ? '+' : ''}
-        </span>
-      </div>
-    </div>
-  );
+  const onTabKey = (e) => {
+    const ids = tabs.map(([id]) => id);
+    const at = ids.indexOf(tab);
+    const nextId = { ArrowRight: ids[(at + 1) % ids.length], ArrowLeft: ids[(at - 1 + ids.length) % ids.length], Home: ids[0], End: ids[ids.length - 1] }[e.key];
+    if (!nextId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setTab(nextId);
+    tabRefs.current[nextId]?.focus();
+  };
 
-  const narration = (
-    <div>
-      {/* Keyed so each step fades in; no exit animation to wait on. */}
-      <motion.div key={index} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16 }}>
-          <div className={`text-[15px] font-medium tracking-[-0.01em] ${step.event === 'exception' ? 'text-red-500' : 'text-[var(--text-primary)]'}`}>{title}</div>
-          {step.event !== 'return' || step.frames.length > 1 ? (
-            <div className="mt-0.5 font-mono text-[11px] text-[var(--text-tertiary)]">line {step.line}</div>
-          ) : null}
-          {details.length > 0 && (
-            <ul className="mt-2 flex flex-col gap-0.5 font-mono text-[12px] leading-[1.55] text-[var(--text-secondary)]">
-              {details.map((d) => <li key={d} className="break-words">{d}</li>)}
-            </ul>
-          )}
-      </motion.div>
-      {errorBox && <div className="mt-3">{errorBox}</div>}
-    </div>
-  );
-
-  const stepPanel = (
-    <>
-      <Section title={`Step ${index + 1}`}>{narration}</Section>
-      {hasData && (
-        <Section title="Data">
-          <DataView trace={trace} index={index} />
-        </Section>
-      )}
-      <Section title="Ask the tutor">
-        <Tutor key={visualizationId || trace.source} trace={trace} index={index} visualizationId={visualizationId} initialFollowUps={followUps} />
-      </Section>
-    </>
-  );
-  const varsPanel = (
-    <Section title="Variables · call stack">
-      <Frames trace={trace} index={index} />
-    </Section>
-  );
-  const outPanel = (
-    <Section title="Output">
-      <Output trace={trace} index={index} />
-    </Section>
-  );
+  const panel = {
+    data: findShapes(step, trace.steps[index - 1]).length ? (
+      <DataView trace={trace} index={index} />
+    ) : (
+      <p className="font-mono text-[11.5px] text-[var(--text-tertiary)]">No arrays, lists, trees or maps to draw at this step — see Variables or Memory.</p>
+    ),
+    vars: <Frames trace={trace} index={index} onSeek={go} />,
+    calls: <CallTree trace={trace} index={index} onSeek={go} />,
+    memory: <MemoryView trace={trace} index={index} />,
+    loop: <EventLoopView trace={trace} index={index} />,
+    out: <Output trace={trace} index={index} />,
+    ask: <Tutor key={visualizationId || trace.source} trace={trace} index={index} visualizationId={visualizationId} initialFollowUps={followUps} />,
+  }[tab];
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {header}
-      {compact && (
-        <div role="tablist" className="mx-4 mt-2.5 flex h-8 shrink-0 items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill-strong)] p-0.5">
-          {[['step', 'Step'], ['vars', 'Variables'], ['out', 'Output']].map(([id, label]) => (
+    <MotionConfig reducedMotion="user">
+      <div className="tb-walkthrough flex h-full min-h-0 flex-col">
+        {header}
+        {/* What this step did, and what comes next: always in view. */}
+        <section aria-live="polite" aria-label={`Step ${index + 1}`} className="shrink-0 border-b border-[var(--st-line)] px-4 pb-3 pt-2.5">
+          <motion.div key={index} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16 }}>
+            <div className="flex items-baseline gap-2">
+              <div className={`min-w-0 text-[15px] font-medium tracking-[-0.01em] ${step.event === 'exception' ? 'text-red-500' : 'text-[var(--text-primary)]'}`}>{title}</div>
+              <span className="ml-auto shrink-0 font-mono text-[11px] text-[var(--text-tertiary)]">line {step.line}</span>
+            </div>
+            {details.length > 0 && (
+              <ul className="mt-1.5 flex flex-col gap-0.5 font-mono text-[12px] leading-[1.55] text-[var(--text-secondary)]">
+                {details.map((d) => <li key={d} className="break-words">{d}</li>)}
+              </ul>
+            )}
+            {hint && (
+              <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-[1.5] ${hint.branch === 'in' ? 'text-emerald-700 dark:text-emerald-400' : hint.branch === 'out' ? 'text-amber-700 dark:text-amber-400' : 'text-[var(--text-tertiary)]'}`}>
+                <CornerDownRight size={13} className="mt-[3px] shrink-0" aria-hidden="true" />
+                <span>{hint.text}</span>
+              </div>
+            )}
+          </motion.div>
+          {errorBox && <div className="mt-3">{errorBox}</div>}
+        </section>
+
+        <div role="tablist" aria-label="Walkthrough views" onKeyDown={onTabKey} className="thin-scrollbar flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[var(--st-line)] px-3 py-1.5">
+          {tabs.map(([id, label]) => (
             <button
               key={id}
+              ref={(el) => (tabRefs.current[id] = el)}
               type="button"
               role="tab"
+              id={`tb-tab-${id}`}
               aria-selected={tab === id}
+              aria-controls="tb-tabpanel"
+              tabIndex={tab === id ? 0 : -1}
               onClick={() => setTab(id)}
-              className={`h-7 flex-1 cursor-pointer rounded-full text-[12px] transition-colors ${tab === id ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.2)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+              className={`h-7 shrink-0 cursor-pointer rounded-full px-2.5 text-[12px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--mk-accent)] ${tab === id ? 'bg-[var(--st-fill-strong)] text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
             >
               {label}
             </button>
           ))}
         </div>
-      )}
-      <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
-        {compact ? (tab === 'step' ? stepPanel : tab === 'vars' ? varsPanel : outPanel) : (
-          <>
-            {stepPanel}
-            {varsPanel}
-            {outPanel}
-          </>
-        )}
+        <div id="tb-tabpanel" role="tabpanel" aria-labelledby={`tb-tab-${tab}`} className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3.5">
+          {panel}
+        </div>
+
+        <div className="shrink-0 border-t border-[var(--st-line)] px-4 pb-3 pt-2">
+          <Timeline trace={trace} index={index} onSeek={go} />
+          <div className="mt-1 flex items-center gap-1">
+            <Ctl label="First step (reset)" onClick={() => { setPlaying(false); go(0); }} disabled={index === 0}><ChevronFirst size={16} /></Ctl>
+            <Ctl label="Previous step (←)" onClick={() => go(index - 1)} disabled={index === 0}><StepBack size={15} /></Ctl>
+            <Ctl label={isLast ? 'Replay from the start' : playing ? 'Pause (space)' : 'Play (space)'} onClick={() => (isLast ? (go(0), setPlaying(true)) : setPlaying((p) => !p))} primary>
+              {isLast ? <RotateCcw size={14} /> : playing ? <Pause size={14} fill="currentColor" /> : <Play size={13} fill="currentColor" className="translate-x-[1px]" />}
+            </Ctl>
+            <Ctl label="Next step (→)" onClick={() => go(index + 1)} disabled={isLast}><StepForward size={15} /></Ctl>
+            <Ctl label="Last step" onClick={() => go(n - 1)} disabled={isLast}><ChevronLast size={16} /></Ctl>
+            <button
+              type="button"
+              onClick={() => setSpeed((s) => (s + 1) % SPEEDS.length)}
+              title="Playback speed"
+              aria-label={`Playback speed ${SPEEDS[speed].label}`}
+              className="ml-1 h-7 cursor-pointer rounded-full px-2 font-mono text-[11px] text-[var(--text-secondary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]"
+            >
+              {SPEEDS[speed].label}
+            </button>
+            <span className="ml-auto whitespace-nowrap font-mono text-[11px] text-[var(--text-tertiary)]">
+              {index + 1} / {n}
+              {trace.truncated ? '+' : ''}
+            </span>
+          </div>
+        </div>
       </div>
-      {controls}
-    </div>
+    </MotionConfig>
   );
 }

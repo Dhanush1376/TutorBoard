@@ -77,7 +77,7 @@ function parseHierarchy(content) {
 const TreeNode = ({ node, depth = 0, isDark }) => {
   const [collapsed, setCollapsed] = useState(depth > 2);
   const hasChildren = node.children?.length > 0;
-  const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
+  const colors = ['#3b82f6', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
   const color = colors[depth % colors.length];
 
   return (

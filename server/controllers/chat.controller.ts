@@ -7,6 +7,7 @@ import messageRepository from '../repositories/message.repository.js';
 import sessionRepository from '../repositories/session.repository.js';
 import { requestCompletion, getTextModel } from '../utils/ai/llmClient.js';
 import { toChatClientError } from '../services/chat/chatErrors.js';
+import { generationRegistry } from '../services/chat/generationRegistry.js';
 
 /** Client idempotency keys / conversation keys: short, printable, no operators. */
 const KEY = /^[A-Za-z0-9_.:-]{1,128}$/;
@@ -38,6 +39,7 @@ export const sendMessage = async (req: Request, res: Response) => {
     const validation = sendMessageSchema.parse(req.body);
     const result = await chatService.processMessage({
       userId: (req as any).user?._id?.toString(),
+      guestId: (req as any).guestId,
       sessionId: validation.sessionId ?? undefined,
       userMessage: validation.userMessage,
       mode: 'explain',
@@ -69,6 +71,15 @@ export const streamMessage = async (req: Request, res: Response) => {
   // retries of the same logical message and makes a new one per submission.
   const requestId = validation.requestId || req.headers['x-request-id']?.toString() || `req-${Date.now()}`;
   const streamManager = new StreamLifecycleManager(res, requestId, validation.sessionId || undefined);
+  // Stoppable by its owner via POST /api/chat/stop, even after the connection drops
+  const unregister = generationRegistry.register({
+    requestId,
+    userId: (req as any).user?._id?.toString() || null,
+    guestId: (req as any).user?._id ? null : ((req as any).guestId || null),
+    sessionKey: validation.sessionId || undefined,
+    startedAt: Date.now(),
+    stop: () => streamManager.stop(),
+  });
   try {
     const baseConfig = await resolveUserConfig(req, (req as any).user, validation.userMessage);
     const userConfig: any = baseConfig ? { ...baseConfig } : { useCustomApi: false };
@@ -80,6 +91,7 @@ export const streamMessage = async (req: Request, res: Response) => {
 
     await chatService.processMessage({
       userId: (req as any).user?._id?.toString(),
+      guestId: (req as any).guestId,
       sessionId: validation.sessionId || undefined,
       title: validation.title as string | undefined,
       userMessage: validation.userMessage,
@@ -95,7 +107,31 @@ export const streamMessage = async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     streamManager.error(err);
+  } finally {
+    unregister();
   }
+};
+
+const stopSchema = z.object({
+  requestId: z.string().regex(KEY),
+  sessionId: z.string().regex(KEY).optional(),
+});
+
+/**
+ * POST /api/chat/stop — stop one of the caller's answers mid-generation.
+ * Closing the connection alone no longer cancels (the answer finishes and is saved).
+ */
+export const stopGeneration = async (req: Request, res: Response) => {
+  const parsed = stopSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid request', code: 'INVALID_REQUEST', retryable: false });
+  const result = generationRegistry.stop(parsed.data.requestId, {
+    userId: (req as any).user?._id?.toString() || null,
+    guestId: (req as any).guestId || null,
+    sessionId: parsed.data.sessionId,
+  });
+  if (result === 'forbidden') return res.status(403).json({ error: 'Not your generation', code: 'ACCESS_DENIED', retryable: false });
+  // not_found: it already finished (or never started) — nothing left to stop
+  res.json({ status: result });
 };
 
 export const regenerate = async (req: Request, res: Response) => {
@@ -112,11 +148,12 @@ export const editMessage = async (req: Request, res: Response) => {
   try {
     const { sessionId, messageId, newContent } = req.body;
     const userId = (req as any).user?._id?.toString();
+    const guestId = (req as any).guestId;
     
     if (typeof newContent !== 'string' || !newContent.trim() || newContent.length > 10000) {
       return res.status(400).json({ error: 'Invalid request', code: 'INVALID_REQUEST', retryable: false });
     }
-    const message = await assertMessageOwnership(messageId, userId, sessionId);
+    const message = await assertMessageOwnership(messageId, userId, sessionId, guestId);
     if (message.role !== 'user') throw { status: 400, message: 'Only your own messages can be edited' };
     const actualSessionId = message.sessionId.toString();
 
@@ -147,11 +184,12 @@ export const streamEditMessage = async (req: Request, res: Response) => {
   try {
     const { sessionId, messageId, newContent } = req.body;
     const userId = (req as any).user?._id?.toString();
+    const guestId = (req as any).guestId;
     
     if (typeof newContent !== 'string' || !newContent.trim() || newContent.length > 10000) {
       return res.status(400).json({ error: 'Invalid request', code: 'INVALID_REQUEST', retryable: false });
     }
-    const message = await assertMessageOwnership(messageId, userId, sessionId);
+    const message = await assertMessageOwnership(messageId, userId, sessionId, guestId);
     if (message.role !== 'user') throw { status: 400, message: 'Only your own messages can be edited' };
     const actualSessionId = message.sessionId.toString();
 
@@ -177,11 +215,17 @@ export const streamEditMessage = async (req: Request, res: Response) => {
 
 export const deleteMessage = async (req: Request, res: Response) => {
   try {
-    const { messageId, sessionId } = req.body;
+    const { messageId, sessionId, startingFrom } = req.body;
     const userId = (req as any).user?._id?.toString();
-    await assertMessageOwnership(messageId, userId, sessionId);
+    const guestId = (req as any).guestId;
+    const message = await assertMessageOwnership(messageId, userId, sessionId, guestId);
 
-    await messageRepository.deleteMessage(messageId);
+    if (startingFrom) {
+      const actualSessionId = message.sessionId.toString();
+      await messageRepository.deleteMessagesStartingFrom(actualSessionId, message.timestamp);
+    } else {
+      await messageRepository.deleteMessage(messageId);
+    }
     res.json({ success: true });
   } catch (err: any) {
     res.status(err.status || 500).json({ error: err.status && err.status < 500 ? err.message : 'Request failed' });
@@ -192,7 +236,8 @@ export const updateMessageFeedback = async (req: Request, res: Response) => {
   try {
     const { messageId, feedback, sessionId } = req.body;
     const userId = (req as any).user?._id?.toString();
-    await assertMessageOwnership(messageId, userId, sessionId);
+    const guestId = (req as any).guestId;
+    await assertMessageOwnership(messageId, userId, sessionId, guestId);
 
     await messageRepository.updateMetadata(messageId, { feedback });
     res.json({ success: true });
@@ -209,7 +254,8 @@ export const switchMessageVersion = async (req: Request, res: Response) => {
     }
 
     const userId = (req as any).user?._id?.toString();
-    await assertMessageOwnership(messageId, userId, sessionId);
+    const guestId = (req as any).guestId;
+    await assertMessageOwnership(messageId, userId, sessionId, guestId);
 
     const result = await chatService.switchMessageVersion(messageId, versionIndex);
     res.json(result);
@@ -220,7 +266,7 @@ export const switchMessageVersion = async (req: Request, res: Response) => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function assertMessageOwnership(messageId: string, userId: string | undefined, sessionId?: string) {
+async function assertMessageOwnership(messageId: string, userId: string | undefined, sessionId?: string, guestId?: string) {
   if (!messageId) throw { status: 400, message: 'messageId is required' };
   
   const msg = await messageRepository.findById(messageId);
@@ -237,16 +283,18 @@ async function assertMessageOwnership(messageId: string, userId: string | undefi
   } 
   // 2. If it's a guest session (userId: null)
   else {
-    // If the requester is an authenticated user, they shouldn't be messing with guest sessions
-    // unless they are explicitly authorized (e.g., admin or the session was just theirs before login)
-    // For now, we enforce that guests must provide the sessionId.
     if (userId) {
        throw { status: 403, message: 'Access denied: Registered users cannot modify guest sessions' };
     }
     
-    // For guests, they MUST provide the sessionId in the request body to prove they are the ones who created it.
-    // This provides basic protection against messageId enumeration.
-    if (!sessionId || msg.sessionId.toString() !== sessionId) {
+    // Check verified guestId if session has guestId
+    if (session.guestId) {
+      if (!guestId || session.guestId !== guestId) {
+        throw { status: 403, message: 'Access denied: You do not own this guest session' };
+      }
+    }
+    
+    if (sessionId && msg.sessionId.toString() !== sessionId) {
        throw { status: 403, message: 'Access denied: Valid sessionId required for guest mutations' };
     }
   }

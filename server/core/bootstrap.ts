@@ -69,15 +69,47 @@ export async function bootstrap(isWorker: boolean = false, signal?: AbortSignal)
 
     const options = {
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
+      minPoolSize: 2,
+      maxIdleTimeMS: 30000,
+      serverSelectionTimeoutMS: 15000,
       socketTimeoutMS: 45000,
-      family: 4 // Force IPv4 to resolve Windows ENOTFOUND errors with mongodb+srv
+      connectTimeoutMS: 15000,
     };
+
+    const { runtimeState } = await import('./runtimeState.js');
+
+    // Register resilient MongoDB lifecycle listeners if not already attached
+    if (mongoose.connection.listenerCount('disconnected') === 0) {
+      mongoose.connection.on('disconnected', () => {
+        log.warn('MongoDB connection disconnected. Auto-recovery active.');
+        runtimeState.setCapability({
+          name: 'mongodb',
+          mode: 'REAL',
+          status: 'degraded',
+          ready: false,
+          details: 'Disconnected — auto-reconnecting',
+        });
+      });
+
+      mongoose.connection.on('reconnected', () => {
+        log.info('MongoDB connection re-established.');
+        runtimeState.setCapability({
+          name: 'mongodb',
+          mode: 'REAL',
+          status: 'healthy',
+          ready: true,
+          details: 'Connected to MongoDB Atlas / Local',
+        });
+      });
+
+      mongoose.connection.on('error', (err) => {
+        log.error(`MongoDB connection error: ${err.message}`);
+      });
+    }
 
     await mongoose.connect(uri, options);
     log.info('MongoDB connected successfully');
     
-    const { runtimeState } = await import('./runtimeState.js');
     runtimeState.setCapability({
       name: 'mongodb',
       mode: 'REAL',
@@ -94,3 +126,35 @@ export async function bootstrap(isWorker: boolean = false, signal?: AbortSignal)
     throw err;
   }
 }
+
+/**
+ * ensureDbConnected — Guarantees an active MongoDB connection, waiting through transient
+ * reconnecting (readyState 2) or re-initiating connection if dropped (readyState 0).
+ */
+export async function ensureDbConnected(timeoutMs = 5000): Promise<boolean> {
+  if (mongoose.connection.readyState === 1) return true;
+
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  if (mongoose.connection.readyState === 0 && uri) {
+    log.warn('Triggering automatic MongoDB reconnect...');
+    mongoose.connect(uri, {
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      maxIdleTimeMS: 30000,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 15000,
+    }).catch(err => {
+      log.warn(`MongoDB background reconnect attempt failed: ${err.message}`);
+    });
+  }
+
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (Number(mongoose.connection.readyState) === 1) return true;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  return Number(mongoose.connection.readyState) === 1;
+}
+

@@ -276,8 +276,8 @@ const SessionOverlay = ({
                 className="flex items-center gap-3 px-4 py-3 rounded-2xl border text-left hover:border-[var(--text-tertiary)] transition-all group active:scale-[0.97]"
                 style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}
               >
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
-                  <Rewind size={15} className="text-purple-400" />
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                  <Rewind size={15} className="text-blue-400" />
                 </div>
                 <div>
                   <span className="text-[12px] font-normal text-[var(--text-primary)] block">Rewind</span>

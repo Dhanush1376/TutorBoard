@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipBack, SkipForward,
   Gauge, MessageSquare, ChevronUp, ChevronDown,
-  Keyboard, ChevronRight, Send, Volume2, VolumeX
+  Keyboard, ChevronRight, Send, Volume2, VolumeX, X
 } from 'lucide-react';
 
 
@@ -35,19 +35,51 @@ const UnifiedControlBar = ({
   onToggleVoice,
   elapsedTime = '0:00',
   totalTime = '0:00',
+  elapsedSeconds = 0,
+  totalDurationSeconds = 0,
   playbackSpeed = 1,
   showDoubtInput = true,
   className = '',
+  isDoubtExpanded: externalIsDoubtExpanded,
+  onDoubtExpandedChange,
 }) => {
-  const [isDoubtExpanded, setIsDoubtExpanded] = useState(false);
+  const [internalIsDoubtExpanded, setInternalIsDoubtExpanded] = useState(false);
+  const isDoubtExpanded = externalIsDoubtExpanded !== undefined ? externalIsDoubtExpanded : internalIsDoubtExpanded;
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 640 : false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const setIsDoubtExpanded = useCallback((val) => {
+    setInternalIsDoubtExpanded((prev) => {
+      const nextVal = typeof val === 'function' ? val(prev) : val;
+      onDoubtExpandedChange?.(nextVal);
+      return nextVal;
+    });
+  }, [onDoubtExpandedChange]);
+
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
   const [doubtText, setDoubtText] = useState('');
   const [showKeyHints, setShowKeyHints] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPercent, setDragPercent] = useState(null);
   const doubtInputRef = useRef(null);
   const speedMenuRef = useRef(null);
+  const doubtContainerRef = useRef(null);
 
   const currentSpeed = playbackSpeed;
-  const progress = totalSteps > 0 ? ((currentStepIndex + 1) / totalSteps) * 100 : 0;
+  const maxStep = Math.max(totalSteps - 1, 1);
+  const stepPercent = totalSteps > 1 ? (currentStepIndex / maxStep) * 100 : 0;
+
+  // Continuous progress calculation based on elapsed seconds vs total duration
+  let calculatedPercent = stepPercent;
+  if (totalDurationSeconds > 0) {
+    calculatedPercent = Math.min(100, Math.max(0, (elapsedSeconds / totalDurationSeconds) * 100));
+  }
+  const progressPercent = isDragging && dragPercent !== null ? dragPercent : calculatedPercent;
 
   // ── Speed Cycling ──────────────────────────────────────────────────────
   const handleSpeedSelect = useCallback((speed) => {
@@ -55,13 +87,22 @@ const UnifiedControlBar = ({
     setIsSpeedMenuOpen(false);
   }, [onSpeedChange]);
 
-  // ── Doubt Submission ───────────────────────────────────────────────────
+  // ── Doubt Submission & Close ───────────────────────────────────────────
+  const handleCloseDoubt = useCallback((e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setDoubtText('');
+    setInternalIsDoubtExpanded(false);
+    onDoubtExpandedChange?.(false);
+  }, [onDoubtExpandedChange]);
+
   const handleDoubtSubmit = useCallback(() => {
     if (!doubtText.trim()) return;
     onAskDoubt?.(doubtText.trim());
-    setDoubtText('');
-    setIsDoubtExpanded(false);
-  }, [doubtText, onAskDoubt]);
+    handleCloseDoubt();
+  }, [doubtText, onAskDoubt, handleCloseDoubt]);
 
   const handleDoubtKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -69,26 +110,57 @@ const UnifiedControlBar = ({
       handleDoubtSubmit();
     }
     if (e.key === 'Escape') {
-      setIsDoubtExpanded(false);
-      setDoubtText('');
+      e.preventDefault();
+      e.stopPropagation();
+      handleCloseDoubt(e);
     }
-  }, [handleDoubtSubmit]);
+  }, [handleDoubtSubmit, handleCloseDoubt]);
 
   // ── Keyboard Shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const activeTag = document.activeElement?.tagName;
+      const isInput = ['INPUT', 'TEXTAREA'].includes(activeTag) || document.activeElement?.isContentEditable;
+      if (isInput) return;
+
       if (e.key === '?' && !isDoubtExpanded) {
         e.preventDefault();
         setShowKeyHints(prev => !prev);
       }
+      if ((e.key === 'd' || e.key === 'D') && !isDoubtExpanded && showDoubtInput) {
+        e.preventDefault();
+        setIsDoubtExpanded(true);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDoubtExpanded]);
+  }, [isDoubtExpanded, showDoubtInput]);
+
+  // Support external trigger (e.g. clicking canvas element) to populate doubt input without auto-submitting
+  useEffect(() => {
+    const handleSetDoubt = (e) => {
+      const text = typeof e.detail === 'string' ? e.detail : e.detail?.text;
+      if (text) {
+        setDoubtText(text);
+        setIsDoubtExpanded(true);
+        setTimeout(() => {
+          if (doubtInputRef.current) {
+            doubtInputRef.current.focus();
+            doubtInputRef.current.selectionStart = doubtInputRef.current.selectionEnd = doubtInputRef.current.value.length;
+          }
+        }, 60);
+      }
+    };
+    window.addEventListener('set-doubt-input', handleSetDoubt);
+    return () => window.removeEventListener('set-doubt-input', handleSetDoubt);
+  }, []);
 
   useEffect(() => {
-    if (isDoubtExpanded && doubtInputRef.current) {
-      doubtInputRef.current.focus();
+    if (isDoubtExpanded) {
+      const timer = setTimeout(() => {
+        doubtInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [isDoubtExpanded]);
 
@@ -97,12 +169,15 @@ const UnifiedControlBar = ({
       if (speedMenuRef.current && !speedMenuRef.current.contains(e.target)) {
         setIsSpeedMenuOpen(false);
       }
+      if (isDoubtExpanded && doubtContainerRef.current && !doubtContainerRef.current.contains(e.target)) {
+        if (!doubtText.trim()) {
+          setIsDoubtExpanded(false);
+        }
+      }
     };
-    if (isSpeedMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isSpeedMenuOpen]);
+  }, [isSpeedMenuOpen, isDoubtExpanded, doubtText]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -110,16 +185,17 @@ const UnifiedControlBar = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`unified-control-bar ${className} liquid-glass`}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className={`unified-control-bar ${className} rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)]/90 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_32px_-18px_rgba(0,0,0,0.4)] backdrop-blur-xl`}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        padding: '10px 20px',
-        borderRadius: 28,
-        maxWidth: isDoubtExpanded ? 680 : 500,
-        transition: 'max-width 500ms var(--ease-apple)',
+        gap: isMobile ? 5 : 7,
+        padding: isMobile ? '6px 10px' : '6px 12px',
+        borderRadius: 9999,
+        maxWidth: isDoubtExpanded ? 'min(calc(100vw - 24px), 860px)' : (isMobile ? 'calc(100vw - 24px)' : 600),
+        width: 'max-content',
+        transition: 'max-width 380ms cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       {/* ── Transport Controls ── */}
@@ -141,8 +217,8 @@ const UnifiedControlBar = ({
           title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
           style={{
             position: 'relative',
-            width: 38,
-            height: 38,
+            width: isMobile ? 32 : 38,
+            height: isMobile ? 32 : 38,
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
@@ -164,7 +240,7 @@ const UnifiedControlBar = ({
                 exit={{ scale: 0.5, opacity: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                <Pause size={15} fill="currentColor" />
+                <Pause size={isMobile ? 13 : 15} fill="currentColor" />
               </motion.div>
             ) : (
               <motion.div
@@ -174,27 +250,8 @@ const UnifiedControlBar = ({
                 exit={{ scale: 0.5, opacity: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                <Play size={15} fill="currentColor" style={{ marginLeft: 2 }} />
+                <Play size={isMobile ? 13 : 15} fill="currentColor" style={{ marginLeft: 2 }} />
               </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Pulse ring when playing */}
-          <AnimatePresence>
-            {isPlaying && (
-              <motion.div
-                initial={{ scale: 1, opacity: 0.5 }}
-                animate={{ scale: 2, opacity: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "easeOut" }}
-                style={{
-                  position: 'absolute',
-                  inset: -1,
-                  borderRadius: '50%',
-                  border: '1.5px solid var(--text-primary)',
-                  pointerEvents: 'none',
-                }}
-              />
             )}
           </AnimatePresence>
         </motion.button>
@@ -204,17 +261,25 @@ const UnifiedControlBar = ({
           onClick={onNextStep}
           disabled={currentStepIndex >= totalSteps - 1}
           keyHint={showKeyHints ? '→' : null}
-          size={13}
+          size={isMobile ? 12 : 13}
           fill
           title="Next Step"
         />
       </div>
 
       {/* ── Divider ── */}
-      <div style={{ width: 1, height: 20, background: 'var(--border-color)', opacity: 0.6, flexShrink: 0 }} />
+      <div style={{ width: 1, height: isMobile ? 16 : 20, background: 'var(--border-color)', opacity: 0.6, flexShrink: 0 }} />
 
       {/* ── Step Progress ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 auto', minWidth: 80 }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 3,
+        flex: isMobile ? '0 1 110px' : '0 0 220px',
+        width: isMobile ? 'clamp(80px, 26vw, 130px)' : 220,
+        minWidth: isMobile ? 80 : 220,
+        maxWidth: 220,
+      }}>
         {/* Progress bar */}
         <div style={{
           width: '100%',
@@ -226,16 +291,30 @@ const UnifiedControlBar = ({
           <input
             type="range"
             min={0}
-            max={Math.max(totalSteps - 1, 0)}
-            step={1}
-            value={currentStepIndex}
-            onChange={(e) => onGoToStep?.(parseInt(e.target.value))}
+            max={100}
+            step={0.1}
+            value={progressPercent}
+            onPointerDown={() => {
+              setIsDragging(true);
+            }}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              setDragPercent(val);
+              if (totalSteps > 0) {
+                const targetStep = Math.min(totalSteps - 1, Math.max(0, Math.round((val / 100) * (totalSteps - 1))));
+                onGoToStep?.(targetStep);
+              }
+            }}
+            onPointerUp={() => {
+              setIsDragging(false);
+              setDragPercent(null);
+            }}
             style={{
               width: '100%',
               height: 4,
               appearance: 'none',
-              background: 'rgba(255, 255, 255, 0.05)',
-              borderRadius: 2,
+              background: 'rgba(255, 255, 255, 0.08)',
+              borderRadius: 9999,
               cursor: 'pointer',
               outline: 'none',
               zIndex: 2,
@@ -250,11 +329,11 @@ const UnifiedControlBar = ({
             top: 'calc(50% - 2px)',
             height: 4,
             background: 'var(--text-primary)',
-            width: `${progress}%`,
+            width: `calc(6px + (100% - 12px) * ${progressPercent / 100})`,
             pointerEvents: 'none',
             zIndex: 1,
-            borderRadius: 2,
-            transition: 'width 200ms ease-out',
+            borderRadius: 9999,
+            transition: isDragging ? 'none' : 'width 150ms linear',
             boxShadow: '0 0 8px rgba(255, 255, 255, 0.3)',
           }} />
         </div>
@@ -264,13 +343,17 @@ const UnifiedControlBar = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '0 2px'
+          gap: 6,
+          padding: '0 2px',
+          whiteSpace: 'nowrap',
+          userSelect: 'none'
         }}>
           <span style={{
             fontSize: 10,
             color: 'var(--text-tertiary)',
             fontWeight: 500,
             fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
           }}>
             Step {currentStepIndex + 1} <span style={{ opacity: 0.4 }}>/</span> {totalSteps}
           </span>
@@ -279,7 +362,8 @@ const UnifiedControlBar = ({
             color: 'var(--text-tertiary)',
             fontWeight: 500,
             fontVariantNumeric: 'tabular-nums',
-            opacity: 0.8
+            opacity: 0.8,
+            flexShrink: 0,
           }}>
             {elapsedTime} <span style={{ opacity: 0.4 }}>/</span> {totalTime}
           </span>
@@ -287,18 +371,18 @@ const UnifiedControlBar = ({
       </div>
 
       {/* ── Divider ── */}
-      <div style={{ width: 1, height: 20, background: 'var(--border-color)', opacity: 0.6, flexShrink: 0 }} />
+      <div className="w-px h-4 bg-[var(--st-line-strong)] opacity-60 shrink-0" />
 
       {/* ── Speed Control ── */}
       <div style={{ position: 'relative' }} ref={speedMenuRef}>
         <ControlButton
           icon={Gauge}
           onClick={() => setIsSpeedMenuOpen(!isSpeedMenuOpen)}
-          label={SPEED_LABELS[currentSpeed]}
+          label={SPEED_LABELS[Number(currentSpeed)] || `${currentSpeed || 1}×`}
           keyHint={showKeyHints ? 'S' : null}
-          size={12}
+          size={13}
           title="Playback Speed"
-          extra={<ChevronUp size={9} style={{ opacity: 0.4, marginLeft: -2, transform: isSpeedMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+          extra={<ChevronUp size={11} className="text-[var(--text-tertiary)] -ml-0.5 shrink-0" style={{ transform: isSpeedMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
         />
         <AnimatePresence>
           {isSpeedMenuOpen && (
@@ -351,18 +435,20 @@ const UnifiedControlBar = ({
         </AnimatePresence>
       </div>
 
-      <div style={{ width: 1, height: 20, background: 'var(--border-color)', opacity: 0.6, flexShrink: 0 }} />
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="w-px h-4 bg-[var(--st-line-strong)] opacity-60 shrink-0" />
 
-      {/* ── Voice Narration Toggle ── */}
-      <ControlButton
-        icon={isVoiceEnabled ? Volume2 : VolumeX}
-        onClick={onToggleVoice}
-        isActive={isVoiceEnabled}
-        size={13}
-        title={isVoiceEnabled ? "Mute Narration" : "Enable Narration"}
-      />
+        {/* ── Voice Narration Toggle ── */}
+        <ControlButton
+          icon={isVoiceEnabled ? Volume2 : VolumeX}
+          onClick={onToggleVoice}
+          isActive={isVoiceEnabled}
+          size={13}
+          title={isVoiceEnabled ? "Mute Narration" : "Enable Narration"}
+        />
 
-      <div style={{ width: 1, height: 20, background: 'var(--border-color)', opacity: 0.6, flexShrink: 0 }} />
+        <div className="w-px h-4 bg-[var(--st-line-strong)] opacity-60 shrink-0" />
+      </div>
 
       {/* ── Doubt Input ── */}
       {showDoubtInput && (
@@ -370,63 +456,82 @@ const UnifiedControlBar = ({
           {isDoubtExpanded ? (
             <motion.div
               key="doubt-input"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 220, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              style={{ overflow: 'hidden', flexShrink: 0, position: 'relative' }}
+              ref={doubtContainerRef}
+              initial={{ width: 0, opacity: 0, scale: 0.96 }}
+              animate={{ width: isMobile ? 180 : 260, opacity: 1, scale: 1 }}
+              exit={{ width: 0, opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                overflow: 'hidden',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: 9999,
+              }}
             >
-              <input
-                ref={doubtInputRef}
-                // Focus on mount: AnimatePresence mode="wait" mounts this only
-                // after the trigger's exit animation, so the isDoubtExpanded
-                // effect runs too early and keystrokes went to the page (Space
-                // toggled playback instead of typing).
-                autoFocus
-                value={doubtText}
-                onChange={(e) => setDoubtText(e.target.value)}
-                onKeyDown={handleDoubtKeyDown}
-                onBlur={() => { if (!doubtText) setIsDoubtExpanded(false); }}
-                placeholder="Ask a doubt..."
+              <div
+                className="w-full flex items-center gap-2 pl-3 pr-1.5 rounded-full bg-[var(--bg-secondary)]/80 hover:bg-[var(--bg-secondary)] border border-[var(--st-line-strong)] focus-within:border-[var(--text-tertiary)] focus-within:bg-[var(--bg-secondary)] transition-all"
                 style={{
-                  width: '100%',
-                  padding: '7px 36px 7px 14px',
-                  borderRadius: 18,
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  outline: 'none',
-                  transition: 'border-color 0.2s, background 0.2s',
+                  height: isMobile ? 32 : 36,
+                  boxSizing: 'border-box',
                 }}
-                className="placeholder:text-[var(--text-tertiary)] focus:border-[var(--text-tertiary)]"
-              />
-              {doubtText.trim() && (
-                <motion.button
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  onClick={handleDoubtSubmit}
+              >
+                <MessageSquare size={13} className="text-[var(--text-tertiary)] shrink-0 pointer-events-none" />
+
+                <input
+                  ref={doubtInputRef}
+                  value={doubtText}
+                  onChange={(e) => setDoubtText(e.target.value)}
+                  onKeyDown={handleDoubtKeyDown}
+                  placeholder="Ask a doubt..."
                   style={{
-                    position: 'absolute',
-                    right: 6,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    background: 'var(--text-primary)',
-                    color: 'var(--bg-primary)',
+                    flex: 1,
+                    minWidth: 0,
+                    height: '100%',
+                    background: 'transparent',
                     border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    color: 'var(--text-primary)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    padding: 0,
                   }}
-                >
-                  <Send size={10} />
-                </motion.button>
-              )}
+                  className="placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 select-text"
+                />
+
+                {doubtText.trim() ? (
+                  <motion.button
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    onClick={handleDoubtSubmit}
+                    title="Send doubt (Enter)"
+                    className="w-6 h-6 rounded-full bg-[var(--text-primary)] text-[var(--bg-primary)] flex items-center justify-center shrink-0 cursor-pointer border-0 shadow-sm"
+                  >
+                    <Send size={11} className="ml-0.5" />
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    type="button"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.6 }}
+                    whileHover={{ opacity: 1, scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={handleCloseDoubt}
+                    title="Cancel (Esc)"
+                    className="w-6 h-6 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] flex items-center justify-center shrink-0 cursor-pointer border-0 transition-colors"
+                  >
+                    <X size={13} />
+                  </motion.button>
+                )}
+              </div>
             </motion.div>
           ) : (
             <ControlButton
@@ -448,29 +553,27 @@ const UnifiedControlBar = ({
 
 const ControlButton = ({ icon: Icon, onClick, disabled, keyHint, label, size = 14, fill = false, extra, title, isActive }) => (
   <motion.button
-    whileHover={disabled ? {} : { scale: 1.08 }}
-    whileTap={disabled ? {} : { scale: 0.92 }}
+    whileHover={disabled ? {} : { scale: 1.05 }}
+    whileTap={disabled ? {} : { scale: 0.95 }}
     onClick={onClick}
     disabled={disabled}
     title={title}
+    className={`inline-flex items-center justify-center cursor-pointer transition-all ${
+      label ? 'px-2.5 h-8 gap-1.5 rounded-full' : 'h-8 w-8 rounded-full'
+    } ${
+      disabled
+        ? 'opacity-30 cursor-not-allowed'
+        : isActive
+          ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
+          : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'
+    }`}
     style={{
-      position: 'relative',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 4,
-      padding: label ? '5px 10px' : 6,
-      borderRadius: label ? 10 : 8,
-      background: isActive ? 'rgba(var(--bg-primary-rgb), 0.15)' : 'transparent',
-      color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-      opacity: disabled ? 0.25 : 0.75,
       border: 'none',
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      transition: 'all 150ms ease, opacity 150ms ease',
     }}
   >
-    <Icon size={size} fill={fill ? 'currentColor' : 'none'} />
+    <Icon size={size} fill={fill ? 'currentColor' : 'none'} className="shrink-0" />
     {label && (
-      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.03em' }}>
+      <span className="text-[11px] font-semibold tracking-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] leading-none select-none">
         {label}
       </span>
     )}

@@ -35,11 +35,14 @@ const LoginNavbar = ({ compact = false, onMenuOpenChange }) => {
         { label: 'About', path: '/about' },
     ];
 
+    const isGuestOnly = user?.isGuest;
+    const isFullAuth = isAuthenticated && !isGuestOnly;
+
     const mobileDrawerItems = [
         ...links,
-        ...(!isAuthenticated && location.pathname !== '/login'
+        ...(location.pathname !== '/login'
             ? [{ label: 'Get started', path: '/login', isButton: true }]
-            : []),
+            : (!isFullAuth ? [{ label: 'Get started', path: '/login?mode=signup', isButton: true }] : [])),
     ];
 
     const toggleMenu = () => {
@@ -216,10 +219,10 @@ const LoginNavbar = ({ compact = false, onMenuOpenChange }) => {
                                                 onClick={item.onClick}
                                                 className="group flex items-center justify-end gap-2.5 py-1 text-right cursor-pointer select-none"
                                             >
-                                                <span className="text-[14px] font-normal tracking-tight text-[var(--text-primary)] dark:text-neutral-200 group-hover:text-purple-600 dark:group-hover:text-white transition-colors">
+                                                <span className="text-[14px] font-normal tracking-tight text-[var(--text-primary)] dark:text-neutral-200 group-hover:text-blue-500 dark:group-hover:text-white transition-colors">
                                                     {item.label}
                                                 </span>
-                                                <span className="h-[1.5px] rounded-full transition-all duration-300 w-4 bg-[var(--border-color)] dark:bg-neutral-700 group-hover:w-6 group-hover:bg-purple-500" />
+                                                <span className="h-[1.5px] rounded-full transition-all duration-300 w-4 bg-[var(--border-color)] dark:bg-neutral-700 group-hover:w-6 group-hover:bg-blue-500" />
                                             </button>
                                         ) : (
                                             <Link 
@@ -229,15 +232,15 @@ const LoginNavbar = ({ compact = false, onMenuOpenChange }) => {
                                             >
                                                 <span className={`text-[14px] tracking-tight transition-colors ${
                                                     isActive 
-                                                        ? 'text-purple-600 dark:text-purple-300 font-medium' 
-                                                        : 'font-normal text-[var(--text-primary)] dark:text-neutral-200 group-hover:text-purple-600 dark:group-hover:text-white'
+                                                        ? 'text-blue-500 dark:text-blue-400 font-medium' 
+                                                        : 'font-normal text-[var(--text-primary)] dark:text-neutral-200 group-hover:text-blue-500 dark:group-hover:text-white'
                                                 }`}>
                                                     {item.label}
                                                 </span>
                                                 <span className={`h-[1.5px] rounded-full transition-all duration-300 ${
                                                     isActive 
-                                                        ? 'w-6 bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.7)]' 
-                                                        : 'w-4 bg-[var(--border-color)] dark:bg-neutral-700 group-hover:w-6 group-hover:bg-purple-500'
+                                                        ? 'w-6 bg-blue-500' 
+                                                        : 'w-4 bg-[var(--border-color)] dark:bg-neutral-700 group-hover:w-6 group-hover:bg-blue-500'
                                                 }`} />
                                             </Link>
                                         )}

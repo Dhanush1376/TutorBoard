@@ -1,30 +1,21 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { instrumentJavaScript, InstrumentError } from '../adapters/jsInstrument';
-import { createRecorder, StepLimit, formatForConsole } from '../adapters/jsRecorder';
+import { runInstrumented } from '../adapters/jsRecorder';
 import { assertTrace, TRACE_VERSION } from '../traceModel';
 
-/** Run a program the way jsTraceWorker.js does, and return its trace. */
+/**
+ * Run a program the way the sandbox worker does (jsTraceWorker.js → runInstrumented),
+ * minus the Promise.prototype.then swap, which isn't safe inside a test runner.
+ */
 async function trace(source, maxSteps = 1000) {
   const { code } = instrumentJavaScript(source);
-  const tb = createRecorder({ maxSteps });
-  const print = (...a) => tb.print(`${a.map(formatForConsole).join(' ')}\n`);
-  let error = null;
-  try {
-    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-    await new AsyncFunction('__tb', 'console', code)(tb, { log: print });
-  } catch (e) {
-    if (!(e instanceof StepLimit)) error = `${e.name}: ${e.message}`;
-  }
-  if (!error) {
-    try {
-      tb.finish();
-    } catch {
-      /* limit */
-    }
-  }
-  const { steps, stdout } = tb.result();
-  return assertTrace({ version: TRACE_VERSION, language: 'javascript', mode: 'instrumented', source, steps, stdout, error: error && { kind: 'runtime', message: error }, truncated: tb.truncated, maxSteps, notes: [] });
+  const r = await runInstrumented(code, { maxSteps, patchPromises: false });
+  const error = r.error?.kind === 'runtime' ? r.error.message : null;
+  return Object.assign(
+    assertTrace({ version: TRACE_VERSION, language: 'javascript', mode: 'instrumented', source, steps: r.steps, stdout: r.stdout, error: error && { kind: 'runtime', message: error }, truncated: r.truncated, maxSteps, notes: r.notes }),
+    { raw: r },
+  );
 }
 const top = (s) => s.frames[s.frames.length - 1];
 const val = (s, name) => top(s).locals.find((l) => l.name === name)?.value;
@@ -129,5 +120,74 @@ describe('JavaScript tracer', () => {
     } catch (e) {
       expect(e.line).toBe(2);
     }
+  });
+});
+
+describe('JavaScript event loop (observed, not simulated)', () => {
+  it('runs the script, then microtasks, then timers by due time — without waiting in real time', async () => {
+    const src = [
+      'console.log("script start");',
+      'setTimeout(function late() { console.log("timer 1000"); }, 1000);',
+      'setTimeout(function soon() { console.log("timer 0"); }, 0);',
+      'queueMicrotask(function micro() { console.log("microtask"); });',
+      'console.log("script end");',
+    ].join('\n');
+    const started = Date.now();
+    const t = await trace(src);
+    expect(Date.now() - started).toBeLessThan(900);
+    expect(t.stdout).toBe('script start\nscript end\nmicrotask\ntimer 0\ntimer 1000\n');
+    expect(t.error).toBeNull();
+    // while the script runs, both timers wait, soonest first, and the microtask is queued
+    const atEnd = t.steps.find((s) => s.line === 5);
+    expect(atEnd.loop.phase).toBe('script');
+    expect(atEnd.loop.timers.map((x) => x.label)).toEqual(['setTimeout → soon', 'setTimeout → late']);
+    expect(atEnd.loop.micro).toEqual(['queueMicrotask → micro']);
+    // the 1000 ms callback runs as a task at simulated time 1000
+    const lateStep = t.steps.find((s) => s.frames.some((f) => f.name === 'late'));
+    expect(lateStep.loop).toMatchObject({ phase: 'macro', task: 'setTimeout → late', now: 1000 });
+  });
+
+  it('takes an awaiting function off the call stack and puts it back when it resumes', async () => {
+    const src = [
+      'async function load() {',
+      '  const v = await new Promise((r) => setTimeout(() => r(42), 500));',
+      '  return v + 1;',
+      '}',
+      'load().then((x) => console.log(x));',
+      'console.log("not blocked");',
+    ].join('\n');
+    const t = await trace(src);
+    expect(t.stdout).toBe('not blocked\n43\n');
+    const pause = t.steps.find((s) => s.event === 'await');
+    expect(pause.frames.map((f) => f.name)).toEqual(['global', 'load']);
+    const after = t.steps.find((s) => s.line === 6);
+    expect(after.frames.map((f) => f.name)).toEqual(['global']); // load() is paused, not on the stack
+    expect(after.loop.awaiting).toEqual([{ name: 'load', line: 2 }]);
+    const resume = t.steps.find((s) => s.event === 'resume');
+    expect(resume.frames.map((f) => f.name)).toEqual(['global', 'load']);
+    expect(resume.loop.awaiting).toEqual([]);
+  });
+
+  it('a rejected await puts the function back on the stack to fail at its line', async () => {
+    const t = await trace('async function f() {\n  await Promise.reject(new Error("nope"));\n}\nf().catch((e) => console.log(e.message));\n');
+    expect(t.stdout).toBe('nope\n');
+    const exc = t.steps.find((s) => s.event === 'exception');
+    expect(exc.frames.map((f) => f.name)).toEqual(['global', 'f']);
+  });
+
+  it('an error thrown in a timer callback is the program\'s error', async () => {
+    const t = await trace('setTimeout(function boom() {\n  null.x;\n}, 10);\n');
+    expect(t.error.message).toMatch(/TypeError/);
+    expect(t.steps.find((s) => s.event === 'exception').line).toBe(2);
+  });
+
+  it('stops a setInterval that never clears', async () => {
+    const t = await trace('let n = 0;\nsetInterval(() => { n++; }, 100);\n', 5000);
+    expect(t.raw.notes.join(' ')).toMatch(/Timers were stopped after 200 runs/);
+  });
+
+  it('records no event-loop data for programs that never schedule anything', async () => {
+    const t = await trace('let a = 1;\nconsole.log(a);\n');
+    expect(t.steps.every((s) => !s.loop)).toBe(true);
   });
 });

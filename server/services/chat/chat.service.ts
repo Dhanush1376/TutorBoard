@@ -50,6 +50,23 @@ const sceneV2Canvas = (t: SceneTimeline) => ({
   canvasSnapshot: { title: t.title, domain: t.domain, renderer: 'scene-v2', sceneV2: t.sceneV2, canvasSteps: t.steps, totalSteps: t.steps.length, canvasObjects: [] },
 });
 
+/**
+ * Time budgets for the steps that run before the first token. A learner should
+ * see the answer start within a couple of seconds, so a slow planner or search
+ * degrades to its default instead of holding the whole answer back.
+ */
+const PLANNER_BUDGET_MS = Number(process.env.CHAT_PLANNER_BUDGET_MS) || 4000;
+const RETRIEVAL_BUDGET_MS = Number(process.env.CHAT_RETRIEVAL_BUDGET_MS) || 3000;
+
+/** Resolve with `promise`, or with `fallback()` once `ms` have passed (the promise keeps running). */
+function withBudget<T>(promise: Promise<T>, ms: number, fallback: () => T, onTimeout?: () => void): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => { onTimeout?.(); resolve(fallback()); }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** A request still `requesting`/`streaming` this long after its last update is treated as dead. */
 const STALE_REQUEST_MS = 3 * 60 * 1000;
 
@@ -130,6 +147,7 @@ export class ChatService {
    */
   async processMessage(params: {
     userId?: string;
+    guestId?: string;
     sessionId?: string;
     title?: string;
     userMessage: string;
@@ -145,7 +163,7 @@ export class ChatService {
     /** Edit flow: the (already updated) user message to answer instead of saving a new one */
     existingUserMessageId?: string;
   }) {
-    const { userId, sessionId, title, userMessage, userConfig, requestId, streamManager } = params;
+    const { userId, guestId, sessionId, title, userMessage, userConfig, requestId, streamManager } = params;
     const reqLog = childLogger({ subsystem: 'chat-service', requestId });
     reqLog.info('Chat request received', { hasSessionKey: !!sessionId, regenerate: !!params.isRegenerate, edit: !!params.existingUserMessageId });
 
@@ -154,7 +172,7 @@ export class ChatService {
       title: title || 'New Session',
       currentTopic: params.teachingContext?.currentTopic || 'General',
       explanationMode: params.teachingContext?.explanationMode || 'basic'
-    });
+    }, true, guestId || null);
 
     if (!session) throw new AppError(ErrorCode.INTERNAL_ERROR, 'Failed to resolve session');
     const sessionIdStr = session._id.toString();
@@ -224,7 +242,7 @@ export class ChatService {
           role: 'user',
           content: userMessage,
           requestId,
-          ...(userId ? { userId } : {}),
+          ...(userId ? { userId } : guestId ? { guestId } : {}),
         });
       }
     } catch (err) {
@@ -287,8 +305,13 @@ export class ChatService {
       }
 
       const planStarted = Date.now();
-      const plan = await PlannerService.generatePlan(userMessage, userConfig, requestId);
-      console.log(`[Chat] plan ready in ${Date.now() - planStarted} ms (visual: ${!!plan.visualization?.generate})`);
+      const plan = await withBudget(
+        PlannerService.generatePlan(userMessage, userConfig, requestId),
+        PLANNER_BUDGET_MS,
+        () => PlannerService.getFallbackPlan(userMessage),
+        () => reqLog.warn('Planner exceeded its budget; answering with the default plan', { budgetMs: PLANNER_BUDGET_MS }),
+      );
+      reqLog.info('Plan ready', { ms: Date.now() - planStarted, visual: !!plan.visualization?.generate });
       
       // Enrich plan schema to support frontend UI layout triggers and BuildSystemPrompt instructions
       if (plan.artifacts) {
@@ -335,16 +358,24 @@ export class ChatService {
       // just without that context (and without sources it never received).
       const [pastContext, webResults] = await Promise.all([
         (plan.tools.rag && userId)
-          ? Promise.resolve((VectorStoreService as any).getContextForTopic(topic, 3, userId)).catch((e: any) => {
-              reqLog.warn('Retrieval failed; answering without memory context', { error: e?.message });
-              return '';
-            })
+          ? withBudget(
+              Promise.resolve((VectorStoreService as any).getContextForTopic(topic, 3, userId)).catch((e: any) => {
+                reqLog.warn('Retrieval failed; answering without memory context', { error: e?.message });
+                return '';
+              }),
+              RETRIEVAL_BUDGET_MS, () => '',
+              () => reqLog.warn('Memory retrieval exceeded its budget; answering without it'),
+            )
           : Promise.resolve(''),
         plan.tools.web_search
-          ? searchWeb(userMessage, { count: 5 }).catch((e: any) => {
-              reqLog.warn('Web search failed; answering without web sources', { error: e?.message });
-              return [];
-            })
+          ? withBudget(
+              searchWeb(userMessage, { count: 5 }).catch((e: any) => {
+                reqLog.warn('Web search failed; answering without web sources', { error: e?.message });
+                return [];
+              }),
+              RETRIEVAL_BUDGET_MS, () => [] as any[],
+              () => reqLog.warn('Web search exceeded its budget; answering without web sources'),
+            )
           : Promise.resolve([])
       ]);
 
@@ -416,7 +447,8 @@ export class ChatService {
           orchestrationPromise,
           params.isRegenerate,
           params.originalMessageId,
-          userConfig
+          userConfig,
+          guestId
         );
       }
  
@@ -445,6 +477,15 @@ export class ChatService {
       const tokens = (aiResponse._meta?.tokens_in || 0) + (aiResponse._meta?.tokens_out || 0);
       await BudgetService.recordUsage(session._id.toString(), tokens, userTier).catch((e: any) => log.warn('Usage recording failed', { error: e.message }));
  
+      // Persist visual artifact if generated
+      const { savedArtifactId, artifactPayload } = await this.persistOrchestratedArtifact({
+        sessionId: session._id.toString(),
+        userId: userId || null,
+        guestId: guestId || null,
+        topic: (plan as any).topic || topic,
+        orchestrationResult
+      });
+
       // 7. ATOMIC PERSISTENCE
       const assistantMsg = { 
         role: 'assistant', 
@@ -457,7 +498,9 @@ export class ChatService {
             : orchestrationResult.sceneV2 ? sceneV2Visuals(orchestrationResult.sceneV2) : orchestrationResult.visualScript,
           plan: { mode: plan.teaching_mode, complexity: plan.complexity },
           hasVisualArtifact: !!(orchestrationResult.sceneBranch || orchestrationResult.sceneV2 || orchestrationResult?.visualScript?.script?.length || (plan as any).suggest_canvas),
-          rendererType: orchestrationResult.sceneBranch || orchestrationResult.sceneV2 ? 'scene-v2' : orchestrationResult?.visualScript?.renderer || (plan as any).canvas_type
+          rendererType: orchestrationResult.sceneBranch || orchestrationResult.sceneV2 ? 'scene-v2' : orchestrationResult?.visualScript?.renderer || (plan as any).canvas_type,
+          artifactId: savedArtifactId,
+          artifactData: artifactPayload
         } 
       };
 
@@ -470,9 +513,16 @@ export class ChatService {
           ...assistantMsg,
           requestId,
           status: 'completed',
+          ...(userId ? { userId } : guestId ? { guestId } : {}),
           ...(orchestrationResult.sceneBranch ? sceneV2Canvas(sceneToTimeline(orchestrationResult.sceneBranch.scene))
             : orchestrationResult.sceneV2 ? sceneV2Canvas(orchestrationResult.sceneV2) : {}),
         });
+      }
+
+      if (savedArtifactId) {
+        await Artifact.findByIdAndUpdate(savedArtifactId, { messageId: assistantMsgId }).catch(e =>
+          log.warn('Failed to update artifact messageId:', { error: e.message })
+        );
       }
 
       // ASYNC: Add to Long-Term Memory (Postgres)
@@ -577,7 +627,8 @@ export class ChatService {
     orchestrationPromise?: Promise<any>,
     isRegenerate?: boolean,
     originalMessageId?: string,
-    userConfig?: any
+    userConfig?: any,
+    guestId?: string | null
   ) {
     let fullContent = '';
     
@@ -611,14 +662,14 @@ export class ChatService {
       });
     } catch (err) {
       if (streamManager.signal.aborted) {
-        await this.persistCancelled(sessionId, requestId, userMessageId, fullContent, isRegenerate);
+        await this.persistCancelled(sessionId, requestId, userMessageId, fullContent, isRegenerate, userId, guestId);
       }
       throw err;
     }
 
     if (streamManager.signal.aborted) {
       // The client left (Stop / closed tab) after the provider finished.
-      await this.persistCancelled(sessionId, requestId, userMessageId, fullContent, isRegenerate);
+      await this.persistCancelled(sessionId, requestId, userMessageId, fullContent, isRegenerate, userId, guestId);
       throw new ChatError('CANCELLED');
     }
     if (aiResponse?.error) throw new AppError(ErrorCode.AI_GENERATION_FAILED, aiResponse.error);
@@ -668,9 +719,7 @@ export class ChatService {
     }
 
     // Explicitly dispatch the generated visual simulation nodes to the frontend canvas UI
-    let savedArtifactId = null;
     const sceneV2: SceneTimeline | null = orchestrationResult?.sceneV2 ?? null;
-    // a doubt answered on the board was already sent (scene_branch) the moment it was ready
     const sceneBranch: SceneBranch | null = orchestrationResult?.sceneBranch ?? null;
     if (sceneBranch || sceneV2) {
       // Engine v2: already sent the moment it was ready (scene_branch / scene_v2)
@@ -686,41 +735,17 @@ export class ChatService {
         nodes: orchestrationResult.visualScript.script,
         renderer: rendererType
       } as any);
-
-      // Persist to Artifacts collection for the Artifact Panel
-      try {
-        const title = (plan as any).topic || 'Generated Visualization';
-        const newArtifact = new Artifact({
-          userId: userId || null,
-          sessionId: sessionId.toString(),
-          messageId: null, // Will be updated after message is saved
-          type: 'visual',
-          artifactClass: 'whiteboard',
-          title: title,
-          content: 'Visual scene generated by TutorBoard Neural Engine',
-          sceneGraph: {
-            elements: orchestrationResult.visualScript.script,
-            connections: orchestrationResult.visualScript.script.filter((n: any) => n.cmd === 'edge' || n.type === 'edge')
-          },
-          metadata: {
-            rendererType,
-            generator: 'ChatService'
-          }
-        });
-        await newArtifact.save();
-        savedArtifactId = newArtifact._id.toString();
-        
-        // Notify client that artifact is saved
-        streamManager.send({
-          type: 'artifact_saved',
-          artifactId: savedArtifactId,
-          title: title,
-          rendererType: rendererType
-        });
-      } catch (err) {
-        log.warn('Failed to save visual artifact:', { error: (err as Error).message });
-      }
     }
+
+    // Persist complete, renderable visual artifact (Engine v2, scene branch, or visual script)
+    const { savedArtifactId, artifactPayload } = await this.persistOrchestratedArtifact({
+      sessionId: sessionId.toString(),
+      userId: userId || null,
+      guestId: guestId || null,
+      topic: (plan as any).topic || (plan as any).educational_intent,
+      orchestrationResult,
+      streamManager
+    });
 
     // SEC-BUDGET: Record streaming usage (bookkeeping never fails a produced answer)
     const tokens = (aiResponse._meta?.tokens_in || 0) + (aiResponse._meta?.tokens_out || 0);
@@ -735,7 +760,8 @@ export class ChatService {
       visuals: sceneBranch ? branchVisuals(sceneBranch) : sceneV2 ? sceneV2Visuals(sceneV2) : orchestrationResult.visualScript,
       hasVisualArtifact: !!(sceneBranch || sceneV2 || orchestrationResult?.visualScript?.script?.length || (plan as any).suggest_canvas),
       rendererType: sceneBranch || sceneV2 ? 'scene-v2' : orchestrationResult?.visualScript?.renderer || (plan as any).canvas_type,
-      artifactId: savedArtifactId
+      artifactId: savedArtifactId,
+      artifactData: artifactPayload
     };
 
     // Final persistence. If it fails, the answer is kept in the ledger so a retry
@@ -752,6 +778,7 @@ export class ChatService {
           metadata,
           requestId,
           status: 'completed',
+          ...(userId ? { userId } : guestId ? { guestId } : {}),
           ...(sceneBranch ? sceneV2Canvas(sceneToTimeline(sceneBranch.scene)) : sceneV2 ? sceneV2Canvas(sceneV2) : {}),
         });
       }
@@ -802,6 +829,8 @@ export class ChatService {
       plan, 
       narration: orchestrationResult.narration,
       visuals: sceneBranch ? branchVisuals(sceneBranch) : sceneV2 ? sceneV2Visuals(sceneV2) : orchestrationResult.visualScript,
+      artifactId: savedArtifactId,
+      rendererType: metadata.rendererType,
       isRegenerate: !!isRegenerate,
       metadata: finalMessage?.metadata
     });
@@ -812,7 +841,7 @@ export class ChatService {
    * saw as a `cancelled` message so a refresh shows the same thing. Never marked
    * completed, never sent back to the model as context.
    */
-  private async persistCancelled(sessionId: any, requestId: string, userMessageId: string, partial: string, isRegenerate?: boolean) {
+  private async persistCancelled(sessionId: any, requestId: string, userMessageId: string, partial: string, isRegenerate?: boolean, userId?: string | null, guestId?: string | null) {
     try {
       let assistantMessageId: string | null = null;
       if (partial.trim() && !isRegenerate) {
@@ -821,6 +850,7 @@ export class ChatService {
           content: partial,
           requestId,
           status: 'cancelled',
+          ...(userId ? { userId } : guestId ? { guestId } : {}),
         });
       }
       await this.updateLedger(sessionId, requestId, { status: 'aborted', errorCode: 'CANCELLED', userMessageId, assistantMessageId });
@@ -839,6 +869,140 @@ export class ChatService {
       );
     } catch (err) {
       log.warn('Ledger update failed:', { error: (err as Error).message });
+    }
+  }
+
+  private async persistOrchestratedArtifact(params: {
+    sessionId: string;
+    userId?: string | null;
+    guestId?: string | null;
+    topic?: string;
+    orchestrationResult: any;
+    streamManager?: StreamLifecycleManager;
+  }): Promise<{ savedArtifactId: string | null; artifactTitle: string | null; rendererType: string | null; artifactPayload: any | null }> {
+    const sceneV2: SceneTimeline | null = params.orchestrationResult?.sceneV2 ?? null;
+    const sceneBranch: SceneBranch | null = params.orchestrationResult?.sceneBranch ?? null;
+    const visualScript = params.orchestrationResult?.visualScript ?? null;
+
+    let title = (params.topic && params.topic !== 'General' ? params.topic : '') || 'Interactive Visualization';
+    let rendererType = 'cinematic';
+    let content = '';
+    let sceneGraph: any = null;
+    let artifactPayload: any = null;
+
+    if (sceneBranch) {
+      const branchTimeline = sceneToTimeline(sceneBranch.scene);
+      title = (params.topic && params.topic !== 'General' ? params.topic : sceneBranch.title) || branchTimeline.title || 'Interactive Lesson';
+      rendererType = 'scene-v2';
+      artifactPayload = {
+        renderer: 'scene-v2',
+        rendererType: 'scene-v2',
+        title,
+        domain: branchTimeline.domain || 'general',
+        sceneV2: branchTimeline.sceneV2,
+        steps: branchTimeline.steps,
+        branchFrom: sceneBranch.from,
+        branchBeats: sceneBranch.beats
+      };
+      sceneGraph = {
+        sceneV2: branchTimeline.sceneV2,
+        steps: branchTimeline.steps,
+        branchFrom: sceneBranch.from,
+        branchBeats: sceneBranch.beats
+      };
+      content = JSON.stringify(artifactPayload);
+    } else if (sceneV2) {
+      title = (params.topic && params.topic !== 'General' ? params.topic : sceneV2.title) || 'Interactive Lesson';
+      rendererType = 'scene-v2';
+      artifactPayload = {
+        renderer: 'scene-v2',
+        rendererType: 'scene-v2',
+        title,
+        domain: sceneV2.domain || 'general',
+        sceneV2: sceneV2.sceneV2,
+        steps: sceneV2.steps
+      };
+      sceneGraph = {
+        sceneV2: sceneV2.sceneV2,
+        steps: sceneV2.steps
+      };
+      content = JSON.stringify(artifactPayload);
+    } else if (visualScript?.script && Array.isArray(visualScript.script) && visualScript.script.length > 0) {
+      title = params.topic || 'Generated Visualization';
+      rendererType = visualScript.renderer || 'd3';
+      const connections = visualScript.script.filter((n: any) => n.cmd === 'edge' || n.type === 'edge');
+      artifactPayload = {
+        renderer: rendererType,
+        rendererType,
+        title,
+        script: visualScript.script,
+        nodes: visualScript.script,
+        elements: visualScript.script,
+        connections
+      };
+      sceneGraph = {
+        elements: visualScript.script,
+        connections
+      };
+      content = JSON.stringify(artifactPayload);
+    }
+
+    if (!content) {
+      return { savedArtifactId: null, artifactTitle: null, rendererType: null, artifactPayload: null };
+    }
+
+    try {
+      const newArtifact = new Artifact({
+        userId: params.userId || null,
+        guestId: params.userId ? null : (params.guestId || null),
+        sessionId: params.sessionId.toString(),
+        messageId: null, // Will be updated after assistant message is created
+        type: 'visual',
+        artifactClass: 'whiteboard',
+        title: title.slice(0, 200),
+        content,
+        sceneGraph,
+        metadata: {
+          rendererType,
+          generator: 'ChatService',
+          hasVisualArtifact: true,
+          ...(sceneV2 ? { sceneV2: sceneV2.sceneV2 } : {}),
+          ...(sceneBranch ? { sceneV2: artifactPayload?.sceneV2 } : {}),
+        }
+      });
+      await newArtifact.save();
+      const savedArtifactId = newArtifact._id.toString();
+
+      // Send SSE notification to client if streaming
+      if (params.streamManager) {
+        params.streamManager.send({
+          type: 'artifact_saved',
+          artifactId: savedArtifactId,
+          title,
+          rendererType
+        });
+      }
+
+      // Keep ChatSession canvasSteps in sync with the latest visualization
+      const stepsToPersist = sceneBranch
+        ? artifactPayload?.steps
+        : sceneV2
+        ? sceneV2.steps
+        : (visualScript?.script || []);
+      
+      if (stepsToPersist && stepsToPersist.length > 0) {
+        await ChatSession.findByIdAndUpdate(params.sessionId, {
+          $set: {
+            canvasSteps: stepsToPersist,
+            lastUpdated: new Date()
+          }
+        }).catch((e: any) => log.warn('Failed to update session canvasSteps:', { error: e.message }));
+      }
+
+      return { savedArtifactId, artifactTitle: title, rendererType, artifactPayload };
+    } catch (err) {
+      log.warn('Failed to persist visual artifact:', { error: (err as Error).message });
+      return { savedArtifactId: null, artifactTitle: title, rendererType, artifactPayload };
     }
   }
 }
