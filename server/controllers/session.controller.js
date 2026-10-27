@@ -130,7 +130,7 @@ export const getSessions = async (req, res) => {
         { $sort: { lastUpdated: -1, _id: -1 } },
         { $skip: skip },
         { $limit: limit },
-        { $project: { embeddedMessages: '$messages', canvasArchive: 0, snapshots: 0 } },
+        { $project: { messages: 0, canvasArchive: 0, snapshots: 0 } },
         {
           $lookup: {
             from: ChatMessage.collection.name,
@@ -143,13 +143,7 @@ export const getSessions = async (req, res) => {
             as: 'messages',
           },
         },
-      ]).then((rows) => rows.map((s) => {
-        const msgs = (s.messages && s.messages.length > 0)
-          ? s.messages.reverse()
-          : (Array.isArray(s.embeddedMessages) ? s.embeddedMessages : []);
-        const { embeddedMessages, ...rest } = s;
-        return { ...rest, messages: msgs };
-      })),
+      ]).then((rows) => rows.map((s) => ({ ...s, messages: s.messages.reverse() }))),
       ChatSession.countDocuments(query)
     ]);
 
