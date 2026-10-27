@@ -213,3 +213,50 @@ public class Main {
     expect(t.error?.message).toMatch(/incompatible types/);
   }, 60000);
 });
+
+/* ── The same eight checks as Python and JavaScript (client/src/visualizer/__tests__/conformance.js) ── */
+
+describe.skipIf(!live)('C, C++ and Java: the eight checks', async () => {
+  // @ts-expect-error — plain JS module shared with the client's tests
+  const { PROGRAMS, checkSortRun, checkErrorRun } = await import('../../client/src/visualizer/__tests__/conformance.js');
+  for (const language of ['c', 'cpp', 'java'] as const) {
+    it(`${language}: a bubble sort run shows variables, both ways of the if, the loop, the call and its return, the array changing, and the end`, async () => {
+      expect(checkSortRun(await traceCompiled(language, PROGRAMS[language].sort), language)).toEqual([]);
+    }, 60000);
+    it(`${language}: a failing program stops at the line that failed`, async () => {
+      expect(checkErrorRun(await traceCompiled(language, PROGRAMS[language].error.source), language)).toEqual([]);
+    }, 60000);
+  }
+});
+
+/* ── What a program in the sandbox cannot do ──────────────────────────────── */
+
+describe.skipIf(!live)('sandbox limits (C)', () => {
+  it('has no network', async () => {
+    const t = await traceCompiled('c', [
+      '#include <stdio.h>', '#include <string.h>', '#include <unistd.h>', '#include <sys/socket.h>', '#include <netinet/in.h>', '#include <arpa/inet.h>',
+      'int main(void) {',
+      '    int s = socket(AF_INET, SOCK_STREAM, 0);',
+      '    struct sockaddr_in a; memset(&a, 0, sizeof a);',
+      '    a.sin_family = AF_INET; a.sin_port = htons(80); a.sin_addr.s_addr = inet_addr("1.1.1.1");',
+      '    int ok = s >= 0 && connect(s, (struct sockaddr *)&a, sizeof a) == 0;',
+      '    printf(ok ? "CONNECTED\\n" : "no network\\n");',
+      '    return 0;',
+      '}',
+    ].join('\n'));
+    expect(t.stdout).toContain('no network');
+  }, 60000);
+
+  it('sees none of TutorBoard\'s secrets', async () => {
+    const t = await traceCompiled('c', '#include <stdio.h>\n#include <stdlib.h>\nint main(void) {\n    const char *keys[] = {"JWT_SECRET", "MONGODB_URI", "JUDGE0_API_KEY", "GROQ_API_KEY"};\n    int found = 0;\n    for (int i = 0; i < 4; i++) if (getenv(keys[i])) found++;\n    printf("%d\\n", found);\n    return 0;\n}\n');
+    expect(t.stdout.trim()).toBe('0');
+  }, 60000);
+
+  it('stops runaway recursion and endless output instead of hanging', async () => {
+    const deep = await traceCompiled('c', 'int down(int n) {\n    return down(n + 1) + 1;\n}\nint main(void) {\n    return down(0);\n}\n');
+    expect(['limit', 'runtime', 'timeout']).toContain(deep.error?.kind);
+    const flood = await traceCompiled('c', '#include <stdio.h>\nint main(void) {\n    for (;;) printf("TutorBoard ");\n}\n');
+    expect(['limit', 'runtime', 'timeout']).toContain(flood.error?.kind);
+    expect(flood.stdout.length).toBeLessThan(800_000);
+  }, 90000);
+});

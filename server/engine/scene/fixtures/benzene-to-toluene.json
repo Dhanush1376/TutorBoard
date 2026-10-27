@@ -1,0 +1,80 @@
+{
+  "version": "1",
+  "title": "From benzene to toluene",
+  "domain": "chemistry",
+  "summary": "Swapping one ring hydrogen for a methyl group turns benzene (C6H6) into toluene (C7H8) while the aromatic ring stays intact.",
+  "entities": [
+    { "id": "name", "type": "text", "text": "Benzene · C₆H₆", "role": "title" },
+    {
+      "id": "benz",
+      "type": "molecule",
+      "label": "C6H6",
+      "atoms": [
+        { "id": "C1", "el": "C" }, { "id": "C2", "el": "C" }, { "id": "C3", "el": "C" },
+        { "id": "C4", "el": "C" }, { "id": "C5", "el": "C" }, { "id": "C6", "el": "C" },
+        { "id": "H1", "el": "H" }, { "id": "H2", "el": "H" }, { "id": "H3", "el": "H" },
+        { "id": "H4", "el": "H" }, { "id": "H5", "el": "H" }, { "id": "H6", "el": "H" }
+      ],
+      "bonds": [
+        [0, 1, 2], [1, 2, 1], [2, 3, 2], [3, 4, 1], [4, 5, 2], [5, 0, 1],
+        [0, 6, 1], [1, 7, 1], [2, 8, 1], [3, 9, 1], [4, 10, 1], [5, 11, 1]
+      ]
+    },
+    {
+      "id": "tol",
+      "type": "molecule",
+      "label": "C7H8",
+      "atoms": [
+        { "id": "C1", "el": "C" }, { "id": "C2", "el": "C" }, { "id": "C3", "el": "C" },
+        { "id": "C4", "el": "C" }, { "id": "C5", "el": "C" }, { "id": "C6", "el": "C" },
+        { "id": "H1", "el": "H" }, { "id": "Me", "el": "C" }, { "id": "H3", "el": "H" },
+        { "id": "H4", "el": "H" }, { "id": "H5", "el": "H" }, { "id": "H6", "el": "H" },
+        { "id": "Ha", "el": "H" }, { "id": "Hb", "el": "H" }, { "id": "Hc", "el": "H" }
+      ],
+      "bonds": [
+        [0, 1, 2], [1, 2, 1], [2, 3, 2], [3, 4, 1], [4, 5, 2], [5, 0, 1],
+        [0, 6, 1], [1, 7, 1], [2, 8, 1], [3, 9, 1], [4, 10, 1], [5, 11, 1],
+        [7, 12, 1], [7, 13, 1], [7, 14, 1]
+      ]
+    }
+  ],
+  "layout": [
+    { "rel": "row", "ids": ["benz", "tol"], "gap": "xl" },
+    { "rel": "place", "id": "name", "region": "top-left" }
+  ],
+  "beats": [
+    {
+      "title": "Benzene: six carbons in a ring",
+      "narration": "Six carbons form a flat hexagon, each holding one hydrogen. Single and double bonds alternate around the ring.",
+      "actions": [
+        { "do": "create", "target": "name", "effect": "fade" },
+        { "do": "create", "target": "benz", "effect": "pop", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Pick the second carbon",
+      "narration": "Look at carbon 2 and its hydrogen. That hydrogen is the one we will replace.",
+      "actions": [
+        { "do": "highlight", "target": ["benz.C2", "benz.H2"], "state": "active" },
+        { "do": "annotate", "target": "benz.H2", "text": "replaced", "side": "above", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Attach a methyl group",
+      "narration": "A CH₃ group takes the hydrogen's place on carbon 2. The ring and its alternating bonds are untouched — the molecule is now toluene.",
+      "actions": [
+        { "do": "create", "target": "tol", "effect": "pop" },
+        { "do": "highlight", "target": ["tol.C2", "tol.Me"], "state": "insight", "with": "previous" },
+        { "do": "set", "target": "name", "text": "Toluene · C₇H₈" }
+      ]
+    },
+    {
+      "title": "Count the change",
+      "narration": "One hydrogen left and one CH₃ arrived: one more carbon and two more hydrogens, C₆H₆ to C₇H₈.",
+      "actions": [
+        { "do": "unannotate", "target": "benz.H2" },
+        { "do": "annotate", "target": "tol.Me", "text": "+CH₃", "side": "above" }
+      ]
+    }
+  ]
+}

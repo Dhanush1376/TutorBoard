@@ -1,65 +1,125 @@
 # Dependencies
 node_modules/
 **/node_modules/
+.pnp
+.pnp.js
 
-# Production Build
+# Production & Build Artifacts
 dist/
 **/dist/
 client/dist/
+dist-ssr/
+build/
+out/
+.next/
+*.tsbuildinfo
 
-# Environment Variables
+# Environment Variables & Secrets
 .env
-**/.env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 
-# Logs
+# Logs & Debugging
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 *.log
 *.txt
 !README.txt
 !LICENSE.txt
-
-# Editor/System
-.vscode/
-.idea/
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Project Specific
-server/uploads/
-server/.local-storage/
-client/coverage/
-graphify-out/
-client/eslint-result.json
-playwright-report/
-test-results/
-**/test-results/
-
-# Python caches & virtual environments
-__pycache__/
-**/__pycache__/
-*.py[cod]
-.venv*/
-venv/
-**/venv/
-**/.venv*/
-
-# Ad-hoc evaluation logs, test outputs & dumps
 docs/eval/runs/*.log
 server/*.log
 server/server_logs.txt
 server/startup-smoke.*.log
 server/engine/results.txt
 codebase_tree.txt
+*_output.txt
+
+# Editor, IDE & System Files
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+*.patch
+.history/
+*.sublime-project
+*.sublime-workspace
+.directory
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+ehthumbs_vista.db
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# AI Tooling & Local Agent Caches
+.claude/
+.gemini/
+.cursor/
+.agents/
+.windsurf/
+.copilot/
+
+# Linters, Formatters & Tool Caches
+.eslintcache
+*.eslintcache
+client/eslint-result.json
+.stylelintcache
+.turbo/
+.parcel-cache/
+.vite/
+
+# Testing & Coverage
+coverage/
+**/coverage/
+client/coverage/
+coverage-*
+.nyc_output/
+playwright-report/
+playwright/.cache/
+test-results/
+**/test-results/
+blob-report/
+
+# Project Specific Local Storage & Uploads
+server/uploads/
+server/.local-storage/
+graphify-out/
+
+# Python caches & virtual environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.venv*/
+venv/
+**/venv/
+**/.venv*/
 
 # Promo video build output & captures
 promo-video/out/
@@ -76,5 +136,14 @@ server/scratch/
 server/scripts/test-*.js
 server/scripts/test_*.js
 
-# Backup archives
+# Temporary & Backup files
+*.tmp
+*.temp
+*.bak
+*.dump
+*.seed
+*.pid
+*.pid.lock
 *.zip
+*.tar.gz
+*.tgz

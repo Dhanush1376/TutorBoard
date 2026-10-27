@@ -1,0 +1,54 @@
+{
+  "version": "1",
+  "title": "The area under y = x² from 0 to 2",
+  "domain": "math",
+  "summary": "Shading the region under the parabola and integrating gives 8/3 — a little less than the 4 of the rectangle around it.",
+  "spaces": [
+    { "id": "ax", "kind": "cartesian", "x": [-0.5, 2.5], "y": [-0.5, 5], "axes": true, "grid": true, "xLabel": "x", "yLabel": "y" }
+  ],
+  "entities": [
+    { "id": "f", "type": "plot", "space": "ax", "expr": "x^2", "domain": [-0.5, 2.3], "label": "y = x^2", "tone": "info" },
+    { "id": "region", "type": "area", "space": "ax", "plot": "f", "domain": [0, 2], "tone": "primary" },
+    { "id": "edge", "type": "refline", "space": "ax", "x": 2, "label": "x = 2" },
+    { "id": "top", "type": "refline", "space": "ax", "y": 4, "label": "y = 4", "tone": "muted" },
+    { "id": "end", "type": "point", "space": "ax", "at": [2, 4], "on": "f", "label": "(2, 4)" },
+    { "id": "integral", "type": "math", "latex": "\\int_0^2 x^2\\,dx = \\left[\\tfrac{x^3}{3}\\right]_0^2 = \\tfrac{8}{3}" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "ax", "region": "center" },
+    { "rel": "right-of", "id": "integral", "of": "ax", "gap": "lg" }
+  ],
+  "beats": [
+    {
+      "title": "The parabola",
+      "narration": "Here is y = x squared. At x = 2 the curve reaches height 4.",
+      "actions": [
+        { "do": "create", "target": "f", "effect": "draw" },
+        { "do": "create", "target": "end", "effect": "pop" }
+      ]
+    },
+    {
+      "title": "Fence off the region",
+      "narration": "Draw a line at x = 2. The region we want sits between the curve, the x-axis and that line.",
+      "actions": [
+        { "do": "create", "target": "edge", "effect": "draw" },
+        { "do": "create", "target": "region", "effect": "fade" }
+      ]
+    },
+    {
+      "title": "Less than the rectangle",
+      "narration": "The 2-by-4 rectangle around it has area 8, and the shaded part clearly fills only part of it.",
+      "actions": [
+        { "do": "create", "target": "top", "effect": "draw" },
+        { "do": "highlight", "target": "region", "state": "insight" }
+      ]
+    },
+    {
+      "title": "Integrate",
+      "narration": "Integrating x squared from 0 to 2 gives exactly 8 over 3, one third of the rectangle.",
+      "actions": [
+        { "do": "create", "target": "integral", "effect": "type" }
+      ]
+    }
+  ]
+}

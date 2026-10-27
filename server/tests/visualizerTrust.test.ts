@@ -44,6 +44,17 @@ describe('trace proofs', () => {
     expect(verifyTrace(PY, undefined)).toBe(false);
   });
 
+  it('a crash the sandbox reports only through the shell is still named plainly', async () => {
+    judge.run.mockResolvedValueOnce({
+      stdout: rec({ e: 'line', l: 2, f: [frame('divide', 2)] }), stderr: 'run.sh: line 1:     3 Floating point exception(core dumped) ./a.out',
+      compileOutput: '', statusId: 11, status: 'Runtime Error (NZEC)', exitCode: 136,
+    });
+    const res = await request(app).get('/api/csrf-token');
+    const r = await request(app).post('/api/visualizer/trace').set('Cookie', res.headers['set-cookie']).set('x-csrf-token', res.body.csrfToken)
+      .send({ language: 'c', source: 'int divide(int a, int b) {\n  return a / b;\n}\n' });
+    expect(r.body.trace.error).toEqual({ kind: 'runtime', message: 'Crashed: an arithmetic error, such as dividing by zero.', line: 2 });
+  });
+
   it('the sandbox gets explicit limits with every run, network off', () => {
     expect(RUN_LIMITS).toMatchObject({ enable_network: false, cpu_time_limit: 5, wall_time_limit: 10, memory_limit: 128000, max_file_size: 1024 });
   });

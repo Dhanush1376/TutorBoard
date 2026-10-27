@@ -9,6 +9,7 @@ import {
   modifyArtifact,
   generateArtifact,
   editArtifact,
+  saveLessonProgress,
 } from '../controllers/artifact.controller.js';
 import { optionalProtect, ensureSessionIdentity } from '../middleware/auth.middleware.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
@@ -35,6 +36,9 @@ router.get('/history/:id', optionalProtect, getArtifactHistory);
 
 // Get a single artifact
 router.get('/:id', optionalProtect, getArtifact);
+
+// Save the owner's place in a lesson (last viewed step)
+router.patch('/:id/progress', optionalProtect, saveLessonProgress);
 
 // Update an artifact (increments version)
 router.put('/:id', optionalProtect, updateArtifact);

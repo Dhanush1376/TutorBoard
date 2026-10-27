@@ -94,6 +94,22 @@ const artifactSchema = new mongoose.Schema({
     default: false,
     index: true,
   },
+  // Where the owner last was in this lesson (the step they last viewed, not the
+  // last one they finished, and the sliders as they left them). `savedAt` is the client's clock at the change: an
+  // older save arriving late never overwrites a newer one (other tab / device).
+  lessonProgress: {
+    type: new mongoose.Schema({
+      step: { type: Number, min: 0, required: true },
+      totalSteps: { type: Number, min: 1, required: true },
+      completed: { type: Boolean, default: false },
+      version: { type: Number, default: 1 },
+      savedAt: { type: Number, required: true },
+      // slider values (Engine v2 lesson parameters) the owner left the lesson at
+      params: { type: Map, of: Number, default: undefined },
+      updatedAt: { type: Date, default: Date.now },
+    }, { _id: false }),
+    default: null,
+  },
 }, { timestamps: true });
 
 // Compound index for efficient session and owner queries

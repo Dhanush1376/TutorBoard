@@ -1,0 +1,54 @@
+{
+  "version": "1",
+  "title": "Radioactive decay and half-life",
+  "domain": "physics",
+  "summary": "With a 10-year half-life, N = 100 · 0.5^(t/10): half remains after every 10 years, and on a log axis the decay is a straight line.",
+  "spaces": [
+    { "id": "lin", "kind": "cartesian", "x": [0, 50], "y": [0, 110], "axes": true, "xLabel": "t (years)", "yLabel": "N (atoms)" },
+    { "id": "logax", "kind": "cartesian", "x": [0, 50], "y": [1, 200], "yScale": "log", "axes": true, "grid": true, "xLabel": "t (years)", "yLabel": "N (log)" }
+  ],
+  "entities": [
+    { "id": "N", "type": "plot", "space": "lin", "expr": "100*0.5^(x/10)", "label": "N = 100 \\cdot 0.5^{t/10}", "tone": "info" },
+    { "id": "half", "type": "refline", "space": "lin", "y": 50, "label": "N_0/2" },
+    { "id": "tHalf", "type": "refline", "space": "lin", "x": 10, "label": "t = 10" },
+    { "id": "hl", "type": "point", "space": "lin", "at": [10, 50], "label": "half-life" },
+    { "id": "q", "type": "point", "space": "lin", "at": [20, 25], "on": "N", "label": "25 left" },
+    { "id": "Nlog", "type": "plot", "space": "logax", "expr": "100*0.5^(x/10)", "label": "same N", "tone": "success" }
+  ],
+  "layout": [
+    { "rel": "row", "ids": ["lin", "logax"], "gap": "lg" }
+  ],
+  "beats": [
+    {
+      "title": "Atoms decay",
+      "narration": "Start with 100 atoms. The number left falls quickly at first, then more and more slowly.",
+      "actions": [
+        { "do": "create", "target": "N", "effect": "draw" }
+      ]
+    },
+    {
+      "title": "Half of them in 10 years",
+      "narration": "Draw a line at 50, half the start. The curve crosses it at t = 10 years: that is the half-life.",
+      "actions": [
+        { "do": "create", "target": "half", "effect": "draw" },
+        { "do": "create", "target": "tHalf", "effect": "draw" },
+        { "do": "create", "target": "hl", "effect": "pop" }
+      ]
+    },
+    {
+      "title": "And half again",
+      "narration": "Ten years later, half of the 50 is left: 25. Every half-life halves what remains.",
+      "actions": [
+        { "do": "create", "target": "q", "effect": "pop" },
+        { "do": "highlight", "target": "q", "state": "insight" }
+      ]
+    },
+    {
+      "title": "A straight line on a log axis",
+      "narration": "Plot the same numbers on a logarithmic axis and the curve becomes a straight line: equal steps in time, equal factors in N.",
+      "actions": [
+        { "do": "create", "target": "Nlog", "effect": "draw" }
+      ]
+    }
+  ]
+}

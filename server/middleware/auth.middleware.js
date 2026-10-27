@@ -2,7 +2,34 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import tokenStore from '../utils/auth/tokenStore.js';
 import { container } from '../core/container.js';
-import { extractGuestToken, verifyGuestToken, issueGuestIdentity } from '../utils/auth/guestToken.js';
+import { extractGuestToken, readGuestToken, issueGuestIdentity } from '../utils/auth/guestToken.js';
+import { isSessionActive } from '../services/auth/session.service.js';
+import { getPlatformSettings } from '../services/platformConfig.service.js';
+import { isAdmin } from '../utils/auth/identity.js';
+
+/**
+ * Account-level checks shared by protect/optionalProtect, after the token itself
+ * verified: the session behind it is still live, the account is not disabled,
+ * and the platform's email-verification policy is met.
+ * Returns null when the request may continue, else { status, body }.
+ */
+async function accountGate(req, user, decoded) {
+  if (!(await isSessionActive(decoded.sid, user._id))) {
+    return { status: 401, body: { error: 'Not authorized — this session has ended', code: 'SESSION_ENDED' } };
+  }
+  if (user.disabledAt) {
+    return { status: 403, body: { error: 'This account has been disabled.', code: 'ACCOUNT_DISABLED' } };
+  }
+  const settings = await getPlatformSettings();
+  if (settings.auth.requireEmailVerification && !user.emailVerifiedAt && !isAdmin(user)) {
+    const path = req.originalUrl || '';
+    // what an unverified account still needs: verifying, signing out, settings/export/delete
+    if (!path.startsWith('/api/auth/') && !path.startsWith('/api/user/')) {
+      return { status: 403, body: { error: 'Confirm your email address to continue.', code: 'EMAIL_VERIFICATION_REQUIRED' } };
+    }
+  }
+  return null;
+}
 
 /**
  * getCachedUser: Optimized user lookup with Redis fallback
@@ -117,6 +144,9 @@ export const protect = async (req, res, next) => {
       }
     }
 
+    const blocked = await accountGate(req, user, decoded);
+    if (blocked) return res.status(blocked.status).json(blocked.body);
+
     // SEC-17: Avoid logging every request in production to protect privacy and reduce noise
     if (process.env.LOG_LEVEL === 'debug') {
       console.log(`[Auth] User ${user._id} authenticated successfully for ${req.method} ${req.path}`);
@@ -130,6 +160,7 @@ export const protect = async (req, res, next) => {
     req.user = user;
     req.isGuest = false;
     req.guestId = null;
+    req.sessionId = decoded.sid || null;
     req.tokenJti = decoded.jti; // Store JTI for potential revocation
     req.tokenExp = decoded.exp; // Store expiration for TTL management
     next();
@@ -166,17 +197,22 @@ export const optionalProtect = async (req, res, next) => {
     }
 
     if (!token) {
+      if (!(await getPlatformSettings()).guest.enabled) {
+        return res.status(401).json({ error: 'Sign in to continue.', code: 'GUEST_DISABLED' });
+      }
       // Check for guest token (cookie or header)
       const guestToken = extractGuestToken(req);
       if (guestToken) {
-        const guestId = await verifyGuestToken(guestToken);
-        if (!guestId) {
+        const guest = await readGuestToken(guestToken);
+        if (!guest) {
           return res.status(401).json({
-            error: 'Not authorized — invalid or expired guest identity',
+            error: 'Not authorized — invalid guest identity',
             code: 'INVALID_GUEST_TOKEN'
           });
         }
-        req.guestId = guestId;
+        // keep an active guest's identity alive: same id, fresh token and cookie
+        if (guest.renew) issueGuestIdentity(res, guest.guestId);
+        req.guestId = guest.guestId;
         req.isGuest = true;
       } else {
         req.guestId = null;
@@ -220,11 +256,15 @@ export const optionalProtect = async (req, res, next) => {
       }
     }
 
+    const blocked = await accountGate(req, user, decoded);
+    if (blocked) return res.status(blocked.status).json(blocked.body);
+
     // Normalize id for lean objects (same fix as protect middleware)
     if (user._id && !user.id) user.id = user._id.toString();
     req.user = user;
     req.isGuest = false;
     req.guestId = null;
+    req.sessionId = decoded.sid || null;
     req.tokenJti = decoded.jti;
     req.tokenExp = decoded.exp;
     next();
@@ -260,12 +300,15 @@ export const requireIdentity = (req, res, next) => {
  * If no user and no guest token, it proactively issues a verified guest token and attaches cookie + req.guestId.
  * Used for session listing, session creation, and chat initiation where a new guest should be seamlessly onboarded.
  */
-export const ensureSessionIdentity = (req, res, next) => {
+export const ensureSessionIdentity = async (req, res, next) => {
   if (req.user?._id || req.user?.id) {
     return next();
   }
   if (req.guestId) {
     return next();
+  }
+  if (!(await getPlatformSettings()).guest.enabled) {
+    return res.status(401).json({ error: 'Sign in to continue.', code: 'GUEST_DISABLED' });
   }
   // Auto-mint guest identity
   const { guestId } = issueGuestIdentity(res);
@@ -286,4 +329,43 @@ export const restrictToUsers = (req, res, next) => {
     });
   }
   next();
+};
+
+/**
+ * Admin-only routes. Use after `protect`. The role is read from the database
+ * row loaded by `protect` (never from the token or the request), and the check
+ * runs on the server for every call.
+ */
+export const requireAdmin = (req, res, next) => {
+  if (!req.user || !isAdmin(req.user)) {
+    return res.status(403).json({ error: 'Forbidden', code: 'ADMIN_ONLY' });
+  }
+  next();
+};
+
+export const requireSuperAdmin = (req, res, next) => {
+  if (req.user?.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Forbidden', code: 'SUPERADMIN_ONLY' });
+  }
+  next();
+};
+
+/**
+ * Sensitive account changes (add a first password, unlink a sign-in method,
+ * delete the account) need a sign-in within the last RECENT_AUTH_MS on this
+ * session. With { optional: true } it only sets req.recentAuth and lets the
+ * controller decide.
+ */
+const RECENT_AUTH_MS = 15 * 60 * 1000;
+export const requireRecentAuth = ({ optional = false } = {}) => async (req, res, next) => {
+  let recent = false;
+  if (req.sessionId) {
+    const { default: AuthSession } = await import('../models/AuthSession.js');
+    const s = await AuthSession.findById(req.sessionId).select('createdAt method').lean();
+    // a session converted from a pre-session token says nothing about when the user signed in
+    recent = !!s && s.method !== 'legacy' && Date.now() - new Date(s.createdAt).getTime() < RECENT_AUTH_MS;
+  }
+  req.recentAuth = recent;
+  if (recent || optional) return next();
+  return res.status(401).json({ error: 'For your security, sign in again to do this.', code: 'REAUTH_REQUIRED' });
 };

@@ -1,0 +1,63 @@
+{
+  "version": "1",
+  "title": "Balancing methane burning in oxygen",
+  "domain": "chemistry",
+  "summary": "CH₄ + 2 O₂ → CO₂ + 2 H₂O: the coefficients make every atom on the left reappear on the right.",
+  "entities": [
+    {
+      "id": "ch4", "type": "molecule", "label": "CH₄",
+      "atoms": [{ "id": "C", "el": "C" }, { "el": "H" }, { "el": "H" }, { "el": "H" }, { "el": "H" }],
+      "bonds": [[0, 1, 1], [0, 2, 1], [0, 3, 1], [0, 4, 1]]
+    },
+    {
+      "id": "o2", "type": "molecule", "label": "O₂",
+      "atoms": [{ "id": "Oa", "el": "O" }, { "id": "Ob", "el": "O" }],
+      "bonds": [[0, 1, 2]],
+      "lonePairs": [{ "atom": 0, "count": 2 }, { "atom": 1, "count": 2 }]
+    },
+    {
+      "id": "co2", "type": "molecule", "label": "CO₂",
+      "atoms": [{ "id": "C", "el": "C" }, { "id": "Oa", "el": "O" }, { "id": "Ob", "el": "O" }],
+      "bonds": [[0, 1, 2], [0, 2, 2]]
+    },
+    {
+      "id": "h2o", "type": "molecule", "label": "H₂O",
+      "atoms": [{ "id": "O", "el": "O" }, { "el": "H" }, { "el": "H" }],
+      "bonds": [[0, 1, 1], [0, 2, 1]],
+      "lonePairs": [{ "atom": 0, "count": 2 }]
+    },
+    { "id": "rx", "type": "reaction", "reactants": ["ch4", { "id": "o2", "n": 2 }], "products": ["co2", { "id": "h2o", "n": 2 }], "conditions": "spark" },
+    { "id": "tally", "type": "table", "columns": ["atom", "left", "right"], "rows": [["C", 1, 1], ["H", 4, 4], ["O", 4, 4]] }
+  ],
+  "layout": [
+    { "rel": "row", "ids": ["ch4", "o2", "rx", "co2", "h2o"], "gap": "xl" },
+    { "rel": "below", "id": "tally", "of": "rx", "gap": "lg" }
+  ],
+  "beats": [
+    {
+      "title": "Methane and oxygen",
+      "narration": "Methane has one carbon and four hydrogens. Oxygen comes as O₂ molecules.",
+      "actions": [
+        { "do": "create", "target": "ch4", "effect": "pop" },
+        { "do": "create", "target": "o2", "effect": "pop", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Carbon dioxide and water",
+      "narration": "Burning gives carbon dioxide and water. Four hydrogens need two waters; their four oxygens need two O₂.",
+      "actions": [
+        { "do": "create", "target": "rx", "effect": "draw" },
+        { "do": "create", "target": "co2", "effect": "pop" },
+        { "do": "create", "target": "h2o", "effect": "pop", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Count every atom",
+      "narration": "One carbon, four hydrogens and four oxygens on each side: the equation balances.",
+      "actions": [
+        { "do": "create", "target": "tally", "effect": "fade" },
+        { "do": "highlight", "target": "rx", "state": "found" }
+      ]
+    }
+  ]
+}

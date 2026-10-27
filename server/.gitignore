@@ -1,12 +1,20 @@
+# Dependencies & Build
 node_modules/
-uploads/
-.env
 dist/
+*.tsbuildinfo
+
+# Environment & Local storage
+.env
+.env.*
+!.env.example
+uploads/
+.local-storage/
 
 # Logs & debug output
 *.log
 *.txt
 !README.txt
+!LICENSE.txt
 db_status.log
 debug_latency.log
 error.log
@@ -14,16 +22,34 @@ error.txt
 server_log.txt
 server_output.log
 test_*.log
+startup-smoke.*.log
 
 # Scratch & test scripts
 scratch/
-__tests__/
 test_*.js
 check_db.js
 test-req.cjs
 verify_persistence.js
-# Local storage fallback
-.local-storage/
+scripts/test-*.js
+scripts/test_*.js
 
-# Dev tooling
+# Dev tooling & Caches
 nodemon.json
+.eslintcache
+*.eslintcache
+coverage/
+test-results/
+
+# Editor & System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.sw?
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+*.bak

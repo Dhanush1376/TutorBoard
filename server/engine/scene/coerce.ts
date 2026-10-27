@@ -27,7 +27,7 @@ const TONES = new Set(['default', 'primary', 'accent', 'success', 'warning', 'da
 const ROLES = new Set(['title', 'body', 'caption', 'label', 'code']);
 const SIZES = new Set(['xs', 'sm', 'md', 'lg', 'xl']);
 
-const SPATIAL = new Set(['point', 'polygon', 'path', 'plot', 'vector', 'body', 'scatter']);
+const SPATIAL = new Set(['point', 'polygon', 'path', 'plot', 'curve', 'area', 'refline', 'vector', 'body', 'scatter']);
 
 const ENTITY_ALIASES: Record<string, string> = {
   equation: 'math', formula: 'math', latex: 'math', expression: 'math',
@@ -35,12 +35,18 @@ const ENTITY_ALIASES: Record<string, string> = {
   box: 'rect', rectangle: 'rect', square: 'rect', block: 'rect', card: 'rect',
   dot: 'point', marker: 'point',
   ball: 'body', particle: 'body', object: 'body', mass: 'body',
-  curve: 'plot', function: 'plot',
+  function: 'plot', graph_of: 'plot',
+  parametric: 'curve', polar: 'curve',
+  shading: 'area', region: 'area', shaded_area: 'area', integral: 'area',
+  asymptote: 'refline', reference_line: 'refline', refLine: 'refline', hline: 'refline', vline: 'refline', threshold: 'refline',
   list: 'array', matrix: 'table',
   triangle: 'polygon', quadrilateral: 'polygon', shape: 'polygon',
   segment: 'line', ray: 'arrow', force: 'vector',
   pie_chart: 'pie', piechart: 'pie', pizza: 'pie', fraction: 'pie', fraction_circle: 'pie', sector: 'pie',
   neural_network: 'network', nn: 'network',
+  curved_arrow: 'curly', curly_arrow: 'curly', electron_arrow: 'curly', arrow_push: 'curly', mechanism_arrow: 'curly',
+  cell_diagram: 'compartment', labelled_diagram: 'compartment', labeled_diagram: 'compartment', compartments: 'compartment', anatomy: 'compartment', organ: 'compartment',
+  chemical_reaction: 'reaction', equation_reaction: 'reaction', chemical_equation: 'reaction',
 };
 const ROLE_FROM_ALIAS: Record<string, string> = { heading: 'title', title: 'title', caption: 'caption', label: 'label', note: 'body', paragraph: 'body' };
 
@@ -156,11 +162,34 @@ export function coerceScene(input: unknown): { value: unknown; fixes: Issue[] } 
   s.entities.forEach((e: Loose, i: number) => {
     if (!e || typeof e !== 'object') return;
     const p = `entities[${i}]`;
+    // "curve" with a y = f(x) expression is a plot; "plot" with x(t)/y(t) or r(θ) is a curve
+    if (e.type === 'curve' && typeof e.expr === 'string' && e.x === undefined && e.r === undefined) { fix(`${p}.type`, '"curve" with "expr" → "plot"'); e.type = 'plot'; }
+    if (e.type === 'plot' && typeof e.expr !== 'string' && (typeof e.r === 'string' || (typeof e.x === 'string' && typeof e.y === 'string'))) { fix(`${p}.type`, 'parametric/polar "plot" → "curve"'); e.type = 'curve'; }
+    if (e.type === 'curve' && e.t === undefined) {
+      const range = e.theta ?? e.range ?? e.domain;
+      if (Array.isArray(range) && range.length === 2) { e.t = range; delete e.domain; fix(`${p}.t`, 'parameter range taken from its domain'); }
+    }
     const alias = ENTITY_ALIASES[e.type];
     if (alias) {
       fix(`${p}.type`, `"${e.type}" → "${alias}"`);
       if (alias === 'text' && !e.role && ROLE_FROM_ALIAS[e.type]) e.role = ROLE_FROM_ALIAS[e.type];
       e.type = alias;
+    }
+    if (e.type === 'compartment') {
+      // parts under other names, and their fields under the usual synonyms
+      if (!Array.isArray(e.parts)) {
+        const list = e.organelles ?? e.structures ?? e.children ?? e.regions;
+        if (Array.isArray(list)) { e.parts = list; fix(`${p}.parts`, 'taken from its structures'); }
+        delete e.organelles; delete e.structures; delete e.children; delete e.regions;
+      }
+      if (Array.isArray(e.parts)) e.parts.forEach((q: Loose) => {
+        if (!q || typeof q !== 'object') return;
+        if (q.label === undefined) q.label = q.name ?? q.text ?? q.id;
+        if (q.in === undefined) q.in = q.parent ?? q.inside;
+        delete q.name; delete q.parent; delete q.inside;
+        if (q.in === e.id || q.in === null) delete q.in;
+        if (typeof q.shape === 'string' && /membrane|wall|envelope/i.test(q.shape) && q.shape !== 'membrane') q.shape = 'membrane';
+      });
     }
     if (e.type === 'pie') {
       if (e.slices === undefined) e.slices = e.parts ?? e.segments ?? e.divisions ?? e.denominator;
@@ -228,6 +257,16 @@ export function coerceScene(input: unknown): { value: unknown; fixes: Issue[] } 
     const alias = RELATION_ALIASES[r.rel];
     if (alias) { fix(`${p}.rel`, `"${r.rel}" → "${alias}"`); r.rel = alias; }
     return [r];
+  });
+  // a reaction whose molecules nobody placed reads left to right: reactants, arrow, products
+  const mentioned = new Set<string>(s.layout.flatMap((r: Loose) => [r.id, r.of, ...(Array.isArray(r.ids) ? r.ids : [])]));
+  s.entities.forEach((e: Loose, i: number) => {
+    if (e?.type !== 'reaction' || !Array.isArray(e.reactants) || !Array.isArray(e.products)) return;
+    const pid = (r: unknown) => (typeof r === 'string' ? r : (r as Loose)?.id);
+    const ids = [...e.reactants.map(pid), e.id, ...e.products.map(pid)].filter((x) => typeof x === 'string');
+    if (ids.length < 2 || ids.length > 8 || ids.some((x) => mentioned.has(x))) return;
+    s.layout.push({ rel: 'row', ids, gap: 'xl' });
+    fix(`entities[${i}]`, `laid out in a row: ${ids.join(', ')}`);
   });
 
   // ── beats & actions ──

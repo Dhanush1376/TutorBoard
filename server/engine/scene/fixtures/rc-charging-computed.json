@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "title": "Charging a capacitor through a resistor",
+  "domain": "physics",
+  "summary": "6 V through 2 kΩ into 100 µF: τ = RC = 0.2 s, and the capacitor's voltage follows 6(1 − e^(−t/τ)), computed from the circuit.",
+  "entities": [
+    {
+      "id": "rc", "type": "circuit",
+      "components": [
+        { "id": "V1", "kind": "battery", "from": "n0", "to": "n1", "value": 6 },
+        { "id": "S1", "kind": "switch", "from": "n1", "to": "n2", "closed": true },
+        { "id": "R1", "kind": "resistor", "from": "n2", "to": "n3", "value": 2000 },
+        { "id": "C1", "kind": "capacitor", "from": "n3", "to": "n0", "value": 0.0001 }
+      ]
+    }
+  ],
+  "layout": [
+    { "rel": "place", "id": "rc", "region": "top" }
+  ],
+  "beats": [
+    {
+      "title": "Close the switch",
+      "narration": "The switch closes at t = 0. Current flows through the resistor and starts to fill the capacitor with charge.",
+      "actions": [{ "do": "create", "target": "rc", "effect": "draw" }]
+    },
+    { "title": "What the capacitor sees", "narration": "computed", "compute": { "algorithm": "rc-charging", "target": "rc", "args": { "v0": 0 } } }
+  ]
+}

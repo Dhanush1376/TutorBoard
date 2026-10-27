@@ -1,0 +1,10 @@
+{
+  "version": "1",
+  "title": "k-means finds three groups",
+  "domain": "ml",
+  "summary": "Assign each point to its nearest centroid, move each centroid to the mean of its points, repeat until nothing changes; run on generated (illustrative) data.",
+  "entities": [],
+  "beats": [
+    { "title": "Unlabelled points", "narration": "computed", "compute": { "algorithm": "k-means", "target": "km", "args": { "k": 3, "generate": { "clusters": 3, "n": 24, "seed": 7 } } } }
+  ]
+}

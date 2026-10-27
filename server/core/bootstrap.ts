@@ -109,7 +109,28 @@ export async function bootstrap(isWorker: boolean = false, signal?: AbortSignal)
 
     await mongoose.connect(uri, options);
     log.info('MongoDB connected successfully');
-    
+
+    // SUPERADMIN_EMAILS → super-admin role (verified accounts only). Never blocks startup.
+    try {
+      const { syncConfiguredSuperadmins } = await import('../services/adminAccess.service.js');
+      await syncConfiguredSuperadmins(log);
+    } catch (err: any) {
+      log.warn(`Super-admin sync skipped: ${err.message}`);
+    }
+
+    // Retention: conversations must never expire on a timer. Drop any TTL index
+    // an older deployment left on them (idempotent; documents are untouched).
+    // Never blocks startup. CONVERSATION_EXPIRY_MIGRATION=off skips it.
+    if (process.env.CONVERSATION_EXPIRY_MIGRATION !== 'off') {
+      try {
+        const { removeConversationExpiry } = await import('./migrations/removeConversationExpiry.js');
+        const dropped = await removeConversationExpiry(mongoose.connection, { log });
+        if (dropped.length === 0) log.info('Retention check: no expiry index on conversation data');
+      } catch (err: any) {
+        log.warn(`Retention check failed (conversations may still carry an expiry index): ${err.message}`);
+      }
+    }
+
     runtimeState.setCapability({
       name: 'mongodb',
       mode: 'REAL',

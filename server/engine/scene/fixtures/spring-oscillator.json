@@ -1,0 +1,55 @@
+{
+  "version": "1",
+  "title": "A mass on a spring: what sets the period?",
+  "domain": "physics",
+  "summary": "x(t) = A cos(ωt) with ω = √(k/m): a stiffer spring speeds the oscillation up, a heavier mass slows it down, and the amplitude changes nothing about the period.",
+  "params": [
+    { "id": "k", "label": "spring constant k", "value": 20, "min": 5, "max": 80, "step": 1, "unit": "N/m" },
+    { "id": "mass", "label": "mass m", "value": 1, "min": 0.2, "max": 4, "step": 0.1, "unit": "kg" },
+    { "id": "A", "label": "amplitude A", "value": 0.2, "min": 0.05, "max": 0.3, "step": 0.01, "unit": "m" }
+  ],
+  "derived": [
+    { "id": "w", "label": "angular frequency ω", "expr": "sqrt(k/mass)", "unit": "1/s", "digits": 2 },
+    { "id": "T", "label": "period", "expr": "2*pi/w", "unit": "s", "digits": 2 }
+  ],
+  "spaces": [
+    { "id": "osc", "kind": "cartesian", "x": [0, 6], "y": [-0.35, 0.35], "axes": true, "grid": true, "xLabel": "t (s)", "yLabel": "x (m)", "xUnit": "s", "yUnit": "m" }
+  ],
+  "entities": [
+    { "id": "xt", "type": "plot", "space": "osc", "expr": "A*cos(w*x)", "label": "x = A\\cos(\\omega t)", "tone": "info" },
+    { "id": "amp", "type": "refline", "space": "osc", "y": "=A", "label": "A = {{A}} m" },
+    { "id": "period", "type": "refline", "space": "osc", "x": "=T", "label": "T = {{T}} s", "tone": "warning" },
+    { "id": "again", "type": "point", "space": "osc", "at": ["=T", "=A"], "on": "xt", "label": "back to the start" },
+    { "id": "formula", "type": "math", "latex": "T = 2\\pi\\sqrt{m/k} = {{T}}\\,\\mathrm{s}" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "osc", "region": "center" },
+    { "rel": "above", "id": "formula", "of": "osc", "gap": "md" }
+  ],
+  "beats": [
+    {
+      "title": "Pull and let go",
+      "narration": "Pull the mass out by A and release it. It swings back and forth about the middle.",
+      "actions": [
+        { "do": "create", "target": "xt", "effect": "draw" },
+        { "do": "create", "target": "amp", "effect": "draw" }
+      ]
+    },
+    {
+      "title": "One full swing",
+      "narration": "After one period T the mass is back where it started, moving the same way.",
+      "actions": [
+        { "do": "create", "target": "period", "effect": "draw" },
+        { "do": "create", "target": "again", "effect": "pop" }
+      ]
+    },
+    {
+      "title": "What sets T",
+      "narration": "T depends on the spring and the mass only. Change the amplitude: the period stays put.",
+      "actions": [
+        { "do": "create", "target": "formula", "effect": "type" },
+        { "do": "highlight", "target": "period", "state": "insight" }
+      ]
+    }
+  ]
+}

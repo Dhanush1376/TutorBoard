@@ -42,6 +42,15 @@ const CRASH: Record<number, string> = {
   10: 'Stopped: the program aborted (abort() or a failed assert).',
 };
 
+// The same crashes, when the sandbox reports them only as a non-zero exit with the
+// shell's signal message in stderr ("run.sh: line 1: 3 Floating point exception …").
+const CRASH_TEXT: [RegExp, string][] = [
+  [/Floating point exception|SIGFPE/, CRASH[9]],
+  [/Segmentation fault|SIGSEGV/, CRASH[7]],
+  [/File size limit exceeded|SIGXFSZ/, CRASH[8]],
+  [/\bAborted\b|SIGABRT/, CRASH[10]],
+];
+
 const fileName = (lang: CompiledLanguage) => (lang === 'java' ? 'Main.java' : lang === 'c' ? 'main.c' : 'main.cpp');
 
 // The first line number a compiler or stack trace gives for the learner's file.
@@ -69,6 +78,8 @@ function runtimeError(r: Judge0Result, lang: CompiledLanguage, lineCount: number
   const thrown = stderr.match(/terminate called after throwing an instance of '([^']+)'\s*(?:what\(\):\s*(.*))?/);
   if (thrown) return { kind: 'runtime', message: `Uncaught exception ${thrown[1]}${thrown[2] ? `: ${thrown[2].trim()}` : ''}`, line: lastLine };
   if (CRASH[r.statusId]) return { kind: 'runtime', message: CRASH[r.statusId], line: lastLine };
+  const crash = CRASH_TEXT.find(([re]) => re.test(stderr));
+  if (crash) return { kind: 'runtime', message: crash[1], line: lastLine };
   if (r.statusId === 11) return { kind: 'runtime', message: `The program ended with exit code ${r.exitCode ?? 1}.${stderr ? ` ${stderr.split('\n')[0]}` : ''}`, line: lastLine };
   return { kind: 'runtime', message: stderr.split('\n')[0] || r.status || 'The program stopped with an error.', line: lastLine };
 }

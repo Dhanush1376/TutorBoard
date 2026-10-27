@@ -1,0 +1,67 @@
+{
+  "version": "1",
+  "title": "Projectile motion: change the launch",
+  "domain": "physics",
+  "summary": "The path, apex, range and flight time all follow from v₀, θ and g — move the sliders and every one of them is recomputed.",
+  "params": [
+    { "id": "v0", "label": "launch speed v₀", "value": 20, "min": 5, "max": 25, "step": 0.5, "unit": "m/s" },
+    { "id": "theta0", "label": "launch angle θ", "value": 45, "min": 15, "max": 75, "step": 1, "unit": "deg" },
+    { "id": "g", "label": "gravity g", "value": 9.8, "min": 9.8, "max": 9.8, "unit": "m/s^2" }
+  ],
+  "derived": [
+    { "id": "R", "label": "range", "expr": "v0^2*sin(2*theta0)/g", "unit": "m", "digits": 1 },
+    { "id": "H", "label": "max height", "expr": "v0^2*sin(theta0)^2/(2*g)", "unit": "m", "digits": 1 },
+    { "id": "T", "label": "time of flight", "expr": "2*v0*sin(theta0)/g", "unit": "s", "digits": 2 }
+  ],
+  "spaces": [
+    { "id": "field", "kind": "cartesian", "x": [0, 70], "y": [0, 35], "axes": true, "xLabel": "x (m)", "yLabel": "y (m)", "xUnit": "m", "yUnit": "m" }
+  ],
+  "entities": [
+    { "id": "traj", "type": "plot", "space": "field", "expr": "x*tan(theta0) - g*x^2/(2*v0^2*cos(theta0)^2)", "domain": [0, "=R"], "tone": "info" },
+    { "id": "ball", "type": "body", "space": "field", "at": [0, 0] },
+    { "id": "launch", "type": "vector", "space": "field", "from": [0, 0], "angleDeg": "=theta0", "magnitude": "=v0/2", "label": "v_0 = {{v0}} m/s" },
+    { "id": "apex", "type": "point", "space": "field", "at": ["=R/2", "=H"], "label": "max height {{H}} m", "tone": "warning" },
+    { "id": "land", "type": "point", "space": "field", "at": ["=R", 0], "label": "range {{R}} m", "tone": "warning" },
+    { "id": "eq", "type": "math", "latex": "R = \\frac{v_0^2 \\sin 2\\theta}{g} = {{R}}\\,\\mathrm{m}" },
+    { "id": "flight", "type": "text", "text": "in the air for {{T}} s", "role": "caption" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "field", "region": "center" },
+    { "rel": "above", "id": "eq", "of": "field", "gap": "md" },
+    { "rel": "below", "id": "flight", "of": "field", "gap": "sm" }
+  ],
+  "beats": [
+    {
+      "title": "Launch",
+      "narration": "The ball leaves the ground at speed v-zero, at angle theta above the horizontal.",
+      "actions": [
+        { "do": "create", "target": "ball", "effect": "pop" },
+        { "do": "create", "target": "launch", "effect": "grow" }
+      ]
+    },
+    {
+      "title": "Gravity bends the path",
+      "narration": "Horizontally nothing slows it; vertically gravity pulls it back down, so the path is a parabola.",
+      "actions": [
+        { "do": "create", "target": "traj", "effect": "draw" },
+        { "do": "trace", "target": "ball", "along": "traj", "duration": "long", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Highest point",
+      "narration": "At the top the vertical speed is zero. That happens halfway along the flight.",
+      "actions": [
+        { "do": "create", "target": "apex", "effect": "pop" }
+      ]
+    },
+    {
+      "title": "Range",
+      "narration": "It lands where the height is zero again. Try the sliders: 45 degrees gives the longest range for a given speed.",
+      "actions": [
+        { "do": "create", "target": "land", "effect": "pop" },
+        { "do": "create", "target": "eq", "effect": "type" },
+        { "do": "create", "target": "flight", "effect": "fade", "with": "previous" }
+      ]
+    }
+  ]
+}

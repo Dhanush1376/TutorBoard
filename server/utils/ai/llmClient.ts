@@ -35,6 +35,8 @@ function shortWaitMs(err: any, provider: string): number | null {
 }
 import { captureException } from '../core/monitoring.js';
 import { MODEL_REGISTRY } from './modelRegistry.js';
+import { getAdminChain, recordProviderOutcome } from './adminProviders.js';
+import { getPlatformSettings } from '../../services/platformConfig.service.js';
 import UsageLog from '../../models/UsageLog.js';
 import User from '../../models/User.js';
 import {
@@ -352,7 +354,7 @@ async function markKeyLowCredits(userId?: any, keyId?: any, provider?: string) {
 
 /* E2E mock only: binary search in each language the code walkthrough runs. */
 const MOCK_PROGRAMS: Record<string, [string, string]> = {
-  python: ['Python', 'def binary_search(arr, target):\n    lo, hi = 0, len(arr) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if arr[mid] == target:\n            return mid\n        if arr[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1\n\nnums = [2, 5, 8, 12, 16, 23, 38]\nprint(binary_search(nums, 23))'],
+  python: ['Python', 'def binary_search(arr, target):\n    lo, hi = 0, len(arr) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if arr[mid] == target:\n            return mid\n        if arr[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1\n\nnums = [2, 5, 8, 12, 16, 23, 38]\ntry:\n    target = int(input())\nexcept EOFError:\n    target = 23  # no input given\nprint(binary_search(nums, target))'],
   javascript: ['JavaScript', 'function binarySearch(arr, target) {\n  let lo = 0, hi = arr.length - 1;\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) return mid;\n    if (arr[mid] < target) lo = mid + 1;\n    else hi = mid - 1;\n  }\n  return -1;\n}\n\nconst nums = [2, 5, 8, 12, 16, 23, 38];\nconsole.log(binarySearch(nums, 23));'],
   java: ['Java', 'public class Main {\n    static int binarySearch(int[] arr, int target) {\n        int lo = 0, hi = arr.length - 1;\n        while (lo <= hi) {\n            int mid = (lo + hi) / 2;\n            if (arr[mid] == target) return mid;\n            if (arr[mid] < target) lo = mid + 1;\n            else hi = mid - 1;\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        int[] nums = {2, 5, 8, 12, 16, 23, 38};\n        System.out.println(binarySearch(nums, 23));\n    }\n}'],
   cpp: ['C++', '#include <iostream>\n#include <vector>\n\nint binarySearch(const std::vector<int>& arr, int target) {\n    int lo = 0, hi = (int)arr.size() - 1;\n    while (lo <= hi) {\n        int mid = (lo + hi) / 2;\n        if (arr[mid] == target) return mid;\n        if (arr[mid] < target) lo = mid + 1;\n        else hi = mid - 1;\n    }\n    return -1;\n}\n\nint main() {\n    std::vector<int> nums = {2, 5, 8, 12, 16, 23, 38};\n    std::cout << binarySearch(nums, 23) << std::endl;\n    return 0;\n}'],
@@ -396,8 +398,9 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
       };
     }
 
-    if (!onStream) {
+    if (!onStream && params.taskType !== 'explanation') {
       // For backend services (Planner, Orchestrator, Critique) that expect JSON
+      // (an explanation — e.g. the code walkthrough's tutor — is plain text)
       mockContent = JSON.stringify({
         teaching_mode: "socratic",
         complexity: "beginner",
@@ -413,7 +416,7 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
         critique: "LGTM",
         score: 10
       });
-    } else {
+    } else if (onStream) {
       // Simulate streaming for the main chat response
       const words = mockContent.split(' ');
       for (const word of words) {
@@ -516,6 +519,8 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
 
         throw customErr;
       }
+    } else if (params.onStream && params.taskType === 'final_answer' && ANSWER_HEDGE_MS > 0) {
+      return await _executeHedgedStream(params, canonicalModel, response_format, tracingHeaders, startTime);
     } else {
       return await _executeSystemPath(params, canonicalModel, response_format, tracingHeaders, startTime);
     }
@@ -535,6 +540,83 @@ export async function requestCompletion(params: LLMParams): Promise<LLMResponse>
 
     throw err;
   }
+}
+
+/**
+ * A chat answer must start streaming within a few seconds. A provider can sit
+ * silent far longer — measured: gemini-3.8-flash thought for 44 s before its
+ * first token, and under load it hung ~55 s then failed (503) — while the
+ * learner watched an empty chat. If the answer has not started after this
+ * long, the next provider in the chain is started alongside it; whichever
+ * streams first is kept and the other is aborted (no duplicated text: only
+ * one attempt ever reaches the caller). 0 turns this off.
+ */
+const ANSWER_HEDGE_MS = Number(process.env.CHAT_ANSWER_HEDGE_MS ?? 6000);
+
+async function _executeHedgedStream(params: LLMParams, model: string, response_format: any, headers: any, startTime: number): Promise<LLMResponse> {
+  const outerNoFallback = (params as any).__noFallback as () => boolean;
+  const deliver = params.onStream!;
+  const attempts: { ctrl: AbortController; done: boolean; error?: any; result?: LLMResponse }[] = [];
+  let owner = -1;
+
+  return new Promise<LLMResponse>((resolve, reject) => {
+    const settle = () => {
+      if (owner >= 0) {
+        const a = attempts[owner];
+        if (!a.done) return;
+        clearTimeout(timer);
+        return a.error ? reject(a.error) : resolve(a.result!);
+      }
+      // nobody has streamed yet
+      const finished = attempts.find((a) => a.done && !a.error);
+      if (finished) {
+        // answered without streaming (cache, non-streaming provider): keep it, stop the rest
+        clearTimeout(timer);
+        attempts.forEach((a) => { if (a !== finished) a.ctrl.abort(); });
+        return resolve(finished.result!);
+      }
+      // every attempt failed (each already tried its own fallbacks): nothing left to wait for
+      if (attempts.every((a) => a.done)) {
+        clearTimeout(timer);
+        reject(attempts[0].error);
+      }
+    };
+    const launch = (chainFrom: number) => {
+      const i = attempts.length;
+      const ctrl = new AbortController();
+      if (params.signal) {
+        if (params.signal.aborted) ctrl.abort();
+        else params.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+      }
+      const attempt = { ctrl, done: false } as (typeof attempts)[number];
+      attempts.push(attempt);
+      const child: any = {
+        ...params,
+        signal: ctrl.signal,
+        onStream: (token: string) => {
+          if (owner === -1) {
+            owner = i;
+            clearTimeout(timer);
+            attempts.forEach((a, j) => { if (j !== i) a.ctrl.abort(); });
+          }
+          if (owner === i) deliver(token);
+        },
+      };
+      child.__noFallback = () => outerNoFallback() || ctrl.signal.aborted;
+      _executeSystemPath(child, model, response_format, headers, startTime, chainFrom)
+        .then((r) => { attempt.result = r; }, (e) => { attempt.error = e; })
+        .finally(() => { attempt.done = true; settle(); });
+    };
+
+    const timer = setTimeout(() => {
+      if (owner >= 0 || attempts[0].done || params.signal?.aborted) return;
+      console.warn(`[AI:Hedge] no first token after ${ANSWER_HEDGE_MS} ms — starting the next provider alongside`);
+      launch(1);
+    }, ANSWER_HEDGE_MS);
+    timer.unref?.();
+
+    launch(0);
+  });
 }
 
 /** A failure after tokens were streamed (or after the caller aborted): keep the cause, mark it. */
@@ -639,15 +721,26 @@ async function _executeCustomPath(params: LLMParams, model: string, response_for
   });
 }
 
-async function _executeSystemPath(params: LLMParams, model: string, response_format: any, headers: any, startTime: number): Promise<LLMResponse> {
+async function _executeSystemPath(params: LLMParams, model: string, response_format: any, headers: any, startTime: number, chainFrom = 0): Promise<LLMResponse> {
   // SYSTEM FALLBACK CHAIN: Google -> OpenRouter -> Groq
   // Google first: it serves the default gemini-*-latest aliases directly, while
   // OpenRouter needs vendor slugs and fails fast when the account has no credits.
-  const chain = [
+  // Admin-configured providers (priority order) run first; the env-keyed ones
+  // stay as the final fallback unless the platform settings turn them off.
+  // A provider whose model lacks a capability the request needs is skipped.
+  const settings = await getPlatformSettings().catch(() => null);
+  const admin = settings?.ai?.useAdminProviders === false ? [] : await getAdminChain().catch(() => []);
+  const eligibleAdmin = admin.filter((p) => !params.file || p.capabilities.includes('vision'));
+  const envEntries: Array<{ id: string; client: OpenAI | null; fixedModel?: string; dbId?: string }> = [
     { id: 'google', client: geminiClient },
     { id: 'openrouter', client: openRouterClient },
     { id: 'groq', client: groqClient }
   ];
+  const chain: Array<{ id: string; client: OpenAI | null; fixedModel?: string; dbId?: string }> = [
+    ...eligibleAdmin.map((p) => ({ id: p.id, client: p.client, fixedModel: p.model, dbId: p.dbId })),
+    // envFallback=false is honoured only when an admin provider can serve the request
+    ...(settings?.ai?.envFallback === false && eligibleAdmin.length > 0 ? [] : envEntries),
+  ].slice(chainFrom);
 
   let lastErr: any = null;
 
@@ -657,7 +750,7 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
     for (let round = 0; round < 2; round++) {
     try {
       return await withCircuitBreaker(entry.id, async () => {
-        let providerModel = sanitizeModelIdForProvider(model, entry.id);
+        let providerModel = entry.fixedModel || sanitizeModelIdForProvider(model, entry.id);
         
         // FIX: If falling back to Groq, use a Groq-compatible model
         if (entry.id === 'groq') {
@@ -679,6 +772,7 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
         }, params.signal);
 
         const responseTimeMs = Date.now() - startTime;
+        if (entry.dbId) recordProviderOutcome(entry.dbId, true, null, responseTimeMs);
         const usage = result.usage || { prompt_tokens: 0, completion_tokens: 0 };
         const cost = calculateCost(model, usage.prompt_tokens, usage.completion_tokens);
 
@@ -707,6 +801,7 @@ async function _executeSystemPath(params: LLMParams, model: string, response_for
         return response;
       });
     } catch (err) {
+      if (entry.dbId) recordProviderOutcome(entry.dbId, false, err);
       if ((params as any).__noFallback?.()) throw asInterrupted(err, params.signal);
       const msg = (err as any)?.message || String(err);
       const wait = round === 0 && !params.signal?.aborted ? shortWaitMs(err, entry.id) : null;

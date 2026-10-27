@@ -12,12 +12,13 @@ class TokenStore {
     this.TTL_MS = 60 * 1000;
   }
 
-  async createCode(token) {
+  /** payload: { userId, method, bindingHash } */
+  async createCode(payload) {
     const code = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + this.TTL_MS);
 
     try {
-      await OauthCode.create({ code, token, expiresAt });
+      await OauthCode.create({ code, userId: payload.userId, method: payload.method, bindingHash: payload.bindingHash || null, expiresAt });
       return code;
     } catch (err) {
       console.error(`[CRITICAL] MongoDB failed for OAuth code persistence!`, err.message);
@@ -29,13 +30,20 @@ class TokenStore {
     }
   }
 
-  async exchange(code) {
-    if (!code) return null;
+  /**
+   * Single use: returns { userId, method } or null. When the code was bound to a
+   * browser, `bindingHash` (hash of that browser's handoff cookie) must match.
+   * @param {any} code
+   * @param {string|null} [bindingHash]
+   */
+  async exchange(code, bindingHash = null) {
+    if (!code || typeof code !== 'string') return null;
 
     try {
       const doc = await OauthCode.findOneAndDelete({ code });
-      if (doc && doc.expiresAt.getTime() > Date.now()) {
-        return doc.token;
+      if (doc?.bindingHash && doc.bindingHash !== bindingHash) return null;
+      if (doc && doc.expiresAt.getTime() > Date.now() && doc.userId) {
+        return { userId: doc.userId.toString(), method: doc.method || 'legacy' };
       }
       return null;
     } catch (err) {

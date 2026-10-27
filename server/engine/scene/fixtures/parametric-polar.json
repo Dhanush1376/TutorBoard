@@ -1,0 +1,45 @@
+{
+  "version": "1",
+  "title": "Curves drawn by a moving point",
+  "domain": "math",
+  "summary": "x = cos t, y = sin t traces the unit circle; the polar curve r = 1 + cos θ traces a cardioid.",
+  "spaces": [
+    { "id": "circ", "kind": "cartesian", "x": [-1.5, 1.5], "y": [-1.5, 1.5], "axes": true, "equalAspect": true, "xLabel": "x", "yLabel": "y" },
+    { "id": "pol", "kind": "cartesian", "x": [-1, 2.5], "y": [-1.6, 1.6], "axes": true, "equalAspect": true, "xLabel": "x", "yLabel": "y" }
+  ],
+  "entities": [
+    { "id": "unit", "type": "curve", "space": "circ", "x": "cos(t)", "y": "sin(t)", "t": [0, "2pi"], "label": "(\\cos t, \\sin t)", "tone": "info" },
+    { "id": "p60", "type": "point", "space": "circ", "at": [0.5, 0.866], "on": "unit", "label": "t = 60°" },
+    { "id": "rider", "type": "body", "space": "circ", "at": [1, 0] },
+    { "id": "card", "type": "curve", "space": "pol", "r": "1 + cos(θ)", "t": [0, "2pi"], "label": "r = 1 + \\cos\\theta", "tone": "accent" }
+  ],
+  "layout": [
+    { "rel": "row", "ids": ["circ", "pol"], "gap": "lg" }
+  ],
+  "beats": [
+    {
+      "title": "A point that moves with t",
+      "narration": "As t runs from 0 to 2π, the point (cos t, sin t) goes once round the unit circle.",
+      "actions": [
+        { "do": "create", "target": "rider", "effect": "pop" },
+        { "do": "create", "target": "unit", "effect": "draw" },
+        { "do": "trace", "target": "rider", "along": "unit", "duration": "long", "with": "previous" }
+      ]
+    },
+    {
+      "title": "Where t = 60°",
+      "narration": "At t = 60° the point is at (0.5, 0.866): cos 60° across, sin 60° up.",
+      "actions": [
+        { "do": "create", "target": "p60", "effect": "pop" },
+        { "do": "highlight", "target": "p60", "state": "insight" }
+      ]
+    },
+    {
+      "title": "Polar: distance by angle",
+      "narration": "In polar form we give the distance r for each angle θ. With r = 1 + cos θ the curve is a heart-shaped cardioid.",
+      "actions": [
+        { "do": "create", "target": "card", "effect": "draw" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "version": "1",
+  "title": "Shear force and bending moment in a beam",
+  "domain": "physics",
+  "summary": "A 6 m simply supported beam with 10 kN at 2 m: reactions from equilibrium, then the shear-force and bending-moment diagrams, all computed.",
+  "entities": [],
+  "beats": [
+    { "title": "The beam and its loads", "narration": "computed", "compute": { "algorithm": "beam", "target": "bm", "args": { "length": 6, "loads": [{ "at": 2, "F": 10 }] } } }
+  ]
+}

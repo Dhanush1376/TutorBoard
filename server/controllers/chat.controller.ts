@@ -124,7 +124,7 @@ const stopSchema = z.object({
 export const stopGeneration = async (req: Request, res: Response) => {
   const parsed = stopSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid request', code: 'INVALID_REQUEST', retryable: false });
-  const result = generationRegistry.stop(parsed.data.requestId, {
+  const result = await generationRegistry.requestStop(parsed.data.requestId, {
     userId: (req as any).user?._id?.toString() || null,
     guestId: (req as any).guestId || null,
     sessionId: parsed.data.sessionId,
@@ -310,18 +310,27 @@ export function detectTopic(text: string) {
 
 export const generateSessionTitle = async (userMsg: string) => {
   try {
-    if (userMsg.length <= 40) return userMsg.charAt(0).toUpperCase() + userMsg.slice(1);
+    const cleanMsg = (userMsg || '').trim();
+    if (!cleanMsg) return 'New Session';
+
     const response = await requestCompletion({
       model: getTextModel(),
       messages: [
-        { role: 'system', content: 'Generate a 5-word title for this message. Output ONLY the title.' },
-        { role: 'user', content: userMsg }
+        { 
+          role: 'system', 
+          content: 'You generate short, clean, grammatically correct conversation titles (3 to 6 words) based on the user request. Example: "How to Find Area of a Circle", "Implicit Heart Curve Formula", "Introduction to Calculus". Keep natural prepositions and proper grammar. Do NOT use quotation marks, trailing periods, or ellipses. Output ONLY the title.' 
+        },
+        { role: 'user', content: cleanMsg }
       ],
       temperature: 0.3,
-      maxTokens: 15,
+      maxTokens: 20,
     });
-    return (response.content || 'New Session').trim();
+    const title = (response.content || '').replace(/^["'`#]+|["'`#.]+$/g, '').trim();
+    return title || (cleanMsg.length <= 40 ? cleanMsg.charAt(0).toUpperCase() + cleanMsg.slice(1) : 'New Session');
   } catch (err) {
-    return 'New Session';
+    const fallback = (userMsg || '').trim();
+    return fallback.length <= 40 && fallback.length > 0
+      ? fallback.charAt(0).toUpperCase() + fallback.slice(1)
+      : 'New Session';
   }
 };

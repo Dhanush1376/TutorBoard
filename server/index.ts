@@ -33,20 +33,30 @@ import chatRoutes from './routes/chat.routes.js';
 import artifactRoutes from './routes/artifact.routes.js';
 import compilerRoutes from './routes/compiler.js';
 import visualizerRoutes from './routes/visualizer.routes.js';
+import adminRoutes from './routes/admin.js';
+import adminAccessRoutes from './routes/adminAccess.js';
+import { getPlatformSettings } from './services/platformConfig.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const allowedOrigins = [
+// Production origins come from configuration (FRONTEND_URL + comma-separated
+// ALLOWED_ORIGINS); localhost dev ports are only allowed outside production.
+const devOrigins = process.env.NODE_ENV === 'production' ? [] : [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:5176',
+  'http://localhost:5199',
   'http://127.0.0.1:5173',
+];
+const allowedOrigins = [
+  ...devOrigins,
   'https://tutorboard.vercel.app',
   'https://tutor-board-mocha.vercel.app',
-  process.env.FRONTEND_URL
-].filter(Boolean);
+  process.env.FRONTEND_URL,
+  ...String(process.env.ALLOWED_ORIGINS || '').split(','),
+].map((o) => (o || '').trim().replace(/\/$/, '')).filter(Boolean);
 
 const isOriginAllowed = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
   const isVercelPreview = origin && (
@@ -171,6 +181,19 @@ export function createApp(): Application {
 
   app.use(passport.initialize());
 
+  // Maintenance mode (admin portal → Platform settings). Sign-in and the admin API
+  // stay reachable so an administrator can switch it off again.
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith('/api/') || req.path.startsWith('/api/auth/') || req.path.startsWith('/api/admin/') || req.path === '/api/csrf-token') return next();
+    try {
+      const s = await getPlatformSettings();
+      if (s.maintenance.enabled) {
+        return res.status(503).json({ error: s.maintenance.message || 'TutorBoard is down for maintenance. Please try again shortly.', code: 'MAINTENANCE' });
+      }
+    } catch { /* settings unavailable: serve normally */ }
+    next();
+  });
+
   const dbCheck = async (req: Request, res: Response, next: NextFunction) => {
     if (mongoose.connection.readyState === 1) {
       return next();
@@ -200,6 +223,8 @@ export function createApp(): Application {
   app.use('/api/learner', dbCheck, learnerRoutes);
   app.use('/api/chat', dbCheck, chatRoutes);
   app.use('/api/artifact', dbCheck, artifactRoutes);
+  app.use('/api/admin', dbCheck, adminRoutes);
+  app.use('/api/admin-access', dbCheck, adminAccessRoutes);
   // Mounted before uploadRoutes: that router protects everything under /api that comes after it,
   // and guests may run and step through code (both are rate limited).
   app.use('/api/compiler', compilerRoutes); // POST /api/compiler/execute (what the client calls)

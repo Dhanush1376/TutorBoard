@@ -1,0 +1,61 @@
+{
+  "version": "1",
+  "title": "Inside a plant cell: where photosynthesis happens",
+  "domain": "biology",
+  "summary": "Chloroplasts turn light, water and carbon dioxide into sugar; the wall, membrane and vacuole keep the cell firm and supplied.",
+  "entities": [
+    {
+      "id": "cell", "type": "compartment", "label": "Plant cell", "shape": "rect", "size": "lg",
+      "parts": [
+        { "id": "wall", "label": "cell wall", "shape": "membrane", "tone": "success" },
+        { "id": "membrane", "label": "cell membrane", "shape": "membrane", "tone": "warning" },
+        { "id": "vacuole", "label": "central vacuole", "shape": "round", "size": "lg", "tone": "info" },
+        { "id": "nucleus", "label": "nucleus", "shape": "round", "size": "md", "tone": "accent" },
+        { "id": "nucleolus", "label": "nucleolus", "in": "nucleus", "shape": "round", "size": "sm", "tone": "danger" },
+        { "id": "chloroplast", "label": "chloroplast", "shape": "bean", "size": "sm", "count": 4, "tone": "success" },
+        { "id": "mito", "label": "mitochondrion", "shape": "bean", "size": "xs", "count": 2, "tone": "danger" },
+        { "id": "golgi", "label": "Golgi apparatus", "shape": "stack", "size": "sm" }
+      ]
+    },
+    { "id": "eq", "type": "math", "latex": "6\\,CO_2 + 6\\,H_2O \\xrightarrow{\\text{light}} C_6H_{12}O_6 + 6\\,O_2" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "cell", "region": "center" },
+    { "rel": "below", "id": "eq", "of": "cell", "gap": "md" }
+  ],
+  "beats": [
+    {
+      "title": "A plant cell",
+      "narration": "A plant cell is boxed in by a stiff cell wall, with the cell membrane just inside it.",
+      "actions": [
+        { "do": "create", "target": "cell", "effect": "fade" },
+        { "do": "highlight", "target": ["cell.wall", "cell.membrane"], "state": "active" }
+      ]
+    },
+    {
+      "title": "Chloroplasts capture light",
+      "narration": "The green chloroplasts are where photosynthesis happens: light, water and carbon dioxide become sugar and oxygen.",
+      "actions": [
+        { "do": "clear" },
+        { "do": "highlight", "target": "cell.chloroplast", "state": "insight" },
+        { "do": "create", "target": "eq", "effect": "type" }
+      ]
+    },
+    {
+      "title": "Mitochondria spend the sugar",
+      "narration": "Mitochondria break that sugar down again to release energy the cell can use.",
+      "actions": [
+        { "do": "clear" },
+        { "do": "highlight", "target": "cell.mito", "state": "active" }
+      ]
+    },
+    {
+      "title": "The vacuole keeps it firm",
+      "narration": "The large central vacuole stores water and presses outward against the wall, keeping the cell firm.",
+      "actions": [
+        { "do": "clear" },
+        { "do": "highlight", "target": "cell.vacuole", "state": "found" }
+      ]
+    }
+  ]
+}

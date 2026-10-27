@@ -200,7 +200,11 @@ chatSessionSchema.index({ userId: 1, createdAt: -1 });
 chatSessionSchema.index({ userId: 1, isDeleted: 1, lastUpdated: -1 });
 chatSessionSchema.index({ guestId: 1, isDeleted: 1, lastUpdated: -1 });
 chatSessionSchema.index({ engineSessionId: 1 }, { unique: true, sparse: true });
-chatSessionSchema.index({ lastUpdated: 1 }, { expireAfterSeconds: 90 * 24 * 3600 });
+// Retention: conversations are kept until the learner deletes them (or their
+// account). There is deliberately NO TTL index here — a 90-day expiry on
+// lastUpdated used to delete idle conversations silently. Existing databases
+// still carry that index; core/migrations/removeConversationExpiry.ts drops it.
+// See docs/data-retention.md.
 
 // INFRA-12: Cap messages at 200 entries and ledger at 50 entries with TTL eviction.
 chatSessionSchema.pre('validate', function() {

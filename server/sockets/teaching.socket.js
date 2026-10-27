@@ -6,6 +6,7 @@ import LearnerProfile from '../models/LearnerProfile.js';
 import { createTeachingMachine, STATES } from '../engine/core/teachingMachine.js';
 import sessionStore from '../engine/core/sessionStore.js';
 import tokenStore from '../utils/auth/tokenStore.js';
+import { isSessionActive } from '../services/auth/session.service.js';
 import { checkSocketRate, cleanupSocket, getGuestUsageCount, GUEST_MONTHLY_LIMIT } from '../middleware/rateLimiter.js';
 import { getOrCreateRequestId, createTrackedSessionId } from '../middleware/requestIdMiddleware.js';
 import { getRateKey } from './utils.js';
@@ -57,6 +58,10 @@ export function setupTeachingSocket(io) {
         if (decoded.iat < changedTimestamp) {
           return next(new Error('Authentication error: Password has been changed since this session started'));
         }
+      }
+
+      if (user.disabledAt || !(await isSessionActive(decoded.sid, user._id))) {
+        return next(new Error('Authentication error: Session has ended'));
       }
 
       socket.user = {

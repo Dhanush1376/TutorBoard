@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "title": "Breadth-first search, ring by ring",
+  "domain": "algorithms",
+  "summary": "BFS from A visits nodes in order of distance, using a queue; the visit order is computed from the graph.",
+  "entities": [
+    {
+      "id": "g", "type": "graph", "directed": false, "arrangement": "auto",
+      "nodes": [{ "id": "A" }, { "id": "B" }, { "id": "C" }, { "id": "D" }, { "id": "E" }, { "id": "F" }],
+      "edges": [
+        { "from": "A", "to": "B" }, { "from": "A", "to": "C" }, { "from": "B", "to": "D" },
+        { "from": "C", "to": "D" }, { "from": "C", "to": "E" }, { "from": "D", "to": "F" }
+      ]
+    }
+  ],
+  "layout": [
+    { "rel": "place", "id": "g", "region": "center" }
+  ],
+  "beats": [
+    {
+      "title": "Six connected places",
+      "narration": "A graph of six nodes. Starting from A, which nodes do we reach first?",
+      "actions": [{ "do": "create", "target": "g", "effect": "fade" }]
+    },
+    { "title": "Start at A", "narration": "computed", "compute": { "algorithm": "bfs", "target": "g", "args": { "start": "A" } } }
+  ]
+}

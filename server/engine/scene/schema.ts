@@ -59,6 +59,10 @@ export const CartesianSpace = z.object({
   xLabel: z.string().max(24).optional(),
   yLabel: z.string().max(24).optional(),
   equalAspect: z.boolean().default(false).describe('true for geometry so circles stay round'),
+  xScale: z.enum(['linear', 'log']).default('linear').describe('log: decades evenly spaced; the range must be > 0'),
+  yScale: z.enum(['linear', 'log']).default('linear'),
+  xUnit: z.string().max(16).optional().describe('SI unit of the x axis, e.g. "s" — formulas using parameters are checked against it'),
+  yUnit: z.string().max(16).optional(),
 });
 export const Space = z.discriminatedUnion('kind', [CartesianSpace]);
 
@@ -86,7 +90,12 @@ export const PieEntity = z.object({
   sliceLabels: z.array(z.string().max(12)).max(24).optional(),
 });
 
-export const PointEntity = z.object({ ...spatial, type: z.literal('point'), at: Vec2 });
+export const PointEntity = z.object({
+  ...spatial,
+  type: z.literal('point'),
+  at: Vec2,
+  on: Id.optional().describe('the plot or curve this point lies on — checked'),
+});
 export const PolygonEntity = z.object({
   ...spatial,
   type: z.literal('polygon'),
@@ -112,6 +121,33 @@ export const PlotEntity = z.object({
   type: z.literal('plot'),
   expr: z.string().max(120).describe('function of x, e.g. "x*tan(45deg) - 9.8*x^2/(2*20^2*cos(45deg)^2)"'),
   domain: z.tuple([Num, Num]).optional(),
+});
+/** A number or a constant expression such as "2pi" or "pi/2". */
+const Const = z.union([Num, z.string().min(1).max(24)]);
+/** Parametric x(t), y(t) — or polar r(θ) — over t from t[0] to t[1]. */
+export const CurveEntity = z.object({
+  ...spatial,
+  type: z.literal('curve'),
+  x: z.string().max(120).optional().describe('x as a function of t'),
+  y: z.string().max(120).optional().describe('y as a function of t'),
+  r: z.string().max(120).optional().describe('polar: r as a function of θ (write t or θ)'),
+  t: z.tuple([Const, Const]).describe('parameter range, e.g. [0, "2pi"]'),
+});
+/** Shaded region between a plot and the x-axis (or a y value, or another plot) over a domain. */
+export const AreaEntity = z.object({
+  ...spatial,
+  type: z.literal('area'),
+  plot: Id.describe('the upper (or first) plot'),
+  to: z.union([Id, Num]).default(0).describe('another plot id, or a y value (default 0: the x-axis)'),
+  domain: z.tuple([Num, Num]).optional().describe('x from … to (default: the plot domain)'),
+});
+/** A full-width or full-height reference line: an asymptote, an equilibrium value, a threshold. */
+export const RefLineEntity = z.object({
+  ...spatial,
+  type: z.literal('refline'),
+  x: Num.optional().describe('vertical line at this x'),
+  y: Num.optional().describe('horizontal line at this y'),
+  dashed: z.boolean().default(true),
 });
 export const VectorEntity = z.object({
   ...spatial,
@@ -151,13 +187,41 @@ export const TableEntity = z.object({
   columns: z.array(z.string().max(24)).max(12).optional(),
   rows: z.array(z.array(Value).max(12)).min(1).max(16),
 });
+/** Stereo bonds: a wedge comes out of the page, a dash goes behind it; the narrow end is the stereocentre. */
+export const BondStyle = z.enum(['wedge', 'dash']);
 export const MoleculeEntity = z.object({
   ...base,
   type: z.literal('molecule'),
-  atoms: z.array(z.object({ id: Id.optional(), el: z.string().regex(/^[A-Z][a-z]?$/, 'element symbol, e.g. "O", "Cl"') })).min(1).max(30),
-  bonds: z.array(z.tuple([z.number().int().min(0), z.number().int().min(0), z.number().int().min(1).max(3)])).max(40)
-    .describe('[atomIndex, atomIndex, order]'),
+  atoms: z.array(z.object({
+    id: Id.optional(),
+    el: z.string().regex(/^[A-Z][a-z]?$/, 'element symbol, e.g. "O", "Cl"'),
+    charge: z.number().int().min(-3).max(3).optional().describe('formal charge, e.g. 1 for N in NH₄⁺, -1 for O in OH⁻'),
+  })).min(1).max(30),
+  bonds: z.array(z.union([
+    z.tuple([z.number().int().min(0), z.number().int().min(0), z.number().int().min(1).max(3)]),
+    z.tuple([z.number().int().min(0), z.number().int().min(0), z.number().int().min(1).max(3), BondStyle]),
+  ])).max(40)
+    .describe('[atomIndex, atomIndex, order, style?]; list every ring bond, aromatic rings in Kekulé form (alternating 1 and 2); style "wedge" (towards the viewer) or "dash" (away), narrow end at the first atom'),
   lonePairs: z.array(z.object({ atom: z.number().int().min(0), count: z.number().int().min(1).max(4) })).max(10).optional(),
+});
+/** One side of a reaction: molecule entity ids, with an optional stoichiometric coefficient. */
+const Participant = z.union([Id, z.object({ id: Id, n: z.number().int().min(1).max(12) })]);
+/** reactants → products, drawn around molecules already on the board; atoms and charge must balance. */
+export const ReactionEntity = z.object({
+  ...base,
+  type: z.literal('reaction'),
+  reactants: z.array(Participant).min(1).max(4),
+  products: z.array(Participant).min(1).max(4),
+  arrow: z.enum(['forward', 'equilibrium']).default('forward'),
+  conditions: z.string().max(40).optional().describe('written over the arrow, e.g. "H₂SO₄, heat"'),
+});
+/** Electron-pushing arrow: from a lone pair ("m.lp-O") or a bond ("m.C1-Br") to an atom ("m.C1") or a bond. */
+export const CurlyEntity = z.object({
+  ...base,
+  type: z.literal('curly'),
+  from: Ref.describe('a lone pair "mol.lp-O" or a bond "mol.C1-Br" (or an atom, for one electron)'),
+  to: Ref.describe('an atom "mol.C1" or a bond "mol.C1-C2"'),
+  electrons: z.union([z.literal(1), z.literal(2)]).default(2).describe('2: full arrowhead (a pair); 1: fishhook (radicals)'),
 });
 export const NetworkEntity = z.object({
   ...base,
@@ -171,19 +235,65 @@ export const PixelsEntity = z.object({
   type: z.literal('pixels'),
   grid: z.array(z.array(z.number().min(0).max(1)).min(1).max(32)).min(1).max(32),
 });
+/**
+ * A labelled diagram of nested regions — a cell and its organelles, an organ and its tissues.
+ * The engine packs every part inside its parent and labels each with a leader line.
+ */
+export const CompartmentEntity = z.object({
+  ...base,
+  type: z.literal('compartment'),
+  shape: z.enum(['round', 'oval', 'rect']).default('round').describe('outline of the whole: rect for a plant cell'),
+  size: z.enum(['sm', 'md', 'lg']).default('lg'),
+  parts: z.array(z.object({
+    id: Id,
+    label: z.string().min(1).max(32),
+    in: Id.optional().describe('the part it sits inside (default: the whole)'),
+    shape: z.enum(['round', 'oval', 'rect', 'bean', 'stack', 'dot', 'membrane']).default('round')
+      .describe('membrane: an outline along its parent (cell membrane, cell wall, nuclear envelope); bean: mitochondrion/chloroplast; stack: Golgi; dot: ribosomes'),
+    size: z.enum(['xs', 'sm', 'md', 'lg']).default('sm'),
+    count: z.number().int().min(1).max(8).optional().describe('copies drawn (the first is labelled)'),
+    tone: Tone.optional(),
+  })).min(1).max(24),
+});
+/**
+ * An electric circuit: two-terminal components between named nets. Checked (closed, no
+ * shorted battery, solvable) and drawn as a schematic by the engine. Battery: "to" is +.
+ */
+export const CircuitEntity = z.object({
+  ...base,
+  type: z.literal('circuit'),
+  components: z.array(z.object({
+    id: Id,
+    kind: z.enum(['battery', 'resistor', 'lamp', 'capacitor', 'switch', 'wire', 'ammeter', 'voltmeter']),
+    from: Id.describe('net name; for a battery the − terminal'),
+    to: Id.describe('net name; for a battery the + terminal'),
+    value: Num.optional().describe('volts (battery), ohms (resistor, lamp), farads (capacitor)'),
+    closed: z.boolean().optional().describe('switches: default true'),
+    label: z.string().max(24).optional(),
+  })).min(2).max(12),
+  ground: Id.optional().describe('the 0 V net (default: the first battery\'s − terminal)'),
+});
+/** A combinational logic circuit: inputs → gates → outputs; checked, evaluated and drawn by the engine. */
+export const LogicEntity = z.object({
+  ...base,
+  type: z.literal('logic'),
+  inputs: z.array(Id).min(1).max(4),
+  gates: z.array(z.object({ id: Id, op: z.enum(['and', 'or', 'not', 'nand', 'nor', 'xor', 'xnor', 'buf']), in: z.array(Id).min(1).max(4) })).min(1).max(10),
+  outputs: z.array(z.object({ id: Id, from: Id })).min(1).max(3),
+});
 export const GroupEntity = z.object({ ...base, type: z.literal('group'), children: z.array(Id).min(1).max(20) });
 
 export const Entity = z.discriminatedUnion('type', [
   TextEntity, MathEntity, RectEntity, CircleEntity, PieEntity,
-  PointEntity, PolygonEntity, LineEntity, PathEntity, AngleEntity, PlotEntity, VectorEntity, BodyEntity, ScatterEntity,
+  PointEntity, PolygonEntity, LineEntity, PathEntity, AngleEntity, PlotEntity, CurveEntity, AreaEntity, RefLineEntity, VectorEntity, BodyEntity, ScatterEntity,
   ArrayEntity, StackEntity, QueueEntity, LinkedListEntity, TreeEntity, GraphEntity, TableEntity,
-  MoleculeEntity, NetworkEntity, PixelsEntity, GroupEntity,
+  MoleculeEntity, ReactionEntity, CurlyEntity, CompartmentEntity, CircuitEntity, LogicEntity, NetworkEntity, PixelsEntity, GroupEntity,
 ]);
 
 /** Types whose elements are addressed by index: `arr[2]`. */
 export const INDEXED_TYPES = ['array', 'stack', 'queue', 'linkedlist'] as const;
 /** Types that must live in a cartesian space. */
-export const SPATIAL_TYPES = ['point', 'polygon', 'path', 'plot', 'vector', 'body', 'scatter'] as const;
+export const SPATIAL_TYPES = ['point', 'polygon', 'path', 'plot', 'curve', 'area', 'refline', 'vector', 'body', 'scatter'] as const;
 
 // ── Layout (relations, never pixels) ────────────────────────────────────────
 
@@ -229,7 +339,7 @@ export const Action = z.discriminatedUnion('do', [
   z.object({ ...act, do: z.literal('annotate'), target: Ref, text: z.string().max(80), side: z.enum(['above', 'below', 'left', 'right']).optional() }),
   z.object({ ...act, do: z.literal('unannotate'), target: Ref }),
   z.object({ ...act, do: z.literal('connect'), from: Ref, to: Ref, label: z.string().max(40).optional(), style: z.enum(['arrow', 'line', 'dashed']).default('arrow') }),
-  z.object({ ...act, do: z.literal('trace'), target: Id.describe('a body'), along: Id.describe('a plot or path'), duration: z.enum(['short', 'normal', 'long']).default('normal') }),
+  z.object({ ...act, do: z.literal('trace'), target: Id.describe('a body'), along: Id.describe('a plot, curve or path'), duration: z.enum(['short', 'normal', 'long']).default('normal') }),
   z.object({ ...act, do: z.literal('tween'), target: Id, prop: z.string().max(24), to: Num, from: Num.optional() }),
   z.object({ ...act, do: z.literal('focus'), target: Targets.optional(), zoom: z.enum(['close', 'medium', 'wide']).default('medium') }),
   z.object({ ...act, do: z.literal('wait'), beats: z.number().min(0.25).max(8).default(1) }),
@@ -254,6 +364,28 @@ export const Beat = z.object({
   check: Check.optional(),
 });
 
+// ── Parameters (sliders) — semantics in ./params.ts ─────────────────────────
+
+const ParamId = z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,15}$/);
+export const Param = z.object({
+  id: ParamId,
+  label: z.string().max(40).optional(),
+  value: Num,
+  min: Num,
+  max: Num,
+  step: Num.optional(),
+  unit: z.string().max(16).optional().describe('SI unit, e.g. "m/s"; "deg" for angles'),
+});
+export const Derived = z.object({
+  id: ParamId,
+  expr: z.string().max(160),
+  unit: z.string().max(16).optional(),
+  label: z.string().max(40).optional(),
+  digits: z.number().int().min(0).max(4).optional(),
+});
+/** Where an entity field takes its value from the parameters (written by the validator, applied by the client). */
+export const Binding = z.object({ id: Id, field: z.string().max(60), kind: z.enum(['num', 'expr', 'text']), src: z.string().max(240) });
+
 export const Scene = z.object({
   version: z.literal(SCENE_VERSION),
   title: z.string().min(1).max(LIMITS.title),
@@ -263,6 +395,16 @@ export const Scene = z.object({
   entities: z.array(Entity).min(1).max(LIMITS.entities),
   layout: z.array(Relation).max(40).default([]),
   beats: z.array(Beat).min(1).max(LIMITS.beats),
+  params: z.array(Param).max(6).optional(),
+  derived: z.array(Derived).max(12).optional(),
+  bindings: z.array(Binding).max(80).optional(),
+  /** computed beats: which algorithm wrote them, and whether their data was the lesson's or generated (illustrative) */
+  provenance: z.array(z.object({
+    algorithm: z.string().max(40),
+    target: Id,
+    data: z.enum(['given', 'illustrative']),
+    beats: z.array(z.string().max(48)).max(LIMITS.beats),
+  })).max(LIMITS.beats).optional(),
 });
 
 export type SceneT = z.infer<typeof Scene>;
@@ -271,3 +413,5 @@ export type ActionT = z.infer<typeof Action>;
 export type BeatT = z.infer<typeof Beat>;
 export type RelationT = z.infer<typeof Relation>;
 export type SpaceT = z.infer<typeof Space>;
+export type ParamT = z.infer<typeof Param>;
+export type DerivedT = z.infer<typeof Derived>;

@@ -11,8 +11,11 @@ import UsageLog from '../models/UsageLog.js';
 import VectorStoreService from '../engine/core/vectorStore.js';
 import { validateAvatarUrl } from '../utils/validation/securityValidators.js';
 import tokenStore from '../utils/auth/tokenStore.js';
-import { sendSecurityAlertEmail, sendEmail } from '../utils/core/mailer.js';
+import { sendSecurityAlertEmail, sendAccountDeletedEmail } from '../utils/core/mailer.js';
 import { container } from '../core/container.js';
+import AuthChallenge from '../models/AuthChallenge.js';
+import { revokeAllSessions, startSession } from '../services/auth/session.service.js';
+import { audit } from '../services/audit.service.js';
 
 // Update User Settings (merges with existing)
 export const updateSettings = async (req, res) => {
@@ -73,26 +76,28 @@ export const updateSettings = async (req, res) => {
   }
 };
 
-// Change User Password
+// Change (or, for Google/GitHub-only accounts, add) the password.
+// Every session is ended, then this browser gets a fresh one.
 export const updatePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    
+
     const user = await User.findById(req.user._id).select('+password');
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // If user has no password (OAuth only), block this
-    if (!user.password) {
-      return res.status(400).json({ error: 'No password set. This account relies on Google/GitHub login.' });
+    if (user.password) {
+      if (!currentPassword || !(await user.comparePassword(currentPassword))) {
+        await audit(req, 'password.change', { targetUserId: user._id, outcome: 'failure' });
+        return res.status(401).json({ error: 'Incorrect current password' });
+      }
+    } else if (!req.recentAuth) {
+      // adding a first password: only right after a sign-in (requireRecentAuth sets this)
+      return res.status(401).json({ error: 'Sign in again to add a password.', code: 'REAUTH_REQUIRED' });
     }
 
-    const isMatch = await user.comparePassword(currentPassword);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Incorrect current password' });
-    }
-
+    const added = !user.password;
     user.password = newPassword;
-    user.passwordChangedAt = Date.now();
+    user.passwordChangedAt = new Date(Date.now() - 1000);
     await user.save(); // pre-save hook handles hashing
 
     // Invalidate user cache
@@ -102,16 +107,14 @@ export const updatePassword = async (req, res) => {
       } catch (err) {}
     }
 
-    // SEC-16: Revoke current session on password change for security
-    if (req.tokenJti) {
-      await tokenStore.revokeToken(req.tokenJti, req.tokenExp);
-      console.log(`[Auth] Session ${req.tokenJti} revoked due to password change`);
-    }
+    const revoked = await revokeAllSessions(user._id, 'password_change');
+    const { accessToken } = await startSession(req, res, user._id, 'password');
+    await audit(req, added ? 'password.added' : 'password.change', { targetUserId: user._id, meta: { sessionsRevoked: revoked } });
 
     // Send Security Alert Email
-    sendSecurityAlertEmail(user).catch(e => console.error('[Mailer] Security alert failed:', e));
+    sendSecurityAlertEmail(user).catch(e => console.error('[Mailer] Security alert failed:', e.message));
 
-    res.status(200).json({ success: true, message: 'Password updated successfully' });
+    res.status(200).json({ success: true, token: accessToken, message: added ? 'Password added' : 'Password updated. Other devices were signed out.' });
   } catch (error) {
     console.error('Update password error:', error);
     res.status(500).json({ error: 'Failed to update password' });
@@ -222,10 +225,13 @@ export const deleteAccount = async (req, res) => {
       VectorStoreService.clearOwnerMemory(userId.toString())
     ]);
     
-    // 2. Revoke current token and clear Redis session data
+    // 2. End every session and clear Redis session data
     if (req.tokenJti) {
       await tokenStore.revokeToken(req.tokenJti, req.tokenExp);
     }
+    await revokeAllSessions(userId, 'account_deleted');
+    await AuthChallenge.deleteMany({ userId });
+    await audit(req, 'account.deleted', { targetUserId: userId });
 
     if (container.has('redis-main')) {
       try {
@@ -239,17 +245,7 @@ export const deleteAccount = async (req, res) => {
     // 3. Send Goodbye Email (Transactional - send before we delete the record)
     const user = await User.findById(userId);
     if (user) {
-      await sendEmail({
-        to: user.email,
-        subject: 'TutorBoard Account Deleted',
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #ffffff; padding: 40px; border-radius: 24px;">
-            <h2 style="color: #ff3e3e;">Your account has been deleted</h2>
-            <p style="color: #cccccc;">We're sorry to see you go. As requested, your account and all associated cloud data have been permanently deleted from our systems.</p>
-            <p style="color: #666666; font-size: 12px;">If this was a mistake, you can always create a new account anytime.</p>
-          </div>
-        `
-      }).catch(e => console.error('[Mailer] Goodbye email failed:', e));
+      await sendAccountDeletedEmail(user).catch(e => console.error('[Mailer] Goodbye email failed:', e.message));
     }
 
     // 4. Delete user record

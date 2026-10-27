@@ -10,6 +10,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   testMatch: /chatReliability\.spec\.ts/,
+  // own artifacts folder: other suites (e.g. the visualizer e2e) clean test-results/ while running
+  outputDir: 'test-results/chat-e2e',
   fullyParallel: false,
   workers: 1,
   retries: 0,

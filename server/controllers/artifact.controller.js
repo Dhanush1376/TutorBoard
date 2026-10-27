@@ -179,12 +179,78 @@ export const getArtifact = async (req, res) => {
       metadata: artifact.metadata,
       version: artifact.version,
       versions: artifact.versions,
+      lessonProgress: artifact.lessonProgress || null,
       createdAt: artifact.createdAt,
       updatedAt: artifact.updatedAt,
     });
   } catch (err) {
     console.error('[Artifact:Get] Error:', err);
     res.status(500).json({ error: 'Failed to retrieve artifact' });
+  }
+};
+
+const lessonProgressSchema = z.object({
+  step: z.number().int().min(0).max(1000),
+  totalSteps: z.number().int().min(1).max(1000),
+  completed: z.boolean().optional(),
+  savedAt: z.number().int().positive(),
+  // slider values of an Engine v2 lesson (Scene Language params): id → number
+  params: z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,15}$/), z.number().finite())
+    .refine((o) => Object.keys(o).length <= 12, 'too many parameters')
+    .optional(),
+});
+
+/** Number of steps the saved lesson has (null when the artifact is not a stepped lesson). */
+const lessonStepCount = (artifact) => {
+  const steps = artifact?.sceneGraph?.steps;
+  return Array.isArray(steps) && steps.length > 0 ? steps.length : null;
+};
+
+/**
+ * PATCH /api/artifact/:id/progress
+ * Save the owner's place in a lesson. A save older than the stored one (it was
+ * sent before it but arrived after it, or came from a stale tab) is ignored, and
+ * the stored position is returned so the caller can reconcile.
+ */
+export const saveLessonProgress = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!/^[0-9a-fA-F]{24}$/.test(id)) return res.status(404).json({ error: 'Artifact not found' });
+    const parsed = lessonProgressSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Send step, totalSteps and savedAt (and params as numbers, if any).' });
+
+    const artifact = await Artifact.findById(id).select('userId guestId sessionId sceneGraph.steps version lessonProgress isDeleted').lean();
+    if (!artifact || artifact.isDeleted) return res.status(404).json({ error: 'Artifact not found' });
+    if (!(await verifyArtifactOwnership(artifact, req))) return res.status(403).json({ error: 'Forbidden: Private artifact' });
+
+    const { step, totalSteps, completed, savedAt, params } = parsed.data;
+    const known = lessonStepCount(artifact);
+    // the lesson changed since this position was taken: it no longer points anywhere reliable
+    if (known && known !== totalSteps) {
+      return res.status(409).json({ error: 'This lesson has changed.', code: 'LESSON_CHANGED', lessonProgress: artifact.lessonProgress || null });
+    }
+
+    const lessonProgress = {
+      step: Math.min(step, totalSteps - 1),
+      totalSteps,
+      completed: Boolean(completed),
+      version: artifact.version || 1,
+      savedAt,
+      ...(params && Object.keys(params).length ? { params } : {}),
+      updatedAt: new Date(),
+    };
+    const result = await Artifact.updateOne(
+      { _id: id, $or: [{ 'lessonProgress.savedAt': { $lt: savedAt } }, { 'lessonProgress.savedAt': { $exists: false } }, { lessonProgress: null }] },
+      { $set: { lessonProgress } },
+    );
+    if (!result.matchedCount) {
+      const current = await Artifact.findById(id).select('lessonProgress').lean();
+      return res.json({ ok: true, stale: true, lessonProgress: current?.lessonProgress || null });
+    }
+    res.json({ ok: true, stale: false, lessonProgress });
+  } catch (err) {
+    console.error('[Artifact:Progress] Error:', err);
+    res.status(500).json({ error: 'Failed to save lesson progress' });
   }
 };
 

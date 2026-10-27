@@ -4,7 +4,17 @@ import crypto from 'crypto';
 export const GUEST_COOKIE_NAME = 'tb-guest-token';
 export const GUEST_HEADER_NAME = 'x-guest-token';
 
-const GUEST_TOKEN_EXPIRY = 30 * 24 * 60 * 60; // 30 days in seconds
+/**
+ * A guest's conversations belong to their guest id, so losing the id loses
+ * access to every chat (it looks exactly like the chats were deleted). The id
+ * therefore never expires:
+ *  - the token and cookie last 400 days (the longest a browser keeps a cookie),
+ *  - an active guest's token is renewed for the same id (GUEST_RENEW_AFTER),
+ *  - a token past its expiry is still accepted when its signature is ours, and
+ *    renewed — only a revoked or forged token is refused.
+ */
+const GUEST_TOKEN_EXPIRY = 400 * 24 * 60 * 60; // seconds
+const GUEST_RENEW_AFTER = 24 * 60 * 60; // re-issue at most once a day
 
 /**
  * Mint a new cryptographically signed guest identity token
@@ -37,6 +47,14 @@ export function generateGuestToken(existingGuestId = null) {
  * Validates algorithm, token type, guestId format, and checks revocation store.
  */
 export async function verifyGuestToken(token) {
+  return (await readGuestToken(token))?.guestId ?? null;
+}
+
+/**
+ * Verify a guest token → { guestId, renew } or null. `renew` is true when the
+ * token is old enough (or past its expiry) that it should be re-issued.
+ */
+export async function readGuestToken(token) {
   if (!token || typeof token !== 'string') return null;
 
   const jwtSecret = process.env.JWT_SECRET;
@@ -45,7 +63,8 @@ export async function verifyGuestToken(token) {
   }
 
   try {
-    const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] });
+    // the signature proves the id is ours; expiry must never orphan a guest's chats
+    const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'], ignoreExpiration: true });
     if (
       decoded &&
       decoded.type === 'guest' &&
@@ -59,7 +78,9 @@ export async function verifyGuestToken(token) {
           return null;
         }
       }
-      return decoded.guestId;
+      const now = Math.floor(Date.now() / 1000);
+      const renew = !decoded.iat || now - decoded.iat > GUEST_RENEW_AFTER || (decoded.exp && decoded.exp <= now);
+      return { guestId: decoded.guestId, renew };
     }
     return null;
   } catch (err) {

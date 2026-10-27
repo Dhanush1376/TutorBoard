@@ -148,6 +148,30 @@ export const authSignupRateLimiter = rateLimit({
   }
 });
 
+// Codes and resets: per-IP ceiling on top of the per-account cooldown and attempt
+// limits in challenge.service (those stop guessing one code; this stops spraying).
+export const authRecoveryRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createStore('auth-recovery', true), // Fail closed
+  message: {
+    error: 'Too many attempts. Please try again in 15 minutes.',
+    code: 'AUTH_RATE_LIMIT_EXCEEDED'
+  }
+});
+
+// Admin API: authenticated, but every call is privileged
+export const adminRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createStore('admin', true),
+  message: { error: 'Too many admin requests. Slow down.', code: 'ADMIN_RATE_LIMIT_EXCEEDED' }
+});
+
 // ─── 2. Socket Rate Limiter (In-Memory for performance) ───
 const hitsBySocket = new Map();
 const guestMonthlyHits = new Map();

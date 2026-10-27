@@ -42,7 +42,8 @@ async function ensureComposer(page: Page) {
   return composer;
 }
 
-const bubbles = (page: Page) => page.locator('[data-message-id]');
+// one per message: the virtualised row around a message carries the id too (for scroll-to-quote)
+const bubbles = (page: Page) => page.locator('[data-message-id]:not([data-message-index])');
 const texts = async (page: Page) => (await bubbles(page).allInnerTexts()).map((t) => t.split('\n')[0].trim());
 
 async function ask(page: Page, question: string) {
@@ -197,4 +198,98 @@ test('the chat fits the screen with no horizontal overflow', async ({ page }) =>
   await ask(page, 'Show me a long line: ' + 'x'.repeat(300));
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('the question shows at once and the status says what the server is doing — before any answer text', async ({ page }) => {
+  await instrument(page);
+  await enterAsGuest(page);
+  // hold the server's reply back so the "before the answer" state can be observed
+  let release!: () => void;
+  const held = new Promise<void>((r) => { release = r; });
+  await page.route('**/api/chat/stream', async (route) => {
+    await held;
+    await route.fallback({ headers: { ...route.request().headers(), 'x-e2e-mock-ai': 'true' } });
+  });
+
+  const composer = await ensureComposer(page);
+  await composer.fill('What is a binary heap?');
+  await composer.press('Enter');
+
+  await expect(bubbles(page).first()).toContainText('What is a binary heap?');
+  await expect(page.getByRole('status').filter({ hasText: 'Getting started…' }).first()).toBeAttached();
+  // no invented stages while nothing has been reported
+  await expect(page.getByText(/Polishing answer|Finding solution|Analyzing problem/)).toHaveCount(0);
+  await expect(page.getByText(MOCK_ANSWER)).toHaveCount(0);
+
+  release();
+  await expect(bubbles(page).last()).toContainText(MOCK_ANSWER);
+  // finished: the status line is gone
+  await expect(page.locator('.thought-line')).toHaveCount(0);
+
+  const t = await page.evaluate(() => Object.values((window as any).__tbChatTimings || {}).at(-1) as any);
+  expect(t.outcome).toBe('completed');
+  expect(t.user_message_rendered).toBeLessThan(t.first_assistant_token_received);
+});
+
+test('a question that plans a visual never opens an empty canvas; a visual that cannot be drawn says so and offers a retry', async ({ page }) => {
+  const sent = await instrument(page);
+  await enterAsGuest(page);
+  const composer = await ensureComposer(page);
+  // "visually" makes the server plan a visual; the mock model cannot draw one
+  await composer.fill('Explain visually why the area of a circle is pi r squared');
+  await composer.press('Enter');
+
+  await expect(page.getByText(MOCK_ANSWER)).toBeVisible();
+  await expect(page.getByLabel('Chat messages').getByText("Visual didn't build")).toBeVisible();
+  // no lesson shell: no placeholder title, no playback controls over an empty board
+  await expect(page.locator('h1', { hasText: 'New Chat' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^(Play|Pause|Resume|Replay lesson)$/ })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Try the visualization again', exact: true }).click();
+  await expect.poll(() => sent.length).toBe(2);
+  // the regenerated answer has finished (its status line is gone)
+  await expect(page.locator('.thought-line')).toHaveCount(0);
+  await expect(page.getByLabel('Chat messages').getByText("Visual didn't build")).toBeVisible();
+  // the retry regenerated the same answer: still one question and one answer
+  await expect(bubbles(page)).toHaveCount(2);
+  await expect(bubbles(page).last()).toContainText(MOCK_ANSWER);
+  expect((await texts(page)).filter((t) => t.startsWith('Explain visually'))).toHaveLength(1);
+});
+
+test('Stop ends the request as stopped, not finished, and the status line goes away', async ({ page }) => {
+  await instrument(page);
+  await enterAsGuest(page);
+  // the answer never arrives on its own: only Stop can end it
+  await page.route('**/api/chat/stream', () => new Promise(() => { /* held open */ }));
+  const composer = await ensureComposer(page);
+  await composer.fill('Explain recursion');
+  await composer.press('Enter');
+  await expect(bubbles(page).first()).toContainText('Explain recursion');
+  await expect(page.locator('.thought-line')).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(page.locator('.thought-line')).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0); // stopping is not an error
+  const t = await page.evaluate(() => Object.values((window as any).__tbChatTimings || {}).at(-1) as any);
+  expect(t.outcome).toBe('cancelled');
+  expect((await texts(page)).filter((x) => x === 'Explain recursion')).toHaveLength(1);
+});
+
+test('a guest who closes the tab and comes back still has every chat', async ({ page, context }) => {
+  await instrument(page);
+  await enterAsGuest(page);
+  await ask(page, 'What is a binary heap?');
+  const back = page.getByRole('button', { name: /^Sessions$/ });
+  if (await back.isVisible().catch(() => false)) await back.click();
+  await page.getByRole('button', { name: /New session/i }).click();
+  await ask(page, 'Why is the sky blue?');
+  await page.close(); // the tab is gone; the browser (cookies, storage) is not
+
+  const again = await context.newPage();
+  await instrument(again);
+  await enterAsGuest(again);
+  const back2 = again.getByRole('button', { name: /^Sessions$/ });
+  if (await back2.isVisible().catch(() => false)) await back2.click();
+  await expect(again.getByRole('button', { name: /binary heap/i })).toHaveCount(1);
+  await expect(again.getByRole('button', { name: /sky blue/i })).toHaveCount(1);
 });

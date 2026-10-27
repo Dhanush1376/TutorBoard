@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "title": "Dijkstra: shortest distances from A",
+  "domain": "algorithms",
+  "summary": "Settle the closest unsettled node, relax its edges, repeat; every distance below is computed from the weights.",
+  "entities": [
+    {
+      "id": "roads", "type": "graph", "directed": false, "arrangement": "auto",
+      "nodes": [{ "id": "A" }, { "id": "B" }, { "id": "C" }, { "id": "D" }, { "id": "E" }],
+      "edges": [
+        { "from": "A", "to": "B", "weight": 4 }, { "from": "A", "to": "C", "weight": 1 },
+        { "from": "C", "to": "B", "weight": 2 }, { "from": "B", "to": "D", "weight": 5 },
+        { "from": "C", "to": "D", "weight": 8 }, { "from": "D", "to": "E", "weight": 3 }
+      ]
+    }
+  ],
+  "layout": [
+    { "rel": "place", "id": "roads", "region": "center" }
+  ],
+  "beats": [
+    {
+      "title": "Roads with lengths",
+      "narration": "Five towns joined by roads of different lengths. What is the shortest distance from A to each town?",
+      "actions": [{ "do": "create", "target": "roads", "effect": "fade" }]
+    },
+    { "title": "Start at A", "narration": "computed", "compute": { "algorithm": "dijkstra", "target": "roads", "args": { "start": "A" } } }
+  ]
+}

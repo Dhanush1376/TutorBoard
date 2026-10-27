@@ -24,8 +24,11 @@ describe('Scene Language v1 — golden scenes', () => {
 
   it('ships the golden scenes', () => {
     expect(files.sort()).toEqual([
-      'bubble-sort.json', 'circle-area.json', 'heap-insert.json', 'incline-forces.json', 'neural-network.json',
-      'parallelogram-area.json', 'projectile-45.json', 'stack-vs-queue.json', 'triangle-angle-sum.json', 'water-molecule.json',
+      'area-under-curve.json', 'beam-computed.json', 'benzene-to-toluene.json', 'binary-search-computed.json', 'bubble-sort.json',
+      'circle-area.json', 'circuit-computed.json', 'confusion-matrix-computed.json', 'dijkstra-computed.json', 'gradient-descent-computed.json', 'graph-search-computed.json',
+      'heap-insert.json', 'incline-forces.json', 'kmeans-computed.json', 'lcs-computed.json', 'logic-computed.json',
+      'methane-combustion.json', 'neural-network.json', 'parallelogram-area.json', 'parametric-polar.json', 'perceptron-computed.json', 'plant-cell.json', 'projectile-45.json', 'projectile-sliders.json', 'prokaryote-eukaryote.json', 'radioactive-decay.json', 'rc-charging-computed.json',
+      'sliding-window-computed.json', 'sn2-mechanism.json', 'spring-oscillator.json', 'stack-vs-queue.json', 'triangle-angle-sum.json', 'water-molecule.json',
     ]);
   });
 

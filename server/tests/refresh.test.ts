@@ -13,8 +13,9 @@ describe('Auth Token Refresh Endpoint', () => {
   let validRefreshToken: string;
   let validRefreshJti: string;
 
-  beforeAll(async () => {
-    // Generate valid tokens
+  // setup.ts empties every collection before each test, and refresh now
+  // requires the account to still exist — so create it per test.
+  beforeEach(async () => {
     testUser = await User.create({
       name: 'Refresh Test User',
       email: 'refresh@test.com',
@@ -70,7 +71,7 @@ describe('Auth Token Refresh Endpoint', () => {
       .set('Cookie', [`tb-refresh-token=${invalidToken}`]);
 
     expect(response.status).toBe(401);
-    expect(response.body.error).toBe('Invalid refresh token');
+    expect(response.body.code).toBe('INVALID_REFRESH');
   });
 
   it('should reject requests with an access token (wrong type)', async () => {
@@ -84,7 +85,7 @@ describe('Auth Token Refresh Endpoint', () => {
       .set('Cookie', [`tb-refresh-token=${accessToken}`]);
 
     expect(response.status).toBe(401);
-    expect(response.body.error).toBe('Invalid token type');
+    expect(response.body.code).toBe('INVALID_REFRESH');
   });
 
   it('should reject requests if the refresh token has been revoked', async () => {
@@ -96,6 +97,6 @@ describe('Auth Token Refresh Endpoint', () => {
       .set('Cookie', [`tb-refresh-token=${validRefreshToken}`]);
 
     expect(response.status).toBe(401);
-    expect(response.body.error).toBe('Refresh token revoked');
+    expect(response.body.code).toBe('REFRESH_REVOKED');
   });
 });

@@ -1,25 +1,41 @@
 import express, { Request, Response, NextFunction } from 'express';
-import { 
-  signup, 
-  signin, 
-  logout, 
-  getMe, 
-  socialLoginSuccess, 
-  exchangeToken, 
-  forgotPassword, 
-  resetPassword, 
+import {
+  signup,
+  signin,
+  logout,
+  logoutAll,
+  getMe,
+  getSessions,
+  revokeOneSession,
+  exchangeToken,
+  forgotPassword,
+  verifyResetCode,
+  resetPassword,
   refresh,
-  forceReset
+  forceReset,
+  sendEmailVerification,
+  confirmEmailVerification,
+  listAuthProviders,
+  startProviderLink,
+  unlinkProvider,
+  oauthStart,
+  oauthCallback,
 } from '../controllers/auth.controller.js';
 import { asyncHandler } from '../shared/asyncHandler.js';
-import { protect } from '../middleware/auth.middleware.js';
-import { validateBody, SignupSchema, SigninSchema } from '../middleware/validation.middleware.js';
-import { authSigninRateLimiter, authSignupRateLimiter } from '../middleware/rateLimiter.js';
-import passport from '../utils/auth/passport.js';
+import { protect, restrictToUsers, requireRecentAuth } from '../middleware/auth.middleware.js';
+import {
+  validateBody,
+  SignupSchema,
+  SigninSchema,
+  EmailOnlySchema,
+  VerifyCodeSchema,
+  ResetVerifySchema,
+  ResetPasswordSchema,
+  ExchangeSchema,
+} from '../middleware/validation.middleware.js';
+import { authSigninRateLimiter, authSignupRateLimiter, authRecoveryRateLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
-
-router.post('/exchange', asyncHandler(exchangeToken));
 
 const inlineProtect = (req: Request, res: Response, next: NextFunction) => {
   const url = req.originalUrl || req.url || '';
@@ -29,30 +45,40 @@ const inlineProtect = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+router.get('/providers', asyncHandler(listAuthProviders));
+router.post('/exchange', authSigninRateLimiter, validateBody(ExchangeSchema), asyncHandler(exchangeToken));
 router.get('/me', inlineProtect, protect, asyncHandler(getMe));
 router.post('/signup', authSignupRateLimiter, validateBody(SignupSchema), asyncHandler(signup));
 router.post('/signin', authSigninRateLimiter, validateBody(SigninSchema), asyncHandler(signin));
 router.post('/refresh', asyncHandler(refresh));
-router.post('/logout', protect, asyncHandler(logout));
-router.post('/forgot-password', authSigninRateLimiter, asyncHandler(forgotPassword));
-router.post('/reset-password', authSigninRateLimiter, asyncHandler(resetPassword));
-router.get('/force-reset', asyncHandler(forceReset));
+router.post('/logout', asyncHandler(logout));
+router.post('/logout-all', protect, restrictToUsers, asyncHandler(logoutAll));
 router.post('/force-reset', asyncHandler(forceReset));
 
-// ─── GOOGLE OAUTH ───
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+// sessions (devices)
+router.get('/sessions', protect, restrictToUsers, asyncHandler(getSessions));
+router.delete('/sessions/:sid', protect, restrictToUsers, asyncHandler(revokeOneSession));
 
-router.get('/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/login?error=google_failed', session: false }),
-  socialLoginSuccess
-);
+// email verification (signed in)
+router.post('/verify-email/send', protect, restrictToUsers, authRecoveryRateLimiter, asyncHandler(sendEmailVerification));
+router.post('/verify-email/confirm', protect, restrictToUsers, authRecoveryRateLimiter, validateBody(VerifyCodeSchema), asyncHandler(confirmEmailVerification));
 
-// ─── GITHUB OAUTH ───
-router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
+// password recovery: request code → verify code (→ reset token) → set password
+router.post('/password/forgot', authRecoveryRateLimiter, validateBody(EmailOnlySchema), asyncHandler(forgotPassword));
+router.post('/password/verify', authRecoveryRateLimiter, validateBody(ResetVerifySchema), asyncHandler(verifyResetCode));
+router.post('/password/reset', authRecoveryRateLimiter, validateBody(ResetPasswordSchema), asyncHandler(resetPassword));
+// legacy paths
+router.post('/forgot-password', authRecoveryRateLimiter, validateBody(EmailOnlySchema), asyncHandler(forgotPassword));
+router.post('/reset-password', authRecoveryRateLimiter, validateBody(ResetPasswordSchema), asyncHandler(resetPassword));
 
-router.get('/github/callback', 
-  passport.authenticate('github', { failureRedirect: '/login?error=github_failed', session: false }),
-  socialLoginSuccess
-);
+// linked sign-in methods
+router.post('/link/:provider', protect, restrictToUsers, requireRecentAuth(), asyncHandler(startProviderLink));
+router.delete('/providers/:provider', protect, restrictToUsers, requireRecentAuth(), asyncHandler(unlinkProvider));
+
+// ─── OAUTH (state + PKCE, browser-bound) ───
+router.get('/google', asyncHandler(oauthStart('google')));
+router.get('/google/callback', oauthCallback('google'));
+router.get('/github', asyncHandler(oauthStart('github')));
+router.get('/github/callback', oauthCallback('github'));
 
 export default router;

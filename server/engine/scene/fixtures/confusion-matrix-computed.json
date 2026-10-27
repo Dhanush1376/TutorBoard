@@ -1,0 +1,31 @@
+{
+  "version": "1",
+  "title": "Reading a spam filter's confusion matrix",
+  "domain": "ml",
+  "summary": "20 emails, their true labels and the filter's predictions: the matrix, accuracy, precision and recall are counted from the labels.",
+  "entities": [
+    { "id": "intro", "type": "text", "text": "A spam filter labelled 20 emails. How good is it?", "role": "title" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "intro", "region": "top" },
+    { "rel": "place", "id": "cm", "region": "center" }
+  ],
+  "beats": [
+    {
+      "title": "20 predictions",
+      "narration": "We know the true label of each email and what the filter said. Accuracy alone can hide which mistakes it makes.",
+      "actions": [{ "do": "create", "target": "intro", "effect": "fade" }]
+    },
+    {
+      "title": "Rows: truth, columns: prediction", "narration": "computed",
+      "compute": {
+        "algorithm": "confusion-matrix", "target": "cm",
+        "args": {
+          "actual":    ["spam", "spam", "spam", "spam", "spam", "spam", "spam", "spam", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham"],
+          "predicted": ["spam", "spam", "spam", "spam", "spam", "spam", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "ham", "spam", "ham", "ham"],
+          "positive": "spam"
+        }
+      }
+    }
+  ]
+}

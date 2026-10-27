@@ -58,6 +58,30 @@ const sceneV2Canvas = (t: SceneTimeline) => ({
 const PLANNER_BUDGET_MS = Number(process.env.CHAT_PLANNER_BUDGET_MS) || 4000;
 const RETRIEVAL_BUDGET_MS = Number(process.env.CHAT_RETRIEVAL_BUDGET_MS) || 3000;
 
+/**
+ * The visual lesson and the text answer share the same provider keys (on free
+ * tiers, the same per-minute budget). A lesson started first could take that
+ * budget and leave the chat empty while the canvas filled. The answer's request
+ * goes out first: the lesson starts on the answer's first token, or after this
+ * long at most. 0 starts both together.
+ */
+const LESSON_HEAD_START_MS = Number(process.env.CHAT_LESSON_HEAD_START_MS ?? 2000);
+
+/**
+ * How long the model may think before it answers in chat. At the provider
+ * default, gemini-3.8-flash thought ~44 s before its first token (measured);
+ * a chat answer has to start in seconds. 'default' leaves the provider's own.
+ */
+const ANSWER_REASONING = (process.env.CHAT_ANSWER_REASONING || 'low') as 'low' | 'medium' | 'high' | 'default';
+
+/**
+ * Observable stages of one request, sent to the client as `progress` events.
+ * Each is emitted only when the operation really starts / ends — the UI never
+ * shows a stage the server did not report.
+ */
+export type ProgressStage = 'planning' | 'memory' | 'web' | 'writing' | 'lesson';
+export type ProgressState = 'active' | 'done' | 'skipped' | 'failed';
+
 /** Resolve with `promise`, or with `fallback()` once `ms` have passed (the promise keeps running). */
 function withBudget<T>(promise: Promise<T>, ms: number, fallback: () => T, onTimeout?: () => void): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -66,6 +90,9 @@ function withBudget<T>(promise: Promise<T>, ms: number, fallback: () => T, onTim
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
+
+/** How often a running request refreshes its ledger entry (well under STALE_REQUEST_MS). */
+const LEDGER_KEEPALIVE_MS = Number(process.env.CHAT_LEDGER_KEEPALIVE_MS) || 30 * 1000;
 
 /** A request still `requesting`/`streaming` this long after its last update is treated as dead. */
 const STALE_REQUEST_MS = 3 * 60 * 1000;
@@ -165,6 +192,8 @@ export class ChatService {
   }) {
     const { userId, guestId, sessionId, title, userMessage, userConfig, requestId, streamManager } = params;
     const reqLog = childLogger({ subsystem: 'chat-service', requestId });
+    const progress = (stage: ProgressStage, state: ProgressState, extra?: Record<string, unknown>) =>
+      streamManager?.send({ type: 'progress', requestId, stage, state, ...extra } as any);
     reqLog.info('Chat request received', { hasSessionKey: !!sessionId, regenerate: !!params.isRegenerate, edit: !!params.existingUserMessageId });
 
     // 1. Resolve Session (find by id, or find-or-create by the client's conversation key)
@@ -285,6 +314,12 @@ export class ChatService {
       metadata: { role: 'user', topic: session.currentTopic }
     }).catch(e => log.warn('User memory storage failed:', { error: e.message }));
 
+    // Keep this request's ledger entry fresh while it runs: a long lesson must
+    // not look abandoned (that would let a duplicate start a second generation,
+    // and hide the answer from "resume after reload").
+    const ledgerKeepAlive = setInterval(() => { this.updateLedger(session._id, requestId, {}); }, LEDGER_KEEPALIVE_MS);
+    ledgerKeepAlive.unref?.();
+
     try {
       // A question asked while an Engine v2 lesson is on screen is answered on that
       // board, as a branch of the lesson. We already know it will be drawn, so start
@@ -292,6 +327,7 @@ export class ChatService {
       const lessonContext = engineV2Enabled() ? params.lessonContext : undefined;
       let lessonDoubt: Promise<DoubtResult> | undefined;
       if (lessonContext) {
+        progress('lesson', 'active', { kind: 'board' });
         // custom API keys use the user's model; otherwise the fast doubt model (main model as fallback)
         const model = userConfig?.useCustomApi
           ? await BudgetService.resolveOptimizedModel('visualization', session._id.toString(), userTier)
@@ -301,10 +337,13 @@ export class ChatService {
         lessonDoubt.then((d) => {
           console.log(`[Chat] doubt on the board → ${d.ok ? d.kind : 'FAILED'} in ${d.ms} ms, ${d.attempts} attempt(s)`);
           if (d.ok && d.kind === 'branch') streamManager?.send({ type: 'scene_branch', branch: toBranch(d) } as any);
+          // a text-only reply needs no board: the stage ends without a drawing
+          progress('lesson', d.ok ? (d.kind === 'branch' ? 'done' : 'skipped') : 'failed', { kind: 'board' });
         });
       }
 
       const planStarted = Date.now();
+      progress('planning', 'active');
       const plan = await withBudget(
         PlannerService.generatePlan(userMessage, userConfig, requestId),
         PLANNER_BUDGET_MS,
@@ -312,7 +351,8 @@ export class ChatService {
         () => reqLog.warn('Planner exceeded its budget; answering with the default plan', { budgetMs: PLANNER_BUDGET_MS }),
       );
       reqLog.info('Plan ready', { ms: Date.now() - planStarted, visual: !!plan.visualization?.generate });
-      
+      progress('planning', 'done');
+
       // Enrich plan schema to support frontend UI layout triggers and BuildSystemPrompt instructions
       if (plan.artifacts) {
         (plan as any).generate_artifact = plan.artifacts.generate;
@@ -356,25 +396,35 @@ export class ChatService {
       const topic = session.currentTopic || 'General';
       // Retrieval is optional context: if it fails the answer is still generated,
       // just without that context (and without sources it never received).
+      const useMemory = !!(plan.tools.rag && userId);
+      const useWeb = !!plan.tools.web_search;
+      if (useMemory) progress('memory', 'active');
+      if (useWeb) progress('web', 'active');
       const [pastContext, webResults] = await Promise.all([
-        (plan.tools.rag && userId)
+        useMemory
           ? withBudget(
-              Promise.resolve((VectorStoreService as any).getContextForTopic(topic, 3, userId)).catch((e: any) => {
-                reqLog.warn('Retrieval failed; answering without memory context', { error: e?.message });
-                return '';
-              }),
+              Promise.resolve((VectorStoreService as any).getContextForTopic(topic, 3, userId))
+                .then((ctx: any) => { progress('memory', 'done'); return ctx; })
+                .catch((e: any) => {
+                  reqLog.warn('Retrieval failed; answering without memory context', { error: e?.message });
+                  progress('memory', 'failed');
+                  return '';
+                }),
               RETRIEVAL_BUDGET_MS, () => '',
-              () => reqLog.warn('Memory retrieval exceeded its budget; answering without it'),
+              () => { reqLog.warn('Memory retrieval exceeded its budget; answering without it'); progress('memory', 'skipped'); },
             )
           : Promise.resolve(''),
-        plan.tools.web_search
+        useWeb
           ? withBudget(
-              searchWeb(userMessage, { count: 5 }).catch((e: any) => {
-                reqLog.warn('Web search failed; answering without web sources', { error: e?.message });
-                return [];
-              }),
+              searchWeb(userMessage, { count: 5 })
+                .then((r: any[]) => { progress('web', 'done', { count: Array.isArray(r) ? r.length : 0 }); return r; })
+                .catch((e: any) => {
+                  reqLog.warn('Web search failed; answering without web sources', { error: e?.message });
+                  progress('web', 'failed');
+                  return [];
+                }),
               RETRIEVAL_BUDGET_MS, () => [] as any[],
-              () => reqLog.warn('Web search exceeded its budget; answering without web sources'),
+              () => { reqLog.warn('Web search exceeded its budget; answering without web sources'); progress('web', 'skipped'); },
             )
           : Promise.resolve([])
       ]);
@@ -383,31 +433,46 @@ export class ChatService {
       const sources = extractSources(webResults);
 
       // 5. AGENT ORCHESTRATION (Parallel execution of Narrator/Visualizer)
-      // We start this now but don't await it yet to allow the main LLM call to start immediately.
-      const orchestrationPromise = Orchestrator.execute(plan, {
-        sessionId: session._id.toString(),
-        requestId,
-        topic,
-        userMessage,
-        userConfig,
-        userTier,
-        signal: streamManager?.signal,
-        lessonDoubt,
-        learnerLevel: params.teachingContext?.learnerLevel,
-        onScenePartial: streamManager
-          ? (timeline) => streamManager.send({ type: 'scene_v2', timeline, partial: true } as any)
-          : undefined,
-        // complete: the client stops waiting for more beats (questions can now refer to it)
-        onSceneReady: streamManager
-          ? (timeline) => streamManager.send({ type: 'scene_v2', timeline, partial: false } as any)
-          : undefined,
+      // Not awaited: it runs alongside the answer. The answer's request goes out
+      // first (LESSON_HEAD_START_MS), so the chat is never starved by the lesson.
+      let answerStarted = () => {};
+      const headStart = streamManager && LESSON_HEAD_START_MS > 0
+        ? new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, LESSON_HEAD_START_MS);
+            timer.unref?.();
+            answerStarted = () => { clearTimeout(timer); resolve(); };
+          })
+        : Promise.resolve();
+      // the same condition the orchestrator draws on (a board answer reports its own stage)
+      const drawsLesson = !lessonDoubt && !!(plan.visualization?.generate || plan.artifacts?.generate);
+      const orchestrationPromise = headStart.then(() => {
+        if (drawsLesson && !streamManager?.signal.aborted) progress('lesson', 'active');
+        return Orchestrator.execute(plan, {
+          sessionId: session._id.toString(),
+          requestId,
+          topic,
+          userMessage,
+          userConfig,
+          userTier,
+          signal: streamManager?.signal,
+          lessonDoubt,
+          learnerLevel: params.teachingContext?.learnerLevel,
+          onScenePartial: streamManager
+            ? (timeline) => streamManager.send({ type: 'scene_v2', timeline, partial: true } as any)
+            : undefined,
+          // complete: the client stops waiting for more beats (questions can now refer to it)
+          onSceneReady: streamManager
+            ? (timeline) => {
+                streamManager.send({ type: 'scene_v2', timeline, partial: false } as any);
+                // the lesson is complete on screen now — not when the text finishes
+                if (drawsLesson) progress('lesson', 'done');
+              }
+            : undefined,
+        });
       }).catch(err => {
         log.warn(`Orchestration failed for ${requestId}:`, { error: err.message });
         return { narration: { narrations: [] }, visualScript: { script: [] }, sceneV2: null as SceneTimeline | null, sceneBranch: null as SceneBranch | null, criticScore: 1, metadata: { stages: {}, totalTokens: 0 } };
       });
-      
-      // Notify client that background agents are starting
-      streamManager?.send({ type: 'status', content: 'Orchestrating agents...' });
 
       // 6. BUILD SYSTEM PROMPT (Context Injection)
       const systemPrompt = buildSystemPrompt({
@@ -448,7 +513,8 @@ export class ChatService {
           params.isRegenerate,
           params.originalMessageId,
           userConfig,
-          guestId
+          guestId,
+          { onAnswerStarted: () => answerStarted(), drawsLesson }
         );
       }
  
@@ -482,7 +548,7 @@ export class ChatService {
         sessionId: session._id.toString(),
         userId: userId || null,
         guestId: guestId || null,
-        topic: (plan as any).topic || topic,
+        topic: (plan as any).topic || (topic !== 'General' ? topic : undefined),
         orchestrationResult
       });
 
@@ -578,6 +644,8 @@ export class ChatService {
       });
       reqLog.warn('Generation did not complete', { sessionId: sessionIdStr, category, error: (err as Error)?.message });
       throw err;
+    } finally {
+      clearInterval(ledgerKeepAlive);
     }
   }
 
@@ -628,9 +696,12 @@ export class ChatService {
     isRegenerate?: boolean,
     originalMessageId?: string,
     userConfig?: any,
-    guestId?: string | null
+    guestId?: string | null,
+    hooks: { onAnswerStarted?: () => void; drawsLesson?: boolean } = {}
   ) {
     let fullContent = '';
+    const progress = (stage: ProgressStage, state: ProgressState, extra?: Record<string, unknown>) =>
+      streamManager.send({ type: 'progress', requestId, stage, state, ...extra } as any);
     
     // DL-07: Update ledger to 'streaming' to refresh updatedAt and prevent eviction
     await this.updateLedger(sessionId, requestId, { status: 'streaming' });
@@ -642,6 +713,7 @@ export class ChatService {
     reqLog.info('Generation started', { model: resolveModelId(model) });
 
     let aiResponse: any;
+    progress('writing', 'active');
     try {
       aiResponse = await requestCompletion({
         model: resolveModelId(model),
@@ -651,6 +723,7 @@ export class ChatService {
           if (firstTokenMs === null) {
             firstTokenMs = Date.now() - genStarted;
             reqLog.info('First token received', { ms: firstTokenMs });
+            hooks.onAnswerStarted?.();
           }
           fullContent += token;
           streamManager.send({ type: 'chunk', content: token });
@@ -659,12 +732,16 @@ export class ChatService {
         requestId, // TRACING
         taskType: 'final_answer',
         userConfig,
+        // the system providers accept it; a learner's own model might not
+        ...(ANSWER_REASONING !== 'default' && !userConfig?.useCustomApi ? { reasoningEffort: ANSWER_REASONING } : {}),
       });
     } catch (err) {
       if (streamManager.signal.aborted) {
         await this.persistCancelled(sessionId, requestId, userMessageId, fullContent, isRegenerate, userId, guestId);
       }
       throw err;
+    } finally {
+      hooks.onAnswerStarted?.(); // an answer that never streamed must not hold the lesson back
     }
 
     if (streamManager.signal.aborted) {
@@ -681,10 +758,12 @@ export class ChatService {
     if (!fullContent.trim()) throw new ChatError('EMPTY_RESPONSE');
     reqLog.info('Generation completed', {
       ms: Date.now() - genStarted,
+      firstTokenMs,
       chars: fullContent.length,
       provider: aiResponse?._meta?.provider_used,
       fallback: !!aiResponse?._meta?.fallback_triggered,
     });
+    progress('writing', 'done');
 
     // Await orchestration while the stream finishes — but bound the wait. Under
     // severe provider rate-limiting the visualizer can retry for many seconds;
@@ -711,6 +790,12 @@ export class ChatService {
               metadata: { stages: {}, totalTokens: 0, timedOut: true },
             });
           }, ORCHESTRATION_STREAM_BUDGET_MS)),
+          // Stop must not wait out the visual lesson's budget
+          new Promise((resolve) => {
+            const done = () => resolve({ narration: null, visualScript: null, metadata: {}, cancelled: true });
+            if (streamManager.signal.aborted) done();
+            else streamManager.signal.addEventListener('abort', done, { once: true });
+          }),
         ])
       : { narration: null, visualScript: null, metadata: {} };
 
@@ -718,23 +803,36 @@ export class ChatService {
       log.warn(`Orchestration exceeded ${ORCHESTRATION_STREAM_BUDGET_MS}ms for ${requestId}; streamed a fallback scene.`);
     }
 
+    // Stopped after the text finished (e.g. while the visual lesson was being
+    // prepared): it is a cancelled answer, never saved as completed.
+    if (streamManager.signal.aborted) {
+      await this.persistCancelled(sessionId, requestId, userMessageId, fullContent, isRegenerate, userId, guestId);
+      throw new ChatError('CANCELLED');
+    }
+
     // Explicitly dispatch the generated visual simulation nodes to the frontend canvas UI
     const sceneV2: SceneTimeline | null = orchestrationResult?.sceneV2 ?? null;
     const sceneBranch: SceneBranch | null = orchestrationResult?.sceneBranch ?? null;
     if (sceneBranch || sceneV2) {
       // Engine v2: already sent the moment it was ready (scene_branch / scene_v2)
+      if (hooks.drawsLesson) progress('lesson', 'done');
     } else if (orchestrationResult?.sceneFailure) {
       // no lesson could be drawn: say so (the text answer above still stands)
       streamManager.send({ type: 'scene_failed', message: orchestrationResult.sceneFailure } as any);
-    } else if (orchestrationResult?.visualScript?.script && Array.isArray(orchestrationResult.visualScript.script)) {
+      if (hooks.drawsLesson) progress('lesson', 'failed');
+    } else if (orchestrationResult?.visualScript?.script && Array.isArray(orchestrationResult.visualScript.script) && orchestrationResult.visualScript.script.length > 0) {
       const rendererType = orchestrationResult.visualScript.renderer || (plan as any).canvas_type || 'd3';
-      
+
       // Send realtime rendering nodes
       streamManager.send({
         type: 'scene_nodes',
         nodes: orchestrationResult.visualScript.script,
         renderer: rendererType
       } as any);
+      if (hooks.drawsLesson) progress('lesson', 'done');
+    } else if (hooks.drawsLesson) {
+      // nothing could be drawn and no reason was given: the lesson stage ends without one
+      progress('lesson', 'failed');
     }
 
     // Persist complete, renderable visual artifact (Engine v2, scene branch, or visual script)
@@ -742,7 +840,7 @@ export class ChatService {
       sessionId: sessionId.toString(),
       userId: userId || null,
       guestId: guestId || null,
-      topic: (plan as any).topic || (plan as any).educational_intent,
+      topic: (plan as any).topic || undefined,
       orchestrationResult,
       streamManager
     });
@@ -763,6 +861,12 @@ export class ChatService {
       artifactId: savedArtifactId,
       artifactData: artifactPayload
     };
+
+    // Last check before the answer is written as completed
+    if (streamManager.signal.aborted) {
+      await this.persistCancelled(sessionId, requestId, userMessageId, fullContent, isRegenerate, userId, guestId);
+      throw new ChatError('CANCELLED');
+    }
 
     // Final persistence. If it fails, the answer is kept in the ledger so a retry
     // with the same requestId saves it instead of generating a second one.
@@ -884,7 +988,16 @@ export class ChatService {
     const sceneBranch: SceneBranch | null = params.orchestrationResult?.sceneBranch ?? null;
     const visualScript = params.orchestrationResult?.visualScript ?? null;
 
-    let title = (params.topic && params.topic !== 'General' ? params.topic : '') || 'Interactive Visualization';
+    const isGeneric = (t?: string | null) => {
+      if (!t || typeof t !== 'string') return true;
+      const s = t.trim();
+      if (!s) return true;
+      if (/^(help|helping|assist|assisting|guide|guiding|teach|teaching|explain\s+to|explaining\s+to)\s+(the\s+)?(student|learner|user|pupil|class|me)\b/i.test(s)) return true;
+      if (/^(help|student|learner|user|tutoring)$/i.test(s)) return true;
+      return /^(interactive\s+(lesson|visualization|ui|artifact|guide|walkthrough|simulation)|visual\s+(lesson|walkthrough|concept|artifact|visualization)|generated\s+visualization|general\s+inquiry|general|new\s+chat|artifact|visualization|visual|lesson|untitled|ui|step\s+\d+|beat\s+\d+)$/i.test(s);
+    };
+
+    let title = (!isGeneric(params.topic) && params.topic) || 'Interactive Visualization';
     let rendererType = 'cinematic';
     let content = '';
     let sceneGraph: any = null;
@@ -892,7 +1005,10 @@ export class ChatService {
 
     if (sceneBranch) {
       const branchTimeline = sceneToTimeline(sceneBranch.scene);
-      title = (params.topic && params.topic !== 'General' ? params.topic : sceneBranch.title) || branchTimeline.title || 'Interactive Lesson';
+      title = (!isGeneric(sceneBranch.title) && sceneBranch.title) ||
+              (!isGeneric(branchTimeline.title) && branchTimeline.title) ||
+              (!isGeneric(params.topic) && params.topic) ||
+              'Interactive Lesson';
       rendererType = 'scene-v2';
       artifactPayload = {
         renderer: 'scene-v2',
@@ -912,7 +1028,9 @@ export class ChatService {
       };
       content = JSON.stringify(artifactPayload);
     } else if (sceneV2) {
-      title = (params.topic && params.topic !== 'General' ? params.topic : sceneV2.title) || 'Interactive Lesson';
+      title = (!isGeneric(sceneV2.title) && sceneV2.title) ||
+              (!isGeneric(params.topic) && params.topic) ||
+              'Interactive Lesson';
       rendererType = 'scene-v2';
       artifactPayload = {
         renderer: 'scene-v2',
@@ -928,7 +1046,9 @@ export class ChatService {
       };
       content = JSON.stringify(artifactPayload);
     } else if (visualScript?.script && Array.isArray(visualScript.script) && visualScript.script.length > 0) {
-      title = params.topic || 'Generated Visualization';
+      title = (!isGeneric(visualScript.title) && visualScript.title) ||
+              (!isGeneric(params.topic) && params.topic) ||
+              'Generated Visualization';
       rendererType = visualScript.renderer || 'd3';
       const connections = visualScript.script.filter((n: any) => n.cmd === 'edge' || n.type === 'edge');
       artifactPayload = {

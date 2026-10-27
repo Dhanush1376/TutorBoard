@@ -1,0 +1,61 @@
+{
+  "version": "1",
+  "title": "Prokaryotic vs eukaryotic cells",
+  "domain": "biology",
+  "summary": "A bacterium keeps its DNA loose in a nucleoid and has no membrane-bound organelles; an animal cell wraps its DNA in a nucleus and has mitochondria, Golgi and lysosomes.",
+  "entities": [
+    {
+      "id": "bact", "type": "compartment", "label": "Bacterium (prokaryotic)", "shape": "oval", "size": "md",
+      "parts": [
+        { "id": "wall", "label": "cell wall", "shape": "membrane", "tone": "success" },
+        { "id": "membrane", "label": "cell membrane", "shape": "membrane", "tone": "warning" },
+        { "id": "nucleoid", "label": "nucleoid (DNA)", "shape": "round", "size": "lg", "tone": "accent" },
+        { "id": "plasmid", "label": "plasmid", "shape": "round", "size": "xs", "count": 2, "tone": "danger" },
+        { "id": "ribosomes", "label": "ribosomes", "shape": "dot", "size": "xs", "count": 6, "tone": "info" }
+      ]
+    },
+    {
+      "id": "animal", "type": "compartment", "label": "Animal cell (eukaryotic)", "shape": "round", "size": "md",
+      "parts": [
+        { "id": "membrane", "label": "cell membrane", "shape": "membrane", "tone": "warning" },
+        { "id": "nucleus", "label": "nucleus", "shape": "round", "size": "lg", "tone": "accent" },
+        { "id": "envelope", "label": "nuclear envelope", "in": "nucleus", "shape": "membrane", "tone": "accent" },
+        { "id": "nucleolus", "label": "nucleolus", "in": "nucleus", "shape": "round", "size": "sm", "tone": "danger" },
+        { "id": "mito", "label": "mitochondrion", "shape": "bean", "size": "xs", "count": 3, "tone": "danger" },
+        { "id": "golgi", "label": "Golgi apparatus", "shape": "stack", "size": "xs" },
+        { "id": "lysosome", "label": "lysosome", "shape": "round", "size": "xs", "tone": "success" },
+        { "id": "ribosomes", "label": "ribosomes", "shape": "dot", "size": "xs", "count": 5, "tone": "info" }
+      ]
+    }
+  ],
+  "layout": [
+    { "rel": "column", "ids": ["bact", "animal"], "gap": "lg" }
+  ],
+  "beats": [
+    {
+      "title": "Two kinds of cell",
+      "narration": "Above, a bacterium. Below, an animal cell. Both have a membrane and ribosomes.",
+      "actions": [
+        { "do": "create", "target": "bact", "effect": "fade" },
+        { "do": "create", "target": "animal", "effect": "fade", "with": "previous" },
+        { "do": "highlight", "target": ["bact.membrane", "animal.membrane", "bact.ribosomes", "animal.ribosomes"], "state": "active" }
+      ]
+    },
+    {
+      "title": "Where the DNA is",
+      "narration": "The bacterium's DNA lies loose in the nucleoid. The animal cell wraps its DNA inside a nucleus with its own envelope.",
+      "actions": [
+        { "do": "clear" },
+        { "do": "highlight", "target": ["bact.nucleoid", "animal.nucleus"], "state": "insight" }
+      ]
+    },
+    {
+      "title": "Organelles with membranes",
+      "narration": "Only the eukaryotic cell has membrane-bound organelles: mitochondria, the Golgi apparatus and lysosomes.",
+      "actions": [
+        { "do": "clear" },
+        { "do": "highlight", "target": ["animal.mito", "animal.golgi", "animal.lysosome"], "state": "found" }
+      ]
+    }
+  ]
+}

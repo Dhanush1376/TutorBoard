@@ -1,0 +1,21 @@
+{
+  "version": "1",
+  "title": "Longest common subsequence with a DP table",
+  "domain": "algorithms",
+  "summary": "The table for ABCBDAB and BDCABA is filled row by row from smaller answers; the LCS length and one LCS are read from it.",
+  "entities": [
+    { "id": "question", "type": "text", "text": "Longest common subsequence of ABCBDAB and BDCABA?", "role": "title" }
+  ],
+  "layout": [
+    { "rel": "place", "id": "question", "region": "top" },
+    { "rel": "place", "id": "dp", "region": "center" }
+  ],
+  "beats": [
+    {
+      "title": "The question",
+      "narration": "A subsequence keeps letters in order but may skip some. What is the longest one both strings share?",
+      "actions": [{ "do": "create", "target": "question", "effect": "fade" }]
+    },
+    { "title": "Empty prefixes", "narration": "computed", "compute": { "algorithm": "lcs", "target": "dp", "args": { "a": "ABCBDAB", "b": "BDCABA" } } }
+  ]
+}

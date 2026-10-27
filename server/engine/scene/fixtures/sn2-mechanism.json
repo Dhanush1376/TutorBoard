@@ -1,0 +1,75 @@
+{
+  "version": "1",
+  "title": "SN2: hydroxide replaces bromide",
+  "domain": "chemistry",
+  "summary": "A lone pair on OH⁻ attacks the carbon while the C–Br bond's electrons leave with bromine, in one step: CH₃Br + OH⁻ → CH₃OH + Br⁻.",
+  "entities": [
+    {
+      "id": "oh", "type": "molecule", "label": "OH⁻",
+      "atoms": [{ "id": "O", "el": "O", "charge": -1 }, { "id": "H", "el": "H" }],
+      "bonds": [[0, 1, 1]],
+      "lonePairs": [{ "atom": 0, "count": 3 }]
+    },
+    {
+      "id": "mebr", "type": "molecule", "label": "CH₃Br",
+      "atoms": [{ "id": "C", "el": "C" }, { "id": "Br", "el": "Br" }, { "id": "Ha", "el": "H" }, { "id": "Hb", "el": "H" }, { "id": "Hc", "el": "H" }],
+      "bonds": [[0, 1, 1], [0, 2, 1], [0, 3, 1, "wedge"], [0, 4, 1, "dash"]],
+      "lonePairs": [{ "atom": 1, "count": 3 }]
+    },
+    {
+      "id": "meoh", "type": "molecule", "label": "CH₃OH",
+      "atoms": [{ "id": "C", "el": "C" }, { "id": "O", "el": "O" }, { "id": "Ho", "el": "H" }, { "id": "Ha", "el": "H" }, { "id": "Hb", "el": "H" }, { "id": "Hc", "el": "H" }],
+      "bonds": [[0, 1, 1], [1, 2, 1], [0, 3, 1], [0, 4, 1, "wedge"], [0, 5, 1, "dash"]],
+      "lonePairs": [{ "atom": 1, "count": 2 }]
+    },
+    {
+      "id": "br", "type": "molecule", "label": "Br⁻",
+      "atoms": [{ "id": "Br", "el": "Br", "charge": -1 }],
+      "bonds": [],
+      "lonePairs": [{ "atom": 0, "count": 4 }]
+    },
+    { "id": "attack", "type": "curly", "from": "oh.lp-O", "to": "mebr.C" },
+    { "id": "leave", "type": "curly", "from": "mebr.C-Br", "to": "mebr.Br" },
+    { "id": "rx", "type": "reaction", "reactants": ["oh", "mebr"], "products": ["meoh", "br"] }
+  ],
+  "layout": [
+    { "rel": "row", "ids": ["oh", "mebr", "rx", "meoh", "br"], "gap": "xl" }
+  ],
+  "beats": [
+    {
+      "title": "Nucleophile meets substrate",
+      "narration": "Hydroxide carries a negative charge and three lone pairs. In bromomethane, bromine pulls electrons away from carbon, leaving it slightly positive.",
+      "actions": [
+        { "do": "create", "target": "oh", "effect": "pop" },
+        { "do": "create", "target": "mebr", "effect": "pop", "with": "previous" },
+        { "do": "highlight", "target": "mebr.C", "state": "active" }
+      ]
+    },
+    {
+      "title": "A lone pair attacks carbon",
+      "narration": "One lone pair on oxygen swings in and starts a new bond to the carbon.",
+      "actions": [
+        { "do": "highlight", "target": "oh.lp-O", "state": "insight" },
+        { "do": "create", "target": "attack", "effect": "draw" }
+      ]
+    },
+    {
+      "title": "The C–Br bond breaks",
+      "narration": "At the same moment the C–Br bond's two electrons move onto bromine, which leaves as bromide.",
+      "actions": [
+        { "do": "highlight", "target": "mebr.C-Br", "state": "error" },
+        { "do": "create", "target": "leave", "effect": "draw" }
+      ]
+    },
+    {
+      "title": "Methanol and bromide",
+      "narration": "One step, two arrows: methanol and a bromide ion. Every atom and the negative charge are still accounted for.",
+      "actions": [
+        { "do": "create", "target": "rx", "effect": "draw" },
+        { "do": "create", "target": "meoh", "effect": "pop" },
+        { "do": "create", "target": "br", "effect": "pop", "with": "previous" },
+        { "do": "highlight", "target": "meoh.C-O", "state": "found" }
+      ]
+    }
+  ]
+}

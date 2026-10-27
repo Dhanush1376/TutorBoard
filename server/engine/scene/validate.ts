@@ -7,7 +7,11 @@
  * Messages are written for the model that has to repair the scene.
  */
 import type { ZodIssue } from 'zod';
+import { expandComputed } from './algorithms.js';
+import { moleculePart } from './chem.js';
 import { coerceScene } from './coerce.js';
+import { runDomainChecks } from './domainChecks.js';
+import { applyBindings, evaluateParams, prepareParams, sweepValues } from './params.js';
 import { resolveGeometry } from './resolveGeometry.js';
 import {
   ActionT, EntityT, INDEXED_TYPES, Scene, SceneT, SPATIAL_TYPES,
@@ -56,7 +60,16 @@ const partsOf = (e: EntityT): Set<string> | ((p: string) => boolean) => {
     case 'pie': return new Set(Array.from({ length: e.slices }, (_, i) => `s${i}`));
     case 'tree': return new Set(e.nodes.map((n) => n.id));
     case 'graph': return new Set(e.nodes.map((n) => n.id));
-    case 'molecule': return new Set(e.atoms.map((a) => a.id).filter((x): x is string => !!x));
+    case 'molecule': return (p: string) => moleculePart(e, p) !== null;
+    case 'compartment': return new Set(e.parts.map((p) => p.id));
+    case 'circuit': return new Set([...e.components.map((c) => c.id), ...e.components.flatMap((c) => [c.from, c.to])]);
+    case 'logic': return new Set([...e.inputs, ...e.gates.map((g) => g.id), ...e.outputs.map((o) => o.id)]);
+    case 'table':
+      // cells: "t.r0c1" — data row 0 (below the header), column 1
+      return (p: string) => {
+        const m = /^r(\d+)c(\d+)$/.exec(p);
+        return !!m && Number(m[1]) < e.rows.length && Number(m[2]) < Math.max(e.columns?.length ?? 0, ...e.rows.map((r) => r.length));
+      };
     case 'network':
       return (p: string) => {
         const m = /^L(\d+)(?:n(\d+))?$/.exec(p);
@@ -69,7 +82,47 @@ const partsOf = (e: EntityT): Set<string> | ((p: string) => boolean) => {
   }
 };
 
-export function validateScene(input: unknown, opts: ValidateOptions = {}): ValidationResult {
+/**
+ * Validate a scene. With parameters (sliders), the scene is resolved at the
+ * defaults and validated, then re-validated at each slider's extremes so it
+ * holds over the whole range; the result keeps `params`, `derived` and the
+ * `bindings` the client re-applies when a slider moves.
+ */
+export function validateScene(raw: unknown, opts: ValidateOptions = {}): ValidationResult {
+  // beats that ask for a computed algorithm trace become that trace (algorithms.ts)
+  const expanded = expandComputed(raw);
+  if (expanded.issues.length) return { ok: false, errors: expanded.issues, warnings: [] };
+  const input = expanded.value;
+  const prep = input && typeof input === 'object' ? prepareParams(input as Record<string, unknown>) : null;
+  if (!prep) return validateResolved(input, opts);
+  if (prep.errors.length) return { ok: false, errors: prep.errors, warnings: [] };
+  const at = (values: Record<string, number>) => {
+    const ev = evaluateParams(prep.params, prep.derived, values);
+    const applied = applyBindings(input as Record<string, unknown>, prep.bindings, ev, prep.derived);
+    return { errors: [...ev.errors, ...applied.errors], scene: applied.scene };
+  };
+  const base = at({});
+  if (base.errors.length) return { ok: false, errors: base.errors, warnings: [] };
+  const r = validateResolved(base.scene, opts);
+  if (!r.ok) return r;
+  // the scene must hold at every slider's extremes too: curves on screen, points on their curves, no invalid geometry
+  const sweepErrors: Issue[] = [];
+  const seen = new Set<string>();
+  for (const v of sweepValues(prep.params)) {
+    const s = at(v.values);
+    const issues = s.errors.length ? s.errors : (() => { const x = validateResolved(s.scene, opts); return x.ok ? [] : x.errors; })();
+    for (const i of issues.slice(0, 3)) {
+      const key = `${i.path}|${i.message}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      sweepErrors.push({ path: i.path, message: `with ${v.label}: ${i.message} — make the scene hold over the slider's whole range (adjust the range, the space, or bind the coordinates to parameters)` });
+    }
+  }
+  if (sweepErrors.length) return { ok: false, errors: sweepErrors.slice(0, 12), warnings: r.warnings };
+  return { ok: true, scene: { ...r.scene, params: prep.params, derived: prep.derived, bindings: prep.bindings }, warnings: r.warnings };
+}
+
+function validateResolved(input: unknown, opts: ValidateOptions = {}): ValidationResult {
   const autofix = opts.autofix ?? true;
   const coerced = autofix ? coerceScene(input) : { value: input, fixes: [] as Issue[] };
   // geometry written by intent (angleDeg/length, along/perp, polar points) → coordinates
@@ -91,6 +144,8 @@ export function validateScene(input: unknown, opts: ValidateOptions = {}): Valid
     spaces.add(s.id);
     if (s.x[0] >= s.x[1]) err(`spaces[${i}].x`, 'x range must be [min, max] with min < max');
     if (s.y[0] >= s.y[1]) err(`spaces[${i}].y`, 'y range must be [min, max] with min < max');
+    if (s.xScale === 'log' && s.x[0] <= 0) err(`spaces[${i}].x`, 'a log x axis needs a range above 0, e.g. [0.1, 1000]');
+    if (s.yScale === 'log' && s.y[0] <= 0) err(`spaces[${i}].y`, 'a log y axis needs a range above 0, e.g. [0.01, 100]');
   });
   scene.entities.forEach((e, i) => {
     if (entities.has(e.id) || spaces.has(e.id)) err(`entities[${i}].id`, `duplicate id "${e.id}" — every entity and space needs its own id`);
@@ -115,7 +170,10 @@ export function validateScene(input: unknown, opts: ValidateOptions = {}): Valid
       const parts = partsOf(e);
       const ok = typeof parts === 'function' ? parts(part) : parts.has(part);
       if (!ok) {
-        const known = typeof parts === 'function' ? 'layer refs like "L0" or "L1n2"' : [...parts].map((p) => `"${p}"`).join(', ') || 'none';
+        const known = typeof parts !== 'function' ? [...parts].map((p) => `"${p}"`).join(', ') || 'none'
+          : e.type === 'table' ? `cells like "r0c1" (data row, column; ${e.rows.length} rows)`
+          : e.type === 'molecule' ? `atom ids (${e.atoms.map((a) => a.id).filter(Boolean).map((a) => `"${a}"`).join(', ') || 'none — give atoms ids'}), bonds like "C1-Br", lone pairs like "lp-O"`
+          : 'layer refs like "L0" or "L1n2"';
         err(path, `"${base}" has no part "${part}" (available: ${known})`);
       }
     }
@@ -210,8 +268,74 @@ export function validateScene(input: unknown, opts: ValidateOptions = {}): Valid
         if (new Set(e.grid.map((r) => r.length)).size > 1) warn(`${p}.grid`, 'rows have different lengths');
         break;
       case 'plot':
-        if (!/^[\sA-Za-z0-9_.,+\-*/^()πθ]+$/.test(e.expr)) err(`${p}.expr`, 'use a plain expression of x with + - * / ^ ( ) and functions like sin, cos, sqrt, exp, log');
+        if (!/^[\sA-Za-z0-9_.,+\-*/^()πθ°]+$/.test(e.expr)) err(`${p}.expr`, 'use a plain expression of x with + - * / ^ ( ) and functions like sin, cos, sqrt, exp, log');
         if (e.domain && e.domain[0] >= e.domain[1]) err(`${p}.domain`, 'domain must be [min, max] with min < max');
+        break;
+      case 'curve': {
+        const forms = (e.x !== undefined || e.y !== undefined ? 1 : 0) + (e.r !== undefined ? 1 : 0);
+        if (forms !== 1 || (e.r === undefined && (e.x === undefined || e.y === undefined))) err(p, 'a curve needs either "x" and "y" (functions of t) or "r" (a function of θ) — not both');
+        break;
+      }
+      case 'area': {
+        const sameSpacePlot = (id: string, path: string) => {
+          const t = entities.get(id);
+          if (!t) err(path, `"${id}" is not an entity in this scene`);
+          else if (t.type !== 'plot') err(path, `an area is bounded by plots; "${id}" is a ${t.type}`);
+          else if (t.space !== e.space) err(path, `"${id}" is in space "${t.space}", the area in "${e.space}"`);
+        };
+        sameSpacePlot(e.plot, `${p}.plot`);
+        if (typeof e.to === 'string') sameSpacePlot(e.to, `${p}.to`);
+        if (e.domain && e.domain[0] >= e.domain[1]) err(`${p}.domain`, 'domain must be [min, max] with min < max');
+        break;
+      }
+      case 'reaction': {
+        const seen = new Set<string>();
+        for (const [side, list] of [['reactants', e.reactants], ['products', e.products]] as const) {
+          list.forEach((r, k) => {
+            const id = typeof r === 'string' ? r : r.id;
+            const t = entities.get(id);
+            if (!t) err(`${p}.${side}[${k}]`, `"${id}" is not an entity in this scene`);
+            else if (t.type !== 'molecule') err(`${p}.${side}[${k}]`, `reactants and products are molecule entities (an ion is a one-atom molecule with a charge); "${id}" is a ${t.type}`);
+            if (seen.has(id)) err(`${p}.${side}[${k}]`, `"${id}" appears twice — draw a second molecule entity, or use "n" for a coefficient`);
+            seen.add(id);
+          });
+        }
+        break;
+      }
+      case 'compartment': {
+        const ids = new Map<string, number>();
+        e.parts.forEach((part, k) => {
+          if (ids.has(part.id) || part.id === e.id) err(`${p}.parts[${k}].id`, `duplicate part id "${part.id}"`);
+          ids.set(part.id, k);
+        });
+        e.parts.forEach((part, k) => {
+          if (part.in === undefined || part.in === e.id) return;
+          if (!ids.has(part.in)) { err(`${p}.parts[${k}].in`, `"${part.in}" is not a part of "${e.id}" (parts: ${[...ids.keys()].join(', ')})`); return; }
+          if (e.parts[ids.get(part.in)!].shape === 'membrane') err(`${p}.parts[${k}].in`, `"${part.in}" is a membrane (an outline) — put "${part.id}" inside the part the membrane belongs to`);
+          // no cycles: follow "in" up to the whole
+          const seen = new Set([part.id]);
+          for (let up = part.in; up && up !== e.id; up = e.parts[ids.get(up)!]?.in ?? e.id) {
+            if (seen.has(up)) { err(`${p}.parts[${k}].in`, `"${part.id}" ends up inside itself`); break; }
+            seen.add(up);
+          }
+        });
+        break;
+      }
+      case 'curly':
+        refExists(e.from, `${p}.from`);
+        refExists(e.to, `${p}.to`);
+        if (e.from === e.to) err(p, 'a curly arrow goes from one place to another');
+        break;
+      case 'refline':
+        if ((e.x === undefined) === (e.y === undefined)) err(p, 'a refline needs exactly one of "x" (vertical) or "y" (horizontal)');
+        break;
+      case 'point':
+        if (e.on !== undefined) {
+          const t = entities.get(e.on);
+          if (!t) err(`${p}.on`, `"${e.on}" is not an entity in this scene`);
+          else if (t.type !== 'plot' && t.type !== 'curve') err(`${p}.on`, `"on" names a plot or curve; "${e.on}" is a ${t.type}`);
+          else if (t.space !== e.space) err(`${p}.on`, `"${e.on}" is in space "${t.space}", the point in "${e.space}"`);
+        }
         break;
       case 'group':
         e.children.forEach((c, k) => {
@@ -386,7 +510,7 @@ export function validateScene(input: unknown, opts: ValidateOptions = {}): Valid
           const body = refExists(a.target, `${p}.target`);
           const path = refExists(a.along, `${p}.along`);
           if (body && body.type !== 'body' && body.type !== 'point') err(`${p}.target`, `trace moves a body or point; "${a.target}" is a ${body.type}`);
-          if (path && path.type !== 'plot' && path.type !== 'path') err(`${p}.along`, `trace follows a plot or path; "${a.along}" is a ${path.type}`);
+          if (path && path.type !== 'plot' && path.type !== 'curve' && path.type !== 'path') err(`${p}.along`, `trace follows a plot, curve or path; "${a.along}" is a ${path.type}`);
           if (body && path && 'space' in body && 'space' in path && body.space !== path.space) warn(p, `"${a.target}" and "${a.along}" are in different spaces`);
           visible = true;
           break;
@@ -438,6 +562,9 @@ export function validateScene(input: unknown, opts: ValidateOptions = {}): Valid
     const inGroup = scene.entities.some((g) => g.type === 'group' && g.children.includes(id));
     if (!shown && !created.has(id) && !removed.has(id) && !inGroup) warn(`entities`, `"${e.id}" is never shown`);
   }
+
+  // is the drawing true? (valence, plots on screen…) — domainChecks.ts
+  for (const d of runDomainChecks(scene)) (d.severity === 'error' ? err : warn)(d.path, d.message);
 
   if (errors.length) return { ok: false, errors, warnings };
   return { ok: true, scene: { ...scene, beats: fixedBeats }, warnings };

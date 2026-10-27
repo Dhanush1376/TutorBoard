@@ -1,0 +1,30 @@
+{
+  "version": "1",
+  "title": "A majority-vote circuit and its truth table",
+  "domain": "general",
+  "summary": "Y is 1 when at least two of A, B, C are 1: three AND gates feed an OR gate; the truth table is computed by running every input row through the gates.",
+  "entities": [
+    {
+      "id": "vote", "type": "logic",
+      "inputs": ["A", "B", "C"],
+      "gates": [
+        { "id": "g1", "op": "and", "in": ["A", "B"] },
+        { "id": "g2", "op": "and", "in": ["B", "C"] },
+        { "id": "g3", "op": "and", "in": ["A", "C"] },
+        { "id": "g4", "op": "or", "in": ["g1", "g2", "g3"] }
+      ],
+      "outputs": [{ "id": "Y", "from": "g4" }]
+    }
+  ],
+  "layout": [
+    { "rel": "place", "id": "vote", "region": "left" }
+  ],
+  "beats": [
+    {
+      "title": "Three voters",
+      "narration": "Each AND gate checks one pair of voters. If any pair agrees on 1, the OR gate outputs 1.",
+      "actions": [{ "do": "create", "target": "vote", "effect": "draw" }]
+    },
+    { "title": "Every combination", "narration": "computed", "compute": { "algorithm": "truth-table", "target": "vote" } }
+  ]
+}

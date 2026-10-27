@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "title": "Currents in a series–parallel circuit",
+  "domain": "physics",
+  "summary": "A 9 V battery drives R1 in series with R2 and R3 in parallel; every voltage and current is solved from the circuit, not assumed.",
+  "entities": [
+    {
+      "id": "c", "type": "circuit",
+      "components": [
+        { "id": "V1", "kind": "battery", "from": "n0", "to": "n1", "value": 9 },
+        { "id": "R1", "kind": "resistor", "from": "n1", "to": "n2", "value": 1000 },
+        { "id": "R2", "kind": "resistor", "from": "n2", "to": "n0", "value": 2000 },
+        { "id": "R3", "kind": "resistor", "from": "n2", "to": "n0", "value": 2000 }
+      ]
+    }
+  ],
+  "layout": [
+    { "rel": "place", "id": "c", "region": "center" }
+  ],
+  "beats": [
+    {
+      "title": "The circuit",
+      "narration": "A 9 volt battery, one resistor in series, then two resistors side by side back to the battery.",
+      "actions": [{ "do": "create", "target": "c", "effect": "draw" }]
+    },
+    { "title": "What the battery sees", "narration": "computed", "compute": { "algorithm": "circuit-solve", "target": "c" } }
+  ]
+}

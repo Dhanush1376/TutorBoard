@@ -136,6 +136,16 @@ const userSchema = new mongoose.Schema({
     enum: ['free', 'pro', 'enterprise'],
     default: 'free'
   },
+  // ── Identity & access ──
+  // Set when the owner proved control of `email` (OTP code, or a provider that
+  // asserts a verified address). Legacy accounts have no value = unverified.
+  emailVerifiedAt: { type: Date, default: null },
+  // Never writable through any API body: only scripts/grant-admin.mjs and the
+  // admin role endpoint (super-admin only) change it.
+  role: { type: String, enum: ['user', 'admin', 'superadmin'], default: 'user', index: true },
+  disabledAt: { type: Date, default: null },
+  disabledReason: { type: String, default: '' },
+  lastLoginAt: { type: Date, default: null },
 }, { 
   timestamps: true,
   toJSON: { virtuals: true },
@@ -161,6 +171,10 @@ userSchema.methods.toJSON = function () {
   delete obj.password;
   return obj;
 };
+
+userSchema.virtual('emailVerified').get(function () {
+  return !!this.emailVerifiedAt;
+});
 
 const User = mongoose.model('User', userSchema);
 

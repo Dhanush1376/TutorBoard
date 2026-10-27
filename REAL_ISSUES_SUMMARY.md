@@ -438,7 +438,7 @@ BRAVE_SEARCH_API_KEY=...
 ```
 SENTRY_DSN=...             # Error tracking
 POSTHOG_API_KEY=...        # Analytics
-RESEND_API_KEY=...         # Email
+SMTP_HOST=... SMTP_PORT=... SMTP_USER=... SMTP_PASS=... MAIL_FROM=...  # Email (SMTP)
 ```
 
 ---

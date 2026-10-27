@@ -1,0 +1,20 @@
+{
+  "version": "1",
+  "title": "Binary search finds 23",
+  "domain": "algorithms",
+  "summary": "Each look at the middle of a sorted array rules out half of what is left; the trace is computed from the array, not written by hand.",
+  "entities": [
+    { "id": "arr", "type": "array", "values": [3, 8, 12, 15, 23, 31, 42], "indices": true }
+  ],
+  "layout": [
+    { "rel": "place", "id": "arr", "region": "center" }
+  ],
+  "beats": [
+    {
+      "title": "A sorted array",
+      "narration": "Seven numbers in increasing order. We want to know where 23 is without checking every one.",
+      "actions": [{ "do": "create", "target": "arr", "effect": "pop" }]
+    },
+    { "title": "Halve the search", "narration": "computed", "compute": { "algorithm": "binary-search", "target": "arr", "args": { "find": 23 } } }
+  ]
+}
