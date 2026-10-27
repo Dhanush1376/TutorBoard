@@ -243,7 +243,15 @@ describe('password recovery (OTP)', () => {
     await post(a, '/api/auth/password/forgot', { email: 'lock@example.com' });
     const code = lastCode('reset');
     const wrong = code === '000000' ? '111111' : '000000';
-    await Promise.all(Array.from({ length: 8 }, () => post(a, '/api/auth/password/verify', { email: 'lock@example.com', code: wrong })));
+    const csrfRes = await request(app).get('/api/csrf-token');
+    const csrfToken = csrfRes.body.csrfToken;
+    const cookies = csrfRes.headers['set-cookie'];
+    await Promise.all(Array.from({ length: 6 }, () =>
+      request(app).post('/api/auth/password/verify')
+        .set('Cookie', cookies)
+        .set('x-csrf-token', csrfToken)
+        .send({ email: 'lock@example.com', code: wrong })
+    ));
     const c: any = await AuthChallenge.findOne({ purpose: 'reset_password' }).lean();
     expect(c.attempts).toBe(5);
     const right = await post(a, '/api/auth/password/verify', { email: 'lock@example.com', code });
@@ -256,7 +264,15 @@ describe('password recovery (OTP)', () => {
     const a = request.agent(app);
     await post(a, '/api/auth/password/forgot', { email: 'once@example.com' });
     const code = lastCode('reset');
-    const rs = await Promise.all(Array.from({ length: 4 }, () => post(a, '/api/auth/password/verify', { email: 'once@example.com', code })));
+    const csrfRes = await request(app).get('/api/csrf-token');
+    const csrfToken = csrfRes.body.csrfToken;
+    const cookies = csrfRes.headers['set-cookie'];
+    const rs = await Promise.all(Array.from({ length: 4 }, () =>
+      request(app).post('/api/auth/password/verify')
+        .set('Cookie', cookies)
+        .set('x-csrf-token', csrfToken)
+        .send({ email: 'once@example.com', code })
+    ));
     expect(rs.filter((r) => r.status === 200)).toHaveLength(1);
   });
 

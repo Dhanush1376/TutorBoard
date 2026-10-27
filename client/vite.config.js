@@ -23,6 +23,11 @@ export default defineConfig({
     }),
     tailwindcss(),
   ],
+  resolve: {
+    alias: {
+      zod: fileURLToPath(new URL('./node_modules/zod', import.meta.url)),
+    },
+  },
   server: {
     // Scene Lab (dev only) reads the golden scenes from the server package.
     fs: {

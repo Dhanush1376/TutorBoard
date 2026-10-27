@@ -70,7 +70,7 @@ const ChatColumnWrapper = React.memo((props) => {
       activeChatId={activeChatId}
       messages={messages}
       isGenerating={isGenerating}
-      isLoadingHistory={restProps.isLoadingHistory || isMessagesLoading}
+      isLoadingHistory={restProps.isLoadingHistory}
     />
   );
 });

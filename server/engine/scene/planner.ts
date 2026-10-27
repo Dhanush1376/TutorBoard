@@ -60,8 +60,8 @@ export async function planScene(question: string, opts: PlanOptions = {}): Promi
     let lastCheck = 0;
     const onStream = attempt === 1 && opts.onPartial ? (token: string) => {
       streamed += token;
-      // a beat can only have closed if a "}" arrived; don't re-parse more than ~6×/s
-      if (!token.includes('}') || Date.now() - lastCheck < 150) return;
+      // a beat can only have closed if a "}" arrived; don't re-parse more than ~25×/s
+      if (!token.includes('}') || (lastCheck !== 0 && Date.now() - lastCheck < 40)) return;
       lastCheck = Date.now();
       const partial = readPartialScene(streamed);
       if (!partial || partial.beats.length <= sent) return;
@@ -90,6 +90,17 @@ export async function planScene(question: string, opts: PlanOptions = {}): Promi
       // JSON mode refuses a reply that hit the output limit (Groq: 400 "Failed to validate JSON")
       if (opts.signal?.aborted || !CUT_OFF_ERROR.test(String((err as Error)?.message))) throw err;
       res = { content: '', finishReason: 'length' } as typeof res;
+    }
+    if (attempt === 1 && opts.onPartial && sent === 0 && streamed) {
+      const partial = readPartialScene(streamed);
+      if (partial && partial.beats.length > 0) {
+        const check = validateScene({ ...partial.header, beats: partial.beats });
+        if (check.ok) {
+          sent = partial.beats.length;
+          firstBeatMs ??= Date.now() - started;
+          opts.onPartial(check.scene, { beats: sent, ms: Date.now() - started });
+        }
+      }
     }
     model = res._meta?.model_used ?? model;
     raw = res.content || streamed;

@@ -49,7 +49,13 @@ export function useSessionHistory({ isAuthenticated, isGuest, token, user, authL
         if (!sessions) return;
 
         const cloudSessions = sessions
-          .filter(s => (s.messages?.some(m => m.role === 'user') || s.canvasState?.length > 0))
+          .filter(s => {
+            if (s.messages?.some(m => m.role === 'user')) return true;
+            if (s.canvasState?.length > 0) return true;
+            if (s.messages && s.messages.length > 0) return true;
+            if (s.title && s.title !== 'New Chat' && s.title !== 'Saved Session') return true;
+            return false;
+          })
           .map(s => ({
             id: s._id,
             title: s.title || 'Saved Session',

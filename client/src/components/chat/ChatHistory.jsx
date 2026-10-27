@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MoreHorizontal, Pencil, Copy, Trash2, Check, X } from 'lucide-react';
+import { MoreHorizontal, Pencil, Copy, Trash2, Check, X, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
@@ -112,6 +112,20 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
       .then(() => useTutorStore.getState().showToast({ message: 'Copied to clipboard', type: 'success', duration: 2000 }))
       .catch(() => useTutorStore.getState().showToast({ message: 'Could not copy', type: 'error', duration: 2000 }));
   };
+
+  if (!chatHistory || chatHistory.length === 0 || groups.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 px-3 text-center">
+        <div className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--st-fill)] text-[var(--text-tertiary)] mb-2.5">
+          <MessageSquare size={17} strokeWidth={1.8} />
+        </div>
+        <p className="text-[13px] font-medium text-[var(--text-secondary)]">No conversations yet</p>
+        <p className="text-[11.5px] text-[var(--text-tertiary)] mt-0.5">
+          Your saved sessions will appear here
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 pb-3">

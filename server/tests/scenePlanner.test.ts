@@ -73,7 +73,7 @@ describe('scene planner', () => {
   it('streams valid partial scenes as beats close', async () => {
     const chunks = golden.match(/[\s\S]{1,40}/g)!;
     requestCompletion.mockImplementationOnce(async ({ onStream }: { onStream?: (t: string) => void }) => {
-      for (const c of chunks) { onStream?.(c); await new Promise((r) => setTimeout(r, 2)); }
+      for (const c of chunks) { onStream?.(c); await new Promise((r) => setTimeout(r, 6)); }
       return reply(golden);
     });
     const seen: number[] = [];

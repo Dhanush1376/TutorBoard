@@ -122,7 +122,7 @@ const LeftPanel = ({
       if (!sid || seen.has(sid)) return;
       // a conversation with no question in it (e.g. every message undone) is not listed
       // (entries restored from the local cache carry no messages: they stay listed)
-      if (Array.isArray(s.messages) && !s.messages.some((m) => m?.role === 'user')) return;
+      if (Array.isArray(s.messages) && s.messages.length > 0 && !s.messages.some((m) => m?.role === 'user')) return;
       seen.add(sid);
       unique.push(s);
     });
@@ -202,7 +202,7 @@ const LeftPanel = ({
               <div className="h-10 bg-[var(--bg-tertiary)] rounded-xl animate-pulse opacity-20" />
               <div className="h-10 bg-[var(--bg-tertiary)] rounded-xl animate-pulse opacity-10" />
             </div>
-          ) : (!isGuest || chatHistory.length > 0) ? (
+          ) : (
             <ChatHistory
               chatHistory={filteredHistory}
               activeChatId={activeChatId}
@@ -210,7 +210,7 @@ const LeftPanel = ({
               onDeleteChat={onDeleteChat}
               onRenameChat={onRenameChat}
             />
-          ) : null}
+          )}
 
           {/* Pagination trigger: older conversations load as the list is scrolled */}
           {hasMore && !searchQuery.trim() && (
