@@ -6,45 +6,19 @@
  *
  * The iframe has no origin of its own (no allow-same-origin), so the program
  * can't read TutorBoard's cookies or storage and any request it makes is
- * cross-origin to TutorBoard. Its Content-Security-Policy allows no network at
- * all for JavaScript (fetch, XHR, WebSocket, import(), importScripts) and only
- * the Pyodide CDN for Python, and a worker made from a blob inherits that
- * policy. The worker also hides the network APIs, as a second layer.
+ * cross-origin to TutorBoard. Its page — client/public/sandbox/{js,python}.html —
+ * carries a Content-Security-Policy that allows no network at all for
+ * JavaScript (fetch, XHR, WebSocket, import(), importScripts) and only the
+ * Pyodide CDN for Python, and a worker made from a blob inherits that policy.
+ * The worker also hides the network APIs, as a second layer. (The pages are
+ * real files, not srcdoc: a srcdoc frame would inherit the app's own policy,
+ * which rightly forbids what the sandbox needs — see vercel.json.)
  *
  * One iframe (and one worker, kept warm: Pyodide takes seconds to load) per
  * kind. A run that overstays its time limit has its worker killed.
  */
 
-const POLICIES = {
-  // Nothing leaves the sandbox.
-  js: "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:",
-  // Pyodide itself loads from the CDN; nothing else is reachable.
-  python:
-    "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; " +
-    'worker-src blob:; connect-src https://cdn.jsdelivr.net',
-};
-
-/** The iframe's own script: relays between the page and the worker, nothing more. */
-const relay = (parentOrigin) => `
-let worker = null, source = null, current = null;
-const toPage = (m) => parent.postMessage(m, ${JSON.stringify(parentOrigin)});
-addEventListener('message', (e) => {
-  if (e.source !== parent) return;
-  const m = e.data || {};
-  if (m.tb === 'kill') { if (worker) worker.terminate(); worker = null; source = null; return; }
-  if (m.tb !== 'run') return;
-  if (!worker || m.fresh || m.source !== source) {
-    if (worker) worker.terminate();
-    source = m.source;
-    worker = new Worker(URL.createObjectURL(new Blob([m.source], { type: 'text/javascript' })));
-    worker.onmessage = (ev) => toPage({ tb: 'msg', id: current, data: ev.data });
-    worker.onerror = (ev) => { ev.preventDefault(); toPage({ tb: 'error', id: current, message: ev.message || 'The program could not start.' }); };
-  }
-  current = m.id;
-  worker.postMessage(m.message);
-});
-toPage({ tb: 'ready' });
-`;
+export const SANDBOX_KINDS = ['js', 'python'];
 
 const hosts = new Map(); // kind → { frame, ready: Promise }
 let nextId = 1;
@@ -58,7 +32,8 @@ function hostFor(kind) {
   frame.setAttribute('tabindex', '-1');
   frame.title = 'Code sandbox';
   frame.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;';
-  frame.srcdoc = `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${POLICIES[kind]}"><script>${relay(window.location.origin)}<\/script>`;
+  // The page posts back only to this origin, and only listens to it.
+  frame.src = `/sandbox/${kind}.html?parent=${encodeURIComponent(window.location.origin)}`;
   const ready = new Promise((resolve) => {
     const onReady = (e) => {
       if (e.source !== frame.contentWindow || e.data?.tb !== 'ready') return;
@@ -82,7 +57,7 @@ function hostFor(kind) {
  * a new worker, so nothing a previous program left behind is visible.
  */
 export function runSandboxed(kind, workerSource, message, { onMessage, onError, onTimeout, limitMs, waitForClock = false, loadLimitMs = 60000, fresh = false }) {
-  if (!POLICIES[kind]) throw new Error(`No sandbox for ${kind}`);
+  if (!SANDBOX_KINDS.includes(kind)) throw new Error(`No sandbox for ${kind}`);
   const host = hostFor(kind);
   const id = nextId++;
   return new Promise((resolve) => {

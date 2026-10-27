@@ -16,6 +16,48 @@ const API = axios.create({
   },
 });
 
+// ── One guest identity per browser ───────────────────────────────────────────
+// A guest's chats belong to the guest id the server issues to the first request
+// that arrives without one. Requests sent together before that answer each got
+// a DIFFERENT new id, the last one stored won, and every chat saved under the
+// others disappeared from the guest's history. So, until this browser has an
+// identity, requests that can create one go one at a time.
+const MINTING_ROUTE = /\/api\/(sessions\/?(\?|$)|chat\/|artifact\/(save|generate|edit|modify))/;
+
+const hasStoredIdentity = () => {
+  try {
+    return Boolean(localStorage.getItem('tb-token') || localStorage.getItem('tb-guest-token'));
+  } catch (e) {
+    return true; // no storage: nothing to coordinate
+  }
+};
+
+/** Keep the guest token the server sent (a new identity, or the same one renewed). */
+export const storeGuestToken = (headers) => {
+  try {
+    const token = typeof headers?.get === 'function'
+      ? headers.get('x-guest-token')
+      : headers?.['x-guest-token'] || headers?.['X-Guest-Token'];
+    if (token && typeof localStorage !== 'undefined') localStorage.setItem('tb-guest-token', token);
+  } catch (e) { /* storage blocked */ }
+};
+
+let identityQueue = Promise.resolve();
+/**
+ * Before a request that may create a guest identity: resolves to a `release`
+ * to call once its response headers (and any new guest token) have arrived.
+ * Free when an identity is already stored.
+ */
+export const acquireIdentitySlot = async (url = '') => {
+  if (hasStoredIdentity() || !MINTING_ROUTE.test(url)) return () => {};
+  let release;
+  const turn = new Promise((resolve) => { release = resolve; });
+  const previous = identityQueue;
+  identityQueue = previous.then(() => turn);
+  await previous;
+  return release;
+};
+
 // Helper to read cookies in the browser
 export const getCookie = (name) => {
   const value = `; ${document.cookie}`;
@@ -86,6 +128,10 @@ export const getAuthHeaders = () => {
 // Request Interceptor
 API.interceptors.request.use(
   async (config) => {
+    // 0. No identity yet: wait for the turn to (possibly) create one
+    const releaseIdentity = await acquireIdentitySlot(config.url || '');
+    config._releaseIdentity = releaseIdentity;
+
     // 1. Attach Authorization header or Guest Token if stored
     try {
       const storedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('tb-token') : null;
@@ -137,24 +183,39 @@ const processQueue = (error, token = null) => {
 API.interceptors.response.use(
   (response) => {
     // Capture guest token issued by backend into localStorage as fallback
-    try {
-      const guestToken = response.headers?.['x-guest-token'] || response.headers?.['X-Guest-Token'];
-      if (guestToken && typeof localStorage !== 'undefined') {
-        localStorage.setItem('tb-guest-token', guestToken);
-      }
-    } catch (e) {}
+    storeGuestToken(response.headers);
+    response.config?._releaseIdentity?.();
     return response;
   },
   async (error) => {
     const originalRequest = error.config || {};
+    if (error.response) storeGuestToken(error.response.headers);
+    originalRequest._releaseIdentity?.();
+    // a stored guest token the server cannot read (forged / corrupted) can never
+    // be recovered: drop it so the next request gets a working identity
+    if (error.response?.data?.code === 'INVALID_GUEST_TOKEN') {
+      try { localStorage.removeItem('tb-guest-token'); } catch (e) { /* storage blocked */ }
+    }
     
     // Check if the error is a proxy ECONNREFUSED (often appears as 502/504 or network error)
     if (!error.response && error.code === 'ERR_NETWORK') {
       console.error('[API] Network Error - Backend might be offline or proxy misconfigured');
     }
 
+    // Platform-wide conditions (maintenance, unverified email) are announced once,
+    // not once per failing request; App shows them as a single toast.
+    const noticeCode = error.response?.data?.code;
+    if (noticeCode === 'MAINTENANCE' || noticeCode === 'EMAIL_VERIFICATION_REQUIRED' || noticeCode === 'ACCOUNT_DISABLED') {
+      const now = Date.now();
+      if (!lastNoticeAt[noticeCode] || now - lastNoticeAt[noticeCode] > 30000) {
+        lastNoticeAt[noticeCode] = now;
+        window.dispatchEvent(new CustomEvent('tb-api-notice', { detail: { code: noticeCode, message: error.response.data.error } }));
+      }
+    }
+
     const isRefreshRequest = originalRequest.url?.includes('/auth/refresh');
-    const isAuthRoute = originalRequest.url?.includes('/auth/signin') || originalRequest.url?.includes('/auth/signup');
+    // 401s from these mean "wrong credentials / code", not "access token expired"
+    const isAuthRoute = ['/auth/signin', '/auth/signup', '/auth/exchange', '/auth/password/', '/auth/logout'].some((p) => originalRequest.url?.includes(p));
     
     // SEC-FIX: Use a header to track retries, as custom config properties can be stripped during cloning
     const isRetry = originalRequest._retry || originalRequest.headers?.['X-Retry'] === 'true';
@@ -206,6 +267,8 @@ API.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+const lastNoticeAt = {};
 
 export default API;
 export { BASE_URL };

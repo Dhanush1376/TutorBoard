@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, RotateCcw } from 'lucide-react';
 import useTutorStore, { CANVAS_LAYOUT } from '../../store/tutorStore';
 import { formatConciseTopic, isGenericTitle } from './message/MessageUtils';
 import VisaiLogo from '../layout/VisaiLogo';
@@ -33,6 +33,7 @@ const VisualArtifactCard = ({
   status = 'completed',
   onOpenCanvas,
   messageId,
+  onRetry,
 }) => {
   const { openArtifactOnCanvas, setCanvasLayout, activeScene, canvasLayout } = useTutorStore();
   const activeSnapshotId = useTutorStore((state) => state.activeSnapshotId);
@@ -44,6 +45,8 @@ const VisualArtifactCard = ({
 
   const isPersisting = status === 'completed' && artifact && !artifact.dbId && !artifactData && artifactId;
   const isGenerating = status === 'generating';
+  const isFailed     = status === 'failed';
+  const isCancelled  = status === 'cancelled';
   const canOpen     = status === 'completed' && !isPersisting;
 
   const currentId    = artifact?.dbId || artifact?.id || artifactId || messageId || 'visual-sim';
@@ -55,20 +58,28 @@ const VisualArtifactCard = ({
 
   // Resolve clear, specific topic title (1-2 words max, zero dots)
   const rawCandidate = 
-    (!isGenericTitle(title) && title) ||
     (!isGenericTitle(artifact?.title) && artifact?.title) ||
+    (!isGenericTitle(artifact?.timeline?.title) && artifact?.timeline?.title) ||
+    (!isGenericTitle(artifact?.data?.title) && artifact?.data?.title) ||
+    (!isGenericTitle(artifact?.sceneV2?.title) && artifact?.sceneV2?.title) ||
+    (!isGenericTitle(artifact?.metadata?.title) && artifact?.metadata?.title) ||
+    (!isGenericTitle(artifact?.metadata?.artifactTitle) && artifact?.metadata?.artifactTitle) ||
     (!isGenericTitle(activeScene?.title) && activeScene?.title) ||
+    (!isGenericTitle(title) && title) ||
     (!isGenericTitle(conversationTopic) && conversationTopic) ||
-    title ||
-    artifact?.title ||
     'Visual';
 
-  const displayTitle = (formatConciseTopic(rawCandidate) || 'Visual').replace(/\.+/g, '').trim();
+  const displayTitle = (formatConciseTopic(rawCandidate, 'Visual') || 'Visual').replace(/\.+/g, '').trim();
 
   // Subtitle strictly cleaned so it never ends with "..."
-  const rawDesc = isGenerating 
-    ? 'Generating walkthrough' 
-    : (cfg.desc || 'Visual walkthrough');
+  // short enough to fit beside the card's button (the subtitle never wraps)
+  const rawDesc = isGenerating
+    ? 'Preparing visual'
+    : isFailed
+      ? "Visual didn't build"
+      : isCancelled
+        ? 'Visual stopped'
+        : (cfg.desc || 'Visual walkthrough');
   const cleanDesc = rawDesc.replace(/\.+/g, '').trim();
 
   const handleToggle = React.useCallback((e) => {
@@ -90,8 +101,12 @@ const VisualArtifactCard = ({
       if (onOpenCanvas && messageId) {
         onOpenCanvas(messageId);
       }
-      
+      // onOpenCanvas loaded this message's lesson (restored to the saved step)
+      const s = useTutorStore.getState();
+      const alreadyLoaded = !!messageId && s.activeSnapshotId === messageId && !!s.activeScene;
+
       openArtifactOnCanvas({
+        alreadyLoaded,
         id: currentId,
         title: title || latestArtifact?.title || msg?.canvasSnapshot?.title || cfg.label,
         type: latestArtifact?.type || type,
@@ -123,10 +138,12 @@ const VisualArtifactCard = ({
     >
       <div
         onClick={handleToggle}
-        role="button"
-        tabIndex={0}
+        // a button only when it can open/close the lesson (never around the Try again button)
+        role={canOpen || isActive ? 'button' : undefined}
+        tabIndex={canOpen || isActive ? 0 : undefined}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle(); } }}
-        title={isActive ? 'Active on canvas — click to close' : 'Click to open visual walkthrough'}
+        aria-busy={isGenerating || undefined}
+        title={isActive ? 'Active on canvas — click to close' : canOpen ? 'Click to open visual walkthrough' : rawDesc}
         className={`group relative cursor-pointer overflow-hidden rounded-[26px] transition-all duration-200 select-none bg-zinc-900 dark:bg-white ${
           isActive 
             ? 'border-2 border-[#ea580c] shadow-[0_3px_16px_rgba(234,88,12,0.18)] ring-1 ring-[#ea580c]/30' 
@@ -160,10 +177,23 @@ const VisualArtifactCard = ({
           </div>
 
           {/* Right: Symmetrically Aligned Toggle Button */}
+          {isFailed && onRetry ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRetry(); }}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 h-8 text-[12px] font-semibold bg-zinc-800 text-zinc-200 border border-zinc-700 hover:bg-[#ea580c] hover:text-white hover:border-[#ea580c] dark:bg-zinc-100 dark:text-zinc-700 dark:border-zinc-200 transition-colors"
+              aria-label="Try the visualization again"
+            >
+              <RotateCcw size={13} strokeWidth={2.2} aria-hidden="true" />
+              Try again
+            </button>
+          ) : (
           <div className="shrink-0 flex items-center">
             <div 
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-                isActive
+                !canOpen && !isActive
+                  ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 opacity-60 dark:bg-zinc-100 dark:text-zinc-400 dark:border-zinc-200'
+                  : isActive
                   ? 'bg-[#ea580c] text-white shadow-[0_2px_8px_rgba(234,88,12,0.4)]'
                   : 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-[#ea580c] hover:text-white hover:border-[#ea580c] dark:bg-zinc-100 dark:text-zinc-700 dark:border-zinc-200 dark:hover:bg-[#ea580c] dark:hover:text-white dark:hover:border-[#ea580c]'
               }`}
@@ -175,6 +205,7 @@ const VisualArtifactCard = ({
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </motion.div>

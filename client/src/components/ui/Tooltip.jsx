@@ -56,7 +56,7 @@ const Tooltip = ({
             style={pos.style}
           >
             <div
-              className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap shadow-lg"
+              className="px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap shadow-lg"
               style={{
                 background: 'var(--text-primary)',
                 color: 'var(--bg-primary)',

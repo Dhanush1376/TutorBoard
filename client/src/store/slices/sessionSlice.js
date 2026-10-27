@@ -11,15 +11,16 @@ export const STATES = {
   ERROR:           'ERROR',
 };
 
-export const capManifest = (manifest, limit = 20, getStore) => {
+export const capManifest = (manifest, limit = 50) => {
+  if (!manifest || typeof manifest !== 'object') return {};
   const keys = Object.keys(manifest);
   if (keys.length <= limit) return manifest;
   
   const sorted = keys.sort((a, b) => (manifest[a]?.lastActive || 0) - (manifest[b]?.lastActive || 0));
-  const evictedKey = sorted[0];
-  const { [evictedKey]: _, ...rest } = manifest;
-  if (getStore && getStore().showToast) {
-    getStore().showToast({ message: 'Oldest canvas session archived to save space', type: 'info' });
+  const toEvict = sorted.slice(0, keys.length - limit);
+  const rest = { ...manifest };
+  for (const k of toEvict) {
+    delete rest[k];
   }
   return rest;
 };
@@ -83,9 +84,9 @@ export const createSessionSlice = (set, get) => ({
   addChatHistoryEntry: (entry) => set(state => {
     // Prevent duplicate IDs
     if (state.chatHistory.some(s => s.id === entry.id)) return;
+    // No cap: dropping the oldest entry made a saved chat vanish from the list.
+    // (Only the localStorage cache is capped — see tutorStore partialize.)
     state.chatHistory.unshift(entry);
-    // Limit local history to 50 entries
-    if (state.chatHistory.length > 50) state.chatHistory.pop();
   }),
 
   /** Swap a temporary ID for a permanent one in the history */
@@ -170,7 +171,7 @@ export const createSessionSlice = (set, get) => ({
   }),
 
   setSessionId: (newId) => {
-    const { sessionId: oldId, canvasObjects, pinnedNotes, canvasTransform, sessionManifest } = get();
+    const { sessionId: oldId, sessionManifest } = get();
     if (newId === oldId) return;
 
     const updatedManifest = { ...sessionManifest };
@@ -225,7 +226,7 @@ export const createSessionSlice = (set, get) => ({
       updatedManifest[newId] = { ...updatedManifest[newId], lastActive: Date.now() };
     }
 
-    const cappedManifest = capManifest(updatedManifest, 20, get);
+    const cappedManifest = capManifest(updatedManifest, 50);
 
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(newId || '');
     set({ 
@@ -293,7 +294,7 @@ export const createSessionSlice = (set, get) => ({
     }
 
     set({
-      sessionManifest:    capManifest(updatedManifest, 20, get),
+      sessionManifest:    capManifest(updatedManifest, 50),
       isPlaying:          false,
       isPaused:           false,
       canvasMode:         'CLOSED',

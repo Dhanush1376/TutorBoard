@@ -305,8 +305,8 @@ export function useSequence(durations, active, restPhase = durations.length - 1)
   return reduce ? { phase: restPhase, cycle: 0, reduce: true } : { phase, cycle, reduce: false };
 }
 
-/** Human-paced typing. Empty until `typing`, complete once `done`. */
-export function useTypewriter(text, typing, done, speed = 42) {
+/** Human-paced typing. Empty until `typing`, complete once `done`. Supports scroll speed scaling. */
+export function useTypewriter(text, typing, done, speed = 20, speedMultiplier = 1) {
   const [count, setCount] = useState(0);
   useEffect(() => {
     if (!typing) {
@@ -314,12 +314,15 @@ export function useTypewriter(text, typing, done, speed = 42) {
       return undefined;
     }
     if (count >= text.length) return undefined;
+    const mult = Math.max(1, speedMultiplier || 1);
+    const effectiveSpeed = Math.max(2, Math.round(speed / mult));
+    const step = mult >= 6 ? Math.min(text.length, Math.ceil(mult / 1.5)) : mult >= 3 ? 2 : 1;
     const ch = text[count];
-    const jitter = 0.55 + ((count * 37) % 11) / 11;
-    const pause = ch === ' ' ? 1.25 : ',.?'.includes(ch) ? 2.4 : 1;
-    const id = setTimeout(() => setCount((c) => c + 1), speed * jitter * pause);
+    const jitter = mult > 2 ? 1 : 0.55 + ((count * 37) % 11) / 11;
+    const pause = mult > 2 ? 1 : (ch === ' ' ? 1.25 : ',.?'.includes(ch) ? 2.4 : 1);
+    const id = setTimeout(() => setCount((c) => Math.min(text.length, c + step)), Math.max(2, effectiveSpeed * jitter * pause));
     return () => clearTimeout(id);
-  }, [typing, done, count, text, speed]);
+  }, [typing, done, count, text, speed, speedMultiplier]);
   if (done) return text;
   return text.slice(0, count);
 }

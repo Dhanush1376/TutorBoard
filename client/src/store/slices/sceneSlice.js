@@ -148,7 +148,7 @@ export const createSceneSlice = (set, get) => ({
           lastActive: Date.now()
         }
       };
-      set({ sessionManifest: capManifest(updatedManifest, 20) });
+      set({ sessionManifest: capManifest(updatedManifest, 50) });
     }
   },
 
@@ -248,10 +248,12 @@ export const createSceneSlice = (set, get) => ({
 
       // Build an activeScene from the snapshot so renderers can access it
       const effectiveRenderer = snapshot.renderer || snapshot.rendererType || (snapshot.sceneV2 ? 'scene-v2' : (state.activeScene?.renderer || 'cinematic'));
+      state.stepPlayback = { index: currentStepIndex, animDone: false, voiceDone: false };
       state.activeScene = {
         title: snapshot.title || state.activeScene?.title || 'Visual Lesson',
         domain: snapshot.domain || state.activeScene?.domain || 'general',
         renderer: effectiveRenderer,
+        artifactId: snapshot.artifactId || null,
         timeline: canvasSteps,
         objects: canvasObjects,
         steps: canvasSteps,
@@ -335,6 +337,50 @@ export const createSceneSlice = (set, get) => ({
   // already played, so re-selecting the same index did nothing).
   replayNonce: 0,
   replayStep: () => set((state) => { state.replayNonce = (state.replayNonce || 0) + 1; }),
+
+  /**
+   * Replay the whole lesson from its first step: the board goes back to the
+   * first step's state and plays on. The same lesson — nothing new is created,
+   * and the one playback driver (useSceneAutoplay / the teaching machine) runs it.
+   */
+  replayLesson: () => set((state) => {
+    state.sceneBranch = null;
+    state._resumeAfterQuestion = false;
+    state.currentStepIndex = 0;
+    state.stepPlayback = { index: 0, animDone: false, voiceDone: false };
+    state.isPlaying = true;
+    state.isPaused = false;
+    state.replayNonce = (state.replayNonce || 0) + 1;
+  }),
+
+  // ── Visual lesson lifecycle (the canvas side of a request) ───────────────
+  // idle → preparing (the server is building it) → rendering (first steps are
+  // on screen, more coming) → ready; or failed / cancelled. The message card's
+  // `artifactStatus` is updated from the same events (tutorStore).
+  artifactLifecycle: { status: 'idle', sessionId: null, messageId: null },
+  setArtifactLifecycle: (patch) => set((state) => {
+    state.artifactLifecycle = { ...state.artifactLifecycle, ...patch };
+  }),
+
+  // Last viewed step of each lesson this session knows about, keyed by the
+  // lesson's artifact id: { step, totalSteps, completed, savedAt, params? }.
+  lessonPositions: {},
+  rememberLessonPosition: (key, position) => set((state) => {
+    if (!key || !position) return;
+    const prev = state.lessonPositions[key];
+    if (prev && (prev.savedAt || 0) > (position.savedAt || 0)) return; // keep the newer one
+    state.lessonPositions[key] = { ...position };
+    if (position.params && typeof position.params === 'object') state.lessonParams[key] = { ...position.params };
+  }),
+
+  // Slider values (Engine v2 lesson parameters) of each lesson, keyed like
+  // lessonPositions: the board reloads with them, and they are saved with the
+  // lesson's position (useLessonProgress).
+  lessonParams: {},
+  rememberLessonParams: (key, values) => set((state) => {
+    if (!key || !values) return;
+    state.lessonParams[key] = { ...values };
+  }),
 
   // Non-delta doubt responses carry the same command list as `mutations`;
   // route them through the delta player rather than rewriting objects.

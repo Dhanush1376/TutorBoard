@@ -9,12 +9,25 @@ lerna-debug.log*
 *_output.txt
 eslint-result.json
 
+# Dependencies & Build
 node_modules
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
+.vite
 
-# Editor directories and files
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Testing & Coverage
+coverage
+playwright-report
+test-results
+
+# Editor & System
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -24,3 +37,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.swp
+*.swo
+*~
+Thumbs.db
+Desktop.ini
+.eslintcache
+*.eslintcache
+*.tmp
+*.temp
+*.bak

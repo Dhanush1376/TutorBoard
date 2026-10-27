@@ -12,7 +12,7 @@
  * - Zero layout shift during streaming
  */
 
-import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useState, useMemo } from 'react';
 import Message from './Message';
 import ThoughtLine from './ThoughtLine';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -23,11 +23,13 @@ import {
 } from 'lucide-react';
 import SkeletonMessage from './SkeletonMessage';
 import { useAuth } from '../../hooks/useAuth';
+import { findQuote } from '../../utils/quoteUtils';
+import { extractCleanText } from '../../utils/mathTextUtils';
 import useTutorStore from '../../store/tutorStore';
 import VisaiLogo from '../layout/VisaiLogo';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { describeChatError } from '../../lib/chatErrors';
-import { formatShortAction, detectCurrentAction } from './message/MessageUtils';
+import { describeProgress } from '../../lib/requestProgress';
 
 const MessageErrorFallback = () => (
   <div
@@ -211,7 +213,7 @@ const ChatWindow = ({
 }) => {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
-  const userScrolledRef = useRef(false);
+  const userScrolledRef = useRef(true); // following the newest message? (only after the learner asks)
   const [showPill, setShowPill] = useState(false);
 
   const currentSessionId = useTutorStore((s) => s.getSid());
@@ -228,7 +230,7 @@ const ChatWindow = ({
   const waitingSessionId = useTutorStore((s) => s.waitingSessionId);
   const lastAIError = useTutorStore((s) => s.lastAIError);
   const isMessagesLoading = useTutorStore((s) => s.isMessagesLoading);
-  const generationProgress = useTutorStore((s) => s.generationProgress);
+  const currentProgress = currentSessionState?.progress || null;
 
   const isCurrentlyStreaming = isStreaming;
   const isCurrentlyWaiting = (isWaitingForAI && waitingSessionId === currentSessionId) || isGenerating;
@@ -352,13 +354,42 @@ const ChatWindow = ({
     });
   }, []);
 
-  const lastMessageContent = (messages || []).length > 0 ? messages[messages.length - 1].content : '';
-  // Sending a message always brings the conversation back to the bottom
-  const lastMessage = (messages || []).length > 0 ? messages[messages.length - 1] : null;
-  const lastUserMessageId = lastMessage?.role === 'user' ? lastMessage.id : null;
+  // The chat moves on its own only for a request the learner just started:
+  // opening a chat, opening / closing a lesson or the canvas never scrolls it.
+  //  - opening a chat: it is shown where it begins, nothing auto-scrolls (the
+  //    scroll-down button offers the latest); it used to jump to the top and
+  //    then scroll itself down for ~1.5 s
+  //  - a request starts here (send, retry, regenerate, edit): scroll to it and
+  //    follow its answer while it streams, unless the learner scrolls away
+  // A new chat's id is replaced by the server's mid-request: that is not
+  // "opening a chat" (it is still active), so the answer keeps being followed.
+  const wasActiveRef = useRef(isActive);
+  useLayoutEffect(() => {
+    if (isActive) return;
+    userScrolledRef.current = true; // not following anything
+    const el = containerRef.current;
+    if (el) el.scrollTop = 0;
+    const raf = requestAnimationFrame(() => {
+      const c = containerRef.current;
+      setShowPill(!!c && c.scrollHeight - c.clientHeight > 80);
+    });
+    return () => cancelAnimationFrame(raf);
+    // only when the conversation on screen changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId]);
+
   useEffect(() => {
-    if (lastUserMessageId) userScrolledRef.current = false; // runs before the follow effect below
-  }, [lastUserMessageId]);
+    const started = isActive && !wasActiveRef.current;
+    wasActiveRef.current = isActive;
+    if (started) {
+      userScrolledRef.current = false;
+      scrollToBottom('smooth');
+    }
+  }, [isActive, scrollToBottom]);
+
+  const lastMessage = (messages || []).length > 0 ? messages[messages.length - 1] : null;
+  const lastMessageContent = lastMessage?.content || '';
+
   useEffect(() => {
     if (!userScrolledRef.current) {
       scrollToBottom(isCurrentlyStreaming ? 'auto' : 'smooth');
@@ -391,44 +422,118 @@ const ChatWindow = ({
     }
   }, [currentStreamingContent]);
 
-  const thinkingPhase = useMemo(() => {
-    if (currentSearchPerformed && !currentStreamingContent) return 'searching';
-    if (isCurrentlyStreaming) return 'generating';
-    return 'waiting';
-  }, [isCurrentlyStreaming, currentStreamingContent, currentSearchPerformed]);
-
-  const thinkingLabel = useMemo(() => {
-    return detectCurrentAction({
-      displayContent: currentStreamingContent,
-      isStreaming: isCurrentlyStreaming,
-      searchPerformed: currentSearchPerformed,
-      hasVisualArtifact: false,
-      generationProgress,
-    });
-  }, [generationProgress, currentSearchPerformed, isCurrentlyStreaming, currentStreamingContent]);
-
-  const thinkingSteps = useMemo(() => {
-    const list = [
-      'Analyzing problem',
-      'Planning canvas',
-      'Solving logic',
-      'Generating visual',
-      'Animating steps',
-      'Writing response',
-      'Refining formulas',
-      'Polishing answer',
-      'Finalizing'
-    ];
-    if (currentSearchPerformed || currentStreamingSources?.length > 0) {
-      list.splice(1, 0, 'Searching web');
-    }
-    return list;
-  }, [currentSearchPerformed, currentStreamingSources]);
+  // Before the answer row exists: the status the server has reported so far
+  const waitingView = useMemo(
+    () => describeProgress(currentProgress, { hasText: Boolean(currentStreamingContent) }),
+    [currentProgress, currentStreamingContent]
+  );
 
   const handleSuggestionClick = useCallback((prompt, mode) => {
     if (mode) setActiveMode(mode);
     useTutorStore.getState().setChatInputText?.(prompt);
   }, [setActiveMode]);
+
+  // Support jumping directly to a quoted message from sticky notes or references
+  useEffect(() => {
+    const handleScrollToQuote = (e) => {
+      const { messageId, quote } = e.detail || {};
+      if (!quote) return;
+
+      userScrolledRef.current = true; // prevent auto-scroll from overriding
+
+      // Find index in messages array
+      let targetIdx = -1;
+      if (messageId) {
+        targetIdx = (messages || []).findIndex((m) => String(m.id) === String(messageId));
+      }
+
+      const cleanQ = quote.replace(/^[“"']+|[”"'.…\s]+$/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+      if (targetIdx === -1 && cleanQ) {
+        // Try progressively smaller prefixes of cleanQ down to 15 chars
+        const searchLengths = [120, 80, 50, 30, 20, 15];
+        for (const len of searchLengths) {
+          const needle = cleanQ.slice(0, len);
+          if (needle.length < 10) continue;
+          targetIdx = (messages || []).findIndex((m) =>
+            (m.content || '').replace(/\s+/g, ' ').toLowerCase().includes(needle)
+          );
+          if (targetIdx !== -1) break;
+        }
+
+        // Fallback: match by significant words
+        if (targetIdx === -1) {
+          const words = cleanQ.split(/\s+/).filter((w) => w.length > 4);
+          if (words.length > 0) {
+            targetIdx = (messages || []).findIndex((m) => {
+              const text = (m.content || '').toLowerCase();
+              return words.filter((w) => text.includes(w)).length >= Math.min(3, words.length);
+            });
+          }
+        }
+      }
+
+      const tryFlashRange = () => {
+        let candidateScopes = [];
+        if (messageId) {
+          const msgEl = document.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`);
+          if (msgEl) {
+            candidateScopes = [msgEl.querySelector('.markdown-content') || msgEl];
+          }
+        }
+        if (candidateScopes.length === 0 && targetIdx !== -1) {
+          const rowEl = document.querySelector(`[data-message-index="${targetIdx}"]`);
+          if (rowEl) {
+            candidateScopes = [rowEl.querySelector('.markdown-content') || rowEl];
+          }
+        }
+        if (candidateScopes.length === 0) {
+          candidateScopes = Array.from(document.querySelectorAll('.markdown-content'));
+        }
+
+        for (const scope of candidateScopes) {
+          const range = findQuote(scope, quote);
+          if (range) {
+            if (typeof CSS !== 'undefined' && 'highlights' in CSS && typeof window !== 'undefined' && 'Highlight' in window) {
+              const hl = new window.Highlight(range);
+              CSS.highlights.set('tb-source-flash', hl);
+              setTimeout(() => CSS.highlights.delete('tb-source-flash'), 3000);
+            }
+            // Ensure the exact node is scrolled into center view
+            try {
+              const node = range.startContainer.parentElement;
+              if (node && typeof node.scrollIntoView === 'function') {
+                node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            } catch {
+              /* ignore scrollIntoView error */
+            }
+            return true;
+          }
+        }
+        return false;
+      };
+
+      if (targetIdx !== -1 && virtualizerRef.current) {
+        virtualizerRef.current.scrollToIndex(targetIdx, { align: 'center', behavior: 'smooth' });
+        // Attempt flash over multiple ticks as virtual DOM renders
+        [100, 250, 450, 700].forEach((delay) => {
+          setTimeout(() => {
+            tryFlashRange();
+          }, delay);
+        });
+      } else {
+        [50, 200, 400].forEach((delay) => {
+          setTimeout(() => {
+            tryFlashRange();
+          }, delay);
+        });
+      }
+    };
+
+    window.addEventListener('scroll-to-quote', handleScrollToQuote);
+    return () => window.removeEventListener('scroll-to-quote', handleScrollToQuote);
+  }, [messages]);
 
   return (
     <div className="chat-window-wrapper flex-1 flex flex-col min-h-0 relative">
@@ -438,6 +543,20 @@ const ChatWindow = ({
         role="log"
         aria-label="Chat messages"
         style={{ paddingRight: 0 }}
+        onCopy={(e) => {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const container = range.cloneContents();
+            if (container.querySelector('.katex')) {
+              const text = extractCleanText(range);
+              if (text) {
+                e.clipboardData.setData('text/plain', text);
+                e.preventDefault();
+              }
+            }
+          }
+        }}
       >
         <AnimatePresence mode="wait">
           {isMessagesLoading ? (
@@ -511,6 +630,7 @@ const ChatWindow = ({
                           streamingContent={currentStreamingContent}
                           streamingThought={currentStreamingThought}
                           streamingSources={currentStreamingSources}
+                          streamingProgress={currentProgress}
                           canvasType={currentCanvasType}
                           metadata={{
                             hasVisualArtifact: !!currentCanvasType,
@@ -536,6 +656,8 @@ const ChatWindow = ({
                   <div 
                     key={msgKey} 
                     data-index={virtualRow.index}
+                    data-message-index={virtualRow.index}
+                    data-message-id={msg.id}
                     ref={rowVirtualizer.measureElement}
                     className="px-0 sm:px-0.5"
                     style={{
@@ -580,6 +702,7 @@ const ChatWindow = ({
                         canvasType={msg.canvasType}
                         isSearchPerformed={isThisStreaming ? currentSearchPerformed : false}
                         streamingSources={isThisStreaming ? currentStreamingSources : emptyArray}
+                        streamingProgress={isThisStreaming || (isActive && currentStreamingMessageId === msg.id) ? currentProgress : null}
                         showCursor={isThisStreaming}
                         onHover={emptyHover}
                         onUndoMessage={onUndoMessage}
@@ -598,14 +721,11 @@ const ChatWindow = ({
               <div className="py-1">
                 <ThoughtLine
                   key="thinking"
-                  working={true}
-                  steps={thinkingSteps}
-                  label={thinkingLabel}
-                  glyph="matrix"
+                  working={waitingView.active}
+                  steps={waitingView.stages}
+                  label={waitingView.label || 'Getting started…'}
                   fontSize={14}
                   collapsible
-                  collapseOnSettle
-                  showTimer
                 />
               </div>
             )}

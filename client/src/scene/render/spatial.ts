@@ -4,7 +4,8 @@
  * bodies, scatter plots. Also lines/angles attached to other entities' parts.
  */
 import gsap from 'gsap';
-import { compileExpr } from '../../engine/canvas/mathExpr';
+import { compileExpr, samplePlot } from '../../engine/canvas/mathExpr';
+import { curveFns, sampleCurve } from '../../../../server/engine/scene/expr';
 import { textWidth, type SpaceMap } from '../geometry';
 import { AXIS, INK, INK_DIM, TONES, toneColor } from '../tokens';
 import type { Box, EntityOf, Pt, Space } from '../types';
@@ -12,6 +13,13 @@ import { arrowMarker, el, mathText, text } from './svg';
 import type { BuildCtx, Built, PartRef } from './types';
 
 const fmt = (v: number) => (Math.abs(v) >= 100 || Number.isInteger(v) ? String(Math.round(v)) : String(Number(v.toFixed(1))));
+const SUPER: Record<string, string> = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+/** Tick label on a log axis: 0.01 … 1000 as written, beyond that as a power of ten. */
+const fmtLog = (v: number) => {
+  const k = Math.log10(v);
+  if (v >= 0.01 && v <= 1000) return String(Number(v.toPrecision(3)));
+  return Number.isInteger(Math.round(k * 1e6) / 1e6) ? `10${String(Math.round(k)).split('').map((c) => SUPER[c]).join('')}` : v.toExponential(0);
+};
 const BODY_R: Record<string, number> = { xs: 8, sm: 11, md: 16, lg: 22, xl: 30 };
 
 // ── label placement in spaces ────────────────────────────────────────────────
@@ -69,6 +77,37 @@ const bounds = (pts: Pt[], pad = 0): Box => {
   return { x: x0, y: y0, w: Math.max(...xs) + pad - x0, h: Math.max(...ys) + pad - y0 };
 };
 
+/** A curve's name beside the end of its last visible piece, so two curves in one space can be told apart. */
+function curveLabel(ctx: BuildCtx, fx: SVGGElement, map: SpaceMap, segs: Pt[][], label: string, color: string): SVGTextElement | undefined {
+  const pts = segs.flat();
+  if (!pts.length) return undefined;
+  // the end of the curve first (where the eye finishes reading it), then its top, then further back along it
+  const tail = segs[segs.length - 1];
+  const top = pts.reduce((m, p) => (p.y < m.y ? p : m), pts[0]);
+  const along = [0.85, 0.7, 0.5, 0.3].map((f) => pts[Math.floor((pts.length - 1) * f)]);
+  const spots: Spot[] = [tail[tail.length - 1], top, ...along].flatMap((q) => {
+    const nearRight = q.x > map.inner.x + map.inner.w * 0.7;
+    const nearTop = q.y < map.inner.y + 24;
+    const side = nearRight ? 'end' as const : 'start' as const;
+    const dx = nearRight ? -10 : 10;
+    return [{ x: q.x + dx, y: q.y + (nearTop ? 18 : -12), anchor: side }, { x: q.x + dx, y: q.y + (nearTop ? 34 : 22), anchor: side }];
+  });
+  const spot = freeSpot(ctx, label, 14, spots, map.inner);
+  return mathText(fx, label, { x: spot.x, y: spot.y, size: 14, weight: 650, fill: color, anchor: spot.anchor });
+}
+
+type Spot = { x: number; y: number; anchor: 'start' | 'end' | 'middle' };
+/** The first candidate whose label box is clear of every label, dot and body already placed (and inside `within`); it is then reserved. */
+function freeSpot(ctx: BuildCtx, label: string, size: number, spots: Spot[], within?: Box): Spot {
+  const w = textWidth(plain(label), size, 650) + 4, h = size + 8;
+  const boxOf = (s: Spot): Box => ({ x: s.anchor === 'start' ? s.x : s.anchor === 'end' ? s.x - w : s.x - w / 2, y: s.y - h / 2 - 2, w, h });
+  const placed = (ctx.labels ??= []);
+  const inside = (b: Box) => !within || (b.x >= within.x - 4 && b.x + b.w <= within.x + within.w + 24 && b.y >= within.y - 24 && b.y + b.h <= within.y + within.h + 4);
+  const pick = spots.find((s) => { const b = boxOf(s); return inside(b) && !placed.some((q) => overlapsBox(q, b)); }) ?? spots[0];
+  placed.push(boxOf(pick));
+  return pick;
+}
+
 /** Axes, ticks and grid for a cartesian space. */
 export function buildSpace(ctx: BuildCtx, space: Space, map: SpaceMap): Built {
   const { root, fx } = shell(ctx, space.id);
@@ -88,20 +127,29 @@ export function buildSpace(ctx: BuildCtx, space: Space, map: SpaceMap): Built {
     for (const t of map.ticks.x) {
       const p = map.toPx([t, y0]);
       el('line', { x1: p.x, y1: p.y - 3, x2: p.x, y2: p.y + 3, stroke: AXIS }, fx);
-      text(fx, fmt(t), { x: p.x, y: p.y + 16, size: 11, weight: 400, fill: 'rgba(255,255,255,0.45)' });
-      const w = textWidth(fmt(t), 11, 400);
+      const lbl = map.log?.x ? fmtLog(t) : fmt(t);
+      text(fx, lbl, { x: p.x, y: p.y + 16, size: 11, weight: 400, fill: 'rgba(255,255,255,0.45)' });
+      const w = textWidth(lbl, 11, 400);
       (ctx.labels ??= []).push({ x: p.x - w / 2, y: p.y + 10, w, h: 12 });
     }
     for (const t of map.ticks.y) {
       if (t === y0) continue;
       const p = map.toPx([x0, t]);
       el('line', { x1: p.x - 3, y1: p.y, x2: p.x + 3, y2: p.y, stroke: AXIS }, fx);
-      text(fx, fmt(t), { x: p.x - 8, y: p.y, size: 11, weight: 400, fill: 'rgba(255,255,255,0.45)', anchor: 'end' });
-      const w = textWidth(fmt(t), 11, 400);
+      const lbl = map.log?.y ? fmtLog(t) : fmt(t);
+      text(fx, lbl, { x: p.x - 8, y: p.y, size: 11, weight: 400, fill: 'rgba(255,255,255,0.45)', anchor: 'end' });
+      const w = textWidth(lbl, 11, 400);
       (ctx.labels ??= []).push({ x: p.x - 8 - w, y: p.y - 6, w, h: 12 });
     }
-    if (space.xLabel) mathText(fx, space.xLabel, { x: inner.x + inner.w, y: ax.y - 14, size: 12, fill: INK_DIM, anchor: 'end' });
-    if (space.yLabel) mathText(fx, space.yLabel, { x: ay.x + 10, y: inner.y + 4, size: 12, fill: INK_DIM, anchor: 'start' });
+    if (space.xLabel) {
+      mathText(fx, space.xLabel, { x: inner.x + inner.w, y: ax.y - 14, size: 12, fill: INK_DIM, anchor: 'end' });
+      const w = textWidth(plain(space.xLabel), 12, 500);
+      (ctx.labels ??= []).push({ x: inner.x + inner.w - w, y: ax.y - 24, w, h: 18 });
+    }
+    if (space.yLabel) {
+      mathText(fx, space.yLabel, { x: ay.x + 10, y: inner.y + 4, size: 12, fill: INK_DIM, anchor: 'start' });
+      (ctx.labels ??= []).push({ x: ay.x + 10, y: inner.y - 6, w: textWidth(plain(space.yLabel), 12, 500), h: 18 });
+    }
   }
   return { entity: space as never, root, fx, box: map.box, draws, extra: { map } };
 }
@@ -133,7 +181,7 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
   const spaceId = 'space' in e ? (e as { space?: string }).space : undefined;
   const map = spaceId ? ctx.spaces.get(spaceId) : undefined;
   const P = (v: unknown): Pt | null => (Array.isArray(v) ? (map ? map.toPx(v as [number, number]) : null) : typeof v === 'string' ? ctx.anchor(v) : null);
-  const color = toneColor(e.tone, e.type === 'point' ? TONES.warning : e.type === 'plot' ? TONES.info : e.type === 'polygon' ? TONES.primary : INK);
+  const color = toneColor(e.tone, e.type === 'point' ? TONES.warning : e.type === 'plot' || e.type === 'curve' ? TONES.info : e.type === 'polygon' || e.type === 'area' ? TONES.primary : e.type === 'refline' ? INK_DIM : INK);
   const { root, fx } = shell(ctx, e.id);
   const glowFilter = `url(#${ctx.uid}-glow)`;
 
@@ -142,10 +190,15 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       const p = map!.toPx(e.at);
       const dot = el('circle', { cx: p.x, cy: p.y, r: 7, fill: color }, fx);
       if (e.label) {
-        mathText(fx, e.label, { x: p.x + 12, y: p.y - 16, size: 14, weight: 650, anchor: 'start' });
-        (ctx.labels ??= []).push({ x: p.x + 12, y: p.y - 26, w: textWidth(plain(e.label), 14, 650), h: 20 });
+        const spot = freeSpot(ctx, e.label, 14, [
+          { x: p.x + 12, y: p.y - 16, anchor: 'start' }, { x: p.x + 12, y: p.y + 20, anchor: 'start' },
+          { x: p.x - 12, y: p.y - 16, anchor: 'end' }, { x: p.x - 12, y: p.y + 20, anchor: 'end' },
+          { x: p.x, y: p.y - 22, anchor: 'middle' }, { x: p.x, y: p.y + 26, anchor: 'middle' },
+        ]);
+        mathText(fx, e.label, { x: spot.x, y: spot.y, size: 14, weight: 650, anchor: spot.anchor });
       }
-      return { entity: e, root, fx, box: { x: p.x - 12, y: p.y - 12, w: 24, h: 24 }, paint: { fill: dot, base: { fill: color, glow: 'none' } } };
+      (ctx.labels ??= []).push({ x: p.x - 8, y: p.y - 8, w: 16, h: 16 });
+      return { entity: e, root, fx, box: { x: p.x - 12, y: p.y - 12, w: 24, h: 24 }, paint: { fill: dot, base: { fill: color, glow: 'none' }, accentFill: true } };
     }
     case 'polygon': {
       const pts = (e.points as [number, number][]).map((q) => map!.toPx(q));
@@ -160,7 +213,7 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
         if (!name) return;
         const away = Math.atan2(p.y - c.y, p.x - c.x);
         const t = text(fx, name, { x: p.x + Math.cos(away) * 24, y: p.y + Math.sin(away) * 24, size: 18, weight: 700 });
-        parts.set(name, { paints: [{ fill: dot, text: t, base: { fill: INK, text: INK } }], at: p, box: { x: p.x - 8, y: p.y - 8, w: 16, h: 16 } });
+        parts.set(name, { paints: [{ fill: dot, text: t, base: { fill: INK, text: INK }, accentFill: true }], at: p, box: { x: p.x - 8, y: p.y - 8, w: 16, h: 16 } });
       });
       return { entity: e, root, fx, box: bounds(pts, 24), draws: [stroke], paint: { stroke, base: { stroke: color, glow: 'none' } }, part: (n) => parts.get(n) ?? null, extra: { fill } };
     }
@@ -197,23 +250,114 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       return { entity: e, root, fx, box: bounds([v, lp], 30), paint: { stroke: wedge, text: t, base: { stroke: angColor, glow: 'none', text: t.getAttribute('fill')! } }, extra: { degrees: w.deg } };
     }
     case 'plot': {
-      const f = compileExpr(e.expr);
-      const [x0, x1] = (e.domain as [number, number] | undefined) ?? map!.space.x;
-      const N = 200;
-      const pts: Pt[] = [];
-      const segs: Pt[][] = [[]];
-      for (let i = 0; i <= N; i++) {
-        const x = x0 + ((x1 - x0) * i) / N;
-        const y = f(x);
-        const inRange = Number.isFinite(y) && y >= map!.space.y[0] - (map!.space.y[1] - map!.space.y[0]) * 0.05 && y <= map!.space.y[1] * 1.05 + 1e-9;
-        if (!inRange) { if (segs[segs.length - 1].length) segs.push([]); continue; }
-        const p = map!.toPx([x, y]);
-        segs[segs.length - 1].push(p);
-        pts.push(p);
-      }
-      const d = segs.filter((s) => s.length > 1).map((s) => s.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')).join(' ');
+      // the server validated the expression; a draft that still fails draws nothing rather than crashing the lesson
+      let segs: Pt[][] = [];
+      try {
+        const sample = samplePlot(compileExpr(e.expr), (e.domain as [number, number] | undefined) ?? map!.space.x, map!.space.y, { xLog: map!.log?.x, yLog: map!.log?.y });
+        segs = sample.segments.map((s) => s.map((q) => map!.toPx(q)));
+      } catch { /* malformed expression */ }
+      const pts: Pt[] = segs.flat();
+      const d = segs.map((s) => s.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')).join(' ');
       const path = el('path', { d: d || 'M0,0', fill: 'none', stroke: color, 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, fx);
-      return { entity: e, root, fx, box: pts.length ? bounds(pts, 6) : map!.inner, draws: [path], paint: { stroke: path, base: { stroke: color } }, extra: { points: pts } };
+      const label = e.label ? curveLabel(ctx, fx, map!, segs, e.label, color) : undefined;
+      return { entity: e, root, fx, box: pts.length ? bounds(pts, 6) : map!.inner, draws: [path], paint: { stroke: path, ...(label ? { text: label } : {}), base: { stroke: color, ...(label ? { text: color } : {}) } }, extra: { points: pts } };
+    }
+    case 'curve': {
+      // parametric x(t), y(t) or polar r(θ); validated on the server, drawn with the same sampler
+      let segs: Pt[][] = [];
+      try {
+        const c = curveFns(e);
+        segs = sampleCurve(c.fx, c.fy, c.t, map!.space.x, map!.space.y, { xLog: map!.log?.x, yLog: map!.log?.y }).segments.map((s) => s.map((q) => map!.toPx(q)));
+      } catch { /* malformed curve */ }
+      const pts = segs.flat();
+      const d = segs.map((s) => s.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')).join(' ');
+      const path = el('path', { d: d || 'M0,0', fill: 'none', stroke: color, 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, fx);
+      const label = e.label ? curveLabel(ctx, fx, map!, segs, e.label, color) : undefined;
+      return { entity: e, root, fx, box: pts.length ? bounds(pts, 6) : map!.inner, draws: [path], paint: { stroke: path, ...(label ? { text: label } : {}), base: { stroke: color, ...(label ? { text: color } : {}) } }, extra: { points: pts } };
+    }
+    case 'area': {
+      // the region between a plot and the x-axis (or a y value, or a second plot), clamped to the frame
+      const upper = ctx.scene.entities.find((x) => x.id === e.plot);
+      const lowerPlot = typeof e.to === 'string' ? ctx.scene.entities.find((x) => x.id === e.to) : undefined;
+      const sp = map!.space;
+      const lim = (y: number) => Math.min(sp.y[1], Math.max(sp.y[0], y));
+      let polys: Pt[][] = [];
+      try {
+        if (!upper || upper.type !== 'plot') throw new Error('no plot');
+        const f = compileExpr(upper.expr);
+        const g = lowerPlot && lowerPlot.type === 'plot' ? compileExpr(lowerPlot.expr) : () => (typeof e.to === 'number' ? e.to : 0);
+        const [a, b] = (e.domain ?? upper.domain ?? sp.x) as [number, number];
+        const N = 240;
+        const runs: [number, number, number][][] = [[]];
+        for (let i = 0; i <= N; i++) {
+          const x = map!.log?.x ? 10 ** (Math.log10(a) + ((Math.log10(b) - Math.log10(a)) * i) / N) : a + ((b - a) * i) / N;
+          const y1 = f(x), y0 = g(x);
+          if (!Number.isFinite(y1) || !Number.isFinite(y0)) { if (runs[runs.length - 1].length) runs.push([]); continue; }
+          runs[runs.length - 1].push([x, lim(y1), lim(y0)]);
+        }
+        polys = runs.filter((r) => r.length > 1).map((r) => [...r.map(([x, y]) => map!.toPx([x, y])), ...r.reverse().map(([x, , y]) => map!.toPx([x, y]))]);
+      } catch { /* bound plot missing or malformed */ }
+      const shape = el('path', { d: polys.map((pg) => pg.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') + ' Z').join(' ') || 'M0,0', fill: color, 'fill-opacity': 0.3, stroke: 'none' }, fx);
+      // shading sits behind every curve and point in its space
+      const spaceRoot = ctx.layer.querySelector(`[data-id="${e.space}"]`); // ids are [A-Za-z0-9_-]: no escaping needed
+      if (spaceRoot?.nextSibling) ctx.layer.insertBefore(root, spaceRoot.nextSibling);
+      let label: SVGTextElement | undefined;
+      const pts = polys.flat();
+      if (e.label && pts.length) {
+        const bx = bounds(pts);
+        const cx = bx.x + bx.w / 2, cy = bx.y + bx.h * 0.62;
+        label = mathText(fx, e.label, { x: cx, y: cy, size: 15, weight: 650, fill: INK });
+        const lw = textWidth(plain(e.label), 15, 650);
+        (ctx.labels ??= []).push({ x: cx - lw / 2, y: cy - 11, w: lw, h: 22 });
+      }
+      return { entity: e, root, fx, box: pts.length ? bounds(pts) : map!.inner, paint: { fill: shape, base: { fill: color }, accentFill: true }, extra: { label } };
+    }
+    case 'refline': {
+      const { inner } = map!;
+      const vertical = e.x !== undefined;
+      const p = map!.toPx([vertical ? e.x! : map!.space.x[0], vertical ? map!.space.y[0] : e.y!]);
+      const [a, b]: Pt[] = vertical ? [{ x: p.x, y: inner.y + inner.h }, { x: p.x, y: inner.y }] : [{ x: inner.x, y: p.y }, { x: inner.x + inner.w, y: p.y }];
+      const line = el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: color, 'stroke-width': 1.8, 'stroke-dasharray': e.dashed ? '8 7' : undefined }, fx);
+      let label: SVGTextElement | undefined;
+      if (e.label) {
+        // along the line from its far end: top of a vertical line, right end of a horizontal one
+        const spots: Spot[] = vertical
+          ? [0.04, 0.2, 0.4, 0.6].flatMap((f) => { const y = b.y + (a.y - b.y) * f + 14; return [{ x: b.x + 8, y, anchor: 'start' as const }, { x: b.x - 8, y, anchor: 'end' as const }]; })
+          : [0, 0.25, 0.5].flatMap((f) => { const x = b.x - (b.x - a.x) * f - 6; return [{ x, y: b.y - 9, anchor: 'end' as const }, { x, y: b.y + 17, anchor: 'end' as const }]; });
+        const spot = freeSpot(ctx, e.label, 13, spots);
+        label = mathText(fx, e.label, { x: spot.x, y: spot.y, size: 13, weight: 600, fill: color, anchor: spot.anchor });
+      }
+      return { entity: e, root, fx, box: bounds([a, b], 4), draws: [line], paint: { stroke: line, ...(label ? { text: label } : {}), base: { stroke: color, ...(label ? { text: color } : {}) } } };
+    }
+    case 'curly': {
+      const a = P(e.from), b = P(e.to);
+      if (!a || !b) return null;
+      const cColor = toneColor(e.tone, TONES.accent);
+      const d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const ux = (b.x - a.x) / d, uy = (b.y - a.y) / d;
+      // bow the arc away from the molecule the electrons leave, like a hand-drawn mechanism arrow
+      const home = ctx.boxes.get(String(e.from).split('.')[0]);
+      const homeC = home ? { x: home.x + home.w / 2, y: home.y + home.h / 2 } : { x: a.x, y: a.y + 1 };
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const bow = Math.max(46, d * 0.42);
+      const sides = [1, -1].map((sg) => ({ x: mid.x - uy * bow * sg, y: mid.y + ux * bow * sg }));
+      const ctl = sides.sort((p, q) => Math.hypot(q.x - homeC.x, q.y - homeC.y) - Math.hypot(p.x - homeC.x, p.y - homeC.y))[0];
+      // stop short of an atom's ball; a bond or a lone pair is reached at its middle
+      const toPart = String(e.to).split('.')[1] ?? '';
+      const stop = /-/.test(toPart) && !toPart.startsWith('lp-') ? 10 : 34;
+      const tx = b.x - ctl.x, ty = b.y - ctl.y;
+      const tl = Math.hypot(tx, ty) || 1;
+      const end = { x: b.x - (tx / tl) * stop, y: b.y - (ty / tl) * stop };
+      const start = { x: a.x + ((ctl.x - a.x) / (Math.hypot(ctl.x - a.x, ctl.y - a.y) || 1)) * 6, y: a.y + ((ctl.y - a.y) / (Math.hypot(ctl.x - a.x, ctl.y - a.y) || 1)) * 6 };
+      const arc = el('path', { d: `M${start.x},${start.y} Q${ctl.x},${ctl.y} ${end.x},${end.y}`, fill: 'none', stroke: cColor, 'stroke-width': 2.8, 'stroke-linecap': 'round' }, fx);
+      // head along the curve's final direction: full for a pair, one barb (fishhook) for a single electron
+      const hx = (end.x - ctl.x), hy = (end.y - ctl.y);
+      const hl = Math.hypot(hx, hy) || 1;
+      const dx = hx / hl, dy = hy / hl;
+      const back = { x: end.x - dx * 15, y: end.y - dy * 15 };
+      const left = { x: back.x - dy * 8, y: back.y + dx * 8 }, right = { x: back.x + dy * 8, y: back.y - dx * 8 };
+      const head = el('path', { d: e.electrons === 1 ? `M${end.x},${end.y} L${left.x},${left.y}` : `M${left.x},${left.y} L${end.x},${end.y} L${right.x},${right.y} Z`, fill: e.electrons === 1 ? 'none' : cColor, stroke: cColor, 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, fx);
+      return { entity: e, root, fx, box: bounds([start, ctl, end], 12), draws: [arc], paint: { stroke: arc, base: { stroke: cColor } }, extra: { head } };
     }
     case 'vector': {
       const from = map!.toPx(e.from);
@@ -236,6 +380,7 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
     case 'body': {
       const p = map!.toPx(e.at);
       const r = BODY_R[e.size] ?? 11;
+      (ctx.labels ??= []).push({ x: p.x - r, y: p.y - r, w: 2 * r, h: 2 * r });
       const g = el('g', {}, fx);
       gsap.set(g, { x: p.x, y: p.y });
       el('circle', { r, fill: INK }, g);
@@ -246,7 +391,8 @@ export function buildSpatial(ctx: BuildCtx, e: EntityOf<any>): Built | null {
       return { entity: e, root, fx, box: { x: p.x - r, y: p.y - r, w: 2 * r, h: 2 * r }, paint: { base: { glow: 'none' } }, extra: { mover: g, map } };
     }
     case 'scatter': {
-      const palette = [TONES.primary, TONES.warning, TONES.success, TONES.accent, TONES.info];
+      // distinct colours in a fixed order (primary and warning are both amber); computed k-means centroids use the same order
+      const palette = [TONES.info, TONES.accent, TONES.success, TONES.primary, TONES.danger];
       const classes = [...new Set((e.points as { cls?: string }[]).map((p) => p.cls ?? ''))];
       const pts = (e.points as { at: [number, number]; cls?: string }[]).map((q) => {
         const p = map!.toPx(q.at);

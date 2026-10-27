@@ -73,28 +73,51 @@ export const PANEL_VISIBLE_STATES = ['TEACHING', 'RESPONDING', 'RESUMING', 'DOUB
 
 export const formatTopicTitle = (raw) => {
   if (!raw) return 'Session';
-  let title = raw.trim();
+  let title = String(raw).trim();
   
+  // Strip thought tags or context blocks if present
+  title = title.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+  const contextMatch = title.match(/Context: ".*?"\s*\n\nQuestion:\s*(.*)/is);
+  if (contextMatch && contextMatch[1]) {
+    title = contextMatch[1].trim();
+  }
+  title = title.replace(/^Question:\s*/i, '').trim();
+
+  // Strip conversational openers iteratively (e.g. "can you teach me", "please explain to me", etc.)
   let prev;
   do {
     prev = title;
-    title = title.replace(/^(can you|could you|please|explain|tell|show|teach|help|i want to learn|understanding|understand|me|to me|about|what|how|why|is|are|does|do|a|an|the)\s+/i, '');
+    title = title.replace(/^(?:can you|could you|would you|please|i want to learn|i want to know|teach me|tell me|show me|explain to me|help me with|help me|explain|describe)\s+(?:about\s+)?/i, '').trim();
   } while (title !== prev);
-  
-  title = title.replace(/\?+$/, '');
-  
-  title = title.split(' ')
-    .filter(w => w.length > 0)
-    .map(w => {
-      const smallWords = ['a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'and', 'or'];
-      if (smallWords.includes(w.toLowerCase())) return w.toLowerCase();
-      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-    })
-    .join(' ');
-    
-  if (title.length > 0) {
-    title = title.charAt(0).toUpperCase() + title.slice(1);
-  }
-  
-  return title.trim() || 'Session';
+
+  // Convert telegraphic "how find", "how calculate", or "how do i / can i" to "how to ..."
+  title = title.replace(/^how\s+(?:do\s+i|can\s+i|can\s+we|to)\s+/i, 'how to ');
+  title = title.replace(/^how\s+(find|calculate|derive|solve|compute|get|make|draw|integrate|differentiate|prove)\b/i, 'how to $1');
+
+  // Clean trailing punctuation and markdown formatting artifacts
+  title = title.replace(/[?.,!;:]+$/, '').trim();
+  title = title.replace(/^[`*#_~"']+|[`*#_~"']+$/g, '').trim();
+
+  if (!title) return 'Session';
+
+  // Words that stay lowercase unless they are the first word
+  const minorWords = new Set([
+    'a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'from',
+    'by', 'of', 'in', 'with', 'as', 'into', 'over'
+  ]);
+
+  const words = title.split(/\s+/).filter(Boolean);
+  const formatted = words.map((word, idx) => {
+    const lower = word.toLowerCase();
+    // Preserve well-known all-caps acronyms / identifiers (e.g. AI, DNA, HTML, CPU, 2D, 3D)
+    if (word.length > 1 && word === word.toUpperCase() && /^[A-Z0-9]+$/.test(word)) {
+      return word;
+    }
+    if (idx > 0 && minorWords.has(lower)) {
+      return lower;
+    }
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  }).join(' ');
+
+  return formatted.trim() || 'Session';
 };

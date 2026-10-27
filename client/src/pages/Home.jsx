@@ -12,7 +12,7 @@ import useTeachingMachine, { STATES } from '../hooks/useTeachingMachine';
 import useSceneAutoplay from '../hooks/useSceneAutoplay';
 const TeachingSession = React.lazy(() => import('../components/teaching/TeachingSession'));
 
-import API, { BASE_URL as API_URL, getCookie, getAuthHeaders } from '../services/api';
+import API, { BASE_URL as API_URL, getCookie, getAuthHeaders, acquireIdentitySlot, storeGuestToken } from '../services/api';
 
 // Canvas & Teaching Overlays
 const AgentCanvasRenderer = React.lazy(() => import('../components/canvas/AgentCanvasRenderer'));
@@ -35,6 +35,8 @@ import { useArtifactSocket } from '../hooks/useArtifactSocket';
 import { processSSEStream } from '../utils/sseStreamParser';
 import { ChatRequestError, fromServerError } from '../lib/chatErrors';
 import { createStreamPacer } from '../lib/streamPacer';
+import { chatTimings } from '../lib/chatTimings';
+import { resolveStartStep } from '../lib/lessonProgress';
 
 import { 
   Minimize2, Maximize2, Menu, 
@@ -389,45 +391,58 @@ const Home = ({ isDark }) => {
   const getMsgId = (suffix = '') => `msg-${Date.now()}-${++msgIdCounter.current}${suffix ? `-${suffix}` : ''}`;
 
 
-  // ── Smart Title Summarization Helper (Strict 2–3 words, single-line fit, no ellipses) ──
+  // ── Smart Title Summarization Helper (Clear, grammatically correct and natural title) ──
   const generateCleanTitle = useCallback((text) => {
     if (!text) return 'New Chat';
-    let clean = String(text);
-    // Strip Context block if it exists
-    const contextMatch = clean.match(/Context: ".*?"\n\nQuestion: (.*)/is);
-    if (contextMatch && contextMatch[1]) {
-      clean = contextMatch[1];
-    }
-    // Strip leading question/imperative prompts
-    clean = clean.replace(/^(can you please |could you please |please |can you |could you |explain |what is |what are |how does |how do |tell me about |give me |draw |show me |help me with |solve |calculate |write |create |plot )/i, '');
-    clean = clean.replace(/^Question:\s*/i, '');
-    clean = clean.replace(/^(the |a |an )/i, '');
+    let clean = String(text).trim();
 
-    // Strip punctuation, quotes, code brackets, markdown artifacts
+    // Strip thought tags or context blocks if present
+    clean = clean.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+    const contextMatch = clean.match(/Context: ".*?"\s*\n\nQuestion:\s*(.*)/is);
+    if (contextMatch && contextMatch[1]) {
+      clean = contextMatch[1].trim();
+    }
+    clean = clean.replace(/^Question:\s*/i, '').trim();
+
+    // Strip conversational openers iteratively
+    let prev;
+    do {
+      prev = clean;
+      clean = clean.replace(/^(?:can you|could you|would you|please|i want to learn|i want to know|teach me|tell me|show me|explain to me|help me with|help me|explain|describe)\s+(?:about\s+)?/i, '').trim();
+    } while (clean !== prev);
+
+    // Convert questions like "how do i find..." or telegraphic "how find" into "how to find..."
+    clean = clean.replace(/^how\s+(?:do\s+i|can\s+i|can\s+we|to)\s+/i, 'how to ');
+    clean = clean.replace(/^how\s+(find|calculate|derive|solve|compute|get|make|draw|integrate|differentiate|prove)\b/i, 'how to $1');
+
+    // Clean edge markdown and punctuation
     clean = clean.replace(/[`*#_~[\]{}()$"']/g, ' ');
-    clean = clean.replace(/[?.,!;:/\\]+/g, ' ');
+    clean = clean.replace(/[?.,!;:]+$/g, '').trim();
     clean = clean.replace(/\s+/g, ' ').trim();
 
     if (!clean) return 'New Chat';
 
-    // Comprehensive list of filler/stop words to extract key content words
-    const stopWords = new Set([
-      'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'in', 'at', 'of', 'on', 'and', 'or', 'a', 'an', 'to', 'for', 'with', 
-      'from', 'by', 'about', 'as', 'into', 'like', 'through', 'after', 'over', 'between', 
-      'out', 'against', 'during', 'without', 'before', 'under', 'around', 'among', 'that', 
-      'this', 'these', 'those', 'it', 'its', 'my', 'your', 'our', 'their', 'we', 'you', 'me', 'i',
-      'can', 'could', 'should', 'would', 'will', 'just', 'please', 'do', 'does', 'did'
+    // Limit to the first 6-7 meaningful words so it fits well on a single line
+    const words = clean.split(/\s+/).filter(Boolean);
+    const cappedWords = words.length > 7 ? words.slice(0, 7) : words;
+
+    const minorWords = new Set([
+      'a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'from',
+      'by', 'of', 'in', 'with', 'as', 'into', 'over'
     ]);
 
-    const allWords = clean.split(' ').filter(w => w && w.length > 0);
-    const contentWords = allWords.filter(w => !stopWords.has(w.toLowerCase()));
-
-    // Select exactly 2 to 3 words
-    const chosenWords = (contentWords.length >= 2 ? contentWords : allWords).slice(0, 3);
-    
-    // Format into Title Case
-    const title = chosenWords
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    const title = cappedWords
+      .map((w, idx) => {
+        const lower = w.toLowerCase();
+        // Preserve acronyms like AI, DNA, HTML, etc.
+        if (w.length > 1 && w === w.toUpperCase() && /^[A-Z0-9]+$/.test(w)) {
+          return w;
+        }
+        if (idx > 0 && minorWords.has(lower)) {
+          return lower;
+        }
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
       .join(' ')
       .trim();
 
@@ -526,16 +541,35 @@ const Home = ({ isDark }) => {
       const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(dbSessionId || '');
       const isMongoMsgId = /^[0-9a-fA-F]{24}$/.test(messageId || '');
-      if (isMongoId && isMongoMsgId) {
-        API.delete('/api/chat/message', { data: { sessionId: dbSessionId, messageId, startingFrom: true } })
-          .catch(err => console.error('[Home] Restore delete sync failed:', err));
-      }
+      const pruned = isMongoId && isMongoMsgId
+        ? API.delete('/api/chat/message', { data: { sessionId: dbSessionId, messageId, startingFrom: true } })
+          .catch(err => console.error('[Home] Restore delete sync failed:', err))
+        : Promise.resolve();
 
-      // Update sidebar history
       const updatedMessages = useTutorStore.getState().conversationMessages;
-      syncChatHistory(prev => prev.map(s => 
-        (s.id === dbSessionId || s._id === dbSessionId || s.id === sid) ? { ...s, messages: updatedMessages } : s
-      ));
+      const isThisChat = (s) => s.id === dbSessionId || s._id === dbSessionId || s.id === sid;
+      if (updatedMessages.length === 0) {
+        // Every message was undone: the conversation has nothing left in it, so it
+        // goes too (sidebar and server) — the question waits in the composer, and
+        // sending it starts a fresh conversation.
+        syncChatHistory(prev => prev.filter(s => !isThisChat(s)));
+        if (isMongoId) {
+          pruned.then(() => API.delete(`/api/sessions/${dbSessionId}`))
+            .catch(err => console.error('[Home] Removing the emptied conversation failed:', err));
+        }
+        submittingSessionsRef.current.delete(sid);
+        abortControllersRef.current.delete(sid);
+        useTutorStore.getState().setChatSessionId(null);
+        useTutorStore.getState().setSessionId(null);
+        clearConversation();
+        useTutorStore.getState().clearArtifacts();
+        setActiveChatId(null);
+        endSession();
+        localStorage.removeItem('tutorboard-active-chat');
+      } else {
+        // Update sidebar history
+        syncChatHistory(prev => prev.map(s => isThisChat(s) ? { ...s, messages: updatedMessages } : s));
+      }
     }
 
     // 3. Restore the targeted user prompt text directly back into the InputBar
@@ -559,7 +593,7 @@ const Home = ({ isDark }) => {
       type: 'info',
       duration: 3000
     });
-  }, [undoConfirmModal, activeChatId, syncChatHistory]);
+  }, [undoConfirmModal, activeChatId, syncChatHistory, clearConversation, endSession]);
 
   const handleUndoMessage = useCallback((targetMsgId = null, targetContent = null) => {
     // Resolve from parameters or lastSubmittedPrompt state
@@ -707,9 +741,19 @@ const Home = ({ isDark }) => {
             }
 
             import.meta.env.DEV && console.log(`[Home] ✅ Full state fetched. Restoring timeline (${steps.length} steps)...`);
-            
+
+            // Where the learner was in each of this conversation's lessons (step and sliders)
+            if (Array.isArray(fullData.artifacts)) {
+              for (const a of fullData.artifacts) {
+                if (a?.lessonProgress && (a.id || a._id)) useTutorStore.getState().rememberLessonPosition(String(a.id || a._id), a.lessonProgress);
+              }
+            }
+
             // Restore actual pedagogical timeline or direct canvas drawings
             if (visualSnapshot?.sceneV2 || visualSnapshot?.renderer === 'scene-v2' || visualSnapshot?.rendererType === 'scene-v2') {
+              const lessonId = latestVisualMsg?.metadata?.artifactId || null;
+              // reopened where the learner left it, paused (never replayed from the top)
+              const start = resolveStartStep(lessonId ? useTutorStore.getState().lessonPositions[lessonId] : null, steps.length > 0 ? steps.length : 1);
               useTutorStore.getState().setTimeline({
                 ...fullData,
                 title: visualSnapshot.title || fullData.title || localSession?.title || 'Saved Session',
@@ -718,7 +762,9 @@ const Home = ({ isDark }) => {
                 sceneV2: visualSnapshot.sceneV2,
                 steps: steps.length > 0 ? steps : [{}],
                 timeline: steps.length > 0 ? steps : [{}],
-                objects: fullData.canvasState || []
+                objects: fullData.canvasState || [],
+                artifactId: lessonId,
+                currentStepIndex: start.step,
               });
               if (latestVisualMsg?.id) {
                 useTutorStore.getState().setActiveSnapshotId(latestVisualMsg.id);
@@ -997,6 +1043,16 @@ const Home = ({ isDark }) => {
     if (snapshot) {
       const store = useTutorStore.getState();
       const isCurrentlyActive = store.activeSnapshotId === messageId;
+      // The lesson's saved id: the learner's place in it is kept against it
+      const sameMsg = (m) => m.id?.toString() === messageId?.toString() || m._id?.toString() === messageId?.toString();
+      const lessonMsg = store.conversationMessages.find(sameMsg) || session?.messages?.find(sameMsg);
+      const artifactId = lessonMsg?.metadata?.artifactId || null;
+      const lessonSteps = snapshot.steps || snapshot.canvasSteps || snapshot.timeline || [];
+      // Reopen where the learner left off (paused there — never replayed from the top)
+      const start = resolveStartStep(artifactId ? store.lessonPositions[artifactId] : null, lessonSteps.length);
+      if (start.changed) {
+        store.showToast?.({ message: 'This lesson was updated, so it starts from the first step.', type: 'info', duration: 3500 });
+      }
       
       if (isCurrentlyActive && store.canvasLayout !== 'inline') {
         // Toggle CLOSE: If already active and visible, hide it
@@ -1011,12 +1067,15 @@ const Home = ({ isDark }) => {
             renderer: 'scene-v2',
             sceneV2: snapshot.sceneV2,
             steps: snapshot.steps || snapshot.canvasSteps || [{}],
-            timeline: snapshot.steps || snapshot.canvasSteps || [{}]
+            timeline: snapshot.steps || snapshot.canvasSteps || [{}],
+            artifactId,
+            currentStepIndex: start.step,
           });
         } else {
           setCanvasSnapshot({
             ...snapshot,
-            currentStepIndex: snapshot.currentStepIndex || 0,
+            artifactId,
+            currentStepIndex: start.step,
           });
         }
         store.setActiveSnapshotId(messageId);
@@ -1171,6 +1230,9 @@ const Home = ({ isDark }) => {
     submittingSessionsRef.current.add(workingSessionId);
     activeChatIdRef.current = workingSessionId; // SYNC IMMEDIATELY to catch first stream chunks
     const streamToken = `stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Idempotency key: new for every intentional submission, the same for a retry of it.
+    const clientRequestId = retry?.requestId || `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    chatTimings.start(clientRequestId);
 
     setPrompt('');  // Clear input immediately
     setSelectedTextContext(null); // Clear context immediately
@@ -1195,6 +1257,7 @@ const Home = ({ isDark }) => {
       } else if (!isRegeneration && !editMessageId) {
         const result = addUserMessage(userPrompt, workingSessionId);
         userId = result.messageId || result.userId;
+        chatTimings.markAfterPaint(clientRequestId, 'user_message_rendered');
 
         setLastSubmittedPrompt({
           text: originalRawPrompt,
@@ -1253,8 +1316,6 @@ const Home = ({ isDark }) => {
       }
 
       const requestStartTime = Date.now();
-      // Idempotency key: new for every intentional submission, the same for a retry of it.
-      const clientRequestId = retry?.requestId || `chat-${requestStartTime}-${Math.random().toString(36).slice(2, 8)}`;
       clientRequestIdRef = clientRequestId;
       localUserMessageIdRef = userId;
 
@@ -1306,7 +1367,14 @@ const Home = ({ isDark }) => {
       const { signal } = controller;
       fetchOptions.signal = signal;
 
-      const res = await fetch(`${API_URL}${streamEndpoint}`, fetchOptions).catch(e => {
+      chatTimings.mark(clientRequestId, 'assistant_request_started');
+      // A guest's first question may create their identity: never alongside another one
+      const releaseIdentity = await acquireIdentitySlot(streamEndpoint);
+      fetchOptions.headers = { ...fetchOptions.headers, ...getAuthHeaders() };
+      const res = await fetch(`${API_URL}${streamEndpoint}`, fetchOptions)
+        .then((r) => { storeGuestToken(r.headers); return r; }) // stored before the next request's turn
+        .finally(releaseIdentity)
+        .catch(e => {
         if (e.name === 'AbortError' || e.message?.includes('aborted')) {
           // Skip setting name to avoid read-only property error
           throw e; 
@@ -1321,17 +1389,14 @@ const Home = ({ isDark }) => {
       }
 
       // Capture guest token issued by backend into localStorage as fallback
-      const guestTokenHeader = res.headers.get('x-guest-token');
-      if (guestTokenHeader) {
-        try { localStorage.setItem('tb-guest-token', guestTokenHeader); } catch(e) {}
-      }
+      storeGuestToken(res.headers);
 
       // ── 4. Real SSE Streaming ──
       clearSources();
       // One stable id for this answer: the placeholder, every chunk and the final
       // message all use it until the server's id replaces it (message_ids).
       assistantMsgId = targetAssistantId || getMsgId('assistant');
-      storeStartStreaming(assistantMsgId, workingSessionId, streamToken);
+      storeStartStreaming(assistantMsgId, workingSessionId, streamToken, clientRequestId);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -1349,7 +1414,12 @@ const Home = ({ isDark }) => {
       // Answer text is revealed a little every frame (see lib/streamPacer) so
       // provider-sized bursts read as a steady flow; it always goes to this
       // stream's own conversation, not whichever one is on screen.
-      pacer = createStreamPacer((text) => appendStreamChunk(text, workingSessionId, streamToken));
+      pacer = createStreamPacer((text) => {
+        appendStreamChunk(text, workingSessionId, streamToken);
+        if (!chatTimings.has(clientRequestId, 'first_assistant_token_rendered')) {
+          chatTimings.markAfterPaint(clientRequestId, 'first_assistant_token_rendered');
+        }
+      });
       const flushBuffers = () => pacer.flush();
 
       let lastActivityTime = Date.now();
@@ -1418,16 +1488,26 @@ const Home = ({ isDark }) => {
               workingSessionId = receivedSessionId; // update local pointer for subsequent chunks
             }
             useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+          } else if (eventType === 'progress') {
+            // What the server is doing for this request (chat status line), and
+            // for the lesson stage, the canvas lifecycle
+            useTutorStore.getState().applyRequestProgress(eventData, workingSessionId, streamToken);
+            useTutorStore.getState().handleProgressiveStreamEvent(eventData);
           } else if (eventType === 'canvas_skeleton' || eventType === 'scene_nodes' || eventType === 'scene_v2' || eventType === 'scene_branch' || eventType === 'scene_failed') {
             // the message's card shows what was actually drawn, not the planner's guess
             if (eventType === 'scene_v2' || eventType === 'scene_branch') currentCanvasTypeRef.current = 'scene-v2';
             if (eventType === 'scene_failed') currentCanvasTypeRef.current = null;
             useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+            if (eventType === 'scene_v2' || eventType === 'scene_nodes' || eventType === 'scene_branch') {
+              chatTimings.mark(clientRequestId, eventType === 'scene_v2' && eventData.partial ? 'artifact_specification_received' : 'artifact_ready');
+              chatTimings.markAfterPaint(clientRequestId, 'first_artifact_frame_rendered');
+            }
           } else if (eventType === 'chunk' || eventType === 'message') {
             const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
             
             if (text) {
               fullContent += text;
+              chatTimings.mark(clientRequestId, 'first_assistant_token_received');
               // Chunks always go to this stream's own conversation (keyed store), so
               // switching chats mid-answer neither leaks them into the chat on screen
               // nor loses them for when the learner comes back.
@@ -1634,6 +1714,7 @@ const Home = ({ isDark }) => {
       }
 
     flushBuffers(); // FINAL FLUSH of any remaining tokens
+      chatTimings.finish(clientRequestId, 'completed');
       import.meta.env.DEV && console.log("FULL RESPONSE (Client):", fullContent);
 
       // ── 5. Finalize streaming ──
@@ -1680,11 +1761,13 @@ const Home = ({ isDark }) => {
         // Stop was pressed: handleStopGeneration already kept the partial answer
         // (marked as stopped). Nothing else to undo — the canvas stays as it is.
         pacer?.cancel();
+        chatTimings.finish(clientRequestId, 'cancelled');
         import.meta.env.DEV && console.log('[Home] AI request aborted by user.');
         useTutorStore.getState().setWaitingForAI(false, failedSessionId);
         return;
       }
       pacer?.flush();
+      chatTimings.finish(clientRequestId, 'failed');
       console.error('[Home] handleSubmit failed:', err);
       // A TypeError from fetch/reader is the network: before the stream opened it
       // is "connection lost", after it the answer was cut off mid-way.
@@ -1885,7 +1968,7 @@ const Home = ({ isDark }) => {
         const requestStartTime = Date.now();
 
         // Start UI streaming state
-        storeStartStreaming(finalTargetId, dbSessionId, streamToken);
+        storeStartStreaming(finalTargetId, dbSessionId, streamToken, clientRequestId);
         regenPacer = createStreamPacer((t) => appendStreamChunk(t, dbSessionId, streamToken));
 
         let lastStreamSources = [];
@@ -1909,7 +1992,10 @@ const Home = ({ isDark }) => {
             lastActivityTime = Date.now();
             if (eventType === 'end') { streamEnded = true; return; }
 
-            if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes' || eventType === 'scene_v2' || eventType === 'scene_branch' || eventType === 'scene_failed') {
+            if (eventType === 'progress') {
+              useTutorStore.getState().applyRequestProgress(eventData, dbSessionId, streamToken);
+              useTutorStore.getState().handleProgressiveStreamEvent(eventData);
+            } else if (eventType === 'meta' || eventType === 'canvas_skeleton' || eventType === 'scene_nodes' || eventType === 'scene_v2' || eventType === 'scene_branch' || eventType === 'scene_failed') {
               useTutorStore.getState().handleProgressiveStreamEvent(eventData);
             } else if (eventType === 'chunk' || eventType === 'message') {
               const text = eventData.chunk || eventData.content || (typeof eventData === 'string' ? eventData : '');
@@ -2002,6 +2088,18 @@ const Home = ({ isDark }) => {
   };
 
   // ── Delete Message Handler ──
+  // ── "Try again" on a visual that failed (canvas status view) ──
+  useEffect(() => {
+    const onRetryLesson = (e) => {
+      const messageId = e.detail?.messageId;
+      if (messageId) handleRegenerateMessage(messageId);
+    };
+    window.addEventListener('tb:retry-lesson', onRetryLesson);
+    return () => window.removeEventListener('tb:retry-lesson', onRetryLesson);
+    // handleRegenerateMessage is a fresh closure each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+
   const handleDeleteMessage = useCallback(async (messageId) => {
     deleteMessageById(messageId);
     const dbSessionId = useTutorStore.getState().chatSessionId || activeChatId;
@@ -2079,7 +2177,11 @@ const Home = ({ isDark }) => {
       controller.abort();
       abortControllersRef.current.delete(targetId);
     }
-    
+
+    // A visual lesson still being prepared for this answer is cancelled, not
+    // finished (before the stores below forget which message it belongs to).
+    useTutorStore.getState().handleProgressiveStreamEvent({ type: 'lesson_cancelled' });
+
     // 2. Abort visual generation in teaching machine
     machine.cancelSession();
     

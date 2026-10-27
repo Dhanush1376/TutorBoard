@@ -36,7 +36,7 @@ type Cam = { x: number; y: number; scale: number };
 
 export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: BeatTiming[]; fit: Cam } {
   const tl = gsap.timeline({ paused: true });
-  const fit = fitTransform(c.world, c.view, 1.6, 18, 1.18);
+  const fit = fitTransform(c.world, c.view, 1.4, 24, 0.95);
   gsap.set(c.camera, { x: fit.x, y: fit.y, scale: fit.scale, svgOrigin: '0 0' });
 
   const order = new Map<string, string[]>();
@@ -86,7 +86,8 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
   const anchorOf = (built: Built, map: SpaceMap): Pt => {
     const e = built.entity as { at?: unknown; from?: unknown; points?: unknown[]; vertex?: unknown };
     const first = e.at ?? e.from ?? e.vertex ?? e.points?.[0];
-    const q = (first && typeof first === 'object' && 'at' in (first as object) ? (first as { at: unknown }).at : first) as unknown;
+    // a { at } object, not an array: arrays have an .at() method, so `'at' in [x, y]` is true
+    const q = (first && typeof first === 'object' && !Array.isArray(first) && 'at' in (first as object) ? (first as { at: unknown }).at : first) as unknown;
     return Array.isArray(q) && q.length === 2 ? map.toPx(q as [number, number]) : { x: built.box.x + built.box.w / 2, y: built.box.y + built.box.h / 2 };
   };
   const boundsOf = (pts: Pt[]): Box => {
@@ -97,7 +98,7 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
   const paint = (p: Paint, state: string, at: number, dur: number) => {
     const s = STATES[state] ?? STATES.default;
     const isDefault = state === 'default';
-    if (p.fill) tl.to(p.fill, { attr: { fill: isDefault ? p.base.fill ?? s.fill : s.fill }, duration: dur, ease: EASE.enter }, at);
+    if (p.fill) tl.to(p.fill, { attr: { fill: isDefault ? p.base.fill ?? s.fill : p.accentFill ? s.stroke : s.fill }, duration: dur, ease: EASE.enter }, at);
     if (p.stroke) {
       const stroke = isDefault ? p.base.stroke ?? s.stroke : s.stroke;
       tl.to(p.stroke, { attr: { stroke }, duration: dur, ease: EASE.enter }, at);
@@ -122,6 +123,9 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
       return it ? [it.paint] : [];
     }
     if (part !== undefined) return built.part?.(part)?.paints ?? [];
+    // a whole whose highlights live on its parts (table cells, compartment parts)
+    const partPaints = built.extra?.partPaints as Paint[] | undefined;
+    if (partPaints) return [...(built.paint ? [built.paint] : []), ...partPaints];
     if (built.paint) return [built.paint];
     return (order.get(base) ?? []).map((key) => built.items!.get(key)!.paint);
   };
@@ -229,17 +233,21 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
     const space = 'space' in built.entity ? (built.entity as { space?: string }).space : undefined;
     if (space) t += showSpace(space, t);
     const type = built.entity.type;
-    const fx = effect ?? (['line', 'arrow', 'path', 'plot', 'polygon', 'angle'].includes(type) ? 'draw' : type === 'math' ? 'type' : INDEXED.has(type) || type === 'molecule' || type === 'point' || type === 'body' ? 'pop' : 'fade');
+    const fx = effect ?? (['line', 'arrow', 'path', 'plot', 'curve', 'refline', 'polygon', 'angle', 'curly', 'reaction'].includes(type) ? 'draw' : type === 'math' ? 'type' : INDEXED.has(type) || type === 'molecule' || type === 'point' || type === 'body' ? 'pop' : 'fade');
     const d = (fx === 'draw' ? DUR.draw : fx === 'type' ? DUR.type : DUR.create) * pace;
     const itemGs = new Set(itemsOf(built).map((i) => i.g));
+    let drawTail = 0;
     switch (fx) {
       case 'draw': {
         tl.set(built.fx, { opacity: 1 }, t);
         const draws = built.draws ?? [];
-        if (draws.length) tl.fromTo(draws, { drawSVG: '0%' }, { drawSVG: '100%', duration: d, ease: EASE.draw, stagger: draws.length > 1 ? Math.min(0.12, (d * 0.5) / draws.length) : 0, immediateRender: false }, t);
+        const stagger = draws.length > 1 ? Math.min(0.12, (d * 0.5) / draws.length) : 0;
+        if (draws.length) tl.fromTo(draws, { drawSVG: '0%' }, { drawSVG: '100%', duration: d, ease: EASE.draw, stagger, immediateRender: false }, t);
         const rest = [...built.fx.children].filter((ch) => !draws.includes(ch as SVGGeometryElement) && !itemGs.has(ch as SVGGElement));
         const restOpacity = rest.map((r) => Number(r.getAttribute('opacity') ?? 1));
         if (rest.length) tl.fromTo(rest, { opacity: 0 }, { opacity: (i: number) => restOpacity[i], duration: 0.4, immediateRender: false, stagger: 0.03 }, t + d * 0.55);
+        // a drawing of many strokes (a schematic, a gate diagram) ends after its last stroke and fade, not after the first
+        drawTail = Math.max(d + stagger * Math.max(0, draws.length - 1), rest.length ? d * 0.55 + 0.4 + 0.03 * (rest.length - 1) : 0) - d;
         break;
       }
       case 'pop':
@@ -269,7 +277,7 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
       if (type === 'stack' || type === 'queue') syncPointers(built, t + 0.2, 0.01);
       return t - at + Math.max(d, 0.1 + keys.length * DUR.stagger + 0.45 * pace);
     }
-    return t - at + d;
+    return t - at + d + drawTail;
   };
 
   const remove = (id: string, effect: string | undefined, at: number, pace: number): number => {
@@ -294,6 +302,14 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
   const onWire = (r: Box, own: Pt[]) => wires.some((q) => !own.includes(q) && q.x > r.x && q.x < r.x + r.w && q.y > r.y && q.y < r.y + r.h);
   const hits = (r: Box, pad = 6) => [...occupied, ...tips].some((o) => r.x < o.x + o.w + pad && o.x < r.x + r.w + pad && r.y < o.y + o.h + pad && o.y < r.y + r.h + pad);
 
+  /** Where each callout sits, so its room is released when it goes. */
+  const noteBoxes = new Map<SVGGElement, Box>();
+  const freeNote = (g: SVGGElement) => {
+    const r = noteBoxes.get(g);
+    const i = r ? occupied.indexOf(r) : -1;
+    if (i >= 0) occupied.splice(i, 1);
+    noteBoxes.delete(g);
+  };
   const callout = (ref: string, note: string, side: string | undefined, b: number, k: number, at: number, pace: number): number => {
     const box = boxOf(ref, b, k);
     if (!box) return 0;
@@ -314,12 +330,16 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
     const sides = [side ?? 'below', 'below', 'above', 'right', 'left'].filter((v, i, arr) => arr.indexOf(v) === i);
     let s = sides[0];
     let r = place(s, 28);
-    search: for (const gap of [28, 70, 120]) for (const cand of sides) {
+    // the requested side one tier further out beats a sideways callout (pointers on neighbouring cells stack instead of crossing them)
+    // tiers a full callout apart (height 40 + clearance), so a second-tier callout clears the first
+    const tries: [string, number][] = [[sides[0], 28], [sides[0], 80], ...sides.slice(1).map((v) => [v, 28] as [string, number]), ...[80, 132].flatMap((g) => sides.map((v) => [v, g] as [string, number]))];
+    for (const [cand, gap] of tries) {
       const q = place(cand, gap);
-      if (!hits(q)) { s = cand; r = q; break search; }
+      if (!hits(q)) { s = cand; r = q; break; }
     }
     occupied.push(r);
     const g = el('g', { opacity: 0 }, c.overlay);
+    noteBoxes.set(g, r);
     const ax = s === 'left' ? box.x - 4 : s === 'right' ? box.x + box.w + 4 : cx;
     const ay = s === 'above' ? box.y - 4 : s === 'below' ? box.y + box.h + 4 : cy;
     const bx = s === 'left' ? r.x + w : s === 'right' ? r.x : r.x + w / 2;
@@ -329,9 +349,11 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
     // an equation-like note ("v_y = 0", "x^2 ≥ 0") reads as maths; "max_heap" stays as written
     const asMath = /\\[a-zA-Z]/.test(note) || (/[_^]/.test(note) && /[=<>≤≥≠≈±]/.test(note));
     (asMath ? mathText : text)(g, note, { x: r.x + w / 2, y: r.y + h / 2 + 1, size: 15, weight: 700, fill: '#F4F4F4' });
-    notes.get(ref)?.remove();
-    notes.set(ref, g);
     const d = DUR.annotate * pace;
+    // a new note on the same element replaces the old one from this moment on (the old one still shows in earlier beats)
+    const prev = notes.get(ref);
+    if (prev) { tl.to(prev, { opacity: 0, duration: d * 0.5 }, at); freeNote(prev); }
+    notes.set(ref, g);
     tl.fromTo(g, { opacity: 0, y: s === 'above' ? 8 : -8 }, { opacity: 1, y: 0, duration: d, ease: EASE.enter, immediateRender: false }, at);
     return d;
   };
@@ -590,6 +612,13 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
           nx.values.set(nodePart, String(a.value));
           return d * 2;
         }
+        const cells = built.extra?.cells as Map<string, SVGTextElement> | undefined;
+        if (nodePart !== undefined && cells && a.value !== undefined) {
+          const t = cells.get(nodePart);
+          if (!t) return 0;
+          tl.to(t, { text: String(a.value), duration: d, ease: 'none' }, at);
+          return d * 2;
+        }
         if (index !== undefined && a.value !== undefined) {
           const key = c.sim.keyAt(b, k, a.target);
           const it = key ? built.items?.get(key) : undefined;
@@ -644,6 +673,7 @@ export function compileScene(c: CompileCtx): { tl: gsap.core.Timeline; beats: Be
         const g = notes.get(a.target);
         if (!g) return 0;
         tl.to(g, { opacity: 0, duration: 0.3 }, at);
+        freeNote(g); // its room is free for later callouts
         return 0.3;
       }
       case 'connect': {

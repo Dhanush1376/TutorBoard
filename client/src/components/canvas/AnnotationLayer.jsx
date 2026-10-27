@@ -1,8 +1,10 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import useAnnotationStore, { INKS, NOTE_COLORS } from '../../store/annotationStore';
+import useAnnotationStore, { INKS, NOTE_COLORS, NOTE_FONTS } from '../../store/annotationStore';
+import useTutorStore from '../../store/tutorStore';
+import { cleanFormulaText, formatNoteMathText, hasMathMarkup } from '../../utils/mathTextUtils';
 
 /*
  * The learner's layer on top of the canvas: pen, highlighter and eraser
@@ -107,7 +109,15 @@ function StickyNote({ note, bounds }) {
     const el = ta.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, LINE * 4), LINE * 9)}px`;
+    const maxHeight = LINE * 7;
+    const targetHeight = Math.max(el.scrollHeight, LINE * 4);
+    if (targetHeight > maxHeight) {
+      el.style.height = `${maxHeight}px`;
+      el.style.overflowY = 'auto';
+    } else {
+      el.style.height = `${targetHeight}px`;
+      el.style.overflowY = 'hidden';
+    }
   }, [note.text]);
 
   // The whole sheet is the handle, except where you write or press a control.
@@ -135,6 +145,24 @@ function StickyNote({ note, bounds }) {
     drag.current = null;
     setDragging(false);
   };
+
+  const jumpToSource = useCallback((e) => {
+    e.stopPropagation();
+    if (!note.source) return;
+
+    // Ensure chat sidebar is open
+    useTutorStore.getState().setSidebarOpen(true);
+
+    // Dispatch direct jump event to ChatWindow virtualizer
+    window.dispatchEvent(
+      new CustomEvent('scroll-to-quote', {
+        detail: {
+          messageId: note.messageId,
+          quote: note.source,
+        },
+      })
+    );
+  }, [note.source, note.messageId]);
 
   const ruling = `repeating-linear-gradient(to bottom, transparent 0, transparent ${LINE - 1}px, ${c.line} ${LINE - 1}px, ${c.line} ${LINE}px)`;
 
@@ -209,11 +237,28 @@ function StickyNote({ note, bounds }) {
                 }}
               />
             ))}
+            {NOTE_FONTS.length > 1 && (
+              <button
+                type="button"
+                aria-label="Change handwriting font"
+                title="Change font"
+                onClick={() => {
+                  const fonts = NOTE_FONTS.map((f) => f.id);
+                  const currIdx = fonts.indexOf(note.font || 'patrick');
+                  const nextFont = fonts[(currIdx + 1) % fonts.length];
+                  updateNote(note.id, { font: nextFont }, true);
+                }}
+                className="ml-0.5 grid h-5 w-5 cursor-pointer place-items-center rounded-full text-[11px] font-semibold opacity-60 transition-all hover:bg-black/[0.08] hover:opacity-100"
+                style={{ color: c.ink }}
+              >
+                F
+              </button>
+            )}
             <button
               type="button"
               aria-label="Remove note"
               onClick={() => removeNote(note.id)}
-              className="ml-1 grid h-6 w-6 cursor-pointer place-items-center rounded-full opacity-55 transition-opacity hover:bg-black/[0.07] hover:opacity-100"
+              className="grid h-6 w-6 cursor-pointer place-items-center rounded-full opacity-55 transition-opacity hover:bg-black/[0.07] hover:opacity-100"
             >
               <X size={13} strokeWidth={2} />
             </button>
@@ -221,17 +266,69 @@ function StickyNote({ note, bounds }) {
         </div>
 
         {note.source && (
-          <div className="relative mx-4 mb-2 border-l-[1.5px] pl-2 text-[11.5px] leading-[1.45] opacity-70" style={{ borderColor: c.ink }}>
-            <span className="line-clamp-4">“{note.source}”</span>
+          <div className="relative mx-4 mb-2 flex items-start gap-1">
+            <button
+              type="button"
+              onClick={jumpToSource}
+              title="Jump to source in chat"
+              className="group/source relative flex-1 cursor-pointer border-l-[1.5px] pl-2 text-left text-[11.5px] leading-[1.45] opacity-75 transition-all hover:opacity-100 hover:border-l-[2.5px]"
+              style={{ borderColor: c.ink }}
+            >
+              {(() => {
+                const formattedMath = formatNoteMathText(note.source);
+                if (formattedMath) {
+                  return (
+                    <span
+                      className="line-clamp-3 group-hover/source:underline font-serif"
+                      dangerouslySetInnerHTML={{ __html: `“${formattedMath}”` }}
+                    />
+                  );
+                }
+                const cleanSource = cleanFormulaText(note.source);
+                return <span className="line-clamp-3 group-hover/source:underline">“{cleanSource}”</span>;
+              })()}
+            </button>
+            <button
+              type="button"
+              aria-label="Remove quote preview"
+              title="Remove quote"
+              onClick={(e) => {
+                e.stopPropagation();
+                updateNote(note.id, { source: null, messageId: null }, true);
+              }}
+              className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-full opacity-40 transition-opacity hover:bg-black/[0.08] hover:opacity-100"
+              style={{ color: c.ink }}
+            >
+              <X size={11} strokeWidth={2.4} />
+            </button>
           </div>
         )}
 
         {/* Ruled writing area: the lines carry on to the bottom of the sheet */}
         <div className="relative flex-1 px-4 pb-6" style={{ backgroundImage: ruling, backgroundPosition: '0 0' }}>
+          {/* Always-editable textarea */}
           <textarea
             ref={ta}
             value={note.text}
             onChange={(e) => updateNote(note.id, { text: e.target.value })}
+            onPaste={(e) => {
+              const pasted = e.clipboardData?.getData('text');
+              if (pasted) {
+                const cleaned = cleanFormulaText(pasted);
+                if (cleaned !== pasted) {
+                  e.preventDefault();
+                  const target = e.target;
+                  const start = target.selectionStart ?? 0;
+                  const end = target.selectionEnd ?? 0;
+                  const current = target.value || '';
+                  const nextText = current.slice(0, start) + cleaned + current.slice(end);
+                  updateNote(note.id, { text: nextText });
+                  requestAnimationFrame(() => {
+                    target.selectionStart = target.selectionEnd = start + cleaned.length;
+                  });
+                }
+              }
+            }}
             onFocus={() => {
               setWriting(true);
               bringToFront(note.id);
@@ -240,9 +337,31 @@ function StickyNote({ note, bounds }) {
             placeholder={note.source ? 'Your thought…' : 'Write something…'}
             rows={4}
             spellCheck={false}
-            className="tb-note-hand relative block w-full cursor-text resize-none overflow-hidden bg-transparent p-0 outline-none placeholder:opacity-40"
+            className={`tb-note-hand tb-note-font-${note.font || 'patrick'} relative block w-full cursor-text resize-none bg-transparent p-0 outline-none placeholder:opacity-40 ${
+              !writing && note.text && (hasMathMarkup(note.text) || formatNoteMathText(note.text))
+                ? 'opacity-0'
+                : 'opacity-100'
+            }`}
             style={{ color: c.ink, lineHeight: `${LINE}px`, paddingTop: 3 }}
           />
+
+          {/* Formatted Math Overlay when not typing: crisp KaTeX math rendered over the ruled lines */}
+          {!writing && note.text && (hasMathMarkup(note.text) || formatNoteMathText(note.text)) && (
+            <div
+              aria-hidden="true"
+              className={`tb-note-hand tb-note-font-${note.font || 'patrick'} pointer-events-none absolute inset-x-4 top-0 overflow-hidden select-none`}
+              style={{
+                color: c.ink,
+                lineHeight: `${LINE}px`,
+                paddingTop: 3,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+              dangerouslySetInnerHTML={{
+                __html: formatNoteMathText(note.text) || note.text,
+              }}
+            />
+          )}
         </div>
       </div>
 

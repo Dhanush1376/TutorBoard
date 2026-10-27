@@ -125,3 +125,6 @@ export const PACE: Record<string, number> = { slow: 1.35, normal: 1, fast: 0.7 }
 
 /** Time the learner gets to read a beat's narration, beyond its animation. */
 export const readingSeconds = (text: string) => Math.max(1.2, text.trim().split(/\s+/).length * 0.3);
+
+/** A reaction arrow's box: room for conditions above the arrow. */
+export const REACTION = { minW: 120, h: 70, arrowY: 44 };

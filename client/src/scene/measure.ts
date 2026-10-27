@@ -4,11 +4,14 @@
  * entity will reach in the scene (max data-structure length, longest text it
  * will be set to), so nothing reflows mid-lesson.
  */
+import { layoutCompartment, type CompLayout } from '../../../server/engine/scene/compartments';
+import { layoutCircuit, type CircuitLayout } from '../../../server/engine/scene/circuits';
+import { layoutLogic, type LogicLayout } from '../../../server/engine/scene/logic';
 import {
   graphLayout, moleculeLayout, MoleculeGeo, NodeGeo, spaceSize, textWidth, treeLayout,
 } from './geometry';
 import type { Sim } from './simulate';
-import { CELL, FONT_MONO, SIZE_PX } from './tokens';
+import { CELL, FONT_MONO, REACTION, SIZE_PX } from './tokens';
 import type { Entity, Scene } from './types';
 
 export const TEXT_ROLE: Record<string, { size: number; weight: number; mono?: boolean }> = {
@@ -32,6 +35,9 @@ export type Measured = {
   /** vertical offset of the entity's body below its label */
   bodyY: number;
   mol?: MoleculeGeo;
+  comp?: CompLayout;
+  circuit?: CircuitLayout;
+  logic?: LogicLayout;
   nodes?: NodeGeo;
   lines?: string[];
   colW?: number[];
@@ -136,8 +142,15 @@ export function measureEntity(e: Entity, scene: Scene, sim: Sim, latexSize = est
     }
     case 'table': {
       const cols = Math.max(e.columns?.length ?? 0, ...e.rows.map((r) => r.length));
+      // values "set" into cells later in the lesson need room too
+      const later = new Map<number, string[]>();
+      for (const bt of scene.beats) for (const a of bt.actions) {
+        if (a.do !== 'set' || a.value === undefined || typeof a.target !== 'string' || !a.target.startsWith(`${e.id}.r`)) continue;
+        const m = /c(\d+)$/.exec(a.target);
+        if (m) later.set(Number(m[1]), [...(later.get(Number(m[1])) ?? []), String(a.value)]);
+      }
       const colW = Array.from({ length: cols }, (_, c) => {
-        const cells = [e.columns?.[c] ?? '', ...e.rows.map((r) => String(r[c] ?? ''))];
+        const cells = [e.columns?.[c] ?? '', ...e.rows.map((r) => String(r[c] ?? '')), ...(later.get(c) ?? [])];
         return Math.max(72, ...cells.map((t) => textWidth(t, 17, 500) + 36));
       });
       const rows = e.rows.length + (e.columns ? 1 : 0);
@@ -146,6 +159,22 @@ export function measureEntity(e: Entity, scene: Scene, sim: Sim, latexSize = est
     case 'molecule': {
       const mol = moleculeLayout(e);
       return { w: mol.box.w, h: mol.box.h + top, bodyY: top, mol };
+    }
+    case 'circuit': {
+      const lay = layoutCircuit(e);
+      return { w: lay.w, h: lay.h + top, bodyY: top, circuit: lay };
+    }
+    case 'logic': {
+      const lay = layoutLogic(e);
+      return { w: lay.w, h: lay.h + top, bodyY: top, logic: lay };
+    }
+    case 'compartment': {
+      const lay = layoutCompartment(e);
+      return { w: lay.w, h: lay.h + top, bodyY: top, comp: lay };
+    }
+    case 'reaction': {
+      const w = Math.max(REACTION.minW, (e.conditions ? textWidth(e.conditions, 15, 600) : 0) + 48);
+      return { w, h: REACTION.h + top, bodyY: top };
     }
     case 'network': {
       const maxN = Math.max(...e.layers);

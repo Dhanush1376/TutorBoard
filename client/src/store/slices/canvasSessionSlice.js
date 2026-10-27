@@ -64,7 +64,9 @@ export const createCanvasSessionSlice = (set, get) => ({
    * Does NOT affect other open artifacts (isolation guarantee).
    */
   openArtifactOnCanvas: (artifact) => {
-    const { id, type, title, rendererType, content } = artifact;
+    // sceneV2 / sceneGraph / metadata / canvasSnapshot were read below but never
+    // declared: the ReferenceError aborted loading, so the scene was never drawn.
+    const { id, type, title, rendererType, content, sceneV2, sceneGraph, metadata, canvasSnapshot, alreadyLoaded } = artifact;
 
     set((state) => {
       // Don't duplicate
@@ -89,6 +91,10 @@ export const createCanvasSessionSlice = (set, get) => ({
         state.rendererStack.push(rendererType);
       }
     });
+
+    // The caller already put this lesson on the canvas (at the learner's saved
+    // step): loading it again would restart it from the first step.
+    if (alreadyLoaded) return;
 
     // CRITICAL: Actually load the artifact's data into the canvas scene
     try {

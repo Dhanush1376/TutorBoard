@@ -92,7 +92,8 @@ const LeftPanel = ({
   const observerRef = useRef(null);
   const loaderCallbackRef = useCallback((node) => {
     if (observerRef.current) observerRef.current.disconnect();
-    if (!node || !hasMore || isLoadingMore || searchQuery.trim() || isGuest) return;
+    // guests page through their history too: hiding older pages made their chats look deleted
+    if (!node || !hasMore || isLoadingMore || searchQuery.trim()) return;
 
     observerRef.current = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
@@ -101,7 +102,7 @@ const LeftPanel = ({
     }, { threshold: 0.1 });
 
     observerRef.current.observe(node);
-  }, [hasMore, isLoadingMore, searchQuery, isGuest, onLoadMore]);
+  }, [hasMore, isLoadingMore, searchQuery, onLoadMore]);
 
   useEffect(() => {
     return () => observerRef.current?.disconnect();
@@ -119,6 +120,9 @@ const LeftPanel = ({
     [...base].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).forEach(s => {
       const sid = s.id || s._id;
       if (!sid || seen.has(sid)) return;
+      // a conversation with no question in it (e.g. every message undone) is not listed
+      // (entries restored from the local cache carry no messages: they stay listed)
+      if (Array.isArray(s.messages) && !s.messages.some((m) => m?.role === 'user')) return;
       seen.add(sid);
       unique.push(s);
     });
@@ -131,7 +135,7 @@ const LeftPanel = ({
     if (activeView === 'chat') {
       return (
         <div className="flex flex-col gap-2 relative h-full">
-          <div className="sticky top-0 z-[15] -mx-1 mb-2 flex items-center justify-between border-b border-[var(--st-line)] bg-[var(--bg-primary)] px-1 pb-2 pt-1">
+          <div className={`sticky top-0 z-[15] -mx-1 flex items-center justify-between border-b border-[var(--st-line)] bg-[var(--bg-primary)] px-1 ${isMobile ? 'mb-2.5 pb-2.5 pt-2' : 'mb-3 pb-3 pt-2'}`}>
             <button
               onClick={() => {
                 setActiveView('history');
@@ -141,28 +145,28 @@ const LeftPanel = ({
                 store.setActiveSnapshotId(null);
                 store.clearArtifacts();
               }}
-              className="group inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95"
+              className="group inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95"
             >
-              <ChevronLeft size={14} strokeWidth={2.2} className="transition-transform group-hover:-translate-x-0.5" />
+              <ChevronLeft size={15} strokeWidth={2.2} className="transition-transform group-hover:-translate-x-0.5" />
               <span>Sessions</span>
             </button>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => onExport?.('pdf')}
-                className="grid h-7 w-7 cursor-pointer place-items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill)]/50 text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill-strong)] hover:border-[var(--st-line-strong)] hover:text-[var(--text-primary)] active:scale-95"
+                className="grid h-8 w-8 cursor-pointer place-items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill)]/50 text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill-strong)] hover:border-[var(--st-line-strong)] hover:text-[var(--text-primary)] active:scale-95"
                 title="Export as PDF"
                 aria-label="Export as PDF"
               >
-                <FileText size={13.5} strokeWidth={1.8} />
+                <FileText size={14} strokeWidth={1.8} />
               </button>
               <button
                 onClick={() => onExport?.('docx')}
-                className="grid h-7 w-7 cursor-pointer place-items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill)]/50 text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill-strong)] hover:border-[var(--st-line-strong)] hover:text-[var(--text-primary)] active:scale-95"
+                className="grid h-8 w-8 cursor-pointer place-items-center rounded-full border border-[var(--st-line)] bg-[var(--st-fill)]/50 text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill-strong)] hover:border-[var(--st-line-strong)] hover:text-[var(--text-primary)] active:scale-95"
                 title="Export as Word (.docx)"
                 aria-label="Export as Word (.docx)"
               >
-                <Download size={13.5} strokeWidth={1.8} />
+                <Download size={14} strokeWidth={1.8} />
               </button>
             </div>
           </div>
@@ -208,8 +212,8 @@ const LeftPanel = ({
             />
           ) : null}
 
-          {/* Pagination Trigger - Hidden for guests */}
-          {hasMore && !searchQuery.trim() && !isGuest && (
+          {/* Pagination trigger: older conversations load as the list is scrolled */}
+          {hasMore && !searchQuery.trim() && (
             <div ref={loaderCallbackRef} className="w-full px-1 py-10 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3 opacity-40">
                 <Loader size={16} fullScreen={false} />
@@ -274,26 +278,26 @@ const LeftPanel = ({
       {/* ─── 1. FIXED TOP SECTION ─── */}
       <div className="flex-shrink-0 relative z-20">
         {/* Top Controls (Fixed Header) */}
-        <div className={`${isMobile ? 'px-4 pb-3 pt-[max(env(safe-area-inset-top),14px)]' : 'px-5 pb-4 pt-5'} flex items-center justify-between`}>
+        <div className={`${isMobile ? 'px-4 pb-1.5 pt-[max(env(safe-area-inset-top),8px)]' : 'px-5 pb-4 pt-5'} flex items-center justify-between`}>
           <BrandLockup />
 
 
           <div className="-mr-1 flex items-center gap-1">
             <button
               onClick={() => setOverlay('settings')}
-              className={`grid ${isMobile ? 'h-10 w-10' : 'h-9 w-9'} place-items-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95`}
+              className={`grid h-9 w-9 place-items-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95`}
               title="Settings"
               aria-label="Open settings"
             >
-              <Settings size={isMobile ? 22 : 19} strokeWidth={1.9} />
+              <Settings size={isMobile ? 20 : 19} strokeWidth={1.9} />
             </button>
             <button
               onClick={() => setSidebarOpen(false)}
-              className={`grid ${isMobile ? 'h-10 w-10' : 'h-9 w-9'} place-items-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95`}
+              className={`grid h-9 w-9 place-items-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95`}
               title="Close workspace"
               aria-label="Close workspace"
             >
-              <PanelLeftClose size={isMobile ? 22 : 19} strokeWidth={1.9} />
+              <PanelLeftClose size={isMobile ? 20 : 19} strokeWidth={1.9} />
             </button>
           </div>
         </div>

@@ -17,6 +17,10 @@ import { createSceneSlice } from './slices/sceneSlice.js';
 import { createCanvasSessionSlice } from './slices/canvasSessionSlice.js';
 import { createPlatformMemorySlice } from './slices/platformMemorySlice.js';
 import { createSceneGraphSlice } from './slices/sceneGraphSlice.js';
+import { isPlayableLesson } from '../lib/lessonProgress.js';
+
+/** The message card's `artifactStatus` for each canvas lifecycle state. */
+const CARD_STATUS = { preparing: 'generating', rendering: 'generating', ready: 'completed', failed: 'failed', cancelled: 'cancelled' };
 
 /**
  * segmentIntoSteps — turn a flat visualizer command script into an ordered list
@@ -226,6 +230,21 @@ const useTutorStore = create(
       handleProgressiveStreamEvent: (eventData) => {
         const { type } = eventData;
 
+        // The lesson of the answer now streaming moved to `status`: the canvas
+        // lifecycle and the chat card change together, so they never disagree.
+        const markLesson = (status, metadata = {}) => {
+          const msgId = get().streamingMessageId;
+          set((state) => {
+            state.artifactLifecycle = {
+              status,
+              // the conversation the answer streams into (not necessarily the one on screen)
+              sessionId: state.streamingSessionId || state.chatSessionId || state.sessionId || null,
+              messageId: msgId || state.artifactLifecycle?.messageId || null,
+            };
+          });
+          if (msgId) get().updateMessageMetadata(msgId, { ...metadata, artifactStatus: CARD_STATUS[status] });
+        };
+
         switch (type) {
           case 'meta': {
             if (eventData.sessionId) {
@@ -263,41 +282,43 @@ const useTutorStore = create(
           }
 
           case 'canvas_skeleton': {
-            // The router decided we need a canvas.
+            // The planner expects a visual for this answer. Nothing is drawn
+            // yet, so the canvas is neither opened nor cleared here: an empty
+            // canvas looked like a finished (blank) lesson, and a lesson already
+            // on screen stays until the new one has content. The chat card says
+            // it is being prepared; the canvas opens when the first step arrives.
             // eventData: { layout: 'split'|'fullscreen', rendererType: 'd3'|... }
-            // Mint a UNIQUE scene id per response. Previously this was keyed
-            // only on the session id, so the 2nd+ visual in a session reused
-            // the same id and AgentCanvasRenderer's "scene changed?" guard
-            // never fired — every visual after the first silently failed to render.
+            // A UNIQUE scene id per response (the renderer re-renders on a new id).
             const pendingSceneId = `scene_${get().chatSessionId || get().sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             set((state) => {
               state._pendingSceneId = pendingSceneId;
-              state.canvasLayout = eventData.layout || 'split';
               if (eventData.rendererType && !state.rendererStack.includes(eventData.rendererType)) {
                 state.rendererStack.push(eventData.rendererType);
               }
-              state.canvasSessionVersion++;
             });
+            markLesson('preparing', { hasVisualArtifact: true, rendererType: eventData.rendererType });
+            break;
+          }
 
-            // Link to the active streaming message so the card appears
-            const skeletonMsgId = get().streamingMessageId;
-            if (skeletonMsgId) {
-              get().updateMessageMetadata(skeletonMsgId, {
-                hasVisualArtifact: true,
-                artifactStatus: 'generating',
-                rendererType: eventData.rendererType
-              });
+          case 'progress': {
+            // Only the lesson stage concerns the canvas (the chat status line
+            // reads the whole request's progress from sessionStates).
+            if (eventData.stage !== 'lesson' || eventData.kind === 'board') break;
+            const current = get().artifactLifecycle?.status;
+            if (eventData.state === 'active' && current !== 'rendering' && current !== 'ready') {
+              markLesson('preparing', { hasVisualArtifact: true });
+            } else if (eventData.state === 'failed' && current !== 'ready' && current !== 'failed') {
+              markLesson('failed', { hasVisualArtifact: true });
             }
-
-            // If it's a skeleton, clear current nodes to prepare for new ones
-            get().setTimeline({ timeline: [], objects: [] });
             break;
           }
 
           case 'scene_nodes': {
             // eventData: { nodes: [...], renderer: '...' }
+            // Nothing to draw: leave the canvas as it is (never open it empty)
+            if (!Array.isArray(eventData.nodes) || eventData.nodes.length === 0) break;
             // Feed the nodes directly into the teaching engine (canvasSlice)
-            if (eventData.nodes && Array.isArray(eventData.nodes) && eventData.nodes.length > 0) {
+            {
               const commands = eventData.nodes;
               const objects = [];
               const connections = [];
@@ -372,13 +393,7 @@ const useTutorStore = create(
                 state.stepPlayback = { index: 0, animDone: false, voiceDone: false };
               });
 
-              const sceneMsgId = get().streamingMessageId;
-              if (sceneMsgId) {
-                get().updateMessageMetadata(sceneMsgId, {
-                  artifactStatus: 'completed',
-                  artifactTitle: get().conversationTopic || 'Visualization'
-                });
-              }
+              markLesson('ready', { artifactTitle: get().conversationTopic || 'Visualization' });
             }
 
             // Auto-open canvas if it's currently hidden
@@ -395,7 +410,8 @@ const useTutorStore = create(
             // Engine v2 lesson (Scene Language), streamed beat by beat:
             // eventData: { timeline: { title, domain, renderer: 'scene-v2', sceneV2, steps }, partial }
             const t = eventData.timeline;
-            if (!t?.sceneV2) break;
+            // a lesson starts only on valid content: at least one step to show
+            if (!t?.sceneV2 || !isPlayableLesson({ ...t, renderer: 'scene-v2' })) break;
             const steps = t.steps || [];
             const active = get().activeScene;
             const id = get()._pendingSceneId || `scene_${get().chatSessionId || get().sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -418,15 +434,11 @@ const useTutorStore = create(
                 state.stepPlayback = { index: 0, animDone: false, voiceDone: false };
               });
             }
-            const v2MsgId = get().streamingMessageId;
-            if (v2MsgId) {
-              get().updateMessageMetadata(v2MsgId, {
-                hasVisualArtifact: true,
-                rendererType: 'scene-v2',
-                artifactStatus: eventData.partial ? 'generating' : 'completed',
-                artifactTitle: t.title,
-              });
-            }
+            markLesson(eventData.partial ? 'rendering' : 'ready', {
+              hasVisualArtifact: true,
+              rendererType: 'scene-v2',
+              artifactTitle: t.title,
+            });
             set((state) => {
               if (state.canvasLayout === 'inline') state.canvasLayout = 'split';
               if (!continuing) state.canvasSessionVersion++;
@@ -439,24 +451,18 @@ const useTutorStore = create(
             // eventData.branch = { title, scene, from, beats, answer, steps }
             if (!eventData.branch?.scene) break;
             get().enterSceneBranch(eventData.branch);
-            const branchMsgId = get().streamingMessageId;
-            if (branchMsgId) {
-              get().updateMessageMetadata(branchMsgId, {
-                hasVisualArtifact: true,
-                rendererType: 'scene-v2',
-                artifactStatus: 'completed',
-                artifactTitle: eventData.branch.steps?.[0]?.title || eventData.branch.title,
-              });
-            }
+            markLesson('ready', {
+              hasVisualArtifact: true,
+              rendererType: 'scene-v2',
+              artifactTitle: eventData.branch.steps?.[0]?.title || eventData.branch.title,
+            });
             break;
           }
 
           case 'scene_failed': {
-            // Engine v2 couldn't draw this lesson: drop the "generating" card and say why
-            const failedMsgId = get().streamingMessageId;
-            if (failedMsgId) {
-              get().updateMessageMetadata(failedMsgId, { hasVisualArtifact: false, artifactStatus: undefined, rendererType: undefined });
-            }
+            // Engine v2 couldn't draw this lesson: the answer stands; the card
+            // says the visual failed and offers to try again
+            markLesson('failed', { hasVisualArtifact: true });
             set((state) => {
               if (!state.activeScene && state.canvasLayout === 'split') state.canvasLayout = 'inline';
             });
@@ -464,15 +470,35 @@ const useTutorStore = create(
             break;
           }
 
+          case 'lesson_cancelled': {
+            // Stop pressed (client-side event). A lesson that was still being
+            // built is cancelled; what already arrived stays viewable, but it is
+            // marked unfinished and no more steps will come.
+            const status = get().artifactLifecycle?.status;
+            if (status !== 'preparing' && status !== 'rendering') break;
+            markLesson('cancelled');
+            set((state) => {
+              if (state.activeScene && state.activeScene.id === state._pendingSceneId && state.activeScene.streaming) {
+                state.activeScene.streaming = false;
+                state.activeScene.cancelled = true;
+              }
+            });
+            break;
+          }
+
           case 'artifact_saved': {
             // eventData: { artifactId: '...', title: '...', rendererType: '...' }
             const savedMsgId = get().streamingMessageId;
             if (savedMsgId) {
-              get().updateMessageMetadata(savedMsgId, {
-                artifactId: eventData.artifactId,
-                artifactStatus: 'completed'
-              });
+              get().updateMessageMetadata(savedMsgId, { artifactId: eventData.artifactId });
             }
+            // the lesson on screen is this answer's: it is saved under this id now
+            // (the learner's place in it is saved against it — useLessonProgress)
+            set((state) => {
+              if (state.activeScene && state._pendingSceneId && state.activeScene.id === state._pendingSceneId) {
+                state.activeScene.artifactId = eventData.artifactId;
+              }
+            });
             // Link the DB ID to any local artifact that matches (if applicable)
             get().artifacts.forEach(art => {
               const isMatch = (eventData.localId && art.id === eventData.localId) ||

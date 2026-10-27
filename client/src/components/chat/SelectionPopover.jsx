@@ -16,51 +16,10 @@ import useAnnotationStore from '../../store/annotationStore';
  * never rewritten; they are found again by their text after every render.
  */
 
-const BLOCKS = 'p,li,h1,h2,h3,h4,h5,h6,pre,blockquote,td,th,div';
-const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS && typeof window !== 'undefined' && 'Highlight' in window;
+import { findQuote } from '../../utils/quoteUtils';
+import { extractCleanText } from '../../utils/mathTextUtils';
 
-/** Finds `quote` inside `scope`, ignoring whitespace differences, and returns a Range. */
-function findQuote(scope, quote) {
-  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
-  let text = '';
-  const map = [];
-  let prevSpace = true;
-  let prevBlock = null;
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const block = n.parentElement?.closest(BLOCKS);
-    if (prevBlock && block !== prevBlock && !prevSpace) {
-      text += ' ';
-      map.push(null);
-      prevSpace = true;
-    }
-    prevBlock = block;
-    const t = n.nodeValue;
-    for (let i = 0; i < t.length; i++) {
-      if (/\s/.test(t[i])) {
-        if (prevSpace) continue;
-        text += ' ';
-        prevSpace = true;
-      } else {
-        text += t[i].toLowerCase();
-        prevSpace = false;
-      }
-      map.push([n, i]);
-    }
-  }
-  const q = quote.replace(/\s+/g, ' ').trim().toLowerCase();
-  if (!q) return null;
-  const at = text.indexOf(q);
-  if (at < 0) return null;
-  let s = at;
-  while (s < at + q.length && !map[s]) s++;
-  let e = at + q.length - 1;
-  while (e > s && !map[e]) e--;
-  if (!map[s] || !map[e]) return null;
-  const range = document.createRange();
-  range.setStart(map[s][0], map[s][1]);
-  range.setEnd(map[e][0], map[e][1] + 1);
-  return range;
-}
+const supportsHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS && typeof window !== 'undefined' && 'Highlight' in window;
 
 function overlaps(a, b) {
   return a.compareBoundaryPoints(Range.END_TO_START, b) < 0 && a.compareBoundaryPoints(Range.START_TO_END, b) > 0;
@@ -128,14 +87,16 @@ const SelectionPopover = () => {
     let t;
     const read = () => {
       const sel = window.getSelection();
-      const text = sel?.toString().trim() || '';
-      if (!sel || sel.rangeCount === 0 || text.length < 2) return setBar(null);
+      if (!sel || sel.rangeCount === 0) return setBar(null);
       const range = sel.getRangeAt(0);
       let node = range.commonAncestorContainer;
       if (node.nodeType === 3) node = node.parentNode;
       if (!node.closest('.chat-window, .markdown-content, .message-bubble') || node.closest('button, input, textarea, .no-select, [data-selection-bar]')) {
         return setBar(null);
       }
+      const text = extractCleanText(range).trim();
+      const rawMathText = extractCleanText(range, { preserveMath: true }).trim();
+      if (text.length < 2) return setBar(null);
       const msg = node.closest('[data-message-id]') || range.startContainer.parentElement?.closest('[data-message-id]');
       const rect = range.getBoundingClientRect();
       if (!rect.width && !rect.height) return setBar(null);
@@ -146,6 +107,7 @@ const SelectionPopover = () => {
         left: Math.min(Math.max(rect.left + rect.width / 2, 150), window.innerWidth - 150),
         below,
         text,
+        rawMathText,
         messageId: msg?.getAttribute('data-message-id') || null,
         overlapId: overlap?.id || null,
       });
@@ -183,7 +145,8 @@ const SelectionPopover = () => {
 
   const onNote = () => {
     if (!bar) return;
-    addNote({ source: bar.text.slice(0, 400) });
+    const sourceText = (bar.rawMathText || bar.text).slice(0, 400);
+    addNote({ source: sourceText, messageId: bar.messageId });
     showToast?.({ message: 'Pinned to the canvas as a note.', type: 'success' });
     if (window.innerWidth < 768) setSidebarOpen(false);
     done();

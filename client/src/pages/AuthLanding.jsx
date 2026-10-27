@@ -10,7 +10,9 @@ import LoginNavbar from '../components/layout/LoginNavbar';
 import BorderGlow from '../components/ui/BorderGlow';
 import AuthFormSkeleton from '../components/auth/AuthFormSkeleton';
 const CinematicTransition = React.lazy(() => import('../components/auth/CinematicTransition'));
-import { BASE_URL as API_URL } from '../services/api';
+import API, { BASE_URL as API_URL } from '../services/api';
+import ForgotPasswordDialog from '../components/auth/ForgotPasswordDialog';
+import { oauthErrorMessage } from '../components/auth/authMessages';
 // The galaxy panel pulls in three.js, so it loads after the form is usable.
 const AuthShowcase = React.lazy(() => import('../components/auth/AuthShowcase'));
 
@@ -74,7 +76,29 @@ const AuthLanding = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  // which sign-in methods the server offers right now (admin can switch them off)
+  const [providers, setProviders] = useState({ password: true, google: true, github: true, registrationEnabled: true });
   const passwordFocused = focusedField === 'password';
+
+  useEffect(() => {
+    API.get('/api/auth/providers').then((r) => r?.data && setProviders((p) => ({ ...p, ...r.data }))).catch(() => {});
+  }, []);
+
+  // OAuth callbacks come back as /login?error=<code>
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    // security emails link to /login?forgot=1 ("reset your password now")
+    if (params.get('forgot') === '1') setForgotOpen(true);
+    const code = params.get('error');
+    if (code) {
+      setError(oauthErrorMessage(code, params.get('provider')));
+      params.delete('error');
+      params.delete('provider');
+      const rest = params.toString();
+      window.history.replaceState({}, document.title, `${location.pathname}${rest ? `?${rest}` : ''}`);
+    }
+  }, [location.search, location.pathname]);
 
   // Sync browser autofill values into React state
   useEffect(() => {
@@ -116,7 +140,7 @@ const AuthLanding = () => {
   const validatePassword = (pass) => {
     if (pass.length < 8) return 'Password must be at least 8 characters.';
     if (!/\d/.test(pass)) return 'Password must include at least one number.';
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pass)) return 'Password must include at least one special character.';
+    if (!/[A-Z]/.test(pass)) return 'Password must include at least one uppercase letter.';
     return null;
   };
 
@@ -173,6 +197,21 @@ const AuthLanding = () => {
 
   return (
     <div className="h-screen w-full flex flex-col lg:flex-row bg-[var(--bg-primary)] font-sans overflow-hidden selection:bg-[var(--text-primary)] selection:text-[var(--bg-primary)]">
+      <AnimatePresence>
+        {forgotOpen && (
+          <ForgotPasswordDialog
+            initialEmail={formData.email}
+            onClose={(result) => {
+              setForgotOpen(false);
+              if (result?.email) {
+                setFormData((f) => ({ ...f, email: result.email, password: '' }));
+                setIsLogin(true);
+                showToast({ message: 'Password updated. Sign in with your new password.', type: 'success' });
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
       
       <AnimatePresence mode="wait">
         {isSuccess ? (
@@ -433,10 +472,7 @@ const AuthLanding = () => {
                   {isLogin && (
                     <button 
                       type="button" 
-                      onClick={() => showToast({
-                        message: "Password reset instructions have been sent to your email (Demo mode: Please check your console or contact support).",
-                        type: "info"
-                      })}
+                      onClick={() => setForgotOpen(true)}
                       className="absolute right-5 top-0 -translate-y-1/2 bg-[var(--bg-primary)] px-1.5 text-[9.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer z-10"
                     >
                       Forgot password?
@@ -449,7 +485,7 @@ const AuthLanding = () => {
               {(() => {
                 const hasLength = (formData.password || '').length >= 8;
                 const hasNumber = /\d/.test(formData.password || '');
-                const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password || '');
+                const hasSymbol = /[A-Z]/.test(formData.password || ''); // same rule as the server
                 const passStrength = [hasLength, hasNumber, hasSymbol].filter(Boolean).length;
                 return (
                   <AnimatePresence>
@@ -543,7 +579,7 @@ const AuthLanding = () => {
                             <span className={`text-[11px] transition-colors duration-200 ${
                               hasSymbol ? 'text-[#1a1a18] dark:text-[#f3f3ee] font-medium' : 'text-[#6b6960] dark:text-[#a09e95] font-normal'
                             }`}>
-                              At least one symbol (!@#$%^&*)
+                              At least one uppercase letter
                             </span>
                           </div>
                         </div>
@@ -663,8 +699,10 @@ const AuthLanding = () => {
             layout 
             variants={formItemVariants}
             transition={{ type: "spring", stiffness: 380, damping: 32 }}
-            className="grid grid-cols-2 gap-2.5 mb-3"
+            className={`grid gap-2.5 mb-3 ${providers.google && providers.github ? 'grid-cols-2' : 'grid-cols-1'}`}
+            hidden={!providers.google && !providers.github}
           >
+            {providers.google && (
             <BorderGlow
               hoverGlow
               borderRadius={9999}
@@ -688,6 +726,8 @@ const AuthLanding = () => {
                 <span>Google</span>
               </button>
             </BorderGlow>
+            )}
+            {providers.github && (
             <BorderGlow
               hoverGlow
               borderRadius={9999}
@@ -713,6 +753,7 @@ const AuthLanding = () => {
                 <span>GitHub</span>
               </button>
             </BorderGlow>
+            )}
           </motion.div>
 
           <motion.div 

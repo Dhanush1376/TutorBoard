@@ -44,6 +44,30 @@ function renderPills() {
   });
 }
 
+/** Sliders for a scene's parameters (the lesson UI has its own panel, ParamPanel.jsx). */
+function renderParams() {
+  let box = document.getElementById('params');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'params';
+    box.className = 'card';
+    $('audit').before(box);
+  }
+  const st = engine.paramState;
+  const sliders = st.params.filter((p) => p.max > p.min);
+  box.style.display = sliders.length ? '' : 'none';
+  const readout = () => st.derived.length ? `<div class="meta" style="margin-top:6px">${engine.paramState.derived.map((d) => `${d.label ?? d.id} = ${Number(d.value.toPrecision(3))} ${d.unit ?? ''}`).join(' · ')}</div>` : '';
+  box.innerHTML = sliders.map((p) => `<label style="display:block;margin:4px 0">${p.label ?? p.id}: <b data-v="${p.id}">${st.values[p.id]}</b> ${p.unit ?? ''}
+    <input type="range" data-p="${p.id}" min="${p.min}" max="${p.max}" step="${p.step ?? (p.max - p.min) / 100}" value="${st.values[p.id]}" style="width:100%"></label>`).join('') + `<div id="readout">${readout()}</div>`;
+  box.querySelectorAll<HTMLInputElement>('input[data-p]').forEach((inp) => {
+    inp.oninput = async () => {
+      box!.querySelector(`[data-v="${inp.dataset.p}"]`)!.textContent = inp.value;
+      await engine.setParams({ [inp.dataset.p!]: Number(inp.value) });
+      $('readout').innerHTML = readout();
+    };
+  });
+}
+
 async function open(name: string) {
   try {
     await show(name);
@@ -74,6 +98,7 @@ ${$('audit').innerHTML}`;
   $('beatTitle').textContent = '';
   $('narration').textContent = 'Press ▶ Play step.';
   renderPills();
+  renderParams();
   location.hash = name;
   (window as unknown as { __lab: unknown }).__lab = { engine, overlaps, beats, open, name, addGenerated };
 }

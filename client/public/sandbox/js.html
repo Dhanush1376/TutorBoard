@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      TutorBoard's code sandbox for JavaScript (client/src/visualizer/sandbox/sandbox.js).
+      Loaded only inside <iframe sandbox="allow-scripts">: no origin of its own, so no
+      cookies, no storage, and every request it could make is cross-origin.
+      The program runs in a Web Worker made from a blob; the worker inherits this
+      policy, which allows no network at all (fetch, XHR, WebSocket, import(), importScripts).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; worker-src blob:" />
+    <title>Code sandbox</title>
+  </head>
+  <body>
+    <script>
+      (() => {
+        // relay: page ⇄ worker, nothing more (identical in python.html)
+        const page = new URLSearchParams(location.search).get('parent');
+        if (!page) return;
+        let worker = null, source = null, current = null;
+        const toPage = (m) => parent.postMessage(m, page);
+        addEventListener('message', (e) => {
+          if (e.source !== parent || e.origin !== page) return;
+          const m = e.data || {};
+          if (m.tb === 'kill') { if (worker) worker.terminate(); worker = null; source = null; return; }
+          if (m.tb !== 'run') return;
+          if (!worker || m.fresh || m.source !== source) {
+            if (worker) worker.terminate();
+            source = m.source;
+            worker = new Worker(URL.createObjectURL(new Blob([m.source], { type: 'text/javascript' })));
+            worker.onmessage = (ev) => toPage({ tb: 'msg', id: current, data: ev.data });
+            worker.onerror = (ev) => { ev.preventDefault(); toPage({ tb: 'error', id: current, message: ev.message || 'The program could not start.' }); };
+          }
+          current = m.id;
+          worker.postMessage(m.message);
+        });
+        toPage({ tb: 'ready' });
+      })();
+    </script>
+  </body>
+</html>

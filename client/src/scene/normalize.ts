@@ -5,11 +5,13 @@
  * defaults and drop what the engine can't draw.
  */
 import { resolveGeometry } from '../../../server/engine/scene/resolveGeometry';
+import { resolveParams, type ParamValues } from '../../../server/engine/scene/params';
+import { expandComputed } from '../../../server/engine/scene/algorithms';
 import type { Scene } from './types';
 
 const KNOWN_ENTITIES = new Set([
-  'text', 'math', 'rect', 'circle', 'pie', 'point', 'polygon', 'line', 'arrow', 'path', 'angle', 'plot', 'vector', 'body', 'scatter',
-  'array', 'stack', 'queue', 'linkedlist', 'tree', 'graph', 'table', 'molecule', 'network', 'pixels', 'group',
+  'text', 'math', 'rect', 'circle', 'pie', 'point', 'polygon', 'line', 'arrow', 'path', 'angle', 'plot', 'curve', 'area', 'refline', 'vector', 'body', 'scatter',
+  'array', 'stack', 'queue', 'linkedlist', 'tree', 'graph', 'table', 'molecule', 'reaction', 'curly', 'compartment', 'circuit', 'logic', 'network', 'pixels', 'group',
 ]);
 
 const ENTITY_DEFAULTS: Record<string, Record<string, unknown>> = {
@@ -41,9 +43,12 @@ const ACTION_DEFAULTS: Record<string, Record<string, unknown>> = {
 
 type Loose = Record<string, unknown>;
 
-export function normalizeScene(input: unknown): Scene {
-  // golden scenes are loaded raw: geometry written by intent becomes coordinates here too
-  const s = (resolveGeometry(input ?? {}).value ?? {}) as Loose;
+export function normalizeScene(input: unknown, params: ParamValues = {}): Scene {
+  // parameters (sliders) written in, at the learner's values; then geometry written by intent becomes coordinates
+  // computed algorithm traces (golden scenes are loaded raw; the server expands them for AI scenes), then parameters
+  const traced = expandComputed(input).value;
+  const withParams = traced && typeof traced === 'object' ? resolveParams(traced as Loose, params) : traced;
+  const s = (resolveGeometry(withParams ?? {}).value ?? {}) as Loose;
   const entities = (Array.isArray(s.entities) ? s.entities : [])
     .filter((e: Loose) => e && typeof e.id === 'string' && KNOWN_ENTITIES.has(String(e.type)))
     .map((e: Loose): Loose => ({ ...ENTITY_DEFAULTS[String(e.type)], ...e }));

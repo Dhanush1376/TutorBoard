@@ -12,6 +12,9 @@
  * - State machine transitions enforced for all stream status changes
  */
 
+import { createProgress, applyProgressEvent } from '../../lib/requestProgress.js';
+import { resolveStartStep } from '../../lib/lessonProgress.js';
+
 // Conversations whose in-progress answer is being followed (one poller each)
 const followingPending = new Set();
 
@@ -179,6 +182,7 @@ export const createConversationSlice = (set, get) => ({
       state.sessionStates[sid].isWaitingForAI = true;
       state.sessionStates[sid].waitingSessionId = sid;
       state.sessionStates[sid].messageId = null; // Clear session-specific messageId too
+      state.sessionStates[sid].progress = null; // the new request has reported nothing yet
     });
     const { conversationTopic, conversationMessages } = get();
     if (!conversationTopic && conversationMessages.length <= 1) {
@@ -227,7 +231,7 @@ export const createConversationSlice = (set, get) => ({
   // STREAMING STATE MACHINE
   //                                                                                                                                                                                                                                        
 
-  startStreaming: (messageId, sessionId = null, streamToken = null) => {
+  startStreaming: (messageId, sessionId = null, streamToken = null, requestId = null) => {
     const sid = sessionId || get().getSid();
     set((state) => {
       const token = streamToken || `stream-${Date.now()}-${++state.streamTokenCounter}`;
@@ -250,6 +254,8 @@ export const createConversationSlice = (set, get) => ({
         sources: [],
         searchPerformed: false,
         aborted: false,
+        // what the server reports this request doing (lib/requestProgress)
+        progress: createProgress(requestId),
       };
 
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
@@ -323,6 +329,22 @@ export const createConversationSlice = (set, get) => ({
       if (sid === state.chatSessionId || sid === state.streamingSessionId) {
         state.streamingContent = (state.streamingContent || '') + chunk;
       }
+    });
+  },
+
+  /**
+   * A `progress` event from the server for the request streaming into
+   * `sessionId`. Dropped when it belongs to an older stream (token) or another
+   * request (requestId), or once that request was stopped.
+   */
+  applyRequestProgress: (event, sessionId = null, streamToken = null) => {
+    const sid = sessionId || get().getSid();
+    set((state) => {
+      const ss = state.sessionStates[sid];
+      if (!ss || !ss.isStreaming || ss.aborted) return;
+      if (streamToken && ss.streamToken && streamToken !== ss.streamToken) return;
+      const next = applyProgressEvent(ss.progress, event);
+      if (next !== ss.progress) ss.progress = next;
     });
   },
 
@@ -412,6 +434,7 @@ export const createConversationSlice = (set, get) => ({
         state.sessionStates[sid].isWaitingForAI = false;
         state.sessionStates[sid].content = '';
         state.sessionStates[sid].thought = '';
+        state.sessionStates[sid].progress = null;
         if (sid === state.streamingSessionId || sid === state.chatSessionId) {
           state.isStreaming = false;
           state.streamingContent = '';
@@ -431,6 +454,7 @@ export const createConversationSlice = (set, get) => ({
         state.sessionStates[sid].content = '';
         state.sessionStates[sid].thought = '';
         state.sessionStates[sid].streamToken = null;
+        state.sessionStates[sid].progress = null; // finished: the status line goes away
       }
 
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
@@ -456,6 +480,12 @@ export const createConversationSlice = (set, get) => ({
         state.isWaitingForAI = false;
         state.waitingSessionId = null;
       }
+
+      // This answer's visual lesson could not be built (or was stopped): the
+      // card stays, saying so — it must not look like a lesson ready to open.
+      const lesson = state.artifactLifecycle;
+      const lessonOutcome = lesson && targetMsgId && lesson.messageId === targetMsgId
+        && (lesson.status === 'failed' || lesson.status === 'cancelled') ? lesson.status : null;
 
       if (existingIdx !== -1 && isCurrentChat) {
         const targetMsg = state.conversationMessages[existingIdx];
@@ -505,9 +535,9 @@ export const createConversationSlice = (set, get) => ({
             searchPerformed: state.isSearchPerformed || targetMsg.metadata.searchPerformed,
             artifactId: effectiveArtifactId || targetMsg.metadata.artifactId,
             artifactData: artifact || targetMsg.metadata.artifactData,
-            hasVisualArtifact: !!effectiveCanvasType || targetMsg.metadata?.hasVisualArtifact,
+            hasVisualArtifact: !!effectiveCanvasType || !!lessonOutcome || targetMsg.metadata?.hasVisualArtifact,
             rendererType: effectiveCanvasType || targetMsg.metadata?.rendererType,
-            artifactStatus: 'completed',
+            artifactStatus: lessonOutcome || 'completed',
             versions: updatedVersions.map((v, i) => 
               i === newActiveIdx ? { ...v, text: effectiveContent } : v
             ),
@@ -535,9 +565,9 @@ export const createConversationSlice = (set, get) => ({
             searchPerformed: state.isSearchPerformed,
             artifactId: effectiveArtifactId,
             artifactData: artifact,
-            hasVisualArtifact: !!effectiveCanvasType,
+            hasVisualArtifact: !!effectiveCanvasType || !!lessonOutcome,
             rendererType: effectiveCanvasType,
-            artifactStatus: 'completed',
+            artifactStatus: lessonOutcome || 'completed',
             versions: [{ text: effectiveContent, subsequentMessages: [] }],
             activeVersionIndex: 0,
             latencyMs,
@@ -579,6 +609,7 @@ export const createConversationSlice = (set, get) => ({
       state.sessionStates[sid].isWaitingForAI = false;
       state.sessionStates[sid].content = '';
       state.sessionStates[sid].thought = '';
+      state.sessionStates[sid].progress = null; // stopped: nothing is running any more
       
       state.isStreaming = false;
       state.streamingContent = '';
@@ -676,6 +707,7 @@ export const createConversationSlice = (set, get) => ({
         state.sessionStates[sid].isWaitingForAI = false;
         state.sessionStates[sid].isStreaming = false;
         state.sessionStates[sid].content = '';
+        state.sessionStates[sid].progress = null;
       }
       if (!state.conversationSessions[sid]) state.conversationSessions[sid] = buildNormalizedSession();
       const currentStatus = state.conversationSessions[sid].streamState.status || 'idle';
@@ -713,7 +745,7 @@ export const createConversationSlice = (set, get) => ({
       const partial = sessionState.content || '';
       const isOnScreen = sid === state.chatSessionId || sid === state.sessionId || sid === state.activeConversationSessionId;
 
-      state.sessionStates[sid] = { ...sessionState, isStreaming: false, isWaitingForAI: false, content: '', thought: '', streamToken: null, error };
+      state.sessionStates[sid] = { ...sessionState, isStreaming: false, isWaitingForAI: false, content: '', thought: '', streamToken: null, progress: null, error };
       if (sid === state.streamingSessionId || sid === state.waitingSessionId || isOnScreen) {
         state.isStreaming = false;
         state.isWaitingForAI = false;
@@ -1012,6 +1044,7 @@ export const createConversationSlice = (set, get) => ({
         }
         
         if (state.streamingMessageId === oldAssistantMessageId) state.streamingMessageId = assistantMessageId;
+        if (state.artifactLifecycle?.messageId === oldAssistantMessageId) state.artifactLifecycle.messageId = assistantMessageId;
         Object.keys(state.sessionStates).forEach((sid) => {
           if (state.sessionStates[sid].messageId === oldAssistantMessageId) {
             state.sessionStates[sid].messageId = assistantMessageId;
@@ -1204,6 +1237,12 @@ export const createConversationSlice = (set, get) => ({
 
         if (response.data.pendingRequest) get().followPendingGeneration(sessionId);
 
+        // Where the learner was in each of this conversation's lessons
+        if (Array.isArray(response.data.artifacts)) {
+          for (const a of response.data.artifacts) {
+            if (a?.lessonProgress && (a.id || a._id)) get().rememberLessonPosition?.(String(a.id || a._id), a.lessonProgress);
+          }
+        }
 
         // 2. Restore Canvas State (Full Pedagogical Context)
         const visualMsg = Array.isArray(messages) ? messages.slice().reverse().find(m => m.role === 'assistant' && (m.canvasSnapshot || m.metadata?.visuals)) : null;
@@ -1211,15 +1250,21 @@ export const createConversationSlice = (set, get) => ({
 
         if (resolvedSnapshot?.sceneV2 || resolvedSnapshot?.renderer === 'scene-v2') {
           if (typeof get().setTimeline === 'function') {
+            const restoredSteps = resolvedSnapshot.steps || resolvedSnapshot.canvasSteps || canvasSteps || [{}];
+            const lessonId = visualMsg?.metadata?.artifactId || null;
+            // reopened where the learner left it, paused (never replayed from the top)
+            const start = resolveStartStep(lessonId ? get().lessonPositions?.[lessonId] : null, restoredSteps.length);
             get().setTimeline({
               ...response.data,
               title: resolvedSnapshot.title || currentTopic || topic || title || 'Saved Session',
               domain: resolvedSnapshot.domain || 'general',
               renderer: 'scene-v2',
               sceneV2: resolvedSnapshot.sceneV2,
-              steps: resolvedSnapshot.steps || resolvedSnapshot.canvasSteps || canvasSteps || [{}],
-              timeline: resolvedSnapshot.steps || resolvedSnapshot.canvasSteps || canvasSteps || [{}],
-              objects: canvasState || []
+              steps: restoredSteps,
+              timeline: restoredSteps,
+              objects: canvasState || [],
+              artifactId: lessonId,
+              currentStepIndex: start.step,
             });
           }
         } else if (canvasState && canvasState.length > 0) {

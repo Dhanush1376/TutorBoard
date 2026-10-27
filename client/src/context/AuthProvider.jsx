@@ -40,6 +40,17 @@ const safeStorage = {
 
 let authVerificationPromise = null;
 
+/**
+ * After sign-in the server moves this browser's guest conversations to the
+ * account; once it confirms, the guest token is no longer needed here.
+ */
+const forgetClaimedGuest = (data) => {
+  if (data?.guestClaim?.claimed) {
+    try { localStorage.removeItem('tb-guest-token'); } catch { /* storage blocked */ }
+    sessionStorage.removeItem('tb-is-guest');
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -166,11 +177,10 @@ export const AuthProvider = ({ children }) => {
           const exchangeCode = urlParams.get('code');
 
           if (exchangeCode) {
-            const res = await API.post('/api/auth/exchange', { code: exchangeCode });
-            if (res.data?.success) {
-              if (res.data?.token) {
-                safeStorage.setItem('tb-token', res.data.token);
-              }
+            const res = await API.post('/api/auth/exchange', { code: exchangeCode }).catch((e) => e.response);
+            if (res?.status >= 200 && res?.status < 300 && res.data?.token) {
+              safeStorage.setItem('tb-token', res.data.token);
+              forgetClaimedGuest(res.data);
               sessionStorage.setItem('tb-just-logged-in', 'true');
             }
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -269,6 +279,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await API.post('/api/auth/signin', { email, password });
       const data = res.data;
+      forgetClaimedGuest(data);
       const authToken = data.token || 'verified';
       sessionStorage.removeItem('tb-is-guest');
       safeStorage.setItem('tb-token', authToken);
@@ -286,6 +297,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await API.post('/api/auth/signup', { name, email, password, confirmPassword });
       const data = res.data;
+      forgetClaimedGuest(data);
       const authToken = data.token || 'verified';
       sessionStorage.removeItem('tb-is-guest');
       safeStorage.setItem('tb-token', authToken);
@@ -340,7 +352,8 @@ export const AuthProvider = ({ children }) => {
       useTutorStore.getState().showAlert({
         type: 'warning',
         title: 'End Session',
-        message: 'Your progress in this session will be cleared. Are you sure you want to log out?',
+        // the guest identity (and so every chat) stays on this browser: nothing is deleted
+        message: 'Your chats stay saved on this browser. Continue as a guest again to pick up where you left off.',
         confirmLabel: 'Log Out',
         onConfirm: performLogout
       });
@@ -398,6 +411,19 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {}
   }, [user, refreshApiPrefs, apiPrefs.allKeys]);
 
+  /** Re-read the account (after verifying the email, linking a provider, …). */
+  const refreshUser = useCallback(async () => {
+    const res = await API.get('/api/auth/me');
+    if (res.data?.user) {
+      setUser(res.data.user);
+      if (res.data.token) {
+        safeStorage.setItem('tb-token', res.data.token);
+        setToken(res.data.token);
+      }
+    }
+    return res.data?.user;
+  }, []);
+
   const forceStopLoading = useCallback(() => {
     setLoading(false);
     setConnectionStatus('stable');
@@ -405,7 +431,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, token, loading, apiError, login, signup, loginGuest, logout, updateUser,
+      user, token, loading, apiError, login, signup, loginGuest, logout, updateUser, refreshUser,
       isAuthenticated: !!user, apiPrefs, refreshApiPrefs, switchApi, connectionStatus,
       forceStopLoading, isAuthResolved, dbOffline
     }}>

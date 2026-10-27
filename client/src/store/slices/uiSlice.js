@@ -167,8 +167,24 @@ export const createUiSlice = (set, get) => ({
       }
     }
 
+    const trimmedMsg = typeof toastItem.message === 'string' ? toastItem.message.trim() : '';
+    if (!trimmedMsg) return null;
+    toastItem.message = trimmedMsg;
+
     set(s => {
-      s.toasts.push(toastItem);
+      // Deduplicate: If a toast with the exact same message is already visible,
+      // refresh its duration instead of stacking an annoying duplicate toast.
+      const existingIdx = s.toasts.findIndex(t => t.message === toastItem.message);
+      if (existingIdx !== -1) {
+        s.toasts[existingIdx] = {
+          ...s.toasts[existingIdx],
+          duration: toastItem.duration,
+          updatedAt: Date.now(),
+        };
+        return;
+      }
+
+      s.toasts.push({ ...toastItem, updatedAt: Date.now() });
       if (s.toasts.length > 3) s.toasts.shift();
     });
     return id;

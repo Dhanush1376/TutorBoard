@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, Copy, Trash2, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useWindowSize from '../../hooks/useWindowSize';
 import useTutorStore from '../../store/tutorStore';
@@ -135,19 +135,42 @@ const ChatHistory = ({ chatHistory, activeChatId, onSelectChat, onDeleteChat, on
                     className="group/item relative"
                   >
                     {editingId === chat.id ? (
-                      <input
-                        type="text"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') confirmEdit();
-                          if (e.key === 'Escape') setEditingId(null);
-                        }}
-                        onBlur={confirmEdit}
-                        autoFocus
-                        aria-label="Session name"
-                        className="h-10 w-full rounded-xl border border-[var(--text-tertiary)] bg-[var(--bg-primary)] px-2.5 text-[14px] text-[var(--text-primary)] outline-none shadow-[0_0_0_3px_var(--st-fill-strong)]"
-                      />
+                      <div className="relative flex h-10 w-full items-center">
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') confirmEdit();
+                            if (e.key === 'Escape') setEditingId(null);
+                          }}
+                          autoFocus
+                          aria-label="Session name"
+                          className="h-10 w-full rounded-xl border border-[var(--st-line-strong)] bg-[var(--bg-primary)] pl-3 pr-16 text-[13.5px] text-[var(--text-primary)] outline-none shadow-[0_0_0_2px_var(--st-fill-strong)] transition-all"
+                        />
+                        <div className="absolute right-1.5 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={confirmEdit}
+                            aria-label="Confirm rename"
+                            title="Save"
+                            className="grid h-6 w-6 cursor-pointer place-items-center rounded-lg text-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-300 transition-colors"
+                          >
+                            <Check size={14} strokeWidth={2.4} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => setEditingId(null)}
+                            aria-label="Cancel rename"
+                            title="Cancel"
+                            className="grid h-6 w-6 cursor-pointer place-items-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)] transition-colors"
+                          >
+                            <X size={14} strokeWidth={2.2} />
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <>
                         <button

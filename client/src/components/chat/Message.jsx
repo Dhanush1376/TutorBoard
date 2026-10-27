@@ -19,7 +19,9 @@ import ThoughtLine from './ThoughtLine';
 import useWindowSize from '../../hooks/useWindowSize';
 import SourceGrid from './message/SourceGrid';
 import { buildMarkdownComponents } from './message/MessageMarkdown';
-import { extractJsonResponse, formatConciseTopic, isGenericTitle, formatShortAction, DEFAULT_AGENT_STEPS, detectCurrentAction } from './message/MessageUtils';
+import { extractJsonResponse, formatConciseTopic, isGenericTitle, closeOpenMarkdown } from './message/MessageUtils';
+import { describeProgress } from '../../lib/requestProgress';
+import { formatNoteMathText, cleanFormulaText } from '../../utils/mathTextUtils';
 
 // Sub-component for actions
 const ActionBtn = ({ onClick, title, children, className = '' }) => (
@@ -38,6 +40,7 @@ const Message = ({
   role, content, messageId, timestamp, status,
   isStreaming, streamingContent, streamingThought,
   streamingSources,
+  streamingProgress,
   isSearchPerformed: streamingSearchPerformed,
   onEditMessage, onDeleteMessage, onRegenerateMessage, onFeedback,
   onOpenCanvas, hasCanvas, canvasType,
@@ -74,7 +77,8 @@ const Message = ({
   const isThisStreaming = isSessionActive && streamingMessageId === messageId;
   const isCurrentlyStreaming = isStreaming && isThisStreaming;
 
-  const rawContent = isStreaming ? streamingContent : content;
+  // while streaming, close an open code fence / math block so it renders in place
+  const rawContent = isStreaming ? closeOpenMarkdown(streamingContent) : content;
   const { content: displayContent, artifact: extractedArtifact, canvasType: extractedCanvasType, title: extractedTitle } = React.useMemo(
     () => extractJsonResponse(rawContent),
     [rawContent]
@@ -95,27 +99,37 @@ const Message = ({
     return first.length > 0 && first.length < 120 ? first : null;
   }, [displayContent, content]);
 
-  const rawCandidateTitle = 
-    (!isGenericTitle(extractedTitle) && extractedTitle) || 
+  // Prioritize the true title of the canvas artifact first, then clean fallbacks
+  const artifactCandidateTitle = 
     (!isGenericTitle(artifactData?.title) && artifactData?.title) || 
+    (!isGenericTitle(artifactData?.timeline?.title) && artifactData?.timeline?.title) || 
+    (!isGenericTitle(artifactData?.data?.title) && artifactData?.data?.title) || 
+    (!isGenericTitle(artifactData?.sceneV2?.title) && artifactData?.sceneV2?.title) || 
+    (!isGenericTitle(artifactData?.sceneGraph?.title) && artifactData?.sceneGraph?.title) || 
     (!isGenericTitle(metadata?.artifactTitle) && metadata?.artifactTitle) || 
+    (!isGenericTitle(metadata?.visuals?.title) && metadata?.visuals?.title) || 
+    (!isGenericTitle(metadata?.visuals?.timeline?.title) && metadata?.visuals?.timeline?.title) || 
+    (!isGenericTitle(metadata?.visuals?.sceneV2?.title) && metadata?.visuals?.sceneV2?.title) || 
     (!isGenericTitle(canvasSnapshot?.title) && canvasSnapshot?.title) || 
     (!isGenericTitle(metadata?.canvasSnapshot?.title) && metadata?.canvasSnapshot?.title) || 
-    (!isGenericTitle(metadata?.stepTitle) && metadata?.stepTitle) || 
-    (!isGenericTitle(metadata?.topic) && metadata?.topic) || 
-    (!isGenericTitle(metadata?.title) && metadata?.title) || 
-    (!isGenericTitle(activeSceneTitle) && activeSceneTitle) || 
-    (!isGenericTitle(firstHeading) && firstHeading) || 
-    (!isGenericTitle(conversationTopic) && conversationTopic) ||
-    'Visual Concept';
+    (!isGenericTitle(activeSceneTitle) && activeSceneTitle);
 
-  const finalTitle = formatConciseTopic(rawCandidateTitle);
+  const fallbackCandidateTitle =
+    (!isGenericTitle(firstHeading) && firstHeading) || 
+    (!isGenericTitle(metadata?.stepTitle) && metadata?.stepTitle) || 
+    (!isGenericTitle(extractedTitle) && extractedTitle) || 
+    (!isGenericTitle(metadata?.topic) && metadata?.topic) || 
+    (!isGenericTitle(conversationTopic) && conversationTopic) || 
+    (!isGenericTitle(metadata?.title) && metadata?.title) || 
+    'Visual';
+
+  const rawCandidateTitle = artifactCandidateTitle || fallbackCandidateTitle;
+  const finalTitle = formatConciseTopic(rawCandidateTitle, 'Visual');
   // an Engine v2 lesson is always shown as one, whatever the answer text suggests
   const finalRendererType = metadata?.rendererType === 'scene-v2' ? 'scene-v2'
     : extractedCanvasType || artifactData?.rendererType || artifactData?.type || metadata?.rendererType || canvasType || 'cinematic';
   const isBeingRegenerated = isSessionActive && streamingMessageId === messageId;
   const showLocalIndicator = isBeingRegenerated && (!isStreaming || !displayContent);
-  const generationProgress = useTutorStore((s) => s.generationProgress);
 
   const hasVisualArtifact = isAssistant && (metadata?.artifactId || metadata?.hasVisualArtifact || metadata?.visuals || artifactData || hasCanvas);
 
@@ -136,36 +150,11 @@ const Message = ({
     return { mainContent: displayContent, deeperContent: null };
   }, [displayContent, isAssistant]);
 
-  const thinkingLabel = React.useMemo(() => {
-    return detectCurrentAction({
-      displayContent,
-      isStreaming: isCurrentlyStreaming,
-      searchPerformed: Boolean(streamingSearchPerformed || metadata?.searchPerformed),
-      hasVisualArtifact: Boolean(hasVisualArtifact),
-      generationProgress,
-    });
-  }, [generationProgress, streamingSearchPerformed, metadata?.searchPerformed, isCurrentlyStreaming, displayContent, hasVisualArtifact]);
-
-  const thoughtSteps = React.useMemo(() => {
-    if (steps && Array.isArray(steps) && steps.length > 0) {
-      return steps.map(s => formatShortAction(typeof s === 'string' ? s : s.title || s.text || String(s)));
-    }
-    const list = [
-      'Analyzing problem',
-      'Planning canvas',
-      'Solving logic',
-      'Generating visual',
-      'Animating steps',
-      'Writing response',
-      'Refining formulas',
-      'Polishing answer',
-      'Finalizing'
-    ];
-    if (metadata?.searchPerformed || streamingSearchPerformed || streamingSources?.length > 0 || metadata?.sources?.length > 0) {
-      list.splice(1, 0, 'Searching web');
-    }
-    return list;
-  }, [steps, metadata, streamingSearchPerformed, streamingSources]);
+  // What the server reports this request doing — never guessed from the text
+  const progressView = React.useMemo(
+    () => describeProgress(streamingProgress, { hasText: Boolean(displayContent) }),
+    [streamingProgress, displayContent]
+  );
 
   // ThoughtLine: strictly visible while generating, disappears completely afterwards
   const isGeneratingThisMessage = isAssistant && (
@@ -250,7 +239,7 @@ const Message = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div className={`relative group min-w-0 ${isAssistant ? 'w-full' : 'max-w-[85%] self-end ml-auto'}`}>
+      <div className={`relative group min-w-0 ${isAssistant ? 'w-full' : `${isMobile ? 'max-w-[80%]' : 'max-w-[85%]'} self-end ml-auto`}`}>
         <AnimatePresence mode="wait">
           {isEditing ? (
             <motion.div
@@ -382,13 +371,11 @@ const Message = ({
                     className="py-1 overflow-hidden"
                   >
                     <ThoughtLine
-                      working={true}
-                      steps={thoughtSteps}
-                      label={thinkingLabel}
-                      glyph="matrix"
+                      working={progressView.active}
+                      steps={progressView.stages}
+                      label={progressView.label || 'Getting started…'}
                       fontSize={14}
                       collapsible
-                      showTimer
                     />
                   </motion.div>
                 )}
@@ -411,7 +398,7 @@ const Message = ({
                     background: 'var(--user-bubble-bg, var(--bg-tertiary))',
                     color: 'var(--user-bubble-text, var(--text-primary))',
                     borderRadius: '22px 22px 4px 22px',
-                    padding: '10px 18px',
+                    padding: isMobile ? '8px 14px' : '10px 18px',
                     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
                   }}
                 >
@@ -438,6 +425,7 @@ const Message = ({
                           status={metadata?.artifactStatus || (isStreaming ? 'generating' : 'completed')}
                           onOpenCanvas={onOpenCanvas}
                           messageId={messageId}
+                          onRetry={onRegenerateMessage && !isStreaming ? () => onRegenerateMessage(messageId) : undefined}
                         />
                       )}
 
@@ -483,7 +471,7 @@ const Message = ({
                                   <Quote size={10} className="fill-current" />
                                   <span className="text-xs font-medium">Context</span>
                                 </div>
-                                <p
+                                <div
                                   className="text-[13px] leading-relaxed italic font-normal"
                                   style={{
                                     color: 'inherit',
@@ -494,8 +482,14 @@ const Message = ({
                                     overflow: isContextExpanded ? 'visible' : 'hidden',
                                   }}
                                 >
-                                  "{context}"
-                                </p>
+                                  {(() => {
+                                    const formatted = formatNoteMathText(context);
+                                    if (formatted) {
+                                      return <span dangerouslySetInnerHTML={{ __html: `“${formatted}”` }} />;
+                                    }
+                                    return `“${cleanFormulaText(context)}”`;
+                                  })()}
+                                </div>
                                 {context.length > 100 && (
                                   <button
                                     onClick={() => setIsContextExpanded(!isContextExpanded)}
@@ -521,8 +515,8 @@ const Message = ({
                               color: 'var(--user-bubble-text, var(--text-primary))',
                               whiteSpace: 'pre-wrap',
                               overflowWrap: 'anywhere',
-                              lineHeight: 1.6,
-                              fontSize: 15,
+                              lineHeight: isMobile ? 1.5 : 1.6,
+                              fontSize: isMobile ? 14.5 : 15,
                               margin: 0,
                               display: !isExpanded && displayContent?.length > 400 ? '-webkit-box' : 'block',
                               WebkitLineClamp: !isExpanded && displayContent?.length > 400 ? 8 : undefined,
@@ -668,6 +662,10 @@ export default React.memo(Message, (prev, next) => {
     prev.isStreaming === next.isStreaming &&
     prev.streamingContent === next.streamingContent &&
     prev.streamingMessageId === next.streamingMessageId &&
+    prev.streamingProgress === next.streamingProgress &&
+    prev.metadata?.artifactStatus === next.metadata?.artifactStatus &&
+    prev.metadata?.artifactId === next.metadata?.artifactId &&
+    prev.metadata?.hasVisualArtifact === next.metadata?.hasVisualArtifact &&
     prev.isSessionActive === next.isSessionActive &&
     prev.status === next.status &&
     prev.isLatest === next.isLatest &&

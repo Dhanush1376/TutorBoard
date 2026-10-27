@@ -1,5 +1,5 @@
 /* Critical fonts loaded synchronously; decorative fonts deferred */
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Geist+Mono:wght@400;500;600&family=Caveat:wght@500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Geist+Mono:wght@400;500;600&family=Caveat:wght@500;600&family=Kalam:wght@400;700&family=Patrick+Hand&family=Gochi+Hand&display=swap");
 /* Deferred fonts — loaded asynchronously via index.html link[media=print] swap pattern */
 /* DM Sans, DM Serif Display, Outfit loaded on-demand when their components mount */
 @import "tailwindcss";
@@ -357,10 +357,13 @@
   }
 
   /* Theme-specific selection color */
-  ::selection,
+  ::selection {
+    background-color: var(--selection-bg, rgba(56, 189, 248, 0.28));
+    color: var(--selection-text, inherit);
+  }
   *::selection {
-    background-color: var(--selection-bg, rgba(245, 243, 238, 0.22)) !important;
-    color: var(--selection-text, inherit) !important;
+    background-color: var(--selection-bg, rgba(56, 189, 248, 0.28));
+    color: var(--selection-text, inherit);
   }
 
   .bg-grid-pattern {
@@ -2247,12 +2250,35 @@ div.streaming-cursor {
   padding: 0 !important;
 }
 
+/* Phones: denser answers (sizes only — same look as desktop). The answer
+   renderers set inline sizes, hence !important. */
+@media (max-width: 639px) {
+  .markdown-content p,
+  .markdown-content li {
+    font-size: 14.5px !important;
+    line-height: 1.6 !important;
+  }
+  .markdown-content p { margin-bottom: 0.7em !important; }
+  .markdown-content h1 { font-size: 17px !important; margin: 1.1em 0 0.4em !important; }
+  .markdown-content h2 { font-size: 16px !important; margin: 1em 0 0.35em !important; }
+  .markdown-content h3,
+  .markdown-content h4 { font-size: 15px !important; margin: 0.9em 0 0.3em !important; }
+  .markdown-content hr { margin: 0.9em 0 !important; border-top-color: var(--st-line, var(--border-color)) !important; }
+  .markdown-content ul,
+  .markdown-content ol { margin-bottom: 0.7em !important; }
+}
+
 /* Display math scrolls inside the answer instead of widening the chat */
 .markdown-content .katex-display {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.25em 0;
   margin: 0.5em 0 1em;
+}
+
+/* Ensure clean text selection from rendered KaTeX equations without broken duplicate glyphs */
+.markdown-content .katex .katex-mathml {
+  user-select: none;
 }
 
 /* Strong and emphasis */
@@ -2623,11 +2649,50 @@ mark.tb-highlight {
   box-shadow: 0 0 8px rgba(250, 204, 21, 0.35);
 }
 
+::highlight(tb-source-flash) {
+  background-color: #38bdf8;
+  color: #000000;
+}
+
+@keyframes tb-flash-pulse {
+  0% {
+    background-color: rgba(56, 189, 248, 0.7);
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.3), 0 0 16px rgba(56, 189, 248, 0.6);
+  }
+  30% {
+    background-color: rgba(56, 189, 248, 0.85);
+    box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.45), 0 0 24px rgba(56, 189, 248, 0.75);
+  }
+  70% {
+    background-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15), 0 0 10px rgba(56, 189, 248, 0.3);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+mark.tb-source-flash {
+  animation: tb-flash-pulse 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  border-radius: 4px;
+  padding: 1px 4px;
+  color: inherit;
+}
+
 /* ─── Sticky notes: handwriting ─── */
 .tb-note-hand {
-  font-family: "Caveat", "Segoe Print", "Bradley Hand", cursive;
-  font-size: 20px;
-  font-weight: 500;
+  font-family: "Patrick Hand", "Comic Sans MS", cursive;
+  font-size: 17.5px;
+  font-weight: 400;
+}
+.tb-note-font-patrick,
+.tb-note-font-caveat,
+.tb-note-font-kalam,
+.tb-note-font-gochi {
+  font-family: "Patrick Hand", "Comic Sans MS", cursive;
+  font-size: 17.5px;
+  font-weight: 400;
 }
 .tb-note-hand,
 .tb-note-hand:focus,
@@ -2638,8 +2703,89 @@ mark.tb-highlight {
   letter-spacing: 0.1px;
 }
 
+/* Subtle, clean scrollbar for long sticky note text */
+.tb-note-hand::-webkit-scrollbar {
+  width: 4px;
+}
+.tb-note-hand::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tb-note-hand::-webkit-scrollbar-thumb {
+  background: rgba(60, 50, 30, 0.2);
+  border-radius: 4px;
+}
+.tb-note-hand::-webkit-scrollbar-thumb:hover {
+  background: rgba(60, 50, 30, 0.4);
+}
+
+/* Sticky note text selection: crisp, dark, and highly readable on pastel paper */
+.tb-note-hand::selection,
+.tb-note-hand *::selection,
+[data-note-paper] ::selection,
+[data-note-paper] *::selection {
+  background-color: rgba(30, 24, 10, 0.22) !important;
+  color: #1a1608 !important;
+  -webkit-text-fill-color: #1a1608 !important;
+}
+
+/* Math formulas inside sticky notes (KaTeX rendering) */
+[data-note-paper] .katex {
+  color: inherit;
+  font-size: 1.05em;
+  line-height: inherit;
+}
+[data-note-paper] .katex-html {
+  color: inherit;
+}
+.tb-note-math-inline {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+.tb-note-math-display {
+  display: block;
+  text-align: center;
+  margin: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 /* ── Code walkthrough: the line about to run, the one that just ran ───── */
 .monaco-editor .tb-trace-line { background: color-mix(in srgb, var(--mk-accent) 16%, transparent); box-shadow: inset 3px 0 0 var(--mk-accent); }
 .monaco-editor .tb-trace-prev { background: color-mix(in srgb, var(--mk-accent) 6%, transparent); }
 .monaco-editor .tb-trace-error { background: rgba(239, 68, 68, 0.14); box-shadow: inset 3px 0 0 rgb(239, 68, 68); }
 .monaco-editor .tb-trace-glyph::before { content: '➜'; display: block; color: var(--mk-accent); font-size: 13px; line-height: 22px; text-align: center; }
+
+/* ── Lesson dock glass: the playback bar, step strip, zoom + minimize pills ──
+   The canvas's own dark fill, a hairline edge, a faint top line and an outer ring so they read on a dark canvas. */
+.tb-dock-glass {
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 94%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 9%, transparent),
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 14px 34px -16px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+/* ── Status dot: "this is being worked on" (canvas lesson preparation) ── */
+.tb-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--mk-accent, #ea580c);
+  animation: tb-status-breathe 1.6s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+}
+.tb-status-dot--lg {
+  width: 9px;
+  height: 9px;
+}
+@keyframes tb-status-breathe {
+  0%, 100% { opacity: 0.45; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tb-status-dot { animation: none; opacity: 0.85; }
+}

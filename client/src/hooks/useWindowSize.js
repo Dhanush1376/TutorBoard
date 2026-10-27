@@ -9,6 +9,7 @@ export default function useWindowSize() {
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
     isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+    isTablet: typeof window !== 'undefined' ? window.innerWidth >= 768 && window.innerWidth <= 1024 : false,
   });
 
   useEffect(() => {
@@ -20,10 +21,12 @@ export default function useWindowSize() {
       // Debounce logic
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
+        const w = window.innerWidth;
         setWindowSize({
-          width: window.innerWidth,
+          width: w,
           height: window.innerHeight,
-          isMobile: window.innerWidth < 768,
+          isMobile: w < 768,
+          isTablet: w >= 768 && w <= 1024,
         });
       }, 150); // 150ms debounce
     };

@@ -1,12 +1,16 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { SceneEngine } from '../../scene/engine';
+import ParamPanel from './ParamPanel';
+
+/** Room the open sliders panel takes on the left of a wide stage (its width + gaps). */
+const PARAM_PANEL_ROOM = 272;
 import { readingSeconds } from '../../scene/tokens';
 
 /** Learners who ask the OS for less motion get each step's end state, not its animation. */
 const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-import { RotateCcw, MessageSquareQuote, Edit3 } from 'lucide-react';
+import { RotateCcw, MessageSquareQuote } from 'lucide-react';
 import useTutorStore from '../../store/tutorStore';
 
 /**
@@ -21,8 +25,12 @@ import useTutorStore from '../../store/tutorStore';
  * board), the stage plays the answer's beats one after another; leaving the
  * branch restores the lesson at the step it was on. Clicking an element on the
  * board asks about it (`onAskAbout`).
+ *
+ * Sliders: their values are kept in the store under `lessonKey` (the lesson's
+ * artifact id), saved with the lesson's position, and a reopened lesson loads
+ * with them; a doubt on the board leaves them as they were.
  */
-const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets, onAskAbout }, ref) {
+const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, lessonKey, stepIndex, insets, onAskAbout }, ref) {
   const hostRef = useRef(null);
   const engineRef = useRef(null);
   const loadedRef = useRef(null);
@@ -42,6 +50,10 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
 
   // latest values for async callbacks
   const sceneRef = useRef(scene);
+  const lessonKeyRef = useRef(lessonKey);
+  lessonKeyRef.current = lessonKey;
+  /** the lesson's slider values while a doubt is on the board */
+  const lessonParamsRef = useRef(null);
   const stepRef = useRef(stepIndex);
   const replayRef = useRef(replayNonce);
   sceneRef.current = scene;
@@ -118,6 +130,7 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
 
     // Wheel Zoom
     const onWheel = (e) => {
+      if (e.target.closest?.('[data-no-pan]')) return; // the sliders panel scrolls/adjusts itself
       e.preventDefault();
       const rect = host.getBoundingClientRect();
       const cx = e.clientX - rect.left;
@@ -128,7 +141,7 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
 
     // Pointer Events for Pan & Pinch-Zoom
     const onPointerDown = (e) => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button, [data-no-pan]')) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (activePointers.size === 1) {
@@ -230,7 +243,9 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
     const sameLesson = prev && prev.title === scene.title && prev.firstBeat === scene.beats[0]?.title && scene.beats.length >= prev.beats;
     if (sameLesson && scene.beats.length === prev.beats && prev.scene === scene) return;
     loadedRef.current = { scene, title: scene.title, firstBeat: scene.beats[0]?.title, beats: scene.beats.length };
-    (sameLesson ? engine.extend(scene) : engine.load(scene)).then(() => {
+    // a lesson opened again starts with its sliders where they were left
+    const saved = lessonKey ? useTutorStore.getState().lessonParams?.[lessonKey] : undefined;
+    (sameLesson ? engine.extend(scene) : engine.load(scene, saved)).then(() => {
       if (engineRef.current === engine && !branchRef.current) { setLoadedBeats(engine.beatCount); makeAskable(); }
     });
   }, [scene]);
@@ -241,6 +256,7 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
     if (!engine) return;
     const prev = branchRef.current;
     if (sceneBranch && sceneBranch.scene !== prev?.scene) {
+      if (!prev) lessonParamsRef.current = engine.paramState.values;
       branchRef.current = sceneBranch;
       clearTimeout(branchTimer.current);
       engine.load(sceneBranch.scene).then((r) => {
@@ -263,7 +279,7 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
       restoringRef.current = true;
       const lesson = sceneRef.current;
       loadedRef.current = { scene: lesson, title: lesson.title, firstBeat: lesson.beats[0]?.title, beats: lesson.beats.length };
-      engine.load(lesson).then((r) => {
+      engine.load(lesson, lessonParamsRef.current ?? undefined).then((r) => {
         restoringRef.current = false;
         if (!r || branchRef.current) return;
         setLoadedBeats(engine.beatCount);
@@ -310,18 +326,40 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
 
   useEffect(() => { engineRef.current?.setSpeed(Math.max(0.25, playbackSpeed || 1)); }, [playbackSpeed, loadedBeats]);
 
-  // room changes (side panel) and host resizes re-fit the camera in place
-  const insetsKey = JSON.stringify(insets || {});
+  // sliders (lesson parameters): on a wide stage the open panel takes room on the left and the board fits beside it;
+  // on a narrow one it starts folded into a "Try it" pill and opens over the board
+  const [hostW, setHostW] = useState(0);
+  const [panelOpen, setPanelOpen] = useState(null); // null: open on wide stages
+  const hasSliders = !!loadedBeats && !!engineRef.current?.paramState.params.some((p) => p.max > p.min);
+  const wideStage = hostW >= 900; // room for the panel beside the board
+  const roomyStage = hostW >= 1200; // room enough to open it by default
+  const sliderPanelOpen = panelOpen ?? roomyStage;
+  const keepParams = useCallback((values) => {
+    if (lessonKeyRef.current && !branchRef.current) useTutorStore.getState().rememberLessonParams(lessonKeyRef.current, values);
+  }, []);
+  // a lesson saved after its sliders were moved (still streaming then): keep what is on the board
   useEffect(() => {
-    if (loadedBeats) engineRef.current?.setInsets(insets || {});
+    const engine = engineRef.current;
+    if (!lessonKey || !loadedBeats || !engine || branchRef.current || useTutorStore.getState().lessonParams?.[lessonKey]) return;
+    const { params, values } = engine.paramState;
+    if (params.some((p) => values[p.id] !== p.value)) keepParams(values);
+  }, [lessonKey, loadedBeats, keepParams]);
+  const boardInsets = hasSliders && sliderPanelOpen && wideStage ? { ...insets, left: (insets?.left ?? 0) + PARAM_PANEL_ROOM } : insets;
+
+  // room changes (side panel, sliders) and host resizes re-fit the camera in place
+  const insetsKey = JSON.stringify(boardInsets || {});
+  useEffect(() => {
+    if (loadedBeats) engineRef.current?.setInsets(boardInsets || {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [insetsKey]);
+  }, [insetsKey, loadedBeats]);
   useEffect(() => {
     const host = hostRef.current;
     if (!host || typeof ResizeObserver === 'undefined') return undefined;
     let timer;
     let first = true;
+    setHostW(host.clientWidth);
     const ro = new ResizeObserver(() => {
+      setHostW(host.clientWidth);
       if (first) { first = false; return; } // initial observation, not a resize
       clearTimeout(timer);
       timer = setTimeout(() => engineRef.current?.refit(), 160);
@@ -332,6 +370,22 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
 
   // Hover Popover state for previewing the query before click
   const [hoverPopover, setHoverPopover] = useState(null); // { x, y, entity, question, label }
+  const capsuleRef = useRef(null);
+
+  // Keep the Ask capsule inside the stage: nudge it back in when it would run off either edge
+  useLayoutEffect(() => {
+    const el = capsuleRef.current;
+    const parent = el?.offsetParent;
+    if (!el || !parent) return;
+    el.style.marginLeft = '0px';
+    const r = el.getBoundingClientRect();
+    const p = parent.getBoundingClientRect();
+    const pad = 12;
+    let dx = 0;
+    if (r.right > p.right - pad) dx = p.right - pad - r.right;
+    if (r.left + dx < p.left + pad) dx = p.left + pad - r.left;
+    el.style.marginLeft = `${dx}px`;
+  }, [hoverPopover]);
   const hoverHideTimerRef = useRef(null);
   const isOverPopoverRef = useRef(false);
 
@@ -540,23 +594,39 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
         {said}
       </div>
 
+      {/* sliders for a lesson with parameters: move one, the board redraws at the same step */}
+      <ParamPanel
+        key={`${scene?.title}|${loadedBeats}|${sceneBranch ? 'branch' : 'lesson'}`}
+        engine={loadedBeats ? engineRef.current : null}
+        open={sliderPanelOpen}
+        onToggle={() => setPanelOpen(!sliderPanelOpen)}
+        onChange={keepParams}
+        style={{ top: (insets?.top ?? 0) + 16, left: (insets?.left ?? 0) + 16 }}
+      />
+
       {/* ── Hover Capsule Popover (Matching Photo 2 style) ── */}
       <AnimatePresence>
         {hoverPopover && !isDragging && (
-          <motion.div
-            data-hover-capsule="true"
-            initial={{ opacity: 0, y: hoverPopover.below ? -4 : 4, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          // The wrapper owns placement: framer-motion rewrites `transform` on the element it animates
+          <div
+            key="hover-capsule"
+            ref={capsuleRef}
             style={{
               position: 'absolute',
               top: hoverPopover.top,
               left: hoverPopover.left,
               transform: `translate(-50%, ${hoverPopover.below ? '0%' : '-100%'})`,
               zIndex: 70,
-              pointerEvents: 'auto',
+              pointerEvents: 'none',
             }}
+          >
+          <motion.div
+            data-hover-capsule="true"
+            initial={{ opacity: 0, y: hoverPopover.below ? -4 : 4, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            style={{ pointerEvents: 'auto' }}
             onPointerEnter={() => {
               isOverPopoverRef.current = true;
               if (hoverHideTimerRef.current) {
@@ -590,18 +660,11 @@ const SceneV2Stage = forwardRef(function SceneV2Stage({ scene, stepIndex, insets
             <div className="w-px h-4 bg-current opacity-20 shrink-0" />
 
             {/* Query Preview */}
-            <div className="flex items-center gap-1.5 px-2 text-[12px] opacity-85 group-hover:opacity-100 transition-opacity max-w-[280px] truncate">
+            <div className="flex items-center gap-1.5 px-3 pr-4 text-[12px] opacity-85 group-hover:opacity-100 transition-opacity max-w-[320px] truncate">
               <span className="truncate font-medium">"{hoverPopover.question}"</span>
             </div>
-
-            <div className="w-px h-4 bg-current opacity-20 shrink-0" />
-
-            {/* Edit Hint Pill */}
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium opacity-80 group-hover:opacity-100 hover:bg-white/10 dark:hover:bg-black/10 transition-colors shrink-0">
-              <Edit3 size={11} strokeWidth={2} />
-              <span>Edit</span>
-            </div>
           </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

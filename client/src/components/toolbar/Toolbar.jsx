@@ -7,7 +7,7 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 
 import useTutorStore from '../../store/tutorStore';
-import useAnnotationStore, { INKS, NOTE_COLORS } from '../../store/annotationStore';
+import useAnnotationStore, { INKS, NOTE_COLORS, NOTE_FONTS } from '../../store/annotationStore';
 import { useAuth } from '../../hooks/useAuth';
 import useWindowSize from '../../hooks/useWindowSize';
 import exportCanvasImage from '../../utils/exportCanvasImage';
@@ -17,7 +17,14 @@ const WIDTHS = [2, 4, 8];
 
 /* ── Pieces ────────────────────────────────────────────────────────── */
 
-function ToolButton({ label, icon: Icon, active, open, disabled, onClick, compact }) {
+function ToolButton({ label, icon: Icon, active, open, disabled, onClick, sizeTier = 'default' }) {
+  const sizeClasses = sizeTier === 'mobile' 
+    ? 'h-8 w-8' 
+    : sizeTier === 'tablet' 
+      ? 'h-[37px] w-[37px]' 
+      : 'h-10 w-10';
+  const iconSize = sizeTier === 'mobile' ? 15 : sizeTier === 'tablet' ? 17 : 18;
+
   return (
     <button
       type="button"
@@ -27,9 +34,7 @@ function ToolButton({ label, icon: Icon, active, open, disabled, onClick, compac
       aria-expanded={open}
       disabled={disabled}
       onClick={onClick}
-      className={`relative grid shrink-0 cursor-pointer place-items-center rounded-full transition-colors duration-200 disabled:cursor-default disabled:opacity-35 ${
-        compact ? 'h-8 w-8' : 'h-10 w-10'
-      } ${
+      className={`relative grid shrink-0 cursor-pointer place-items-center rounded-full transition-colors duration-200 disabled:cursor-default disabled:opacity-35 ${sizeClasses} ${
         active
           ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
           : open
@@ -37,7 +42,7 @@ function ToolButton({ label, icon: Icon, active, open, disabled, onClick, compac
             : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill-strong)] hover:text-[var(--text-primary)]'
       }`}
     >
-      <Icon size={compact ? 16 : 18} strokeWidth={1.8} />
+      <Icon size={iconSize} strokeWidth={1.8} />
     </button>
   );
 }
@@ -193,8 +198,15 @@ function ShapePanel() {
 }
 
 function NotePanel({ close }) {
-  const { noteColor, setNoteColor, addNote, setTool } = useAnnotationStore(
-    useShallow((s) => ({ noteColor: s.noteColor, setNoteColor: s.setNoteColor, addNote: s.addNote, setTool: s.setTool })),
+  const { noteColor, setNoteColor, noteFont, setNoteFont, addNote, setTool } = useAnnotationStore(
+    useShallow((s) => ({
+      noteColor: s.noteColor,
+      setNoteColor: s.setNoteColor,
+      noteFont: s.noteFont || 'caveat',
+      setNoteFont: s.setNoteFont,
+      addNote: s.addNote,
+      setTool: s.setTool,
+    })),
   );
   return (
     <>
@@ -212,7 +224,8 @@ function NotePanel({ close }) {
           />
         ))}
       </div>
-      <p className="mt-4 text-[12.5px] leading-[1.5] text-[var(--text-secondary)]">Click anywhere on the canvas to pin a note there. Notes stay with this session.</p>
+
+
       <button
         type="button"
         onClick={() => {
@@ -220,10 +233,10 @@ function NotePanel({ close }) {
           setTool('select');
           close();
         }}
-        className="mt-3 flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-full border border-[var(--st-line-strong)] text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)]"
+        className="mt-3.5 flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-full border border-[var(--st-line-strong)] text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--st-fill)]"
       >
         <StickyNote size={14} strokeWidth={1.8} />
-        Add one for me
+        Add note
       </button>
     </>
   );
@@ -301,7 +314,7 @@ function ClearPanel({ close }) {
               close();
             }}
             className={`flex w-full cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2 text-left text-[13px] transition-colors disabled:cursor-default disabled:opacity-40 ${
-              arming ? 'bg-red-500/[0.08] text-red-500' : r.danger ? 'text-red-500 hover:bg-red-500/[0.06]' : 'text-[var(--text-primary)] hover:bg-[var(--st-fill)]'
+              arming ? 'bg-red-600 text-white font-medium hover:bg-red-500 shadow-sm' : r.danger ? 'text-red-500 hover:bg-red-500/[0.06]' : 'text-[var(--text-primary)] hover:bg-[var(--st-fill)]'
             }`}
           >
             <span className="flex-1">{arming ? 'Tap again to clear' : r.label}</span>
@@ -333,7 +346,7 @@ const Toolbar = ({ onSettingsClick }) => {
   const rootRef = useRef(null);
   const [open, setOpen] = useState(null); // draw | shape | note | share | clear | profile
   const [imgError, setImgError] = useState(false);
-  const { isMobile } = useWindowSize();
+  const { isMobile, isTablet } = useWindowSize();
   const { user, logout } = useAuth();
   const { layoutView, endSession, setCodeEditorOpen } = useTutorStore(
     useShallow((s) => ({ layoutView: s.layoutView, endSession: s.endSession, setCodeEditorOpen: s.setCodeEditorOpen })),
@@ -390,8 +403,8 @@ const Toolbar = ({ onSettingsClick }) => {
     draw: { title: 'Draw', widthClass: 'w-[min(288px,calc(100vw-24px))]', body: <DrawPanel /> },
     shape: { title: 'Shapes', widthClass: 'w-[min(288px,calc(100vw-24px))]', body: <ShapePanel /> },
     note: { title: 'Sticky note', widthClass: 'w-[min(288px,calc(100vw-24px))]', body: <NotePanel close={close} /> },
-    share: { title: 'Share', widthClass: 'w-[min(288px,calc(100vw-24px))]', body: <SharePanel close={close} /> },
-    clear: { title: 'Clear', widthClass: 'w-[min(288px,calc(100vw-24px))]', body: <ClearPanel close={close} /> },
+    share: { title: 'Share', widthClass: 'w-[min(215px,calc(100vw-24px))]', body: <SharePanel close={close} /> },
+    clear: { title: 'Clear', widthClass: 'w-[min(220px,calc(100vw-24px))]', body: <ClearPanel close={close} /> },
     profile: {
       title: null,
       widthClass: 'w-[200px]',
@@ -413,7 +426,30 @@ const Toolbar = ({ onSettingsClick }) => {
   };
   const panel = open ? panels[open] : null;
   const DrawIcon = tool === 'draw' && penMode === 'eraser' ? Eraser : tool === 'draw' && penMode === 'highlighter' ? Highlighter : Pencil;
+  const sizeTier = isMobile ? 'mobile' : isTablet ? 'tablet' : 'default';
   const compact = isMobile;
+
+  const profileButton = (
+    <button
+      type="button"
+      aria-label="Account"
+      aria-expanded={open === 'profile'}
+      onClick={() => toggle('profile')}
+      className={`grid shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-[var(--st-line-strong)] transition-all ${
+        sizeTier === 'mobile' 
+          ? 'h-8 w-8' 
+          : sizeTier === 'tablet' 
+            ? 'h-[37px] w-[37px]' 
+            : 'h-10 w-10'
+      } bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 active:scale-95 shadow-sm`}
+    >
+      {user?.avatar && !imgError ? (
+        <img src={user.avatar} alt="" className="h-full w-full object-cover" onError={() => setImgError(true)} />
+      ) : (
+        <User size={sizeTier === 'mobile' ? 14 : sizeTier === 'tablet' ? 16 : 17} strokeWidth={2} />
+      )}
+    </button>
+  );
 
   return (
     <div ref={rootRef} className="relative max-w-full">
@@ -423,31 +459,20 @@ const Toolbar = ({ onSettingsClick }) => {
         transition={{ duration: 0.4, ease: EASE }}
         role="toolbar"
         aria-label="Canvas tools"
-        className="no-scrollbar flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)]/90 p-1 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_32px_-18px_rgba(0,0,0,0.4)] backdrop-blur-xl"
+        className={`no-scrollbar flex max-w-full items-center overflow-x-auto rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)]/90 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_32px_-18px_rgba(0,0,0,0.4)] backdrop-blur-xl ${
+          sizeTier === 'tablet' ? 'gap-1 p-1 px-1.5' : 'gap-0.5 p-1'
+        }`}
       >
         {layoutView === 'right' ? (
           <>
-            <button
-              type="button"
-              aria-label="Account"
-              aria-expanded={open === 'profile'}
-              onClick={() => toggle('profile')}
-              className={`grid shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-[var(--st-line-strong)] transition-all ${
-                compact ? 'mr-0.5 h-8 w-8' : 'h-10 w-10'
-              } bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 active:scale-95 shadow-sm`}
-            >
-              {user?.avatar && !imgError ? (
-                <img src={user.avatar} alt="" className="h-full w-full object-cover" onError={() => setImgError(true)} />
-              ) : (
-                <User size={compact ? 15 : 17} strokeWidth={2} />
-              )}
-            </button>
+            {profileButton}
             <Divider />
-            <ToolButton compact={compact} label="Clear" icon={Trash2} open={open === 'clear'} onClick={() => toggle('clear')} />
-            <ToolButton compact={compact} label="Share" icon={Share} open={open === 'share'} onClick={() => toggle('share')} />
-            <ToolButton compact={compact} label="Undo" icon={Undo2} disabled={!canUndo} onClick={undo} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Clear" icon={Trash2} open={open === 'clear'} onClick={() => toggle('clear')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Share" icon={Share} open={open === 'share'} onClick={() => toggle('share')} />
             <Divider />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Undo" icon={Undo2} disabled={!canUndo} onClick={undo} />
             <ToolButton
+              sizeTier={sizeTier}
               compact={compact}
               label="Code editor"
               icon={SquareCode}
@@ -456,16 +481,17 @@ const Toolbar = ({ onSettingsClick }) => {
                 setCodeEditorOpen(true);
               }}
             />
-            <ToolButton compact={compact} label="Sticky note" icon={StickyNote} active={tool === 'note'} open={open === 'note'} onClick={() => pickTool('note')} />
-            <ToolButton compact={compact} label="Shapes" icon={Shapes} active={tool === 'shape'} open={open === 'shape'} onClick={() => pickTool('shape')} />
-            <ToolButton compact={compact} label="Draw" icon={DrawIcon} active={tool === 'draw'} open={open === 'draw'} onClick={() => pickTool('draw')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Sticky note" icon={StickyNote} active={tool === 'note'} open={open === 'note'} onClick={() => pickTool('note')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Shapes" icon={Shapes} active={tool === 'shape'} open={open === 'shape'} onClick={() => pickTool('shape')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Draw" icon={DrawIcon} active={tool === 'draw'} open={open === 'draw'} onClick={() => pickTool('draw')} />
           </>
         ) : (
           <>
-            <ToolButton compact={compact} label="Draw" icon={DrawIcon} active={tool === 'draw'} open={open === 'draw'} onClick={() => pickTool('draw')} />
-            <ToolButton compact={compact} label="Shapes" icon={Shapes} active={tool === 'shape'} open={open === 'shape'} onClick={() => pickTool('shape')} />
-            <ToolButton compact={compact} label="Sticky note" icon={StickyNote} active={tool === 'note'} open={open === 'note'} onClick={() => pickTool('note')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Draw" icon={DrawIcon} active={tool === 'draw'} open={open === 'draw'} onClick={() => pickTool('draw')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Shapes" icon={Shapes} active={tool === 'shape'} open={open === 'shape'} onClick={() => pickTool('shape')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Sticky note" icon={StickyNote} active={tool === 'note'} open={open === 'note'} onClick={() => pickTool('note')} />
             <ToolButton
+              sizeTier={sizeTier}
               compact={compact}
               label="Code editor"
               icon={SquareCode}
@@ -474,26 +500,12 @@ const Toolbar = ({ onSettingsClick }) => {
                 setCodeEditorOpen(true);
               }}
             />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Undo" icon={Undo2} disabled={!canUndo} onClick={undo} />
             <Divider />
-            <ToolButton compact={compact} label="Undo" icon={Undo2} disabled={!canUndo} onClick={undo} />
-            <ToolButton compact={compact} label="Share" icon={Share} open={open === 'share'} onClick={() => toggle('share')} />
-            <ToolButton compact={compact} label="Clear" icon={Trash2} open={open === 'clear'} onClick={() => toggle('clear')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Share" icon={Share} open={open === 'share'} onClick={() => toggle('share')} />
+            <ToolButton sizeTier={sizeTier} compact={compact} label="Clear" icon={Trash2} open={open === 'clear'} onClick={() => toggle('clear')} />
             <Divider />
-            <button
-              type="button"
-              aria-label="Account"
-              aria-expanded={open === 'profile'}
-              onClick={() => toggle('profile')}
-              className={`grid shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-[var(--st-line-strong)] transition-all ${
-                compact ? 'ml-0.5 h-8 w-8' : 'h-10 w-10'
-              } bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 active:scale-95 shadow-sm`}
-            >
-              {user?.avatar && !imgError ? (
-                <img src={user.avatar} alt="" className="h-full w-full object-cover" onError={() => setImgError(true)} />
-              ) : (
-                <User size={compact ? 15 : 17} strokeWidth={2} />
-              )}
-            </button>
+            {profileButton}
           </>
         )}
       </motion.div>

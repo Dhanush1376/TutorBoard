@@ -24,19 +24,26 @@ const GitHubLogo = ({ size = 16 }) => (
   </svg>
 );
 
-const ProviderRow = ({ logo: Logo, label, isConnected, onConnect }) => (
+const ProviderRow = ({ logo: Logo, label, isConnected, onConnect, onDisconnect, busy }) => (
   <div className="flex items-center gap-3 px-4 py-3">
     <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[var(--st-line)] bg-[var(--st-fill)] text-[var(--text-primary)]">
       <Logo size={14} />
     </span>
     <div className="min-w-0 flex-1 text-[13.5px] font-medium text-[var(--text-primary)]">{label}</div>
     {isConnected ? (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-current" />
-        Connected
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          Connected
+        </span>
+        {onDisconnect && (
+          <Button variant="ghost" className="h-7 px-2.5 text-[11.5px]" onClick={onDisconnect} disabled={busy} aria-label={`Disconnect ${label}`}>
+            Disconnect
+          </Button>
+        )}
+      </div>
     ) : (
-      <Button variant="secondary" className="h-7 px-3 text-[11.5px]" onClick={onConnect}>
+      <Button variant="secondary" className="h-7 px-3 text-[11.5px]" onClick={onConnect} disabled={busy}>
         Connect
       </Button>
     )}
@@ -222,11 +229,22 @@ const Notice = ({ tone, icon: Icon, children }) => (
 
 // ─── Main AccountSection ─────────────────────────────────────────────────────
 
+const PROVIDER_NAMES = { google: 'Google', github: 'GitHub' };
+const REAUTH_HINT = 'For your security, sign out and sign in again, then retry within 15 minutes.';
+const errText = (err, fallback) => (err?.response?.data?.code === 'REAUTH_REQUIRED' ? REAUTH_HINT : err?.response?.data?.error || fallback);
+
+function describeDevice(ua = '') {
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} on ${os}` : browser;
+}
+
 export default function AccountSection({ user: userProp, logout, syncSettings, showToast }) {
   const navigate = useNavigate();
-  const { user: authUser } = useAuth();
+  const { user: authUser, refreshUser } = useAuth();
   const user = userProp || authUser;
   const isGuest = !!user?.isGuest;
+  const hasPassword = user?.hasPassword !== false;
 
   const [modalType, setModalType] = useState(null);
   const [currentPw, setCurrentPw] = useState('');
@@ -237,6 +255,22 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [code, setCode] = useState('');
+  const [unlinkTarget, setUnlinkTarget] = useState(null);
+  const [sessions, setSessions] = useState(null);
+  const [providerBusy, setProviderBusy] = useState(false);
+
+  const loadSessions = async () => {
+    try {
+      const r = await API.get('/api/auth/sessions');
+      setSessions(r.data.sessions || []);
+    } catch {
+      setSessions([]);
+    }
+  };
+  useEffect(() => {
+    if (!isGuest && user) loadSessions();
+  }, [isGuest, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const closeModals = () => {
     if (loading) return;
@@ -248,30 +282,114 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
     setShowNew(false);
     setErrorMsg('');
     setSuccessMsg('');
+    setCode('');
+    setUnlinkTarget(null);
   };
 
   const handlePasswordSubmit = async () => {
-    if (!currentPw || !newPw || !confirmPw) return setErrorMsg('Please fill in all fields.');
+    if ((hasPassword && !currentPw) || !newPw || !confirmPw) return setErrorMsg('Please fill in all fields.');
     if (newPw !== confirmPw) return setErrorMsg('Passwords do not match.');
-    if (newPw.length < 8) return setErrorMsg('Minimum 8 characters.');
-    if (getStrength(newPw) < 50) return setErrorMsg('Choose a stronger password.');
+    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/[0-9]/.test(newPw)) return setErrorMsg('Use 8+ characters with an uppercase letter and a number.');
 
     setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await API.put('/api/user/password', { currentPassword: currentPw, newPassword: newPw });
-      if (res.status === 200) {
-        setSuccessMsg('Password updated.');
-        setTimeout(closeModals, 1500);
-      } else {
-        setErrorMsg(res.data?.error || 'Failed to update.');
-        setLoading(false);
-      }
+      await API.put('/api/user/password', hasPassword ? { currentPassword: currentPw, newPassword: newPw } : { newPassword: newPw });
+      setSuccessMsg(hasPassword ? 'Password updated. Other devices were signed out.' : 'Password added.');
+      await refreshUser?.().catch(() => {});
+      loadSessions();
+      setLoading(false);
+      setTimeout(closeModals, 1500);
     } catch (err) {
-      setErrorMsg(err.response?.data?.error || 'Network error.');
+      setErrorMsg(errText(err, 'Network error.'));
       setLoading(false);
     }
+  };
+
+  const sendVerification = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const r = await API.post('/api/auth/verify-email/send');
+      if (r.data?.alreadyVerified) {
+        await refreshUser?.();
+        setLoading(false);
+        setModalType(null);
+        return;
+      }
+      setSuccessMsg(r.data?.message || 'Code sent.');
+    } catch (err) {
+      setErrorMsg(errText(err, 'Could not send the code.'));
+    }
+    setLoading(false);
+  };
+
+  const confirmVerification = async () => {
+    if (!/^\d{6}$/.test(code)) return setErrorMsg('Enter the 6-digit code from the email.');
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      await API.post('/api/auth/verify-email/confirm', { code });
+      await refreshUser?.();
+      setLoading(false);
+      showToast?.({ message: 'Email verified.', type: 'success' });
+      setModalType(null);
+      setCode('');
+      setSuccessMsg('');
+    } catch (err) {
+      setErrorMsg(errText(err, 'That code is not right.'));
+      setLoading(false);
+    }
+  };
+
+  const connectProvider = async (provider) => {
+    setProviderBusy(true);
+    try {
+      const r = await API.post(`/api/auth/link/${provider}`);
+      window.location.assign(`${API_URL}${r.data.url}`);
+    } catch (err) {
+      showToast?.({ message: errText(err, `Could not start connecting ${PROVIDER_NAMES[provider]}.`), type: 'error' });
+      setProviderBusy(false);
+    }
+  };
+
+  const confirmUnlink = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      await API.delete(`/api/auth/providers/${unlinkTarget}`);
+      await refreshUser?.();
+      showToast?.({ message: `${PROVIDER_NAMES[unlinkTarget]} disconnected.`, type: 'success' });
+      setLoading(false);
+      setModalType(null);
+      setUnlinkTarget(null);
+    } catch (err) {
+      setErrorMsg(errText(err, 'Could not disconnect.'));
+      setLoading(false);
+    }
+  };
+
+  const revokeSession = async (id) => {
+    try {
+      await API.delete(`/api/auth/sessions/${id}`);
+      loadSessions();
+    } catch (err) {
+      showToast?.({ message: errText(err, 'Could not sign that device out.'), type: 'error' });
+    }
+  };
+
+  const signOutEverywhere = async () => {
+    setLoading(true);
+    try {
+      await API.post('/api/auth/logout-all');
+    } catch {
+      /* this device is signed out below either way */
+    }
+    setLoading(false);
+    setModalType(null);
+    logout(true);
   };
 
   const handleDeleteSubmit = async () => {
@@ -280,14 +398,14 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
     try {
       const res = await API.delete('/api/user/account');
       if (res.status === 200) {
-        logout();
+        logout(true);
         navigate('/');
       } else {
         setErrorMsg(res.data?.error || 'Could not delete account.');
         setLoading(false);
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.error || 'Network error.');
+      setErrorMsg(errText(err, 'Network error.'));
       setLoading(false);
     }
   };
@@ -296,14 +414,28 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
     newPw === confirmPw ? <Check size={13} strokeWidth={2.6} className="text-emerald-500" /> : <X size={13} strokeWidth={2.6} className="text-red-500" />
   ) : null;
 
+  // the server refuses to remove the last way to sign in; don't offer it
+  const canUnlink = (provider) => hasPassword || !!(provider === 'google' ? user?.githubId : user?.googleId);
+
   return (
     <div className="flex flex-col gap-5 sm:gap-8 pt-1 sm:pt-4">
       <AnimatePresence>
         {modalType === 'password' && (
-          <DialogModal title="Change password" primaryAction={handlePasswordSubmit} primaryLabel="Update" loading={loading} onClose={closeModals}>
+          <DialogModal
+            title={hasPassword ? 'Change password' : 'Add a password'}
+            description={hasPassword ? 'Other devices will be signed out.' : 'Then you can also sign in with your email and password.'}
+            primaryAction={handlePasswordSubmit}
+            primaryLabel={hasPassword ? 'Update' : 'Add password'}
+            loading={loading}
+            onClose={closeModals}
+          >
             <div className="flex flex-col gap-2.5">
-              <PasswordInput value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Current password" showToggle={showCurrent} onToggle={() => setShowCurrent((v) => !v)} />
-              <div className="my-1 h-px bg-[var(--st-line)]" />
+              {hasPassword && (
+                <>
+                  <PasswordInput value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Current password" showToggle={showCurrent} onToggle={() => setShowCurrent((v) => !v)} />
+                  <div className="my-1 h-px bg-[var(--st-line)]" />
+                </>
+              )}
               <PasswordInput value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="New password" showToggle={showNew} onToggle={() => setShowNew((v) => !v)} />
               <PasswordInput value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm new password" showToggle={showNew} onToggle={() => setShowNew((v) => !v)} suffix={matchIcon} />
               {newPw && (
@@ -321,9 +453,68 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
           </DialogModal>
         )}
 
+        {modalType === 'verify' && (
+          <DialogModal
+            title="Verify your email"
+            description={`Enter the 6-digit code we emailed to ${user?.email} when you signed up, or send a new one.`}
+            primaryAction={code.length === 6 ? confirmVerification : sendVerification}
+            primaryLabel={code.length === 6 ? 'Verify' : 'Send code'}
+            loading={loading}
+            onClose={closeModals}
+          >
+            <div className="flex flex-col gap-2.5">
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                aria-label="6-digit code"
+                placeholder="000000"
+                maxLength={6}
+                value={code}
+                autoFocus
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className={`${fieldClass} h-11 text-center font-mono text-[20px] tracking-[0.5em]`}
+              />
+              {successMsg && <Notice tone="ok" icon={Mail}>{successMsg}</Notice>}
+              {code.length === 6 && (
+                <button type="button" onClick={sendVerification} disabled={loading} className="self-start cursor-pointer text-[12px] text-[var(--text-secondary)] underline-offset-2 hover:underline disabled:opacity-50">
+                  Send a new code instead
+                </button>
+              )}
+              {errorMsg && <Notice icon={AlertTriangle}>{errorMsg}</Notice>}
+            </div>
+          </DialogModal>
+        )}
+
+        {modalType === 'unlink' && unlinkTarget && (
+          <DialogModal
+            title={`Disconnect ${PROVIDER_NAMES[unlinkTarget]}?`}
+            description={`You won't be able to sign in with ${PROVIDER_NAMES[unlinkTarget]} until you connect it again.`}
+            primaryAction={confirmUnlink}
+            primaryLabel="Disconnect"
+            primaryDanger
+            loading={loading}
+            onClose={closeModals}
+          >
+            {errorMsg && <Notice icon={AlertTriangle}>{errorMsg}</Notice>}
+          </DialogModal>
+        )}
+
+        {modalType === 'logout-all' && (
+          <DialogModal
+            title="Sign out everywhere?"
+            description="Every device signed in to this account, including this one, will be signed out."
+            primaryAction={signOutEverywhere}
+            primaryLabel="Sign out everywhere"
+            primaryDanger
+            loading={loading}
+            onClose={closeModals}
+          />
+        )}
+
         {modalType === 'delete' && (
           <DialogModal
             title="Delete account?"
+            description="Your account, conversations and visuals are permanently deleted. This cannot be undone."
             primaryAction={handleDeleteSubmit}
             primaryLabel="Delete account"
             primaryDanger
@@ -343,6 +534,7 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
               <SettingsRow
                 icon={Mail}
                 label="Guest mode"
+                description="Your chats are kept on this browser only. Create an account and they move into it, so you can open them on any device."
                 rightElement={
                   <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
                     Temporary
@@ -352,9 +544,9 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
               <SettingsRow
                 icon={UserPlus}
                 label="Upgrade account"
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/login?mode=signup')}
                 rightElement={
-                  <Button variant="secondary" className="h-7 px-3 text-[11.5px]" onClick={() => navigate('/auth')}>
+                  <Button variant="secondary" className="h-7 px-3 text-[11.5px]" onClick={() => navigate('/login?mode=signup')}>
                     Sign up
                   </Button>
                 }
@@ -366,27 +558,89 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
                 icon={Mail}
                 label={user?.email || 'No email on file'}
                 rightElement={
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                    <Check size={11} strokeWidth={2.6} />
-                    Verified
-                  </span>
+                  user?.emailVerified ? (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                      <Check size={11} strokeWidth={2.6} />
+                      Verified
+                    </span>
+                  ) : (
+                    <Button variant="secondary" className="h-7 px-3 text-[11.5px]" onClick={() => setModalType('verify')}>
+                      Verify email
+                    </Button>
+                  )
                 }
               />
-              <SettingsRow icon={Lock} label="Change password" onClick={() => setModalType('password')} />
+              <SettingsRow icon={Lock} label={hasPassword ? 'Change password' : 'Add a password'} onClick={() => setModalType('password')} />
             </>
           )}
         </SettingsGroup>
       </section>
 
-      <section>
-        <SectionTitle>Connected accounts</SectionTitle>
-        <SettingsGroup>
-          <ProviderRow logo={GoogleLogo} label="Google" isConnected={!isGuest && !!user?.googleId} onConnect={() => (window.location.href = `${API_URL}/api/auth/google`)} />
-          <ProviderRow logo={GitHubLogo} label="GitHub" isConnected={!isGuest && !!user?.githubId} onConnect={() => (window.location.href = `${API_URL}/api/auth/github`)} />
-        </SettingsGroup>
-      </section>
+      {!isGuest && (
+        <section>
+          <SectionTitle>Connected accounts</SectionTitle>
+          <SettingsGroup>
+            {['google', 'github'].map((p) => (
+              <ProviderRow
+                key={p}
+                logo={p === 'google' ? GoogleLogo : GitHubLogo}
+                label={PROVIDER_NAMES[p]}
+                isConnected={!!user?.[`${p}Id`]}
+                busy={providerBusy}
+                onConnect={() => connectProvider(p)}
+                onDisconnect={canUnlink(p) ? () => { setUnlinkTarget(p); setModalType('unlink'); } : undefined}
+              />
+            ))}
+          </SettingsGroup>
+        </section>
+      )}
+
+      {!isGuest && (user?.role === 'admin' || user?.role === 'superadmin') && (
+        <section>
+          <SectionTitle>Administration</SectionTitle>
+          <SettingsGroup>
+            <SettingsRow
+              icon={Lock}
+              label="Admin console"
+              description="Users, AI providers, platform settings and diagnostics."
+              onClick={() => {
+                useTutorStore.getState().setOverlay?.(null);
+                navigate('/admin');
+              }}
+            />
+          </SettingsGroup>
+        </section>
+      )}
 
       <PrivacySection syncSettings={syncSettings} showToast={showToast} isGuest={isGuest} />
+
+      {!isGuest && (
+        <section>
+          <SectionTitle>Devices</SectionTitle>
+          <SettingsGroup>
+            {sessions === null && <div className="px-4 py-3 text-[12.5px] text-[var(--text-tertiary)]">Loading…</div>}
+            {sessions?.length === 0 && <div className="px-4 py-3 text-[12.5px] text-[var(--text-tertiary)]">No active sessions found.</div>}
+            {sessions?.map((s, i) => (
+              <div key={s.id} className={`flex items-center gap-3 px-4 py-3 ${i ? 'border-t border-[var(--st-line)]' : ''}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium text-[var(--text-primary)]">
+                    {describeDevice(s.userAgent)}
+                    {s.current && <span className="ml-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">· This device</span>}
+                  </div>
+                  <div className="text-[11.5px] text-[var(--text-tertiary)]">
+                    Signed in with {s.method === 'password' ? 'email' : PROVIDER_NAMES[s.method] || s.method} · last active {new Date(s.lastUsedAt).toLocaleDateString()}
+                  </div>
+                </div>
+                {!s.current && (
+                  <Button variant="ghost" className="h-7 px-2.5 text-[11.5px]" onClick={() => revokeSession(s.id)}>
+                    Sign out
+                  </Button>
+                )}
+              </div>
+            ))}
+          </SettingsGroup>
+        </section>
+      )}
 
       <section>
         <SectionTitle>Session</SectionTitle>
@@ -394,6 +648,11 @@ export default function AccountSection({ user: userProp, logout, syncSettings, s
           <ContextButton icon={LogOut} onClick={() => logout()}>
             {isGuest ? 'Leave guest session' : 'Sign out'}
           </ContextButton>
+          {!isGuest && (
+            <ContextButton icon={LogOut} onClick={() => setModalType('logout-all')}>
+              Sign out everywhere
+            </ContextButton>
+          )}
           {!isGuest && (
             <ContextButton icon={Trash2} danger onClick={() => setModalType('delete')}>
               Delete account

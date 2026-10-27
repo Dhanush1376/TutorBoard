@@ -63,55 +63,114 @@ function Manifesto() {
 }
 
 function Glyph({ kind }) {
-  const draw = {
+  const draw = (delay = 0, duration = 0.5) => ({
     initial: { pathLength: 0, opacity: 0 },
-    whileInView: { pathLength: 1, opacity: 1 },
-    viewport: { once: true, amount: 0.8 },
-    transition: { duration: 1.2, ease: EASE },
-  };
-  const s = { fill: 'none', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round', style: { stroke: 'var(--text-primary)' } };
+    animate: { pathLength: 1, opacity: 1 },
+    transition: { duration, ease: EASE, delay },
+  });
+
+  const pop = (delay = 0) => ({
+    initial: { scale: 0, opacity: 0 },
+    animate: { scale: 1, opacity: 1 },
+    transition: { type: 'spring', stiffness: 360, damping: 18, delay },
+  });
+
+  const s = { fill: 'none', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', style: { stroke: 'var(--text-primary)' } };
+  const faint = { fill: 'none', strokeWidth: 1.2, strokeLinecap: 'round', strokeLinejoin: 'round', style: { stroke: 'var(--mk-line-strong)' } };
+
   return (
-    <svg viewBox="0 0 48 48" className="h-12 w-12">
+    <svg viewBox="0 0 48 48" className="h-12 w-12" aria-hidden="true">
+      {/* 01: Show, then tell — Clear ocular eye with focus iris and amber pupil */}
       {kind === 'eye' && (
         <>
-          <motion.path d="M4 24 C 12 12, 36 12, 44 24 C 36 36, 12 36, 4 24 Z" {...s} {...draw} />
+          <motion.path d="M 5 24 C 12 12.5, 36 12.5, 43 24" {...s} {...draw(0, 0.5)} />
+          <motion.path d="M 5 24 C 12 35.5, 36 35.5, 43 24" {...s} {...draw(0.08, 0.5)} />
+          <motion.circle cx="24" cy="24" r="7.5" {...s} {...draw(0.2, 0.45)} />
           <motion.circle
             cx="24"
             cy="24"
-            r="5"
+            r="3.2"
             style={{ fill: 'var(--mk-accent)' }}
-            initial={{ scale: 0 }}
-            whileInView={{ scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.8 }}
+            {...pop(0.35)}
+          />
+          <circle cx="26.2" cy="21.8" r="1" style={{ fill: '#ffffff' }} />
+        </>
+      )}
+
+      {/* 02: Every step reversible — Bold counter-clockwise rewind arc, central << chevrons and single checkpoint */}
+      {kind === 'rewind' && (
+        <>
+          {/* Main counter-clockwise sweep arc */}
+          <motion.path
+            d="M 34 34 A 14 14 0 1 0 12 18"
+            {...s}
+            {...draw(0, 0.55)}
+          />
+          {/* Clean crisp reverse arrowhead */}
+          <motion.path
+            d="M 12 10.5 L 11 18.5 L 19 17.5"
+            {...s}
+            {...draw(0.4, 0.25)}
+          />
+          {/* Central replay double-chevron */}
+          <motion.path
+            d="M 21 19.5 L 16.5 24 L 21 28.5 M 28 19.5 L 23.5 24 L 28 28.5"
+            {...s}
+            {...draw(0.25, 0.4)}
+          />
+          {/* Single active timeline checkpoint */}
+          <motion.circle
+            cx="34"
+            cy="34"
+            r="2.6"
+            style={{ fill: 'var(--mk-accent)' }}
+            {...pop(0.45)}
           />
         </>
       )}
-      {kind === 'rewind' && (
-        <>
-          <motion.path d="M38 24 A 14 14 0 1 1 30 11.4" {...s} {...draw} />
-          <motion.path d="M30 5 L31 12 L24 13" {...s} {...draw} transition={{ ...draw.transition, delay: 0.9, duration: 0.4 }} />
-          <circle cx="24" cy="24" r="2.5" style={{ fill: 'var(--mk-accent)' }} />
-        </>
-      )}
+
+      {/* 03: Calm by default — Pure horizontal horizon and soothing harmonic wave */}
       {kind === 'calm' && (
         <>
-          <motion.path d="M4 30 C 12 22, 18 22, 24 30 S 36 38, 44 30" {...s} {...draw} />
-          <motion.path d="M4 20 C 12 12, 18 12, 24 20 S 36 28, 44 20" {...s} {...draw} style={{ stroke: 'var(--mk-line-strong)' }} transition={{ ...draw.transition, delay: 0.2 }} />
+          <motion.line x1="6" y1="24" x2="42" y2="24" {...faint} strokeDasharray="2 3" {...draw(0, 0.45)} />
+          <motion.path
+            d="M 6 24 C 11 14, 16 34, 21 18 C 26 28, 30 22, 34 24 L 42 24"
+            {...s}
+            {...draw(0.12, 0.6)}
+          />
+          <motion.circle
+            cx="34"
+            cy="24"
+            r="2.8"
+            style={{ fill: 'var(--mk-accent)' }}
+            {...pop(0.45)}
+          />
         </>
       )}
+
+      {/* 04: Curiosity first — Elegant inquiry curve with amber insight node */}
       {kind === 'ask' && (
         <>
-          <motion.path d="M17 17 C 17 9, 31 9, 31 17 C 31 23, 24 23, 24 30" {...s} {...draw} />
+          <motion.path
+            d="M 16 17 C 16 9.5, 32 9.5, 32 17 C 32 23, 24 23, 24 29"
+            {...s}
+            strokeWidth={2}
+            {...draw(0, 0.55)}
+          />
           <motion.circle
             cx="24"
-            cy="38"
-            r="2.6"
+            cy="36"
+            r="3"
             style={{ fill: 'var(--mk-accent)' }}
-            initial={{ scale: 0 }}
-            whileInView={{ scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ type: 'spring', stiffness: 300, damping: 14, delay: 1 }}
+            {...pop(0.35)}
+          />
+          <motion.circle
+            cx="24"
+            cy="36"
+            r="6"
+            {...faint}
+            strokeDasharray="2 3"
+            {...draw(0.2, 0.35)}
           />
         </>
       )}
@@ -127,7 +186,12 @@ function PrincipleRow({ p, index, active, onActive }) {
     if (inView) onActive(index);
   }, [inView, index, onActive]);
   return (
-    <li ref={ref} onMouseEnter={() => onActive(index)} className="border-t border-[var(--mk-line)] py-7 last:border-b lg:py-9">
+    <li
+      ref={ref}
+      onMouseEnter={() => onActive(index)}
+      onClick={() => onActive(index)}
+      className="cursor-pointer border-t border-[var(--mk-line)] py-7 last:border-b lg:py-9"
+    >
       <div className="flex items-baseline gap-5 sm:gap-8">
         <span
           className={`w-6 shrink-0 font-mono text-[11px] transition-colors duration-500 ${
@@ -166,13 +230,17 @@ function Principles() {
         <div className="lg:col-span-4">
           <div className="lg:sticky lg:top-36">
             <SectionHead index="4.2" label="What we believe" title="Four principles," muted="applied everywhere." />
-            <div className="mt-10 hidden items-center gap-6 lg:flex">
-              <div key={active} className="grid h-24 w-24 place-items-center rounded-full border border-[var(--mk-line-strong)] [&_svg]:h-14 [&_svg]:w-14">
+            <div className="mt-8 flex items-center gap-5 sm:gap-6 lg:mt-10">
+              <div
+                key={active}
+                className="grid h-24 w-24 shrink-0 place-items-center rounded-full border border-[var(--mk-line-strong)] bg-transparent [&_svg]:h-12 [&_svg]:w-12"
+              >
                 <Glyph kind={p.glyph} />
               </div>
               <div className="text-[12px] font-medium text-[var(--text-tertiary)]">
-                <span className="text-[var(--text-primary)]">{String(active + 1).padStart(2, '0')}</span> / {String(PRINCIPLES.length).padStart(2, '0')}
-                <div className="mt-1 normal-case tracking-normal">{p.title}</div>
+                <span className="font-mono text-[14px] font-semibold text-[var(--text-primary)]">{String(active + 1).padStart(2, '0')}</span>{' '}
+                <span className="font-mono text-[13px] text-[var(--text-tertiary)]">/ {String(PRINCIPLES.length).padStart(2, '0')}</span>
+                <div className="mt-1 text-[13px] font-normal normal-case tracking-normal text-[var(--text-secondary)]">{p.title}</div>
               </div>
             </div>
           </div>

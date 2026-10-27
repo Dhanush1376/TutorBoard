@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 const AuthLanding = React.lazy(() => import('./pages/AuthLanding'));
 const Home = React.lazy(() => import('./pages/Home'));
+const AdminPortal = React.lazy(() => import('./pages/AdminPortal'));
+const SettingsLanding = React.lazy(() => import('./components/auth/SettingsLanding'));
 
 import Loader from './components/layout/Loader';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -33,6 +35,7 @@ import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import ToastContainer from './components/layout/ToastContainer';
 import TrialLimitOverlay from './components/common/TrialLimitOverlay';
 import RootErrorFallback from './components/common/RootErrorFallback';
+import GlobalTooltip from './components/common/GlobalTooltip';
 
 function App() {
   useKeyboardShortcuts();
@@ -55,6 +58,21 @@ function App() {
     document.body.style.border = '';
     hydrate();
   }, []); // Run ONCE on mount
+
+  // Server-wide conditions (maintenance, unverified email, disabled account) from services/api.js
+  useEffect(() => {
+    const onNotice = (e) => {
+      const { code, message } = e.detail || {};
+      const store = useTutorStore.getState();
+      store.showToast({ message, type: code === 'MAINTENANCE' ? 'info' : 'error' });
+      if (code === 'EMAIL_VERIFICATION_REQUIRED') {
+        store.setSettingsActiveSection?.('account');
+        store.setOverlay?.('settings');
+      }
+    };
+    window.addEventListener('tb-api-notice', onNotice);
+    return () => window.removeEventListener('tb-api-notice', onNotice);
+  }, []);
 
   useEffect(() => {
     let lastIsMobile = window.innerWidth < 768;
@@ -195,6 +213,7 @@ function App() {
 
       <GlobalOverlayManager />
       <ToastContainer />
+      <GlobalTooltip />
       
       {/* UX-05: Focus Trap for Trial Limit Overlay using inert attribute */}
       <main 
@@ -217,6 +236,8 @@ function App() {
             </Route>
 
             <Route path="/session" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/settings" element={<SettingsLanding />} />
+            <Route path="/admin/*" element={<ProtectedRoute guestAllowed={false}><AdminPortal /></ProtectedRoute>} />
             <Route 
               path="/error" 
               element={

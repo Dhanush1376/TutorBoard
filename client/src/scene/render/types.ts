@@ -10,6 +10,8 @@ export type Paint = {
   text?: SVGElement;
   glow?: SVGElement;
   base: { fill?: string; stroke?: string; text?: string; glow?: string };
+  /** a dot or tinted region in a space: a highlight fills it with the state's accent (the dark card fill would hide it) */
+  accentFill?: boolean;
 };
 
 export type ItemHandle = { key: string; g: SVGGElement; paint: Paint; label: SVGTextElement };

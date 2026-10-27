@@ -123,15 +123,7 @@ const RootErrorFallback = ({ error }) => {
         >
           <div className="p-6 sm:p-9 flex flex-col items-center text-center relative">
             {/* System Status Pill Badge */}
-            <div className="flex items-center gap-2 mb-5 px-3.5 py-1 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-              </span>
-              <span className="text-[11.5px] font-medium text-[var(--text-secondary)]">
-                Fault intercepted
-              </span>
-            </div>
+
 
             {/* Glowing Icon Container */}
             <div className="relative mb-4">

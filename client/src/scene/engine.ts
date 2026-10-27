@@ -12,6 +12,7 @@ import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
 import { TextPlugin } from 'gsap/TextPlugin';
 import { BeatTiming, compileScene } from './compile';
 import { makeSpace, SpaceMap } from './geometry';
+import { evaluateParams, type DerivedDef, type ParamDef, type ParamValues } from '../../../server/engine/scene/params';
 import { fitTransform, Layout, solveLayout } from './layout';
 import { measureScene } from './measure';
 import { normalizeScene } from './normalize';
@@ -56,6 +57,13 @@ export class SceneEngine {
   private loadSeq = 0;
   beats: BeatTiming[] = [];
   layout?: Layout;
+  /** the scene as given (parameters unresolved) and the learner's slider values */
+  private raw?: { title?: unknown };
+  private paramValues: ParamValues = {};
+  private spaces = new Map<string, SpaceMap>();
+
+  /** Domain units → board pixels for a space of the current scene (tests, the Scene Lab). */
+  spaceMap(id: string): SpaceMap | undefined { return this.spaces.get(id); }
   builts = new Map<string, Built>();
 
   constructor(host: HTMLElement, opts: EngineOptions = {}) {
@@ -74,9 +82,15 @@ export class SceneEngine {
    * stays on screen until the new one is complete, then they swap in the
    * same frame (no flash while fonts load).
    */
-  async load(input: Scene | unknown) {
+  async load(input: Scene | unknown, params?: ParamValues) {
     const seq = ++this.loadSeq;
-    const scene = normalizeScene(input);
+    // a different lesson starts its sliders at their defaults (or the values it was left at, `params`);
+    // the same lesson (extend, refit, a slider) keeps them
+    const title = (input as { title?: unknown } | null)?.title;
+    if (params) this.paramValues = { ...params };
+    else if (title !== this.raw?.title) this.paramValues = {};
+    this.raw = input as { title?: unknown };
+    const scene = normalizeScene(input, this.paramValues);
     if (typeof document !== 'undefined' && 'fonts' in document) {
       try { await (document as Document & { fonts: FontFaceSet }).fonts.ready; } catch { /* measure with fallbacks */ }
     }
@@ -118,6 +132,7 @@ export class SceneEngine {
     const overlay = el('g', { class: 'overlay' }, camera);
 
     const spaces = new Map<string, SpaceMap>();
+    this.spaces = spaces;
     const spaceBuilts = new Map<string, Built>();
     const ctx: BuildCtx = {
       scene, svg, uid: this.uid, layer: spaceLayer, boxes: layout.boxes, sizes, spaces, sim,
@@ -133,7 +148,7 @@ export class SceneEngine {
     ctx.layer = entityLayer;
     const attached: typeof scene.entities = [];
     for (const e of scene.entities) {
-      if ((e.type === 'line' || e.type === 'arrow' || e.type === 'angle') && !('space' in e && e.space)) { attached.push(e); continue; }
+      if ((e.type === 'line' || e.type === 'arrow' || e.type === 'angle' || e.type === 'curly') && !('space' in e && e.space)) { attached.push(e); continue; }
       const b = 'space' in e && e.space ? buildSpatial(ctx, e) : buildBoard(ctx, e);
       if (b) this.builts.set(e.id, b);
       else if (e.type === 'group') this.builts.set(e.id, { entity: e, root: el('g', {}, entityLayer), fx: el('g', {}, entityLayer), box: { x: 0, y: 0, w: 0, h: 0 } });
@@ -156,7 +171,7 @@ export class SceneEngine {
       if (ob.width > 0) {
         const x0 = Math.min(world.x, ob.x), y0 = Math.min(world.y, ob.y);
         fitWorld = { x: x0, y: y0, w: Math.max(world.x + world.w, ob.x + ob.width) - x0, h: Math.max(world.y + world.h, ob.y + ob.height) - y0 };
-        const f = fitTransform(fitWorld, view, 1.6, 18, 1.18);
+        const f = fitTransform(fitWorld, view, 1.4, 24, 0.95);
         gsap.set(camera, { x: f.x, y: f.y, scale: f.scale });
       }
     } catch { /* getBBox unavailable (non-rendered host) — keep the layout fit */ }
@@ -224,7 +239,7 @@ export class SceneEngine {
     const H = this.host.clientHeight || 720;
     const ins = { top: 24, right: 24, bottom: 24, left: 24, ...this.opts.insets };
     const view: Box = { x: ins.left, y: ins.top, w: Math.max(200, W - ins.left - ins.right), h: Math.max(160, H - ins.top - ins.bottom) };
-    const f = fitTransform(this.fitWorld, view, 1.6, 18, 1.18);
+    const f = fitTransform(this.fitWorld, view, 1.4, 24, 0.95);
     gsap.to(this.camera, {
       x: f.x,
       y: f.y,
@@ -234,9 +249,31 @@ export class SceneEngine {
     });
   }
 
+  /** The lesson's parameters with their current values, and the derived quantities they give (empty without sliders). */
+  get paramState(): { params: ParamDef[]; derived: (DerivedDef & { value: number })[]; values: Record<string, number> } {
+    const sc = this.scene as (Scene & { params?: ParamDef[]; derived?: DerivedDef[] }) | undefined;
+    const params = sc?.params ?? [];
+    const derived = sc?.derived ?? [];
+    const ev = evaluateParams(params, derived, this.paramValues);
+    return {
+      params,
+      derived: derived.filter((d) => ev.display.has(d.id)).map((d) => ({ ...d, value: ev.display.get(d.id)! })),
+      values: Object.fromEntries(params.map((p) => [p.id, ev.display.get(p.id)!])),
+    };
+  }
+
+  /**
+   * Move sliders: every entity bound to these parameters is recomputed and the
+   * board redrawn at the same moment of the lesson (same beat, same time).
+   */
+  async setParams(values: ParamValues) {
+    this.paramValues = { ...this.paramValues, ...values };
+    if (this.raw) await this.extend(this.raw);
+  }
+
   /** Rebuild for the host's current size, keeping time, beat and play state. */
   async refit() {
-    if (this.scene) await this.extend(this.scene);
+    if (this.raw) await this.extend(this.raw);
   }
 
   /** Jump to the end state of beat `i` (or its start). */

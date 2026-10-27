@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, PanelRight, PanelRightClose, PanelLeft, PanelLeftClose, ChevronLeft, ArrowUp, Loader2, Sparkles,
+  X, PanelRight, PanelRightClose, PanelLeft, PanelLeftClose, ArrowUp, Loader2, Sparkles,
   RotateCcw, RefreshCw, Dices, Crosshair, Volume2, VolumeX, AlertTriangle, BookOpen,
   Minimize2, Maximize2, Clock, CornerUpLeft, ZoomIn, ZoomOut
 } from 'lucide-react';
@@ -14,11 +14,10 @@ const CinematicStage = lazy(() => import('../canvas/CinematicStage'));
 const SceneV2Stage = lazy(() => import('../canvas/SceneV2Stage'));
 import CheckCard from './CheckCard';
 import FloatingSidebar from './FloatingSidebar';
-import ProgressArc from './ProgressArc';
 
 import InteractiveControlPanel from './InteractiveControlPanel';
 import UnifiedControlBar from './UnifiedControlBar';
-import { SessionGuide } from './SessionGuide';
+import { StepNavigator } from './StepNavigator';
 import SessionResumeOverlay from './SessionResumeOverlay';
 import ShortcutsHUD from './ShortcutsHUD';
 
@@ -27,6 +26,8 @@ import { isDSAContent } from '../../engine/RendererRouter';
 import useTeachingMachine, { STATES } from '../../hooks/useTeachingMachine';
 import useVoiceNarrator from '../../hooks/useVoiceNarrator';
 import useTutorStore, { CANVAS_MODE } from '../../store/tutorStore';
+import useLessonProgress from '../../hooks/useLessonProgress';
+import { hasCanvasContent, isLessonComplete } from '../../lib/lessonProgress';
 import { DOMAIN_STYLES, PANEL_VISIBLE_STATES as PANEL_VISIBLE_STATES_ARR, formatTopicTitle, checkKey } from '../../lib/teaching';
 
 const PANEL_VISIBLE_STATES = new Set(PANEL_VISIBLE_STATES_ARR);
@@ -54,6 +55,53 @@ function Btn({ onClick, children, disabled, active, danger, className = '', titl
       }}>
       {children}
     </motion.button>
+  );
+}
+
+/**
+ * What the canvas shows while it has no lesson content: what is happening
+ * (being prepared, failed, stopped) or that there is nothing yet — never an
+ * empty board dressed up as a finished lesson.
+ */
+const CANVAS_STATUS_COPY = {
+  preparing: { title: 'Preparing your interactive visualization…', body: 'Your explanation is in the chat while the visual is built.' },
+  rendering: { title: 'Preparing your interactive visualization…', body: 'Your explanation is in the chat while the visual is built.' },
+  failed: { title: "Couldn't build this visualization", body: 'The explanation in the chat is complete. You can try the visual again.' },
+  cancelled: { title: 'Stopped before the visual was ready', body: 'Ask again whenever you like.' },
+  idle: { title: 'Nothing on the canvas yet', body: 'Ask a question in the chat to get a visual lesson.' },
+};
+
+function CanvasStatusView({ status, onRetry }) {
+  const copy = CANVAS_STATUS_COPY[status] || CANVAS_STATUS_COPY.idle;
+  const working = status === 'preparing' || status === 'rendering';
+  return (
+    <div className="absolute inset-0 flex items-center justify-center z-[40] pointer-events-none px-6">
+      <motion.div
+        key={status || 'idle'}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className={`flex flex-col items-center gap-3 text-center max-w-sm ${onRetry ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        role="status"
+        aria-live="polite"
+        data-testid="canvas-status"
+        data-status={status || 'idle'}
+      >
+        {working && <span className="tb-status-dot tb-status-dot--lg" aria-hidden="true" />}
+        <h3 className="text-[15px] font-semibold tracking-tight text-[var(--text-primary)] m-0">{copy.title}</h3>
+        <p className="text-[12.5px] leading-relaxed text-[var(--text-tertiary)] m-0">{copy.body}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-1 inline-flex items-center gap-1.5 rounded-full px-3.5 h-8 text-[12px] font-semibold bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-90 active:scale-95 transition-all"
+          >
+            <RotateCcw size={13} strokeWidth={2.2} aria-hidden="true" />
+            Try again
+          </button>
+        )}
+      </motion.div>
+    </div>
   );
 }
 
@@ -97,6 +145,33 @@ const TeachingSession = ({ initialTopic }) => {
   const beatPlayed = useTutorStore((s) => s.stepPlayback?.index === currentStepIndex && s.stepPlayback?.animDone);
   const showCheck = !!stepCheck && !sceneBranch && (beatPlayed || checkAnswer !== undefined);
 
+  // Save / restore the learner's place in the lesson on screen
+  useLessonProgress();
+  // The canvas side of the latest request: preparing → rendering → ready / failed / cancelled
+  // (only for the conversation on screen — another one's lesson is not this canvas's)
+  const lessonStatus = useTutorStore((s) => {
+    const l = s.artifactLifecycle;
+    const here = s.chatSessionId || s.sessionId;
+    return !l?.sessionId || !here || l.sessionId === here ? l?.status : 'idle';
+  });
+  const stepPlayback = useTutorStore((s) => s.stepPlayback);
+  // Only a real lesson (or drawn content) gets a title and playback controls:
+  // an empty canvas must never look like a finished lesson
+  const hasContent = hasCanvasContent({ scene: timeline, canvasObjects, canvasSteps });
+  const playable = hasContent && totalSteps > 1;
+  const lessonComplete = playable && !timeline?.cancelled
+    && isLessonComplete({ currentStepIndex, totalSteps, stepPlayback, streaming: !!timeline?.streaming });
+  const replayLesson = useCallback(() => {
+    useTutorStore.getState().replayLesson();
+    play(); // the same Play the learner would press (keeps a live teaching session in sync)
+  }, [play]);
+  // Regenerate the answer whose visual failed (a new version of that message —
+  // no new conversation or message). Home owns regeneration.
+  const handleRetryLesson = useCallback(() => {
+    const messageId = useTutorStore.getState().artifactLifecycle?.messageId;
+    if (messageId) window.dispatchEvent(new CustomEvent('tb:retry-lesson', { detail: { messageId } }));
+  }, []);
+
   const isOpen = machineState !== STATES.IDLE || canvasLayout !== 'inline';
   const isGenerating = machineState === STATES.GENERATING;
   // FIX: Also show the canvas body when viewing a snapshot (canvasLayout !== 'inline' but machineState === IDLE)
@@ -124,17 +199,14 @@ const TeachingSession = ({ initialTopic }) => {
     "Core"
   );
 
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-  const [panelOpen, setPanelOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+  const [viewportWidth, setViewportWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1280);
+  const isMobile = viewportWidth < 768;
+  // A narrow canvas (phone, or a tablet with the chat open) stacks the dock like a phone does
+  const canvasWidth = viewportWidth - (isSidebarOpen && !isMobile ? toolbarLeft : 0);
+  const isCompact = isMobile || canvasWidth < 760;
 
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (mobile) {
-        setPanelOpen(false);
-      }
-    };
+    const handleResize = () => setViewportWidth(window.innerWidth);
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -155,12 +227,116 @@ const TeachingSession = ({ initialTopic }) => {
   }, []);
   const { narrateStep, cancel } = useVoiceNarrator();
 
-  // Auto-open side guide when a prediction check arrives so questions are always on the side, never on canvas
+  const minimizeButton = (
+    <button
+      type="button"
+      onClick={() => setIsMinimized(true)}
+      title="Minimize Lesson"
+      className="grid h-10 w-10 sm:h-11 sm:w-11 shrink-0 cursor-pointer place-items-center rounded-full tb-dock-glass text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] hover:scale-105 active:scale-95"
+    >
+      <Minimize2 size={16} strokeWidth={2} />
+    </button>
+  );
+
+  // Zoom / reset buttons: a vertical pill at the bottom-left, or part of the single dock row on a narrow canvas
+  const zoomButtons = (
+    <>
+      <button
+        type="button"
+        onClick={() => canvasRef.current?.zoomIn?.()}
+        title="Zoom In (+)"
+        className="grid h-8 w-8 cursor-pointer place-items-center rounded-full text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95"
+      >
+        <ZoomIn size={15} strokeWidth={1.8} />
+      </button>
+      <button
+        type="button"
+        onClick={() => canvasRef.current?.zoomOut?.()}
+        title="Zoom Out (-)"
+        className="grid h-8 w-8 cursor-pointer place-items-center rounded-full text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95"
+      >
+        <ZoomOut size={15} strokeWidth={1.8} />
+      </button>
+      <button
+        type="button"
+        onClick={handleResetCamera}
+        title="Reset View"
+        className={`grid h-8 w-8 cursor-pointer place-items-center rounded-full transition-all active:scale-95 ${
+          isResettingCamera
+            ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
+            : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'
+        }`}
+      >
+        <motion.div
+          animate={isResettingCamera ? { rotate: 360, scale: [1, 1.15, 1] } : { rotate: 0, scale: 1 }}
+          transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+          className="flex items-center justify-center w-full h-full"
+        >
+          <Crosshair size={15} strokeWidth={1.8} />
+        </motion.div>
+      </button>
+    </>
+  );
+
+  // ── Typing effect for lesson title on session open ──
+  const rawTitle = formatTopicTitle(timeline?.title || topic);
+  const [typedTitle, setTypedTitle] = useState('');
+
   useEffect(() => {
-    if (showCheck) {
-      setPanelOpen(true);
+    if (!rawTitle) {
+      setTypedTitle('');
+      return;
     }
-  }, [showCheck]);
+    let idx = 0;
+    setTypedTitle('');
+    const interval = setInterval(() => {
+      idx += 1;
+      setTypedTitle(rawTitle.slice(0, idx));
+      if (idx >= rawTitle.length) {
+        clearInterval(interval);
+      }
+    }, 28);
+    return () => clearInterval(interval);
+  }, [rawTitle]);
+
+  // ── Fit the title: on the toolbar's line when it fits at a readable size, else on its own row below ──
+  const titleBarRef = useRef(null);
+  const titleRowRef = useRef(null);
+  const titleBlockRef = useRef(null);
+  const titleProbeRef = useRef(null);
+  const titleMax = isMobile ? 22 : 28;
+  // never shrink the title into fine print: past this it moves to its own row, then ends in "…"
+  const titleMin = isMobile ? 18 : 20;
+  const [titleFit, setTitleFit] = useState({ size: titleMax, maxWidth: undefined, stacked: isMobile });
+
+  useLayoutEffect(() => {
+    const fit = () => {
+      const bar = titleBarRef.current;
+      const row = titleRowRef.current;
+      const block = titleBlockRef.current;
+      const probe = titleProbeRef.current;
+      if (!bar || !row || !block || !probe) return;
+      // where the title text starts in each layout — independent of the current one, so it can't flip-flop
+      const toggle = bar.querySelector('[aria-label="Open Workspace"]')?.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(bar).columnGap) || 0;
+      const textOffset = block.getBoundingClientRect().left - row.getBoundingClientRect().left;
+      const stackedLeft = bar.getBoundingClientRect().left + textOffset;
+      const inlineLeft = stackedLeft + (toggle ? toggle.width + gap : 0);
+      const toolbar = document.querySelector('[role="toolbar"][aria-label="Canvas tools"]')?.getBoundingClientRect();
+      const natural = probe.scrollWidth; // the full title at titleMax px
+      const inlineRoom = toolbar && toolbar.left > inlineLeft ? toolbar.left - 20 - inlineLeft : window.innerWidth - 16 - inlineLeft;
+      const stacked = isMobile || (natural * 22) / titleMax > inlineRoom;
+      const maxWidth = Math.max(80, Math.floor(stacked ? window.innerWidth - 16 - stackedLeft : inlineRoom));
+      const size = natural > maxWidth ? Math.max(titleMin, Math.floor((titleMax * maxWidth) / natural)) : titleMax;
+      setTitleFit((prev) => (prev.size === size && prev.maxWidth === maxWidth && prev.stacked === stacked ? prev : { size, maxWidth, stacked }));
+    };
+    fit();
+    const settle = setTimeout(fit, 350); // once the sidebar has finished sliding
+    const toolbarEl = document.querySelector('[role="toolbar"][aria-label="Canvas tools"]');
+    const ro = toolbarEl && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
+    ro?.observe(toolbarEl);
+    return () => { clearTimeout(settle); ro?.disconnect(); };
+  }, [rawTitle, viewportWidth, isSidebarOpen, isMobile, titleMax, titleMin, isTeaching, isMinimized]);
 
 
   // Voice narration trigger — narrateStep resolves the step's voiceDone
@@ -285,12 +461,15 @@ const TeachingSession = ({ initialTopic }) => {
 
       } else if (e.key === ' ' && !e.target.matches('input, textarea, button, select, [role=button]')) {
         e.preventDefault();
-        isPlaying ? pause() : play();
+        if (!playable) return;
+        if (isPlaying) pause();
+        else if (lessonComplete) replayLesson();
+        else play();
       }
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
-  }, [isOpen, handleClose, nextStep, prevStep, isPlaying, play, pause]);
+  }, [isOpen, handleClose, nextStep, prevStep, isPlaying, play, pause, playable, lessonComplete, replayLesson]);
 
   // Level-up toast
   useEffect(() => {
@@ -473,14 +652,15 @@ const TeachingSession = ({ initialTopic }) => {
                 <SceneV2Stage
                   ref={canvasRef}
                   scene={timeline.sceneV2}
+                  lessonKey={timeline.artifactId}
                   stepIndex={currentStepIndex}
                   onAskAbout={handleAskAbout}
-                  // keep clear of the toolbar, step pill, narration + controls and preserve consistent element sizing
+                  // keep clear of the top title, right card, bottom playback bar & left controls
                   insets={{ 
-                    top: isMobile ? 64 : 76, 
-                    bottom: isMobile ? 80 : 124, 
-                    left: isMobile ? 16 : (panelOpen ? 60 : 160), 
-                    right: isMobile ? 16 : (panelOpen ? 392 : 160) 
+                    top: titleFit.stacked ? 124 : 100,
+                    bottom: 140,
+                    left: isCompact ? 24 : 96,
+                    right: isCompact ? 24 : 96
                   }}
                 />
               </Suspense>
@@ -524,7 +704,7 @@ const TeachingSession = ({ initialTopic }) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   className="absolute top-[84px] left-0 z-[60] flex justify-center pointer-events-none"
-                  style={{ right: panelOpen ? 380 : 0 }}
+                  style={{ right: 0 }}
                 >
                 <div className="pointer-events-auto flex items-center gap-3 pl-4 pr-1.5 py-1.5 rounded-full liquid-glass shadow-premium">
                   <span className="text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap">
@@ -543,47 +723,44 @@ const TeachingSession = ({ initialTopic }) => {
               )}
             </AnimatePresence>
 
-            {/* ── Step Orientation Pill (Floating Context) ── */}
-            <div className="absolute top-[72px] md:top-[80px] left-3 md:left-6 z-[30] pointer-events-none flex flex-col gap-2 md:gap-3">
-              <motion.div
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                key={`step-pill-${currentStepIndex}`}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)]/90 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_32px_-18px_rgba(0,0,0,0.4)] backdrop-blur-xl"
-              >
-                <div
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{
-                    background: stepType?.toLowerCase() === 'summary' ? '#ca8a04' :
-                      stepType?.toLowerCase() === 'example' ? '#16a34a' :
-                        stepType?.toLowerCase() === 'intro' ? '#3b82f6' : 'var(--text-primary)'
-                  }}
-                />
-                <span className="text-[11px] md:text-xs font-medium text-[var(--text-secondary)]">
-                  {stepType ? `${stepType} · ` : ''}{currentStepIndex + 1}
-                </span>
-              </motion.div>
-              {/* Progress HUD integrated below the pill */}
-              {!isAlgo && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
+
+
+
+
+            {/* ── No lesson content yet: say what is happening instead of an empty board ── */}
+            {!isGenerating && !hasContent && (
+              <CanvasStatusView
+                status={lessonStatus}
+                onRetry={lessonStatus === 'failed' ? handleRetryLesson : undefined}
+              />
+            )}
+
+            {/* ── A new lesson is being prepared while the previous one stays on screen ── */}
+            <AnimatePresence>
+              {hasContent && lessonStatus === 'preparing' && (
+                <motion.div
+                  key="preparing-next"
+                  initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="pointer-events-auto ml-1 hidden sm:block"
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute top-[84px] left-0 right-0 z-[55] flex justify-center pointer-events-none"
+                  role="status"
                 >
-                  <ProgressArc />
+                  <span className="flex items-center gap-2 px-3.5 py-1.5 rounded-full tb-dock-glass text-[11.5px] font-medium text-[var(--text-secondary)]">
+                    <span className="tb-status-dot" aria-hidden="true" />
+                    Preparing your new visualization…
+                  </span>
                 </motion.div>
               )}
-            </div>
+            </AnimatePresence>
 
-
-
-            {/* ── Canvas Empty State Placeholder (Redesigned as Playbar) ── */}
-            {(!isGenerating && !canvasSteps?.length && !canvasObjects?.length) && (
+            {/* ── Socket teaching session still generating its first steps ── */}
+            {(isGenerating && !canvasSteps?.length && !canvasObjects?.length) && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[40]">
                 <motion.div 
                   initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0, x: panelOpen ? -160 : 0 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', damping: 30, stiffness: 200 }}
                   className="flex flex-col items-center gap-12"
                 >
@@ -691,53 +868,21 @@ const TeachingSession = ({ initialTopic }) => {
             )}
 
 
-            {/* ── Canvas Navigation Pill (Zoom / Reset) - Left Docked ── */}
+            {/* ── Canvas Navigation Pill (Zoom / Reset) - vertical on left-bottom; on a narrow canvas it joins the dock row ── */}
+            {!isCompact && (
             <motion.div 
-              className="absolute bottom-4 sm:bottom-5 left-3 sm:left-5 z-[60] flex flex-col items-center gap-1 p-1.5 rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)]/90 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_32px_-18px_rgba(0,0,0,0.4)] backdrop-blur-xl pointer-events-auto"
+              className="absolute z-[60] flex flex-col items-center gap-1 p-1.5 rounded-full bottom-4 sm:bottom-5 left-3 sm:left-5 tb-dock-glass pointer-events-auto"
               initial={{ opacity: 0, x: -16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
-              <button
-                type="button"
-                onClick={() => canvasRef.current?.zoomIn?.()}
-                title="Zoom In (+)"
-                className="grid h-8 w-8 cursor-pointer place-items-center rounded-full text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95"
-              >
-                <ZoomIn size={15} strokeWidth={1.8} />
-              </button>
-              <button
-                type="button"
-                onClick={() => canvasRef.current?.zoomOut?.()}
-                title="Zoom Out (-)"
-                className="grid h-8 w-8 cursor-pointer place-items-center rounded-full text-[var(--text-secondary)] transition-all hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] active:scale-95"
-              >
-                <ZoomOut size={15} strokeWidth={1.8} />
-              </button>
-              <div className="h-px w-4 bg-[var(--st-line-strong)] my-0.5" />
-              <button
-                type="button"
-                onClick={handleResetCamera}
-                title="Reset View"
-                className={`grid h-8 w-8 cursor-pointer place-items-center rounded-full transition-all active:scale-95 ${
-                  isResettingCamera
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-sm'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <motion.div
-                  animate={isResettingCamera ? { rotate: 360, scale: [1, 1.15, 1] } : { rotate: 0, scale: 1 }}
-                  transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex items-center justify-center w-full h-full"
-                >
-                  <Crosshair size={15} strokeWidth={1.8} />
-                </motion.div>
-              </button>
+              {zoomButtons}
             </motion.div>
+            )}
 
-            {/* ── Unified Playback Bar & Timeline - Centered on Desktop / Laptop ── */}
+            {/* ── Unified Playback Bar & Timeline - Centered ── */}
             <motion.div 
-              className="absolute bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center pointer-events-none max-w-[calc(100vw-1.5rem)] md:max-w-[calc(100vw-6rem)]"
+              className={`absolute z-[60] flex flex-col items-center pointer-events-none ${isCompact ? 'bottom-4 left-3 right-3' : 'bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 max-w-[calc(100%-8.5rem)]'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
@@ -754,9 +899,42 @@ const TeachingSession = ({ initialTopic }) => {
                   </Suspense>
                 </div>
               )}
-              
-              <div className="pointer-events-auto">
+
+              {/* ── Step navigator: slim strip (only once there are steps to move between) ── */}
+              {isCompact ? (
+                // narrow canvas: zoom · steps · minimize share one row above the bar
+                <div className="mb-2 flex w-full items-center gap-2 pointer-events-auto">
+                  <div className="flex shrink-0 items-center gap-0.5 p-1 rounded-full tb-dock-glass">
+                    {zoomButtons}
+                  </div>
+                  <div className="flex min-w-0 flex-1 justify-center">
+                    {playable && !(isAlgo && canvasSteps.length > 1) && (
+                      <StepNavigator
+                        fill
+                        steps={timeline?.steps || timeline?.timeline || canvasSteps}
+                        totalSteps={totalSteps}
+                        currentStepIndex={currentStepIndex}
+                        onGoToStep={goToStep}
+                      />
+                    )}
+                  </div>
+                  {minimizeButton}
+                </div>
+              ) : playable && !(isAlgo && canvasSteps.length > 1) && (
+                <div className="mb-2.5 pointer-events-auto">
+                  <StepNavigator
+                    steps={timeline?.steps || timeline?.timeline || canvasSteps}
+                    totalSteps={totalSteps}
+                    currentStepIndex={currentStepIndex}
+                    onGoToStep={goToStep}
+                  />
+                </div>
+              )}
+
+              {hasContent && (
+              <div className="pointer-events-auto w-full flex justify-center">
                 <UnifiedControlBar
+                  compact={isCompact}
                   currentStepIndex={currentStepIndex}
                   totalSteps={totalSteps}
                   isPlaying={isPlaying}
@@ -776,93 +954,28 @@ const TeachingSession = ({ initialTopic }) => {
                   totalDurationSeconds={totalSeconds}
                   isDoubtExpanded={isDoubtExpanded}
                   onDoubtExpandedChange={setIsDoubtExpanded}
+                  isComplete={lessonComplete}
+                  onReplay={replayLesson}
                 />
               </div>
+              )}
             </motion.div>
 
-            {/* Expand Panel Handle (Appears when panel is closed) */}
-            <AnimatePresence>
-              {!panelOpen && (
-                <motion.button
-                  initial={{ x: 30, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 30, opacity: 0 }}
-                  transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-                  onClick={() => setPanelOpen(true)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-[30] flex items-center justify-center w-7 h-20 pointer-events-auto transition-all liquid-glass group hover:w-9"
-                  style={{
-                    borderRight: 'none',
-                    borderTopLeftRadius: '20px',
-                    borderBottomLeftRadius: '20px',
-                    boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
-                  }}
-                  title="Open Session Guide"
-                >
-                  <ChevronLeft size={18} className="opacity-50 group-hover:opacity-100 group-hover:-translate-x-0.5 transition-all" style={{ color: 'var(--text-primary)' }} />
-                  {/* Active indicator dot */}
-                  <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-info opacity-40 group-hover:opacity-100 transition-opacity" />
-                </motion.button>
-              )}
-            </AnimatePresence>
+            {/* ── Standalone Minimize Button Pill (Right Bottom); on a narrow canvas it joins the dock row ── */}
+            {!isCompact && (
+            <motion.div
+              className="absolute right-3 sm:right-5 z-[60] pointer-events-auto bottom-4 sm:bottom-5"
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {minimizeButton}
+            </motion.div>
+            )}
 
-            {/* Premium Liquid Glass Right Panel (Drawer on Mobile, Float Panel on Desktop) */}
+            {/* "Predict the next step" docks on the right side — never on the visual canvas */}
             <AnimatePresence>
-              {panelOpen && (
-                <motion.div
-                  initial={{ opacity: 0, x: isMobile ? 0 : 50, y: isMobile ? 60 : 0, scale: 0.96 }}
-                  animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: isMobile ? 0 : 50, y: isMobile ? 60 : 0, scale: 0.96 }}
-                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="fixed md:absolute right-3 md:right-6 bottom-20 md:bottom-auto md:top-20 w-[calc(100vw-1.5rem)] md:w-[360px] max-w-[380px] max-h-[calc(100vh-160px)] md:max-h-[calc(100vh-120px)] z-[75] md:z-[50] pointer-events-auto flex flex-col mx-auto left-3 md:left-auto"
-                >
-                  <div className="w-full liquid-glass flex flex-col overflow-hidden shadow-2xl transition-all duration-300" 
-                       style={{ 
-                         borderRadius: 24,
-                       }}>
-                    <SessionGuide
-                      step={{ 
-                        ...currentStep, 
-                        narration: currentStep?.narration || currentStep?.explanation || canvasSteps[currentStepIndex]?.narration 
-                      }}
-                      stepIndex={currentStepIndex} 
-                      totalSteps={totalSteps}
-                      variables={canvasSteps[currentStepIndex]?.variables || currentStep?.variables}
-                      activeStates={canvasSteps[currentStepIndex]?.activeStates || currentStep?.activeStates}
-                      algorithmName={timeline?.title || topic} 
-                      timeline={timeline} 
-                      professorNote={timeline?.professorNote || professorNote}
-                      onGoToStep={goToStep}
-                      doubtHistory={doubtHistory} 
-                      isDoubtProcessing={isDoubtProcessing}
-                      activeDoubtId={machine.activeDoubtId} 
-                      onJumpToDoubt={machine.jumpToDoubt}
-                      onPinDoubt={machine.pinDoubtToCanvas} 
-                      onResume={resume} 
-                      onAskDoubt={askDoubt}
-                      isAlgo={isAlgo}
-                      onReplay={() => { goToStep(currentStepIndex); useTutorStore.getState().replayStep(); }}
-                      onClose={() => setPanelOpen(false)}
-                      checkCard={showCheck ? (
-                        <CheckCard
-                          check={stepCheck}
-                          answered={checkAnswer}
-                          onAnswer={(choice, correct) => useTutorStore.getState().answerCheck(stepCheckKey, choice, correct)}
-                          onContinue={() => {
-                            const next = currentStepIndex + 1;
-                            if (next < (timeline?.steps || []).length) useTutorStore.getState().setCurrentStep(next);
-                          }}
-                          onExplain={() => handleAskAbout({ label: `${stepCheck.question} — why is the answer "${stepCheck.choices[stepCheck.answer]}"`, id: 'check' }, true)}
-                        />
-                      ) : null}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* If the side guide is collapsed, dock the question on the right side — never on the visual canvas */}
-            <AnimatePresence>
-              {showCheck && !panelOpen && (
+              {showCheck && (
                 <motion.div
                   key={`check-side-${stepCheckKey}`}
                   initial={{ opacity: 0, x: 40, scale: 0.95 }}
@@ -904,30 +1017,25 @@ const TeachingSession = ({ initialTopic }) => {
               animate={{ y: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
               exit={{ y: 50, opacity: 0, scale: 0.9, filter: 'blur(4px)' }}
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="fixed bottom-6 right-6 z-[var(--z-portal,100)] liquid-glass rounded-2xl shadow-2xl border border-white/15 overflow-hidden backdrop-blur-xl"
+              className="fixed bottom-6 right-6 z-[var(--z-portal,100)] bg-white text-zinc-900 rounded-full shadow-[0_12px_40px_-10px_rgba(0,0,0,0.35),0_2px_6px_rgba(0,0,0,0.08)] border border-zinc-200/80 overflow-hidden"
             >
               <motion.button
-                whileHover={{ scale: 1.03, backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
+                whileHover={{ scale: 1.03, backgroundColor: '#f4f4f5' }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setIsMinimized(false)}
-                className="flex items-center gap-3 px-4 py-2.5 group cursor-pointer"
+                className="flex items-center gap-2.5 px-3.5 py-2 group cursor-pointer border-0 bg-transparent"
                 title="Click to restore lesson"
               >
-                <div className="relative flex items-center justify-center">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping absolute opacity-75" />
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 relative" />
+                <div className="relative flex items-center justify-center shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping absolute opacity-60" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 relative" />
                 </div>
-                <div className="flex flex-col text-left">
-                  <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-400 font-mono">
-                    Session Active
-                  </span>
-                  <span className="text-[12px] font-medium text-[var(--text-primary)] truncate max-w-[150px]">
-                    {formatTopicTitle(timeline?.title || topic || 'Lesson')}
-                  </span>
-                </div>
-                <div className="w-px h-5 bg-white/10 mx-0.5" />
-                <div className="p-1 rounded-lg bg-white/5 text-[var(--text-secondary)] group-hover:text-white group-hover:bg-white/15 transition-all">
-                  <Maximize2 size={13} />
+                <span className="text-[12.5px] font-semibold text-zinc-900 truncate max-w-[170px] select-none">
+                  {formatTopicTitle(timeline?.title || topic || 'Lesson')}
+                </span>
+                <div className="w-px h-4 bg-zinc-300 mx-0.5 shrink-0" />
+                <div className="p-1 rounded-full text-zinc-500 group-hover:text-zinc-900 transition-colors shrink-0">
+                  <Maximize2 size={13} strokeWidth={2.2} />
                 </div>
               </motion.button>
             </motion.div>
@@ -938,15 +1046,16 @@ const TeachingSession = ({ initialTopic }) => {
 
       {createPortal(
         <AnimatePresence>
-          {isTeaching && !isMinimized && !isClosingSession && (
+          {isTeaching && !isMinimized && !isClosingSession && !(isMobile && isSidebarOpen) && (
             <motion.div 
               key="teaching-top-toolbar-container"
               initial={{ y: -32, opacity: 0, scale: 0.95 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: -28, opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed top-3 md:top-4 z-[var(--z-portal)] pointer-events-auto transition-[left] duration-300 flex items-center gap-2 md:gap-3.5 max-w-[calc(100vw-1.5rem)]"
+              className={`fixed top-3 md:top-5 z-[var(--z-portal)] pointer-events-auto transition-[left] duration-300 flex gap-2 md:gap-3.5 max-w-[calc(100vw-1.5rem)] ${titleFit.stacked ? 'flex-col items-start' : 'items-center'}`}
               style={{ left: isMobile ? 12 : toolbarLeft }}
+              ref={titleBarRef}
             >
               {/* Separate Workspace / Sidebar Toggle Pill (only shown when sidebar is closed) */}
               <AnimatePresence>
@@ -956,73 +1065,54 @@ const TeachingSession = ({ initialTopic }) => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.85 }}
                     transition={{ duration: 0.2 }}
-                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.94 }}
                     onClick={() => setSidebarOpen(true)}
-                    className="w-10 h-10 md:w-[54px] md:h-[54px] flex items-center justify-center rounded-full liquid-glass shadow-lg hover:ring-1 hover:ring-white/20 transition-all text-[var(--text-primary)] cursor-pointer shrink-0"
+                    /* same pill as the canvas toolbar beside it */
+                    className="w-10 h-10 md:w-[50px] md:h-[50px] flex items-center justify-center rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)]/90 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_32px_-18px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-colors text-[var(--text-secondary)] hover:bg-[var(--st-fill)] hover:text-[var(--text-primary)] cursor-pointer shrink-0"
                     title="Open Workspace"
                     aria-label="Open Workspace"
                   >
-                    <PanelLeft size={isMobile ? 15 : 18} />
+                    <PanelLeft size={isMobile ? 15 : 17} strokeWidth={1.8} />
                   </motion.button>
                 )}
               </AnimatePresence>
 
-              {/* Main Session Pill */}
-              <div
-                className="flex items-center gap-2 md:gap-3.5 pl-3.5 md:pl-6 pr-2 md:pr-5 py-1.5 md:py-2 rounded-full liquid-glass transition-all hover:ring-1 hover:ring-white/10 max-w-[calc(100vw-4.5rem)]"
-                style={{ 
-                  height: isMobile ? '44px' : '54px', 
-                }}
-              >
-                <div className="flex items-center gap-2 md:gap-3 min-w-0">
-                  <button 
-                    onClick={() => setPanelOpen(!panelOpen)}
-                    className="flex flex-col text-left group cursor-pointer min-w-0"
-                  >
-                    <span style={{ color: 'var(--text-primary)' }} className="text-[12px] md:text-[13px] font-sans font-bold tracking-tight group-hover:text-indigo-400 transition-colors truncate max-w-[140px] sm:max-w-[200px] md:max-w-[280px]">
-                      {formatTopicTitle(timeline?.title || topic)}
-                    </span>
-                    <span className="text-[10px] md:text-[11px] font-medium text-[var(--text-tertiary)] opacity-70 truncate max-w-[140px] sm:max-w-[200px]">
-                       {isAlgo ? 'Algorithm Session' : (timeline?.domain || 'Interactive Guide')}
-                    </span>
-                  </button>
-                </div>
+              {/* Cinematic Standalone Title with Accent & Typing Animation */}
+              {/* on its own row with the chat open there is no toggle above it, so clear the toolbar ourselves */}
+              <div ref={titleRowRef} className="relative flex items-center gap-3 min-w-0 pl-1 select-none" style={titleFit.stacked && isSidebarOpen ? { marginTop: 58 } : undefined}>
+                {/* invisible probe: the full title at full size, measured to fit it beside the toolbar */}
+                <span ref={titleProbeRef} aria-hidden="true" className="invisible absolute left-0 top-0 whitespace-nowrap font-bold tracking-tight pointer-events-none" style={{ fontSize: titleMax }}>
+                  {rawTitle}
+                </span>
+                <div className="flex items-start gap-3 text-left group min-w-0">
+                  {/* Cinematic Netflix-style Accent Bar */}
+                  <motion.div 
+                    initial={{ scaleY: 0, opacity: 0 }}
+                    animate={{ scaleY: 1, opacity: 1 }}
+                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-[3px] h-[40px] md:h-[50px] bg-[#ea580c] rounded-full shrink-0 mt-0.5 origin-top transition-transform group-hover:scale-y-105" 
+                  />
 
-                <div className="w-px h-4 bg-[var(--border-color)] opacity-40 shrink-0" />
-
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <span style={{ color: 'var(--text-tertiary)' }} className="hidden sm:block px-1.5 text-[10px] md:text-[11px] font-mono font-semibold tabular-nums">
-                    {currentStepIndex + 1}/{canvasSteps.length || 1}
-                  </span>
-
-                  <Btn 
-                    onClick={() => setIsMinimized(true)} 
-                    title="Minimize to Pill" 
-                    className="w-7 h-7 md:w-8 md:h-8 rounded-full hover:!bg-white/10"
-                  >
-                    <motion.div
-                      whileHover={{ scale: 0.82 }}
-                      whileTap={{ scale: 0.72 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                  <div ref={titleBlockRef} className="flex flex-col min-w-0">
+                    <h1
+                      className="font-bold tracking-tight text-[var(--text-primary)] leading-tight m-0 flex items-center min-w-0"
+                      style={{ fontSize: titleFit.size, maxWidth: titleFit.maxWidth }}
                     >
-                      <Minimize2 size={isMobile ? 11 : 13} />
-                    </motion.div>
-                  </Btn>
-                  <Btn 
-                    onClick={handleClose} 
-                    danger 
-                    title="Close Session" 
-                    className="w-7 h-7 md:w-8 md:h-8 rounded-full hover:!bg-red-500/15 hover:!text-red-400"
-                  >
-                    <motion.div
-                      whileHover={{ rotate: 90, scale: 1.15 }}
-                      whileTap={{ scale: 0.85, rotate: 180 }}
-                      transition={{ type: 'spring', stiffness: 450, damping: 18 }}
-                    >
-                      <X size={isMobile ? 11 : 13} />
-                    </motion.div>
-                  </Btn>
+                      <span className="truncate">{(hasContent ? typedTitle : '') || '\u00A0'}</span>
+                      {hasContent && typedTitle.length < rawTitle.length && (
+                        <motion.span
+                          animate={{ opacity: [1, 0.2, 1] }}
+                          transition={{ duration: 0.65, repeat: Infinity, ease: "easeInOut" }}
+                          className="inline-block w-[2.5px] h-[0.9em] shrink-0 bg-[#ea580c] ml-1.5 rounded-full"
+                        />
+                      )}
+                    </h1>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[12px] md:text-[13px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500 opacity-80">
+                        {hasContent ? (timeline?.domain || 'Interactive') : '\u00A0'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>

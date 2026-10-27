@@ -191,7 +191,10 @@ const InputBar = ({
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      const newHeight = Math.min(textarea.scrollHeight, 200);
+      // phones default to 3 lines (~72px) and expand smoothly up to 160px
+      const minH = window.innerWidth < 640 ? 72 : 96;
+      const maxH = window.innerWidth < 640 ? 160 : 200;
+      const newHeight = Math.max(minH, Math.min(textarea.scrollHeight, maxH));
       textarea.style.height = `${newHeight}px`;
     }
   }, []);
@@ -399,7 +402,7 @@ const InputBar = ({
   const pop = { initial: { opacity: 0, y: 6, scale: 0.98 }, animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: 6, scale: 0.98 }, transition: { duration: 0.16 } };
 
   return (
-    <div ref={rootRef} className={`mx-auto w-full max-w-3xl overflow-visible ${isMobile ? 'px-3 pb-[max(env(safe-area-inset-bottom),12px)]' : 'px-4 pb-4'}`}>
+    <div ref={rootRef} className={`mx-auto w-full max-w-3xl overflow-visible ${isMobile ? 'px-3 pb-[max(env(safe-area-inset-bottom),8px)]' : 'px-4 pb-4'}`}>
       <BorderGlow
         isFocused={isFocused}
         borderRadius={28}
@@ -495,14 +498,14 @@ const InputBar = ({
             placeholder={isOnCooldown ? `Wait ${cooldownRemaining}s…` : drawing ? 'What should I draw for you?' : 'Ask anything…'}
             maxLength={5000}
             disabled={isOnCooldown}
-            rows={2}
-            style={{ minHeight: 96 }}
-            className="w-full resize-none border-none bg-transparent px-5 pb-3 pt-5 text-[15.5px] leading-[1.6] text-[var(--text-primary)] shadow-none outline-none placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:shadow-none disabled:opacity-40"
+            rows={isMobile ? 3 : 2}
+            style={{ minHeight: isMobile ? 72 : 96 }}
+            className={`w-full resize-none border-none bg-transparent ${isMobile ? 'px-4 pb-1 pt-2.5 text-[15px] leading-[1.5]' : 'px-5 pb-3 pt-5 text-[15.5px] leading-[1.6]'} text-[var(--text-primary)] shadow-none outline-none placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:shadow-none disabled:opacity-40`}
           />
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-2 px-2.5 pb-2.5">
+        <div className={`flex items-center gap-2 px-2.5 ${isMobile ? 'pb-1.5' : 'pb-2.5'}`}>
           {/* Left: may shrink. Right: mic and send never move or overlap. */}
           <div className="flex min-w-0 flex-1 items-center gap-0.5">
           {canUpload && (

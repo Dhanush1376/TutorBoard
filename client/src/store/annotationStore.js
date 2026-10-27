@@ -31,6 +31,10 @@ export const NOTE_COLORS = [
   { id: 'lilac', label: 'Lilac', bg: '#e8dfff', line: '#c6b3f5', tape: '#a585ee', fold: '#c6b6ef', ink: '#2e2348' },
 ];
 
+export const NOTE_FONTS = [
+  { id: 'patrick', label: 'Patrick Hand', className: 'tb-note-font-patrick', fontName: 'Patrick Hand' },
+];
+
 function load(id) {
   try {
     const raw = localStorage.getItem(KEY(id));
@@ -93,6 +97,7 @@ const useAnnotationStore = create((set, get) => {
     width: 3,
     shapeKind: 'rect', // rect | ellipse | line | arrow
     noteColor: 'amber',
+    noteFont: 'patrick',
     focusNoteId: null,
 
     setTool: (tool) => set({ tool }),
@@ -101,6 +106,7 @@ const useAnnotationStore = create((set, get) => {
     setWidth: (width) => set({ width }),
     setShapeKind: (shapeKind) => set({ shapeKind, tool: 'shape' }),
     setNoteColor: (noteColor) => set({ noteColor }),
+    setNoteFont: (noteFont) => set({ noteFont }),
     clearFocus: () => set({ focusNoteId: null }),
 
     /** Switch to a session's marks. A brand-new session inherits marks made before it had an id. */
@@ -142,8 +148,8 @@ const useAnnotationStore = create((set, get) => {
         return { ...d, strokes: d.strokes.filter((s) => !gone.has(s.id)), shapes: d.shapes.filter((s) => !gone.has(s.id)) };
       }),
 
-    addNote: ({ x, y, text = '', color, source } = {}) => {
-      const { data, noteColor } = get();
+    addNote: ({ x, y, text = '', color, font, source, messageId } = {}) => {
+      const { data, noteColor, noteFont } = get();
       // Without a position, cascade new notes down the right side so none hide another.
       const n = data.notes.length;
       const note = {
@@ -152,7 +158,9 @@ const useAnnotationStore = create((set, get) => {
         y: y ?? 0.22 + (n % 6) * 0.07,
         text,
         color: color || noteColor,
+        font: font || noteFont || 'patrick',
         source: source || null,
+        messageId: messageId || null,
         createdAt: Date.now(),
       };
       commit((d) => ({ ...d, notes: [...d.notes, note] }));

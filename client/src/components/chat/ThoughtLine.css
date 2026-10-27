@@ -45,9 +45,9 @@
 .thought-line__glyph {
   display: inline-flex;
   flex: none;
-  width: 1.15em;
+  width: 1.35em;
   height: 1.15em;
-  margin-right: 0.25em;
+  margin-right: 0.35em;
   color: var(--tl-glyph);
   align-items: center;
   justify-content: center;
@@ -95,17 +95,73 @@
   color: inherit;
 }
 
+/* Working: a soft light passes over the status text (stays fully readable) */
 .thought-line[data-working] .thought-line__breath[data-shimmer] {
-  animation: thought-line-shimmer-pulse 2s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    var(--text-secondary, currentColor) 0%,
+    var(--text-secondary, currentColor) 40%,
+    var(--text-primary, currentColor) 50%,
+    var(--text-secondary, currentColor) 60%,
+    var(--text-secondary, currentColor) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thought-line-shimmer 2.2s linear infinite;
 }
 
-@keyframes thought-line-shimmer-pulse {
-  0%, 100% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
+@keyframes thought-line-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+
+/* ── The TutorBoard stroke, drawing itself ── */
+.thought-line__stroke-svg {
+  display: block;
+  overflow: visible;
+}
+.thought-line__stroke-track,
+.thought-line__stroke-ink {
+  fill: none;
+  stroke-width: 4.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.thought-line__stroke-track {
+  stroke: currentColor;
+  opacity: 0.16;
+}
+.thought-line__stroke-ink {
+  stroke: currentColor;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+.thought-line__stroke-dot {
+  fill: var(--mk-accent, #e08a0b);
+}
+.thought-line[data-working]:not([data-reduced]) .thought-line__stroke-ink {
+  animation: thought-line-draw 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.thought-line[data-working]:not([data-reduced]) .thought-line__stroke-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: thought-line-land 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes thought-line-draw {
+  0% { stroke-dashoffset: 1; }
+  55%, 80% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -1; }
+}
+@keyframes thought-line-land {
+  0%, 45% { opacity: 0.25; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.15); }
+  75%, 85% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.25; transform: scale(0.6); }
+}
+.thought-line:not([data-working]) .thought-line__glyph {
+  opacity: 0.55;
 }
 
 .thought-line__timer {
@@ -151,7 +207,7 @@
 }
 
 .thought-line[data-open] .thought-line__chevron {
-  transform: rotate(180deg);
+  transform: rotate(90deg); /* › becomes ⌄ */
 }
 
 .thought-line__sr {
@@ -188,8 +244,15 @@
   width: 100%;
   max-width: 100%;
   padding: 0.65em 0 0.3em 1.2em;
+  margin: 0;
+  list-style: none;
   font-size: 0.82em;
   font-weight: 400;
+  color: var(--text-secondary, inherit);
+}
+
+.thought-line__step--active .thought-line__step-text {
+  color: var(--text-primary, inherit);
 }
 
 .thought-line__step {
@@ -263,5 +326,11 @@
 
   .thought-line__pulse {
     animation-duration: 2.4s;
+  }
+
+  .thought-line__stroke-ink,
+  .thought-line__stroke-dot,
+  .thought-line__breath[data-shimmer] {
+    animation: none !important;
   }
 }

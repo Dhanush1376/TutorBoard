@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipBack, SkipForward,
   Gauge, MessageSquare, ChevronUp, ChevronDown,
-  Keyboard, ChevronRight, Send, Volume2, VolumeX, X
+  Keyboard, ChevronRight, Send, Volume2, VolumeX, X, RotateCcw
 } from 'lucide-react';
 
 
@@ -42,13 +42,19 @@ const UnifiedControlBar = ({
   className = '',
   isDoubtExpanded: externalIsDoubtExpanded,
   onDoubtExpandedChange,
+  compact = false,
+  // the lesson's last step has played: the primary control becomes Replay
+  isComplete = false,
+  onReplay,
 }) => {
   const [internalIsDoubtExpanded, setInternalIsDoubtExpanded] = useState(false);
   const isDoubtExpanded = externalIsDoubtExpanded !== undefined ? externalIsDoubtExpanded : internalIsDoubtExpanded;
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 640 : false);
+  const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 640 : false);
+  // compact: the parent's canvas is narrow (e.g. a tablet with the chat open) — fill it like a phone
+  const isMobile = isPhone || compact;
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    const handleResize = () => setIsPhone(window.innerWidth < 640);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -71,6 +77,14 @@ const UnifiedControlBar = ({
   const doubtContainerRef = useRef(null);
 
   const currentSpeed = playbackSpeed;
+  // Play needs more than one step to move through; at the end it is Replay
+  const canPlay = totalSteps > 1;
+  const showReplay = !isPlaying && isComplete && canPlay && !!onReplay;
+  const primary = isPlaying
+    ? { key: 'pause', Icon: Pause, label: 'Pause (Space)', onClick: onPause }
+    : showReplay
+      ? { key: 'replay', Icon: RotateCcw, label: 'Replay lesson (Space)', onClick: onReplay }
+      : { key: 'play', Icon: Play, label: currentStepIndex > 0 ? 'Resume (Space)' : 'Play (Space)', onClick: onPlay };
   const maxStep = Math.max(totalSteps - 1, 1);
   const stepPercent = totalSteps > 1 ? (currentStepIndex / maxStep) * 100 : 0;
 
@@ -186,20 +200,20 @@ const UnifiedControlBar = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className={`unified-control-bar ${className} rounded-full border border-[var(--st-line-strong)] bg-[var(--bg-primary)]/90 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_12px_32px_-18px_rgba(0,0,0,0.4)] backdrop-blur-xl`}
+      className={`unified-control-bar ${className} rounded-full tb-dock-glass`}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: isMobile ? 5 : 7,
-        padding: isMobile ? '6px 10px' : '6px 12px',
+        gap: isMobile ? 8 : 14,
+        padding: isMobile ? '8px 12px' : '9px 20px',
         borderRadius: 9999,
-        maxWidth: isDoubtExpanded ? 'min(calc(100vw - 24px), 860px)' : (isMobile ? 'calc(100vw - 24px)' : 600),
-        width: 'max-content',
+        maxWidth: isMobile ? '100%' : (isDoubtExpanded ? 'min(calc(100vw - 24px), 900px)' : 680),
+        width: isMobile ? '100%' : 'max-content',
         transition: 'max-width 380ms cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       {/* ── Transport Controls ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 2 : 6, flexShrink: 0 }}>
         <ControlButton
           icon={SkipBack}
           onClick={onPrevStep}
@@ -211,10 +225,14 @@ const UnifiedControlBar = ({
         />
 
         <motion.button
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.88, transition: { type: 'spring', stiffness: 500, damping: 15 } }}
-          onClick={isPlaying ? onPause : onPlay}
-          title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          type="button"
+          whileHover={canPlay ? { scale: 1.08 } : {}}
+          whileTap={canPlay ? { scale: 0.88, transition: { type: 'spring', stiffness: 500, damping: 15 } } : {}}
+          onClick={canPlay ? primary.onClick : undefined}
+          disabled={!canPlay}
+          title={canPlay ? primary.label : 'This lesson has a single step'}
+          aria-label={canPlay ? primary.label.replace(/ \(Space\)$/, '') : 'Play (single-step lesson)'}
+          data-control={primary.key}
           style={{
             position: 'relative',
             width: isMobile ? 32 : 38,
@@ -226,33 +244,26 @@ const UnifiedControlBar = ({
             background: 'var(--text-primary)',
             color: 'var(--bg-primary)',
             border: 'none',
-            cursor: 'pointer',
+            cursor: canPlay ? 'pointer' : 'not-allowed',
+            opacity: canPlay ? 1 : 0.35,
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
             transition: 'box-shadow 200ms ease',
           }}
         >
           <AnimatePresence mode="wait">
-            {isPlaying ? (
-              <motion.div
-                key="pause"
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                <Pause size={isMobile ? 13 : 15} fill="currentColor" />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="play"
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                <Play size={isMobile ? 13 : 15} fill="currentColor" style={{ marginLeft: 2 }} />
-              </motion.div>
-            )}
+            <motion.div
+              key={primary.key}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              {primary.key === 'replay' ? (
+                <RotateCcw size={isMobile ? 14 : 16} strokeWidth={2.4} />
+              ) : (
+                <primary.Icon size={isMobile ? 13 : 15} fill="currentColor" style={primary.key === 'play' ? { marginLeft: 2 } : undefined} />
+              )}
+            </motion.div>
           </AnimatePresence>
         </motion.button>
 
@@ -275,8 +286,8 @@ const UnifiedControlBar = ({
         display: 'flex',
         flexDirection: 'column',
         gap: 3,
-        flex: isMobile ? '0 1 110px' : '0 0 220px',
-        width: isMobile ? 'clamp(80px, 26vw, 130px)' : 220,
+        flex: isMobile ? '1 1 90px' : '0 0 220px',
+        width: isMobile ? 'auto' : 220,
         minWidth: isMobile ? 80 : 220,
         maxWidth: 220,
       }}>
@@ -357,7 +368,8 @@ const UnifiedControlBar = ({
           }}>
             Step {currentStepIndex + 1} <span style={{ opacity: 0.4 }}>/</span> {totalSteps}
           </span>
-          <span style={{
+          {/* phones: the step count matters more than the clock, so the clock gives way */}
+          {!isMobile && <span style={{
             fontSize: 10,
             color: 'var(--text-tertiary)',
             fontWeight: 500,
@@ -366,7 +378,7 @@ const UnifiedControlBar = ({
             flexShrink: 0,
           }}>
             {elapsedTime} <span style={{ opacity: 0.4 }}>/</span> {totalTime}
-          </span>
+          </span>}
         </div>
       </div>
 
